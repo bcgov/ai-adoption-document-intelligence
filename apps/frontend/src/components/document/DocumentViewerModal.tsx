@@ -132,6 +132,10 @@ export function DocumentViewerModal({
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
+  // A purged document's blobs were removed per its workflow's retention policy.
+  // The original/normalized PDF is gone, but the extracted OCR data is retained,
+  // so we skip the (failing) blob fetch and surface the retained data instead.
+  const isPurged = !!document?.purged_at;
   const { data: ocrResult } = useDocumentOcr(documentId);
   const ocr = ocrResult?.ocr_result;
   // Read/layout models save their output as `content` (markdown/text) with no
@@ -147,7 +151,7 @@ export function DocumentViewerModal({
   const showOverlays = true;
 
   useEffect(() => {
-    if (opened && document) {
+    if (opened && document && !document.purged_at) {
       void loadDocumentImage(document);
     } else if (!opened) {
       // Clean up object URL when modal closes
@@ -324,7 +328,11 @@ export function DocumentViewerModal({
             defaultValue={
               document.status === "awaiting_review" || document.needsReview
                 ? "review"
-                : "viewer"
+                : isPurged
+                  ? hasOcrData
+                    ? "ocr-results"
+                    : "details"
+                  : "viewer"
             }
             style={{
               flex: 1,
@@ -390,6 +398,22 @@ export function DocumentViewerModal({
                   showOverlays={showOverlays}
                   rotation={rotation}
                 />
+              ) : isPurged ? (
+                <div className="p-4">
+                  <Alert
+                    color="blue"
+                    icon={<IconInfoCircle size={16} />}
+                    title="Original document removed"
+                  >
+                    This document’s original file was removed per its workflow’s
+                    retention policy
+                    {document.purged_at
+                      ? ` on ${new Date(document.purged_at).toLocaleString()}`
+                      : ""}
+                    . The extracted data is retained
+                    {hasOcrData ? " — see the OCR Results tab." : "."}
+                  </Alert>
+                </div>
               ) : null}
             </Tabs.Panel>
 

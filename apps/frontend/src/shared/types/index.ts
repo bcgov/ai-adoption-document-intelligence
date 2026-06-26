@@ -30,6 +30,12 @@ export interface Document {
   status: DocumentStatus | string;
   created_at: string;
   updated_at: string;
+  /**
+   * Set once the ephemeral-cleanup janitor purged the document's blobs per its
+   * workflow's retention policy. When set, the original/normalized PDF is gone
+   * (view/download return 410) but the extracted OCR data is retained.
+   */
+  purged_at?: string | null;
   metadata?: Record<string, unknown>;
   apim_request_id?: string | null;
   intake_method?: string | null;

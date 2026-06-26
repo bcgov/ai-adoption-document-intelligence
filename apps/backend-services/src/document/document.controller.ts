@@ -7,6 +7,7 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  GoneException,
   HttpCode,
   HttpStatus,
   Inject,
@@ -23,6 +24,7 @@ import {
   ApiBody,
   ApiConflictResponse,
   ApiForbiddenResponse,
+  ApiGoneResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -561,6 +563,9 @@ export class DocumentController {
   @ApiNotFoundResponse({
     description: "Document not found or normalized PDF unavailable",
   })
+  @ApiGoneResponse({
+    description: "Document was purged per its retention policy; original gone",
+  })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async viewDocument(
@@ -578,6 +583,13 @@ export class DocumentController {
 
     identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
+    if (document.purged_at) {
+      throw new GoneException(
+        `Document ${documentId} was purged per its retention policy; ` +
+          `the original is no longer available. Extracted data is retained.`,
+      );
+    }
+
     if (!document.normalized_file_path) {
       throw new NotFoundException(
         `Normalized PDF is not available for document: ${documentId}`,
@@ -594,9 +606,19 @@ export class DocumentController {
       payload: { action: "view" },
     });
 
-    const fileBuffer = await this.blobStorage.read(
-      validateBlobFilePath(document.normalized_file_path),
-    );
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await this.blobStorage.read(
+        validateBlobFilePath(document.normalized_file_path),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to read normalized PDF for document ${documentId}: ${getErrorMessage(error)}`,
+      );
+      throw new NotFoundException(
+        `Normalized PDF is not available for document: ${documentId}`,
+      );
+    }
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", 'inline; filename="document.pdf"');
@@ -671,6 +693,9 @@ export class DocumentController {
     description: "Returns the original file buffer",
   })
   @ApiNotFoundResponse({ description: "Document not found or file missing" })
+  @ApiGoneResponse({
+    description: "Document was purged per its retention policy; original gone",
+  })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async downloadDocument(
@@ -689,6 +714,13 @@ export class DocumentController {
       }
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+
+      if (document.purged_at) {
+        throw new GoneException(
+          `Document ${documentId} was purged per its retention policy; ` +
+            `the original is no longer available. Extracted data is retained.`,
+        );
+      }
 
       // Read file from blob storage using the blob key
       const filePath = validateBlobFilePath(document.file_path);
@@ -727,7 +759,8 @@ export class DocumentController {
 
       if (
         error instanceof NotFoundException ||
-        error instanceof ForbiddenException
+        error instanceof ForbiddenException ||
+        error instanceof GoneException
       ) {
         throw error;
       }

@@ -23,6 +23,24 @@ policy controls **which targets** are deleted.
 > transient — only the source/intermediate **files** and the Temporal record
 > are removed.
 
+## Consuming a purged document
+
+A purged document still appears in lists and detail responses — `purged_at` is
+exposed on `DocumentDataDto` (non-null once purged) so consumers can detect the
+state. The content endpoints reflect that the blobs are gone:
+
+| Endpoint | Purged behavior |
+|----------|-----------------|
+| `GET /documents/:id/view` | **410 Gone** — checked before reading the blob, so it never 500s on a dangling `normalized_file_path` |
+| `GET /documents/:id/download` | **410 Gone** |
+| `GET /documents/:id/ocr` | **200** — retained extracted data |
+
+The frontend document viewer (`DocumentViewerModal`) checks `purged_at` and skips
+the blob fetch entirely: it opens on the retained OCR/extracted-data tab and
+shows an "Original document removed" notice in the viewer tab instead of a blank
+pane. The rotate/download controls are disabled because there is no file to act
+on.
+
 ## Enabling it on a workflow
 
 Set `metadata.ephemeral` in the workflow config (e.g. when creating or updating
