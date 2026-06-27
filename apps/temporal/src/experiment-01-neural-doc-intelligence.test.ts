@@ -37,7 +37,7 @@ import { NativeConnection, Worker } from "@temporalio/worker";
 import { computeConfigHash } from "./config-hash";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
-import { graphWorkflow } from "./graph-workflow";
+import { getStatus, graphWorkflow } from "./graph-workflow";
 import type {
   ActivityNode,
   GraphEdge,
@@ -260,16 +260,45 @@ function buildMockActivities(opts: {
   };
 }
 
+type TestGraphWorkflowInput = GraphWorkflowInput & {
+  __testGraph: GraphWorkflowConfig;
+};
+
 function makeWorkflowInput(
   graph: GraphWorkflowConfig,
   initialCtx: Record<string, unknown>,
-): GraphWorkflowInput {
+): TestGraphWorkflowInput {
   return {
-    graph,
+    workflowVersionId: "test-workflow-version-id",
     initialCtx,
     configHash: computeConfigHash(graph),
     runnerVersion: "1.0.0",
+    __testGraph: graph,
   };
+}
+
+/**
+ * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
+ * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
+ */
+function withGraphConfigLoader(
+  activities: Record<string, ActivityImpl>,
+  graph: GraphWorkflowConfig,
+): Record<string, ActivityImpl> {
+  activities.getWorkflowGraphConfig = (async () => ({
+    graph,
+    workflowVersionId: "test-workflow-version-id",
+    configHash: computeConfigHash(graph),
+  })) as unknown as ActivityImpl;
+  // develop's workflow runs a post-execution hook that reads document.getStatus;
+  // mock it so the workflow closes cleanly (else the trailing failed activity
+  // adds noise and can race the terminal getStatus query).
+  if (!activities["document.getStatus"]) {
+    activities["document.getStatus"] = (async () => ({
+      status: "extracted",
+    })) as unknown as ActivityImpl;
+  }
+  return activities;
 }
 
 // ---------------------------------------------------------------------------
@@ -504,12 +533,16 @@ describeRuntime(
       const fixture = loadFixture();
       const ocrResult = buildOcrResultFromFixture(fixture);
       const calls: ActivityCall[] = [];
-      const activities = buildMockActivities({
-        ocrResult,
-        averageConfidence: 0.99,
-        requiresReview: false,
-        callsRef: calls,
-      });
+      const graph = loadTemplateForRuntime();
+      const activities = withGraphConfigLoader(
+        buildMockActivities({
+          ocrResult,
+          averageConfidence: 0.99,
+          requiresReview: false,
+          callsRef: calls,
+        }),
+        graph,
+      );
 
       const worker = await Worker.create({
         connection: nativeConnection,
@@ -519,8 +552,7 @@ describeRuntime(
         activities,
       });
 
-      const graph = loadTemplateForRuntime();
-      const input = makeWorkflowInput(graph, {
+      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
         documentId: "test-doc-high-confidence",
         blobKey: "blobs/1-81.jpg",
         fileName: "1 81.jpg",
@@ -528,17 +560,23 @@ describeRuntime(
         contentType: "image/jpeg",
       });
 
-      const result = await worker.runUntil(
-        client.workflow.execute(graphWorkflow, {
-          workflowId: `e01-test-high-${Date.now()}`,
+      const workflowId = `e01-test-high-${Date.now()}`;
+      const activeClient = client;
+      const { result, ctx } = await worker.runUntil(async () => {
+        const result = await activeClient.workflow.execute(graphWorkflow, {
+          workflowId,
           taskQueue,
           args: [input],
-        }),
-      );
+        });
+        const status = await activeClient.workflow
+          .getHandle(workflowId)
+          .query(getStatus);
+        return { result, ctx: status.ctx };
+      });
 
       expect(result.status).toBe("completed");
-      expect(result.ctx.requiresReview).toBe(false);
-      expect(result.ctx.averageConfidence).toBe(0.99);
+      expect(ctx.requiresReview).toBe(false);
+      expect(ctx.averageConfidence).toBe(0.99);
 
       // Note: pre-execution document.updateStatus runs first (graph engine
       // overhead), so we filter to ctx-driven activities for ordering.
@@ -592,12 +630,16 @@ describeRuntime(
       const fixture = loadFixture();
       const ocrResult = buildOcrResultFromFixture(fixture);
       const calls: ActivityCall[] = [];
-      const activities = buildMockActivities({
-        ocrResult,
-        averageConfidence: 0.42,
-        requiresReview: true,
-        callsRef: calls,
-      });
+      const graph = loadTemplateForRuntime();
+      const activities = withGraphConfigLoader(
+        buildMockActivities({
+          ocrResult,
+          averageConfidence: 0.42,
+          requiresReview: true,
+          callsRef: calls,
+        }),
+        graph,
+      );
 
       const worker = await Worker.create({
         connection: nativeConnection,
@@ -607,8 +649,7 @@ describeRuntime(
         activities,
       });
 
-      const graph = loadTemplateForRuntime();
-      const input = makeWorkflowInput(graph, {
+      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
         documentId: "test-doc-low-confidence",
         blobKey: "blobs/1-81.jpg",
         fileName: "1 81.jpg",
@@ -622,23 +663,24 @@ describeRuntime(
         args: [input],
       });
 
-      const resultPromise = handle.result();
-      const runPromise = worker.runUntil(resultPromise);
-
-      // Temporal queues the signal; humanGate consumes it once the workflow
-      // reaches that node.
-      await handle.signal("humanApproval", {
-        approved: true,
-        reviewer: "test-reviewer",
-        comments: "ok",
-        rejectionReason: "",
-        annotations: "",
+      const { result, ctx } = await worker.runUntil(async () => {
+        // Temporal queues the signal; humanGate consumes it once the workflow
+        // reaches that node.
+        await handle.signal("humanApproval", {
+          approved: true,
+          reviewer: "test-reviewer",
+          comments: "ok",
+          rejectionReason: "",
+          annotations: "",
+        });
+        const result = await handle.result();
+        const status = await handle.query(getStatus);
+        return { result, ctx: status.ctx };
       });
 
-      const result = await runPromise;
       expect(result.status).toBe("completed");
-      expect(result.ctx.requiresReview).toBe(true);
-      expect(result.ctx.averageConfidence).toBe(0.42);
+      expect(ctx.requiresReview).toBe(true);
+      expect(ctx.averageConfidence).toBe(0.42);
 
       // storeResults must still run, but only after the humanReview gate.
       expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
