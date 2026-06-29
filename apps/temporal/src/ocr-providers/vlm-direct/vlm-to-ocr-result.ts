@@ -15,9 +15,11 @@
  *     `keyValuePairs` from the structured response, gated on the supplied
  *     `fieldDefs` (deterministic ordering, mirrors the CU mapper).
  *   - Synthesises per-field confidence from `source_quotes` presence:
- *     non-empty quote → 0.95, empty quote → 0.50. Page-level confidence
- *     is the mean of per-field confidences, so the default 0.95 threshold
- *     in `ocr.checkConfidence` fires when meaningful evidence is missing.
+ *     non-empty quote → 0.95; a *populated* value with no quote → 0.50;
+ *     a genuinely-blank value with no quote stays at 0.95 (a correct empty
+ *     extraction, not a low-confidence one). Page-level confidence is the
+ *     mean of per-field confidences, so the default 0.95 threshold in
+ *     `ocr.checkConfidence` fires when a populated value lacks evidence.
  */
 
 import { extractAzureFieldDisplayValue } from "../../azure-ocr-field-display-value";
@@ -41,10 +43,11 @@ import type { VlmExtractionResponse } from "./vlm-types";
 const CONF_WITH_EVIDENCE = 0.95;
 
 /**
- * Confidence we assign when source_quote is empty / whitespace-only.
- * Placed deliberately under the gate so the HITL switch fires. Logged
- * in SUMMARY.md as a synthesised value (VLMs don't return per-field
- * confidence natively).
+ * Confidence we assign when the model produced a value but no source_quote
+ * to back it. Placed deliberately under the gate so the HITL switch fires.
+ * Only applies to populated values — a genuinely-blank field gets
+ * CONF_WITH_EVIDENCE (see `evidenceConfidence`). Logged in SUMMARY.md as a
+ * synthesised value (VLMs don't return per-field confidence natively).
  */
 const CONF_NO_EVIDENCE = 0.5;
 
@@ -191,9 +194,32 @@ function azureFieldToKeyValuePair(
   };
 }
 
-function evidenceConfidence(quote: string | undefined): number {
-  if (typeof quote !== "string") return CONF_NO_EVIDENCE;
-  return quote.trim().length > 0 ? CONF_WITH_EVIDENCE : CONF_NO_EVIDENCE;
+/**
+ * A field the model returned as empty (null/undefined or blank string) is
+ * "no value" — extracting nothing where the form is blank is a correct
+ * outcome, not a low-confidence one.
+ */
+function isBlankRawValue(raw: unknown): boolean {
+  if (raw === null || raw === undefined) return true;
+  if (typeof raw === "string") return raw.trim().length === 0;
+  return false;
+}
+
+/**
+ * Synthesised per-field confidence. A non-empty `source_quote` is evidence →
+ * high confidence. With no quote, only a *populated* value is suspicious
+ * (the model produced a value it can't point to); a genuinely-blank field
+ * (no value, no quote) is a correct extraction and must stay above the gate,
+ * otherwise every legitimately-empty cell would falsely trip HITL review.
+ */
+function evidenceConfidence(
+  quote: string | undefined,
+  rawValue: unknown,
+): number {
+  if (typeof quote === "string" && quote.trim().length > 0) {
+    return CONF_WITH_EVIDENCE;
+  }
+  return isBlankRawValue(rawValue) ? CONF_WITH_EVIDENCE : CONF_NO_EVIDENCE;
 }
 
 function extractedTextFromFields(
@@ -274,7 +300,7 @@ export function vlmExtractionToOcrResult(
     for (const def of fieldDefs) {
       const key = def.field_key.trim();
       if (!key) continue;
-      const conf = evidenceConfidence(sourceQuotes[key]);
+      const conf = evidenceConfidence(sourceQuotes[key], fieldRaw[key]);
       perFieldConfidences.push(conf);
       const value = rawToAzureFieldValue(fieldRaw[key], def.field_type, conf);
       azureFields[key] = value;
@@ -289,7 +315,7 @@ export function vlmExtractionToOcrResult(
     ];
   } else {
     for (const [k, v] of Object.entries(fieldRaw)) {
-      const conf = evidenceConfidence(sourceQuotes[k]);
+      const conf = evidenceConfidence(sourceQuotes[k], v);
       perFieldConfidences.push(conf);
       const value = String(v ?? "");
       keyValuePairs.push({

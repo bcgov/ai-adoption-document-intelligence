@@ -193,7 +193,7 @@ This section is the **single living tracker** for the stack — tick items off (
 
 ### 🔴 Correctness bugs & blockers (fix before these engines inform a production decision)
 
-- [ ] ⭐ **B7 — VLM-direct: genuinely-blank fields score 0.50 and falsely trip HITL review.** `ocr-providers/vlm-direct/vlm-to-ocr-result.ts:194-197`
+- [x] ⭐ **B7 — VLM-direct: genuinely-blank fields score 0.50 and falsely trip HITL review.** `ocr-providers/vlm-direct/vlm-to-ocr-result.ts:194-197`
 `evidenceConfidence` assigns `CONF_NO_EVIDENCE` (0.5) whenever a field's `source_quote` is empty — but a field that is *legitimately blank on the form* also has an empty quote, so a correct blank scores 0.5, drags the page mean below the 0.95 gate, and routes an otherwise-fine document to a reviewer.
 *Fix:* distinguish **blank value + empty quote** (correct — score confident) from **populated value + no quote** (suspicious — score 0.5); only apply `CONF_NO_EVIDENCE` when there's a non-empty value without a supporting quote.
 *Safe to change:* this does **not** alter the comparison-report numbers — `experiments/results/report/REPORT.md` measures accuracy (f1/precision/recall/pass_rate vs ground-truth); the synthesized confidence never feeds those, it only drives live HITL routing, which the bake-off didn't measure.
