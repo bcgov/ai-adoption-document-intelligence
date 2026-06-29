@@ -166,6 +166,85 @@ describe("vlmHybridExtractionToOcrResult", () => {
     expect(fields.name?.valueString).toBe("John Smith");
   });
 
+  it("drops per-word OCR confidence so the HITL gate reflects field evidence (B1)", () => {
+    // Replicates `ocr.checkConfidence`'s averaging: page-word confidence
+    // (when present) + key-value-pair confidence.
+    const gateAverage = (
+      result: ReturnType<typeof vlmHybridExtractionToOcrResult>,
+    ): number => {
+      let total = 0;
+      let count = 0;
+      for (const page of result.pages) {
+        for (const w of page.words) {
+          if (w.confidence !== undefined && w.confidence !== null) {
+            total += w.confidence;
+            count++;
+          }
+        }
+      }
+      for (const kvp of result.keyValuePairs) {
+        if (kvp.confidence !== undefined && kvp.confidence !== null) {
+          total += kvp.confidence;
+          count++;
+        }
+      }
+      return count > 0 ? total / count : 1;
+    };
+
+    // Layout with many high-confidence DI words.
+    const manyHighConfWords: OCRResponse = {
+      status: "succeeded",
+      analyzeResult: {
+        apiVersion: "2024-11-30",
+        modelId: "prebuilt-layout",
+        content: "lots of clearly-read text",
+        pages: [
+          {
+            pageNumber: 1,
+            width: 8.5,
+            height: 11,
+            unit: "inch",
+            words: Array.from({ length: 50 }, (_, i) => ({
+              content: `word${i}`,
+              polygon: [0, 0, 1, 0, 1, 1, 0, 1],
+              confidence: 0.99,
+              span: { offset: i, length: 5 },
+            })),
+            lines: [],
+            spans: [],
+          },
+        ],
+        paragraphs: [],
+        tables: [],
+        keyValuePairs: [],
+        sections: [],
+        figures: [],
+      },
+    };
+    // Populated fields but NO supporting quotes → evidence confidence 0.5 each.
+    const noEvidence: VlmExtractionResponse = {
+      fields: { name: "John Smith", amount: "1234.56" },
+      source_quotes: { name: "", amount: "" },
+    };
+    const result = vlmHybridExtractionToOcrResult(noEvidence, CTX, {
+      fieldDefs: [
+        { field_key: "name", field_type: "string" },
+        { field_key: "amount", field_type: "number" },
+      ],
+      layoutResponse: manyHighConfWords,
+    });
+
+    // Words are kept for layout but carry no confidence.
+    expect(result.pages[0].words).toHaveLength(50);
+    expect(result.pages[0].words.every((w) => w.confidence === undefined)).toBe(
+      true,
+    );
+    // The gate now reflects the evidence-based field confidence (0.5),
+    // NOT the 50 high-confidence DI words — so review correctly fires.
+    expect(gateAverage(result)).toBeCloseTo(0.5, 5);
+    expect(gateAverage(result)).toBeLessThan(0.95);
+  });
+
   it("falls back to layout-empty (E04 path) when layoutResponse has empty pages", () => {
     const empty: OCRResponse = {
       status: "succeeded",
