@@ -222,7 +222,7 @@ The fence regex is anchored to end-of-string (`...\`\`\`$`). A response like ```
 A terminal `status: "failed"` analysis throws a plain retryable `Error`; develop's equivalent `poll-ocr-results.ts` uses `ApplicationFailure.create({ nonRetryable: true })`. A genuinely-failed document is therefore re-submitted up to 5×.
 *Fix:* throw `ApplicationFailure.create({ nonRetryable: true })` on terminal failure (and on "succeeded but missing analyzeResult").
 
-- [ ] **B6 — E03 CU blank dates emit `valueDate: ""`.** `ocr-providers/azure-content-understanding/cu-to-ocr-result.ts:160-167`
+- [x] **B6 — E03 CU blank dates emit `valueDate: ""`.** `ocr-providers/azure-content-understanding/cu-to-ocr-result.ts:160-167`
 An absent/blank CU date yields `valueDate: ""`, which downstream `extractAzureFieldDisplayValue` prefers over `content`, so a blank date reads as a populated value (numbers correctly omit `valueNumber` for blanks — dates don't mirror this).
 *Fix:* only set `valueDate` when the normalized string is non-empty.
 
