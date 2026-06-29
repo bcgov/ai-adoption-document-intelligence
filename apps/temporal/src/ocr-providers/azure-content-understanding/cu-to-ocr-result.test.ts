@@ -144,6 +144,7 @@ describe("cuAnalyzeResultToOcrResult", () => {
         fieldDefs: [
           { field_key: "applicant_name", field_type: "string" },
           { field_key: "applicant_employment_income", field_type: "number" },
+          { field_key: "applicant_signed_date", field_type: "date" },
         ],
       },
     );
@@ -153,6 +154,14 @@ describe("cuAnalyzeResultToOcrResult", () => {
     expect(
       ocr.documents?.[0].fields.applicant_employment_income.valueNumber,
     ).toBeUndefined();
+    // Date field, blank → no valueDate set (B6); else it reads as populated
+    // downstream. valueString is empty.
+    expect(
+      ocr.documents?.[0].fields.applicant_signed_date.valueDate,
+    ).toBeUndefined();
+    expect(ocr.documents?.[0].fields.applicant_signed_date.valueString).toBe(
+      "",
+    );
   });
 
   it("normalises a CU number returned as a string into valueNumber", () => {
