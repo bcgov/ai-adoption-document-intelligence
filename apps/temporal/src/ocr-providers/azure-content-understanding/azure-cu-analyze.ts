@@ -37,6 +37,8 @@ import {
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
+  readEnv,
+  sleep,
 } from "./azure-cu-client";
 import { azureCuDeployAnalyzer } from "./azure-cu-deploy-analyzer";
 import {
@@ -48,11 +50,6 @@ import type { CuAnalyzeOperation, CuAnalyzeResult } from "./cu-types";
 const DEFAULT_ANALYZER_PREFIX = "di-experiment";
 const DEFAULT_POLL_INTERVAL_MS = 1500;
 const DEFAULT_POLL_MAX_ATTEMPTS = 240; // ~6 min at 1.5 s/poll, well under the activity's 20 m timeout.
-
-function readEnv(name: string): string | undefined {
-  const v = process.env[name];
-  return v && v.trim().length > 0 ? v.trim() : undefined;
-}
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
   if (path.isAbsolute(blobKey)) {
@@ -245,10 +242,6 @@ export interface AzureCuAnalyzeResult {
   ocrResult: OCRResult;
   /** Raw CU response — sync-provider cache emission on `ctx.ocrResponse`. */
   ocrResponse: CuAnalyzeOperation;
-}
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

@@ -18,6 +18,17 @@ import axios, { AxiosError, type AxiosInstance } from "axios";
 export const CU_API_VERSION = "2025-11-01";
 export const CU_BASE_PATH = "/contentunderstanding";
 
+/** Read a trimmed, non-empty environment variable, or undefined. */
+export function readEnv(name: string): string | undefined {
+  const v = process.env[name];
+  return v && v.trim().length > 0 ? v.trim() : undefined;
+}
+
+/** Promise-based delay. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Authentication mode for the CU endpoint.
  *  - `subscription-key` — `Ocp-Apim-Subscription-Key: <key>` (Microsoft Learn quickstart default)
