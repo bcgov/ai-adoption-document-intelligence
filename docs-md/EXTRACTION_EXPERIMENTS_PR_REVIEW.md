@@ -202,7 +202,7 @@ This section is the **single living tracker** for the stack — tick items off (
 The mapper replaces `pages` with the **real DI pages**, whose `words[].confidence` are real OCR confidences (~0.97–0.99). But `check-ocr-confidence.ts:39-54` computes a **single average over `pages[].words[].confidence` *plus* `keyValuePairs[].confidence`**. Hundreds of high-confidence DI words numerically swamp the ~74 evidence-based KVP confidences, so a sample with many empty `source_quotes` (0.5 each) still averages well above the 0.95 gate → **review never fires**. The file's own docstring claims "the HITL gate behaviour is unchanged" — that claim is false. This makes E05's benchmark "needs-review" rate untrustworthy.
 *Fix:* drop/zero `word.confidence` on the cloned DI pages, or have `check-ocr-confidence` prefer `documents[].fields` confidence when present.
 
-- [ ] **B2 / B3 — E03 CU "synchronous result" handling is broken (background + both bugs together).** `azure-cu-analyze.ts:387-409` and `:424-429`
+- [x] **B2 / B3 — E03 CU "synchronous result" handling is broken (background + both bugs together).** `azure-cu-analyze.ts:387-409` and `:424-429` *(analyze-path test folded into T5)*
 
 *Background — how CU is supposed to answer.* CU's analyze endpoint is a **long-running operation (LRO)**. The normal flow: you `POST …:analyze`, CU replies **`202 Accepted`** *immediately* (before it's done) and includes an **`operation-location` header** — a URL pointing at where the answer will appear. You then **poll** that URL with GETs until its `status` becomes `Succeeded`/`Failed`. The 202 means "accepted, come back later"; the result is *not* in the 202 body. This async path is the documented behaviour and **it works in this code.**
 

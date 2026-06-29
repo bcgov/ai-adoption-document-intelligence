@@ -34,7 +34,6 @@ import {
 import {
   type CuAuthMode,
   createCuAxiosInstance,
-  cuAnalyzeResultUrlFromId,
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
@@ -385,12 +384,20 @@ export async function azureCuAnalyze(
       (headers["operation-location"] as string | undefined) ??
       (headers["Operation-Location"] as string | undefined);
     if (submitResp.status === 200 && submitResp.data) {
-      // Some CU rollouts return the result inline on 200. Treat that as a
-      // synchronous success.
-      const inline = submitResp.data as CuAnalyzeOperation;
-      if (inline.status === "Succeeded" && inline.result) {
+      // Some CU rollouts return the result inline on 200. It can arrive
+      // either as the long-running-operation envelope (`{ status, result }`)
+      // or as a bare `CuAnalyzeResult` (`{ contents }`) — handle both rather
+      // than assuming the envelope (the latter shape was silently dropped).
+      const body = submitResp.data as CuAnalyzeOperation & CuAnalyzeResult;
+      const inlineResult: CuAnalyzeResult | undefined =
+        body.status === "Succeeded" && body.result
+          ? body.result
+          : body.contents !== undefined
+            ? (submitResp.data as CuAnalyzeResult)
+            : undefined;
+      if (inlineResult) {
         const ocrResult = cuAnalyzeResultToOcrResult(
-          inline.result,
+          inlineResult,
           {
             fileName: params.fileData.fileName,
             fileType: params.fileData.fileType,
@@ -405,7 +412,13 @@ export async function azureCuAnalyze(
           analyzerId,
           durationMs: Date.now() - startTime,
         });
-        return { ocrResult, ocrResponse: inline };
+        return {
+          ocrResult,
+          ocrResponse:
+            body.status === "Succeeded"
+              ? body
+              : { status: "Succeeded", result: inlineResult },
+        };
       }
     }
   } catch (err) {
@@ -421,12 +434,19 @@ export async function azureCuAnalyze(
     );
   }
 
-  // 3. Poll until terminal.
+  // 3. Poll until terminal. A 202 must carry an `operation-location` header
+  //    pointing at the server-assigned result. Without it (and with no inline
+  //    result handled above) there is nothing valid to poll — fail fast
+  //    rather than GET a fabricated client-generated id, which CU never knew
+  //    about and which always 404s.
+  if (!operationLocation) {
+    throw new Error(
+      "Azure CU analyze: response provided neither an inline result nor an 'operation-location' header; cannot retrieve the analysis result.",
+    );
+  }
   const pollIntervalMs = params.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const pollMaxAttempts = params.pollMaxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS;
-  const pollUrl = operationLocation
-    ? cuAnalyzeResultUrlFromOperation(operationLocation)
-    : cuAnalyzeResultUrlFromId(requestId);
+  const pollUrl = cuAnalyzeResultUrlFromOperation(operationLocation);
 
   let lastBody: CuAnalyzeOperation | undefined;
   for (let attempt = 0; attempt < pollMaxAttempts; attempt++) {
