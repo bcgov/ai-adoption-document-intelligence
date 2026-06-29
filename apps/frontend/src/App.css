@@ -9,18 +9,26 @@
 }
 
 .app-shell-bcds-header .bcds-header--container {
+  display: flex;
+  align-items: center;
   max-width: none;
   width: 100%;
 }
 
 .app-shell-bcds-header .bcds-header--title {
   flex-grow: 0;
+  margin-right: auto;
 }
 
 .app-shell-bcds-header .app-shell-header-actions {
   display: flex;
   flex-shrink: 0;
   margin-left: auto;
+  justify-content: flex-end;
+}
+
+.app-shell-bcds-header .app-shell-header-actions .mantine-Group-root {
+  flex-wrap: nowrap;
 }
 
 /* Compact name + email in BC header utilities */
@@ -38,6 +46,17 @@
 
 .app-header-user .bcds-react-aria-Text + .bcds-react-aria-Text {
   margin-top: 0.25rem;
+}
+
+/* Tight title/description pairing in standard page headers */
+.bcds-page-header__title-block .bcds-react-aria-Heading,
+.bcds-page-header__title-block .bcds-react-aria-Text {
+  margin: 0 !important;
+}
+
+.bcds-page-header__meta {
+  margin-top: var(--layout-margin-xsmall);
+  min-height: 3rem;
 }
 
 /* BC footer at end of main scroll area (gov.bc.ca pattern — not fixed to viewport) */

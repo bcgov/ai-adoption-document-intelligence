@@ -25,15 +25,20 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <Group justify="space-between" align="flex-start" wrap="wrap">
-      <Stack gap={2}>
-        <Title order={2}>{title}</Title>
+      <Stack
+        className="bcds-page-header__title-block"
+        style={{ gap: "var(--layout-margin-xsmall)" }}
+      >
+        <Title order={2} mt={0} mb={0}>
+          {title}
+        </Title>
         {description ? (
-          <Text c="dimmed" size="sm">
+          <Text c="dimmed" size="sm" mt={0} mb={0}>
             {description}
           </Text>
         ) : null}
       </Stack>
-      <Group gap="md" align="center">
+      <Group gap="md" align="center" className="bcds-page-header__meta">
         {actions}
         {showDateBadge ? (
           <Badge variant="outline" size="lg">

@@ -1,3 +1,4 @@
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
@@ -24,6 +25,13 @@ const ClassifierPage = () => {
 
   const { getClassifiers } = useClassifier();
   const { activeGroup } = useGroup();
+  const modelOptions = (getClassifiers.data || [])
+    .filter((model) => model?.name && model?.group_id)
+    .map((model) => ({
+      value: `${model.name}::${model.group_id}`,
+      label: model.name,
+    }));
+  const hasExistingModels = modelOptions.length > 0;
 
   const ModelSelect = () => {
     return (
@@ -38,7 +46,8 @@ const ClassifierPage = () => {
               >
                 <span>
                   <Button
-                    variant="outline"
+                    leftSection={<IconPlus size={14} />}
+                    variant={hasExistingModels ? "outline" : "filled"}
                     size="xs"
                     disabled={!activeGroup}
                     onClick={() => {
@@ -53,12 +62,7 @@ const ClassifierPage = () => {
             <Select
               placeholder="Choose a model"
               value={selectedModel}
-              data={(getClassifiers.data || [])
-                .filter((model) => model?.name && model?.group_id)
-                .map((model) => ({
-                  value: `${model.name}::${model.group_id}`,
-                  label: model.name,
-                }))}
+              data={modelOptions}
               searchable
               clearable
               onChange={(value) => {

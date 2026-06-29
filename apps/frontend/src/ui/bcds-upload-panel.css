@@ -12,6 +12,15 @@
   gap: var(--layout-margin-xsmall);
 }
 
+/* Suppress BC DS Heading default bottom margin inside the intro block */
+.bcds-upload-panel__intro .bcds-react-aria-Heading {
+  margin: 0;
+}
+
+.bcds-upload-panel__intro .bcds-react-aria-Text {
+  margin: 0 !important;
+}
+
 .bcds-upload-panel__actions {
   margin-top: var(--layout-margin-medium);
 }

@@ -7,12 +7,11 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import { Document } from "../../shared/types";
 import {
   ActionIcon,
   Alert,
   Badge,
-  DataTable,
   Group,
   Loader,
   Modal,
@@ -25,7 +24,7 @@ import {
 } from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
-import { ExtractedTextView } from "./ExtractedTextView";
+import OcrResults from "./OcrResults";
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) {
@@ -43,87 +42,6 @@ interface DocumentViewerModalProps {
   document: Document | null;
   opened: boolean;
   onClose: () => void;
-}
-
-function getFieldDisplayValue(field: DocumentField): string {
-  if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === "selected"
-      ? "☑ Selected"
-      : "☐ Unselected";
-  }
-  if (field.valueNumber !== undefined) {
-    return field.valueNumber.toString();
-  }
-  if (field.valueDate !== undefined) {
-    return field.valueDate;
-  }
-  if (field.valueString !== undefined) {
-    return field.valueString;
-  }
-  return field.content || "—";
-}
-
-function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
-  const entries = Object.entries(fields);
-
-  if (entries.length === 0) {
-    return <Text c="dimmed">No fields extracted.</Text>;
-  }
-
-  return (
-    <DataTable
-      striped
-      highlightOnHover
-      withTableBorder
-      style={{
-        tableLayout: "fixed",
-        width: "100%",
-        marginBottom: "2rem",
-      }}
-    >
-      <DataTable.Thead>
-        <DataTable.Tr>
-          <DataTable.Th style={{ width: "25%" }}>Field</DataTable.Th>
-          <DataTable.Th style={{ width: "45%" }}>Value</DataTable.Th>
-          <DataTable.Th style={{ width: "15%" }}>Type</DataTable.Th>
-          <DataTable.Th style={{ width: "15%" }}>Confidence</DataTable.Th>
-        </DataTable.Tr>
-      </DataTable.Thead>
-      <DataTable.Tbody>
-        {entries.map(([name, field]) => (
-          <DataTable.Tr key={name}>
-            <DataTable.Td style={{ wordBreak: "break-word" }}>
-              <Text size="sm" fw={500}>
-                {name}
-              </Text>
-            </DataTable.Td>
-            <DataTable.Td style={{ wordBreak: "break-word" }}>
-              <Text size="sm">{getFieldDisplayValue(field)}</Text>
-            </DataTable.Td>
-            <DataTable.Td>
-              <Badge size="xs" variant="light">
-                {field.type}
-              </Badge>
-            </DataTable.Td>
-            <DataTable.Td>
-              <Text
-                size="sm"
-                c={
-                  field.confidence >= 0.9
-                    ? "green"
-                    : field.confidence >= 0.7
-                      ? "yellow"
-                      : "red"
-                }
-              >
-                {(field.confidence * 100).toFixed(1)}%
-              </Text>
-            </DataTable.Td>
-          </DataTable.Tr>
-        ))}
-      </DataTable.Tbody>
-    </DataTable>
-  );
 }
 
 export function DocumentViewerModal({
@@ -393,7 +311,7 @@ export function DocumentViewerModal({
               {imageUrl ? (
                 <DocumentViewer
                   imageUrl={imageUrl}
-                  extractedFields={ocrResult?.ocr_result?.keyValuePairs}
+                  extractedFields={ocr?.keyValuePairs}
                   pageNumber={1}
                   showOverlays={showOverlays}
                   rotation={rotation}
@@ -416,7 +334,6 @@ export function DocumentViewerModal({
                 </div>
               ) : null}
             </Tabs.Panel>
-
             {hasOcrData && (
               <Tabs.Panel
                 value="ocr-results"
@@ -427,40 +344,7 @@ export function DocumentViewerModal({
                   flexDirection: "column",
                 }}
               >
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    padding: "1rem",
-                    paddingBottom: "3rem",
-                  }}
-                >
-                  <Stack gap="lg">
-                    {/* Extracted text (markdown) is the primary representation
-                        when present; key-value fields follow below. */}
-                    {hasOcrText && ocr?.content && (
-                      <div>
-                        {hasKeyValues && (
-                          <Title order={5} mb="xs">
-                            Extracted Text
-                          </Title>
-                        )}
-                        <ExtractedTextView content={ocr.content} />
-                      </div>
-                    )}
-                    {hasKeyValues && ocr?.keyValuePairs && (
-                      <div>
-                        {hasOcrText && (
-                          <Title order={5} mb="xs">
-                            Key-Value Fields
-                          </Title>
-                        )}
-                        <ExtractedFieldsTable fields={ocr.keyValuePairs} />
-                      </div>
-                    )}
-                  </Stack>
-                </div>
+                <OcrResults ocr={ocr ?? null} />
               </Tabs.Panel>
             )}
             {(document?.status === "awaiting_review" ||
@@ -483,10 +367,10 @@ export function DocumentViewerModal({
                     paddingBottom: "3rem",
                   }}
                 >
-                  {ocrResult?.ocr_result ? (
+                  {ocr ? (
                     <DocumentValidation
                       document={document}
-                      ocrResult={ocrResult.ocr_result}
+                      ocrResult={ocr}
                       onValidationComplete={() => {
                         // Refresh the document list and close modal after a short delay
                         setTimeout(() => {

@@ -28,6 +28,8 @@ Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `grou
 
 **Invalid or unsupported files** are rejected with **400** when validation fails before storage (bad PDF signature, corrupt image, etc.). PDFs with a valid `%PDF` header but an unreadable body fail during normalization (400) after the original blob write has started.
 
+**Password-protected PDFs** are rejected during normalization as a **422 `conversion_failed`** (not a 400). A PDF that requires a password to open cannot be read by Azure Document Intelligence — it returns `400 UnsupportedContent` ("File may be password protected") — so the document must never reach OCR. Normalization probes the PDF with **mupdf `needsPassword()`** before the pdf-lib pass and throws `PdfNormalizationError` when a password is required, landing the document in `conversion_failed` (a terminal, purgeable status). Only **open-password** encryption is rejected; **permission-only** encrypted PDFs (which open without a password and OCR can read) are still allowed through, which is why the pdf-lib pass keeps `ignoreEncryption: true`.
+
 ## Client
 
 - Use **`/view`** for any in-app preview (always PDF).
@@ -36,7 +38,7 @@ Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `grou
 
 ## Dependencies
 
-Backend normalization uses **sharp** (images, including multi-page TIFF) and **pdf-lib** (PDF assembly). PDF uploads must pass a **magic-byte check** (`%PDF`) before the original blob is written; full **`pdf-lib` parsing** happens once during normalization (with `ignoreEncryption: true`). Images are validated with **sharp** metadata before storage.
+Backend normalization uses **sharp** (images, including multi-page TIFF), **pdf-lib** (PDF assembly), and **mupdf** (thumbnail rasterization and the `needsPassword()` open-password probe). PDF uploads must pass a **magic-byte check** (`%PDF`) before the original blob is written; the **mupdf password probe** and full **`pdf-lib` parsing** happen once during normalization (the pdf-lib pass keeps `ignoreEncryption: true` for permission-only encrypted PDFs). Images are validated with **sharp** metadata before storage.
 
 ## Upload memory and concurrency (`POST /api/upload`)
 

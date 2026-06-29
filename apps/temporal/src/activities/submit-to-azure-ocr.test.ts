@@ -253,6 +253,86 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
+  it("throws a retryable error for a 4xx so Temporal keeps retrying", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockPost.mockResolvedValue({
+      status: 400,
+      headers: {},
+      body: {
+        error: {
+          code: "InvalidRequest",
+          innererror: {
+            code: "UnsupportedContent",
+            message:
+              "Content is not supported: File may be password protected.",
+          },
+        },
+      },
+    });
+
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
+      modelId: "prebuilt-layout",
+    };
+
+    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
+    expect((error as Error).message).toContain(
+      "Failed to submit document to Azure OCR. Status: 400",
+    );
+  });
+
+  it("throws a retryable error for a transient 5xx so Temporal keeps retrying", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockPost.mockResolvedValue({
+      status: 503,
+      headers: {},
+      body: { error: { code: "ServiceUnavailable" } },
+    });
+
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
+      modelId: "prebuilt-layout",
+    };
+
+    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
+    expect((error as Error).message).toContain(
+      "Failed to submit document to Azure OCR. Status: 503",
+    );
+  });
+
+  it("throws a retryable error for 429 rate limiting", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockPost.mockResolvedValue({
+      status: 429,
+      headers: {},
+      body: { error: { code: "TooManyRequests" } },
+    });
+
+    const fileData: PreparedFileData = {
+      fileName: "test.pdf",
+      fileType: "pdf",
+      contentType: "application/pdf",
+      blobKey: "atestgroup/ocr/test.pdf",
+      modelId: "prebuilt-layout",
+    };
+
+    const error = await submitToAzureOCR({ fileData }).catch((e) => e);
+    expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
+    expect((error as Error).message).toContain(
+      "Failed to submit document to Azure OCR. Status: 429",
+    );
+  });
+
   it("throws error when apim-request-id is missing", async () => {
     const mockResponse = {
       status: 202,

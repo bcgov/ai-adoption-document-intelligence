@@ -1,4 +1,4 @@
-import { IconAlertCircle, IconUsersGroup } from "@tabler/icons-react";
+import { IconAlertCircle, IconPlus, IconUsersGroup } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -601,6 +601,7 @@ export function GroupsPage(): JSX.Element {
         actions={
           isSystemAdmin ? (
             <Button
+              leftSection={<IconPlus size={16} />}
               onClick={() => setCreateGroupOpen(true)}
               data-testid="create-group-btn"
             >

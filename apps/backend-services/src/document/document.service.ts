@@ -47,7 +47,14 @@ export interface UploadedDocument {
 
 export type UploadDocumentResult =
   | { kind: "success"; document: UploadedDocument }
-  | { kind: "conversion_failed"; document: UploadedDocument };
+  | {
+      kind: "conversion_failed";
+      document: UploadedDocument;
+      /** Machine-readable failure reason, e.g. `password_protected`. */
+      code: string;
+      /** Human-readable reason surfaced to the upload caller. */
+      reason: string;
+    };
 
 @Injectable()
 export class DocumentService {
@@ -189,7 +196,18 @@ export class DocumentService {
         if (e instanceof BadRequestException) {
           throw e;
         }
-        if (!(e instanceof PdfNormalizationError)) {
+
+        // Surface the specific reason only for our controlled normalization
+        // errors. Unexpected errors fall back to the generic message/code so
+        // internal details are never leaked to the caller.
+        let code = "conversion_failed";
+        let reason = "Document could not be converted to PDF";
+        if (e instanceof PdfNormalizationError) {
+          reason = e.message;
+          if (e.code) {
+            code = e.code;
+          }
+        } else {
           this.logger.error(
             `Unexpected normalization error: ${e instanceof Error ? e.message : String(e)}`,
           );
@@ -224,6 +242,8 @@ export class DocumentService {
         return {
           kind: "conversion_failed",
           document: this.toUploadedDocument(saved),
+          code,
+          reason,
         };
       }
 

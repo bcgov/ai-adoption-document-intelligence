@@ -264,6 +264,7 @@ export function FileUploadDialog({
               onClick={handleUpload}
               disabled={selectedFiles.length === 0 || isUploading}
               loading={isUploading}
+              leftSection={<IconUpload size={16} />}
               data-testid="upload-submit-btn"
             >
               Upload
