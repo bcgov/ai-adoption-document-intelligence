@@ -2,6 +2,7 @@ import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -13,7 +14,10 @@ import {
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
-import { DocumentService } from "@/document/document.service";
+import {
+  type DocumentData,
+  DocumentService,
+} from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 
@@ -190,5 +194,71 @@ export class OcrService {
         error: errorMessage,
       };
     }
+  }
+
+  /**
+   * Re-runs a document's workflow from the beginning using its existing
+   * normalized PDF. Intended for retrying a broken or stuck run (and, looped
+   * over IDs, for clearing stuck backlogs).
+   *
+   * Only `failed` or stuck `ongoing_ocr` documents are eligible. Each guard
+   * failure throws {@link ConflictException} (409) with a specific message:
+   * wrong state, missing/purged source, in-flight, or no workflow config.
+   * On success it delegates to {@link requestOcr}, which starts `graph-<id>`
+   * (Temporal's default `ALLOW_DUPLICATE` reuse permits a new run because the
+   * prior run is closed) and sets the document back to `ongoing_ocr`.
+   *
+   * Group authorization is the caller's responsibility (done in the controller).
+   */
+  async reprocessDocument(document: DocumentData): Promise<{
+    workflowExecutionId: string;
+    status: DocumentStatus;
+  }> {
+    if (
+      document.status !== DocumentStatus.failed &&
+      document.status !== DocumentStatus.ongoing_ocr
+    ) {
+      throw new ConflictException(
+        `Document ${document.id} is not in a re-runnable state (status: ${document.status}). Only failed or stuck (ongoing_ocr) documents can be re-run.`,
+      );
+    }
+
+    if (!document.workflow_config_id) {
+      throw new ConflictException(
+        `Document ${document.id} has no workflow configuration and cannot be re-run.`,
+      );
+    }
+
+    if (document.purged_at || !document.normalized_file_path) {
+      throw new ConflictException(
+        `Document ${document.id} has no normalized PDF available (conversion may have failed, or its files were cleaned up). Re-upload the document.`,
+      );
+    }
+
+    const normalizedKey = validateBlobFilePath(document.normalized_file_path);
+    const sourceExists = await this.blobStorage.exists(normalizedKey);
+    if (!sourceExists) {
+      throw new ConflictException(
+        `Document ${document.id}'s source file is no longer in storage. Re-upload the document.`,
+      );
+    }
+
+    const workflowExecutionId = `graph-${document.id}`;
+    const alreadyRunning =
+      await this.temporalClientService.isWorkflowRunning(workflowExecutionId);
+    if (alreadyRunning) {
+      throw new ConflictException(
+        `Document ${document.id} is already being processed.`,
+      );
+    }
+
+    const result = await this.requestOcr(document.id);
+    if (result.error || !result.workflowId) {
+      throw new ConflictException(
+        `Failed to start re-run for document ${document.id}: ${result.error ?? "unknown error"}`,
+      );
+    }
+
+    return { workflowExecutionId: result.workflowId, status: result.status };
   }
 }
