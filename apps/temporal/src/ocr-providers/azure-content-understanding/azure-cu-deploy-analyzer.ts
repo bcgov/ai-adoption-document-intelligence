@@ -29,6 +29,8 @@ import {
   createCuAxiosInstance,
   cuAnalyzerUrl,
   describeAxiosFailure,
+  readEnv,
+  sleep,
 } from "./azure-cu-client";
 
 const deployCache = new Map<string, string>();
@@ -48,17 +50,8 @@ export interface AzureCuDeployAnalyzerResult {
   bodyHash: string;
 }
 
-function readEnv(name: string): string | undefined {
-  const v = process.env[name];
-  return v && v.trim().length > 0 ? v.trim() : undefined;
-}
-
 const READY_POLL_INTERVAL_MS = 1000;
 const READY_POLL_MAX_ATTEMPTS = 90; // ~90 s — analyzer creation is usually < 5 s.
-
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function waitForAnalyzerReady(
   client: ReturnType<typeof createCuAxiosInstance>,
