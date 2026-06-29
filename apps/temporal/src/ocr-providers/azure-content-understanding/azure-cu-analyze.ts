@@ -67,6 +67,20 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
   }
 }
 
+/**
+ * Interpret a synchronous 200 analyze response body. It may arrive either as
+ * the long-running-operation envelope (`{ status, result }`) or as a bare
+ * `CuAnalyzeResult` (`{ contents }`). Returns the result to map, or undefined
+ * if the 200 carries no usable result (caller falls through to polling). (B2)
+ */
+function extractInlineResult(
+  body: CuAnalyzeOperation & CuAnalyzeResult,
+): CuAnalyzeResult | undefined {
+  if (body.status === "Succeeded" && body.result) return body.result;
+  if (body.contents !== undefined) return body as CuAnalyzeResult;
+  return undefined;
+}
+
 function buildInlineInput(
   contentType: string,
   buffer: Buffer,
@@ -382,12 +396,7 @@ export async function azureCuAnalyze(
       // or as a bare `CuAnalyzeResult` (`{ contents }`) — handle both rather
       // than assuming the envelope (the latter shape was silently dropped).
       const body = submitResp.data as CuAnalyzeOperation & CuAnalyzeResult;
-      const inlineResult: CuAnalyzeResult | undefined =
-        body.status === "Succeeded" && body.result
-          ? body.result
-          : body.contents !== undefined
-            ? (submitResp.data as CuAnalyzeResult)
-            : undefined;
+      const inlineResult = extractInlineResult(body);
       if (inlineResult) {
         const ocrResult = cuAnalyzeResultToOcrResult(
           inlineResult,
@@ -528,4 +537,5 @@ export async function azureCuAnalyze(
 
 export const __testInternals = {
   defaultAnalyzerIdForTemplate,
+  extractInlineResult,
 };
