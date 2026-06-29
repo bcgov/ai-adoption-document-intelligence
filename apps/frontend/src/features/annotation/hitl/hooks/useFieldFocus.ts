@@ -1,6 +1,11 @@
 import { useCallback, useRef } from "react";
 import type { AnnotationCanvasHandle } from "../../core/canvas/AnnotationCanvas";
 import type { BoundingBox } from "../../core/types/canvas";
+import {
+  measureTextWidth,
+  OVERLAY_BASE_FONT_SIZE,
+  OVERLAY_FONT_FAMILY,
+} from "../text-measure";
 
 const DEFAULT_ZOOM = 5;
 /**
@@ -31,20 +36,8 @@ const ABSOLUTE_MAX_BOX_WIDTH_FRACTION = 0.75;
  * If that's below this number, we bump zoom toward a wider box.
  */
 const MIN_TARGET_FONT_PX = 28;
-const OVERLAY_BASE_FONT_SIZE = 14;
-const OVERLAY_FONT_FAMILY = "system-ui, -apple-system, sans-serif";
 const MIN_USER_ZOOM = 1;
 const MAX_USER_ZOOM = 20;
-
-let measureCanvas: HTMLCanvasElement | null = null;
-function measureTextWidth(text: string, font: string): number {
-  if (typeof document === "undefined") return 0;
-  if (!measureCanvas) measureCanvas = document.createElement("canvas");
-  const ctx = measureCanvas.getContext("2d");
-  if (!ctx) return 0;
-  ctx.font = font;
-  return ctx.measureText(text).width;
-}
 
 interface FieldWithBounds {
   fieldKey: string;

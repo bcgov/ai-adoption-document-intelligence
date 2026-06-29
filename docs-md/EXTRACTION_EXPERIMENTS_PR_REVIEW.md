@@ -277,9 +277,9 @@ Any array GT is unconditionally treated as **one-of alternates**. A real multi-r
 
 - [x] 🔴 **H1 — Tab-navigation loses focus in overlay mode.** `ReviewWorkspacePage.tsx:661-665` relies on the next overlay's `autoFocus`, but `CanvasFieldOverlay` is rendered with **no per-field React `key`**, so React reuses the same input instance and `autoFocus` (mount-only) never re-fires. Keyboard-only review breaks after the first field. *Fix: `key={field.fieldKey}` on the overlay — this also fixes H2.*
 - [x] 🟡 **H2 — `isHovering` state leaks across fields** (`CanvasFieldOverlay.tsx:78`) — same root cause; the per-field `key` resolves it.
-- [ ] 🟢 **H3 — Overlay lags the pan/zoom tween** (`AnnotationCanvas.tsx:330-362` vs `190-212`): overlay placement reads `pan`/`scale` state but `panTo` commits those only in `onFinish` (200ms later), so the overlay snaps after the animation. Self-corrects; visible glitch.
-- [ ] 🟢 **H4 — Overlay placement ignores `rotation`** (`AnnotationCanvas.tsx:354-360`): no rotation transform though image/box layers rotate about center. Latent (current caller passes no rotation) but the new render-prop API invites rotated callers.
-- [ ] 🟡 **H5 — Duplicated `measureTextWidth` + font constants** between `CanvasFieldOverlay.tsx:29-46` and `useFieldFocus.ts:39-47`; they must stay in lockstep for the zoom-to-fit math, so the duplication is a correctness hazard. *Extract a shared module.*
+- [x] 🟢 **H3 — Overlay lags the pan/zoom tween** (`AnnotationCanvas.tsx:330-362` vs `190-212`): overlay placement reads `pan`/`scale` state but `panTo` commits those only in `onFinish` (200ms later), so the overlay snaps after the animation. Self-corrects; visible glitch.
+- [x] 🟢 **H4 — Overlay placement ignores `rotation`** (`AnnotationCanvas.tsx:354-360`): no rotation transform though image/box layers rotate about center. Latent (current caller passes no rotation) but the new render-prop API invites rotated callers.
+- [x] 🟡 **H5 — Duplicated `measureTextWidth` + font constants** between `CanvasFieldOverlay.tsx:29-46` and `useFieldFocus.ts:39-47`; they must stay in lockstep for the zoom-to-fit math, so the duplication is a correctness hazard. *Extract a shared module.*
 - ✅ Coordinate scaling is applied exactly once on each path (no double-scaling); confidence tiers are consistent across the three color variants; controlled-input wiring is correct; moving deselect to `onClick` correctly preserves selection during drag-pan.
 
 ### 🟢 Upstream (independent of the stack)

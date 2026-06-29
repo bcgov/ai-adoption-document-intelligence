@@ -1,5 +1,10 @@
 import { Checkbox, TextInput } from "@mantine/core";
 import { FC, KeyboardEvent, useMemo, useState } from "react";
+import {
+  OVERLAY_BASE_FONT_SIZE as BASE_FONT_SIZE,
+  OVERLAY_FONT_FAMILY as FONT_FAMILY,
+  measureTextWidth,
+} from "../text-measure";
 import { getConfidenceBorderColor } from "./ConfidenceIndicator";
 
 interface CanvasFieldOverlayProps {
@@ -19,19 +24,6 @@ interface CanvasFieldOverlayProps {
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
 }
 
-// Singleton canvas reused across overlay instances for text-width measurement.
-let measureCanvas: HTMLCanvasElement | null = null;
-const measureTextWidth = (text: string, font: string): number => {
-  if (typeof document === "undefined") return 0;
-  if (!measureCanvas) measureCanvas = document.createElement("canvas");
-  const ctx = measureCanvas.getContext("2d");
-  if (!ctx) return 0;
-  ctx.font = font;
-  return ctx.measureText(text).width;
-};
-
-const FONT_FAMILY = "system-ui, -apple-system, sans-serif";
-const BASE_FONT_SIZE = 14;
 // Font is sized to make the text exactly fill the input width
 // (widthFit = 14 × boxW ÷ natural). The heightCap below is the only
 // upper bound — no absolute pixel cap, so a wider box always yields

@@ -327,8 +327,18 @@ export const AnnotationCanvas = forwardRef<
 
     // Compute container-relative screen rect for the active box so the
     // overlay (if any) can be positioned directly beneath it.
+    //
+    // H4: the overlay is an axis-aligned HTML element placed from the box's
+    // bounding rect; it does NOT apply the image/box-layer rotation transform.
+    // Rather than render a mis-placed overlay, suppress it while rotated.
+    //
+    // H3: placement reads committed `pan`/`effectiveScale`, which `panTo`
+    // commits only at the end of its tween — so during a pan/zoom animation
+    // the overlay briefly lags then snaps to the final spot. Self-correcting;
+    // acceptable for this transient.
     const activeOverlayPlacement = useMemo(() => {
       if (!activeBoxId || !renderActiveBoxOverlay) return null;
+      if (rotation !== 0) return null;
       const target = boxes.find((b) => b.id === activeBoxId);
       if (!target) return null;
       const points = target.box.polygon;
@@ -359,7 +369,14 @@ export const AnnotationCanvas = forwardRef<
           height: (maxY - minY) * effectiveScale,
         },
       };
-    }, [activeBoxId, renderActiveBoxOverlay, boxes, effectiveScale, pan]);
+    }, [
+      activeBoxId,
+      renderActiveBoxOverlay,
+      boxes,
+      effectiveScale,
+      pan,
+      rotation,
+    ]);
 
     return (
       <Box
