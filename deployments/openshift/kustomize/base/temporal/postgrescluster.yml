@@ -32,6 +32,11 @@ spec:
       global:
         repo1-retention-full: '30'
         repo1-retention-full-type: time
+        # Block incremental: back up only the changed blocks within a file rather
+        # than re-copying the whole changed file segment, preventing backup/WAL
+        # bloat. Requires bundling. (pgBackRest 2.46+)
+        repo1-block: 'y'
+        repo1-bundle: 'y'
       repos:
         - name: repo1
           schedules:
