@@ -128,7 +128,12 @@ async function loadTemplate(
       templateModelId,
       error: getErrorMessage(error),
     });
-    return null;
+    // Rethrow genuine DB/query failures — a transient Prisma error is not a
+    // missing template. The caller maps `null` to "field_schema not found",
+    // so swallowing here would mislabel an infrastructure error (and let
+    // Temporal retry against the wrong failure mode). A genuinely-absent or
+    // empty schema already returns `null` from the try block above.
+    throw error;
   }
 }
 
