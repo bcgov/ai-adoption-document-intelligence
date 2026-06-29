@@ -1038,6 +1038,11 @@ export const ReviewWorkspacePage: FC = () => {
                           return (
                             <div style={{ marginTop: 4 }}>
                               <CanvasFieldOverlay
+                                // Per-field key forces a remount when the
+                                // active field changes, so the input's
+                                // mount-only autoFocus re-fires (keyboard Tab
+                                // navigation keeps focus) and isHovering resets.
+                                key={field.fieldKey}
                                 fieldKey={field.fieldKey}
                                 value={displayValue}
                                 confidence={field.confidence}
