@@ -262,7 +262,7 @@ Any array GT is unconditionally treated as **one-of alternates**. A real multi-r
 
 - [ ] **T6 — E02 e2e mock drops `ocrResponse`** (`experiment-02-...test.ts:156-159`); the unit test covers it, but the chain wiring that persists `ocrResponse` is only checked statically. Minor.
 
-- [ ] **W1 — temporal activity-registry test fixture is stale.** `apps/temporal/src/activity-registry.test.ts` `EXPECTED_ACTIVITY_TYPES` is missing E05's `azureOcr.readPlain` and `vlmOcrHybrid.extract` (and pre-existing `benchmark.flattenPredictionFromRefs`); its subset/`>=` assertions let the omission pass, so those activities have no registration-test coverage on the temporal side. Production wiring is correct in all three lists; the backend spec's exact `toHaveLength` check passes. *Fix: add the missing types to the fixture and tighten the size assertion to exact.* (Details in §1 "Wiring".)
+- [x] **W1 — temporal activity-registry test fixture is stale.** `apps/temporal/src/activity-registry.test.ts` `EXPECTED_ACTIVITY_TYPES` is missing E05's `azureOcr.readPlain` and `vlmOcrHybrid.extract` (and pre-existing `benchmark.flattenPredictionFromRefs`); its subset/`>=` assertions let the omission pass, so those activities have no registration-test coverage on the temporal side. Production wiring is correct in all three lists; the backend spec's exact `toHaveLength` check passes. *Fix: add the missing types to the fixture and tighten the size assertion to exact.* (Details in §1 "Wiring".)
 
 ### ✅ Verified clean / correct
 
