@@ -198,7 +198,7 @@ This section is the **single living tracker** for the stack — tick items off (
 *Fix:* distinguish **blank value + empty quote** (correct — score confident) from **populated value + no quote** (suspicious — score 0.5); only apply `CONF_NO_EVIDENCE` when there's a non-empty value without a supporting quote.
 *Safe to change:* this does **not** alter the comparison-report numbers — `experiments/results/report/REPORT.md` measures accuracy (f1/precision/recall/pass_rate vs ground-truth); the synthesized confidence never feeds those, it only drives live HITL routing, which the bake-off didn't measure.
 
-- [ ] **B1 — E05 hybrid silently defeats the HITL confidence gate.** `ocr-providers/vlm-ocr-hybrid/vlm-hybrid-to-ocr-result.ts:147-162`
+- [x] **B1 — E05 hybrid silently defeats the HITL confidence gate.** `ocr-providers/vlm-ocr-hybrid/vlm-hybrid-to-ocr-result.ts:147-162`
 The mapper replaces `pages` with the **real DI pages**, whose `words[].confidence` are real OCR confidences (~0.97–0.99). But `check-ocr-confidence.ts:39-54` computes a **single average over `pages[].words[].confidence` *plus* `keyValuePairs[].confidence`**. Hundreds of high-confidence DI words numerically swamp the ~74 evidence-based KVP confidences, so a sample with many empty `source_quotes` (0.5 each) still averages well above the 0.95 gate → **review never fires**. The file's own docstring claims "the HITL gate behaviour is unchanged" — that claim is false. This makes E05's benchmark "needs-review" rate untrustworthy.
 *Fix:* drop/zero `word.confidence` on the cloned DI pages, or have `check-ocr-confidence` prefer `documents[].fields` confidence when present.
 
