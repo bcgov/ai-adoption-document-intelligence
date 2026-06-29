@@ -72,6 +72,31 @@ function alternativesOf(expected: unknown): unknown[] {
   return Array.isArray(expected) ? expected : [expected];
 }
 
+/** A non-null, non-array object — i.e. a nested record of sub-fields. */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * An array whose every element is a plain object — i.e. a table / list of
+ * rows (`[{...}, {...}]`). This is distinct from a scalar one-of-alternates
+ * array (`["", "0"]`), which `alternativesOf` handles.
+ */
+function isArrayOfRows(v: unknown): v is Record<string, unknown>[] {
+  return Array.isArray(v) && v.length > 0 && v.every(isPlainObject);
+}
+
+/**
+ * "Structured" ground truth that must be compared field-by-field / row-by-row
+ * rather than via the scalar matchers (which stringify and would collapse
+ * every object to `"[object Object]"`). A nested object or a non-empty array
+ * of objects. Empty arrays and scalar arrays are NOT structured — they remain
+ * one-of alternates.
+ */
+function isStructuredExpected(v: unknown): boolean {
+  return isPlainObject(v) || isArrayOfRows(v);
+}
+
 /**
  * Matching rule configuration for a field
  */
@@ -310,6 +335,15 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       return { field, matched: anyExpectedNonNullLike, predicted, expected };
     }
 
+    // Structured GT (nested object or array of rows): the scalar matchers
+    // below stringify via String(), which collapses every object to
+    // "[object Object]" (so any two objects falsely match) and can never
+    // match a multi-row array. Compare structurally instead.
+    if (isStructuredExpected(expected)) {
+      const matched = this.structuralMatch(predicted, expected, config);
+      return { field, matched, predicted, expected };
+    }
+
     // Apply matching rule
     switch (rule.rule) {
       case "exact":
@@ -336,6 +370,56 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       default:
         return this.exactMatch(field, predicted, expected);
     }
+  }
+
+  /**
+   * Compare structured GT (nested object or array of rows). Returns a single
+   * matched boolean for the parent field.
+   *
+   *  - Nested object: every key in `expected` must match the corresponding
+   *    key in `predicted` (extra predicted keys are ignored for this field).
+   *  - Array of rows: matched only when lengths are equal AND every row
+   *    matches positionally (row i of predicted vs row i of expected).
+   *
+   * Leaves recurse back through `deepFieldMatch`, so the per-field matching
+   * rules (exact/fuzzy/numeric/date/boolean, null-like, wildcard) still apply.
+   */
+  private structuralMatch(
+    predicted: unknown,
+    expected: unknown,
+    config: SchemaAwareConfig,
+  ): boolean {
+    if (isPlainObject(expected)) {
+      if (!isPlainObject(predicted)) return false;
+      return Object.keys(expected).every((key) =>
+        this.deepFieldMatch(key, predicted[key], expected[key], config),
+      );
+    }
+    if (isArrayOfRows(expected)) {
+      if (!Array.isArray(predicted) || predicted.length !== expected.length) {
+        return false;
+      }
+      return expected.every((row, i) =>
+        this.deepFieldMatch(`row${i}`, predicted[i], row, config),
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Match a single value that may itself be structured (recurse) or a scalar
+   * (delegate to the rule-based `compareField`).
+   */
+  private deepFieldMatch(
+    field: string,
+    predicted: unknown,
+    expected: unknown,
+    config: SchemaAwareConfig,
+  ): boolean {
+    if (isStructuredExpected(expected)) {
+      return this.structuralMatch(predicted, expected, config);
+    }
+    return this.compareField(field, predicted, expected, config).matched;
   }
 
   /**

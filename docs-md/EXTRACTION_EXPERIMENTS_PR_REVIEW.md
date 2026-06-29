@@ -226,11 +226,11 @@ A terminal `status: "failed"` analysis throws a plain retryable `Error`; develop
 An absent/blank CU date yields `valueDate: ""`, which downstream `extractAzureFieldDisplayValue` prefers over `content`, so a blank date reads as a populated value (numbers correctly omit `valueNumber` for blanks — dates don't mirror this).
 *Fix:* only set `valueDate` when the normalized string is non-empty.
 
-- [ ] **E-1 — Evaluator: nested-object GT produces false-positive matches.** `evaluators/schema-aware-evaluator.ts:350`
+- [x] **E-1 — Evaluator: nested-object GT produces false-positive matches.** `evaluators/schema-aware-evaluator.ts:350`
 `exactMatch` compares via `String(predicted)`. Two different objects both stringify to `"[object Object]"`, so `{a:1}` "matches" `{a:999}`. Every nested-object field scores as a true positive regardless of content. No matcher recurses into objects.
 *Fix:* recurse field-by-field (as `black-box-evaluator.ts` does) or compare canonical `JSON.stringify`; if nested objects are out of scope, reject them rather than silently passing.
 
-- [ ] **E-2 — Evaluator: array/table-of-rows GT can never match.** `schema-aware-evaluator.ts:71` (`alternativesOf`)
+- [x] **E-2 — Evaluator: array/table-of-rows GT can never match.** `schema-aware-evaluator.ts:71` (`alternativesOf`)
 Any array GT is unconditionally treated as **one-of alternates**. A real multi-row table `[{…},{…}]` stringifies to `"[object Object],[object Object]"` and is compared against each single row's `"[object Object]"` → never equal. The "one-of alternates" and "array of rows" semantics are conflated; the schema is never consulted to disambiguate, and there is no row alignment or length-mismatch handling.
 *Fix:* disambiguate via the field schema (scalar-with-alternates vs table type) and add real row matching (by key or positional) with explicit length-mismatch scoring.
 
@@ -254,7 +254,7 @@ Any array GT is unconditionally treated as **one-of alternates**. A real multi-r
 
 - [ ] **T2 — E05 confidence-gate bug is invisible to the suite.** The runtime tests mock `ocr.checkConfidence` to return hardcoded values, and the mapper test only asserts pages/lines/words are non-empty. *Add a test running the real `checkOcrConfidence` over a hybrid `OCRResult` with high DI word-confidences + mostly-empty quotes, asserting `requiresReview === true`.*
 
-- [ ] **T3 — Evaluator's headline features are untested.** No test exercises nested-object GT, array/table-of-rows GT, empty GT, currency normalization, or the `date`-rule degenerate-number case (`"2023"` must not match `"2023-06-01"`). These are exactly the paths broken by E-1/E-2/R4. *Highest-value test additions in the stack.*
+- [x] **T3 — Evaluator's headline features are untested.** No test exercises nested-object GT, array/table-of-rows GT, empty GT, currency normalization, or the `date`-rule degenerate-number case (`"2023"` must not match `"2023-06-01"`). These are exactly the paths broken by E-1/E-2/R4. *Highest-value test additions in the stack.*
 
 - [ ] **T4 — E04 e2e test fabricates field types from key-name prefixes** (`experiment-04-vlm-direct.test.ts:407-418`) instead of loading the seeded template `field_schema`, so a number field not matching the `applicant_`/`spouse_` heuristic is treated as a string and its `valueNumber` is silently dropped without the test noticing. The "useful evidence" assertion (`:435`) is near-vacuous (`> populated/2`). *Load real template types; tighten the evidence assertion.*
 

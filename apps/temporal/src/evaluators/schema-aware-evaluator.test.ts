@@ -1269,4 +1269,90 @@ describe("SchemaAwareEvaluator", () => {
       expect(result.metrics.matchedFields).toBe(1);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Structured GT — nested objects and tables (E-1 / E-2)
+  // -----------------------------------------------------------------------
+  describe("structured GT (nested objects and tables)", () => {
+    async function run(
+      prediction: Record<string, unknown>,
+      groundTruth: Record<string, unknown>,
+    ) {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+      return evaluator.evaluate({
+        sampleId: "structured",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 1.0 },
+      });
+    }
+
+    it("matches a nested object when every sub-field matches", async () => {
+      const obj = { applicant: { name: "Jo", city: "Victoria" } };
+      const result = await run(obj, obj);
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("does NOT match a nested object when a sub-field differs (E-1)", async () => {
+      // Before the fix both objects stringified to "[object Object]" and
+      // falsely matched regardless of contents.
+      const result = await run(
+        { applicant: { name: "Jo", city: "Nanaimo" } },
+        { applicant: { name: "Jo", city: "Victoria" } },
+      );
+      expect(result.metrics.f1).toBe(0);
+      expect(result.metrics.matchedFields).toBe(0);
+    });
+
+    it("matches an array of rows positionally when all rows match (E-2)", async () => {
+      const rows = {
+        income: [
+          { source: "wages", amount: "100" },
+          { source: "tips", amount: "20" },
+        ],
+      };
+      const result = await run(rows, rows);
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("does NOT match an array of rows when lengths differ (E-2)", async () => {
+      const result = await run(
+        { income: [{ source: "wages", amount: "100" }] },
+        {
+          income: [
+            { source: "wages", amount: "100" },
+            { source: "tips", amount: "20" },
+          ],
+        },
+      );
+      expect(result.metrics.f1).toBe(0);
+    });
+
+    it("does NOT match an array of rows when a row's field differs", async () => {
+      const result = await run(
+        { income: [{ source: "wages", amount: "999" }] },
+        { income: [{ source: "wages", amount: "100" }] },
+      );
+      expect(result.metrics.f1).toBe(0);
+    });
+
+    it("still treats a scalar array as one-of alternates (not a table)", async () => {
+      // ["", "0"] means "blank or zero is acceptable" — predicting "0" matches.
+      const result = await run({ balance: "0" }, { balance: ["", "0"] });
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("handles empty ground truth without crashing", async () => {
+      const result = await run({}, {});
+      expect(typeof result.metrics.f1).toBe("number");
+      expect(result.pass).toBeDefined();
+    });
+  });
 });
