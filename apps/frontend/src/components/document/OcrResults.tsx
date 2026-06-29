@@ -73,6 +73,7 @@ const OcrResults = (props: OcrResultsProps) => {
       <ToggleButtonGroup
         orientation="horizontal"
         selectionMode="single"
+        disallowEmptySelection
         size="small"
         selectedKeys={[toggleId]}
         onSelectionChange={(set) => {
