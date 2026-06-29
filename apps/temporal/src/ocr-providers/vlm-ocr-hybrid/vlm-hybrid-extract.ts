@@ -37,6 +37,7 @@ import {
   type TemplateFieldType,
   type VlmExtractionRequest,
 } from "../vlm-direct/vlm-prompt-builder";
+import { parseVlmStructuredJson } from "../vlm-direct/vlm-response-parser";
 import type {
   VlmDirectRawResponse,
   VlmExtractionResponse,
@@ -166,28 +167,6 @@ function buildMockOcrResponse(
   };
 }
 
-function parseStructuredJson(content: string): VlmExtractionResponse {
-  let raw = content.trim();
-  const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/;
-  const match = raw.match(fence);
-  if (match) raw = match[1].trim();
-  const parsed = JSON.parse(raw) as Partial<VlmExtractionResponse>;
-  if (!parsed.fields || typeof parsed.fields !== "object") {
-    throw new Error(
-      "VLM-hybrid response missing `fields` object — strict mode appears not to be active.",
-    );
-  }
-  if (!parsed.source_quotes || typeof parsed.source_quotes !== "object") {
-    throw new Error(
-      "VLM-hybrid response missing `source_quotes` object — strict mode appears not to be active.",
-    );
-  }
-  return {
-    fields: parsed.fields as Record<string, string | number | null>,
-    source_quotes: parsed.source_quotes as Record<string, string>,
-  };
-}
-
 interface CallVlmOptions {
   endpoint: string;
   apiKey: string;
@@ -294,7 +273,7 @@ async function callAzureOpenAiVlm(opts: CallVlmOptions): Promise<{
       "Azure OpenAI VLM-hybrid response missing choices[0].message.content",
     );
   }
-  const parsed = parseStructuredJson(content);
+  const parsed = parseVlmStructuredJson(content);
   return {
     parsed,
     durationMs,

@@ -214,7 +214,7 @@ The bugs are in the engine's attempt to *also* handle a hypothetical **fast path
 
 **Practical impact:** as long as your CU deployment behaves the documented way (202 + `operation-location`), E03 runs fine — which is why the benchmark worked. But the moment a CU rollout returns an **inline synchronous result** (or a 202 with no header), B2 fails to read it and B3 throws on a fake URL — the engine simply can't retrieve a result it was actually given. It's a latent break for the sync-response case, not a failure you'd see today.
 
-- [ ] **B4 — E04/E05 fenced-JSON parser rejects any trailing content.** `ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract.ts:171` (E05) and the equivalent in E04's `parseStructuredJson`
+- [x] **B4 — E04/E05 fenced-JSON parser rejects any trailing content.** `ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract.ts:171` (E05) and the equivalent in E04's `parseStructuredJson` *(deduped into shared `vlm-response-parser.ts`)*
 The fence regex is anchored to end-of-string (`...\`\`\`$`). A response like ```` ```json\n{…}\n```\n\nDone. ```` doesn't match, so the raw fenced string (backticks included) is fed to `JSON.parse` → throws. LLMs commonly append a trailing note. Strict-mode `response_format` makes this rare today, but it's a latent crash.
 *Fix:* match the first fenced block (drop the `$` anchor) or extract the first `{…}` span.
 
@@ -250,7 +250,7 @@ Any array GT is unconditionally treated as **one-of alternates**. A real multi-r
 
 ### 🟢 Test gaps & notes
 
-- [ ] **T1 — The riskiest parsing code has no unit tests.** `parseStructuredJson` (E04 and E05) — fence-strip, `JSON.parse`, missing-`fields`/`source_quotes` guards, malformed JSON — has **zero direct tests** in either engine. Bug B4 lives here. *Add unit tests: clean JSON, fenced JSON, trailing-prose, and the strict-mode guard throws.*
+- [x] **T1 — The riskiest parsing code has no unit tests.** `parseStructuredJson` (E04 and E05) — fence-strip, `JSON.parse`, missing-`fields`/`source_quotes` guards, malformed JSON — has **zero direct tests** in either engine. Bug B4 lives here. *Add unit tests: clean JSON, fenced JSON, trailing-prose, and the strict-mode guard throws.*
 
 - [ ] **T2 — E05 confidence-gate bug is invisible to the suite.** The runtime tests mock `ocr.checkConfidence` to return hardcoded values, and the mapper test only asserts pages/lines/words are non-empty. *Add a test running the real `checkOcrConfidence` over a hybrid `OCRResult` with high DI word-confidences + mostly-empty quotes, asserting `requiresReview === true`.*
 
