@@ -244,7 +244,7 @@ Any array GT is unconditionally treated as **one-of alternates**. A real multi-r
 
 - [ ] **R3 — CU `readEnv`/`sleep` duplicated** between `azure-cu-analyze.ts` and `azure-cu-deploy-analyzer.ts`; hoist into the shared `azure-cu-client.ts`.
 
-- [ ] **R4 — Evaluator duplicates shared normalizers.** Local `parseNumeric` (`schema-aware-evaluator.ts:487-492`) hand-strips commas/spaces but **not** currency symbols, so `"$6,191.12"` fails numeric parse and silently falls back to exact-string match — yet `field-format-engine.ts` already has a `"number"` op that strips `£$€¥,`. `levenshteinDistance` (`:398-420`) is byte-identical to `ocr-correction-evaluator.ts:63-81`. *Reuse the shared canonicalizer + extract one Levenshtein helper.*
+- [x] **R4 — Evaluator duplicates shared normalizers.** Local `parseNumeric` (`schema-aware-evaluator.ts:487-492`) hand-strips commas/spaces but **not** currency symbols, so `"$6,191.12"` fails numeric parse and silently falls back to exact-string match — yet `field-format-engine.ts` already has a `"number"` op that strips `£$€¥,`. `levenshteinDistance` (`:398-420`) is byte-identical to `ocr-correction-evaluator.ts:63-81`. *Reuse the shared canonicalizer + extract one Levenshtein helper.*
 
 - [ ] **R5 — VLM-direct masks DB errors as "template not found."** `ocr-providers/vlm-direct/vlm-direct-extract.ts:124-131` — `loadTemplate`'s `catch` returns `null`; the caller then throws "template field_schema not found." A transient Prisma error surfaces as a missing-template error and retries with a misleading message. *Rethrow genuine errors; reserve `null` for an actually-absent schema.*
 
