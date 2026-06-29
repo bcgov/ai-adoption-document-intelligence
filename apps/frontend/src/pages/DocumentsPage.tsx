@@ -15,7 +15,6 @@ import {
   Table,
   Text,
   TextInput,
-  Title,
   Tooltip,
   UnstyledButton,
 } from "@mantine/core";
@@ -39,6 +38,7 @@ import { useDocuments } from "../data/hooks/useDocuments";
 import { useDocumentThumbnails } from "../data/hooks/useDocumentThumbnails";
 import type { Document, DocumentStatus } from "../shared/types";
 import { formatDate, formatFileSize } from "../shared/utils";
+import { PageHeader } from "../ui";
 
 const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
@@ -48,7 +48,6 @@ const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "awaiting_review", label: "Awaiting Review" },
   { value: "complete", label: "Complete" },
   { value: "failed", label: "Failed" },
-  { value: "rejected_by_human", label: "Rejected" },
 ];
 
 const statusStyles: Record<string, { color: string; label: string }> = {
@@ -58,7 +57,7 @@ const statusStyles: Record<string, { color: string; label: string }> = {
   awaiting_review: { color: "orange", label: "Awaiting Review" },
   complete: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
-  rejected_by_human: { color: "red", label: "Rejected by Human" },
+  conversion_failed: { color: "red", label: "Conversion Failed" },
 };
 
 const PAGE_SIZE = 50;
@@ -188,31 +187,29 @@ export function DocumentsPage() {
   return (
     <>
       <Stack gap="lg">
-        <Group justify="space-between">
-          <div>
-            <Title order={2}>Documents</Title>
-            <Text size="sm" c="dimmed">
-              View and manage all documents in your group
-            </Text>
-          </div>
-          <Group gap="xs">
-            <Tooltip label={statsOpen ? "Hide stats" : "Show stats"}>
-              <ActionIcon variant="light" onClick={toggleStats} size="lg">
-                <IconChartBar size={18} />
-              </ActionIcon>
-            </Tooltip>
-            <Tooltip label="Refresh now">
-              <ActionIcon
-                variant="light"
-                onClick={() => refetch()}
-                loading={isFetching}
-                size="lg"
-              >
-                <IconRefresh size={18} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Group>
+        <PageHeader
+          title="Documents"
+          description="View and manage all documents in your group"
+          actions={
+            <Group gap="xs">
+              <Tooltip label={statsOpen ? "Hide stats" : "Show stats"}>
+                <ActionIcon variant="light" onClick={toggleStats} size="lg">
+                  <IconChartBar size={18} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label="Refresh now">
+                <ActionIcon
+                  variant="light"
+                  onClick={() => refetch()}
+                  loading={isFetching}
+                  size="lg"
+                >
+                  <IconRefresh size={18} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          }
+        />
 
         <Collapse in={statsOpen}>
           <SimpleGrid cols={{ base: 1, sm: 2, md: 4, lg: 6 }}>
@@ -261,7 +258,7 @@ export function DocumentsPage() {
                 Failed
               </Text>
               <Text fw={600} size="lg" c="red">
-                {statsData?.failed ?? 0}
+                {(statsData?.failed ?? 0) + (statsData?.conversion_failed ?? 0)}
               </Text>
             </Paper>
           </SimpleGrid>
@@ -547,6 +544,7 @@ export function DocumentsPage() {
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               onClick={handleConfirmDelete}
               loading={deleteDocument.isPending}
             >

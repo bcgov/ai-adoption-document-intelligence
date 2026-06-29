@@ -105,7 +105,7 @@ export class BenchmarkDefinitionDbService {
   async findBenchmarkProject(
     id: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<{ id: string } | null> {
+  ): Promise<{ id: string; group_id: string } | null> {
     const client = tx ?? this.prisma;
     return client.benchmarkProject.findUnique({ where: { id } });
   }
@@ -120,11 +120,14 @@ export class BenchmarkDefinitionDbService {
   async findDatasetVersion(
     id: string,
     tx?: Prisma.TransactionClient,
-  ): Promise<{ id: string; dataset: { name: string } } | null> {
+  ): Promise<{
+    id: string;
+    dataset: { name: string; group_id: string };
+  } | null> {
     const client = tx ?? this.prisma;
     return client.datasetVersion.findUnique({
       where: { id },
-      include: { dataset: { select: { name: true } } },
+      include: { dataset: { select: { name: true, group_id: true } } },
     });
   }
 

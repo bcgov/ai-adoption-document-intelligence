@@ -22,6 +22,8 @@ Database: `file_path` → original blob; `normalized_file_path` → normalized P
 
 Upload may return **422** with `code: conversion_failed` when the original was stored but PDF normalization failed; status `conversion_failed` is set and OCR is not started. The original blob is **not** deleted on normalization failure: `file_path` remains valid so clients can still download the upload; only `normalized_file_path` and downstream OCR/view are absent until a future retry path exists.
 
+The documents list groups both failure states under a single **"Failed"** bucket in the UI. The `status=failed` list filter (`DocumentDbService.findAllDocuments`) therefore expands to match both `failed` (extraction failures) and `conversion_failed` (normalization failures); all other status filters match exactly.
+
 Labeling project upload (`POST .../labeling/projects/:id/upload`) requires `group_id` in the body to **match** the project’s group; the caller must also be allowed to access that group (same as other labeling routes).
 
 **Invalid or unsupported files** are rejected with **400** when validation fails before storage (bad PDF signature, corrupt image, etc.). PDFs with a valid `%PDF` header but an unreadable body fail during normalization (400) after the original blob write has started.

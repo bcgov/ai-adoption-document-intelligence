@@ -177,6 +177,36 @@ Group and membership-request operations are recorded in the audit store for trac
 
 See the platform logging and audit documentation for log format, retention, and how to query audit events.
 
+## Cross-Group Reference & Child-Resource Hardening
+
+Controller-layer `identityCanAccessGroup` checks confirm the caller belongs to the
+group named in the request. They do **not**, on their own, stop a caller from
+naming a **resource id that belongs to another group** in an endpoint that the
+caller is otherwise authorized to hit. Where a resource was loaded or mutated by
+its own (global) id, or a referenced entity's group was never compared to the
+caller's, a member of one group could read or affect another group's data. The
+following service/DB-layer checks close those gaps. Each treats a foreign-group
+reference as **not found** (404 / "does not exist") so resource existence is not
+leaked across groups.
+
+| Area | Endpoint(s) | Rule enforced | Location |
+|------|-------------|---------------|----------|
+| Workflow config resolution | `POST /api/documents/upload` (`workflow_config_id`) | A `WorkflowVersion`/`WorkflowLineage` id is resolved only when its owning lineage is in the caller's group; the workflow default-model lookup is group-scoped too | `WorkflowService.resolveWorkflowVersionId`, `getModelIdDefault` |
+| Benchmark definition refs | `POST/PUT .../projects/:projectId/definitions` | `datasetVersionId` and `workflowVersionId` must belong to the **project's** group | `BenchmarkDefinitionService.createDefinition` / `updateDefinition` |
+| Benchmark run candidate | `POST .../definitions/:definitionId/runs` (`candidateWorkflowVersionId`) | The candidate workflow version's lineage must be in the project's group | `BenchmarkRunService.startRun` |
+| Benchmark candidate promote | `POST .../apply-candidate-to-base`, `.../promote-candidate-workflow` | Both the candidate and the **base lineage being written into** must be in the project's group | `BenchmarkDefinitionService.applyToBaseWorkflow` / `promoteCandidateWorkflow` |
+| Confusion profiles | `GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/:id` | The profile row is loaded/mutated only when `group_id` matches the path group (not just membership in the path group) | `ConfusionProfileService.findById` / `update` / `delete` |
+| Template field/label children | `PUT/DELETE .../template-models/:id/fields/:fieldId`, `DELETE .../documents/:docId/labels/:labelId` | The child write is scoped to the owning template model (and labeling document); a child id from another group's template matches nothing | `TemplateModelDbService.updateFieldDefinition` / `deleteFieldDefinition` / `deleteDocumentLabel` |
+| Trained model listing | `GET /api/models` | The trained-model picker is filtered to the caller's groups (via `getIdentityGroupIds`); prebuilt models remain global | `TrainingDbService.findAllTrainedModelIds` |
+
+**Pattern for new code:** when an endpoint accepts a resource id (or a reference
+to another entity) that is not itself the group, scope the database query to the
+caller's group — directly (`where: { id, group_id }`) for group-owned rows, or
+via the owning parent relation (`where: { id, lineage: { group_id } }`,
+`template_model_id`, project group, etc.) for child rows that have no `group_id`
+of their own. Prefer reporting cross-group references as not-found over an
+explicit "forbidden" so existence is not disclosed.
+
 ## Related
 
 - [Authentication](./AUTHENTICATION.md) — describes how `resolvedIdentity` is set on the request

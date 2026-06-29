@@ -88,7 +88,7 @@ export class DocumentService {
    * @returns The created document record.
    */
   async createDocument(
-    data: Omit<DocumentData, "created_at" | "updated_at">,
+    data: Omit<DocumentData, "created_at" | "updated_at" | "purged_at">,
     tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
     this.logger.debug(`DocumentService.createDocument: ${data.id}`);
@@ -195,7 +195,10 @@ export class DocumentService {
           );
         }
 
-        const failedDoc: Omit<DocumentData, "created_at" | "updated_at"> = {
+        const failedDoc: Omit<
+          DocumentData,
+          "created_at" | "updated_at" | "purged_at"
+        > = {
           id: documentId,
           title,
           original_filename: originalFilename,
@@ -224,7 +227,10 @@ export class DocumentService {
         };
       }
 
-      const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
+      const documentData: Omit<
+        DocumentData,
+        "created_at" | "updated_at" | "purged_at"
+      > = {
         id: documentId,
         title,
         original_filename: originalFilename,
