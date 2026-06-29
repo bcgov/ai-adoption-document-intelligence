@@ -8,9 +8,17 @@ import sharp = require("sharp");
 
 /** Thrown when a valid input could not be converted to PDF (distinct from invalid/corrupt upload). */
 export class PdfNormalizationError extends Error {
-  constructor(message: string) {
+  /**
+   * Optional machine-readable reason surfaced to the upload caller (e.g.
+   * `password_protected`). Defaults to undefined for generic conversion
+   * failures, which the API reports as `conversion_failed`.
+   */
+  readonly code?: string;
+
+  constructor(message: string, code?: string) {
     super(message);
     this.name = "PdfNormalizationError";
+    this.code = code;
   }
 }
 
@@ -233,7 +241,48 @@ export class PdfNormalizationService {
    * angle source is Tesseract OSD detection rather than the PDF /Rotate flag.
    * Keep both sites in sync when changing the math.
    */
+  /**
+   * Rejects PDFs that require a password to open.
+   *
+   * The page-rotation load below uses `ignoreEncryption: true`, which silently
+   * lets password-protected PDFs through normalization; Azure Document
+   * Intelligence then rejects them with `400 UnsupportedContent` ("File may be
+   * password protected"), stranding the document mid-pipeline. mupdf's
+   * `needsPassword()` is the precise gate: it is true only for open-password
+   * encryption, so permission-only encrypted PDFs (which OCR reads fine) are
+   * deliberately allowed through. A throw here surfaces as `conversion_failed`,
+   * keeping the document out of OCR entirely.
+   */
+  private async assertPdfNotPasswordProtected(
+    fileBuffer: Buffer,
+  ): Promise<void> {
+    let requiresPassword: boolean;
+    try {
+      const mupdf = await loadMupdf();
+      const doc = mupdf.Document.openDocument(
+        new Uint8Array(fileBuffer),
+        "application/pdf",
+      );
+      requiresPassword = doc.needsPassword();
+    } catch (e) {
+      // Not openable as a PDF for the probe — let the pdf-lib load below raise
+      // the canonical "not a valid PDF or is corrupted" error instead.
+      this.logger.debug("Password probe could not open PDF", {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return;
+    }
+    if (requiresPassword) {
+      throw new PdfNormalizationError(
+        "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+        "password_protected",
+      );
+    }
+  }
+
   private async normalizePdfPageRotations(fileBuffer: Buffer): Promise<Buffer> {
+    await this.assertPdfNotPasswordProtected(fileBuffer);
+
     let srcDoc: PDFDocument;
     try {
       srcDoc = await PDFDocument.load(fileBuffer, { ignoreEncryption: true });

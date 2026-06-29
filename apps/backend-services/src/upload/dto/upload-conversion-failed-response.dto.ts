@@ -32,10 +32,18 @@ export class UploadConversionFailedResponseDto {
   @ApiProperty({ example: false })
   success!: boolean;
 
-  @ApiProperty({ example: "conversion_failed" })
+  @ApiProperty({
+    description:
+      "Machine-readable failure reason. `conversion_failed` for a generic normalization failure, or a specific code such as `password_protected` when the cause is known.",
+    example: "password_protected",
+  })
   code!: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: "Human-readable reason for the failure.",
+    example:
+      "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+  })
   message!: string;
 
   @ApiProperty({ type: UploadConversionFailedDocumentDto })
