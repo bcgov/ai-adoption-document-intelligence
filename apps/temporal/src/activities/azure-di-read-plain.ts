@@ -32,6 +32,7 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
+import { ApplicationFailure } from "@temporalio/activity";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { AnalyzeResult, OCRResponse, PreparedFileData } from "../types";
@@ -256,9 +257,14 @@ export async function azureDiReadPlain(
       const status = body.status;
       if (status === "succeeded") {
         if (!body.analyzeResult) {
-          throw new Error(
-            "Azure DI read-plain: succeeded poll missing analyzeResult.",
-          );
+          // Terminal-but-malformed: the analysis reported success yet
+          // returned no result. Retrying re-runs the same analysis and
+          // won't help, so fail non-retryably.
+          throw ApplicationFailure.create({
+            message:
+              "Azure DI read-plain: succeeded poll missing analyzeResult.",
+            nonRetryable: true,
+          });
         }
         const layoutResponse: OCRResponse = {
           status: "succeeded",
@@ -283,7 +289,14 @@ export async function azureDiReadPlain(
           errorCode: body.error?.code,
           errorMessage: errMsg,
         });
-        throw new Error(`Azure DI read-plain failed: ${errMsg}`);
+        // A server-side terminal failure won't be fixed by re-submitting the
+        // same document — mirror develop's poll-ocr-results and fail
+        // non-retryably so Temporal doesn't burn its retry budget.
+        throw ApplicationFailure.create({
+          message: `Azure DI read-plain failed: ${errMsg}`,
+          nonRetryable: true,
+          ...(body.error ? { details: [body.error] } : {}),
+        });
       }
       // Else: running / notStarted — continue.
     }

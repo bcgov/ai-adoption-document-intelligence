@@ -218,7 +218,7 @@ The bugs are in the engine's attempt to *also* handle a hypothetical **fast path
 The fence regex is anchored to end-of-string (`...\`\`\`$`). A response like ```` ```json\n{…}\n```\n\nDone. ```` doesn't match, so the raw fenced string (backticks included) is fed to `JSON.parse` → throws. LLMs commonly append a trailing note. Strict-mode `response_format` makes this rare today, but it's a latent crash.
 *Fix:* match the first fenced block (drop the `$` anchor) or extract the first `{…}` span.
 
-- [ ] **B5 — E05 `azureOcr.readPlain` retries hard failures.** `activities/azure-di-read-plain.ts:286` (+ registry `maximumAttempts: 5`)
+- [x] **B5 — E05 `azureOcr.readPlain` retries hard failures.** `activities/azure-di-read-plain.ts:286` (+ registry `maximumAttempts: 5`)
 A terminal `status: "failed"` analysis throws a plain retryable `Error`; develop's equivalent `poll-ocr-results.ts` uses `ApplicationFailure.create({ nonRetryable: true })`. A genuinely-failed document is therefore re-submitted up to 5×.
 *Fix:* throw `ApplicationFailure.create({ nonRetryable: true })` on terminal failure (and on "succeeded but missing analyzeResult").
 
