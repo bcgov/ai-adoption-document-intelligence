@@ -285,6 +285,28 @@ describe("SchemaAwareEvaluator", () => {
   // Scenario 5: Numeric tolerance comparison
   // -----------------------------------------------------------------------
   describe("numeric match", () => {
+    it("strips currency symbols before comparing (R4)", async () => {
+      // "$6,191.12" must parse to 6191.12 — the old hand-rolled strip only
+      // removed commas/spaces, so the currency symbol made it fall back to a
+      // (failing) exact-string match.
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { amount: "$6,191.12" },
+        { amount: "6191.12" },
+      );
+      const result = await evaluator.evaluate({
+        sampleId: "currency",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "numeric", numericAbsoluteTolerance: 0.01 },
+        },
+      });
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
     it("matches within absolute tolerance", async () => {
       const groundTruth = {
         amount1: "100.00",

@@ -14,7 +14,9 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
+import { canonicalize } from "../field-format-engine";
 import { parseToCalendarParts } from "../form-field-normalization";
+import { levenshteinDistance } from "./levenshtein";
 
 /**
  * Check if a scalar value represents "no value" — null, undefined, empty string,
@@ -471,36 +473,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     if (s1 === s2) return 1.0;
     if (s1.length === 0 || s2.length === 0) return 0.0;
 
-    const distance = this.levenshteinDistance(s1, s2);
+    const distance = levenshteinDistance(s1, s2);
     const maxLength = Math.max(s1.length, s2.length);
     return 1.0 - distance / maxLength;
-  }
-
-  /**
-   * Calculate Levenshtein distance between two strings
-   */
-  private levenshteinDistance(s1: string, s2: string): number {
-    const m = s1.length;
-    const n = s2.length;
-
-    const dp: number[][] = Array.from({ length: m + 1 }, () =>
-      Array(n + 1).fill(0),
-    );
-
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-    for (let i = 1; i <= m; i++) {
-      for (let j = 1; j <= n; j++) {
-        if (s1[i - 1] === s2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        }
-      }
-    }
-
-    return dp[m][n];
   }
 
   /**
@@ -569,7 +544,11 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
    * Parse numeric value (handle commas and spaces so "6 191.12" and "6,191.12" parse)
    */
   private parseNumeric(value: string): number | null {
-    const cleaned = value.replace(/,/g, "").replace(/\s/g, "");
+    // Reuse the shared "number" canonicalizer so currency symbols (£$€¥),
+    // thousands separators, and whitespace are all stripped — a hand-rolled
+    // comma/space strip missed currency, so "$6,191.12" failed to parse and
+    // silently fell back to an exact-string mismatch.
+    const cleaned = canonicalize(value, { canonicalize: "number" });
     if (cleaned === "") return null;
     const num = parseFloat(cleaned);
     return Number.isNaN(num) ? null : num;
