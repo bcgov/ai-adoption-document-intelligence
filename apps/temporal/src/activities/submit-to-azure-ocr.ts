@@ -6,7 +6,6 @@ import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
 } from "@azure-rest/ai-document-intelligence";
-import { ApplicationFailure } from "@temporalio/activity";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../logger";
 import type { PreparedFileData, SubmissionResult } from "../types";
@@ -169,31 +168,13 @@ export async function submitToAzureOCR(params: {
         body: initialResponse.body,
         alertType: "azure_ocr_submit",
       });
-      const statusNum = Number(status);
       const hint =
-        statusNum === 404
+        Number(status) === 404
           ? ` Model "${modelId}" may not exist in this resource, or the model ID may be wrong. For custom models, use the exact model ID returned when the model was built (e.g. from GET documentModels or the build response). Verify AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT points to the same resource where the model was created.`
           : "";
-      const message = `Failed to submit document to Azure OCR. Status: ${status}${hint}`;
-
-      // A 4xx (other than 429 rate-limiting) is a deterministic client error:
-      // the identical request will fail the same way on every retry — e.g. a
-      // 400 InvalidRequest/UnsupportedContent for a password-protected or
-      // unsupported PDF. Throw non-retryably so Temporal stops immediately and
-      // the workflow can move the document to a terminal `failed` status rather
-      // than burning retries and stranding it in "Processing". 429 and 5xx stay
-      // retryable so transient throttling/outages still recover.
-      const isDeterministicClientError =
-        statusNum >= 400 && statusNum < 500 && statusNum !== 429;
-      if (isDeterministicClientError) {
-        throw ApplicationFailure.create({
-          message,
-          type: "AzureOcrSubmitRejected",
-          nonRetryable: true,
-          details: [{ status }],
-        });
-      }
-      throw new Error(message);
+      throw new Error(
+        `Failed to submit document to Azure OCR. Status: ${status}${hint}`,
+      );
     }
 
     const statusCode = Number(initialResponse.status);

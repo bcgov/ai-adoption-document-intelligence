@@ -253,7 +253,7 @@ describe("submitToAzureOCR activity", () => {
     );
   });
 
-  it("throws a non-retryable failure for a deterministic 4xx (e.g. 400 password-protected)", async () => {
+  it("throws a retryable error for a 4xx so Temporal keeps retrying", async () => {
     isUnexpectedMock.mockReturnValue(true);
     mockPost.mockResolvedValue({
       status: 400,
@@ -263,7 +263,8 @@ describe("submitToAzureOCR activity", () => {
           code: "InvalidRequest",
           innererror: {
             code: "UnsupportedContent",
-            message: "Content is not supported: File may be password protected.",
+            message:
+              "Content is not supported: File may be password protected.",
           },
         },
       },
@@ -279,7 +280,7 @@ describe("submitToAzureOCR activity", () => {
 
     const error = await submitToAzureOCR({ fileData }).catch((e) => e);
     expect(error).toBeInstanceOf(Error);
-    expect((error as { nonRetryable?: boolean }).nonRetryable).toBe(true);
+    expect((error as { nonRetryable?: boolean }).nonRetryable).toBeFalsy();
     expect((error as Error).message).toContain(
       "Failed to submit document to Azure OCR. Status: 400",
     );

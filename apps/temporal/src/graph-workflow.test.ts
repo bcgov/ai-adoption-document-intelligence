@@ -568,9 +568,7 @@ describe("Graph Workflow", () => {
             });
           },
           "document.getStatus": async () => ({ status: "ongoing_ocr" }),
-          "document.updateStatus": async (
-            params: Record<string, unknown>,
-          ) => {
+          "document.updateStatus": async (params: Record<string, unknown>) => {
             updateStatusCalls.push(params);
             return { success: true };
           },
@@ -599,18 +597,14 @@ describe("Graph Workflow", () => {
             });
           },
           "document.getStatus": async () => ({ status: "awaiting_review" }),
-          "document.updateStatus": async (
-            params: Record<string, unknown>,
-          ) => {
+          "document.updateStatus": async (params: Record<string, unknown>) => {
             updateStatusCalls.push(params);
             return { success: true };
           },
         }),
       ).rejects.toThrow();
 
-      expect(
-        updateStatusCalls.some((c) => c.status === "failed"),
-      ).toBe(false);
+      expect(updateStatusCalls.some((c) => c.status === "failed")).toBe(false);
     });
   });
 

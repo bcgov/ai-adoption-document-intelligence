@@ -21,29 +21,30 @@ run. The success path transitions `extracted → complete` (HITL docs are left a
 
 ## Failure paths (why a document never gets stuck in "Processing")
 
-Three guards work together so a failed run always reaches a terminal status:
+Two guards work together so a failed run always reaches a terminal status:
 
 1. **Reject password-protected PDFs before OCR** — normalization probes with
    mupdf `needsPassword()` and routes open-password PDFs to `conversion_failed`,
    so they never enter the OCR workflow at all. See
    [DOCUMENT_IMAGE_NORMALIZATION.md](DOCUMENT_IMAGE_NORMALIZATION.md).
 
-2. **Fail fast on deterministic Azure errors** — `azureOcr.submit`
-   (`apps/temporal/src/activities/submit-to-azure-ocr.ts`) throws a
-   **non-retryable** `ApplicationFailure` for deterministic `4xx` responses
-   (e.g. `400 InvalidRequest / UnsupportedContent`). The identical request
-   would fail every retry, so retrying only delays the terminal state. `429`
-   (throttling) and `5xx` (transient outage) stay **retryable** so genuine
-   transient failures still recover.
-
-3. **Failure-path status transition** — when the workflow fails, the `catch` in
+2. **Failure-path status transition** — when the workflow fails, the `catch` in
    `graphWorkflow` (`apps/temporal/src/graph-workflow.ts`) moves the document
    from an in-flight status (`ongoing_ocr` / `pre_ocr`) to **`failed`**. It is
    guarded so a document that already progressed (`extracted` /
    `awaiting_review`) is never clobbered, is skipped on cancellation, and never
    lets a status-update error mask the original workflow error.
 
-> Historical note: before guard #3 existed, an OCR-submit failure left the
+Azure OCR submit/poll errors (`4xx` and `5xx` alike) stay **retryable**: the
+`azureOcr.submit` activity (`apps/temporal/src/activities/submit-to-azure-ocr.ts`)
+throws a plain `Error`, so Temporal applies the activity's retry policy. Once
+retries are exhausted the workflow fails and guard #2 drives the document to the
+terminal `failed` status — so even a permanently-failing submit (e.g. a
+`400 InvalidRequest / UnsupportedContent`) can no longer strand a document in
+"Processing"; it just reaches `failed` after the retry budget rather than
+immediately.
+
+> Historical note: before guard #2 existed, an OCR-submit failure left the
 > document orphaned in `ongoing_ocr` ("Processing") indefinitely — and
 > `deleteDocument` refuses to remove an in-flight document, so those rows could
 > neither finish nor be deleted. Re-running such a document through the workflow
