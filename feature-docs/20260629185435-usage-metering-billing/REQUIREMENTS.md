@@ -35,16 +35,17 @@ There are three independent cost categories:
 | Category | Description | Trigger |
 |----------|-------------|---------|
 | **Activity Cost** | Units consumed per completed Temporal workflow activity | Per activity completion within a workflow run |
-| **Storage Cost** | Units consumed per GB of blob storage in use per group | Periodically (nightly) based on a running ledger of stored bytes per group |
-| **Training Cost** | Units consumed when a model training run is initiated | Explicit event recorded at training start, for template models and (in a future follow-on) classifiers |
+| **Storage Cost** | Units consumed per GB-hour of blob storage per group | Nightly job reads the storage ledger, computes GB-hours for the day, and records a charge event |
+| **Training Cost** | Units consumed when a model training run is initiated | Explicit event recorded at training start, for both template models and classifiers |
 
 ### 2.3 Rate Version
 
 A `RateVersion` record defines:
 - A semantic version string (e.g., `"1.0.0"`)
 - An effective date (`effective_from`)
-- A `units_per_dollar` conversion factor (how many units equal $1.00)
-- A `cost_per_gb_units` value for storage cost per GB per month
+- A `unit_cost_dollars` value — the dollar cost of a single unit (e.g. `0.001` means 1 unit = $0.001, so 1000 units = $1.00). Dollar totals are calculated as `units_consumed × unit_cost_dollars`.
+- A `cost_per_gb_units_per_month` value for storage cost per GB per month (operators set this; the nightly job derives the hourly rate at calculation time as `monthly / (days_in_month × 24)`)
+- A `max_pages_assumption` for pre-flight estimation of per-page activities
 
 Rate versions are append-only. The active rate version at any point in time is the version with the highest `effective_from` date that is ≤ the event timestamp.
 
@@ -67,7 +68,7 @@ Each Temporal activity type is mapped to a cost entry. The mapping key is the **
 Each activity entry has a `cost_type` of either `flat` or `per_page`:
 
 - **`flat`**: A fixed number of units is consumed per activity completion, regardless of input size.
-- **`per_page`**: Units consumed = `page_count × cost_per_page_units`. The page count is extracted from the activity's return value via a `_metered_quantity` field (see section 5.2). This type is used for OCR extraction activities where Azure charges per page processed.
+- **`per_page`**: Units consumed = `page_count × units` (where `units` is the per-page rate). The page count is extracted from the activity's return value via a `_metered_quantity` field (see section 5.2). This type is used for OCR extraction activities where Azure charges per page processed.
 
 Any activity not listed in the rate version has an implicit flat cost of `0` (free).
 
@@ -76,12 +77,12 @@ Any activity not listed in the rate version has an implicit flat cost of `0` (fr
 {
   "version": "1.0.0",
   "effective_from": "2026-07-01T00:00:00Z",
-  "units_per_dollar": 1000,
+  "unit_cost_dollars": 0.001,
   "cost_per_gb_units_per_month": 10,
   "max_pages_assumption": 50,
   "activity_costs": {
     "azureOcr.submit": { "cost_type": "flat", "units": 10 },
-    "azureOcr.extract": { "cost_type": "per_page", "cost_per_page_units": 40 },
+    "azureOcr.extract": { "cost_type": "per_page", "units": 40 },
     "enrichment.run": { "cost_type": "flat", "units": 200 },
     "classifyDocument": { "cost_type": "flat", "units": 30 },
     "runFieldFormatEngine": { "cost_type": "flat", "units": 10 }
@@ -93,7 +94,7 @@ Any activity not listed in the rate version has an implicit flat cost of `0` (fr
 }
 ```
 
-The `max_pages_assumption` field is used exclusively for pre-flight cost estimation of `per_page` activities (see section 4.1).
+For `per_page` activities, `units` means "units per page". For `flat` activities, `units` means "units per completion". The `max_pages_assumption` field is used exclusively for pre-flight cost estimation of `per_page` activities (see section 4.1).
 
 ---
 
@@ -145,7 +146,7 @@ When a workflow is successfully submitted to Temporal, record a `UsageEvent` wit
 When each Temporal activity completes successfully within a workflow, the `ActivityInboundCallsInterceptor` records a `UsageEvent`. The interceptor determines `units_consumed` based on the activity's cost type:
 
 - **Flat cost**: `units_consumed = activity_cost.units`
-- **Per-page cost**: The interceptor inspects the activity's return value for a `_metered_quantity` field (a number). `units_consumed = _metered_quantity × activity_cost.cost_per_page_units`. If the field is absent or zero, `units_consumed = 0`.
+- **Per-page cost**: The interceptor inspects the activity's return value for a `_metered_quantity` field (a number). `units_consumed = _metered_quantity × activity_cost.units`. If the field is absent or zero, `units_consumed = 0`.
 
 Activities that are to be billed per-page (e.g. `azureOcr.extract`) **must** include `_metered_quantity: pageCount` in their return value. This is a contract between the activity implementation and the billing system. The field is ignored by all other consumers.
 
@@ -185,9 +186,15 @@ Only **completed activities** are charged. If a workflow fails partway through:
 
 ### 6.1 Approach: GB-Hours
 
-Storage is billed in **GB-hours** — the product of file size and the duration it was stored. This ensures groups are only charged for the time data actually occupies storage. A document uploaded in the morning and deleted in the afternoon contributes only those hours to the bill, not a full day.
+Storage is billed in **GB-hours** — the product of file size and the duration it was stored. This ensures groups are only charged for the time data actually occupies storage, including files that are written and deleted within the same day.
 
-The billing unit in `rate_versions.json` is expressed as `cost_per_gb_hour_units` (units per GB per hour). The monthly rate `cost_per_gb_units_per_month` is retained as a human-readable reference value but the actual charge calculation uses the hourly rate derived from it: `cost_per_gb_hour_units = cost_per_gb_units_per_month / (30 * 24)`.
+The rate in `rate_versions.json` is expressed as `cost_per_gb_units_per_month` because that is the natural unit for operators to reason about ("10 units per GB per month"). The nightly job converts this to an hourly rate at calculation time:
+
+```
+cost_per_gb_hour = cost_per_gb_units_per_month / (days_in_month × 24)
+```
+
+Using the actual days in the billing month (28–31) ensures the monthly total always adds up to exactly `cost_per_gb_units_per_month` regardless of month length.
 
 ### 6.2 Blob Storage Ledger
 
@@ -226,7 +233,7 @@ A scheduled Temporal workflow runs nightly. For each group that has any ledger a
    gb_hours = (size_bytes / 1_073_741_824) * hours_alive
    ```
 3. Sum `gb_hours` across all rows for the group.
-4. Multiply by `cost_per_gb_hour_units` from the active rate version.
+4. Multiply by the derived `cost_per_gb_hour` from the active rate version (`cost_per_gb_units_per_month / (days_in_month × 24)`).
 5. Record a `UsageEvent` with:
    - `event_type`: `"storage_daily_charge"`
    - `group_id`
@@ -345,7 +352,7 @@ The system maintains a `UsagePeriodSummary` record per group per calendar month:
 - `total_dollars_spent`: running total in dollars
 - `updated_at`: last update timestamp
 
-This record is updated (incremented) atomically whenever a `UsageEvent` that contributes to spending is recorded. It enables fast cap checks without scanning the full event log.
+This record is **incrementally updated** (not recalculated) for one important reason: the pre-flight cap check must read the current month's total spend in real-time, before every workflow start and training submission. If it were calculated on-demand by summing `UsageEvent` rows, that aggregation could scan thousands of rows per cap check under load. The incremental row is a single indexed read. Historical months persist naturally as an accurate audit record.
 
 ---
 
@@ -409,9 +416,10 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 | **Correctness** | Cap check must be atomic; no two concurrent workflow starts for the same group may both pass a cap check they would collectively exceed |
 | **Auditability** | Every `UsageEvent` references a `rate_version_id`; historical dollar values are always reproducible |
 | **Performance** | Cap check adds ≤ 100ms to workflow start latency (single indexed read on `UsagePeriodSummary`) |
-| **Retention** | `UsageEvent` records are never deleted; `UsagePeriodSummary` records are never deleted |
+| **Retention** | `UsageEvent` records are retained for a configurable period (default: 2 years). After that, raw event rows may be purged — `UsagePeriodSummary` preserves the monthly totals permanently, so billing history is never lost. `UsagePeriodSummary` records are never deleted. Retention period is a deployment-level environment variable. |
 | **Backfill** | None — tracking begins from the deployment date of this feature |
 | **Storage** | PostgreSQL (existing database); no additional data store required |
+| **Table growth** | `UsageEvent` is the largest table (~10–15 rows per workflow run) but is bounded by the configurable retention policy. `GroupStorageLedger` is bounded by the end-of-month archival job. All other tables are small. |
 
 ---
 
@@ -424,17 +432,16 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 - Rollover of unused monthly budget
 - Per-group pricing tiers or overrides
 - Template model training data blob storage tracking (blobs are transient — deleted automatically after training completes)
-- Template model training data blob storage tracking (blobs are transient — deleted automatically after training completes)
 
 ---
 
 ## 12. Implementation Notes
 
-1. **Temporal activity interceptor**: Use `ActivityInboundCallsInterceptor` from `@temporalio/worker` v1.10.0 (confirmed available). The interceptor's `execute(input, next)` method fires after `await next(input)` returns — meaning it only runs on successful completion, which naturally enforces the charge-on-completion policy. The interceptor checks the activity's cost type from the active `RateVersion`: flat activities use a fixed unit value; per-page activities read `result._metered_quantity` from the return value and multiply by `cost_per_page_units`. Register the interceptor in both `ocrWorker` and `benchmarkWorker` in `worker.ts`. No existing activity code needs modification **except** per-page activities, which must add `_metered_quantity: pageCount` to their return value.
+1. **Temporal activity interceptor**: Use `ActivityInboundCallsInterceptor` from `@temporalio/worker` v1.10.0 (confirmed available). The interceptor's `execute(input, next)` method fires after `await next(input)` returns — meaning it only runs on successful completion, which naturally enforces the charge-on-completion policy. The interceptor checks the activity's cost type from the active `RateVersion`: flat activities use a fixed `units` value; per-page activities read `result._metered_quantity` from the return value and multiply by the activity's `units` (per-page rate). Register the interceptor in both `ocrWorker` and `benchmarkWorker` in `worker.ts`. No existing activity code needs modification **except** per-page activities, which must add `_metered_quantity: pageCount` to their return value.
 
 3. **Blob client instrumentation**: Both the backend (`apps/backend-services/src/blob-storage/`) and the Temporal worker (`apps/temporal/src/blob-storage/blob-storage-client.ts`) maintain separate `BlobStorageClient` implementations. Both must be instrumented. On `write`, insert a `GroupStorageLedger` row. On `delete`/`deleteByPrefix`, set `deleted_at` on matching rows. The `groupId` is always the first path segment of every blob key (enforced by `validateBlobFilePath`) and can be extracted without additional context. Ledger rows are never hard-deleted.
 
-4. **Storage job scheduler**: Implement as a Temporal scheduled workflow for consistency with existing infrastructure. Runs nightly. Reads `GroupStorageSummary` directly — no Azure API calls required.
+4. **Storage job scheduler (nightly job)**: Implemented as a Temporal scheduled workflow. Its purpose is to convert the raw `GroupStorageLedger` (which tracks blob sizes and timestamps) into billable `UsageEvent` records. Without this job, storage usage is tracked but never charged. It runs nightly, reads the ledger to compute GB-hours per group for the past 24 hours (using the `written_at`/`deleted_at` timestamps), records a `storage_daily_charge` `UsageEvent` for each group with non-zero usage, and increments `UsagePeriodSummary`. No Azure API calls are required — all data comes from the local ledger table.
 
 5. **Rate version seeding**: The backend startup check for new rate versions in `rate_versions.json` should be idempotent and safe to run on every deployment. The JSON schema includes both `activity_costs` (keyed by Temporal activity type string matching keys in the `ActivityRegistryEntry`) and `training_costs` (keyed by resource type).
 
