@@ -11,7 +11,6 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureOcr.poll",
   "azureOcr.extract",
   "mistralOcr.process",
-  "mistralAzureOcr.process",
   "azureContentUnderstanding.deployAnalyzer",
   "azureContentUnderstanding.analyze",
   "vlmDirect.extract",
