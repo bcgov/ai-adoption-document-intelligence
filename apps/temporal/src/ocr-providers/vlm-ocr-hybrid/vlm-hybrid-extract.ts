@@ -3,7 +3,7 @@
  *
  * Stitches together the two legs of the hybrid pattern:
  *   1. **OCR pre-pass**: takes the raw layout response from the upstream
- *      `azureOcr.readPlain` activity (passed in via `params.layoutResponse`)
+ *      `azureOcr.submit` -> `azureOcr.poll` path (passed in via `params.layoutResponse`)
  *      and renders it as markdown for the VLM prompt.
  *   2. **VLM call**: sends the document image AND the OCR markdown to
  *      the chosen Azure OpenAI vision-capable chat-completions deployment
@@ -32,6 +32,11 @@ import axios from "axios";
 import { getPrismaClient } from "../../activities/database-client";
 import { getBlobStorageClient } from "../../blob-storage/blob-storage-client";
 import { createActivityLogger } from "../../logger";
+import {
+  isOcrPayloadRef,
+  loadOcrResponseFromPort,
+  type OcrPayloadRef,
+} from "../../ocr-payload-ref";
 import type { OCRResponse, OCRResult, PreparedFileData } from "../../types";
 import {
   type TemplateFieldType,
@@ -288,10 +293,13 @@ async function callAzureOpenAiVlm(opts: CallVlmOptions): Promise<{
 export interface VlmHybridExtractParams {
   fileData: PreparedFileData;
   /**
-   * Layout response from the upstream `azureOcr.readPlain` activity. The
-   * workflow JSON wires this from `ctx.layoutResponse`.
+   * Layout response from the upstream regular Azure DI path
+   * (`azureOcr.submit` → `azureOcr.poll`, with `outputFormat: "markdown"`).
+   * `poll` emits an {@link OcrPayloadRef} (kept small in Temporal history),
+   * so this accepts either the ref — resolved internally from blob storage,
+   * mirroring `azureOcr.extract` — or an inline `OCRResponse`.
    */
-  layoutResponse: OCRResponse;
+  layoutResponse: OCRResponse | OcrPayloadRef;
   /** Labeling template id; loads `field_schema` to build the JSON schema. */
   templateModelId?: string;
   /** Global instruction; sent as the system message preamble. */
@@ -351,9 +359,15 @@ export async function vlmHybridExtract(
 
   if (!params.layoutResponse) {
     throw new Error(
-      "VLM-hybrid: layoutResponse is required (wire it from the upstream azureOcr.readPlain step's `layoutResponse` output port).",
+      "VLM-hybrid: layoutResponse is required (wire it from the upstream azureOcr.poll step's `response` output port).",
     );
   }
+
+  // The regular DI poll emits a blob ref to keep Temporal history small;
+  // resolve it to the inline OCRResponse here (same pattern as azureOcr.extract).
+  const layoutResponse: OCRResponse = isOcrPayloadRef(params.layoutResponse)
+    ? await loadOcrResponseFromPort(params.layoutResponse)
+    : params.layoutResponse;
 
   const apiVersion = readEnv("AZURE_OPENAI_API_VERSION") ?? DEFAULT_API_VERSION;
   const deployment =
@@ -390,7 +404,7 @@ export async function vlmHybridExtract(
     );
   }
 
-  const ocrMarkdown = ocrLayoutToMarkdown(params.layoutResponse, {
+  const ocrMarkdown = ocrLayoutToMarkdown(layoutResponse, {
     includeBboxAnnotations: params.includeBboxAnnotations ?? false,
   });
 
@@ -413,7 +427,7 @@ export async function vlmHybridExtract(
       template.fieldDefs,
       deployment,
       apiVersion,
-      params.layoutResponse,
+      layoutResponse,
       ocrMarkdown,
     );
     const ocrResult = vlmHybridExtractionToOcrResult(
@@ -426,7 +440,7 @@ export async function vlmHybridExtract(
       },
       {
         fieldDefs: template.fieldDefs,
-        layoutResponse: params.layoutResponse,
+        layoutResponse: layoutResponse,
       },
     );
     log.info("VLM-hybrid extract complete (mock)", {
@@ -478,7 +492,7 @@ export async function vlmHybridExtract(
     vlmDurationMs: vlm.durationMs,
     parsed: vlm.parsed,
     raw: vlm.raw,
-    layoutResponse: params.layoutResponse,
+    layoutResponse: layoutResponse,
     ocrMarkdown,
     ...(vlm.usage ? { usage: vlm.usage } : {}),
   };
@@ -493,7 +507,7 @@ export async function vlmHybridExtract(
     },
     {
       fieldDefs: template.fieldDefs,
-      layoutResponse: params.layoutResponse,
+      layoutResponse: layoutResponse,
     },
   );
 
