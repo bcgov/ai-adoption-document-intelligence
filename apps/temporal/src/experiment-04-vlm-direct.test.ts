@@ -22,7 +22,19 @@ import * as path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { computeConfigHash } from "./config-hash";
+import {
+  buildRealActivities,
+  installPaidApiMocks,
+  makeWorkflowInput,
+  SAMPLE_IMAGE_ABS_PATH,
+  seedTestDocument,
+  TEMPORAL_ADDRESS,
+  TEMPORAL_NAMESPACE,
+} from "./__testlib__/integration-harness";
+import {
+  disconnectPrismaClient,
+  getPrismaClient,
+} from "./activities/database-client";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import { getStatus, graphWorkflow } from "./graph-workflow";
@@ -30,13 +42,33 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
-  GraphWorkflowInput,
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
 import { vlmExtractionToOcrResult } from "./ocr-providers/vlm-direct/vlm-to-ocr-result";
 import type { VlmDirectRawResponse } from "./ocr-providers/vlm-direct/vlm-types";
-import type { OCRResult } from "./types";
+
+const SEED_TEMPLATE_ID = "seed-sdpr-monthly-report-template";
+
+/**
+ * Load the REAL seeded template field types (T4) so the mapper test exercises
+ * the same `{field_key, field_type}` the activity loads — instead of guessing
+ * types from key-name prefixes (which silently treats a non-`applicant_`/
+ * `spouse_` number field as a string and drops its `valueNumber`).
+ */
+async function loadSeededFieldDefs(): Promise<
+  Array<{ field_key: string; field_type: string }>
+> {
+  const prisma = getPrismaClient();
+  const tm = await prisma.templateModel.findUnique({
+    where: { id: SEED_TEMPLATE_ID },
+    include: { field_schema: { orderBy: { display_order: "asc" } } },
+  });
+  return (tm?.field_schema ?? []).map((f) => ({
+    field_key: f.field_key,
+    field_type: f.field_type,
+  }));
+}
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -54,9 +86,6 @@ const FIXTURE_PATH = path.join(
   "experiment-04",
   "vlm-response-1-81.json",
 );
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_TEST_NAMESPACE ?? "default";
 
 function loadTemplate(): GraphWorkflowConfig {
   return JSON.parse(
@@ -89,117 +118,7 @@ function findEdge(
   return graph.edges?.find((e) => e.source === source && e.target === target);
 }
 
-interface ActivityCall {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-type ActivityImpl = (
-  params: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
-
-function buildOcrResultFromFixture(
-  fixture: VlmDirectRawResponse,
-  fieldDefs: Array<{ field_key: string; field_type: string }>,
-): OCRResult {
-  return vlmExtractionToOcrResult(
-    fixture.parsed,
-    {
-      fileName: "1 81.jpg",
-      fileType: "image",
-      requestId: "test-vlm-id",
-      modelId: fixture.deployment ?? "gpt-5.4",
-    },
-    { fieldDefs },
-  );
-}
-
-function buildMockActivities(opts: {
-  ocrResult: OCRResult;
-  averageConfidence: number;
-  requiresReview: boolean;
-  callsRef: ActivityCall[];
-}): Record<string, ActivityImpl> {
-  const { ocrResult, averageConfidence, requiresReview, callsRef } = opts;
-  const record = (type: string, params: Record<string, unknown>) =>
-    callsRef.push({ type, params });
-
-  return {
-    "file.prepare": async (params) => {
-      record("file.prepare", params);
-      return {
-        preparedData: {
-          blobKey: params.blobKey ?? "test-blob-key",
-          fileName: params.fileName ?? "1 81.jpg",
-          fileType: params.fileType ?? "image",
-          contentType: params.contentType ?? "image/jpeg",
-          modelId: params.modelId ?? "gpt-5.4",
-        },
-      };
-    },
-    "document.updateStatus": async (params) => {
-      record("document.updateStatus", params);
-      return { success: true };
-    },
-    "vlmDirect.extract": async (params) => {
-      record("vlmDirect.extract", params);
-      return { ocrResult };
-    },
-    "ocr.cleanup": async (params) => {
-      record("ocr.cleanup", params);
-      return { cleanedResult: ocrResult };
-    },
-    "ocr.checkConfidence": async (params) => {
-      record("ocr.checkConfidence", params);
-      return { averageConfidence, requiresReview };
-    },
-    "ocr.storeResults": async (params) => {
-      record("ocr.storeResults", params);
-      return { success: true };
-    },
-  };
-}
-
-type TestGraphWorkflowInput = GraphWorkflowInput & {
-  __testGraph: GraphWorkflowConfig;
-};
-
-function makeWorkflowInput(
-  graph: GraphWorkflowConfig,
-  initialCtx: Record<string, unknown>,
-): TestGraphWorkflowInput {
-  return {
-    workflowVersionId: "test-workflow-version-id",
-    initialCtx,
-    configHash: computeConfigHash(graph),
-    runnerVersion: "1.0.0",
-    __testGraph: graph,
-  };
-}
-
-/**
- * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
- * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
- */
-function withGraphConfigLoader(
-  activities: Record<string, ActivityImpl>,
-  graph: GraphWorkflowConfig,
-): Record<string, ActivityImpl> {
-  activities.getWorkflowGraphConfig = (async () => ({
-    graph,
-    workflowVersionId: "test-workflow-version-id",
-    configHash: computeConfigHash(graph),
-  })) as unknown as ActivityImpl;
-  // develop's workflow runs a post-execution hook that reads document.getStatus;
-  // mock it so the workflow closes cleanly (else the trailing failed activity
-  // adds noise and can race the terminal getStatus query).
-  if (!activities["document.getStatus"]) {
-    activities["document.getStatus"] = (async () => ({
-      status: "extracted",
-    })) as unknown as ActivityImpl;
-  }
-  return activities;
-}
+// (Runtime tests use the shared mock-only-paid harness; no per-activity mocks.)
 
 // ---------------------------------------------------------------------------
 // Static + structural tests
@@ -400,39 +319,49 @@ describe("Experiment 04 — VLM-direct workflow template (static)", () => {
         expect(quoteKeys.length).toBe(fieldKeys.length);
       });
 
-      it("mapper produces a valid OCRResult from the captured VLM fixture", () => {
-        const fixture = loadFixture();
-        // Synthesize a minimal fieldDefs list so the mapper can disambiguate
-        // types — this mirrors what the activity passes from the loaded template.
-        const fieldDefs = Object.keys(fixture.parsed.fields).map((key) => ({
-          field_key: key,
-          field_type: key.startsWith("checkbox_")
-            ? "selectionMark"
-            : key.startsWith("applicant_") || key.startsWith("spouse_")
-              ? typeof fixture.parsed.fields[key] === "number"
-                ? "number"
-                : "string"
-              : key === "date" || key === "spouse_date"
-                ? "date"
-                : "string",
-        }));
-        const ocr = vlmExtractionToOcrResult(
-          fixture.parsed,
-          {
-            fileName: "1 81.jpg",
-            fileType: "image",
-            requestId: "test",
-            modelId: fixture.deployment ?? "gpt-5.4",
-          },
-          { fieldDefs },
-        );
-        expect(ocr.success).toBe(true);
-        expect(ocr.extractedText.length).toBeGreaterThan(0);
-        expect(ocr.pages.length).toBeGreaterThanOrEqual(1);
-        expect(ocr.documents?.[0]?.docType).toBe("vlm-direct");
-      });
+      // T4: use the REAL seeded template field types (DB), not a key-name
+      // heuristic, so a number field that the heuristic would mis-type as a
+      // string (dropping its valueNumber) is actually exercised. DB-gated.
+      const itDb = process.env.CI ? it.skip : it;
+      itDb(
+        "mapper produces a valid OCRResult using the real seeded template field types, preserving numeric values",
+        async () => {
+          const fixture = loadFixture();
+          const fieldDefs = await loadSeededFieldDefs();
+          expect(fieldDefs.length).toBeGreaterThanOrEqual(70);
+          const ocr = vlmExtractionToOcrResult(
+            fixture.parsed,
+            {
+              fileName: "1 81.jpg",
+              fileType: "image",
+              requestId: "test",
+              modelId: fixture.deployment ?? "gpt-5.4",
+            },
+            { fieldDefs },
+          );
+          expect(ocr.success).toBe(true);
+          expect(ocr.extractedText.length).toBeGreaterThan(0);
+          expect(ocr.pages.length).toBeGreaterThanOrEqual(1);
+          expect(ocr.documents?.[0]?.docType).toBe("vlm-direct");
 
-      it("source_quotes are a useful evidence signal (more than half of populated fields have quotes)", () => {
+          // Every field the template types as a number and that the fixture
+          // populated with a numeric value must carry a parsed `valueNumber`
+          // (the silent-drop the old key-name heuristic could cause).
+          const numberKeys = fieldDefs
+            .filter((d) => d.field_type === "number")
+            .map((d) => d.field_key);
+          const docFields = ocr.documents?.[0]?.fields ?? {};
+          const checkedNumeric = numberKeys.filter(
+            (k) => typeof fixture.parsed.fields[k] === "number",
+          );
+          expect(checkedNumeric.length).toBeGreaterThan(0);
+          for (const k of checkedNumeric) {
+            expect(typeof docFields[k]?.valueNumber).toBe("number");
+          }
+        },
+      );
+
+      it("source_quotes back nearly every populated field (evidence signal is dense, not just > half)", () => {
         const fixture = loadFixture();
         const fields = fixture.parsed.fields ?? {};
         const quotes = fixture.parsed.source_quotes ?? {};
@@ -442,10 +371,14 @@ describe("Experiment 04 — VLM-direct workflow template (static)", () => {
         const evidenced = populated.filter(
           ([k]) => typeof quotes[k] === "string" && quotes[k].trim().length > 0,
         );
-        // gpt-5.4 in practice quotes every populated field, so this is a
-        // floor; a regression here means the model stopped producing quotes
-        // (e.g. strict-mode flag dropped).
-        expect(evidenced.length).toBeGreaterThan(populated.length / 2);
+        // The sample populates a substantial number of fields, and gpt-5.4
+        // quotes essentially all of them. Require a dense ratio (≥ 90%) so a
+        // regression where the model stops emitting quotes actually fails
+        // (the old `> populated/2` floor was near-vacuous).
+        expect(populated.length).toBeGreaterThanOrEqual(20);
+        expect(evidenced.length).toBeGreaterThanOrEqual(
+          Math.ceil(populated.length * 0.9),
+        );
       });
     });
   });
@@ -455,11 +388,10 @@ describe("Experiment 04 — VLM-direct workflow template (static)", () => {
 // Runtime tests against local Temporal cluster
 // ---------------------------------------------------------------------------
 
-const describeRuntime =
-  process.env.CI || !fixtureExists() ? describe.skip : describe;
+const describeRuntime = process.env.CI ? describe.skip : describe;
 
 describeRuntime(
-  "Experiment 04 — runtime against local Temporal cluster",
+  "Experiment 04 — runtime against local Temporal cluster (mock only paid services)",
   () => {
     let nativeConnection: NativeConnection | null = null;
     let connection: Connection | null = null;
@@ -476,155 +408,128 @@ describeRuntime(
     afterAll(async () => {
       await nativeConnection?.close();
       await connection?.close();
+      await disconnectPrismaClient();
     });
 
-    it("high-confidence sample skips human review and runs the chain in order", async () => {
+    function runtimeCtx(documentId: string): Record<string, unknown> {
+      return {
+        documentId,
+        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      };
+    }
+
+    it("high-confidence sample (all fields evidenced) skips human review and persists the result", async () => {
       if (!nativeConnection || !client) {
         throw new Error(
           `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
         );
       }
-      const taskQueue = `e04-test-high-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const fieldDefs = Object.keys(fixture.parsed.fields).map((key) => ({
-        field_key: key,
-        field_type: key.startsWith("checkbox_") ? "selectionMark" : "string",
-      }));
-      const ocrResult = buildOcrResultFromFixture(fixture, fieldDefs);
-      const calls: ActivityCall[] = [];
       const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.99,
-          requiresReview: false,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({
+        vlm: {
+          fields: { name: "John Smith" },
+          source_quotes: { name: "John Smith" },
+        },
       });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-high-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const workflowId = `e04-test-high-${Date.now()}`;
+      const taskQueue = `e04-itest-high-${process.pid}-${Date.now()}`;
       const activeClient = client;
-      const { result, ctx } = await worker.runUntil(async () => {
-        const result = await activeClient.workflow.execute(graphWorkflow, {
-          workflowId,
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const workflowId = `e04-itest-high-${Date.now()}`;
+        const { result, ctx } = await worker.runUntil(async () => {
+          const result = await activeClient.workflow.execute(graphWorkflow, {
+            workflowId,
+            taskQueue,
+            args: [input],
+          });
+          const status = await activeClient.workflow
+            .getHandle(workflowId)
+            .query(getStatus);
+          return { result, ctx: status.ctx };
+        });
+
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(false);
+        expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
+
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
+    }, 60000);
+
+    it("low-confidence sample (populated field without evidence) routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const graph = loadTemplate();
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({
+        vlm: { fields: { name: "John Smith" }, source_quotes: {} },
+      });
+      const taskQueue = `e04-itest-low-${process.pid}-${Date.now()}`;
+      const activeClient = client;
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const handle = await activeClient.workflow.start(graphWorkflow, {
+          workflowId: `e04-itest-low-${Date.now()}`,
           taskQueue,
           args: [input],
         });
-        const status = await activeClient.workflow
-          .getHandle(workflowId)
-          .query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(false);
-      expect(ctx.averageConfidence).toBe(0.99);
-
-      const ctxOrder = calls.map((c) => c.type);
-      expect(ctxOrder).toContain("file.prepare");
-      expect(ctxOrder).toContain("vlmDirect.extract");
-      expect(ctxOrder).toContain("ocr.cleanup");
-      expect(ctxOrder).toContain("ocr.checkConfidence");
-      expect(ctxOrder).toContain("ocr.storeResults");
-
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("file.prepare")).toBeLessThan(idx("vlmDirect.extract"));
-      expect(idx("vlmDirect.extract")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-
-      const vlmCall = calls.find((c) => c.type === "vlmDirect.extract");
-      expect(vlmCall?.params.templateModelId).toBeDefined();
-      expect(vlmCall?.params.azureOpenAiDeployment).toBeDefined();
-    }, 60000);
-
-    it("low-confidence sample routes through humanReview before storeResults", async () => {
-      if (!nativeConnection || !client) {
-        throw new Error(
-          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
-        );
-      }
-      const taskQueue = `e04-test-low-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const fieldDefs = Object.keys(fixture.parsed.fields).map((key) => ({
-        field_key: key,
-        field_type: key.startsWith("checkbox_") ? "selectionMark" : "string",
-      }));
-      const ocrResult = buildOcrResultFromFixture(fixture, fieldDefs);
-      const calls: ActivityCall[] = [];
-      const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.42,
-          requiresReview: true,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-low-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const handle = await client.workflow.start(graphWorkflow, {
-        workflowId: `e04-test-low-${Date.now()}`,
-        taskQueue,
-        args: [input],
-      });
-
-      const { result, ctx } = await worker.runUntil(async () => {
-        await handle.signal("humanApproval", {
-          approved: true,
-          reviewer: "test-reviewer",
-          comments: "ok",
-          rejectionReason: "",
-          annotations: "",
+        const { result, ctx } = await worker.runUntil(async () => {
+          await handle.signal("humanApproval", {
+            approved: true,
+            reviewer: "test-reviewer",
+            comments: "ok",
+            rejectionReason: "",
+            annotations: "",
+          });
+          const result = await handle.result();
+          const status = await handle.query(getStatus);
+          return { result, ctx: status.ctx };
         });
-        const result = await handle.result();
-        const status = await handle.query(getStatus);
-        return { result, ctx: status.ctx };
-      });
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(true);
-      expect(ctx.averageConfidence).toBe(0.42);
 
-      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(true);
+        expect(ctx.averageConfidence as number).toBeLessThan(0.95);
 
-      const ctxOrder = calls.map((c) => c.type);
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("vlmDirect.extract")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
     }, 60000);
   },
 );
