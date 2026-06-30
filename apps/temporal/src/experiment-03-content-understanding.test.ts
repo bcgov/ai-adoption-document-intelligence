@@ -27,7 +27,19 @@ import * as path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { computeConfigHash } from "./config-hash";
+import {
+  buildRealActivities,
+  installPaidApiMocks,
+  makeWorkflowInput,
+  SAMPLE_IMAGE_ABS_PATH,
+  seedTestDocument,
+  TEMPORAL_ADDRESS,
+  TEMPORAL_NAMESPACE,
+} from "./__testlib__/integration-harness";
+import {
+  disconnectPrismaClient,
+  getPrismaClient,
+} from "./activities/database-client";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import { getStatus, graphWorkflow } from "./graph-workflow";
@@ -35,13 +47,41 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
-  GraphWorkflowInput,
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
 import { cuAnalyzeResultToOcrResult } from "./ocr-providers/azure-content-understanding/cu-to-ocr-result";
-import type { CuAnalyzeOperation } from "./ocr-providers/azure-content-understanding/cu-types";
-import type { OCRResult } from "./types";
+import type {
+  CuAnalyzeOperation,
+  CuAnalyzeResult,
+} from "./ocr-providers/azure-content-understanding/cu-types";
+
+/**
+ * Build a CU analyze result whose single field carries `confidence`, fed to the
+ * real analyze path via the harness's MOCK_AZURE_CU seam so the real gate is
+ * deterministic. The mapper derives page confidence from the mean per-field
+ * confidence, so one field is enough to drive high vs low.
+ */
+function cuResultWithConfidence(confidence: number): CuAnalyzeResult {
+  return {
+    analyzerId: "itest-cu-analyzer",
+    apiVersion: "2025-11-01",
+    contents: [
+      {
+        path: "input1",
+        markdown: "Net Employment Income 1234",
+        pages: [{ pageNumber: 1, width: 612, height: 792, unit: "pixel" }],
+        fields: {
+          applicant_oas_gis: {
+            type: "number",
+            valueNumber: 100,
+            confidence,
+          },
+        },
+      },
+    ],
+  };
+}
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -59,9 +99,6 @@ const FIXTURE_PATH = path.join(
   "experiment-03",
   "cu-response-1-81.json",
 );
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_TEST_NAMESPACE ?? "default";
 
 // ---------------------------------------------------------------------------
 // Fixture types + loaders
@@ -98,118 +135,7 @@ function findEdge(
   return graph.edges?.find((e) => e.source === source && e.target === target);
 }
 
-// ---------------------------------------------------------------------------
-// Mock activity construction (used by runtime tests)
-// ---------------------------------------------------------------------------
-
-interface ActivityCall {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-type ActivityImpl = (
-  params: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
-
-function buildOcrResultFromFixture(fixture: CuAnalyzeOperation): OCRResult {
-  return cuAnalyzeResultToOcrResult(
-    fixture.result ?? {},
-    {
-      fileName: "1 81.jpg",
-      fileType: "image",
-      requestId: "test-cu-id",
-      modelId: fixture.result?.analyzerId ?? "test-cu-analyzer",
-    },
-    undefined,
-  );
-}
-
-function buildMockActivities(opts: {
-  ocrResult: OCRResult;
-  averageConfidence: number;
-  requiresReview: boolean;
-  callsRef: ActivityCall[];
-}): Record<string, ActivityImpl> {
-  const { ocrResult, averageConfidence, requiresReview, callsRef } = opts;
-  const record = (type: string, params: Record<string, unknown>) =>
-    callsRef.push({ type, params });
-
-  return {
-    "file.prepare": async (params) => {
-      record("file.prepare", params);
-      return {
-        preparedData: {
-          blobKey: params.blobKey ?? "test-blob-key",
-          fileName: params.fileName ?? "1 81.jpg",
-          fileType: params.fileType ?? "image",
-          contentType: params.contentType ?? "image/jpeg",
-          modelId: params.modelId ?? "azure-content-understanding",
-        },
-      };
-    },
-    "document.updateStatus": async (params) => {
-      record("document.updateStatus", params);
-      return { success: true };
-    },
-    "azureContentUnderstanding.analyze": async (params) => {
-      record("azureContentUnderstanding.analyze", params);
-      return { ocrResult };
-    },
-    "ocr.cleanup": async (params) => {
-      record("ocr.cleanup", params);
-      return { cleanedResult: ocrResult };
-    },
-    "ocr.checkConfidence": async (params) => {
-      record("ocr.checkConfidence", params);
-      return { averageConfidence, requiresReview };
-    },
-    "ocr.storeResults": async (params) => {
-      record("ocr.storeResults", params);
-      return { success: true };
-    },
-  };
-}
-
-type TestGraphWorkflowInput = GraphWorkflowInput & {
-  __testGraph: GraphWorkflowConfig;
-};
-
-function makeWorkflowInput(
-  graph: GraphWorkflowConfig,
-  initialCtx: Record<string, unknown>,
-): TestGraphWorkflowInput {
-  return {
-    workflowVersionId: "test-workflow-version-id",
-    initialCtx,
-    configHash: computeConfigHash(graph),
-    runnerVersion: "1.0.0",
-    __testGraph: graph,
-  };
-}
-
-/**
- * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
- * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
- */
-function withGraphConfigLoader(
-  activities: Record<string, ActivityImpl>,
-  graph: GraphWorkflowConfig,
-): Record<string, ActivityImpl> {
-  activities.getWorkflowGraphConfig = (async () => ({
-    graph,
-    workflowVersionId: "test-workflow-version-id",
-    configHash: computeConfigHash(graph),
-  })) as unknown as ActivityImpl;
-  // develop's workflow runs a post-execution hook that reads document.getStatus;
-  // mock it so the workflow closes cleanly (else the trailing failed activity
-  // adds noise and can race the terminal getStatus query).
-  if (!activities["document.getStatus"]) {
-    activities["document.getStatus"] = (async () => ({
-      status: "extracted",
-    })) as unknown as ActivityImpl;
-  }
-  return activities;
-}
+// (Runtime tests use the shared mock-only-paid harness; no per-activity mocks.)
 
 // ---------------------------------------------------------------------------
 // Static + structural tests
@@ -435,11 +361,10 @@ describe("Experiment 03 — Azure Content Understanding workflow template (stati
 // Runtime tests against local Temporal cluster
 // ---------------------------------------------------------------------------
 
-const describeRuntime =
-  process.env.CI || !fixtureExists() ? describe.skip : describe;
+const describeRuntime = process.env.CI ? describe.skip : describe;
 
 describeRuntime(
-  "Experiment 03 — runtime against local Temporal cluster",
+  "Experiment 03 — runtime against local Temporal cluster (mock only paid services)",
   () => {
     let nativeConnection: NativeConnection | null = null;
     let connection: Connection | null = null;
@@ -456,160 +381,121 @@ describeRuntime(
     afterAll(async () => {
       await nativeConnection?.close();
       await connection?.close();
+      await disconnectPrismaClient();
     });
 
-    it("high-confidence sample skips human review and runs the chain in order", async () => {
+    function runtimeCtx(documentId: string): Record<string, unknown> {
+      return {
+        documentId,
+        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      };
+    }
+
+    it("high-confidence CU result skips human review and persists the result", async () => {
       if (!nativeConnection || !client) {
         throw new Error(
           `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
         );
       }
-      const taskQueue = `e03-test-high-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
       const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.99,
-          requiresReview: false,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-high-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const workflowId = `e03-test-high-${Date.now()}`;
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({ cu: cuResultWithConfidence(0.99) });
+      const taskQueue = `e03-itest-high-${process.pid}-${Date.now()}`;
       const activeClient = client;
-      const { result, ctx } = await worker.runUntil(async () => {
-        const result = await activeClient.workflow.execute(graphWorkflow, {
-          workflowId,
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const workflowId = `e03-itest-high-${Date.now()}`;
+        const { result, ctx } = await worker.runUntil(async () => {
+          const result = await activeClient.workflow.execute(graphWorkflow, {
+            workflowId,
+            taskQueue,
+            args: [input],
+          });
+          const status = await activeClient.workflow
+            .getHandle(workflowId)
+            .query(getStatus);
+          return { result, ctx: status.ctx };
+        });
+
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(false);
+        expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
+
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
+    }, 60000);
+
+    it("low-confidence CU result routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const graph = loadTemplate();
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({ cu: cuResultWithConfidence(0.4) });
+      const taskQueue = `e03-itest-low-${process.pid}-${Date.now()}`;
+      const activeClient = client;
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const handle = await activeClient.workflow.start(graphWorkflow, {
+          workflowId: `e03-itest-low-${Date.now()}`,
           taskQueue,
           args: [input],
         });
-        const status = await activeClient.workflow
-          .getHandle(workflowId)
-          .query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(false);
-      expect(ctx.averageConfidence).toBe(0.99);
-
-      const ctxOrder = calls.map((c) => c.type);
-      expect(ctxOrder).toContain("file.prepare");
-      expect(ctxOrder).toContain("azureContentUnderstanding.analyze");
-      expect(ctxOrder).toContain("ocr.cleanup");
-      expect(ctxOrder).toContain("ocr.checkConfidence");
-      expect(ctxOrder).toContain("ocr.storeResults");
-
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("file.prepare")).toBeLessThan(
-        idx("azureContentUnderstanding.analyze"),
-      );
-      expect(idx("azureContentUnderstanding.analyze")).toBeLessThan(
-        idx("ocr.cleanup"),
-      );
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-
-      const cleanupCall = calls.find((c) => c.type === "ocr.cleanup");
-      const cleanupOcr = cleanupCall?.params.ocrResult as OCRResult | undefined;
-      expect(cleanupOcr?.modelId).toBeDefined();
-      const cleanupWords = cleanupOcr?.pages?.[0]?.words ?? [];
-      expect(cleanupWords.length).toBeGreaterThan(0);
-
-      const ocrCall = calls.find(
-        (c) => c.type === "azureContentUnderstanding.analyze",
-      );
-      expect(ocrCall?.params.templateModelId).toBeDefined();
-    }, 60000);
-
-    it("low-confidence sample routes through humanReview before storeResults", async () => {
-      if (!nativeConnection || !client) {
-        throw new Error(
-          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
-        );
-      }
-      const taskQueue = `e03-test-low-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
-      const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.42,
-          requiresReview: true,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-low-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const handle = await client.workflow.start(graphWorkflow, {
-        workflowId: `e03-test-low-${Date.now()}`,
-        taskQueue,
-        args: [input],
-      });
-
-      const { result, ctx } = await worker.runUntil(async () => {
-        await handle.signal("humanApproval", {
-          approved: true,
-          reviewer: "test-reviewer",
-          comments: "ok",
-          rejectionReason: "",
-          annotations: "",
+        const { result, ctx } = await worker.runUntil(async () => {
+          await handle.signal("humanApproval", {
+            approved: true,
+            reviewer: "test-reviewer",
+            comments: "ok",
+            rejectionReason: "",
+            annotations: "",
+          });
+          const result = await handle.result();
+          const status = await handle.query(getStatus);
+          return { result, ctx: status.ctx };
         });
-        const result = await handle.result();
-        const status = await handle.query(getStatus);
-        return { result, ctx: status.ctx };
-      });
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(true);
-      expect(ctx.averageConfidence).toBe(0.42);
 
-      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(true);
+        expect(ctx.averageConfidence as number).toBeLessThan(0.95);
 
-      const ctxOrder = calls.map((c) => c.type);
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("azureContentUnderstanding.analyze")).toBeLessThan(
-        idx("ocr.cleanup"),
-      );
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
     }, 60000);
   },
 );

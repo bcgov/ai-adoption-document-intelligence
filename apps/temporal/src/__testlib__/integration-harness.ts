@@ -33,6 +33,7 @@ import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
 } from "../graph-workflow-types";
+import type { CuAnalyzeResult } from "../ocr-providers/azure-content-understanding/cu-types";
 import type { MistralOcrApiResponse } from "../ocr-providers/mistral/mistral-ocr-types";
 import type { OCRResponse } from "../types";
 
@@ -147,6 +148,13 @@ export interface PaidApiMockConfig {
    * + downstream activities, so its confidence drives the real gate.
    */
   di?: OCRResponse;
+  /**
+   * Stub the Azure Content Understanding analyze result (axios-based; consumed
+   * by the `MOCK_AZURE_CU` env-seam in azure-cu-analyze + azure-cu-deploy). The
+   * given `CuAnalyzeResult` is mapped by the real activity so its per-field
+   * confidence drives the real gate.
+   */
+  cu?: CuAnalyzeResult;
 }
 
 /**
@@ -170,10 +178,16 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
     MISTRAL_DOC_AI_AZURE_ENDPOINT: process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT,
     MISTRAL_DOC_AI_AZURE_KEY: process.env.MISTRAL_DOC_AI_AZURE_KEY,
     MOCK_AZURE_OCR_RESPONSE: process.env.MOCK_AZURE_OCR_RESPONSE,
+    MOCK_AZURE_CU: process.env.MOCK_AZURE_CU,
+    MOCK_AZURE_CU_RESULT: process.env.MOCK_AZURE_CU_RESULT,
   };
   process.env.MOCK_AZURE_OCR = "true";
   if (cfg.di) {
     process.env.MOCK_AZURE_OCR_RESPONSE = JSON.stringify(cfg.di);
+  }
+  if (cfg.cu) {
+    process.env.MOCK_AZURE_CU = "true";
+    process.env.MOCK_AZURE_CU_RESULT = JSON.stringify(cfg.cu);
   }
   // Force mock creds so no real call can leak out even if a URL matcher ever
   // misses; axios is intercepted regardless.

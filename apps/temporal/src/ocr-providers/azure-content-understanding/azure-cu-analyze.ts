@@ -292,7 +292,17 @@ export async function azureCuAnalyze(
   });
 
   if (useMock) {
-    const ocrResponse = buildMockAnalyzeOperation(params.fileData);
+    // Test seam: an integration harness may supply a specific CuAnalyzeResult
+    // via MOCK_AZURE_CU_RESULT (JSON) so the real mapping + gate run against a
+    // chosen payload; otherwise fall back to a minimal canned result.
+    const injected = process.env.MOCK_AZURE_CU_RESULT;
+    const ocrResponse: CuAnalyzeOperation = injected
+      ? {
+          id: `mock-cu-${randomUUID()}`,
+          status: "Succeeded",
+          result: JSON.parse(injected) as CuAnalyzeResult,
+        }
+      : buildMockAnalyzeOperation(params.fileData);
     const ocrResult = cuAnalyzeResultToOcrResult(
       ocrResponse.result ?? {},
       {
