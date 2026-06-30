@@ -1,0 +1,91 @@
+{
+  "_comment": "Per-field descriptions sent in the JSON Schema's `description` property. Terse keyword anchors only — global rules (blank-vs-zero, format preservation, column logic) live in document_annotation_prompt to avoid attention competition with OCR text. Empty string drops the description.",
+
+  "checkbox_need_assistance_yes": "Section 1 Q1 'Are you still in need of assistance?' — APPLICANT-section YES box.",
+  "checkbox_need_assistance_no": "Section 1 Q1 'Are you still in need of assistance?' — APPLICANT-section NO box.",
+  "checkbox_family_assets_yes": "Section 1 Q2 'Has your family unit received or disposed of any assets?' — YES box.",
+  "checkbox_family_assets_no": "Section 1 Q2 'Has your family unit received or disposed of any assets?' — NO box.",
+  "checkbox_shelter_yes": "Section 1 Q3 'Any changes to your shelter costs?' — YES box.",
+  "checkbox_shelter_no": "Section 1 Q3 'Any changes to your shelter costs?' — NO box.",
+  "checkbox_dependants_yes": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' — YES box.",
+  "checkbox_dependants_no": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' — NO box.",
+
+  "checkbox_employment_changes_yes": "Section 1 Q5 'Any employment changes?' — APPLICANT row, YES box (left column).",
+  "checkbox_employment_changes_no": "Section 1 Q5 'Any employment changes?' — APPLICANT row, NO box (left column).",
+  "checkbox_employment_changes_spouse_yes": "Section 1 Q5 'Any employment changes?' — SPOUSE row, YES box (right column).",
+  "checkbox_employment_changes_spouse_no": "Section 1 Q5 'Any employment changes?' — SPOUSE row, NO box (right column).",
+
+  "checkbox_school_yes": "Section 1 Q6 'Are you attending / enrolled in school or training?' — APPLICANT row, YES box.",
+  "checkbox_school_no": "Section 1 Q6 'Are you attending / enrolled in school or training?' — APPLICANT row, NO box.",
+  "checkbox_school_spouse_yes": "Section 1 Q6 'Are you attending / enrolled in school or training?' — SPOUSE row, YES box.",
+  "checkbox_school_spouse_no": "Section 1 Q6 'Are you attending / enrolled in school or training?' — SPOUSE row, NO box.",
+
+  "checkbox_work_yes": "Section 1 Q7 'Are you looking for work?' — APPLICANT row, YES box.",
+  "checkbox_work_no": "Section 1 Q7 'Are you looking for work?' — APPLICANT row, NO box.",
+  "checkbox_work_spouse_yes": "Section 1 Q7 'Are you looking for work?' — SPOUSE row, YES box.",
+  "checkbox_work_spouse_no": "Section 1 Q7 'Are you looking for work?' — SPOUSE row, NO box.",
+
+  "checkbox_moved_yes": "Section 1 Q8 'Have you moved or entered a facility?' — APPLICANT row, YES box.",
+  "checkbox_moved_no": "Section 1 Q8 'Have you moved or entered a facility?' — APPLICANT row, NO box.",
+  "checkbox_moved_spouse_yes": "Section 1 Q8 'Have you moved or entered a facility?' — SPOUSE row, YES box.",
+  "checkbox_moved_spouse_no": "Section 1 Q8 'Have you moved or entered a facility?' — SPOUSE row, NO box.",
+
+  "checkbox_warrant_yes": "Section 1 Q9 'Any outstanding warrants for your arrest?' — APPLICANT row, YES box.",
+  "checkbox_warrant_no": "Section 1 Q9 'Any outstanding warrants for your arrest?' — APPLICANT row, NO box.",
+  "checkbox_warrant_spouse_yes": "Section 1 Q9 'Any outstanding warrants for your arrest?' — SPOUSE row, YES box.",
+  "checkbox_warrant_spouse_no": "Section 1 Q9 'Any outstanding warrants for your arrest?' — SPOUSE row, NO box.",
+
+  "explain_changes": "Free-text paragraph below 'Please explain all changes including income and submit proof:'. Verbatim transcription, exact punctuation/spacing/capitalization.",
+
+  "signature": "APPLICANT's signature box at the bottom — return any visible mark (cursive, initials, single character, scribble). Different field from `name` (printed). Empty string only if the box is blank.",
+  "spouse_signature": "SPOUSE's signature box at the bottom — return any visible mark. Empty string only if blank.",
+
+  "date": "APPLICANT's signature date in the box labelled 'Date (yyyy-mmm-dd)'. Preserve the exact format printed/written on the form.",
+  "spouse_date": "SPOUSE's signature date. Preserve the exact format printed/written on the form.",
+
+  "name": "APPLICANT's printed full name in the 'Applicant Print Name' box. Verbatim, preserve case and spacing.",
+  "spouse_name": "SPOUSE's printed full name in the 'Spouse Print Name' box. Verbatim, preserve case and spacing.",
+
+  "phone": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve format exactly as written (parens, hyphens, dots, spaces).",
+  "spouse_phone": "SPOUSE's telephone number. Preserve format exactly as written.",
+
+  "sin": "APPLICANT's Social Insurance Number. Preserve format exactly as written (hyphens, spaces, or no separators).",
+  "spouse_sin": "SPOUSE's Social Insurance Number. Preserve format exactly as written.",
+
+  "applicant_net_employment_income": "Section 2, row 'Net Employment Income', APPLICANT (left) column.",
+  "applicant_employment_insurance": "Section 2, row 'Employment Insurance', APPLICANT column.",
+  "applicant_spousal_support_alimony": "Section 2, row 'Spousal Support / Alimony', APPLICANT column.",
+  "applicant_child_support": "Section 2, row 'Child Support', APPLICANT column.",
+  "applicant_workbc_financial_support": "Section 2, row 'WorkBC Financial Support', APPLICANT column.",
+  "applicant_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column.",
+  "applicant_rental_income": "Section 2, row 'Rental Income', APPLICANT column.",
+  "applicant_room_board_income": "Section 2, row 'Room / Board Income', APPLICANT column.",
+  "applicant_workers_compensation": "Section 2, row 'Worker's Compensation', APPLICANT column.",
+  "applicant_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column.",
+  "applicant_oas_gis": "Section 2, row 'OAS / GIS', APPLICANT column.",
+  "applicant_trust_income": "Section 2, row 'Trust Income', APPLICANT column.",
+  "applicant_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column.",
+  "applicant_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column.",
+  "applicant_child_tax_benefits": "Section 2, row 'Child Tax Benefits', APPLICANT column.",
+  "applicant_income_tax_refund": "Section 2, row 'Income Tax Refund', APPLICANT column.",
+  "applicant_other_income_money_received": "Section 2, row 'All other income / money received', APPLICANT column.",
+  "applicant_income_of_dependent_children": "Section 2, row 'Income of Dependent Children', APPLICANT column.",
+
+  "spouse_net_employment_income": "Section 2, row 'Net Employment Income', SPOUSE (right) column.",
+  "spouse_employment_insurance": "Section 2, row 'Employment Insurance', SPOUSE column.",
+  "spouse_spousal_support_alimony": "Section 2, row 'Spousal Support / Alimony', SPOUSE column.",
+  "spouse_child_support": "Section 2, row 'Child Support', SPOUSE column.",
+  "spouse_workbc_financial_support": "Section 2, row 'WorkBC Financial Support', SPOUSE column.",
+  "spouse_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column.",
+  "spouse_rental_income": "Section 2, row 'Rental Income', SPOUSE column.",
+  "spouse_room_board_income": "Section 2, row 'Room / Board Income', SPOUSE column.",
+  "spouse_workers_compensation": "Section 2, row 'Worker's Compensation', SPOUSE column.",
+  "spouse_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column.",
+  "spouse_oas_gis": "Section 2, row 'OAS / GIS', SPOUSE column.",
+  "spouse_trust_income": "Section 2, row 'Trust Income', SPOUSE column.",
+  "spouse_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column.",
+  "spouse_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column.",
+  "spouse_child_tax_benefits": "Section 2, row 'Child Tax Benefits', SPOUSE column.",
+  "spouse_income_tax_refund": "Section 2, row 'Income Tax Refund', SPOUSE column.",
+  "spouse_other_income_money_received": "Section 2, row 'All other income / money received', SPOUSE column."
+}

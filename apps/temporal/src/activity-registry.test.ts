@@ -14,6 +14,10 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.cleanup",
   "ocr.checkConfidence",
   "mistralOcr.process",
+  "azureContentUnderstanding.deployAnalyzer",
+  "azureContentUnderstanding.analyze",
+  "vlmDirect.extract",
+  "vlmOcrHybrid.extract",
   "ocr.storeResults",
   "document.storeRejection",
   "getWorkflowGraphConfig",
@@ -29,6 +33,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "benchmark.updateRunStatus",
   "benchmark.compareAgainstBaseline",
   "benchmark.writePrediction",
+  "benchmark.flattenPredictionFromRefs",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",
@@ -75,10 +80,13 @@ describe("activity-registry", () => {
   });
 
   describe("getActivityRegistry", () => {
-    it("returns a map with all registered activity types", () => {
+    it("registers exactly the expected activity types (no drift either way)", () => {
+      // Exact bijection: catches both a missing registration AND a new
+      // activity that was added to the registry but not to this fixture
+      // (the old `>=`/subset check silently allowed the latter).
       const registry = getActivityRegistry();
-      expect(registry.size).toBeGreaterThanOrEqual(
-        EXPECTED_ACTIVITY_TYPES.length,
+      expect([...registry.keys()].sort()).toEqual(
+        [...EXPECTED_ACTIVITY_TYPES].sort(),
       );
     });
 

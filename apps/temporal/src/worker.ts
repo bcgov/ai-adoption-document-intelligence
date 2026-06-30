@@ -248,7 +248,11 @@ async function run() {
   // and worker.run() resolves once all in-flight activities have drained.
   await Promise.all(workers.map((worker) => worker.run()));
 
-  // Only reached after all workers have fully drained
+  // Only reached after all workers have fully drained.
+  // Close the native connection so the underlying Rust client + tokio runtime
+  // release their handles to the JS event loop. Without this the process can
+  // linger after workers stop, which prevents `ts-node-dev --respawn` from
+  // seeing the child exit and starting a fresh worker on file changes.
   workerLogger.info("Closing Temporal connection...", {
     event: "connection_closing",
   });
@@ -257,12 +261,20 @@ async function run() {
   workerLogger.info("Worker stopped", { event: "stopped" });
 }
 
-run().catch((err) => {
-  workerLogger.error("Worker fatal error", {
-    event: "fatal_error",
-    error: err instanceof Error ? err.message : "Unknown error",
-    stack: err instanceof Error ? err.stack : undefined,
-    alertType: "worker_fatal",
+run()
+  .then(() => {
+    // Force a clean exit. The Temporal SDK installs SIGINT/SIGTERM handlers
+    // that drain workers gracefully, but background timers / native handles
+    // can keep the loop alive briefly afterward. A deterministic exit lets
+    // ts-node-dev respawn immediately on file changes during development.
+    process.exit(0);
+  })
+  .catch((err) => {
+    workerLogger.error("Worker fatal error", {
+      event: "fatal_error",
+      error: err instanceof Error ? err.message : "Unknown error",
+      stack: err instanceof Error ? err.stack : undefined,
+      alertType: "worker_fatal",
+    });
+    process.exit(1);
   });
-  process.exit(1);
-});

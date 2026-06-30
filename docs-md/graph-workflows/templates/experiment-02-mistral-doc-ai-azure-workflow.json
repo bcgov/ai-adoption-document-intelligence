@@ -1,0 +1,479 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Experiment 02 - Mistral Document AI on Azure Foundry",
+    "description": "E02: Mistral Document AI accessed via the Azure AI Foundry serverless deployment (mistral-document-ai-2512), parallel to the public-API path. Sync OCR + document_annotation in a single HTTP call; same canonical post-processing chain (cleanup \u2192 checkConfidence) and HITL gate as the public-API Mistral template. Forks the Mistral provider to keep the public-API path intact for fallback comparison.",
+    "tags": [
+      "ocr",
+      "mistral",
+      "azure-foundry",
+      "experiment",
+      "experiment-02"
+    ],
+    "targetLocalDataset": "samples-mix-public"
+  },
+  "entryNodeId": "prepareFileData",
+  "ctx": {
+    "documentId": {
+      "type": "string",
+      "description": "Document ID from database"
+    },
+    "blobKey": {
+      "type": "string",
+      "description": "File reference on local storage"
+    },
+    "fileName": {
+      "type": "string"
+    },
+    "fileType": {
+      "type": "string"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "modelId": {
+      "type": "string",
+      "defaultValue": "mistral-document-ai-2512",
+      "description": "Foundry deployment id for Mistral Document AI; the activity falls back to this default when the document's stored model_id is not a Mistral deployment name."
+    },
+    "templateModelId": {
+      "type": "string",
+      "defaultValue": "seed-sdpr-monthly-report-template",
+      "description": "Labeling TemplateModel id (documents table metadata.templateModelId overrides this when set). Mistral Document AI requests document_annotation from field_schema when non-empty. Default points at the seeded SDPR template that ships with the dataset."
+    },
+    "confidenceThreshold": {
+      "type": "number",
+      "defaultValue": 0.95,
+      "description": "OCR confidence threshold for human review"
+    },
+    "preparedFileData": {
+      "type": "object"
+    },
+    "ocrResult": {
+      "type": "object"
+    },
+    "ocrResponse": {
+      "type": "object",
+      "description": "Raw Foundry OCR response, emitted alongside ocrResult so the benchmark sample workflow's persistOcrCache step can write it to benchmark_ocr_cache."
+    },
+    "cleanedResult": {
+      "type": "object"
+    },
+    "averageConfidence": {
+      "type": "number"
+    },
+    "requiresReview": {
+      "type": "boolean",
+      "defaultValue": false
+    }
+  },
+  "nodes": {
+    "prepareFileData": {
+      "id": "prepareFileData",
+      "type": "activity",
+      "label": "Prepare File Data",
+      "activityType": "file.prepare",
+      "inputs": [
+        {
+          "port": "blobKey",
+          "ctxKey": "blobKey"
+        },
+        {
+          "port": "fileName",
+          "ctxKey": "fileName"
+        },
+        {
+          "port": "fileType",
+          "ctxKey": "fileType"
+        },
+        {
+          "port": "contentType",
+          "ctxKey": "contentType"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "modelId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "preparedData",
+          "ctxKey": "preparedFileData"
+        }
+      ],
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "mistralAzureOcr": {
+      "id": "mistralAzureOcr",
+      "type": "activity",
+      "label": "Mistral Document AI (Azure Foundry)",
+      "activityType": "mistralOcr.process",
+      "inputs": [
+        {
+          "port": "fileData",
+          "ctxKey": "preparedFileData"
+        },
+        {
+          "port": "templateModelId",
+          "ctxKey": "templateModelId"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        },
+        {
+          "port": "ocrResponse",
+          "ctxKey": "ocrResponse"
+        }
+      ],
+      "timeout": {
+        "startToClose": "20m"
+      },
+      "retry": {
+        "maximumAttempts": 30,
+        "initialInterval": "15s",
+        "backoffCoefficient": 1.5,
+        "maximumInterval": "60s"
+      },
+      "parameters": {
+        "variant": "azure",
+        "documentAnnotationPrompt": "You are extracting structured field values from a BC SDPR Monthly Report form.\nRead the form image carefully and return values for every field in the schema.\nTreat the printed form layout as the source of truth and prefer literal,\nverbatim transcription over normalisation.\n\n<form_layout>\nThe form has two parallel income columns in Section 2: APPLICANT (left) and\nSPOUSE (right). Each `applicant_*` field reads the LEFT column ONLY; each\n`spouse_*` field reads the RIGHT column ONLY. Never copy a value across\ncolumns. Income rows are ordered: Net Employment Income, Employment Insurance,\nSpousal Support / Alimony, Child Support, WorkBC Financial Support, Student\nFunding, Rental Income, Room/Board Income, Worker's Compensation, Private\nPensions, OAS/GIS, Trust Income, Canada Pension Plan (CPP), Tax Credits,\nChild Tax Benefits, Income Tax Refund, All Other Income, Income of Dependent\nChildren. Section 1 has Yes/No checkbox pairs for nine questions; questions\n5-9 have separate Applicant and Spouse pairs (suffix `_spouse_yes` /\n`_spouse_no`).\n</form_layout>\n\n<numeric_income_rules>\nFor every `applicant_*` and `spouse_*` numeric field in Section 2, decide\nbetween three outputs:\n\n1. The dollar amount as a plain number (no `$`, no commas, no spaces) \u2014\n   `1,234.56` \u2192 `1234.56`. Use this when the cell clearly shows a non-zero\n   amount.\n2. The number `0` \u2014 use this ONLY when the cell VISIBLY contains one of:\n   the digit `0` (printed or handwritten), `$0`, `$ 0`, `0.00`, a written-out\n   \"zero\" / \"nil\" / \"none\", a horizontal dash `-` written in the cell, or the\n   literal text `N/A` written in the cell. The mark must be unambiguously\n   inside the cell's bounding box.\n3. `null` \u2014 for any other case, including:\n   - The cell is completely empty (no ink, no print, no mark inside the\n     cell's bounding box).\n   - The cell has stray pen marks, smudges, dots, light shadows, faint\n     printing residue, or scanner noise that you cannot confidently\n     identify as a `0` or any other digit. **When in doubt, return `null`.**\n   - The entire column appears unused (e.g. spouse column where no spouse\n     fields are filled in elsewhere on the form).\n\nHard rule: **DO NOT INFER ZEROS.** Do not return `0` just because the cell\n*looks* like it might have a zero \u2014 only return `0` when you would, looking\nat this single cell in isolation, say \"yes, there is a clear `0` here\". If\nadjacent cells in the same column all show clear zeros and this cell is\nambiguous, the ambiguous cell still returns `null`, not `0`. False-positive\n`0`s are worse than missed `0`s \u2014 they corrupt the financial data.\n\nDo NOT propagate zeros across columns: if the applicant column is filled\nwith `0`s and the spouse column has no marks at all, the spouse cells\nreturn `null`, not `0`.\n</numeric_income_rules>\n\n<checkbox_rules>\nSection 1 has nine numbered questions. The checkbox LAYOUT differs between\ntwo groups \u2014 read each group with its own rule.\n\n**Group A \u2014 Questions 1-4 (single Yes/No pair, no applicant/spouse split):**\n\nEach of these four questions has exactly ONE Yes box and ONE No box on the\nform, spanning the full width of the row. There is no separate applicant\nor spouse column for these questions.\n\nField-key mapping for Group A (NOTE: even though these field keys do not\ncontain the word \"applicant\", they belong to this single-pair group, NOT\nto the applicant column of Group B):\n\n```\nQ1 \"Are you still in need of assistance?\"   \u2192 checkbox_need_assistance_yes / _no\nQ2 \"Has your family unit received or disposed of any assets?\"  \u2192 checkbox_family_assets_yes / _no\nQ3 \"Any changes to your shelter costs?\"     \u2192 checkbox_shelter_yes / _no\nQ4 \"Any changes in Dependants or Persons living in the home?\"  \u2192 checkbox_dependants_yes / _no\n```\n\nRead the single Yes box and the single No box for these four questions.\n\n**Group B \u2014 Questions 5-9 (TWO COLUMNS: Applicant column on the left,\nSpouse column on the right):**\n\nEach of these five questions has FOUR boxes laid out as:\n\n```\n                                         APPLICANT col    SPOUSE col\n                                         [Yes] [No]       [Yes] [No]\nQ5 Any employment changes?\nQ6 Are you attending school/training?\nQ7 Are you looking for work?\nQ8 Have you moved or entered a facility?\nQ9 Any outstanding warrants for arrest?\n```\n\nField-key mapping for Group B \u2014 the `_yes` / `_no` keys WITHOUT `_spouse_`\nread the APPLICANT (left) column; the keys WITH `_spouse_` read the SPOUSE\n(right) column:\n\n```\nQ5: checkbox_employment_changes_yes / _no       \u2192 APPLICANT column boxes (left)\n    checkbox_employment_changes_spouse_yes / _no \u2192 SPOUSE column boxes (right)\nQ6: checkbox_school_yes / _no                    \u2192 APPLICANT (left)\n    checkbox_school_spouse_yes / _no             \u2192 SPOUSE (right)\nQ7: checkbox_work_yes / _no                      \u2192 APPLICANT (left)\n    checkbox_work_spouse_yes / _no               \u2192 SPOUSE (right)\nQ8: checkbox_moved_yes / _no                     \u2192 APPLICANT (left)\n    checkbox_moved_spouse_yes / _no              \u2192 SPOUSE (right)\nQ9: checkbox_warrant_yes / _no                   \u2192 APPLICANT (left)\n    checkbox_warrant_spouse_yes / _no            \u2192 SPOUSE (right)\n```\n\n**Read each box INDEPENDENTLY using these rules:**\n\nThe form's checkbox style is a small square `\u2610` that becomes filled (`\u2611`,\n`\u2612`, X-mark `\u00d7`, tick `\u2713`, scribble, blacked-out fill, clear dot inside)\nwhen selected.\n\n- If the box visibly contains ANY clear mark inside it (X, \u2713, scribble,\n  fill, clear dot), return `selected` for THAT field.\n- If the box is empty/clean (no ink inside the box's borders), return\n  `unselected` for THAT field.\n\nYes and No boxes are SEPARATE fields. Do not assume \"if YES is selected,\nthen NO is unselected\" without looking at NO. Some respondents check both,\nsome leave both blank, some check neither in error. Return what you\nliterally see in each box.\n\nFor Group B, **do not swap the columns**: read the APPLICANT (left) pair\nONLY for `_yes` / `_no` keys, and the SPOUSE (right) pair ONLY for\n`_spouse_yes` / `_spouse_no` keys. If the spouse column on this form is\nentirely empty (no spouse name, no spouse signature, no marks anywhere in\nthe spouse column), every `_spouse_yes` and `_spouse_no` field returns\n`unselected`.\n\nStray marks outside the box (e.g. ink that touches the box border from\noutside, signature loops that cross over the box) are NOT selections \u2014\nonly marks visibly INSIDE the box count.\n</checkbox_rules>\n\n<text_field_rules>\nPRESERVE FORMAT. For every text field, return the value EXACTLY as written on\nthe form, character for character including:\n\n- Spaces, including double spaces or unusual spacing.\n- Punctuation: hyphens, parentheses, slashes, commas, periods.\n- Capitalization (do not change case).\n- Original separators in numbers (do NOT strip hyphens from `123-456-789`,\n  do NOT add hyphens to `123456789`, do NOT change `2025-Nov-12` to ISO).\n\nSpecifically:\n\n- `sin` / `spouse_sin`: the Social Insurance Number AS WRITTEN \u2014 preserve\n  hyphens, spaces, or no separators based on what appears on the form.\n- `phone` / `spouse_phone`: the telephone number AS WRITTEN \u2014 preserve\n  parens, hyphens, dots, spaces, or whatever format appears.\n- `date` / `spouse_date`: the date AS WRITTEN. If the form prints\n  `2025-Nov-12`, return `2025-Nov-12`. If it prints `1985JAN4`, return\n  `1985JAN4`. If it prints `2026-03-24`, return `2026-03-24`. Do NOT\n  normalise to a different format.\n- `name` / `spouse_name`: the printed full name AS WRITTEN, preserving\n  spacing and capitalization. Distinct from `signature`.\n- `signature` / `spouse_signature`: WHATEVER MARK is visible inside the\n  signature box \u2014 cursive name, initials, single character (e.g. `X`),\n  scribble, or short text. If the box is completely empty, return `\"\"`.\n  This is a recall-sensitive field: do not skip the box. If you see ANY ink\n  inside, transcribe it.\n- `explain_changes`: the free-text paragraph AT BOTTOM of the form, character\n  for character including punctuation, spacing, capitalization, and\n  abbreviations. Do not paraphrase, do not \"clean up\". `\"\"` if blank.\n\nReturn `\"\"` (empty string) ONLY for text fields where the field on the form\nis genuinely blank (no ink inside the cell or signature box).\n</text_field_rules>\n\n<scope>\nOfficer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD,\nADDRESS BLOCK, etc.) are NOT in the schema \u2014 ignore them. Only return values\nfor the field_keys provided in the schema.\n</scope>\n\nBe conservative on illegible text fields: return `\"\"` only when the cell is\ntruly empty. If you can read SOMETHING inside the box (even partially),\nreturn what you see.",
+        "fieldDescriptions": {
+          "checkbox_need_assistance_yes": "Section 1 Q1 'Are you still in need of assistance?' \u2014 APPLICANT-section YES box.",
+          "checkbox_need_assistance_no": "Section 1 Q1 'Are you still in need of assistance?' \u2014 APPLICANT-section NO box.",
+          "checkbox_family_assets_yes": "Section 1 Q2 'Has your family unit received or disposed of any assets?' \u2014 YES box.",
+          "checkbox_family_assets_no": "Section 1 Q2 'Has your family unit received or disposed of any assets?' \u2014 NO box.",
+          "checkbox_shelter_yes": "Section 1 Q3 'Any changes to your shelter costs?' \u2014 YES box.",
+          "checkbox_shelter_no": "Section 1 Q3 'Any changes to your shelter costs?' \u2014 NO box.",
+          "checkbox_dependants_yes": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' \u2014 YES box.",
+          "checkbox_dependants_no": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' \u2014 NO box.",
+          "checkbox_employment_changes_yes": "Section 1 Q5 'Any employment changes?' \u2014 APPLICANT row, YES box (left column).",
+          "checkbox_employment_changes_no": "Section 1 Q5 'Any employment changes?' \u2014 APPLICANT row, NO box (left column).",
+          "checkbox_employment_changes_spouse_yes": "Section 1 Q5 'Any employment changes?' \u2014 SPOUSE row, YES box (right column).",
+          "checkbox_employment_changes_spouse_no": "Section 1 Q5 'Any employment changes?' \u2014 SPOUSE row, NO box (right column).",
+          "checkbox_school_yes": "Section 1 Q6 'Are you attending / enrolled in school or training?' \u2014 APPLICANT row, YES box.",
+          "checkbox_school_no": "Section 1 Q6 'Are you attending / enrolled in school or training?' \u2014 APPLICANT row, NO box.",
+          "checkbox_school_spouse_yes": "Section 1 Q6 'Are you attending / enrolled in school or training?' \u2014 SPOUSE row, YES box.",
+          "checkbox_school_spouse_no": "Section 1 Q6 'Are you attending / enrolled in school or training?' \u2014 SPOUSE row, NO box.",
+          "checkbox_work_yes": "Section 1 Q7 'Are you looking for work?' \u2014 APPLICANT row, YES box.",
+          "checkbox_work_no": "Section 1 Q7 'Are you looking for work?' \u2014 APPLICANT row, NO box.",
+          "checkbox_work_spouse_yes": "Section 1 Q7 'Are you looking for work?' \u2014 SPOUSE row, YES box.",
+          "checkbox_work_spouse_no": "Section 1 Q7 'Are you looking for work?' \u2014 SPOUSE row, NO box.",
+          "checkbox_moved_yes": "Section 1 Q8 'Have you moved or entered a facility?' \u2014 APPLICANT row, YES box.",
+          "checkbox_moved_no": "Section 1 Q8 'Have you moved or entered a facility?' \u2014 APPLICANT row, NO box.",
+          "checkbox_moved_spouse_yes": "Section 1 Q8 'Have you moved or entered a facility?' \u2014 SPOUSE row, YES box.",
+          "checkbox_moved_spouse_no": "Section 1 Q8 'Have you moved or entered a facility?' \u2014 SPOUSE row, NO box.",
+          "checkbox_warrant_yes": "Section 1 Q9 'Any outstanding warrants for your arrest?' \u2014 APPLICANT row, YES box.",
+          "checkbox_warrant_no": "Section 1 Q9 'Any outstanding warrants for your arrest?' \u2014 APPLICANT row, NO box.",
+          "checkbox_warrant_spouse_yes": "Section 1 Q9 'Any outstanding warrants for your arrest?' \u2014 SPOUSE row, YES box.",
+          "checkbox_warrant_spouse_no": "Section 1 Q9 'Any outstanding warrants for your arrest?' \u2014 SPOUSE row, NO box.",
+          "explain_changes": "Free-text paragraph below 'Please explain all changes including income and submit proof:'. Verbatim transcription, exact punctuation/spacing/capitalization.",
+          "signature": "APPLICANT's signature box at the bottom \u2014 return any visible mark (cursive, initials, single character, scribble). Different field from `name` (printed). Empty string only if the box is blank.",
+          "spouse_signature": "SPOUSE's signature box at the bottom \u2014 return any visible mark. Empty string only if blank.",
+          "date": "APPLICANT's signature date in the box labelled 'Date (yyyy-mmm-dd)'. Preserve the exact format printed/written on the form.",
+          "spouse_date": "SPOUSE's signature date. Preserve the exact format printed/written on the form.",
+          "name": "APPLICANT's printed full name in the 'Applicant Print Name' box. Verbatim, preserve case and spacing.",
+          "spouse_name": "SPOUSE's printed full name in the 'Spouse Print Name' box. Verbatim, preserve case and spacing.",
+          "phone": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve format exactly as written (parens, hyphens, dots, spaces).",
+          "spouse_phone": "SPOUSE's telephone number. Preserve format exactly as written.",
+          "sin": "APPLICANT's Social Insurance Number. Preserve format exactly as written (hyphens, spaces, or no separators).",
+          "spouse_sin": "SPOUSE's Social Insurance Number. Preserve format exactly as written.",
+          "applicant_net_employment_income": "Section 2, row 'Net Employment Income', APPLICANT (left) column.",
+          "applicant_employment_insurance": "Section 2, row 'Employment Insurance', APPLICANT column.",
+          "applicant_spousal_support_alimony": "Section 2, row 'Spousal Support / Alimony', APPLICANT column.",
+          "applicant_child_support": "Section 2, row 'Child Support', APPLICANT column.",
+          "applicant_workbc_financial_support": "Section 2, row 'WorkBC Financial Support', APPLICANT column.",
+          "applicant_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column.",
+          "applicant_rental_income": "Section 2, row 'Rental Income', APPLICANT column.",
+          "applicant_room_board_income": "Section 2, row 'Room / Board Income', APPLICANT column.",
+          "applicant_workers_compensation": "Section 2, row 'Worker's Compensation', APPLICANT column.",
+          "applicant_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column.",
+          "applicant_oas_gis": "Section 2, row 'OAS / GIS', APPLICANT column.",
+          "applicant_trust_income": "Section 2, row 'Trust Income', APPLICANT column.",
+          "applicant_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column.",
+          "applicant_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column.",
+          "applicant_child_tax_benefits": "Section 2, row 'Child Tax Benefits', APPLICANT column.",
+          "applicant_income_tax_refund": "Section 2, row 'Income Tax Refund', APPLICANT column.",
+          "applicant_other_income_money_received": "Section 2, row 'All other income / money received', APPLICANT column.",
+          "applicant_income_of_dependent_children": "Section 2, row 'Income of Dependent Children', APPLICANT column.",
+          "spouse_net_employment_income": "Section 2, row 'Net Employment Income', SPOUSE (right) column.",
+          "spouse_employment_insurance": "Section 2, row 'Employment Insurance', SPOUSE column.",
+          "spouse_spousal_support_alimony": "Section 2, row 'Spousal Support / Alimony', SPOUSE column.",
+          "spouse_child_support": "Section 2, row 'Child Support', SPOUSE column.",
+          "spouse_workbc_financial_support": "Section 2, row 'WorkBC Financial Support', SPOUSE column.",
+          "spouse_student_funding_loans_bursaries": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column.",
+          "spouse_rental_income": "Section 2, row 'Rental Income', SPOUSE column.",
+          "spouse_room_board_income": "Section 2, row 'Room / Board Income', SPOUSE column.",
+          "spouse_workers_compensation": "Section 2, row 'Worker's Compensation', SPOUSE column.",
+          "spouse_private_pensions_retirement_disability": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column.",
+          "spouse_oas_gis": "Section 2, row 'OAS / GIS', SPOUSE column.",
+          "spouse_trust_income": "Section 2, row 'Trust Income', SPOUSE column.",
+          "spouse_canada_pension_plan_cpp": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column.",
+          "spouse_tax_credits_gst_credit": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column.",
+          "spouse_child_tax_benefits": "Section 2, row 'Child Tax Benefits', SPOUSE column.",
+          "spouse_income_tax_refund": "Section 2, row 'Income Tax Refund', SPOUSE column.",
+          "spouse_other_income_money_received": "Section 2, row 'All other income / money received', SPOUSE column."
+        },
+        "numericFieldsNullable": true
+      }
+    },
+    "postOcrCleanup": {
+      "id": "postOcrCleanup",
+      "type": "activity",
+      "label": "Post-OCR Cleanup",
+      "activityType": "ocr.cleanup",
+      "inputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResult"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "cleanedResult",
+          "ctxKey": "cleanedResult"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "checkConfidence": {
+      "id": "checkConfidence",
+      "type": "activity",
+      "label": "Check OCR Confidence",
+      "activityType": "ocr.checkConfidence",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResult"
+        },
+        {
+          "port": "threshold",
+          "ctxKey": "confidenceThreshold"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "averageConfidence",
+          "ctxKey": "averageConfidence"
+        },
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        }
+      ],
+      "timeout": {
+        "startToClose": "30s"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "reviewSwitch": {
+      "id": "reviewSwitch",
+      "type": "switch",
+      "label": "Needs Review?",
+      "inputs": [
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        }
+      ],
+      "cases": [
+        {
+          "condition": {
+            "operator": "equals",
+            "left": {
+              "ref": "ctx.requiresReview"
+            },
+            "right": {
+              "literal": true
+            }
+          },
+          "edgeId": "edge-switch-to-humanGate"
+        }
+      ],
+      "defaultEdge": "edge-switch-to-store"
+    },
+    "humanReview": {
+      "id": "humanReview",
+      "type": "humanGate",
+      "label": "Human Review",
+      "signal": {
+        "name": "humanApproval",
+        "payloadSchema": {
+          "approved": "boolean",
+          "reviewer": "string",
+          "comments": "string",
+          "rejectionReason": "string",
+          "annotations": "string"
+        }
+      },
+      "timeout": "24h",
+      "onTimeout": "fail"
+    },
+    "storeResults": {
+      "id": "storeResults",
+      "type": "activity",
+      "label": "Store Results",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResult"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    }
+  },
+  "edges": [
+    {
+      "id": "e-mz1",
+      "source": "prepareFileData",
+      "target": "mistralAzureOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz2",
+      "source": "mistralAzureOcr",
+      "target": "postOcrCleanup",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz3",
+      "source": "postOcrCleanup",
+      "target": "checkConfidence",
+      "type": "normal"
+    },
+    {
+      "id": "e-mz4",
+      "source": "checkConfidence",
+      "target": "reviewSwitch",
+      "type": "normal"
+    },
+    {
+      "id": "edge-switch-to-humanGate",
+      "source": "reviewSwitch",
+      "target": "humanReview",
+      "type": "conditional",
+      "condition": "requiresReview"
+    },
+    {
+      "id": "edge-switch-to-store",
+      "source": "reviewSwitch",
+      "target": "storeResults",
+      "type": "conditional",
+      "condition": "default"
+    },
+    {
+      "id": "e-mz7",
+      "source": "humanReview",
+      "target": "storeResults",
+      "type": "normal"
+    }
+  ],
+  "nodeGroups": {
+    "ocr-extraction": {
+      "label": "OCR (Mistral on Foundry)",
+      "description": "Mistral Document AI synchronous OCR via the Azure AI Foundry deployment",
+      "icon": "scan",
+      "color": "#f97316",
+      "nodeIds": [
+        "prepareFileData",
+        "mistralAzureOcr"
+      ],
+      "exposedParams": [
+        {
+          "label": "Foundry Deployment",
+          "path": "ctx.modelId.defaultValue",
+          "type": "select",
+          "options": [
+            "mistral-document-ai-2512"
+          ],
+          "default": "mistral-document-ai-2512"
+        }
+      ]
+    },
+    "cleanup": {
+      "label": "Post-Processing",
+      "description": "Clean and normalize OCR results",
+      "icon": "cleanup",
+      "color": "#22c55e",
+      "nodeIds": [
+        "postOcrCleanup"
+      ]
+    },
+    "quality-gate": {
+      "label": "Quality Gate",
+      "description": "Check OCR confidence and decide if human review is needed",
+      "icon": "quality",
+      "color": "#fb923c",
+      "nodeIds": [
+        "checkConfidence",
+        "reviewSwitch"
+      ],
+      "exposedParams": [
+        {
+          "label": "Confidence Threshold",
+          "path": "nodes.checkConfidence.parameters.threshold",
+          "type": "number",
+          "default": 0.95
+        }
+      ]
+    },
+    "human-review": {
+      "label": "Human Review",
+      "description": "Wait for human approval when confidence is low",
+      "icon": "human",
+      "color": "#ef4444",
+      "nodeIds": [
+        "humanReview"
+      ],
+      "exposedParams": [
+        {
+          "label": "Review Timeout",
+          "path": "nodes.humanReview.timeout",
+          "type": "duration",
+          "default": "24h"
+        }
+      ]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to database",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": [
+        "storeResults"
+      ]
+    }
+  }
+}

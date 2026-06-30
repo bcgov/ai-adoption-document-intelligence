@@ -2,6 +2,7 @@ import Konva from "konva";
 import { KonvaEventObject } from "konva/lib/Node";
 import {
   forwardRef,
+  ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -19,6 +20,14 @@ import { useCanvasSelection } from "./hooks/useCanvasSelection";
 
 export interface AnnotationCanvasHandle {
   panTo: (centerX: number, centerY: number, targetZoom: number) => void;
+  /**
+   * Returns the auto-fit base scale (effectiveScale = fitScale × userZoom).
+   * Callers that need to compute a userZoom from a target effective scale
+   * (e.g. zoom-to-fit-text logic) need this to invert the relationship.
+   */
+  getFitScale: () => number;
+  /** Returns the canvas container's pixel size — useful for fit/cap calcs. */
+  getCanvasSize: () => { width: number; height: number };
 }
 
 interface AnnotationCanvasProps {
@@ -41,6 +50,33 @@ interface AnnotationCanvasProps {
   verticalAlign?: "top" | "center";
   /** Fraction of container used when fitting (1 = edge-to-edge). Default 0.95. */
   fitPadding?: number;
+  /**
+   * Identifies the currently-active box, controlled by the parent. Used to
+   * position the optional overlay (renderActiveBoxOverlay) right below
+   * the corresponding bounding box.
+   */
+  activeBoxId?: string | null;
+  /**
+   * Render-prop for an HTML overlay anchored beneath the active box. The
+   * `screenRect` is in container-relative pixels and already incorporates
+   * the Stage's pan and zoom. Use it for inline edit widgets so the
+   * reviewer can see input + bounding box at the same time.
+   */
+  renderActiveBoxOverlay?: (params: {
+    boxId: string;
+    screenRect: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
+  }) => ReactNode;
+  /**
+   * When true, the BoundingBoxLayer (boxes, labels) is suppressed. The
+   * active-box overlay (renderActiveBoxOverlay) still renders so callers
+   * can keep inline editing while hiding canvas chrome.
+   */
+  hideBoxes?: boolean;
 }
 
 export const AnnotationCanvas = forwardRef<
@@ -60,6 +96,9 @@ export const AnnotationCanvas = forwardRef<
       rotation = 0,
       verticalAlign = "center",
       fitPadding = 0.95,
+      activeBoxId,
+      renderActiveBoxOverlay,
+      hideBoxes,
     },
     ref,
   ) => {
@@ -171,6 +210,8 @@ export const AnnotationCanvas = forwardRef<
             }).play();
           }
         },
+        getFitScale: () => fitScale,
+        getCanvasSize: () => ({ width, height }),
       }),
       [fitScale, width, height, clampPan, setPan],
     );
@@ -213,11 +254,12 @@ export const AnnotationCanvas = forwardRef<
       const pos = stage.getPointerPosition();
       if (!pos) return;
 
-      // Click on empty canvas area deselects
+      // We intentionally do NOT deselect on mouseDown — that runs the
+      // deselect before the user has a chance to drag-pan, clearing
+      // their selection mid-drag. Deselection lives on the Stage's click
+      // handler (handleStageClick), which Konva only fires when the user
+      // pressed and released without dragging.
       if (e.target === e.target.getStage()) {
-        selectBox(null);
-        onBoxSelect?.(null);
-
         // If we're in DRAW_BOX mode, start drawing
         if (activeTool === CanvasTool.DRAW_BOX) {
           const relativePos = {
@@ -271,6 +313,71 @@ export const AnnotationCanvas = forwardRef<
       [],
     );
 
+    /**
+     * Deselect on click outside any box. Konva's Stage onClick fires only
+     * on a real click (mousedown + mouseup without enough movement to be
+     * classified as a drag), so a drag-pan keeps the current selection.
+     */
+    const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
+      if (e.target === e.target.getStage()) {
+        selectBox(null);
+        onBoxSelect?.(null);
+      }
+    };
+
+    // Compute container-relative screen rect for the active box so the
+    // overlay (if any) can be positioned directly beneath it.
+    //
+    // H4: the overlay is an axis-aligned HTML element placed from the box's
+    // bounding rect; it does NOT apply the image/box-layer rotation transform.
+    // Rather than render a mis-placed overlay, suppress it while rotated.
+    //
+    // H3: placement reads committed `pan`/`effectiveScale`, which `panTo`
+    // commits only at the end of its tween — so during a pan/zoom animation
+    // the overlay briefly lags then snaps to the final spot. Self-correcting;
+    // acceptable for this transient.
+    const activeOverlayPlacement = useMemo(() => {
+      if (!activeBoxId || !renderActiveBoxOverlay) return null;
+      if (rotation !== 0) return null;
+      const target = boxes.find((b) => b.id === activeBoxId);
+      if (!target) return null;
+      const points = target.box.polygon;
+      if (!points || points.length === 0) return null;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const p of points) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      }
+      if (
+        !Number.isFinite(minX) ||
+        !Number.isFinite(maxX) ||
+        !Number.isFinite(minY) ||
+        !Number.isFinite(maxY)
+      )
+        return null;
+      return {
+        boxId: target.id,
+        screenRect: {
+          left: minX * effectiveScale + pan.x,
+          top: maxY * effectiveScale + pan.y,
+          width: (maxX - minX) * effectiveScale,
+          height: (maxY - minY) * effectiveScale,
+        },
+      };
+    }, [
+      activeBoxId,
+      renderActiveBoxOverlay,
+      boxes,
+      effectiveScale,
+      pan,
+      rotation,
+    ]);
+
     return (
       <Box
         style={{
@@ -278,6 +385,7 @@ export const AnnotationCanvas = forwardRef<
           height: "100%",
           overflow: "hidden",
           cursor: "default",
+          position: "relative",
         }}
       >
         <Stage
@@ -292,6 +400,7 @@ export const AnnotationCanvas = forwardRef<
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onClick={handleStageClick}
           onMouseEnter={forceDefaultCursor}
           onMouseLeave={forceDefaultCursor}
           draggable={isPanEnabled}
@@ -319,30 +428,32 @@ export const AnnotationCanvas = forwardRef<
             </Layer>
           )}
 
-          <BoundingBoxLayer
-            boxes={boxes}
-            selectedBoxId={selectedBoxId}
-            hoveredBoxId={hoveredBoxId}
-            onBoxClick={handleBoxClick}
-            onBoxMouseEnter={(id) => {
-              hoverBox(id);
-              if (onBoxHover && stageRef.current) {
-                const pointer = stageRef.current.getPointerPosition();
-                if (pointer) {
-                  onBoxHover({ boxId: id, x: pointer.x, y: pointer.y });
+          {!hideBoxes && (
+            <BoundingBoxLayer
+              boxes={boxes}
+              selectedBoxId={selectedBoxId}
+              hoveredBoxId={hoveredBoxId}
+              onBoxClick={handleBoxClick}
+              onBoxMouseEnter={(id) => {
+                hoverBox(id);
+                if (onBoxHover && stageRef.current) {
+                  const pointer = stageRef.current.getPointerPosition();
+                  if (pointer) {
+                    onBoxHover({ boxId: id, x: pointer.x, y: pointer.y });
+                  }
                 }
-              }
-            }}
-            onBoxMouseLeave={() => {
-              hoverBox(null);
-              onBoxHover?.(null);
-            }}
-            rotation={rotation}
-            offsetX={imageSize ? imageSize.width / 2 : 0}
-            offsetY={imageSize ? imageSize.height / 2 : 0}
-            x={imageSize ? imageSize.width / 2 : 0}
-            y={imageSize ? imageSize.height / 2 : 0}
-          />
+              }}
+              onBoxMouseLeave={() => {
+                hoverBox(null);
+                onBoxHover?.(null);
+              }}
+              rotation={rotation}
+              offsetX={imageSize ? imageSize.width / 2 : 0}
+              offsetY={imageSize ? imageSize.height / 2 : 0}
+              x={imageSize ? imageSize.width / 2 : 0}
+              y={imageSize ? imageSize.height / 2 : 0}
+            />
+          )}
 
           <DrawingLayer
             drawingBox={drawingBox}
@@ -353,6 +464,26 @@ export const AnnotationCanvas = forwardRef<
             y={imageSize ? imageSize.height / 2 : 0}
           />
         </Stage>
+        {activeOverlayPlacement && renderActiveBoxOverlay && (
+          <div
+            style={{
+              position: "absolute",
+              left: activeOverlayPlacement.screenRect.left,
+              top: activeOverlayPlacement.screenRect.top,
+              minWidth: activeOverlayPlacement.screenRect.width,
+              pointerEvents: "auto",
+              zIndex: 10,
+            }}
+            // Prevent canvas pan/drag handlers (which sit on the Stage) from
+            // hijacking text-input mouse events inside the overlay.
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseMove={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+          >
+            {renderActiveBoxOverlay(activeOverlayPlacement)}
+          </div>
+        )}
       </Box>
     );
   },

@@ -9,6 +9,8 @@
  */
 
 import {
+  azureCuAnalyze,
+  azureCuDeployAnalyzer,
   benchmarkAggregate,
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
@@ -54,6 +56,8 @@ import { splitAndClassifyDocument } from "./activities/split-and-classify-docume
 import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
+import { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
+import { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,6 +146,71 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Mistral Document AI OCR (sync) with optional document annotation",
+});
+
+register({
+  activityType: "azureContentUnderstanding.deployAnalyzer",
+  activityFn: azureCuDeployAnalyzer as (...args: unknown[]) => Promise<unknown>,
+  // Idempotent PUT against the CU control plane; the in-memory cache + GET
+  // probe make repeats cheap. Short timeout, three attempts is enough.
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Deploy (idempotent PUT) an Azure Content Understanding analyzer; in-memory cache short-circuits no-ops",
+});
+
+register({
+  activityType: "azureContentUnderstanding.analyze",
+  activityFn: azureCuAnalyze as (...args: unknown[]) => Promise<unknown>,
+  // CU is async (POST 202 + poll). The Foundry deployment shares the
+  // ~10 RPM quota model with Mistral on Foundry, so the retry policy
+  // mirrors `mistralAzureOcr.process`: 30 attempts × 15 s / 1.5x / 60 s
+  // cap. Generous startToClose to absorb slow analyses.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "Azure Content Understanding analyze (async, polls until terminal); deploys analyzer first if a template schema is supplied",
+});
+
+register({
+  activityType: "vlmDirect.extract",
+  activityFn: vlmDirectExtract as (...args: unknown[]) => Promise<unknown>,
+  // Vision chat-completions on gpt-5.x is rate-limited at the deployment
+  // level (default 100K TPM at GlobalStandard capacity 100; ~10 calls/min
+  // for a 200-DPI form image at ~10K input tokens/call). Apply the same
+  // 30 attempts × 15 s × 1.5x × 60 s cap retry shape we use for the other
+  // Foundry-quota-gated activities.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+});
+
+register({
+  activityType: "vlmOcrHybrid.extract",
+  activityFn: vlmHybridExtract as (...args: unknown[]) => Promise<unknown>,
+  // Same retry shape as vlmDirect.extract — the bottleneck is the same
+  // Azure OpenAI deployment quota. The DI read-plain leg upstream owns
+  // its own (lighter) retry policy.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
 });
 
 register({
