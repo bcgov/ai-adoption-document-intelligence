@@ -51,10 +51,6 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
     },
-    "azureOcr.readPlain": {
-      description:
-        "Azure DI prebuilt-layout (markdown content + per-line/per-word polygons; no field extraction). Sync submit+poll wrapper for the VLM hybrid pre-pass.",
-    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",

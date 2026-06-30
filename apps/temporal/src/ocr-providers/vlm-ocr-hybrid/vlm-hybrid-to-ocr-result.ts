@@ -40,7 +40,7 @@ export interface VlmHybridToOcrResultContext extends VlmToOcrResultContext {}
 
 export interface VlmHybridToOcrResultOptions extends VlmToOcrResultOptions {
   /**
-   * The prebuilt-layout response from `azureOcr.readPlain`. When
+   * The prebuilt-layout response from `azureOcr.submit`/`azureOcr.poll`. When
    * present, the resulting `OCRResult.pages`, `paragraphs`, `tables`
    * are populated from it (instead of the E04 synthetic single-page
    * summary). Confidence values stay attached to the structured

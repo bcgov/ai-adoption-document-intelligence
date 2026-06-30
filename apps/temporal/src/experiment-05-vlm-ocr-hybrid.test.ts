@@ -7,11 +7,12 @@
  *
  *   1. **Static + structural** assertions on the JSON template (no
  *      Temporal connection): metadata, scope rules (uses
- *      vlmOcrHybrid.extract + azureOcr.readPlain; not Mistral/CU/E04
- *      paths), chain wiring (DI read-plain runs before the VLM call),
- *      ctx + outputs wiring (incl. the layoutResponse handoff and the
- *      ocrResponse port that drives benchmark_ocr_cache), schema
- *      validation, and consistency with the recorded DI layout fixture.
+ *      vlmOcrHybrid.extract + the standard azureOcr.submit/azureOcr.poll
+ *      DI pre-pass; not Mistral/CU/E04 paths), chain wiring (the DI
+ *      submit+poll runs before the VLM call), ctx + outputs wiring (incl.
+ *      the ocrResponseRef handoff and the ocrResponse port that drives
+ *      benchmark_ocr_cache), schema validation, and consistency with the
+ *      recorded DI layout fixture.
  *   2. **Trust-hierarchy stress test** — feeds the prompt builder a
  *      deliberately-wrong OCR markdown alongside a (mocked) image and
  *      asserts the system prompt + delimiters + directive that make
@@ -33,7 +34,19 @@ import * as path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { computeConfigHash } from "./config-hash";
+import {
+  buildRealActivities,
+  installPaidApiMocks,
+  makeWorkflowInput,
+  SAMPLE_IMAGE_ABS_PATH,
+  seedTestDocument,
+  TEMPORAL_ADDRESS,
+  TEMPORAL_NAMESPACE,
+} from "./__testlib__/integration-harness";
+import {
+  disconnectPrismaClient,
+  getPrismaClient,
+} from "./activities/database-client";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import { getStatus, graphWorkflow } from "./graph-workflow";
@@ -41,7 +54,6 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
-  GraphWorkflowInput,
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
@@ -66,9 +78,6 @@ const HYBRID_FIXTURE_PATH = path.join(
   FIXTURES_DIR,
   "vlm-hybrid-response-1-81.json",
 );
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_TEST_NAMESPACE ?? "default";
 
 function loadTemplate(): GraphWorkflowConfig {
   return JSON.parse(
@@ -125,15 +134,6 @@ function findEdge(
   return graph.edges?.find((e) => e.source === source && e.target === target);
 }
 
-interface ActivityCall {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-type ActivityImpl = (
-  params: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
-
 function buildOcrResultFromFixture(
   payload: HybridFixture["parsed"],
   layout: OCRResponse,
@@ -155,104 +155,6 @@ function buildOcrResultFromFixture(
     },
     { fieldDefs, layoutResponse: layout },
   );
-}
-
-function buildMockActivities(opts: {
-  layoutResponse: OCRResponse;
-  ocrResult: OCRResult;
-  averageConfidence: number;
-  requiresReview: boolean;
-  callsRef: ActivityCall[];
-}): Record<string, ActivityImpl> {
-  const {
-    layoutResponse,
-    ocrResult,
-    averageConfidence,
-    requiresReview,
-    callsRef,
-  } = opts;
-  const record = (type: string, params: Record<string, unknown>) =>
-    callsRef.push({ type, params });
-
-  return {
-    "file.prepare": async (params) => {
-      record("file.prepare", params);
-      return {
-        preparedData: {
-          blobKey: params.blobKey ?? "test-blob-key",
-          fileName: params.fileName ?? "1 81.jpg",
-          fileType: params.fileType ?? "image",
-          contentType: params.contentType ?? "image/jpeg",
-          modelId: params.modelId ?? "gpt-5.4",
-        },
-      };
-    },
-    "document.updateStatus": async (params) => {
-      record("document.updateStatus", params);
-      return { success: true };
-    },
-    "azureOcr.readPlain": async (params) => {
-      record("azureOcr.readPlain", params);
-      return { layoutResponse };
-    },
-    "vlmOcrHybrid.extract": async (params) => {
-      record("vlmOcrHybrid.extract", params);
-      return { ocrResult };
-    },
-    "ocr.cleanup": async (params) => {
-      record("ocr.cleanup", params);
-      return { cleanedResult: ocrResult };
-    },
-    "ocr.checkConfidence": async (params) => {
-      record("ocr.checkConfidence", params);
-      return { averageConfidence, requiresReview };
-    },
-    "ocr.storeResults": async (params) => {
-      record("ocr.storeResults", params);
-      return { success: true };
-    },
-  };
-}
-
-type TestGraphWorkflowInput = GraphWorkflowInput & {
-  __testGraph: GraphWorkflowConfig;
-};
-
-function makeWorkflowInput(
-  graph: GraphWorkflowConfig,
-  initialCtx: Record<string, unknown>,
-): TestGraphWorkflowInput {
-  return {
-    workflowVersionId: "test-workflow-version-id",
-    initialCtx,
-    configHash: computeConfigHash(graph),
-    runnerVersion: "1.0.0",
-    __testGraph: graph,
-  };
-}
-
-/**
- * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
- * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
- */
-function withGraphConfigLoader(
-  activities: Record<string, ActivityImpl>,
-  graph: GraphWorkflowConfig,
-): Record<string, ActivityImpl> {
-  activities.getWorkflowGraphConfig = (async () => ({
-    graph,
-    workflowVersionId: "test-workflow-version-id",
-    configHash: computeConfigHash(graph),
-  })) as unknown as ActivityImpl;
-  // develop's workflow runs a post-execution hook that reads document.getStatus;
-  // mock it so the workflow closes cleanly (else the trailing failed activity
-  // adds noise and can race the terminal getStatus query).
-  if (!activities["document.getStatus"]) {
-    activities["document.getStatus"] = (async () => ({
-      status: "extracted",
-    })) as unknown as ActivityImpl;
-  }
-  return activities;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,17 +205,22 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
   });
 
   describe("scope rules from the brief", () => {
-    it("uses vlmOcrHybrid.extract + azureOcr.readPlain — not Mistral, CU, or pure VLM-direct paths", () => {
+    it("uses vlmOcrHybrid.extract + the standard azureOcr.submit/poll DI pre-pass — not Mistral, CU, or pure VLM-direct paths", () => {
       const graph = loadTemplate();
       const types = activityTypes(graph);
-      expect(types).toContain("azureOcr.readPlain");
+      // The OCR pre-pass reuses the production DI submit/poll activities
+      // (outputFormat=markdown) instead of a bespoke read-plain wrapper.
+      expect(types).toContain("azureOcr.submit");
+      expect(types).toContain("azureOcr.poll");
       expect(types).toContain("vlmOcrHybrid.extract");
+      expect(types).not.toContain("azureOcr.readPlain");
+      // No field-extraction leg: the hybrid maps the VLM output itself, so
+      // the DI custom-model extract activity is not part of the chain.
+      expect(types).not.toContain("azureOcr.extract");
       expect(types).not.toContain("vlmDirect.extract");
       expect(types).not.toContain("azureContentUnderstanding.analyze");
       expect(types).not.toContain("mistralAzureOcr.process");
       expect(types).not.toContain("mistralOcr.process");
-      // `azureOcr.submit/poll/extract` is the field-extraction (custom-model) path; the hybrid uses the plain layout wrapper instead.
-      expect(types).not.toContain("azureOcr.submit");
     });
 
     it("does not include LLM enrichment (out of scope for E05)", () => {
@@ -326,12 +233,13 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       expect(activityTypes(graph)).not.toContain("ocr.documentValidateFields");
     });
 
-    it("does not chain a pollUntil node — the DI read wrapper polls inline", () => {
+    it("chains exactly one pollUntil node (the DI submit/poll pre-pass)", () => {
       const graph = loadTemplate();
       const polls = Object.values(graph.nodes ?? {}).filter(
         (n) => n.type === "pollUntil",
       );
-      expect(polls).toHaveLength(0);
+      expect(polls).toHaveLength(1);
+      expect((polls[0] as PollUntilNode).activityType).toBe("azureOcr.poll");
     });
 
     it("does not include a PDF render activity (deferred per the SCOPE REDUCTION)", () => {
@@ -346,8 +254,9 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       const order = computeTopologicalOrder(graph);
       const idx = (id: string) => order.indexOf(id);
       const pairs: Array<[string, string]> = [
-        ["prepareFileData", "azureDiReadPlain"],
-        ["azureDiReadPlain", "vlmOcrHybridExtract"],
+        ["prepareFileData", "submitOcr"],
+        ["submitOcr", "pollOcrResults"],
+        ["pollOcrResults", "vlmOcrHybridExtract"],
         ["vlmOcrHybridExtract", "postOcrCleanup"],
         ["postOcrCleanup", "checkConfidence"],
         ["checkConfidence", "reviewSwitch"],
@@ -370,11 +279,10 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       expect(findEdge(graph, "humanReview", "storeResults")).toBeDefined();
     });
 
-    it("DI read activity has a generous-but-bounded retry shape", () => {
+    it("DI submit node has a bounded retry shape", () => {
       const graph = loadTemplate();
-      const node = graph.nodes?.azureDiReadPlain as ActivityNode | undefined;
-      expect(node?.activityType).toBe("azureOcr.readPlain");
-      // Sync wrapper, ~1-3 s/page; allow at least 3 attempts.
+      const node = graph.nodes?.submitOcr as ActivityNode | undefined;
+      expect(node?.activityType).toBe("azureOcr.submit");
       expect(node?.retry?.maximumAttempts).toBeGreaterThanOrEqual(3);
     });
 
@@ -396,12 +304,30 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
       expect(thresholdInput?.ctxKey).toBe("confidenceThreshold");
     });
 
-    it("DI read activity emits layoutResponse on ctx.layoutResponse", () => {
+    it("DI poll emits its response ref on ctx.ocrResponseRef", () => {
       const graph = loadTemplate();
-      const node = graph.nodes?.azureDiReadPlain as ActivityNode | undefined;
+      const node = graph.nodes?.pollOcrResults as PollUntilNode | undefined;
       const outputs = (node?.outputs ?? []).map((o) => o.port);
-      expect(outputs).toContain("layoutResponse");
-      expect(graph.ctx?.layoutResponse).toBeDefined();
+      expect(outputs).toContain("response");
+      const responseOutput = node?.outputs?.find((o) => o.port === "response");
+      expect(responseOutput?.ctxKey).toBe("ocrResponseRef");
+      expect(graph.ctx?.ocrResponseRef).toBeDefined();
+    });
+
+    it("prepareFileData requests markdown output for the DI pre-pass", () => {
+      const graph = loadTemplate();
+      // The hybrid feeds the VLM a markdown rendering, so the DI submit
+      // must request outputFormat=markdown (plumbed via file.prepare).
+      expect(graph.ctx?.outputFormat?.defaultValue).toBe("markdown");
+      const node = graph.nodes?.prepareFileData as ActivityNode | undefined;
+      const outputFormatInput = node?.inputs?.find(
+        (i) => i.port === "outputFormat",
+      );
+      expect(outputFormatInput?.ctxKey).toBe("outputFormat");
+      // The DI model is prebuilt-layout, distinct from the VLM modelId.
+      expect(graph.ctx?.diModelId?.defaultValue).toBe("prebuilt-layout");
+      const modelIdInput = node?.inputs?.find((i) => i.port === "modelId");
+      expect(modelIdInput?.ctxKey).toBe("diModelId");
     });
 
     it("VLM hybrid activity wires fileData + layoutResponse + templateModelId + azureOpenAiDeployment from ctx", () => {
@@ -411,7 +337,7 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
         (node?.inputs ?? []).map((i) => [i.port, i.ctxKey]),
       );
       expect(portToCtx.get("fileData")).toBe("preparedFileData");
-      expect(portToCtx.get("layoutResponse")).toBe("layoutResponse");
+      expect(portToCtx.get("layoutResponse")).toBe("ocrResponseRef");
       expect(portToCtx.get("templateModelId")).toBe("templateModelId");
       expect(portToCtx.get("azureOpenAiDeployment")).toBe(
         "azureOpenAiDeployment",
@@ -580,11 +506,17 @@ describe("Experiment 05 — VLM + OCR hybrid workflow template (static)", () => 
 });
 
 // ---------------------------------------------------------------------------
-// Runtime tests against local Temporal cluster
+// Runtime tests against local Temporal cluster (mock only paid services)
 // ---------------------------------------------------------------------------
+//
+// These run the REAL worker + REAL activities (file prep, blob I/O, the
+// confidence gate, the DB upsert) against the live local stack. Only the paid
+// APIs are stubbed: Azure DI via `MOCK_AZURE_OCR` (canned prebuilt-layout) and
+// Azure OpenAI via axios-mock-adapter (a recorded `{ fields, source_quotes }`
+// payload). Confidence is therefore driven by the REAL gate over the mapper's
+// evidence-synthesised field confidences, not a hard-coded value.
 
-const describeRuntime =
-  process.env.CI || !layoutFixtureExists() ? describe.skip : describe;
+const describeRuntime = process.env.CI ? describe.skip : describe;
 
 describeRuntime(
   "Experiment 05 — runtime against local Temporal cluster",
@@ -604,172 +536,142 @@ describeRuntime(
     afterAll(async () => {
       await nativeConnection?.close();
       await connection?.close();
+      await disconnectPrismaClient();
     });
 
-    it("high-confidence sample skips human review and runs the chain in order", async () => {
+    function runtimeCtx(documentId: string): Record<string, unknown> {
+      // blobKey points at a real on-disk sample; file.prepare reads absolute
+      // paths straight from the filesystem. templateModelId/azureOpenAiDeployment/
+      // diModelId/outputFormat come from the graph ctx defaults.
+      return {
+        documentId,
+        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      };
+    }
+
+    it("high-confidence sample (all fields evidenced) skips human review and persists the result", async () => {
       if (!nativeConnection || !client) {
         throw new Error(
           `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
         );
       }
-      const taskQueue = `e05-test-high-${process.pid}-${Date.now()}`;
-      const layout = loadLayoutFixture();
-      // Synthetic VLM payload — runtime tests don't depend on the
-      // captured hybrid response (which may not exist yet on first
-      // run); they verify wiring, not content.
-      const fakeFields = { name: "John Smith" };
-      const fakeQuotes = { name: "John Smith" };
-      const ocrResult = buildOcrResultFromFixture(
-        { fields: fakeFields, source_quotes: fakeQuotes },
-        layout,
-      );
-      const calls: ActivityCall[] = [];
       const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          layoutResponse: layout,
-          ocrResult,
-          averageConfidence: 0.99,
-          requiresReview: false,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
+      const { documentId, cleanup } = await seedTestDocument();
+      // Every populated field carries a source_quote → all 74 template fields
+      // score CONF_WITH_EVIDENCE → page mean 0.95 → gate does not fire.
+      const mocks = installPaidApiMocks({
+        vlm: {
+          fields: { name: "John Smith" },
+          source_quotes: { name: "John Smith" },
+        },
       });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-high-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const workflowId = `e05-test-high-${Date.now()}`;
+      const taskQueue = `e05-itest-high-${process.pid}-${Date.now()}`;
       const activeClient = client;
-      const { result, ctx } = await worker.runUntil(async () => {
-        const result = await activeClient.workflow.execute(graphWorkflow, {
-          workflowId,
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const workflowId = `e05-itest-high-${Date.now()}`;
+        const { result, ctx } = await worker.runUntil(async () => {
+          const result = await activeClient.workflow.execute(graphWorkflow, {
+            workflowId,
+            taskQueue,
+            args: [input],
+          });
+          const status = await activeClient.workflow
+            .getHandle(workflowId)
+            .query(getStatus);
+          return { result, ctx: status.ctx };
+        });
+
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(false);
+        expect(ctx.averageConfidence).toBeCloseTo(0.95, 5);
+
+        // The REAL storeResults activity upserted a row for this document.
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+        const doc = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { status: true },
+        });
+        // Terminal success state set once the whole workflow completes.
+        expect(doc?.status).toBe("complete");
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
+    }, 60000);
+
+    it("low-confidence sample (populated field without evidence) routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const graph = loadTemplate();
+      const { documentId, cleanup } = await seedTestDocument();
+      // A populated value with NO source_quote scores CONF_NO_EVIDENCE (0.5),
+      // dragging the page mean below 0.95 → the HITL gate fires.
+      const mocks = installPaidApiMocks({
+        vlm: { fields: { name: "John Smith" }, source_quotes: {} },
+      });
+      const taskQueue = `e05-itest-low-${process.pid}-${Date.now()}`;
+      const activeClient = client;
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const handle = await activeClient.workflow.start(graphWorkflow, {
+          workflowId: `e05-itest-low-${Date.now()}`,
           taskQueue,
           args: [input],
         });
-        const status = await activeClient.workflow
-          .getHandle(workflowId)
-          .query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(false);
-      expect(ctx.averageConfidence).toBe(0.99);
-
-      const ctxOrder = calls.map((c) => c.type);
-      expect(ctxOrder).toContain("file.prepare");
-      expect(ctxOrder).toContain("azureOcr.readPlain");
-      expect(ctxOrder).toContain("vlmOcrHybrid.extract");
-      expect(ctxOrder).toContain("ocr.cleanup");
-      expect(ctxOrder).toContain("ocr.checkConfidence");
-      expect(ctxOrder).toContain("ocr.storeResults");
-
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("file.prepare")).toBeLessThan(idx("azureOcr.readPlain"));
-      expect(idx("azureOcr.readPlain")).toBeLessThan(
-        idx("vlmOcrHybrid.extract"),
-      );
-      expect(idx("vlmOcrHybrid.extract")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-
-      const hybridCall = calls.find((c) => c.type === "vlmOcrHybrid.extract");
-      expect(hybridCall?.params.templateModelId).toBeDefined();
-      expect(hybridCall?.params.azureOpenAiDeployment).toBeDefined();
-      // The hybrid step receives the layout from the upstream readPlain
-      // step (the central assertion that proves the chain is wired).
-      expect(hybridCall?.params.layoutResponse).toBeDefined();
-    }, 60000);
-
-    it("low-confidence sample routes through humanReview before storeResults", async () => {
-      if (!nativeConnection || !client) {
-        throw new Error(
-          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
-        );
-      }
-      const taskQueue = `e05-test-low-${process.pid}-${Date.now()}`;
-      const layout = loadLayoutFixture();
-      const fakeFields = { name: "John Smith" };
-      const fakeQuotes = { name: "John Smith" };
-      const ocrResult = buildOcrResultFromFixture(
-        { fields: fakeFields, source_quotes: fakeQuotes },
-        layout,
-      );
-      const calls: ActivityCall[] = [];
-      const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          layoutResponse: layout,
-          ocrResult,
-          averageConfidence: 0.42,
-          requiresReview: true,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-low-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const handle = await client.workflow.start(graphWorkflow, {
-        workflowId: `e05-test-low-${Date.now()}`,
-        taskQueue,
-        args: [input],
-      });
-
-      const { result, ctx } = await worker.runUntil(async () => {
-        await handle.signal("humanApproval", {
-          approved: true,
-          reviewer: "test-reviewer",
-          comments: "ok",
-          rejectionReason: "",
-          annotations: "",
+        const { result, ctx } = await worker.runUntil(async () => {
+          await handle.signal("humanApproval", {
+            approved: true,
+            reviewer: "test-reviewer",
+            comments: "ok",
+            rejectionReason: "",
+            annotations: "",
+          });
+          const result = await handle.result();
+          const status = await handle.query(getStatus);
+          return { result, ctx: status.ctx };
         });
-        const result = await handle.result();
-        const status = await handle.query(getStatus);
-        return { result, ctx: status.ctx };
-      });
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(true);
-      expect(ctx.averageConfidence).toBe(0.42);
 
-      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(true);
+        expect(ctx.averageConfidence as number).toBeLessThan(0.95);
 
-      const ctxOrder = calls.map((c) => c.type);
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("azureOcr.readPlain")).toBeLessThan(
-        idx("vlmOcrHybrid.extract"),
-      );
-      expect(idx("vlmOcrHybrid.extract")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
     }, 60000);
   },
 );

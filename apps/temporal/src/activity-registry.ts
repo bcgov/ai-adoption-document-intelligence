@@ -40,7 +40,6 @@ import {
 } from "./activities";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
-import { azureDiReadPlain } from "./activities/azure-di-read-plain";
 import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
@@ -236,23 +235,6 @@ register({
   },
   description:
     "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
-});
-
-register({
-  activityType: "azureOcr.readPlain",
-  activityFn: azureDiReadPlain as (...args: unknown[]) => Promise<unknown>,
-  // Sync wrapper around DI prebuilt-layout submit + poll. Single-page
-  // wallclock is ~1–3 s; allow generous startToClose for multi-page
-  // documents and DI cold starts.
-  defaultTimeout: "10m",
-  defaultRetry: {
-    maximumAttempts: 5,
-    initialInterval: "5s",
-    backoffCoefficient: 1.5,
-    maximumInterval: "30s",
-  },
-  description:
-    "Azure DI prebuilt-layout (markdown content + per-line/per-word polygons; no field extraction). Sync submit+poll wrapper for the VLM hybrid pre-pass.",
 });
 
 register({

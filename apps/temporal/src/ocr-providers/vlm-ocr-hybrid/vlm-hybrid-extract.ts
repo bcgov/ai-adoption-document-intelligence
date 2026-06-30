@@ -482,13 +482,13 @@ export async function vlmHybridExtract(
   });
 
   // The OCR call wallclock is not measured by this activity (the upstream
-  // azureOcr.readPlain owns it); we record only the VLM leg here. The
-  // workflow can sum the two if it cares.
+  // azureOcr.submit/azureOcr.poll pair owns it); we record only the VLM
+  // leg here. The workflow can sum the two if it cares.
   const ocrResponse: VlmHybridRawResponse = {
     deployment,
     apiVersion,
     durationMs: Date.now() - startTime,
-    ocrDurationMs: 0, // owned by the upstream azureOcr.readPlain activity
+    ocrDurationMs: 0, // owned by the upstream azureOcr.submit/poll activities
     vlmDurationMs: vlm.durationMs,
     parsed: vlm.parsed,
     raw: vlm.raw,

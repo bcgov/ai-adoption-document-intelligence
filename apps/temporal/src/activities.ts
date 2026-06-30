@@ -21,11 +21,6 @@ export type {
   AzureClassifySubmitOutput,
 } from "./activities/azure-classify-submit";
 export { azureClassifySubmit } from "./activities/azure-classify-submit";
-export type {
-  AzureOcrReadPlainParams,
-  AzureOcrReadPlainResult,
-} from "./activities/azure-di-read-plain";
-export { azureDiReadPlain } from "./activities/azure-di-read-plain";
 export type { BenchmarkBaselineComparisonInput } from "./activities/benchmark-baseline-comparison";
 export { benchmarkCompareAgainstBaseline } from "./activities/benchmark-baseline-comparison";
 export type { BenchmarkCleanupInput } from "./activities/benchmark-cleanup";
