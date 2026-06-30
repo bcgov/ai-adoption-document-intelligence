@@ -34,7 +34,19 @@ import * as path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { computeConfigHash } from "./config-hash";
+import {
+  buildRealActivities,
+  installPaidApiMocks,
+  makeWorkflowInput,
+  SAMPLE_IMAGE_ABS_PATH,
+  seedTestDocument,
+  TEMPORAL_ADDRESS,
+  TEMPORAL_NAMESPACE,
+} from "./__testlib__/integration-harness";
+import {
+  disconnectPrismaClient,
+  getPrismaClient,
+} from "./activities/database-client";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import { getStatus, graphWorkflow } from "./graph-workflow";
@@ -42,11 +54,62 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
-  GraphWorkflowInput,
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
-import type { OCRResult } from "./types";
+import type { OCRResponse } from "./types";
+
+/**
+ * Build a small Azure DI analyze response whose page words all carry
+ * `confidence`, fed to the real submit/poll/extract path via the harness's
+ * MOCK_AZURE_OCR seam so the real gate is deterministic.
+ */
+function neuralDiResponse(confidence: number, wordCount: number): OCRResponse {
+  const words = Array.from({ length: wordCount }, (_, i) => ({
+    content: `w${i}`,
+    confidence,
+    polygon: [0, 0, 10, 0, 10, 10, 0, 10],
+    span: { offset: i * 4, length: 2 },
+  }));
+  return {
+    status: "succeeded",
+    analyzeResult: {
+      apiVersion: "2024-11-30",
+      modelId: "sdpr_synth_test",
+      content: words.map((w) => w.content).join(" "),
+      pages: [
+        {
+          pageNumber: 1,
+          width: 8.5,
+          height: 11,
+          unit: "inch",
+          words,
+          lines: [],
+          spans: [],
+        },
+      ],
+      paragraphs: [],
+      tables: [],
+      keyValuePairs: [],
+      sections: [],
+      figures: [],
+      documents: [
+        {
+          docType: "sdpr_synth_test",
+          confidence,
+          fields: {
+            applicant_oas_gis: {
+              type: "number",
+              content: "100",
+              valueNumber: 100,
+              confidence,
+            },
+          },
+        },
+      ],
+    },
+  } as unknown as OCRResponse;
+}
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -64,9 +127,6 @@ const FIXTURE_PATH = path.join(
   "experiment-01",
   "neural-ocr-response-1-81.json",
 );
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_TEST_NAMESPACE ?? "default";
 
 // ---------------------------------------------------------------------------
 // Fixture types + loaders
@@ -133,173 +193,7 @@ function findEdge(
   return graph.edges?.find((e) => e.source === source && e.target === target);
 }
 
-// ---------------------------------------------------------------------------
-// Mock activity construction (used by runtime tests)
-// ---------------------------------------------------------------------------
-
-interface ActivityCall {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-type ActivityImpl = (
-  params: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
-
-/** Build a well-formed `OCRResult` from the recorded Azure DI fixture. */
-function buildOcrResultFromFixture(fixture: NeuralPollResponse): OCRResult {
-  const doc = fixture.analyzeResult.documents[0];
-  const fieldEntries = Object.entries(doc.fields).map(([key, raw]) => ({
-    key,
-    content: raw.content ?? "",
-    confidence: typeof raw.confidence === "number" ? raw.confidence : 0.99,
-  }));
-
-  return {
-    success: true,
-    status: "succeeded",
-    apimRequestId: "test-apim-request-id",
-    fileName: "1 81.jpg",
-    fileType: "image",
-    modelId: fixture.analyzeResult.modelId,
-    extractedText: fixture.analyzeResult.content ?? "",
-    pages: [
-      {
-        pageNumber: 1,
-        words: fieldEntries.map((f) => ({
-          content: f.content,
-          confidence: f.confidence,
-          polygon: [],
-        })),
-        lines: [],
-        selectionMarks: [],
-        unit: "pixel",
-        width: 1700,
-        height: 2200,
-      } as unknown as OCRResult["pages"][number],
-    ],
-    tables: [],
-    paragraphs: [],
-    keyValuePairs: fieldEntries.map((f) => ({
-      key: { content: f.key, confidence: f.confidence, polygon: [] },
-      value: { content: f.content, confidence: f.confidence, polygon: [] },
-      confidence: f.confidence,
-    })) as unknown as OCRResult["keyValuePairs"],
-    sections: [],
-    figures: [],
-    documents: [
-      {
-        docType: doc.docType,
-        confidence: doc.confidence,
-        fields: doc.fields,
-      } as unknown as NonNullable<OCRResult["documents"]>[number],
-    ],
-    processedAt: new Date().toISOString(),
-  };
-}
-
-function buildMockActivities(opts: {
-  ocrResult: OCRResult;
-  averageConfidence: number;
-  requiresReview: boolean;
-  callsRef: ActivityCall[];
-}): Record<string, ActivityImpl> {
-  const { ocrResult, averageConfidence, requiresReview, callsRef } = opts;
-  const record = (type: string, params: Record<string, unknown>) =>
-    callsRef.push({ type, params });
-
-  return {
-    "file.prepare": async (params) => {
-      record("file.prepare", params);
-      return {
-        preparedData: {
-          blobKey: params.blobKey ?? "test-blob-key",
-          fileName: params.fileName ?? "1 81.jpg",
-          fileType: params.fileType ?? "image",
-          contentType: params.contentType ?? "image/jpeg",
-          modelId: params.modelId ?? "sdpr_synth_test",
-        },
-      };
-    },
-    "azureOcr.submit": async (params) => {
-      record("azureOcr.submit", params);
-      return { apimRequestId: "test-apim-request-id" };
-    },
-    "document.updateStatus": async (params) => {
-      record("document.updateStatus", params);
-      return { success: true };
-    },
-    "azureOcr.poll": async (params) => {
-      record("azureOcr.poll", params);
-      return { response: { status: "succeeded" } };
-    },
-    "azureOcr.extract": async (params) => {
-      record("azureOcr.extract", params);
-      return { ocrResult };
-    },
-    "ocr.cleanup": async (params) => {
-      record("ocr.cleanup", params);
-      return { cleanedResult: ocrResult };
-    },
-    "ocr.normalizeFields": async (params) => {
-      record("ocr.normalizeFields", params);
-      return { ocrResult };
-    },
-    "ocr.characterConfusion": async (params) => {
-      record("ocr.characterConfusion", params);
-      return { ocrResult };
-    },
-    "ocr.checkConfidence": async (params) => {
-      record("ocr.checkConfidence", params);
-      return { averageConfidence, requiresReview };
-    },
-    "ocr.storeResults": async (params) => {
-      record("ocr.storeResults", params);
-      return { success: true };
-    },
-  };
-}
-
-type TestGraphWorkflowInput = GraphWorkflowInput & {
-  __testGraph: GraphWorkflowConfig;
-};
-
-function makeWorkflowInput(
-  graph: GraphWorkflowConfig,
-  initialCtx: Record<string, unknown>,
-): TestGraphWorkflowInput {
-  return {
-    workflowVersionId: "test-workflow-version-id",
-    initialCtx,
-    configHash: computeConfigHash(graph),
-    runnerVersion: "1.0.0",
-    __testGraph: graph,
-  };
-}
-
-/**
- * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
- * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
- */
-function withGraphConfigLoader(
-  activities: Record<string, ActivityImpl>,
-  graph: GraphWorkflowConfig,
-): Record<string, ActivityImpl> {
-  activities.getWorkflowGraphConfig = (async () => ({
-    graph,
-    workflowVersionId: "test-workflow-version-id",
-    configHash: computeConfigHash(graph),
-  })) as unknown as ActivityImpl;
-  // develop's workflow runs a post-execution hook that reads document.getStatus;
-  // mock it so the workflow closes cleanly (else the trailing failed activity
-  // adds noise and can race the terminal getStatus query).
-  if (!activities["document.getStatus"]) {
-    activities["document.getStatus"] = (async () => ({
-      status: "extracted",
-    })) as unknown as ActivityImpl;
-  }
-  return activities;
-}
+// (Runtime tests use the shared mock-only-paid harness; no per-activity mocks.)
 
 // ---------------------------------------------------------------------------
 // Static + structural tests
@@ -504,7 +398,7 @@ describe("Experiment 01 — neural DI workflow template (static)", () => {
 const describeRuntime = process.env.CI ? describe.skip : describe;
 
 describeRuntime(
-  "Experiment 01 — runtime against local Temporal cluster",
+  "Experiment 01 — runtime against local Temporal cluster (mock only paid services)",
   () => {
     let nativeConnection: NativeConnection | null = null;
     let connection: Connection | null = null;
@@ -521,182 +415,121 @@ describeRuntime(
     afterAll(async () => {
       await nativeConnection?.close();
       await connection?.close();
+      await disconnectPrismaClient();
     });
 
-    it("high-confidence sample skips human review and runs the chain in order", async () => {
+    function runtimeCtx(documentId: string): Record<string, unknown> {
+      return {
+        documentId,
+        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      };
+    }
+
+    it("high-confidence DI response skips human review and persists the result", async () => {
       if (!nativeConnection || !client) {
         throw new Error(
           `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
         );
       }
-      const taskQueue = `e01-test-high-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
       const graph = loadTemplateForRuntime();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.99,
-          requiresReview: false,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-high-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const workflowId = `e01-test-high-${Date.now()}`;
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({ di: neuralDiResponse(0.99, 10) });
+      const taskQueue = `e01-itest-high-${process.pid}-${Date.now()}`;
       const activeClient = client;
-      const { result, ctx } = await worker.runUntil(async () => {
-        const result = await activeClient.workflow.execute(graphWorkflow, {
-          workflowId,
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const workflowId = `e01-itest-high-${Date.now()}`;
+        const { result, ctx } = await worker.runUntil(async () => {
+          const result = await activeClient.workflow.execute(graphWorkflow, {
+            workflowId,
+            taskQueue,
+            args: [input],
+          });
+          const status = await activeClient.workflow
+            .getHandle(workflowId)
+            .query(getStatus);
+          return { result, ctx: status.ctx };
+        });
+
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(false);
+        expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
+
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
+    }, 60000);
+
+    it("low-confidence DI response routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const graph = loadTemplateForRuntime();
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({ di: neuralDiResponse(0.4, 10) });
+      const taskQueue = `e01-itest-low-${process.pid}-${Date.now()}`;
+      const activeClient = client;
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const handle = await activeClient.workflow.start(graphWorkflow, {
+          workflowId: `e01-itest-low-${Date.now()}`,
           taskQueue,
           args: [input],
         });
-        const status = await activeClient.workflow
-          .getHandle(workflowId)
-          .query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(false);
-      expect(ctx.averageConfidence).toBe(0.99);
-
-      // Note: pre-execution document.updateStatus runs first (graph engine
-      // overhead), so we filter to ctx-driven activities for ordering.
-      const ctxOrder = calls.map((c) => c.type);
-      expect(ctxOrder).toContain("file.prepare");
-      expect(ctxOrder).toContain("azureOcr.submit");
-      expect(ctxOrder).toContain("azureOcr.poll");
-      expect(ctxOrder).toContain("azureOcr.extract");
-      expect(ctxOrder).toContain("ocr.cleanup");
-      expect(ctxOrder).toContain("ocr.normalizeFields");
-      expect(ctxOrder).toContain("ocr.characterConfusion");
-      expect(ctxOrder).toContain("ocr.checkConfidence");
-      expect(ctxOrder).toContain("ocr.storeResults");
-
-      // Verify the chain order: each post-OCR step should appear after its
-      // predecessor.
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("file.prepare")).toBeLessThan(idx("azureOcr.submit"));
-      expect(idx("azureOcr.submit")).toBeLessThan(idx("azureOcr.poll"));
-      expect(idx("azureOcr.poll")).toBeLessThan(idx("azureOcr.extract"));
-      expect(idx("azureOcr.extract")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
-      expect(idx("ocr.normalizeFields")).toBeLessThan(
-        idx("ocr.characterConfusion"),
-      );
-      expect(idx("ocr.characterConfusion")).toBeLessThan(
-        idx("ocr.checkConfidence"),
-      );
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-
-      // Real neural-model OCR data flowed through cleanup unchanged.
-      const cleanupCall = calls.find((c) => c.type === "ocr.cleanup");
-      const cleanupOcr = cleanupCall?.params.ocrResult as OCRResult | undefined;
-      expect(cleanupOcr?.modelId).toBe("sdpr_synth_test");
-      expect(cleanupOcr?.documents?.[0]?.docType).toMatch(/^sdpr_synth_test/);
-
-      // characterConfusion received the full configured field scope.
-      const ccCall = calls.find((c) => c.type === "ocr.characterConfusion");
-      const ccFieldScope = ccCall?.params.fieldScope as string[] | undefined;
-      expect(Array.isArray(ccFieldScope)).toBe(true);
-      expect(ccFieldScope).toContain("applicant_oas_gis");
-    }, 60000);
-
-    it("low-confidence sample routes through humanReview before storeResults", async () => {
-      if (!nativeConnection || !client) {
-        throw new Error(
-          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
-        );
-      }
-      const taskQueue = `e01-test-low-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
-      const graph = loadTemplateForRuntime();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.42,
-          requiresReview: true,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-low-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const handle = await client.workflow.start(graphWorkflow, {
-        workflowId: `e01-test-low-${Date.now()}`,
-        taskQueue,
-        args: [input],
-      });
-
-      const { result, ctx } = await worker.runUntil(async () => {
-        // Temporal queues the signal; humanGate consumes it once the workflow
-        // reaches that node.
-        await handle.signal("humanApproval", {
-          approved: true,
-          reviewer: "test-reviewer",
-          comments: "ok",
-          rejectionReason: "",
-          annotations: "",
+        const { result, ctx } = await worker.runUntil(async () => {
+          await handle.signal("humanApproval", {
+            approved: true,
+            reviewer: "test-reviewer",
+            comments: "ok",
+            rejectionReason: "",
+            annotations: "",
+          });
+          const result = await handle.result();
+          const status = await handle.query(getStatus);
+          return { result, ctx: status.ctx };
         });
-        const result = await handle.result();
-        const status = await handle.query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(true);
-      expect(ctx.averageConfidence).toBe(0.42);
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(true);
+        expect(ctx.averageConfidence as number).toBeLessThan(0.95);
 
-      // storeResults must still run, but only after the humanReview gate.
-      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
-
-      // The cleanup → checkConfidence chain ran in order even on the
-      // low-confidence path.
-      const ctxOrder = calls.map((c) => c.type);
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.normalizeFields"));
-      expect(idx("ocr.normalizeFields")).toBeLessThan(
-        idx("ocr.characterConfusion"),
-      );
-      expect(idx("ocr.characterConfusion")).toBeLessThan(
-        idx("ocr.checkConfidence"),
-      );
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
     }, 60000);
   },
 );

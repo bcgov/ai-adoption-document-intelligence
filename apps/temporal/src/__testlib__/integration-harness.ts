@@ -34,6 +34,7 @@ import type {
   GraphWorkflowInput,
 } from "../graph-workflow-types";
 import type { MistralOcrApiResponse } from "../ocr-providers/mistral/mistral-ocr-types";
+import type { OCRResponse } from "../types";
 
 export const TEMPORAL_ADDRESS =
   process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
@@ -139,6 +140,13 @@ export interface PaidApiMockConfig {
    * real canonical mapping + ref persistence runs.
    */
   mistral?: MistralOcrApiResponse;
+  /**
+   * Stub the Azure Document Intelligence analyze response (SDK-based; consumed
+   * by the `MOCK_AZURE_OCR` env-seam in poll-ocr-results). The given
+   * `OCRResponse` is written to blob and resolved by the real `azureOcr.extract`
+   * + downstream activities, so its confidence drives the real gate.
+   */
+  di?: OCRResponse;
 }
 
 /**
@@ -161,8 +169,12 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
     MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
     MISTRAL_DOC_AI_AZURE_ENDPOINT: process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT,
     MISTRAL_DOC_AI_AZURE_KEY: process.env.MISTRAL_DOC_AI_AZURE_KEY,
+    MOCK_AZURE_OCR_RESPONSE: process.env.MOCK_AZURE_OCR_RESPONSE,
   };
   process.env.MOCK_AZURE_OCR = "true";
+  if (cfg.di) {
+    process.env.MOCK_AZURE_OCR_RESPONSE = JSON.stringify(cfg.di);
+  }
   // Force mock creds so no real call can leak out even if a URL matcher ever
   // misses; axios is intercepted regardless.
   process.env.AZURE_OPENAI_ENDPOINT = "https://mock-openai.local";
