@@ -2,7 +2,7 @@
   "schemaVersion": "1.0",
   "metadata": {
     "name": "Experiment 08 - VLM + OCR hybrid (gpt-5.2)",
-    "description": "E08 single-pass VLM + OCR hybrid extraction with gpt-5.2. Identical pipeline to E05 (DI prebuilt-layout → Azure OpenAI chat-completions with image + OCR markdown + strict-mode JSON Schema) but the VLM is gpt-5.2 instead of gpt-5.4. Companion model-comparison experiment to E07 (gpt-4o); together with E05 they form a same-pipeline three-way model bake-off (gpt-5.2 vs gpt-5.4 vs gpt-4o). Standalone duplicate of E05's workflow so the canonical gpt-5.4 baseline remains untouched. Sync chain: prepareFileData → azureDiReadPlain → vlmOcrHybridExtract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → humanReview/storeResults. Image inputs only.",
+    "description": "E08 single-pass VLM + OCR hybrid extraction with gpt-5.2. Identical pipeline to E05 (DI prebuilt-layout (via the standard submit/poll activities, outputFormat=markdown) → Azure OpenAI chat-completions with image + OCR markdown + strict-mode JSON Schema) but the VLM is gpt-5.2 instead of gpt-5.4. Companion model-comparison experiment to E07 (gpt-4o); together with E05 they form a same-pipeline three-way model bake-off (gpt-5.2 vs gpt-5.4 vs gpt-4o). Standalone duplicate of E05's workflow so the canonical gpt-5.4 baseline remains untouched. Sync chain: prepareFileData → submitOcr → pollOcrResults → vlmOcrHybridExtract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → humanReview/storeResults. Image inputs only.",
     "tags": [
       "ocr",
       "azure",
@@ -45,6 +45,16 @@
       "defaultValue": "seed-sdpr-monthly-report-template",
       "description": "Labeling TemplateModel id. The hybrid activity loads this template field_schema and builds the strict-mode JSON Schema sent to the chat-completions endpoint."
     },
+    "diModelId": {
+      "type": "string",
+      "defaultValue": "prebuilt-layout",
+      "description": "Azure Document Intelligence model used for the OCR pre-pass leg. prebuilt-layout returns markdown content + per-line/per-word polygons; distinct from modelId (the VLM deployment surfaced in OCRResult)."
+    },
+    "outputFormat": {
+      "type": "string",
+      "defaultValue": "markdown",
+      "description": "OCR output content format forwarded to Azure DI. 'markdown' makes analyzeResult.content come back as Markdown, which the hybrid feeds to the VLM."
+    },
     "azureOpenAiDeployment": {
       "type": "string",
       "defaultValue": "gpt-5.2",
@@ -58,9 +68,12 @@
     "preparedFileData": {
       "type": "object"
     },
-    "layoutResponse": {
+    "apimRequestId": {
+      "type": "string"
+    },
+    "ocrResponseRef": {
       "type": "object",
-      "description": "Raw Azure DI prebuilt-layout response (markdown content + per-line/per-word polygons). Wired into the hybrid extract step; not directly persisted to benchmark_ocr_cache."
+      "description": "Lightweight blob reference to the raw Azure DI prebuilt-layout response (markdown content + per-line/per-word polygons). Resolved inside the hybrid extract step; the full payload is kept out of Temporal history."
     },
     "ocrResult": {
       "type": "object"
@@ -105,7 +118,11 @@
         },
         {
           "port": "modelId",
-          "ctxKey": "modelId"
+          "ctxKey": "diModelId"
+        },
+        {
+          "port": "outputFormat",
+          "ctxKey": "outputFormat"
         }
       ],
       "outputs": [
@@ -121,11 +138,11 @@
         "maximumAttempts": 3
       }
     },
-    "azureDiReadPlain": {
-      "id": "azureDiReadPlain",
+    "submitOcr": {
+      "id": "submitOcr",
       "type": "activity",
-      "label": "Azure DI Read Plain (prebuilt-layout)",
-      "activityType": "azureOcr.readPlain",
+      "label": "Submit to Azure OCR (prebuilt-layout, markdown)",
+      "activityType": "azureOcr.submit",
       "inputs": [
         {
           "port": "fileData",
@@ -134,19 +151,55 @@
       ],
       "outputs": [
         {
-          "port": "layoutResponse",
-          "ctxKey": "layoutResponse"
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
         }
       ],
       "timeout": {
-        "startToClose": "10m"
+        "startToClose": "2m"
       },
       "retry": {
-        "maximumAttempts": 5,
-        "initialInterval": "5s",
-        "backoffCoefficient": 1.5,
-        "maximumInterval": "30s"
+        "maximumAttempts": 3
       }
+    },
+    "pollOcrResults": {
+      "id": "pollOcrResults",
+      "type": "pollUntil",
+      "label": "Poll OCR Results",
+      "activityType": "azureOcr.poll",
+      "inputs": [
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "diModelId"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "response",
+          "ctxKey": "ocrResponseRef"
+        }
+      ],
+      "condition": {
+        "operator": "not-equals",
+        "left": {
+          "ref": "ctx.ocrResponseRef.status"
+        },
+        "right": {
+          "literal": "running"
+        }
+      },
+      "interval": "10s",
+      "initialDelay": "5s",
+      "maxAttempts": 20,
+      "timeout": "10m"
     },
     "vlmOcrHybridExtract": {
       "id": "vlmOcrHybridExtract",
@@ -160,7 +213,7 @@
         },
         {
           "port": "layoutResponse",
-          "ctxKey": "layoutResponse"
+          "ctxKey": "ocrResponseRef"
         },
         {
           "port": "templateModelId",
@@ -401,12 +454,18 @@
     {
       "id": "e-hyb1",
       "source": "prepareFileData",
-      "target": "azureDiReadPlain",
+      "target": "submitOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e-hyb1b",
+      "source": "submitOcr",
+      "target": "pollOcrResults",
       "type": "normal"
     },
     {
       "id": "e-hyb2",
-      "source": "azureDiReadPlain",
+      "source": "pollOcrResults",
       "target": "vlmOcrHybridExtract",
       "type": "normal"
     },
@@ -455,21 +514,31 @@
       "description": "Two-leg hybrid: Azure DI prebuilt-layout produces markdown + bbox layout; the markdown is fed to Azure OpenAI chat-completions alongside the document image with a strict JSON Schema response_format. The system prompt instructs the model to trust the image when it disagrees with the OCR text.",
       "icon": "scan",
       "color": "#0ea5e9",
-      "nodeIds": ["prepareFileData", "azureDiReadPlain", "vlmOcrHybridExtract"]
+      "nodeIds": [
+        "prepareFileData",
+        "submitOcr",
+        "pollOcrResults",
+        "vlmOcrHybridExtract"
+      ]
     },
     "cleanup": {
       "label": "Post-Processing",
       "description": "Clean and normalize OCR results",
       "icon": "cleanup",
       "color": "#22c55e",
-      "nodeIds": ["postOcrCleanup"]
+      "nodeIds": [
+        "postOcrCleanup"
+      ]
     },
     "quality-gate": {
       "label": "Quality Gate",
       "description": "Check OCR confidence and decide if human review is needed",
       "icon": "quality",
       "color": "#fb923c",
-      "nodeIds": ["checkConfidence", "reviewSwitch"],
+      "nodeIds": [
+        "checkConfidence",
+        "reviewSwitch"
+      ],
       "exposedParams": [
         {
           "label": "Confidence Threshold",
@@ -484,7 +553,9 @@
       "description": "Wait for human approval when confidence is low",
       "icon": "human",
       "color": "#ef4444",
-      "nodeIds": ["humanReview"],
+      "nodeIds": [
+        "humanReview"
+      ],
       "exposedParams": [
         {
           "label": "Review Timeout",
@@ -499,7 +570,9 @@
       "description": "Save processed results to database",
       "icon": "save",
       "color": "#8b5cf6",
-      "nodeIds": ["storeResults"]
+      "nodeIds": [
+        "storeResults"
+      ]
     }
   }
 }

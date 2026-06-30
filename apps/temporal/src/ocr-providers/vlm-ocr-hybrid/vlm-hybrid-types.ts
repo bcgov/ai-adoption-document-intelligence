@@ -4,7 +4,8 @@
  * The hybrid activity:
  *   1. Receives a raw `prebuilt-layout` response (markdown content +
  *      per-line/per-word polygons) from the upstream
- *      `azureOcr.readPlain` step.
+ *      `azureOcr.submit` → `azureOcr.poll` (outputFormat=markdown) steps,
+ *      as a lightweight `OcrPayloadRef` resolved inside the activity.
  *   2. Renders the markdown into a per-page string suitable for the VLM
  *      prompt (with optional inline bbox annotations).
  *   3. Sends the document image AND the OCR markdown to an Azure OpenAI

@@ -19,7 +19,6 @@ const EXPECTED_ACTIVITY_TYPES = [
   "azureContentUnderstanding.analyze",
   "vlmDirect.extract",
   "vlmOcrHybrid.extract",
-  "azureOcr.readPlain",
   "ocr.storeResults",
   "document.storeRejection",
   "getWorkflowGraphConfig",
