@@ -32,7 +32,19 @@ import * as path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { Client, Connection } from "@temporalio/client";
 import { NativeConnection, Worker } from "@temporalio/worker";
-import { computeConfigHash } from "./config-hash";
+import {
+  buildRealActivities,
+  installPaidApiMocks,
+  makeWorkflowInput,
+  SAMPLE_IMAGE_ABS_PATH,
+  seedTestDocument,
+  TEMPORAL_ADDRESS,
+  TEMPORAL_NAMESPACE,
+} from "./__testlib__/integration-harness";
+import {
+  disconnectPrismaClient,
+  getPrismaClient,
+} from "./activities/database-client";
 import { computeTopologicalOrder } from "./graph-engine/graph-algorithms";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import { getStatus, graphWorkflow } from "./graph-workflow";
@@ -40,13 +52,11 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
-  GraphWorkflowInput,
   PollUntilNode,
   SwitchNode,
 } from "./graph-workflow-types";
 import type { MistralOcrApiResponse } from "./ocr-providers/mistral/mistral-ocr-types";
 import { mistralOcrResponseToOcrResult } from "./ocr-providers/mistral/mistral-to-ocr-result";
-import type { OCRResult } from "./types";
 
 const TEMPLATE_PATH = path.join(
   __dirname,
@@ -64,9 +74,6 @@ const FIXTURE_PATH = path.join(
   "experiment-02",
   "mistral-azure-ocr-response-1-81.json",
 );
-
-const TEMPORAL_ADDRESS = process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_TEST_NAMESPACE ?? "default";
 
 // ---------------------------------------------------------------------------
 // Fixture types + loaders
@@ -99,118 +106,41 @@ function findEdge(
   return graph.edges?.find((e) => e.source === source && e.target === target);
 }
 
-// ---------------------------------------------------------------------------
-// Mock activity construction (used by runtime tests)
-// ---------------------------------------------------------------------------
-
-interface ActivityCall {
-  type: string;
-  params: Record<string, unknown>;
-}
-
-type ActivityImpl = (
-  params: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
-
-/** Build an `OCRResult` from the recorded Foundry response via the canonical mapper. */
-function buildOcrResultFromFixture(fixture: MistralOcrApiResponse): OCRResult {
-  return mistralOcrResponseToOcrResult(
-    fixture,
-    {
-      fileName: "1 81.jpg",
-      fileType: "image",
-      requestId: "test-mistral-azure-id",
-      modelId: fixture.model,
-    },
-    undefined,
-  );
-}
-
-function buildMockActivities(opts: {
-  ocrResult: OCRResult;
-  averageConfidence: number;
-  requiresReview: boolean;
-  callsRef: ActivityCall[];
-}): Record<string, ActivityImpl> {
-  const { ocrResult, averageConfidence, requiresReview, callsRef } = opts;
-  const record = (type: string, params: Record<string, unknown>) =>
-    callsRef.push({ type, params });
-
-  return {
-    "file.prepare": async (params) => {
-      record("file.prepare", params);
-      return {
-        preparedData: {
-          blobKey: params.blobKey ?? "test-blob-key",
-          fileName: params.fileName ?? "1 81.jpg",
-          fileType: params.fileType ?? "image",
-          contentType: params.contentType ?? "image/jpeg",
-          modelId: params.modelId ?? "mistral-document-ai-2512",
-        },
-      };
-    },
-    "document.updateStatus": async (params) => {
-      record("document.updateStatus", params);
-      return { success: true };
-    },
-    "mistralAzureOcr.process": async (params) => {
-      record("mistralAzureOcr.process", params);
-      return { ocrResult };
-    },
-    "ocr.cleanup": async (params) => {
-      record("ocr.cleanup", params);
-      return { cleanedResult: ocrResult };
-    },
-    "ocr.checkConfidence": async (params) => {
-      record("ocr.checkConfidence", params);
-      return { averageConfidence, requiresReview };
-    },
-    "ocr.storeResults": async (params) => {
-      record("ocr.storeResults", params);
-      return { success: true };
-    },
-  };
-}
-
-type TestGraphWorkflowInput = GraphWorkflowInput & {
-  __testGraph: GraphWorkflowConfig;
-};
-
-function makeWorkflowInput(
-  graph: GraphWorkflowConfig,
-  initialCtx: Record<string, unknown>,
-): TestGraphWorkflowInput {
-  return {
-    workflowVersionId: "test-workflow-version-id",
-    initialCtx,
-    configHash: computeConfigHash(graph),
-    runnerVersion: "1.0.0",
-    __testGraph: graph,
-  };
-}
-
 /**
- * Mock getWorkflowGraphConfig so the workflow loads the test graph by id
- * (develop moved from inline-graph input to DB-loaded-by-workflowVersionId).
+ * Build a Mistral OCR response whose page carries `wordCount` synthesised words
+ * each at `wordConfidence`, so the real gate is deterministic.
+ *
+ * Note: the mapper emits one key-value pair per template field (74 for the SDPR
+ * schema) at a hard-coded confidence of 1.0, which forms a high floor in the
+ * gate's average. To push the page mean below the 0.95 threshold the low case
+ * therefore supplies many low-confidence page words; the high case needs only a
+ * handful of high-confidence words to stay above the line.
  */
-function withGraphConfigLoader(
-  activities: Record<string, ActivityImpl>,
-  graph: GraphWorkflowConfig,
-): Record<string, ActivityImpl> {
-  activities.getWorkflowGraphConfig = (async () => ({
-    graph,
-    workflowVersionId: "test-workflow-version-id",
-    configHash: computeConfigHash(graph),
-  })) as unknown as ActivityImpl;
-  // develop's workflow runs a post-execution hook that reads document.getStatus;
-  // mock it so the workflow closes cleanly (else the trailing failed activity
-  // makes the terminal getStatus query unreliable on a real Temporal cluster).
-  if (!activities["document.getStatus"]) {
-    activities["document.getStatus"] = (async () => ({
-      status: "extracted",
-    })) as unknown as ActivityImpl;
-  }
-  return activities;
+function mistralResponseWithConfidence(
+  wordConfidence: number,
+  wordCount: number,
+): MistralOcrApiResponse {
+  const word_confidence_scores = Array.from({ length: wordCount }, (_, i) => ({
+    text: `w${i}`,
+    confidence: wordConfidence,
+    start_index: i * 4,
+  }));
+  return {
+    model: "mistral-document-ai-2512",
+    pages: [
+      {
+        index: 0,
+        markdown: word_confidence_scores.map((w) => w.text).join(" "),
+        dimensions: { width: 612, height: 792, dpi: 72 },
+        confidence_scores: {
+          average_page_confidence_score: wordConfidence,
+          minimum_page_confidence_score: wordConfidence,
+          word_confidence_scores,
+        },
+      },
+    ],
+    usage_info: { pages_processed: 1 },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,11 +183,14 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
   });
 
   describe("scope rules from the brief", () => {
-    it("uses the new Foundry activity (mistralAzureOcr.process) — not the public-API path", () => {
+    it("uses the merged Mistral activity with the azure (Foundry) variant — not the native public-API transport", () => {
       const graph = loadTemplate();
       const types = activityTypes(graph);
-      expect(types).toContain("mistralAzureOcr.process");
-      expect(types).not.toContain("mistralOcr.process");
+      expect(types).toContain("mistralOcr.process");
+      expect(types).not.toContain("mistralAzureOcr.process");
+      const node = graph.nodes?.mistralAzureOcr as ActivityNode | undefined;
+      const params = (node?.parameters ?? {}) as { variant?: string };
+      expect(params.variant).toBe("azure");
     });
 
     it("does not use the Azure DI submit/poll/extract chain (this is a sync provider)", () => {
@@ -320,7 +253,7 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
     it("Foundry activity carries the configured timeout/retry shape", () => {
       const graph = loadTemplate();
       const node = graph.nodes?.mistralAzureOcr as ActivityNode | undefined;
-      expect(node?.activityType).toBe("mistralAzureOcr.process");
+      expect(node?.activityType).toBe("mistralOcr.process");
       expect(node?.timeout?.startToClose).toBe("20m");
       // Generous retry policy is required to clear the Foundry deployment's
       // per-minute request quota (default 10 RPM) under a 33-sample benchmark
@@ -481,7 +414,7 @@ describe("Experiment 02 — Mistral Doc AI on Foundry workflow template (static)
 const describeRuntime = process.env.CI ? describe.skip : describe;
 
 describeRuntime(
-  "Experiment 02 — runtime against local Temporal cluster",
+  "Experiment 02 — runtime against local Temporal cluster (mock only paid services)",
   () => {
     let nativeConnection: NativeConnection | null = null;
     let connection: Connection | null = null;
@@ -498,158 +431,130 @@ describeRuntime(
     afterAll(async () => {
       await nativeConnection?.close();
       await connection?.close();
+      await disconnectPrismaClient();
     });
 
-    it("high-confidence sample skips human review and runs the chain in order", async () => {
+    function runtimeCtx(documentId: string): Record<string, unknown> {
+      return {
+        documentId,
+        blobKey: SAMPLE_IMAGE_ABS_PATH,
+        fileName: "1 81.jpg",
+        fileType: "image",
+        contentType: "image/jpeg",
+      };
+    }
+
+    it("high-confidence Foundry response skips human review and persists the result + raw response (T6)", async () => {
       if (!nativeConnection || !client) {
         throw new Error(
           `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
         );
       }
-      const taskQueue = `e02-test-high-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
       const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.99,
-          requiresReview: false,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({
+        mistral: mistralResponseWithConfidence(0.99, 10),
       });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-high-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const workflowId = `e02-test-high-${Date.now()}`;
+      const taskQueue = `e02-itest-high-${process.pid}-${Date.now()}`;
       const activeClient = client;
-      const { result, ctx } = await worker.runUntil(async () => {
-        const result = await activeClient.workflow.execute(graphWorkflow, {
-          workflowId,
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const workflowId = `e02-itest-high-${Date.now()}`;
+        const { result, ctx } = await worker.runUntil(async () => {
+          const result = await activeClient.workflow.execute(graphWorkflow, {
+            workflowId,
+            taskQueue,
+            args: [input],
+          });
+          const status = await activeClient.workflow
+            .getHandle(workflowId)
+            .query(getStatus);
+          return { result, ctx: status.ctx };
+        });
+
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(false);
+        expect(ctx.averageConfidence as number).toBeGreaterThanOrEqual(0.95);
+
+        // T6: the raw Foundry response flows to ctx.ocrResponse so the
+        // benchmark sample workflow's persistOcrCache step can write it.
+        const ocrResponse = ctx.ocrResponse as { model?: string } | undefined;
+        expect(ocrResponse).toBeDefined();
+        expect(ocrResponse?.model).toBe("mistral-document-ai-2512");
+
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
+    }, 60000);
+
+    it("low-confidence Foundry response routes through humanReview before storeResults", async () => {
+      if (!nativeConnection || !client) {
+        throw new Error(
+          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
+        );
+      }
+      const graph = loadTemplate();
+      const { documentId, cleanup } = await seedTestDocument();
+      const mocks = installPaidApiMocks({
+        mistral: mistralResponseWithConfidence(0.05, 200),
+      });
+      const taskQueue = `e02-itest-low-${process.pid}-${Date.now()}`;
+      const activeClient = client;
+      try {
+        const worker = await Worker.create({
+          connection: nativeConnection,
+          namespace: TEMPORAL_NAMESPACE,
+          taskQueue,
+          workflowsPath: require.resolve("./graph-workflow"),
+          activities: buildRealActivities(graph, "itest-workflow-version-id"),
+        });
+
+        const input = makeWorkflowInput(graph, runtimeCtx(documentId));
+        const handle = await activeClient.workflow.start(graphWorkflow, {
+          workflowId: `e02-itest-low-${Date.now()}`,
           taskQueue,
           args: [input],
         });
-        const status = await activeClient.workflow
-          .getHandle(workflowId)
-          .query(getStatus);
-        return { result, ctx: status.ctx };
-      });
 
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(false);
-      expect(ctx.averageConfidence).toBe(0.99);
-
-      const ctxOrder = calls.map((c) => c.type);
-      expect(ctxOrder).toContain("file.prepare");
-      expect(ctxOrder).toContain("mistralAzureOcr.process");
-      expect(ctxOrder).toContain("ocr.cleanup");
-      expect(ctxOrder).toContain("ocr.checkConfidence");
-      expect(ctxOrder).toContain("ocr.storeResults");
-
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("file.prepare")).toBeLessThan(idx("mistralAzureOcr.process"));
-      expect(idx("mistralAzureOcr.process")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
-
-      // Real Foundry OCR data flowed through cleanup as a usable OCRResult.
-      // The Foundry deployment we hit returns markdown without per-word
-      // bbox/confidence (see SUMMARY.md), so words are synthesized from the
-      // markdown with empty polygons. The mapper's bbox-fix is exercised in
-      // the unit tests with synthetic bbox input.
-      const cleanupCall = calls.find((c) => c.type === "ocr.cleanup");
-      const cleanupOcr = cleanupCall?.params.ocrResult as OCRResult | undefined;
-      expect(cleanupOcr?.modelId).toBe("mistral-document-ai-2512");
-      const cleanupWords = cleanupOcr?.pages?.[0]?.words ?? [];
-      expect(cleanupWords.length).toBeGreaterThan(0);
-
-      // The Foundry activity received the templateModelId for document_annotation.
-      const ocrCall = calls.find((c) => c.type === "mistralAzureOcr.process");
-      expect(ocrCall?.params.templateModelId).toBeDefined();
-    }, 60000);
-
-    it("low-confidence sample routes through humanReview before storeResults", async () => {
-      if (!nativeConnection || !client) {
-        throw new Error(
-          `Temporal not reachable at ${TEMPORAL_ADDRESS}. Start the dev docker stack first.`,
-        );
-      }
-      const taskQueue = `e02-test-low-${process.pid}-${Date.now()}`;
-      const fixture = loadFixture();
-      const ocrResult = buildOcrResultFromFixture(fixture);
-      const calls: ActivityCall[] = [];
-      const graph = loadTemplate();
-      const activities = withGraphConfigLoader(
-        buildMockActivities({
-          ocrResult,
-          averageConfidence: 0.42,
-          requiresReview: true,
-          callsRef: calls,
-        }),
-        graph,
-      );
-
-      const worker = await Worker.create({
-        connection: nativeConnection,
-        namespace: TEMPORAL_NAMESPACE,
-        taskQueue,
-        workflowsPath: require.resolve("./graph-workflow"),
-        activities,
-      });
-
-      const { __testGraph: _graph, ...input } = makeWorkflowInput(graph, {
-        documentId: "test-doc-low-confidence",
-        blobKey: "blobs/1-81.jpg",
-        fileName: "1 81.jpg",
-        fileType: "image",
-        contentType: "image/jpeg",
-      });
-
-      const handle = await client.workflow.start(graphWorkflow, {
-        workflowId: `e02-test-low-${Date.now()}`,
-        taskQueue,
-        args: [input],
-      });
-
-      const { result, ctx } = await worker.runUntil(async () => {
-        await handle.signal("humanApproval", {
-          approved: true,
-          reviewer: "test-reviewer",
-          comments: "ok",
-          rejectionReason: "",
-          annotations: "",
+        const { result, ctx } = await worker.runUntil(async () => {
+          await handle.signal("humanApproval", {
+            approved: true,
+            reviewer: "test-reviewer",
+            comments: "ok",
+            rejectionReason: "",
+            annotations: "",
+          });
+          const result = await handle.result();
+          const status = await handle.query(getStatus);
+          return { result, ctx: status.ctx };
         });
-        const result = await handle.result();
-        const status = await handle.query(getStatus);
-        return { result, ctx: status.ctx };
-      });
-      expect(result.status).toBe("completed");
-      expect(ctx.requiresReview).toBe(true);
-      expect(ctx.averageConfidence).toBe(0.42);
+        expect(result.status).toBe("completed");
+        expect(ctx.requiresReview).toBe(true);
+        expect(ctx.averageConfidence as number).toBeLessThan(0.95);
 
-      expect(calls.map((c) => c.type)).toContain("ocr.storeResults");
-
-      const ctxOrder = calls.map((c) => c.type);
-      const idx = (t: string) => ctxOrder.indexOf(t);
-      expect(idx("mistralAzureOcr.process")).toBeLessThan(idx("ocr.cleanup"));
-      expect(idx("ocr.cleanup")).toBeLessThan(idx("ocr.checkConfidence"));
-      expect(idx("ocr.checkConfidence")).toBeLessThan(idx("ocr.storeResults"));
+        const prisma = getPrismaClient();
+        const persisted = await prisma.ocrResult.findUnique({
+          where: { document_id: documentId },
+        });
+        expect(persisted).not.toBeNull();
+      } finally {
+        mocks.restore();
+        await cleanup();
+      }
     }, 60000);
   },
 );

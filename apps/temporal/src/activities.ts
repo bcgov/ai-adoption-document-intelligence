@@ -80,9 +80,14 @@ export type {
 export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 export { getDocumentStatus } from "./activities/get-document-status";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
-export type { MistralOcrProcessParams } from "./activities/mistral-ocr-process";
+export type {
+  MistralOcrProcessParams,
+  MistralOcrProcessResult,
+  MistralOcrVariant,
+} from "./activities/mistral-ocr-process";
 export {
   mistralOcrProcess,
+  resolveMistralAzureDeploymentId,
   resolveMistralOcrModelId,
 } from "./activities/mistral-ocr-process";
 // Orientation normalization (mupdf + Tesseract OSD)
@@ -139,11 +144,6 @@ export type {
   AzureCuDeployAnalyzerResult,
 } from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
 export { azureCuDeployAnalyzer } from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
-export type { MistralAzureOcrProcessParams } from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";
-export {
-  mistralAzureOcrProcess,
-  resolveMistralAzureDeploymentId,
-} from "./ocr-providers/mistral-azure/mistral-azure-ocr-process";
 export type {
   VlmDirectExtractParams,
   VlmDirectExtractResult,

@@ -14,7 +14,6 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.cleanup",
   "ocr.checkConfidence",
   "mistralOcr.process",
-  "mistralAzureOcr.process",
   "azureContentUnderstanding.deployAnalyzer",
   "azureContentUnderstanding.analyze",
   "vlmDirect.extract",

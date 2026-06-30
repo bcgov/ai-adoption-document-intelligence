@@ -33,6 +33,7 @@ import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
 } from "../graph-workflow-types";
+import type { MistralOcrApiResponse } from "../ocr-providers/mistral/mistral-ocr-types";
 
 export const TEMPORAL_ADDRESS =
   process.env.TEMPORAL_TEST_ADDRESS ?? "localhost:7233";
@@ -132,15 +133,21 @@ export interface PaidApiMockConfig {
    * activity's real parse + canonical mapping runs.
    */
   vlm?: VlmPayloadStub;
+  /**
+   * Stub the Mistral Document AI OCR call (mistralOcr.process, native or azure
+   * transport). The given raw response is returned verbatim so the activity's
+   * real canonical mapping + ref persistence runs.
+   */
+  mistral?: MistralOcrApiResponse;
 }
 
 /**
- * Stub ONLY the paid external APIs:
+ * Stub ONLY the paid external APIs and run everything else for real:
  *   - Azure DI via the `MOCK_AZURE_OCR` env-seam (SDK-based; canned layout).
- *   - Azure OpenAI VLM via axios-mock-adapter (raw axios).
- * Forces dummy Azure OpenAI creds so the real activity builds its request URL
- * but never reaches the network (axios is intercepted). Returns a `restore`
- * that removes the interceptor and reverts the env it changed.
+ *   - Azure OpenAI VLM + Mistral OCR via axios-mock-adapter (raw axios).
+ * Forces dummy provider creds so the real activity builds its request URL but
+ * never reaches the network (axios is intercepted). Returns a `restore` that
+ * removes the interceptor and reverts the env it changed.
  */
 export function installPaidApiMocks(cfg: PaidApiMockConfig): {
   restore: () => void;
@@ -149,10 +156,15 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
     MOCK_AZURE_OCR: process.env.MOCK_AZURE_OCR,
     AZURE_OPENAI_ENDPOINT: process.env.AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_KEY: process.env.AZURE_OPENAI_API_KEY,
+    MOCK_MISTRAL_OCR: process.env.MOCK_MISTRAL_OCR,
+    MOCK_MISTRAL_AZURE_OCR: process.env.MOCK_MISTRAL_AZURE_OCR,
+    MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+    MISTRAL_DOC_AI_AZURE_ENDPOINT: process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT,
+    MISTRAL_DOC_AI_AZURE_KEY: process.env.MISTRAL_DOC_AI_AZURE_KEY,
   };
   process.env.MOCK_AZURE_OCR = "true";
-  // Force mock creds so no real Azure OpenAI call can leak out even if a URL
-  // matcher ever misses; axios is intercepted regardless.
+  // Force mock creds so no real call can leak out even if a URL matcher ever
+  // misses; axios is intercepted regardless.
   process.env.AZURE_OPENAI_ENDPOINT = "https://mock-openai.local";
   process.env.AZURE_OPENAI_API_KEY = "mock-key";
 
@@ -163,6 +175,17 @@ export function installPaidApiMocks(cfg: PaidApiMockConfig): {
       choices: [{ message: { content } }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
     });
+  }
+  if (cfg.mistral) {
+    // Go through the real axios path (not the MOCK_MISTRAL_* env seams) so the
+    // given payload's confidence drives the real gate. Provide dummy creds for
+    // both transports; the interceptor matches either `/ocr` endpoint.
+    delete process.env.MOCK_MISTRAL_OCR;
+    delete process.env.MOCK_MISTRAL_AZURE_OCR;
+    process.env.MISTRAL_API_KEY = "mock-key";
+    process.env.MISTRAL_DOC_AI_AZURE_ENDPOINT = "https://mock-foundry.local";
+    process.env.MISTRAL_DOC_AI_AZURE_KEY = "mock-key";
+    mock.onPost(/\/ocr(\?|$)/).reply(200, cfg.mistral);
   }
 
   return {
