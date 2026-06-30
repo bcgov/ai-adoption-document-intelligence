@@ -61,7 +61,7 @@ After implementing a user story, check it off at the bottom of this file.
 ## Suggested Implementation Order (by dependency chain)
 
 ### Phase 1 — Database Foundation
-- [ ] **US-001** (Prisma schema migration for all billing tables) — everything depends on this
+- [x] **US-001** (Prisma schema migration for all billing tables) — everything depends on this
 
 ### Phase 2 — Rate Versioning Infrastructure
 - [ ] **US-002** (rate_versions.json file and startup seeder service)
