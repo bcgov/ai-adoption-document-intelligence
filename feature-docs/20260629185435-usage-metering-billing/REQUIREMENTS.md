@@ -56,11 +56,20 @@ Rate versions are append-only. The active rate version at any point in time is t
 
 ### 3.1 Global Activity Cost Table
 
-Each Temporal activity type is mapped to a unit cost. The mapping key is the **activity function name** as registered in Temporal (e.g., `"extractOcr"`, `"runLlmEnrichment"`, `"classifyDocument"`).
+Each Temporal activity type is mapped to a cost entry. The mapping key is the **activity function name** as registered in Temporal (matching keys in `ActivityRegistryEntry`, e.g. `"azureOcr.extract"`, `"enrichment.run"`).
 
-- Costs are **global** — all workflows that invoke the same activity pay the same unit cost.
+- Costs are **global** — all workflows that invoke the same activity pay the same rate.
 - There are no per-workflow or per-group overrides.
-- The activity cost table is part of the `RateVersion` — each version can change any activity's unit cost.
+- The activity cost table is part of the `RateVersion` — each version can change any activity's cost.
+
+### 3.2 Cost Types
+
+Each activity entry has a `cost_type` of either `flat` or `per_page`:
+
+- **`flat`**: A fixed number of units is consumed per activity completion, regardless of input size.
+- **`per_page`**: Units consumed = `page_count × cost_per_page_units`. The page count is extracted from the activity's return value via a `_metered_quantity` field (see section 5.2). This type is used for OCR extraction activities where Azure charges per page processed.
+
+Any activity not listed in the rate version has an implicit flat cost of `0` (free).
 
 **Example (stored in `rate_versions.json`):**
 ```json
@@ -69,17 +78,22 @@ Each Temporal activity type is mapped to a unit cost. The mapping key is the **a
   "effective_from": "2026-07-01T00:00:00Z",
   "units_per_dollar": 1000,
   "cost_per_gb_units_per_month": 10,
+  "max_pages_assumption": 50,
   "activity_costs": {
-    "extractOcr": 50,
-    "runLlmEnrichment": 200,
-    "classifyDocument": 30,
-    "runFieldFormatEngine": 10,
-    "generateEmbeddings": 100
+    "azureOcr.submit": { "cost_type": "flat", "units": 10 },
+    "azureOcr.extract": { "cost_type": "per_page", "cost_per_page_units": 40 },
+    "enrichment.run": { "cost_type": "flat", "units": 200 },
+    "classifyDocument": { "cost_type": "flat", "units": 30 },
+    "runFieldFormatEngine": { "cost_type": "flat", "units": 10 }
+  },
+  "training_costs": {
+    "template_model": 500,
+    "classifier": 300
   }
 }
 ```
 
-Any activity not listed in the rate version has a unit cost of `0` (free).
+The `max_pages_assumption` field is used exclusively for pre-flight cost estimation of `per_page` activities (see section 4.1).
 
 ---
 
@@ -91,11 +105,13 @@ Before a workflow run begins, the system must calculate its **estimated maximum 
 
 Use a **max-flow / longest-path algorithm** on the workflow DAG:
 1. Load the workflow graph configuration (already fetched in `getWorkflowGraphConfig`).
-2. For each node, look up the unit cost of the activity it executes (using the current active rate version).
+2. For each node, look up the cost entry of the activity it executes (using the current active rate version):
+   - If `cost_type === "flat"`: node cost = `units`
+   - If `cost_type === "per_page"`: node cost = `max_pages_assumption × cost_per_page_units` (from the rate version)
 3. Find the path through the graph that maximizes total unit cost (i.e., the most expensive possible execution).
 4. Return this value as the **estimated cost** in units.
 
-This worst-case estimate is used for the pre-flight cap check. If the actual execution takes a cheaper path, the group is charged only for completed activities.
+Using `max_pages_assumption` for per-page activities means the pre-flight estimate is a conservative upper bound. Actual charges will be lower for documents with fewer pages than the assumption, and higher for documents exceeding it. The cap check does not retroactively block a workflow that exceeded the page assumption — the cap applies only at workflow start.
 
 ### 4.2 Pre-flight Cap Check
 
@@ -126,12 +142,20 @@ When a workflow is successfully submitted to Temporal, record a `UsageEvent` wit
 
 ### 5.2 Activity Completion Events
 
-When each Temporal activity completes successfully within a workflow, record a `UsageEvent` with:
+When each Temporal activity completes successfully within a workflow, the `ActivityInboundCallsInterceptor` records a `UsageEvent`. The interceptor determines `units_consumed` based on the activity's cost type:
+
+- **Flat cost**: `units_consumed = activity_cost.units`
+- **Per-page cost**: The interceptor inspects the activity's return value for a `_metered_quantity` field (a number). `units_consumed = _metered_quantity × activity_cost.cost_per_page_units`. If the field is absent or zero, `units_consumed = 0`.
+
+Activities that are to be billed per-page (e.g. `azureOcr.extract`) **must** include `_metered_quantity: pageCount` in their return value. This is a contract between the activity implementation and the billing system. The field is ignored by all other consumers.
+
+`UsageEvent` fields:
 - `event_type`: `"activity_completed"`
 - `group_id`
 - `workflow_execution_id`
 - `activity_name`: the Temporal activity function name
-- `units_consumed`: the unit cost of this activity (from the rate version)
+- `metered_quantity`: the raw quantity used (page count for per-page activities, `null` for flat)
+- `units_consumed`: the calculated units
 - `rate_version_id`
 - `created_at`: timestamp
 
@@ -406,7 +430,7 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 
 ## 12. Implementation Notes
 
-1. **Temporal activity hooks**: Use `ActivityInboundCallsInterceptor` from `@temporalio/worker` v1.10.0 (confirmed available). The interceptor's `execute(input, next)` method fires after `await next(input)` returns — meaning it only runs on successful completion, which naturally enforces the charge-on-completion policy. Register the interceptor in both `ocrWorker` and `benchmarkWorker` in `worker.ts`. No existing activity code needs modification.
+1. **Temporal activity interceptor**: Use `ActivityInboundCallsInterceptor` from `@temporalio/worker` v1.10.0 (confirmed available). The interceptor's `execute(input, next)` method fires after `await next(input)` returns — meaning it only runs on successful completion, which naturally enforces the charge-on-completion policy. The interceptor checks the activity's cost type from the active `RateVersion`: flat activities use a fixed unit value; per-page activities read `result._metered_quantity` from the return value and multiply by `cost_per_page_units`. Register the interceptor in both `ocrWorker` and `benchmarkWorker` in `worker.ts`. No existing activity code needs modification **except** per-page activities, which must add `_metered_quantity: pageCount` to their return value.
 
 3. **Blob client instrumentation**: Both the backend (`apps/backend-services/src/blob-storage/`) and the Temporal worker (`apps/temporal/src/blob-storage/blob-storage-client.ts`) maintain separate `BlobStorageClient` implementations. Both must be instrumented. On `write`, insert a `GroupStorageLedger` row. On `delete`/`deleteByPrefix`, set `deleted_at` on matching rows. The `groupId` is always the first path segment of every blob key (enforced by `validateBlobFilePath`) and can be extracted without additional context. Ledger rows are never hard-deleted.
 
