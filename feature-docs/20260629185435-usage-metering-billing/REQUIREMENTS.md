@@ -253,18 +253,37 @@ Key indexes:
 
 ## 6b. Training Cost Recording
 
+Both template model training and classifier training are driven directly in the backend (not via Temporal activities). Both must record a `model_training_started` `UsageEvent` when the training job is successfully submitted to Azure, and both must pass a pre-flight cap check before submission.
+
 ### 6b.1 Template Model Training
 
-Template model training is initiated via the backend training service (not a Temporal activity). When a training job is successfully submitted to Azure, record a `UsageEvent` with:
+**Instrumentation point**: `TrainingService` — after a training job is successfully submitted to Azure Document Intelligence.
+
+Record a `UsageEvent` with:
 - `event_type`: `"model_training_started"`
 - `group_id` (from `TemplateModel.group_id`)
 - `resource_id`: the `TrainingJob.id`
-- `resource_type`: `"template_model"` | `"classifier"` (see below)
-- `units_consumed`: the unit cost defined in the active rate version under `training_costs.template_model` (or `training_costs.classifier`)
+- `resource_type`: `"template_model"`
+- `units_consumed`: the unit cost from the active rate version under `training_costs.template_model`
 - `rate_version_id`
 - `created_at`: timestamp
 
-The `rate_versions.json` schema is extended to include a `training_costs` object alongside `activity_costs`:
+### 6b.2 Classifier Training
+
+**Instrumentation point**: `ClassifierService.requestClassifierTraining` — after `this.client.path("/documentClassifiers:build").post(...)` returns a `202 Accepted` response. Both `groupId` and `classifierName` (used as `resource_id`) are in scope at that point.
+
+Record a `UsageEvent` with:
+- `event_type`: `"model_training_started"`
+- `group_id`
+- `resource_id`: `classifierName`
+- `resource_type`: `"classifier"`
+- `units_consumed`: the unit cost from the active rate version under `training_costs.classifier`
+- `rate_version_id`
+- `created_at`: timestamp
+
+### 6b.3 Rate Version Schema
+
+The `rate_versions.json` schema includes a `training_costs` object alongside `activity_costs`:
 
 ```json
 {
@@ -275,13 +294,9 @@ The `rate_versions.json` schema is extended to include a `training_costs` object
 }
 ```
 
-This event contributes to the group's monthly spend and is checked against the monthly cap before the training job is submitted (same pre-flight check pattern as workflow runs, returning HTTP 402 if insufficient budget).
+### 6b.4 Pre-flight Cap Check
 
-### 6b.2 Classifier Training — Follow-on Work
-
-Classifier training is also driven directly in the backend (not via Temporal activities) and should use the same `model_training_started` event with `resource_type: "classifier"`. However, the classifier training code path requires separate investigation and will be instrumented in a **follow-on task after this feature is complete**.
-
-> **TODO (follow-on)**: Instrument `ClassifierService` and `ClassifierPollerService` with `model_training_started` usage events. Use the same `GroupBillingConfig` cap check and `rate_versions.json` `training_costs.classifier` rate. Ensure the pre-flight cap check is applied before the Azure classifier training request is submitted.
+Both training paths apply the same pre-flight check as workflow runs: calculate training cost in units, convert to dollars, check against `UsagePeriodSummary`. Return HTTP 402 if the group's monthly cap would be exceeded. The check must be applied **before** the Azure training request is submitted.
 
 ---
 
@@ -385,7 +400,7 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 - Rollover of unused monthly budget
 - Per-group pricing tiers or overrides
 - Template model training data blob storage tracking (blobs are transient — deleted automatically after training completes)
-- Classifier training instrumentation (**deferred to follow-on task** — see section 6b.2)
+- Template model training data blob storage tracking (blobs are transient — deleted automatically after training completes)
 
 ---
 
@@ -401,4 +416,4 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 
 6. **Estimation for dynamic graphs**: The worst-case cost estimation uses the workflow graph config fetched via `getWorkflowGraphConfig`. The max-flow / longest-path traversal must handle conditional branch nodes by summing the maximum-cost branch at each fork. Activities with no entry in the active rate version's `activity_costs` contribute 0 units to the estimate.
 
-7. **Training pre-flight cap check**: Applied in the backend training service before submitting to Azure. Same pattern as workflow pre-flight: calculate training cost in units, convert to dollars, check against `UsagePeriodSummary`. Return HTTP 402 if insufficient. Classifier training instrumentation is deferred (see section 6b.2).
+7. **Training pre-flight cap check**: Applied in both `TrainingService` (template models) and `ClassifierService.requestClassifierTraining` (classifiers) before submitting to Azure. Same pattern as workflow pre-flight: calculate training cost in units, convert to dollars, check against `UsagePeriodSummary`. Return HTTP 402 if insufficient.
