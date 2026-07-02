@@ -96,7 +96,7 @@ function CreateGroupModal({
         },
         onError: (error) => {
           setServerError(
-            error.message ?? "Failed to create group. please try again.",
+            error.message ?? "Failed to create group. Please try again.",
           );
         },
       },
@@ -202,7 +202,7 @@ function AllGroupsTab(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to submit membership request. please try again.",
+            message: "Failed to submit membership request. Please try again.",
             color: "red",
           });
         },
@@ -219,7 +219,7 @@ function AllGroupsTab(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to leave group. please try again.",
+          message: "Failed to leave group. Please try again.",
           color: "red",
         });
         setPendingLeaveGroupId(null);
@@ -242,7 +242,7 @@ function AllGroupsTab(): JSX.Element {
         color="red"
         data-testid="all-groups-error"
       >
-        Failed to load groups. please try again.
+        Failed to load groups. Please try again.
       </Alert>
     );
   }
@@ -351,7 +351,7 @@ function MyGroupsTab(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to submit membership request. please try again.",
+            message: "Failed to submit membership request. Please try again.",
             color: "red",
           });
         },
@@ -368,7 +368,7 @@ function MyGroupsTab(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to leave group. please try again.",
+          message: "Failed to leave group. Please try again.",
           color: "red",
         });
         setPendingLeaveGroupId(null);
@@ -391,7 +391,7 @@ function MyGroupsTab(): JSX.Element {
         color="red"
         data-testid="groups-error"
       >
-        Failed to load groups. please try again.
+        Failed to load groups. Please try again.
       </Alert>
     );
   }
@@ -467,7 +467,7 @@ function MyRequestsTab(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to cancel membership request. please try again.",
+          message: "Failed to cancel membership request. Please try again.",
           color: "red",
         });
         setCancelConfirmId(null);
@@ -494,7 +494,7 @@ function MyRequestsTab(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to approve membership request. please try again.",
+            message: "Failed to approve membership request. Please try again.",
             color: "red",
           });
           setApproveRequest(null);

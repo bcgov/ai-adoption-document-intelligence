@@ -100,7 +100,7 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
       )}
       {columns.length === 0 ? (
         <Text c="dimmed" fs="italic">
-          No columns defined yet. click add column to create the first one.
+          No columns defined yet. Click add column to create the first one.
         </Text>
       ) : (
         <Table striped highlightOnHover>

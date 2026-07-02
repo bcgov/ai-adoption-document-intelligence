@@ -110,7 +110,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
       <Stack>
         <Title order={2}>Classifier test</Title>
         <Text c="dimmed">
-          This classifier is ready for use. upload a document to test it below.
+          This classifier is ready for use. Upload a document to test it below.
         </Text>
         <FileInput
           label="Upload document for testing"

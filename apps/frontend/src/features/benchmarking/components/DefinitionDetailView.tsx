@@ -553,7 +553,7 @@ export function DefinitionDetailView({
                 <Loader size="sm" />
               ) : debugLogEntries.length === 0 ? (
                 <Text size="sm" c="dimmed" data-testid="no-debug-log-message">
-                  No debug log available. run the pipeline to generate one.
+                  No debug log available. Run the pipeline to generate one.
                 </Text>
               ) : (
                 <Accordion

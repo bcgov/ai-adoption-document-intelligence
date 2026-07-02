@@ -37,7 +37,7 @@ export const customJson: LookupTemplate = {
   id: "custom-json",
   label: "Custom (advanced)",
   description:
-    "Write a raw filter expression. use this when none of the other match types fit your needs.",
+    "Write a raw filter expression. Use this when none of the other match types fit your needs.",
   toLookupDef(name, v) {
     const filterText = (v.filterJson as string) ?? "{}";
     let filter: Record<string, unknown>;
@@ -129,7 +129,7 @@ export const customJson: LookupTemplate = {
         </Stack>
         <JsonInput
           label="Filter (ConditionExpression JSON)"
-          description="Raw filter tree. use param.X / row.X refs."
+          description="Raw filter tree. Use param.X / row.X refs."
           autosize
           minRows={6}
           formatOnBlur

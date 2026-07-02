@@ -26,7 +26,7 @@ export function CreateTableModal({ opened, onClose, onCreated }: Props) {
       table_id: (v) =>
         /^[a-z][a-z0-9_]*$/.test(v)
           ? null
-          : "Lowercase letters, digits, underscore. must start with a letter.",
+          : "Lowercase letters, digits, underscore. Must start with a letter.",
       label: (v) => (v.trim() ? null : "Required"),
     },
   });

@@ -141,8 +141,8 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
         )}
         <Text size="sm" c="dimmed" mb="md">
           {files.length === 0
-            ? "No files uploaded yet. use the 'add label group' button to create a new group and upload files."
-            : "Each label represents a group of files used for training. you can add files to an existing label or delete an entire label group."}
+            ? "No files uploaded yet. Use the 'add label group' button to create a new group and upload files."
+            : "Each label represents a group of files used for training. You can add files to an existing label or delete an entire label group."}
         </Text>
         <Text size="sm" c="dimmed" mb="md">
           An <strong>other</strong> label is automatically included during

@@ -232,7 +232,7 @@ function CreateSplitDialog({
     // Allow alphanumeric, hyphens, underscores, and dots
     const validNamePattern = /^[a-zA-Z0-9\-_.]+$/;
     if (!validNamePattern.test(splitName.trim())) {
-      return "Split name contains invalid characters. use only letters, numbers, hyphens, underscores, and dots.";
+      return "Split name contains invalid characters. Use only letters, numbers, hyphens, underscores, and dots.";
     }
     return null;
   };
@@ -515,7 +515,7 @@ function FreezeButton({ datasetId, versionId, splitId }: FreezeButtonProps) {
     if (
       // biome-ignore lint/suspicious/noAlert: confirm dialog is appropriate for destructive freeze action
       window.confirm(
-        "Are you sure you want to freeze this split? it will become immutable. this action cannot be undone.",
+        "Are you sure you want to freeze this split? It will become immutable. This action cannot be undone.",
       )
     ) {
       await freezeMutation.mutateAsync();

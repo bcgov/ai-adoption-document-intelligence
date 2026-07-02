@@ -618,7 +618,7 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
         />
       </Group>
       <Tooltip
-        label="Use {{nodeName.fieldName}} to reference output fields from other nodes. nested paths (e.g. {{nodeName.a.b}}) are supported."
+        label="Use {{nodeName.fieldName}} to reference output fields from other nodes. Nested paths (e.g. {{nodeName.a.b}}) are supported."
         multiline
         w={320}
         position="top-start"
@@ -626,7 +626,7 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
       >
         <Textarea
           label="Field mapping"
-          description="JSON object mapping output keys to binding expressions (e.g. {{nodeName.fieldName}}). invalid JSON is caught at execution time."
+          description="JSON object mapping output keys to binding expressions (e.g. {{nodeName.fieldName}}). Invalid JSON is caught at execution time."
           placeholder='{\n  "outputKey": "{{nodeName.fieldName}}"\n}'
           value={fieldMapping}
           onChange={(e) => setParam("fieldMapping", e.currentTarget.value)}
@@ -665,7 +665,7 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
         <>
           <Textarea
             label="XML envelope (optional)"
-            description="Wrap the rendered XML payload in a caller-defined envelope. use {{payload}} where the rendered XML should be injected."
+            description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
             placeholder="<envelope>{{payload}}</envelope>"
             value={xmlEnvelope ?? ""}
             onChange={(e) => {

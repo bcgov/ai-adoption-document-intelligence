@@ -297,7 +297,7 @@ export const ModelDetailPage: FC = () => {
           title: "Conversion failed",
           message:
             data.message ||
-            "Document could not be converted to PDF. the file was saved but OCR will not run.",
+            "Document could not be converted to PDF. The file was saved but OCR will not run.",
           color: "orange",
         });
         return {
@@ -415,7 +415,7 @@ export const ModelDetailPage: FC = () => {
       notifications.show({
         title: "Import failed",
         message:
-          "Could not parse file. expected JSON with { fields: [...] } format.",
+          "Could not parse file. Expected JSON with { fields: [...] } format.",
         color: "red",
       });
     } finally {
@@ -904,7 +904,7 @@ export const ModelDetailPage: FC = () => {
                 loading={isUploading}
                 leftSection={<IconUpload size={16} />}
               >
-                {isUploading ? "uploading..." : "upload"}
+                {isUploading ? "Uploading..." : "Upload"}
               </Button>
             </Group>
           </Group>

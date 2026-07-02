@@ -114,7 +114,7 @@ export function RequestMembershipPage(): JSX.Element {
                 >
                   {requestMutation.error
                     ? requestMutation.error.message
-                    : "Failed to submit membership request. please try again."}
+                    : "Failed to submit membership request. Please try again."}
                 </Alert>
               )}
 
@@ -127,7 +127,7 @@ export function RequestMembershipPage(): JSX.Element {
                   color="red"
                   data-testid="groups-error"
                 >
-                  Failed to load groups. please refresh the page and try again.
+                  Failed to load groups. Please refresh the page and try again.
                 </Alert>
               )}
 
@@ -138,7 +138,7 @@ export function RequestMembershipPage(): JSX.Element {
                   size="sm"
                   data-testid="no-groups-message"
                 >
-                  No groups are available. contact an administrator.
+                  No groups are available. Contact an administrator.
                 </Text>
               )}
 

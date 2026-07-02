@@ -588,7 +588,7 @@ export function WorkflowPage() {
                           min={0}
                           max={1}
                           step={0.05}
-                          description="Minimum confidence score (0-1). documents below this will require human review."
+                          description="Minimum confidence score (0-1). Documents below this will require human review."
                         />
                       )}
                     </Stack>
@@ -623,7 +623,7 @@ export function WorkflowPage() {
                           }}
                           min={0}
                           step={1}
-                          description="Maximum time to wait for human review (days). default: 1 day"
+                          description="Maximum time to wait for human review (days). Default: 1 day"
                         />
                       )}
                     </Stack>

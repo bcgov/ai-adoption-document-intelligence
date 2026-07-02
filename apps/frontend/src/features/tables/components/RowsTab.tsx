@@ -351,7 +351,7 @@ export function RowsTab({
         title="Delete row?"
       >
         <Stack>
-          <Text>This will permanently delete the row. cannot be undone.</Text>
+          <Text>This will permanently delete the row. Cannot be undone.</Text>
           {deleteRows.isError && (
             <Text c="red" size="sm">
               {(deleteRows.error as Error).message}

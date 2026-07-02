@@ -203,7 +203,7 @@ export const GroundTruthGenerationPanel: FC<
                     Workflow config overrides (JSON)
                   </Text>
                   <Tooltip
-                    label="Override workflow parameters like OCR model, confidence threshold, etc. keys are parameter paths from the workflow's exposed parameters."
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
                     multiline
                     w={300}
                   >

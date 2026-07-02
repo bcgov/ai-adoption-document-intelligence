@@ -227,7 +227,7 @@ describe("GroupDetailPage", () => {
       fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
       await waitFor(() => {
         const item = screen.getByTestId("join-group-menu-item");
-        expect(item).toHaveTextContent("join");
+        expect(item).toHaveTextContent("Join");
       });
     });
 
@@ -251,7 +251,7 @@ describe("GroupDetailPage", () => {
       fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
       await waitFor(() => {
         const item = screen.getByTestId("join-group-menu-item");
-        expect(item).toHaveTextContent("request pending");
+        expect(item).toHaveTextContent("Request pending");
       });
     });
 

@@ -94,7 +94,7 @@ export const UploadClassifierFilesModal = ({
               .toLowerCase() as (typeof RESERVED_CLASSIFIER_LABELS)[number],
           )
         ) {
-          return `"${value}" is a reserved label and cannot be used. reserved labels: ${RESERVED_CLASSIFIER_LABELS.join(", ")}.`;
+          return `"${value}" is a reserved label and cannot be used. Reserved labels: ${RESERVED_CLASSIFIER_LABELS.join(", ")}.`;
         }
         return null;
       },

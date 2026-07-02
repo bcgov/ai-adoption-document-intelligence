@@ -198,7 +198,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             title: "Conversion failed",
             message:
               response.message ||
-              "Document could not be converted to PDF. you can remove it and try another file.",
+              "Document could not be converted to PDF. You can remove it and try another file.",
             color: "red",
           });
           queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -417,7 +417,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                 leftSection={<IconUpload size={16} />}
                 data-disabled={activeGroup === null || undefined}
               >
-                {isUploading ? "uploading..." : "upload"}
+                {isUploading ? "Uploading..." : "Upload"}
               </Button>
             </Tooltip>
           </Group>

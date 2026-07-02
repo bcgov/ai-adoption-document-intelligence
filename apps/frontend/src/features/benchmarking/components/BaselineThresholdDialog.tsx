@@ -154,8 +154,8 @@ export function BaselineThresholdDialog({
 
         <Text size="sm" c="dimmed">
           {isEditing
-            ? "Update threshold limits for each metric. future runs will be compared against these thresholds to detect regressions."
-            : "Set threshold limits for each metric. future runs will be compared against these thresholds to detect regressions."}
+            ? "Update threshold limits for each metric. Future runs will be compared against these thresholds to detect regressions."
+            : "Set threshold limits for each metric. Future runs will be compared against these thresholds to detect regressions."}
         </Text>
 
         <Stack gap="sm">

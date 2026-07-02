@@ -74,7 +74,7 @@ export function GroupDetailPage(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to leave group. please try again.",
+          message: "Failed to leave group. Please try again.",
           color: "red",
         });
         setLeaveGroupOpen(false);
@@ -98,7 +98,7 @@ export function GroupDetailPage(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to delete group. please try again.",
+          message: "Failed to delete group. Please try again.",
           color: "red",
         });
         setDeleteGroupOpen(false);
@@ -173,7 +173,7 @@ export function GroupDetailPage(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to submit membership request. please try again.",
+            message: "Failed to submit membership request. Please try again.",
             color: "red",
           });
         },
@@ -223,7 +223,7 @@ export function GroupDetailPage(): JSX.Element {
             disabled={hasPendingRequest || requestMutation.isPending}
             data-testid="join-group-menu-item"
           >
-            {hasPendingRequest ? "request pending" : "join"}
+            {hasPendingRequest ? "Request pending" : "Join"}
           </Menu.Item>
         )}
         {isSystemAdmin && (

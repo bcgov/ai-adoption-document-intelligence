@@ -189,7 +189,7 @@ export function TableDetailPage() {
               >
                 <Stack>
                   <Text>
-                    This deletes the table and all its rows. cannot be undone.
+                    This deletes the table and all its rows. Cannot be undone.
                   </Text>
                   <TextInput
                     label='Type "delete" to confirm'

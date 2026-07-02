@@ -430,7 +430,7 @@ export function CreateDefinitionDialog({
                     Workflow config overrides (JSON)
                   </Text>
                   <Tooltip
-                    label="Override workflow parameters like OCR model, confidence threshold, etc. keys are parameter paths from the workflow's exposed parameters."
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
                     multiline
                     w={300}
                   >
@@ -489,7 +489,7 @@ export function CreateDefinitionDialog({
                   Evaluator config (JSON)
                 </Text>
                 <Tooltip
-                  label="Optional JSON configuration passed to the evaluator. keys depend on the evaluator type."
+                  label="Optional JSON configuration passed to the evaluator. Keys depend on the evaluator type."
                   multiline
                   w={250}
                 >

@@ -84,7 +84,7 @@ export function GroupRequestsTab({
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to approve membership request. please try again.",
+            message: "Failed to approve membership request. Please try again.",
             color: "red",
           });
         },
@@ -108,7 +108,7 @@ export function GroupRequestsTab({
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to deny membership request. please try again.",
+            message: "Failed to deny membership request. Please try again.",
             color: "red",
           });
         },

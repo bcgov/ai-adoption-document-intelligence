@@ -313,7 +313,7 @@ export function RequestsTable<T extends { id: string }>({
         color="red"
         data-testid="requests-error"
       >
-        Failed to load membership requests. please try again.
+        Failed to load membership requests. Please try again.
       </Alert>
     );
   }

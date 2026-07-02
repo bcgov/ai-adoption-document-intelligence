@@ -116,7 +116,7 @@ export function LookupsTab({
         </Text>
       ) : lookups.length === 0 ? (
         <Text c="dimmed" fs="italic">
-          No lookups defined yet. click add lookup to create one.
+          No lookups defined yet. Click add lookup to create one.
         </Text>
       ) : (
         <Table striped highlightOnHover>

@@ -62,7 +62,7 @@ export function AzureClassifySubmitForm({
           title="Failed to load classifiers"
           data-testid="classifier-fetch-error-alert"
         >
-          Could not fetch classifiers. please try again.
+          Could not fetch classifiers. Please try again.
         </Alert>
       )}
       <Select

@@ -48,7 +48,7 @@ export const useSessionHeartbeat = (
         notifications.show({
           title: "Session expired",
           message:
-            "Your session was released due to inactivity. corrections have been saved.",
+            "Your session was released due to inactivity. Corrections have been saved.",
           color: "red",
           autoClose: 5000,
         });
