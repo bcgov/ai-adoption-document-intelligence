@@ -60,15 +60,18 @@ const SAMPLES_DIR = path.join(
   "data",
   "datasets",
   "samples-mix",
-  "private",
+  "public",
 );
-const ITERATION_DIR = path.join(
+const DEFAULT_ITERATION_DIR = path.join(
   REPO_ROOT,
   "experiments",
   "results",
   "05-vlm-ocr-hybrid",
   "iteration",
 );
+const ITERATION_DIR = process.env.ITERATION_DIR
+  ? path.resolve(process.env.ITERATION_DIR)
+  : DEFAULT_ITERATION_DIR;
 
 interface FieldDescriptions {
   [field_key: string]: string;
@@ -517,7 +520,7 @@ async function main(): Promise<void> {
     `\n  ✓ matched ${matched}/${rows.length} (${accuracy}%)  •  mismatched ${mismatched}  •  GT non-empty ${totalGt}`,
   );
   console.log(
-    `  written: experiments/results/05-vlm-ocr-hybrid/iteration/{last-request,last-response,last-layout,last-diff}.{json,md}`,
+    `  written: ${path.relative(REPO_ROOT, ITERATION_DIR)}/{last-request,last-response,last-layout,last-diff}.{json,md}`,
   );
 
   const misses = rows.filter((r) => !r.matched).slice(0, 15);
