@@ -9,6 +9,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { computeContentHash } from "@/document/content-hash.util";
 import { DocumentService } from "@/document/document.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
@@ -599,6 +600,11 @@ describe("GroundTruthGenerationService", () => {
         expect.any(String),
         { confidenceThreshold: 0 },
         jobOverrides,
+      );
+      expect(mockDocumentService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(Buffer.from("%PDF-1.4")),
+        }),
       );
     });
 

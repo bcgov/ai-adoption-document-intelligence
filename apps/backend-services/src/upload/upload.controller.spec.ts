@@ -67,6 +67,8 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
+      content_hash:
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
       status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),

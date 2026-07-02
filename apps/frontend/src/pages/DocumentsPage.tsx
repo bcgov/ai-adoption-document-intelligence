@@ -31,6 +31,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { type JSX, useEffect, useState } from "react";
+import { ContentHashCell } from "../components/document/ContentHashCell";
 import { DocumentViewerModal } from "../components/document/DocumentViewerModal";
 import { useDeleteDocument } from "../data/hooks/useDeleteDocument";
 import { useDocumentStats } from "../data/hooks/useDocumentStats";
@@ -268,7 +269,7 @@ export function DocumentsPage() {
           <Stack gap="lg">
             <Group gap="md" align="flex-end">
               <TextInput
-                placeholder="Search by document name or filename"
+                placeholder="Search by name, filename, or Content ID"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.currentTarget.value)}
                 leftSection={<IconSearch size={16} />}
@@ -304,6 +305,7 @@ export function DocumentsPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th w={56} />
+                      <Table.Th>Content ID</Table.Th>
                       <Table.Th>
                         <UnstyledButton
                           onClick={() => toggleSort("title")}
@@ -430,6 +432,9 @@ export function DocumentsPage() {
                               fit="cover"
                               fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='50'%3E%3Crect width='40' height='50' fill='%23dee2e6' rx='4'/%3E%3C/svg%3E"
                             />
+                          </Table.Td>
+                          <Table.Td>
+                            <ContentHashCell hash={doc.content_hash} />
                           </Table.Td>
                           <Table.Td>
                             <Stack gap={2}>

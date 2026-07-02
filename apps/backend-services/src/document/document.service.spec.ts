@@ -7,6 +7,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
+import { computeContentHash } from "./content-hash.util";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
 import {
@@ -88,6 +89,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -112,7 +114,11 @@ describe("DocumentService", () => {
       expect(result.document.id).toBe("1");
       expect(result.document.original_filename).toBe("file.pdf");
       expect(result.document.title).toBe("Test");
-      expect(documentDbService.createDocument).toHaveBeenCalled();
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(pdfBytes),
+        }),
+      );
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringMatching(/^group-1\/ocr\/.+\/original\.pdf$/),
         expect.any(Buffer),
@@ -139,6 +145,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -188,6 +195,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -328,6 +336,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 512,
+        content_hash: "abc123",
         metadata: { source: "ground-truth-generation" },
         source: "ground-truth-generation",
         status: DocumentStatus.pre_ocr,
@@ -368,6 +377,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 256,
+        content_hash: "def456",
         metadata: {},
         source: "api",
         status: DocumentStatus.pre_ocr,
