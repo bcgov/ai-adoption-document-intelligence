@@ -9,6 +9,7 @@ import { AzureModule } from "@/azure/azure.module";
 import { ActorModule } from "./actor/actor.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
+import { BillingModule } from "./billing/billing.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { BootstrapModule } from "./bootstrap/bootstrap.module";
 import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.module";
@@ -72,6 +73,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     WorkflowModule,
     AzureModule,
     BootstrapModule,
+    BillingModule,
     GroupModule,
     HealthModule,
     MetricsModule,

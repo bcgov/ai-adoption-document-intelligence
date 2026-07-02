@@ -64,7 +64,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-001** (Prisma schema migration for all billing tables) — everything depends on this
 
 ### Phase 2 — Rate Versioning Infrastructure
-- [ ] **US-002** (rate_versions.json file and startup seeder service)
+- [x] **US-002** (rate_versions.json file and startup seeder service)
 
 ### Phase 3 — Core Event Write Service
 - [ ] **US-003** (shared service for writing UsageEvents and maintaining UsagePeriodSummary) — required by all metering instrumentation in Phases 4–6

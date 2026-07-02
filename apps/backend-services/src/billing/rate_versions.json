@@ -1,0 +1,20 @@
+[
+  {
+    "version": "1.0.0",
+    "effective_from": "2026-07-01T00:00:00Z",
+    "unit_cost_dollars": 0.001,
+    "units_per_gb_per_month": 10,
+    "max_pages_assumption": 50,
+    "activity_costs": {
+      "azureOcr.submit": { "cost_type": "flat", "units": 10 },
+      "azureOcr.extract": { "cost_type": "per_page", "units": 40 },
+      "enrichment.run": { "cost_type": "flat", "units": 200 },
+      "classifyDocument": { "cost_type": "flat", "units": 30 },
+      "runFieldFormatEngine": { "cost_type": "flat", "units": 0 }
+    },
+    "training_costs": {
+      "template_model": 500,
+      "classifier": 300
+    }
+  }
+]

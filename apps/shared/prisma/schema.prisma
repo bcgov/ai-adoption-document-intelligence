@@ -611,7 +611,7 @@ model RateVersion {
   version                     String         @unique
   effective_from              DateTime
   unit_cost_dollars           Decimal        @db.Decimal(18, 8)
-  cost_per_gb_units_per_month Decimal        @db.Decimal(18, 8)
+  units_per_gb_per_month      Decimal        @db.Decimal(18, 8)
   max_pages_assumption        Int
   created_at                  DateTime       @default(now())
   activity_costs              ActivityCost[]

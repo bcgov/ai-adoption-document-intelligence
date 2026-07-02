@@ -8,7 +8,7 @@
     "tsConfigPath": "tsconfig.build.json",
     "watchAssets": true,
     "builder": "swc",
-    "assets": []
+    "assets": ["billing/rate_versions.json"]
   },
   "watchOptions": {
     "watchAssets": true,

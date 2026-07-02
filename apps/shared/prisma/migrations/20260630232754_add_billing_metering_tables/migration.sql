@@ -19,7 +19,7 @@ CREATE TABLE "rate_versions" (
     "version" TEXT NOT NULL,
     "effective_from" TIMESTAMP(3) NOT NULL,
     "unit_cost_dollars" DECIMAL(18,8) NOT NULL,
-    "cost_per_gb_units_per_month" DECIMAL(18,8) NOT NULL,
+    "units_per_gb_per_month" DECIMAL(18,8) NOT NULL,
     "max_pages_assumption" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
