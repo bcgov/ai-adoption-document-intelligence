@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 07 - VLM + OCR hybrid (gpt-4o)",
     "description": "E07 single-pass VLM + OCR hybrid extraction with gpt-4o. Identical pipeline to E05 (DI prebuilt-layout (via the standard submit/poll activities, outputFormat=markdown) → Azure OpenAI chat-completions with image + OCR markdown + strict-mode JSON Schema) but the VLM is gpt-4o instead of gpt-5.4. Standalone duplicate of E05's workflow so the canonical gpt-5.4 baseline remains untouched. Sync chain: prepareFileData → submitOcr → pollOcrResults → vlmOcrHybridExtract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → humanReview/storeResults. Image inputs only; PDF rendering deferred (the canonical 40-sample dataset is 100% JPEG).",
     "tags": [

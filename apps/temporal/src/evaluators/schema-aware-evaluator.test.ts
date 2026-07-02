@@ -1187,7 +1187,7 @@ describe("SchemaAwareEvaluator", () => {
     });
   });
 
-  describe("presence-only signature fields", () => {
+  describe("presence rule (signature fields, config-driven via fieldRules)", () => {
     it("matches when both prediction and GT are non-null on signature, regardless of value", async () => {
       const groundTruth = { signature: "JLee" };
       const prediction = { signature: "Kradel" };
@@ -1202,7 +1202,14 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
       });
 
       expect(result.metrics.matchedFields).toBe(1);
@@ -1223,7 +1230,14 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
       });
 
       expect(result.metrics.matchedFields).toBe(0);
@@ -1244,7 +1258,14 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
       });
 
       expect(result.metrics.matchedFields).toBe(0);
@@ -1265,7 +1286,14 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
       });
 
       expect(result.metrics.matchedFields).toBe(1);
@@ -1285,7 +1313,14 @@ describe("SchemaAwareEvaluator", () => {
         predictionPaths: [predictionPath],
         groundTruthPaths: [groundTruthPath],
         metadata: {},
-        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
       });
 
       expect(result.metrics.matchedFields).toBe(1);

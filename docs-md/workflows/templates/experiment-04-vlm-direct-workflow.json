@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 04 - VLM-direct (gpt-5.4)",
     "description": "E04 single-pass VLM-direct extraction. Sends the document image plus a strict-mode JSON Schema response_format to Azure OpenAI's chat-completions endpoint (gpt-5.4 by default). The model emits { fields, source_quotes } in one call — no separate OCR pre-pass. Each field carries a verbatim source_quote as a hallucination guard; the mapper synthesises per-field confidence from quote presence (with-evidence → 0.95, without → 0.50). Sync-shape chain: prepareFileData → vlmDirect.extract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → humanReview/storeResults. Image inputs only; PDF rendering is deferred to a follow-up experiment (the canonical 40-sample dataset is 100% JPEG).",
     "tags": [

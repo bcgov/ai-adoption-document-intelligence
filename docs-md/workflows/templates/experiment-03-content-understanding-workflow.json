@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 03 - Azure Content Understanding",
     "description": "E03: Azure AI Content Understanding (CU). PUTs an analyzer derived from the SDPR template's field_schema (with the iteration-kit's prompt + per-field descriptions), POSTs the document to /analyzers/{id}:analyze, polls until terminal, then runs the canonical post-processing chain (cleanup → checkConfidence) and HITL gate. CU is async (POST 202 + Operation-Location), but the activity polls internally so the workflow looks like a sync provider — no pollUntil node.",
     "tags": [
