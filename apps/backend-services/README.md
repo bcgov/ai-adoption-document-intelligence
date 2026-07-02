@@ -178,7 +178,7 @@ The backend services provide a modular, scalable API for:
 - Azure storage — always Azure, for DI model training (`AzureStorageService`)
 - Dynamic module with runtime provider selection via `BLOB_STORAGE_PROVIDER`
 - Operations: write, read, exists, delete, list, deleteByPrefix
-- See [docs-md/BLOB_STORAGE.md](../../docs-md/BLOB_STORAGE.md) for full architecture docs
+- See [docs-md/architecture/BLOB_STORAGE.md](../../docs-md/architecture/BLOB_STORAGE.md) for full architecture docs
 
 #### `database/` - Database Service
 - Prisma client wrapper
@@ -638,7 +638,7 @@ curl -X GET "$AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/documentintelligence/document
 ## Documentation
 
 - [API Documentation](../../docs-md/API.md)
-- [HITL Architecture](../../docs-md/HITL_ARCHITECTURE.md)
+- [HITL Architecture](../../docs-md/architecture/HITL_ARCHITECTURE.md)
 - [Testing Guide](./TESTING.md)
 - [Migration Guide](./MIGRATIONS.md)
 

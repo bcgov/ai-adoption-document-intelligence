@@ -46,7 +46,7 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Phase 1: fixed dev script scope, Prisma order, monitoring compose paths, docs site stats, TESTING.md scripts.
 - Phase 2: aligned workflow builder claims, wiki auth sources (`actor/`), docs build description.
-- Phase 3: trimmed `apps/README.md`, aligned copilot with CLAUDE Swagger/API rules, added `docs-md/ARCHIVE.md`.
+- Phase 3: trimmed `apps/README.md`, aligned copilot with CLAUDE Swagger/API rules, added `docs-md/archive/README.md`.
 
 ## [2026-06-20] lint | Holistic docs-vs-code alignment
 

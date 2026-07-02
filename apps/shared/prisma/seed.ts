@@ -496,19 +496,19 @@ async function seedBenchmarkingData() {
   // Load workflow configs from template files
   const standardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow.json"),
       "utf-8",
     ),
   );
   const multiPageReportConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/multi-page-report-workflow.json"),
+      path.resolve(__dirname, "../../../docs-md/workflows/templates/multi-page-report-workflow.json"),
       "utf-8",
     ),
   );
   const mistralStandardOcrConfig = JSON.parse(
     fs.readFileSync(
-      path.resolve(__dirname, "../../../docs-md/graph-workflows/templates/mistral-standard-ocr-workflow.json"),
+      path.resolve(__dirname, "../../../docs-md/workflows/templates/mistral-standard-ocr-workflow.json"),
       "utf-8",
     ),
   );

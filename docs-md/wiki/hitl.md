@@ -2,7 +2,7 @@
 status: active
 updated: 2026-06-17
 canonical_sources:
-  - docs-md/HITL_ARCHITECTURE.md
+  - docs-md/architecture/HITL_ARCHITECTURE.md
   - apps/backend-services/src/hitl/
   - apps/frontend/src/pages/
   - apps/frontend/src/features/
@@ -20,7 +20,7 @@ HITL routes low-confidence or review-required document results to humans. It is 
 
 ## Source Map
 
-- Architecture and lifecycle concepts live in `docs-md/HITL_ARCHITECTURE.md`.
+- Architecture and lifecycle concepts live in `docs-md/architecture/HITL_ARCHITECTURE.md`.
 - Backend session, queue, lock, correction, and analytics behavior lives in `apps/backend-services/src/hitl/`.
 - Persisted model truth lives in `apps/shared/prisma/schema.prisma`.
 - Frontend review entrypoints are split between page-level routes and feature components under `apps/frontend/src/`.

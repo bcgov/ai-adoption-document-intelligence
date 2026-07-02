@@ -2,9 +2,9 @@
 status: active
 updated: 2026-06-17
 canonical_sources:
-  - docs-md/AUTHENTICATION.md
-  - docs-md/GROUP_RESOURCE_AUTHORIZATION.md
-  - docs-md/group/
+  - docs-md/auth/AUTHENTICATION.md
+  - docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md
+  - docs-md/groups/
   - apps/backend-services/src/actor/
   - apps/backend-services/src/auth/
   - apps/backend-services/src/group/
@@ -22,9 +22,9 @@ The platform supports interactive authentication through Keycloak/OIDC and progr
 
 ## Source Map
 
-- Authentication details live in `docs-md/AUTHENTICATION.md`.
-- Group-scoped authorization behavior lives in `docs-md/GROUP_RESOURCE_AUTHORIZATION.md`.
-- Group UI and workflow context docs live under `docs-md/group/`.
+- Authentication details live in `docs-md/auth/AUTHENTICATION.md`.
+- Group-scoped authorization behavior lives in `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`.
+- Group UI and workflow context docs live under `docs-md/groups/`.
 - Backend auth implementation, including API key guards, lives in `apps/backend-services/src/auth/`.
 - API key management (controller, service, DB) lives in `apps/backend-services/src/actor/`.
 - Group backend behavior lives in `apps/backend-services/src/group/`.

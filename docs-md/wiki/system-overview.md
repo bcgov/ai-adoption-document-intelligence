@@ -39,7 +39,7 @@ The platform is a document intelligence monorepo with a React frontend, NestJS b
 
 - Use `README.md` for platform overview, prerequisites, and root commands.
 - Use `apps/README.md` for app-level responsibilities and development commands.
-- Use `docs-md/SHARED_PACKAGES.md` before extracting cross-app TypeScript code.
+- Use `docs-md/architecture/SHARED_PACKAGES.md` before extracting cross-app TypeScript code.
 - Use `apps/shared/prisma/schema.prisma` as the source of truth for persisted models.
 
 ## Common Drift Risks

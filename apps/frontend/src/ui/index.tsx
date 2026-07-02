@@ -4,7 +4,7 @@
  * Provides a stable import surface for common UI components. Product code
  * imports from this module rather than directly from Mantine or BC DS packages.
  *
- * Migration split (see docs-md/BC_DESIGN_SYSTEM_MIGRATION.md):
+ * Migration split (see docs-md/frontend/BC_DESIGN_SYSTEM_MIGRATION.md):
  *   - **Visual:** BC DS components + design tokens (government look and feel).
  *   - **Functional:** Mantine-style props preserved on adapters so feature
  *     code does not need wide API rewrites (e.g. Button `leftSection`, `loading`).

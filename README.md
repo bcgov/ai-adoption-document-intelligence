@@ -682,7 +682,7 @@ Execute custom document processing workflows as Directed Acyclic Graphs (DAGs), 
 4. Save the workflow (receives a unique ID)
 5. Select the workflow during document upload
 
-See [docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md) and [docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md](docs-md/workflow-builder/WORKFLOW_NODE_CATALOG.md) for complete documentation.
+See [docs-md/workflows/DAG_WORKFLOW_ENGINE.md](docs-md/workflows/DAG_WORKFLOW_ENGINE.md) and [docs-md/workflows/WORKFLOW_NODE_CATALOG.md](docs-md/workflows/WORKFLOW_NODE_CATALOG.md) for complete documentation.
 
 ## Document Labeling & Training
 
@@ -718,7 +718,7 @@ Train custom Azure Document Intelligence models for specialized document types.
    - Select in upload or workflow configuration
    - Higher accuracy for domain-specific fields
 
-See [docs-md/TEMPLATE_MODELS.md](docs-md/TEMPLATE_MODELS.md) for the complete template models and training guide.
+See [docs-md/architecture/TEMPLATE_MODELS.md](docs-md/architecture/TEMPLATE_MODELS.md) for the complete template models and training guide.
 
 ## Human-in-the-Loop (HITL)
 
@@ -751,7 +751,7 @@ Validate and correct OCR results through human review.
 - Confidence distribution
 - Correction patterns
 
-See [docs-md/HITL_ARCHITECTURE.md](docs-md/HITL_ARCHITECTURE.md) for architecture details.
+See [docs-md/architecture/HITL_ARCHITECTURE.md](docs-md/architecture/HITL_ARCHITECTURE.md) for architecture details.
 
 ## Benchmarking
 
@@ -868,17 +868,17 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 
 ### Core Documentation
 
-- **[HITL Architecture](docs-md/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
-- **[Template Models](docs-md/TEMPLATE_MODELS.md)** - Template models and custom model training guide
-- **[Blob Storage](docs-md/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
+- **[HITL Architecture](docs-md/architecture/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
+- **[Template Models](docs-md/architecture/TEMPLATE_MODELS.md)** - Template models and custom model training guide
+- **[Blob Storage](docs-md/architecture/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
 - **[Benchmarking Guide](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-guide.html)** - Benchmarking system usage
 - **[Benchmarking Technical](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-technical.html)** - Benchmarking architecture and internals
 
 ### Workflow Documentation
 
-- **[DAG Workflow Engine](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
-- **[Adding Nodes & Activities](docs-md/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
-- **[Graph Types](docs-md/graph-workflows/GRAPH_TYPES.md)** - Type definitions
+- **[DAG Workflow Engine](docs-md/workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
+- **[Adding Nodes & Activities](docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
+- **[Graph Types](docs-md/workflows/GRAPH_TYPES.md)** - Type definitions
 
 ### Service Documentation
 

@@ -2,9 +2,9 @@
 status: active
 updated: 2026-06-17
 canonical_sources:
-  - docs-md/TABLES.md
-  - docs-md/PATTERNS_NODE_AND_UI.md
-  - docs-md/REFERENCE_DATA_TABLES_UI.md
+  - docs-md/architecture/TABLES.md
+  - docs-md/architecture/PATTERNS_NODE_AND_UI.md
+  - docs-md/frontend/REFERENCE_DATA_TABLES_UI.md
   - apps/backend-services/src/tables/
   - apps/frontend/src/features/tables/
   - apps/temporal/src/activity-types.ts
@@ -21,9 +21,9 @@ Reference Data Tables provide group-scoped lookup data that graph workflows quer
 
 ## Source Map
 
-- Data model, lookup DSL, and runtime behavior live in `docs-md/TABLES.md`.
-- Shared node/UI extension patterns live in `docs-md/PATTERNS_NODE_AND_UI.md`.
-- Frontend table and lookup UI reference lives in `docs-md/REFERENCE_DATA_TABLES_UI.md`.
+- Data model, lookup DSL, and runtime behavior live in `docs-md/architecture/TABLES.md`.
+- Shared node/UI extension patterns live in `docs-md/architecture/PATTERNS_NODE_AND_UI.md`.
+- Frontend table and lookup UI reference lives in `docs-md/frontend/REFERENCE_DATA_TABLES_UI.md`.
 - Backend CRUD and validation live in `apps/backend-services/src/tables/`.
 - Frontend authoring UI lives under `apps/frontend/src/features/tables/`.
 - Activity registration includes `tables.lookup` in `apps/temporal/src/activity-types.ts`.

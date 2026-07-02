@@ -2,7 +2,7 @@
 status: active
 updated: 2026-06-17
 canonical_sources:
-  - docs-md/BLOB_STORAGE.md
+  - docs-md/architecture/BLOB_STORAGE.md
   - apps/backend-services/src/blob-storage/
   - apps/temporal/src/blob-storage/
   - apps/temporal/src/activities/blob-read.ts
@@ -19,7 +19,7 @@ Document bytes, training artifacts, and workflow I/O flow through a unified blob
 
 ## Source Map
 
-- Architecture and provider selection live in `docs-md/BLOB_STORAGE.md`.
+- Architecture and provider selection live in `docs-md/architecture/BLOB_STORAGE.md`.
 - NestJS provider implementations live in `apps/backend-services/src/blob-storage/`.
 - Temporal worker access uses the parallel client under `apps/temporal/src/blob-storage/`.
 - Workflow blob read activity lives in `apps/temporal/src/activities/blob-read.ts`.
