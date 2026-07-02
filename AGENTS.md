@@ -20,5 +20,8 @@ The repo wiki in `docs-md/wiki/` is a compression layer: synthesize and route to
 
 - **Root `README.md`**: local setup, prerequisites, and development commands.
 - **`docs/` site (`_pages/`)**: public overview and links; defer detailed setup to root README.
+- **`docs-md/`**: canonical developer reference docs, organized by topic folder — taxonomy in `docs-md/README.md`.
 - **`docs-md/wiki/`**: routing map for agents and contributors; not a second implementation spec.
 - **`apps/README.md`**: app-level boundaries only; link to root README for setup.
+
+Docs maintenance workflows (updating docs after code changes, auditing accuracy, adding docs, archiving stale docs) are encoded in the `docs-sync` skill (`.claude/skills/docs-sync/`).
