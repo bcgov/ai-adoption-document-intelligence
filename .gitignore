@@ -3,6 +3,10 @@ node_modules
 .env
 dist
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 # SpecStory
 .specstory/
 /.claude/settings.loca.json
@@ -33,3 +37,18 @@ infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.backup
 infra/.terraform.lock.hcl
+
+# Local benchmark dataset drops — private subset never committed.
+# See docs/superpowers/specs/2026-05-08-extraction-experiments-design.md
+data/datasets/*/private/**
+!data/datasets/*/private/.gitkeep
+!data/datasets/.gitkeep
+
+# SDPR-report working files — drafts, regenerated plots, and HITL curves used
+# during analysis. Lived on a network share; kept locally only as a scratch
+# space. Don't commit them — they contain analysis outputs derived from
+# private benchmark data.
+/SDPR_OCR_Performance_Report*.md
+/SDPR_OCR_Performance_Report*.pdf
+/plots/
+/hitl/

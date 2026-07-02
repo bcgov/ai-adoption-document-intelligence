@@ -120,19 +120,22 @@ describe("SchemaAwareEvaluator", () => {
 
       const result = await evaluator.evaluate(input);
 
-      // True positives: field1, field3 (2)
-      // False positives: field5 (1)
-      // False negatives: field2, field4 (2)
-      // Precision = 2 / (2 + 1) = 0.6667
-      // Recall = 2 / (2 + 2) = 0.5
-      // F1 = 2 * 0.6667 * 0.5 / (0.6667 + 0.5) = 0.5714
+      // True positives: field1, field3 (2 matched fields)
+      // False positives: field2 substitution (wrong value produced) +
+      //                  field5 extra-key hallucination (non-null value
+      //                  outside schema) = 2
+      // False negatives: field2 substitution (correct value missed) +
+      //                  field4 deletion (correct value missed) = 2
+      // Precision = 2 / (2 + 2) = 0.5
+      // Recall    = 2 / (2 + 2) = 0.5
+      // F1        = 2 * 0.5 * 0.5 / (0.5 + 0.5) = 0.5
 
       expect(result.metrics.truePositives).toBe(2);
-      expect(result.metrics.falsePositives).toBe(1);
+      expect(result.metrics.falsePositives).toBe(2);
       expect(result.metrics.falseNegatives).toBe(2);
-      expect(result.metrics.precision).toBeCloseTo(0.6667, 3);
+      expect(result.metrics.precision).toBeCloseTo(0.5, 3);
       expect(result.metrics.recall).toBeCloseTo(0.5, 3);
-      expect(result.metrics.f1).toBeCloseTo(0.5714, 3);
+      expect(result.metrics.f1).toBeCloseTo(0.5, 3);
     });
   });
 
@@ -282,6 +285,28 @@ describe("SchemaAwareEvaluator", () => {
   // Scenario 5: Numeric tolerance comparison
   // -----------------------------------------------------------------------
   describe("numeric match", () => {
+    it("strips currency symbols before comparing (R4)", async () => {
+      // "$6,191.12" must parse to 6191.12 — the old hand-rolled strip only
+      // removed commas/spaces, so the currency symbol made it fall back to a
+      // (failing) exact-string match.
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { amount: "$6,191.12" },
+        { amount: "6191.12" },
+      );
+      const result = await evaluator.evaluate({
+        sampleId: "currency",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "numeric", numericAbsoluteTolerance: 0.01 },
+        },
+      });
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
     it("matches within absolute tolerance", async () => {
       const groundTruth = {
         amount1: "100.00",
@@ -856,11 +881,535 @@ describe("SchemaAwareEvaluator", () => {
 
       expect(result.sampleId).toBe("sample-013");
       expect(result.metrics.matchedFields).toBe(5); // All except checkbox_family_assets_no
-      // Precision = 5 / (5 + 0) = 1.0 (no extra fields)
-      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
-      // Recall = 5 / (5 + 1) = 0.8333 (one mismatched field)
+      // checkbox_family_assets_no is a substitution (pred=false, GT=true),
+      // so it increments both FP and FN:
+      //   Precision = 5 / (5 + 1) = 0.8333
+      //   Recall    = 5 / (5 + 1) = 0.8333
+      //   F1        = 0.8333 (passes the 0.8 threshold)
+      expect(result.metrics.precision).toBeCloseTo(5 / 6, 3);
       expect(result.metrics.recall).toBeCloseTo(5 / 6, 3);
-      expect(result.pass).toBe(true); // F1 should be > 0.8
+      expect(result.pass).toBe(true);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // One-of alternate ground truth (array values)
+  // -----------------------------------------------------------------------
+  describe("one-of alternate ground truth", () => {
+    it("matches exact rule against any alternate in array GT", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15"],
+        sin: ["999-888-777", "999888777"],
+      };
+      const prediction = {
+        date: "2026-04-15",
+        sin: "999-888-777",
+      };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-exact",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(2);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+      expect(result.metrics.recall).toBeCloseTo(1.0, 3);
+    });
+
+    it("does not match when prediction equals no alternate", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15"],
+      };
+      const prediction = { date: "2026-Apr-15" }; // wrong case — neither alt matches
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-no-match",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      const details = (
+        result.evaluationDetails as Array<Record<string, unknown>>
+      )[0];
+      expect(details.matched).toBe(false);
+      // Array preserved on output so downstream readers see the GT shape.
+      expect(details.expected).toEqual(["2026-APR-15", "2026-04-15"]);
+    });
+
+    it("treats null-like predicted as matched when any alternate is null-like", async () => {
+      const groundTruth = {
+        spouse_phone: ["", "555-0100"], // GT accepts blank OR a value
+      };
+      const prediction = { spouse_phone: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-null-like",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.recall).toBeCloseTo(1.0, 3);
+    });
+
+    it("treats all-null-like array as null-like (no field reported missing)", async () => {
+      const groundTruth = {
+        signature: ["", null],
+      };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-all-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      const diag = result.diagnostics as { missingFields: string[] };
+      expect(diag.missingFields).not.toContain("signature");
+    });
+
+    it("fuzzy rule returns best similarity across alternates and matches if any clears threshold", async () => {
+      const groundTruth = {
+        explain_changes: [
+          "Working part-time, started Oct 12, pay stubs attached.",
+          "Working part-time. Started Oct 12. Pay stubs attached.",
+        ],
+      };
+      const prediction = {
+        // Closer to the second alternate (different punctuation than first).
+        explain_changes:
+          "Working part-time. Started Oct 12. Pay stubs attached.",
+      };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-fuzzy",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.95 },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      const details = (
+        result.evaluationDetails as Array<Record<string, unknown>>
+      )[0];
+      expect(details.similarity).toBeCloseTo(1.0, 3);
+    });
+
+    it("numeric rule honours absolute tolerance against best alternate", async () => {
+      const groundTruth = {
+        applicant_net_employment_income: [0, "0", 0.0],
+      };
+      const prediction = { applicant_net_employment_income: 0 };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-numeric",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "numeric", numericAbsoluteTolerance: 0.01 },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("date rule matches if any alternate parses to the same calendar date", async () => {
+      const groundTruth = {
+        date: ["2026-APR-15", "2026-04-15", "2026-Apr-15"],
+      };
+      const prediction = { date: "2026-04-15" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "one-of-date",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "date" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("scalar GT continues to work unchanged (regression guard)", async () => {
+      const groundTruth = { sin: "123-456-789" };
+      const prediction = { sin: "123-456-789" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "scalar-still-works",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+    });
+  });
+
+  describe(":garbled: wildcard sentinel", () => {
+    it("matches any prediction when expected is the scalar :garbled:", async () => {
+      const groundTruth = { spouse_name: ":garbled:" };
+      const prediction = { spouse_name: "Whatever The Engine Read" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-scalar",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.pass).toBe(true);
+    });
+
+    it("matches null prediction when expected is :garbled: (cell is unscored)", async () => {
+      const groundTruth = { spouse_name: ":garbled:" };
+      const prediction = { spouse_name: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-null",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("matches when any alternate in an array GT is :garbled:", async () => {
+      const groundTruth = { signature: [":garbled:", "some_value"] };
+      const prediction = { signature: "totally_different" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "garbled-wildcard-array",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 0.8 },
+      });
+
+      // signature is presence-only AND :garbled: is wildcard — either path
+      // produces a match; the wildcard short-circuits first.
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+  });
+
+  describe("presence rule (signature fields, config-driven via fieldRules)", () => {
+    it("matches when both prediction and GT are non-null on signature, regardless of value", async () => {
+      const groundTruth = { signature: "JLee" };
+      const prediction = { signature: "Kradel" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-presence-match",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.precision).toBeCloseTo(1.0, 3);
+    });
+
+    it("does not match when prediction is null but GT has a signature value (engine missed it)", async () => {
+      const groundTruth = { signature: "JLee" };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-presence-miss",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.falseNegatives).toBe(1);
+    });
+
+    it("does not match when prediction is non-null but GT is blank (engine hallucinated a signature)", async () => {
+      const groundTruth = { spouse_signature: "" };
+      const prediction = { spouse_signature: "MysteryGuy" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-hallucinated",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.falsePositives).toBe(1);
+    });
+
+    it("matches when both are blank (no signature on either side)", async () => {
+      const groundTruth = { signature: "" };
+      const prediction = { signature: null };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "signature-both-blank",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("applies presence rule to spouse_signature too", async () => {
+      const groundTruth = { spouse_signature: "AnyValue" };
+      const prediction = { spouse_signature: "X" };
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "spouse-signature-presence",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          defaultRule: { rule: "exact" },
+          passThreshold: 0.8,
+          fieldRules: {
+            signature: { rule: "presence" },
+            spouse_signature: { rule: "presence" },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Structured GT — nested objects and tables (E-1 / E-2)
+  // -----------------------------------------------------------------------
+  describe("structured GT (nested objects and tables)", () => {
+    async function run(
+      prediction: Record<string, unknown>,
+      groundTruth: Record<string, unknown>,
+    ) {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+      return evaluator.evaluate({
+        sampleId: "structured",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: { defaultRule: { rule: "exact" }, passThreshold: 1.0 },
+      });
+    }
+
+    it("matches a nested object when every sub-field matches", async () => {
+      const obj = { applicant: { name: "Jo", city: "Victoria" } };
+      const result = await run(obj, obj);
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("does NOT match a nested object when a sub-field differs (E-1)", async () => {
+      // Before the fix both objects stringified to "[object Object]" and
+      // falsely matched regardless of contents.
+      const result = await run(
+        { applicant: { name: "Jo", city: "Nanaimo" } },
+        { applicant: { name: "Jo", city: "Victoria" } },
+      );
+      expect(result.metrics.f1).toBe(0);
+      expect(result.metrics.matchedFields).toBe(0);
+    });
+
+    it("matches an array of rows positionally when all rows match (E-2)", async () => {
+      const rows = {
+        income: [
+          { source: "wages", amount: "100" },
+          { source: "tips", amount: "20" },
+        ],
+      };
+      const result = await run(rows, rows);
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("does NOT match an array of rows when lengths differ (E-2)", async () => {
+      const result = await run(
+        { income: [{ source: "wages", amount: "100" }] },
+        {
+          income: [
+            { source: "wages", amount: "100" },
+            { source: "tips", amount: "20" },
+          ],
+        },
+      );
+      expect(result.metrics.f1).toBe(0);
+    });
+
+    it("does NOT match an array of rows when a row's field differs", async () => {
+      const result = await run(
+        { income: [{ source: "wages", amount: "999" }] },
+        { income: [{ source: "wages", amount: "100" }] },
+      );
+      expect(result.metrics.f1).toBe(0);
+    });
+
+    it("still treats a scalar array as one-of alternates (not a table)", async () => {
+      // ["", "0"] means "blank or zero is acceptable" — predicting "0" matches.
+      const result = await run({ balance: "0" }, { balance: ["", "0"] });
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("handles empty ground truth without crashing", async () => {
+      const result = await run({}, {});
+      expect(typeof result.metrics.f1).toBe("number");
+      expect(result.pass).toBeDefined();
     });
   });
 });

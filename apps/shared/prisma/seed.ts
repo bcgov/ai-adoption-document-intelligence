@@ -15,6 +15,12 @@ import { getPrismaPgOptions } from "../../backend-services/src/utils/database-ur
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import {
+  localDatasetId,
+  localDatasetVersionId,
+  parseLocalDatasets,
+} from "../../backend-services/src/seed/local-datasets";
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg(getPrismaPgOptions(process.env.DATABASE_URL)),
 });
@@ -1773,6 +1779,309 @@ async function seedTablesData() {
   );
 }
 
+/**
+ * Seed local-folder datasets dropped at `data/datasets/<name>/{public,private}/`.
+ * Convention defined in `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md`.
+ *
+ * Also seeds a `BenchmarkProject` ("Extraction Experiments") that all 5
+ * experiment branches add their `BenchmarkDefinition` rows to. Each
+ * `BenchmarkDefinition` will reference the full `DatasetVersion` directly
+ * (no `Split` — `splitId` is optional and we want benchmarks to run on the
+ * complete user-dropped dataset).
+ *
+ * Idempotent — re-running with the same folders updates existing rows without
+ * duplicating samples. Runs after the seed-test datasets so existing test
+ * fixtures keep their stable IDs.
+ */
+const EXPERIMENTS_PROJECT_ID = "seed-experiments-project";
+
+async function seedLocalDatasets() {
+  const repoRoot = path.resolve(__dirname, "../../..");
+  const datasetsDir = path.join(repoRoot, "data", "datasets");
+
+  const parsed = parseLocalDatasets(datasetsDir, repoRoot, {
+    warn: (msg) => console.warn(`  ⚠ ${msg}`),
+  });
+
+  if (parsed.length === 0) {
+    console.log(
+      "📁 No local datasets in data/datasets/<name>/{public,private}/ (skipping local dataset seed).",
+    );
+    return;
+  }
+
+  console.log(`📁 Seeding ${parsed.length} local dataset version(s)...`);
+
+  // Project that all 5 experiment branches add their BenchmarkDefinition rows
+  // to. Created here on the parent so each experiment branch only needs to add
+  // its own definition (referencing this project + the relevant Split below).
+  await prisma.benchmarkProject.upsert({
+    where: { id: EXPERIMENTS_PROJECT_ID },
+    update: {
+      name: "Extraction Experiments",
+      description:
+        "Benchmark suite for the 5 stacked extraction experiments (neural DI + post-processing, Mistral on Azure, Content Understanding, VLM-direct, VLM+OCR hybrid).",
+      createdBy: TEST_ACTOR_ID,
+      group_id: SEED_GROUP_ID,
+    },
+    create: {
+      id: EXPERIMENTS_PROJECT_ID,
+      name: "Extraction Experiments",
+      description:
+        "Benchmark suite for the 5 stacked extraction experiments (neural DI + post-processing, Mistral on Azure, Content Understanding, VLM-direct, VLM+OCR hybrid).",
+      createdBy: TEST_ACTOR_ID,
+      group_id: SEED_GROUP_ID,
+    },
+  });
+
+  for (const entry of parsed) {
+    const datasetId = localDatasetId(entry.folder, entry.visibility);
+    const versionId = localDatasetVersionId(entry.folder, entry.visibility);
+
+    // Blob-convention paths. The actual files are uploaded by
+    // LocalDatasetSyncService on backend startup; until then, these paths
+    // are placeholders that the sync service confirms / refreshes.
+    // manifestPath is stored relative to storagePrefix — same convention as
+    // dataset.service.ts createVersion (defaults to "dataset-manifest.json").
+    const datasetStoragePath = `datasets/${datasetId}`;
+    const versionStoragePrefix = `datasets/${datasetId}/${versionId}`;
+    const versionManifestPath = "dataset-manifest.json";
+
+    await prisma.dataset.upsert({
+      where: { id: datasetId },
+      update: {
+        name: entry.datasetName,
+        description: `Local dataset (${entry.visibility}) loaded from data/datasets/${entry.folder}/${entry.visibility}`,
+        metadata: {
+          templateModelKey: entry.templateModelKey,
+          visibility: entry.visibility,
+          source: "local-folder",
+        },
+        storagePath: datasetStoragePath,
+        createdBy: SEED_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+      create: {
+        id: datasetId,
+        name: entry.datasetName,
+        description: `Local dataset (${entry.visibility}) loaded from data/datasets/${entry.folder}/${entry.visibility}`,
+        metadata: {
+          templateModelKey: entry.templateModelKey,
+          visibility: entry.visibility,
+          source: "local-folder",
+        },
+        storagePath: datasetStoragePath,
+        createdBy: SEED_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+    });
+
+    await prisma.datasetVersion.upsert({
+      where: { id: versionId },
+      update: {
+        version: "v1",
+        storagePrefix: versionStoragePrefix,
+        manifestPath: versionManifestPath,
+        documentCount: entry.sampleCount,
+        groundTruthSchema: {},
+      },
+      create: {
+        id: versionId,
+        datasetId,
+        version: "v1",
+        storagePrefix: versionStoragePrefix,
+        manifestPath: versionManifestPath,
+        documentCount: entry.sampleCount,
+        groundTruthSchema: {},
+      },
+    });
+
+    console.log(
+      `  ✓ ${entry.datasetName} / ${entry.visibility} (${entry.sampleCount} samples)`,
+    );
+  }
+
+  if (parsed.length > 0) {
+    console.log(
+      "  ↳ files will be uploaded to blob storage by LocalDatasetSyncService when the backend starts.",
+    );
+  }
+}
+
+/**
+ * Auto-discover experiment workflows. Scans
+ * `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each
+ * file derives a slug from the filename, then idempotently seeds:
+ *
+ *   - WorkflowLineage `seed-experiment-{slug}-workflow`
+ *   - WorkflowVersion `wv_seed-experiment-{slug}-workflow` with the JSON config
+ *   - BenchmarkDefinition `seed-experiment-{slug}-definition` in the parent's
+ *     `seed-experiments-project`, referencing the (single) local dataset
+ *     version. If multiple local datasets exist, the workflow can override
+ *     via `metadata.targetLocalDataset = "{folder}-{visibility}"`.
+ *
+ * This means each experiment branch only needs to drop a workflow JSON at
+ * `docs-md/graph-workflows/templates/experiment-{slug}-workflow.json` — no
+ * edits to seed.ts needed per experiment.
+ *
+ * Runs after `seedLocalDatasets()` so the dataset version row exists when we
+ * reference it from the BenchmarkDefinition.
+ */
+async function seedExperimentWorkflows() {
+  const repoRoot = path.resolve(__dirname, "../../..");
+  const templatesDir = path.join(
+    repoRoot,
+    "docs-md",
+    "graph-workflows",
+    "templates",
+  );
+
+  if (!fs.existsSync(templatesDir)) {
+    return;
+  }
+
+  const experimentFiles = fs
+    .readdirSync(templatesDir)
+    .filter((f) => f.startsWith("experiment-") && f.endsWith("-workflow.json"))
+    .sort();
+
+  if (experimentFiles.length === 0) {
+    console.log(
+      "🧪 No experiment workflow templates at docs-md/graph-workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
+    );
+    return;
+  }
+
+  // Find local dataset versions to use as the BenchmarkDefinition target.
+  const localDatasetVersions = await prisma.datasetVersion.findMany({
+    where: { id: { startsWith: "seed-local-" } },
+  });
+
+  if (localDatasetVersions.length === 0) {
+    console.log(
+      `🧪 Found ${experimentFiles.length} experiment workflow(s) but no local dataset version to benchmark against — seeding workflows without BenchmarkDefinitions.`,
+    );
+  } else {
+    console.log(
+      `🧪 Auto-discovering ${experimentFiles.length} experiment workflow(s)...`,
+    );
+  }
+
+  for (const filename of experimentFiles) {
+    // experiment-04-vlm-direct-workflow.json → slug = 04-vlm-direct
+    const slug = filename
+      .replace(/^experiment-/, "")
+      .replace(/-workflow\.json$/, "");
+    const lineageId = `seed-experiment-${slug}-workflow`;
+    const versionId = `wv_${lineageId}`;
+    const definitionId = `seed-experiment-${slug}-definition`;
+
+    let config: {
+      metadata?: {
+        name?: string;
+        description?: string;
+        targetLocalDataset?: string;
+        evaluatorConfig?: Record<string, unknown>;
+      };
+    };
+    try {
+      config = JSON.parse(fs.readFileSync(path.join(templatesDir, filename), "utf-8"));
+    } catch (err) {
+      console.warn(
+        `  ⚠ Skipping ${filename}: invalid JSON (${(err as Error).message})`,
+      );
+      continue;
+    }
+
+    const workflowName = config.metadata?.name ?? `Experiment ${slug}`;
+    const workflowDescription = config.metadata?.description ?? null;
+
+    await prisma.workflowLineage.upsert({
+      where: { id: lineageId },
+      update: { name: workflowName, description: workflowDescription },
+      create: {
+        id: lineageId,
+        name: workflowName,
+        description: workflowDescription,
+        actor_id: TEST_ACTOR_ID,
+        group_id: SEED_GROUP_ID,
+      },
+    });
+    await prisma.workflowVersion.upsert({
+      where: { id: versionId },
+      update: { config: config as object },
+      create: {
+        id: versionId,
+        lineage_id: lineageId,
+        version_number: 1,
+        config: config as object,
+      },
+    });
+    await prisma.workflowLineage.update({
+      where: { id: lineageId },
+      data: { head_version_id: versionId },
+    });
+
+    if (localDatasetVersions.length === 0) {
+      console.log(`  ✓ ${slug} (workflow only — no dataset to bench against)`);
+      continue;
+    }
+
+    // Pick dataset to benchmark against. Default: first local dataset
+    // version. Override via workflow metadata.targetLocalDataset =
+    // "{folder}-{visibility}" (matching `seed-local-{folder}-{visibility}-v1`).
+    let targetVersion = localDatasetVersions[0];
+    const target = config.metadata?.targetLocalDataset;
+    if (target) {
+      const found = localDatasetVersions.find(
+        (v) => v.id === `seed-local-${target}-v1`,
+      );
+      if (found) {
+        targetVersion = found;
+      } else {
+        console.warn(
+          `  ⚠ ${slug}: metadata.targetLocalDataset="${target}" not found, falling back to ${targetVersion.id}`,
+        );
+      }
+    }
+
+    // Evaluator config is per-experiment data: read it from the workflow
+    // template's metadata so document-specific matching rules (e.g. presence-
+    // only signature fields on the SDPR form) live in the template, not in the
+    // generic seed or the generic evaluator engine. Falls back to a plain
+    // exact-match default when a template doesn't declare one.
+    const evaluatorConfig: object = config.metadata?.evaluatorConfig ?? {
+      defaultRule: { rule: "exact" },
+      passThreshold: 0.8,
+    };
+
+    await prisma.benchmarkDefinition.upsert({
+      where: { id: definitionId },
+      update: {
+        name: `${workflowName} Benchmark`,
+        workflowVersionId: versionId,
+        workflowConfigHash: `seed-${slug}`,
+        evaluatorType: "schema-aware",
+        evaluatorConfig,
+        runtimeSettings: { timeout: 600, retries: 2 },
+      },
+      create: {
+        id: definitionId,
+        projectId: EXPERIMENTS_PROJECT_ID,
+        name: `${workflowName} Benchmark`,
+        datasetVersionId: targetVersion.id,
+        workflowVersionId: versionId,
+        workflowConfigHash: `seed-${slug}`,
+        evaluatorType: "schema-aware",
+        evaluatorConfig,
+        runtimeSettings: { timeout: 600, retries: 2 },
+      },
+    });
+
+    console.log(`  ✓ ${slug} → bench against ${targetVersion.id}`);
+  }
+}
+
 async function main() {
   console.log("🌱 Starting database seed...\n");
 
@@ -1782,6 +2091,8 @@ async function main() {
   await seedTablesData();
   await seedTemplateModelData();
   await seedBenchmarkingData();
+  await seedLocalDatasets();
+  await seedExperimentWorkflows();
 
   console.log("\n✅ All seed data created successfully!");
 }

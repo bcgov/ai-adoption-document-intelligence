@@ -1,0 +1,999 @@
+{
+  "deployment": "gpt-4o",
+  "apiVersion": "2024-12-01-preview",
+  "systemPrompt": "You are a document-extraction assistant. You will be given:\n  1. An OCR text rendering of a form (Markdown extracted by Azure Document Intelligence).\n  2. An image of the same form.\n\nUse both inputs together. The OCR text is auxiliary context — it helps you locate fields and read structure. **The image is the source of truth.** When the OCR text and the image disagree on a value (digits, characters, checkboxes, signatures), trust what you see in the image and ignore the OCR text. Examples of common OCR errors to override: digit confusion (4 ↔ 9, 8 ↔ 3), missed punctuation, misread checkboxes, dropped/added zeros.\n\nRead the image carefully and emit JSON conforming to the supplied schema. Be conservative: do not guess values that are not visibly present on the form.\n\nExtract structured field values from this BC SDPR Monthly Report form.\n\nConventions:\n- The form has two parallel income columns: **Applicant** (left) and **Spouse** (right). Each `applicant_*` field reads the LEFT column; each `spouse_*` field reads the RIGHT column. Never mix columns.\n- **Numeric income fields:** Look at the cell carefully and distinguish two cases:\n  - If the cell is **completely blank** (no number written, no \"0\", no \"$0\", no dash), return **null**.\n  - If the cell explicitly shows `0`, `$0`, `$ 0`, `0.00`, or any literal zero, return the number `0`.\n  - Otherwise, return the dollar amount as a plain number with no `$`, no commas, no spaces (e.g., `1234.56`).\n  - This distinction matters: do NOT default empty cells to 0 — that loses information.\n- **Comma is a thousands separator, not a decimal.** When you see `$8,641` or `$ 8,641`, the value is `8641` (eight thousand six hundred forty-one), NOT `8.641`. The decimal separator on this form is the period (`.`); commas only group thousands. So `$1,234.56` → `1234.56` and `$ 8,641` → `8641`.\n- Checkbox fields ending in `_yes` or `_no`: return `selected` if the box is filled/checked, `unselected` otherwise. The form gives a Yes/No pair for every question — for any answered question exactly one of the pair is `selected` and the other is `unselected`. Some questions have separate Applicant and Spouse Yes/No pairs (suffix `_spouse_yes` / `_spouse_no`); read those from the spouse-specific row.\n- Text fields (`signature`, `name`, `phone`, `sin`, and their `spouse_*` counterparts): extract the visible text exactly as written, preserving punctuation, hyphens, parentheses, dots, and spacing as they appear on the form. For phone numbers, do NOT normalize the format — if the form shows `(227) 837-843`, return `(227) 837-843`, not `227 837 843`. Use empty string `\"\"` if blank.\n- `signature` is the cursive/initial mark in the signature box. `name` is the printed full name. They are separate fields and must not be swapped.\n- Date fields (`date`, `spouse_date`): extract in `YYYY-MM-DD` format. The form prints date headers like `(yyyy-mmm-dd)` — interpret the value accordingly (`mmm` is a 3-letter month abbreviation, e.g. `MAR` → `03`, `SEP` → `09`).\n- `explain_changes`: free-text field. Capture the entire paragraph if present, otherwise empty string.\n- Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD, etc.) are NOT in the schema — ignore them.\n\nBe conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.",
+  "userPrompt": "Here is the OCR text for the form (Markdown):\n\n<ocr_text>\n<figure>\n\n5th\n\nMonthly Report\nAvoid delays, submit by the 5th\n\n</figure>\n\n\n<figure>\n\nBRITISH\nCOLUMBIA\n\nMinistry of\nSocial Development\nand Poverty Reduction\n\n</figure>\n\n\nThe personal information requested on this form is collected by the Ministry of Social Development and\nPoverty Reduction pursuant to sections 26(c) of the Freedom of Information and Protection of Privacy Act\nfor the purpose of administering the Employment and Assistance Act and Employment and Assistance for\nPersons with Disabilities Act. If you have any questions about the collection, use or disclosure of this\ninformation, please contact the Ministry of Social Development and Poverty Reduction at 1-866-866-0800.\n\n\n# 1. Since your last declaration:\n\n\n<table>\n<tr>\n<td>Are you still in need of assistance?</td>\n<td>☒ Yes ☐ No</td>\n</tr>\n<tr>\n<td>Has your family unit received or disposed of any assets?</td>\n<td>☐ Yes ☒ No</td>\n</tr>\n<tr>\n<td>Any changes to your shelter costs?</td>\n<td>☐ Yes ☒ No</td>\n</tr>\n<tr>\n<td>Any changes in Dependants or Persons living in the home?</td>\n<td>☐ Yes ☒ No</td>\n</tr>\n</table>\n\n\n<table>\n<tr>\n<th></th>\n<th colspan=\"7\">Applicant Spouse</th>\n</tr>\n<tr>\n<td>Any employment changes?</td>\n<td colspan=\"2\">☐ Yes</td>\n<td>☐ No</td>\n<td></td>\n<td>☐ Yes</td>\n<td colspan=\"2\">☒ No</td>\n</tr>\n<tr>\n<td>Are you attending / enrolled in school or training?</td>\n<td colspan=\"2\">☐ Yes</td>\n<td>☐ No</td>\n<td colspan=\"2\">☐ Yes</td>\n<td colspan=\"2\">☒ No</td>\n</tr>\n<tr>\n<td>Are you looking for work?</td>\n<td colspan=\"2\">☐ Yes</td>\n<td>☐ No</td>\n<td></td>\n<td>☐ Yes</td>\n<td colspan=\"2\">☒ No</td>\n</tr>\n<tr>\n<td>Have you moved or entered a facility?</td>\n<td>☐</td>\n<td>Yes</td>\n<td>☐ No</td>\n<td></td>\n<td>☐ Yes</td>\n<td colspan=\"2\">☒ No</td>\n</tr>\n<tr>\n<td>Any outstanding warrants for your arrest?</td>\n<td>☐</td>\n<td>Yes</td>\n<td>☐ No</td>\n<td></td>\n<td>☐ Yes</td>\n<td>☒</td>\n<td>No</td>\n</tr>\n</table>\n\n\nPlease explain all changes including income and submit proof:\n\n\n<table>\n<tr>\n<th colspan=\"3\">2. Declare all income and submit proof. Enter \"0\" if none.</th>\n</tr>\n<tr>\n<th></th>\n<th>Applicant</th>\n<th>Spouse</th>\n</tr>\n<tr>\n<td>Net Employment Income</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Employment Insurance</td>\n<td>$ 700.00</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Spousal Support / Alimony</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Child Support</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>WorkBC Financial Support</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Student Funding (eg: Loans, Bursaries)</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Rental Income</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Room / Board Income</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Worker's Compensation</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Private Pensions (eg: Retirement, Disability)</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>OAS / GIS</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Trust Income</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Canada Pension Plan (CPP)</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Tax Credits (eg: GST Credit)</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Child Tax Benefits</td>\n<td>$ 0</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Income Tax Refund</td>\n<td>$ 60,00</td>\n<td>$</td>\n</tr>\n<tr>\n<td>All other income / money received</td>\n<td>$ o</td>\n<td>$</td>\n</tr>\n<tr>\n<td>Income of Dependent Children</td>\n<td>$ 0</td>\n<td></td>\n</tr>\n</table>\n\n\n3\\. Declaration: I understand that the ministry may disclose this information to verify continuing eligibility for assistance under the above Acts and\nRegulations. I declare that all of the information provided on this form to the Ministry of Social Development and Poverty Reduction is true and complete.\n\nApplicant Signature\nKEY PLAYER MISSING\n\nDate (yyyy-mmm-dd)\n\n2026-25-07\n\nSpouse Signature\n\nDate (yyyy-mmm-dd)\n\nApplicant Print Name\n\nSpouse Print Name\n\n☒\n\nApplicant Telephone\n\nSocial Insurance Number\n\n967-89-954\n\nSpouse Telephone\n\nSocial Insurance Number\n\nNEXT CHEQUE\nISSUE\n\nBENEFIT MONTH\n\nTOTAL ALLOWANCE SHELTER PORTION\n\nINCOME DECLARED INCOME DEDUCTED OTHER DEDUCTIONS TOTAL CHEQUE\n\nAPR 22 2026\n\nCASE ID\n\nCASELOAD\n\ne\n\nS\nal\n</ocr_text>\n\nNow look at the form image (attached below) and extract the form's structured fields. For every field also emit a short verbatim source_quote (the exact text or label you used as evidence — taken from the image, even if the OCR text differs). If you cannot locate a field on the form, return the schema-appropriate empty value (null for numbers, \"\" for strings) and an empty source_quote. **When the image and the OCR text disagree, prefer the image.**",
+  "responseFormat": {
+    "name": "sdpr_vlm_hybrid_extraction",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "object",
+          "properties": {
+            "checkbox_need_assistance_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 1: 'Are you still in need of assistance?' — return 'selected' if the YES box is checked."
+            },
+            "checkbox_need_assistance_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 1: 'Are you still in need of assistance?' — return 'selected' if the NO box is checked."
+            },
+            "checkbox_family_assets_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' — return 'selected' if the YES box is checked."
+            },
+            "checkbox_family_assets_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 2: 'Has your family unit received or disposed of any assets?' — return 'selected' if the NO box is checked."
+            },
+            "checkbox_shelter_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 3: 'Any changes to your shelter costs?' — return 'selected' if YES is checked."
+            },
+            "checkbox_shelter_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 3: 'Any changes to your shelter costs?' — return 'selected' if NO is checked."
+            },
+            "checkbox_dependants_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' — return 'selected' if YES is checked."
+            },
+            "checkbox_dependants_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 4: 'Any changes in Dependants or Persons living in the home?' — return 'selected' if NO is checked."
+            },
+            "checkbox_employment_changes_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' — return 'selected' if Applicant's YES is checked."
+            },
+            "checkbox_employment_changes_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 5 (APPLICANT column, left): 'Any employment changes?' — return 'selected' if Applicant's NO is checked."
+            },
+            "checkbox_employment_changes_spouse_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' — return 'selected' if Spouse's YES is checked."
+            },
+            "checkbox_employment_changes_spouse_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 5 (SPOUSE column, right): 'Any employment changes?' — return 'selected' if Spouse's NO is checked."
+            },
+            "checkbox_school_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 6 (APPLICANT column): 'Are you attending / enrolled in school or training?' — return 'selected' if Applicant's YES is checked."
+            },
+            "checkbox_school_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 6 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+            },
+            "checkbox_school_spouse_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 6 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+            },
+            "checkbox_school_spouse_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 6 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+            },
+            "checkbox_work_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 7 (APPLICANT column): 'Are you looking for work?' — return 'selected' if Applicant's YES is checked."
+            },
+            "checkbox_work_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 7 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+            },
+            "checkbox_work_spouse_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 7 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+            },
+            "checkbox_work_spouse_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 7 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+            },
+            "checkbox_moved_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 8 (APPLICANT column): 'Have you moved or entered a facility?' — return 'selected' if Applicant's YES is checked."
+            },
+            "checkbox_moved_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 8 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+            },
+            "checkbox_moved_spouse_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 8 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+            },
+            "checkbox_moved_spouse_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 8 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+            },
+            "checkbox_warrant_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 9 (APPLICANT column): 'Any outstanding warrants for your arrest?' — return 'selected' if Applicant's YES is checked."
+            },
+            "checkbox_warrant_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 9 (APPLICANT column): same question — return 'selected' if Applicant's NO is checked."
+            },
+            "checkbox_warrant_spouse_yes": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 9 (SPOUSE column): same question — return 'selected' if Spouse's YES is checked."
+            },
+            "checkbox_warrant_spouse_no": {
+              "type": "string",
+              "enum": [
+                "selected",
+                "unselected"
+              ],
+              "description": "Section 1, Question 9 (SPOUSE column): same question — return 'selected' if Spouse's NO is checked."
+            },
+            "explain_changes": {
+              "type": "string",
+              "description": "Free-text paragraph immediately below 'Please explain all changes including income and submit proof:'. Capture the entire handwritten/typed paragraph verbatim. Empty string if blank."
+            },
+            "signature": {
+              "type": "string",
+              "description": "APPLICANT's signature (cursive mark or initials) in the 'Applicant Signature' box at the bottom of the form. Distinct from the printed name. Empty string if blank."
+            },
+            "spouse_signature": {
+              "type": "string",
+              "description": "SPOUSE's signature (cursive mark or initials) in the 'Spouse Signature' box at the bottom of the form. Empty string if blank."
+            },
+            "date": {
+              "type": "string",
+              "description": "APPLICANT's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Applicant Signature. Return as YYYY-MM-DD."
+            },
+            "spouse_date": {
+              "type": "string",
+              "description": "SPOUSE's signature date in the box labeled 'Date (yyyy-mmm-dd)' next to the Spouse Signature. Return as YYYY-MM-DD."
+            },
+            "name": {
+              "type": "string",
+              "description": "APPLICANT's printed full name in the 'Applicant Print Name' box at the bottom of the form. Empty string if blank."
+            },
+            "spouse_name": {
+              "type": "string",
+              "description": "SPOUSE's printed full name in the 'Spouse Print Name' box at the bottom of the form. Empty string if blank."
+            },
+            "phone": {
+              "type": "string",
+              "description": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve formatting (parens, hyphens) as written. Empty string if blank."
+            },
+            "spouse_phone": {
+              "type": "string",
+              "description": "SPOUSE's telephone number in the 'Spouse Telephone' box. Preserve formatting. Empty string if blank."
+            },
+            "sin": {
+              "type": "string",
+              "description": "APPLICANT's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank."
+            },
+            "spouse_sin": {
+              "type": "string",
+              "description": "SPOUSE's Social Insurance Number, 9 digits. Strip any spaces or hyphens. Empty string if blank."
+            },
+            "applicant_net_employment_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'Net Employment Income', APPLICANT column (left). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_employment_insurance": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'Employment Insurance', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_spousal_support_alimony": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'Spousal Support / Alimony', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_child_support": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'Child Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_workbc_financial_support": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'WorkBC Financial Support', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_student_funding_loans_bursaries": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_rental_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Rental Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_room_board_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Room / Board Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_workers_compensation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Worker's Compensation', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_private_pensions_retirement_disability": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_oas_gis": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'OAS / GIS', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_trust_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Trust Income', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_canada_pension_plan_cpp": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_tax_credits_gst_credit": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_child_tax_benefits": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Child Tax Benefits', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_income_tax_refund": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Income Tax Refund', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_other_income_money_received": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'All other income / money received', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "applicant_income_of_dependent_children": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Income of Dependent Children', APPLICANT column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_net_employment_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2 income table, row 'Net Employment Income', SPOUSE column (right). Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_employment_insurance": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Employment Insurance', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_spousal_support_alimony": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Spousal Support / Alimony', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_child_support": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Child Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_workbc_financial_support": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'WorkBC Financial Support', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_student_funding_loans_bursaries": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_rental_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Rental Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_room_board_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Room / Board Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_workers_compensation": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Worker's Compensation', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_private_pensions_retirement_disability": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_oas_gis": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'OAS / GIS', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_trust_income": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Trust Income', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_canada_pension_plan_cpp": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_tax_credits_gst_credit": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_child_tax_benefits": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Child Tax Benefits', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_income_tax_refund": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'Income Tax Refund', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            },
+            "spouse_other_income_money_received": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Section 2, row 'All other income / money received', SPOUSE column. Numeric; return null if the cell is blank, the number 0 only if the cell explicitly shows 0 or $0, otherwise the dollar amount as a number. If the cell is completely blank (no number written), return null. Only return the number 0 if the cell explicitly shows a literal 0 / $0."
+            }
+          },
+          "required": [
+            "checkbox_need_assistance_yes",
+            "checkbox_need_assistance_no",
+            "checkbox_family_assets_yes",
+            "checkbox_family_assets_no",
+            "checkbox_shelter_yes",
+            "checkbox_shelter_no",
+            "checkbox_dependants_yes",
+            "checkbox_dependants_no",
+            "checkbox_employment_changes_yes",
+            "checkbox_employment_changes_no",
+            "checkbox_employment_changes_spouse_yes",
+            "checkbox_employment_changes_spouse_no",
+            "checkbox_school_yes",
+            "checkbox_school_no",
+            "checkbox_school_spouse_yes",
+            "checkbox_school_spouse_no",
+            "checkbox_work_yes",
+            "checkbox_work_no",
+            "checkbox_work_spouse_yes",
+            "checkbox_work_spouse_no",
+            "checkbox_moved_yes",
+            "checkbox_moved_no",
+            "checkbox_moved_spouse_yes",
+            "checkbox_moved_spouse_no",
+            "checkbox_warrant_yes",
+            "checkbox_warrant_no",
+            "checkbox_warrant_spouse_yes",
+            "checkbox_warrant_spouse_no",
+            "explain_changes",
+            "signature",
+            "spouse_signature",
+            "date",
+            "spouse_date",
+            "name",
+            "spouse_name",
+            "phone",
+            "spouse_phone",
+            "sin",
+            "spouse_sin",
+            "applicant_net_employment_income",
+            "applicant_employment_insurance",
+            "applicant_spousal_support_alimony",
+            "applicant_child_support",
+            "applicant_workbc_financial_support",
+            "applicant_student_funding_loans_bursaries",
+            "applicant_rental_income",
+            "applicant_room_board_income",
+            "applicant_workers_compensation",
+            "applicant_private_pensions_retirement_disability",
+            "applicant_oas_gis",
+            "applicant_trust_income",
+            "applicant_canada_pension_plan_cpp",
+            "applicant_tax_credits_gst_credit",
+            "applicant_child_tax_benefits",
+            "applicant_income_tax_refund",
+            "applicant_other_income_money_received",
+            "applicant_income_of_dependent_children",
+            "spouse_net_employment_income",
+            "spouse_employment_insurance",
+            "spouse_spousal_support_alimony",
+            "spouse_child_support",
+            "spouse_workbc_financial_support",
+            "spouse_student_funding_loans_bursaries",
+            "spouse_rental_income",
+            "spouse_room_board_income",
+            "spouse_workers_compensation",
+            "spouse_private_pensions_retirement_disability",
+            "spouse_oas_gis",
+            "spouse_trust_income",
+            "spouse_canada_pension_plan_cpp",
+            "spouse_tax_credits_gst_credit",
+            "spouse_child_tax_benefits",
+            "spouse_income_tax_refund",
+            "spouse_other_income_money_received"
+          ],
+          "additionalProperties": false
+        },
+        "source_quotes": {
+          "type": "object",
+          "properties": {
+            "checkbox_need_assistance_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_need_assistance_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_need_assistance_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_need_assistance_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_family_assets_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_family_assets_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_family_assets_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_family_assets_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_shelter_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_shelter_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_shelter_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_shelter_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_dependants_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_dependants_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_dependants_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_dependants_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_employment_changes_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_employment_changes_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_employment_changes_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_employment_changes_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_employment_changes_spouse_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_employment_changes_spouse_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_employment_changes_spouse_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_employment_changes_spouse_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_school_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_school_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_school_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_school_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_school_spouse_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_school_spouse_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_school_spouse_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_school_spouse_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_work_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_work_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_work_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_work_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_work_spouse_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_work_spouse_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_work_spouse_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_work_spouse_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_moved_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_moved_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_moved_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_moved_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_moved_spouse_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_moved_spouse_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_moved_spouse_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_moved_spouse_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_warrant_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_warrant_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_warrant_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_warrant_no. Empty string if the field is not present on this form."
+            },
+            "checkbox_warrant_spouse_yes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_warrant_spouse_yes. Empty string if the field is not present on this form."
+            },
+            "checkbox_warrant_spouse_no": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for checkbox_warrant_spouse_no. Empty string if the field is not present on this form."
+            },
+            "explain_changes": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for explain_changes. Empty string if the field is not present on this form."
+            },
+            "signature": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for signature. Empty string if the field is not present on this form."
+            },
+            "spouse_signature": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_signature. Empty string if the field is not present on this form."
+            },
+            "date": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for date. Empty string if the field is not present on this form."
+            },
+            "spouse_date": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_date. Empty string if the field is not present on this form."
+            },
+            "name": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for name. Empty string if the field is not present on this form."
+            },
+            "spouse_name": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_name. Empty string if the field is not present on this form."
+            },
+            "phone": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for phone. Empty string if the field is not present on this form."
+            },
+            "spouse_phone": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_phone. Empty string if the field is not present on this form."
+            },
+            "sin": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for sin. Empty string if the field is not present on this form."
+            },
+            "spouse_sin": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_sin. Empty string if the field is not present on this form."
+            },
+            "applicant_net_employment_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_net_employment_income. Empty string if the field is not present on this form."
+            },
+            "applicant_employment_insurance": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_employment_insurance. Empty string if the field is not present on this form."
+            },
+            "applicant_spousal_support_alimony": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_spousal_support_alimony. Empty string if the field is not present on this form."
+            },
+            "applicant_child_support": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_child_support. Empty string if the field is not present on this form."
+            },
+            "applicant_workbc_financial_support": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_workbc_financial_support. Empty string if the field is not present on this form."
+            },
+            "applicant_student_funding_loans_bursaries": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_student_funding_loans_bursaries. Empty string if the field is not present on this form."
+            },
+            "applicant_rental_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_rental_income. Empty string if the field is not present on this form."
+            },
+            "applicant_room_board_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_room_board_income. Empty string if the field is not present on this form."
+            },
+            "applicant_workers_compensation": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_workers_compensation. Empty string if the field is not present on this form."
+            },
+            "applicant_private_pensions_retirement_disability": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_private_pensions_retirement_disability. Empty string if the field is not present on this form."
+            },
+            "applicant_oas_gis": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_oas_gis. Empty string if the field is not present on this form."
+            },
+            "applicant_trust_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_trust_income. Empty string if the field is not present on this form."
+            },
+            "applicant_canada_pension_plan_cpp": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_canada_pension_plan_cpp. Empty string if the field is not present on this form."
+            },
+            "applicant_tax_credits_gst_credit": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_tax_credits_gst_credit. Empty string if the field is not present on this form."
+            },
+            "applicant_child_tax_benefits": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_child_tax_benefits. Empty string if the field is not present on this form."
+            },
+            "applicant_income_tax_refund": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_income_tax_refund. Empty string if the field is not present on this form."
+            },
+            "applicant_other_income_money_received": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_other_income_money_received. Empty string if the field is not present on this form."
+            },
+            "applicant_income_of_dependent_children": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for applicant_income_of_dependent_children. Empty string if the field is not present on this form."
+            },
+            "spouse_net_employment_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_net_employment_income. Empty string if the field is not present on this form."
+            },
+            "spouse_employment_insurance": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_employment_insurance. Empty string if the field is not present on this form."
+            },
+            "spouse_spousal_support_alimony": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_spousal_support_alimony. Empty string if the field is not present on this form."
+            },
+            "spouse_child_support": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_child_support. Empty string if the field is not present on this form."
+            },
+            "spouse_workbc_financial_support": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_workbc_financial_support. Empty string if the field is not present on this form."
+            },
+            "spouse_student_funding_loans_bursaries": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_student_funding_loans_bursaries. Empty string if the field is not present on this form."
+            },
+            "spouse_rental_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_rental_income. Empty string if the field is not present on this form."
+            },
+            "spouse_room_board_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_room_board_income. Empty string if the field is not present on this form."
+            },
+            "spouse_workers_compensation": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_workers_compensation. Empty string if the field is not present on this form."
+            },
+            "spouse_private_pensions_retirement_disability": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_private_pensions_retirement_disability. Empty string if the field is not present on this form."
+            },
+            "spouse_oas_gis": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_oas_gis. Empty string if the field is not present on this form."
+            },
+            "spouse_trust_income": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_trust_income. Empty string if the field is not present on this form."
+            },
+            "spouse_canada_pension_plan_cpp": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_canada_pension_plan_cpp. Empty string if the field is not present on this form."
+            },
+            "spouse_tax_credits_gst_credit": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_tax_credits_gst_credit. Empty string if the field is not present on this form."
+            },
+            "spouse_child_tax_benefits": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_child_tax_benefits. Empty string if the field is not present on this form."
+            },
+            "spouse_income_tax_refund": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_income_tax_refund. Empty string if the field is not present on this form."
+            },
+            "spouse_other_income_money_received": {
+              "type": "string",
+              "description": "Verbatim quote from the form supporting the value chosen for spouse_other_income_money_received. Empty string if the field is not present on this form."
+            }
+          },
+          "required": [
+            "checkbox_need_assistance_yes",
+            "checkbox_need_assistance_no",
+            "checkbox_family_assets_yes",
+            "checkbox_family_assets_no",
+            "checkbox_shelter_yes",
+            "checkbox_shelter_no",
+            "checkbox_dependants_yes",
+            "checkbox_dependants_no",
+            "checkbox_employment_changes_yes",
+            "checkbox_employment_changes_no",
+            "checkbox_employment_changes_spouse_yes",
+            "checkbox_employment_changes_spouse_no",
+            "checkbox_school_yes",
+            "checkbox_school_no",
+            "checkbox_school_spouse_yes",
+            "checkbox_school_spouse_no",
+            "checkbox_work_yes",
+            "checkbox_work_no",
+            "checkbox_work_spouse_yes",
+            "checkbox_work_spouse_no",
+            "checkbox_moved_yes",
+            "checkbox_moved_no",
+            "checkbox_moved_spouse_yes",
+            "checkbox_moved_spouse_no",
+            "checkbox_warrant_yes",
+            "checkbox_warrant_no",
+            "checkbox_warrant_spouse_yes",
+            "checkbox_warrant_spouse_no",
+            "explain_changes",
+            "signature",
+            "spouse_signature",
+            "date",
+            "spouse_date",
+            "name",
+            "spouse_name",
+            "phone",
+            "spouse_phone",
+            "sin",
+            "spouse_sin",
+            "applicant_net_employment_income",
+            "applicant_employment_insurance",
+            "applicant_spousal_support_alimony",
+            "applicant_child_support",
+            "applicant_workbc_financial_support",
+            "applicant_student_funding_loans_bursaries",
+            "applicant_rental_income",
+            "applicant_room_board_income",
+            "applicant_workers_compensation",
+            "applicant_private_pensions_retirement_disability",
+            "applicant_oas_gis",
+            "applicant_trust_income",
+            "applicant_canada_pension_plan_cpp",
+            "applicant_tax_credits_gst_credit",
+            "applicant_child_tax_benefits",
+            "applicant_income_tax_refund",
+            "applicant_other_income_money_received",
+            "applicant_income_of_dependent_children",
+            "spouse_net_employment_income",
+            "spouse_employment_insurance",
+            "spouse_spousal_support_alimony",
+            "spouse_child_support",
+            "spouse_workbc_financial_support",
+            "spouse_student_funding_loans_bursaries",
+            "spouse_rental_income",
+            "spouse_room_board_income",
+            "spouse_workers_compensation",
+            "spouse_private_pensions_retirement_disability",
+            "spouse_oas_gis",
+            "spouse_trust_income",
+            "spouse_canada_pension_plan_cpp",
+            "spouse_tax_credits_gst_credit",
+            "spouse_child_tax_benefits",
+            "spouse_income_tax_refund",
+            "spouse_other_income_money_received"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "fields",
+        "source_quotes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "image": {
+    "mimeType": "image/jpeg",
+    "sizeBytes": 592042,
+    "base64Length": 789392
+  },
+  "ocrMarkdownChars": 4092
+}

@@ -1,0 +1,124 @@
+{
+    "checkbox_need_assistance_yes": "selected",
+    "checkbox_need_assistance_no": "unselected",
+    "checkbox_family_assets_yes": "unselected",
+    "checkbox_family_assets_no": "selected",
+    "checkbox_shelter_yes": "selected",
+    "checkbox_shelter_no": "unselected",
+    "checkbox_dependants_yes": "selected",
+    "checkbox_dependants_no": "unselected",
+    "checkbox_employment_changes_yes": "unselected",
+    "checkbox_employment_changes_no": "selected",
+    "checkbox_school_yes": "unselected",
+    "checkbox_school_no": "selected",
+    "checkbox_work_yes": "selected",
+    "checkbox_work_no": "unselected",
+    "checkbox_moved_yes": "unselected",
+    "checkbox_moved_no": "selected",
+    "checkbox_warrant_yes": "selected",
+    "checkbox_warrant_no": "unselected",
+    "explain_changes": [
+        "Effort situation writer finish future standard back expect process through idea. Business body term media wife environment. Performance final central material require better police skin determine yourself because Mr reason however specific although.",
+        "Effort situation writer finish future standard\nback expect process through idea. Business body\nterm media wife environment. Performance final\ncentral material require better police skin\ndetermine yourself because Mr reason however\nspecific although."
+    ],
+    "checkbox_employment_changes_spouse_yes": "unselected",
+    "checkbox_employment_changes_spouse_no": "selected",
+    "checkbox_school_spouse_yes": "unselected",
+    "checkbox_school_spouse_no": "selected",
+    "checkbox_work_spouse_yes": "selected",
+    "checkbox_work_spouse_no": "unselected",
+    "checkbox_moved_spouse_yes": "unselected",
+    "checkbox_moved_spouse_no": "selected",
+    "checkbox_warrant_spouse_yes": "unselected",
+    "checkbox_warrant_spouse_no": "selected",
+    "applicant_net_employment_income": [
+        "1277.85",
+        "$1,277.85"
+    ],
+    "applicant_employment_insurance": 9087.14,
+    "applicant_spousal_support_alimony": [
+        "3235.08",
+        "3, 235.08"
+    ],
+    "applicant_child_support": 606.79,
+    "applicant_workbc_financial_support": 2144.2,
+    "applicant_student_funding_loans_bursaries": 2549.68,
+    "applicant_rental_income": 6110,
+    "applicant_room_board_income": 3534.68,
+    "applicant_workers_compensation": [
+        "5210.48",
+        "5, 210.48"
+    ],
+    "applicant_private_pensions_retirement_disability": 8510.23,
+    "applicant_oas_gis": 6129.44,
+    "applicant_trust_income": 6988,
+    "applicant_canada_pension_plan_cpp": [
+        "3409",
+        "3, 409"
+    ],
+    "applicant_tax_credits_gst_credit": 9691.67,
+    "applicant_child_tax_benefits": 955.18,
+    "applicant_income_tax_refund": 4572.86,
+    "applicant_other_income_money_received": 5822.48,
+    "applicant_income_of_dependent_children": 1163,
+    "spouse_net_employment_income": 5447.15,
+    "spouse_employment_insurance": 6780.14,
+    "spouse_spousal_support_alimony": 8030,
+    "spouse_child_support": 4693.85,
+    "spouse_workbc_financial_support": [
+        "1548.05",
+        "$1548.05"
+    ],
+    "spouse_student_funding_loans_bursaries": 3613,
+    "spouse_rental_income": 530,
+    "spouse_room_board_income": 9333,
+    "spouse_workers_compensation": 9109,
+    "spouse_private_pensions_retirement_disability": 9170.99,
+    "spouse_oas_gis": 9496,
+    "spouse_trust_income": 2534,
+    "spouse_canada_pension_plan_cpp": 9271,
+    "spouse_tax_credits_gst_credit": [
+        "3487.15",
+        "3, 487. 15"
+    ],
+    "spouse_child_tax_benefits": [
+        "6780.97",
+        "$6780.97"
+    ],
+    "spouse_income_tax_refund": 9001.58,
+    "spouse_other_income_money_received": 6770.07,
+    "signature": "R. B.",
+    "date": [
+        "2009-01-14",
+        "2009-Jan-14"
+    ],
+    "name": "Richard Burnett",
+    "phone": [
+        "(467) 923-624",
+        "(467) 923 624"
+    ],
+    "sin": [
+        "209721664",
+        "209 721 664",
+        "209-721-664"
+    ],
+    "spouse_signature": [
+        "Kathryn M.",
+        "kathryn m."
+    ],
+    "spouse_date": [
+        "05-01-2003",
+        "05/01/2003",
+        "2003-01-05"
+    ],
+    "spouse_name": [
+        "Kathryn Macias",
+        "kathryn macias"
+    ],
+    "spouse_phone": "564642185",
+    "spouse_sin": [
+        "643016433",
+        "643 016 433",
+        "643-016-433"
+    ]
+}

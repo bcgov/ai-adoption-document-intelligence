@@ -6,6 +6,7 @@ import { DatabaseModule } from "@/database/database.module";
 import { DocumentModule } from "@/document/document.module";
 import { HitlModule } from "@/hitl/hitl.module";
 import { OcrModule } from "@/ocr/ocr.module";
+import { LocalDatasetSyncService } from "@/seed/local-dataset-sync.service";
 import { TemporalModule } from "@/temporal/temporal.module";
 import { WorkflowModule } from "@/workflow/workflow.module";
 import { AiRecommendationService } from "./ai-recommendation.service";
@@ -72,6 +73,7 @@ import { OcrImprovementPipelineService } from "./ocr-improvement-pipeline.servic
     AiRecommendationService,
     OcrImprovementPipelineService,
     BenchmarkErrorDetectionService,
+    LocalDatasetSyncService,
   ],
   exports: [
     DatasetService,
