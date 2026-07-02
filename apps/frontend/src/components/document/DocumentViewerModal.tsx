@@ -354,14 +354,14 @@ export function DocumentViewerModal({
                 value="viewer"
                 leftSection={<IconFileDownload size={16} />}
               >
-                Document Viewer
+                Document viewer
               </Tabs.Tab>
               {hasOcrData && (
                 <Tabs.Tab
                   value="ocr-results"
                   leftSection={<IconChecklist size={16} />}
                 >
-                  OCR Results
+                  OCR results
                 </Tabs.Tab>
               )}
               {(document?.status === "awaiting_review" ||
@@ -370,7 +370,7 @@ export function DocumentViewerModal({
                   value="review"
                   leftSection={<IconChecklist size={16} />}
                 >
-                  Review & Approve
+                  Review & approve
                 </Tabs.Tab>
               )}
               <Tabs.Tab
@@ -411,7 +411,7 @@ export function DocumentViewerModal({
                       ? ` on ${new Date(document.purged_at).toLocaleString()}`
                       : ""}
                     . The extracted data is retained
-                    {hasOcrData ? " — see the OCR Results tab." : "."}
+                    {hasOcrData ? " — see the OCR results tab." : "."}
                   </Alert>
                 </div>
               ) : null}
@@ -443,7 +443,7 @@ export function DocumentViewerModal({
                       <div>
                         {hasKeyValues && (
                           <Title order={5} mb="xs">
-                            Extracted Text
+                            Extracted text
                           </Title>
                         )}
                         <ExtractedTextView content={ocr.content} />
@@ -453,7 +453,7 @@ export function DocumentViewerModal({
                       <div>
                         {hasOcrText && (
                           <Title order={5} mb="xs">
-                            Key-Value Fields
+                            Key-Value fields
                           </Title>
                         )}
                         <ExtractedFieldsTable fields={ocr.keyValuePairs} />
@@ -524,7 +524,7 @@ export function DocumentViewerModal({
                 <Stack gap="md">
                   <div>
                     <Title order={4} mb="xs">
-                      File Information
+                      File information
                     </Title>
                     <Table
                       withTableBorder
@@ -534,26 +534,26 @@ export function DocumentViewerModal({
                       <Table.Tbody>
                         <Table.Tr>
                           <Table.Td fw={600} w="30%">
-                            Document Name
+                            Document name
                           </Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {document.title}
                           </Table.Td>
                         </Table.Tr>
                         <Table.Tr>
-                          <Table.Td fw={600}>Original Filename</Table.Td>
+                          <Table.Td fw={600}>Original filename</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {document.original_filename}
                           </Table.Td>
                         </Table.Tr>
                         <Table.Tr>
-                          <Table.Td fw={600}>Original File Type</Table.Td>
+                          <Table.Td fw={600}>Original file type</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {document.file_type}
                           </Table.Td>
                         </Table.Tr>
                         <Table.Tr>
-                          <Table.Td fw={600}>File Size</Table.Td>
+                          <Table.Td fw={600}>File size</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {formatFileSize(document.file_size)}
                           </Table.Td>
@@ -570,7 +570,7 @@ export function DocumentViewerModal({
 
                   <div>
                     <Title order={4} mb="xs">
-                      Processing Information
+                      Processing information
                     </Title>
                     <Table
                       withTableBorder
@@ -613,13 +613,13 @@ export function DocumentViewerModal({
                           </Table.Tr>
                         )}
                         <Table.Tr>
-                          <Table.Td fw={600}>Upload Date</Table.Td>
+                          <Table.Td fw={600}>Upload date</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {new Date(document.created_at).toLocaleString()}
                           </Table.Td>
                         </Table.Tr>
                         <Table.Tr>
-                          <Table.Td fw={600}>Last Updated</Table.Td>
+                          <Table.Td fw={600}>Last updated</Table.Td>
                           <Table.Td style={{ wordBreak: "break-word" }}>
                             {new Date(document.updated_at).toLocaleString()}
                           </Table.Td>

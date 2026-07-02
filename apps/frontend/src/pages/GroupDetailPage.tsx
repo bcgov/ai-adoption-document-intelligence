@@ -1,4 +1,3 @@
-import { IconTrash } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -16,6 +15,7 @@ import {
 import {
   Alert,
   Button,
+  ConfirmActionModal,
   Group,
   Menu,
   Modal,
@@ -33,7 +33,7 @@ import {
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
  * for users who belong to the group, group admins, or system admins.
- * Group admins and system admins also see the Membership Requests tab.
+ * Group admins and system admins also see the Membership requests tab.
  */
 export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
@@ -74,7 +74,7 @@ export function GroupDetailPage(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to leave group. Please try again.",
+          message: "Failed to leave group. please try again.",
           color: "red",
         });
         setLeaveGroupOpen(false);
@@ -98,7 +98,7 @@ export function GroupDetailPage(): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to delete group. Please try again.",
+          message: "Failed to delete group. please try again.",
           color: "red",
         });
         setDeleteGroupOpen(false);
@@ -134,7 +134,7 @@ export function GroupDetailPage(): JSX.Element {
         onSuccess: () => {
           setEditGroupOpen(false);
           notifications.show({
-            title: "Group Updated",
+            title: "Group updated",
             message: "The group has been updated successfully.",
             color: "green",
           });
@@ -165,7 +165,7 @@ export function GroupDetailPage(): JSX.Element {
       {
         onSuccess: () => {
           notifications.show({
-            title: "Request Submitted",
+            title: "Request submitted",
             message: "Your membership request has been submitted.",
             color: "green",
           });
@@ -173,7 +173,7 @@ export function GroupDetailPage(): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to submit membership request. Please try again.",
+            message: "Failed to submit membership request. please try again.",
             color: "red",
           });
         },
@@ -205,7 +205,7 @@ export function GroupDetailPage(): JSX.Element {
             onClick={handleOpenEditGroup}
             data-testid="edit-group-menu-item"
           >
-            Edit Group
+            Edit group
           </Menu.Item>
         )}
         {isMember && (
@@ -214,7 +214,7 @@ export function GroupDetailPage(): JSX.Element {
             onClick={() => setLeaveGroupOpen(true)}
             data-testid="leave-group-menu-item"
           >
-            Leave Group
+            Leave group
           </Menu.Item>
         )}
         {!isMember && !isSystemAdmin && (
@@ -223,7 +223,7 @@ export function GroupDetailPage(): JSX.Element {
             disabled={hasPendingRequest || requestMutation.isPending}
             data-testid="join-group-menu-item"
           >
-            {hasPendingRequest ? "Request Pending" : "Join"}
+            {hasPendingRequest ? "request pending" : "join"}
           </Menu.Item>
         )}
         {isSystemAdmin && (
@@ -234,7 +234,7 @@ export function GroupDetailPage(): JSX.Element {
               onClick={() => setDeleteGroupOpen(true)}
               data-testid="delete-group-menu-item"
             >
-              Delete Group
+              Delete group
             </Menu.Item>
           </>
         )}
@@ -263,7 +263,7 @@ export function GroupDetailPage(): JSX.Element {
             <Tabs.List>
               <Tabs.Tab value="members">Members</Tabs.Tab>
               {isAdmin && (
-                <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
+                <Tabs.Tab value="requests">Membership requests</Tabs.Tab>
               )}
             </Tabs.List>
 
@@ -282,7 +282,7 @@ export function GroupDetailPage(): JSX.Element {
       <Modal
         opened={editGroupOpen}
         onClose={() => setEditGroupOpen(false)}
-        title="Edit Group"
+        title="Edit group"
         data-testid="edit-group-modal"
       >
         <Stack gap="sm">
@@ -323,61 +323,31 @@ export function GroupDetailPage(): JSX.Element {
         </Stack>
       </Modal>
 
-      <Modal
+      <ConfirmActionModal
         opened={deleteGroupOpen}
         onClose={() => setDeleteGroupOpen(false)}
-        title="Delete Group"
+        onConfirm={handleDeleteConfirm}
+        title="Delete group"
+        message="Are you sure you want to delete this group? This action will disable the group and cannot be easily undone."
+        confirmLabel="Delete"
+        confirmLoading={deleteMutation.isPending}
         data-testid="delete-group-modal"
-      >
-        <Text>
-          Are you sure you want to delete this group? This action will disable
-          the group and cannot be easily undone.
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setDeleteGroupOpen(false)}
-            data-testid="delete-group-cancel-btn"
-          >
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            leftSection={<IconTrash size={16} />}
-            loading={deleteMutation.isPending}
-            onClick={handleDeleteConfirm}
-            data-testid="delete-group-confirm-btn"
-          >
-            Delete
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="delete-group-cancel-btn"
+        confirmButtonTestId="delete-group-confirm-btn"
+      />
 
-      <Modal
+      <ConfirmActionModal
         opened={leaveGroupOpen}
         onClose={() => setLeaveGroupOpen(false)}
-        title="Leave Group"
+        onConfirm={handleLeaveConfirm}
+        title="Leave group"
+        message="Are you sure you want to leave this group?"
+        confirmLabel="Leave"
+        confirmLoading={leaveMutation.isPending}
         data-testid="leave-group-modal"
-      >
-        <Text>Are you sure you want to leave this group?</Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setLeaveGroupOpen(false)}
-            data-testid="leave-group-cancel-btn"
-          >
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={leaveMutation.isPending}
-            onClick={handleLeaveConfirm}
-            data-testid="leave-group-confirm-btn"
-          >
-            Leave
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="leave-group-cancel-btn"
+        confirmButtonTestId="leave-group-confirm-btn"
+      />
     </Stack>
   );
 }

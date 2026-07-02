@@ -44,7 +44,7 @@ export function FlattenClassifiedDocumentsForm({
       </Text>
       <TextInput
         label="Filter labels (optional)"
-        description="Comma-separated list of classifier labels to include. Leave blank to include all labels."
+        description="Comma-separated list of classifier labels to include. leave blank to include all labels."
         placeholder="e.g. invoice, receipt"
         value={(filterLabels ?? []).join(", ")}
         onChange={(e) => handleFilterLabelsChange(e.currentTarget.value)}

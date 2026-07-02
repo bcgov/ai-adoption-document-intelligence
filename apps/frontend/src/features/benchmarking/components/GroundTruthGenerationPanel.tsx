@@ -44,7 +44,7 @@ const statusColors: Record<GroundTruthJobStatus, string> = {
 const statusLabels: Record<GroundTruthJobStatus, string> = {
   pending: "Pending",
   processing: "Processing",
-  awaiting_review: "Awaiting Review",
+  awaiting_review: "Awaiting review",
   completed: "Completed",
   failed: "Failed",
 };
@@ -168,7 +168,7 @@ export const GroundTruthGenerationPanel: FC<
     <Stack gap="md">
       <PanelCard>
         <Stack gap="sm">
-          <Text fw={600}>Generate Ground Truth</Text>
+          <Text fw={600}>Generate ground truth</Text>
           <Text size="sm" c="dimmed">
             Run samples without ground truth through an OCR workflow, then
             review the results to generate ground truth data.
@@ -191,7 +191,7 @@ export const GroundTruthGenerationPanel: FC<
               loading={isStarting}
               disabled={!selectedWorkflowVersionId}
             >
-              Start Generation
+              Start generation
             </Button>
           </Group>
 
@@ -200,10 +200,10 @@ export const GroundTruthGenerationPanel: FC<
               label={
                 <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
                   <Text size="sm" fw={500}>
-                    Workflow Config Overrides (JSON)
+                    Workflow config overrides (JSON)
                   </Text>
                   <Tooltip
-                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. keys are parameter paths from the workflow's exposed parameters."
                     multiline
                     w={300}
                   >

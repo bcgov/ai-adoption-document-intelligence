@@ -81,7 +81,7 @@ const ClassifierDetails = ({
           })}
         >
           <Group justify="space-between">
-            <h2>Classifier Details</h2>
+            <h2>Classifier details</h2>
             <Group gap="xs">
               {canDelete && (
                 <Button
@@ -112,7 +112,7 @@ const ClassifierDetails = ({
             <b>Name:</b> {classifierModel.name}
           </Text>
           <Text mt="md">
-            <b>Group Ownership:</b>{" "}
+            <b>Group ownership:</b>{" "}
             {classifierModel.group
               ? classifierModel.group.name
               : `ID: ${classifierModel.group_id}`}

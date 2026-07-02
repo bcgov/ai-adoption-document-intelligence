@@ -45,7 +45,7 @@ export function LookupSnippetPanel({
     <Modal opened={opened} onClose={onClose} title="Use in workflow" size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Paste this node into a graph workflow. Replace{" "}
+          Paste this node into a graph workflow. replace{" "}
           <code>{"<source ctx key>"}</code> with the upstream context key that
           already holds the right value, and{" "}
           <code>{"<destination ctx key>"}</code> with where you want the result
@@ -58,7 +58,7 @@ export function LookupSnippetPanel({
         <Code block>{text}</Code>
         <Group justify="flex-end">
           <Button onClick={handleCopy}>
-            {copied ? "Copied!" : "Copy to clipboard"}
+            {copied ? "copied!" : "copy to clipboard"}
           </Button>
         </Group>
       </Stack>

@@ -70,7 +70,7 @@ export const ModelListPage: FC = () => {
   return (
     <Stack gap="lg">
       <PageHeader
-        title="Template Models"
+        title="Template models"
         description="Create and manage template models for custom model training"
         actions={
           <Tooltip
@@ -83,7 +83,7 @@ export const ModelListPage: FC = () => {
                 disabled={!activeGroup}
                 onClick={() => setCreateModalOpened(true)}
               >
-                New Template Model
+                New template model
               </Button>
             </span>
           </Tooltip>
@@ -111,7 +111,7 @@ export const ModelListPage: FC = () => {
                     disabled={!activeGroup}
                     onClick={() => setCreateModalOpened(true)}
                   >
-                    Create Template Model
+                    Create template model
                   </Button>
                 </span>
               </Tooltip>
@@ -134,7 +134,7 @@ export const ModelListPage: FC = () => {
       <Modal
         opened={createModalOpened}
         onClose={() => setCreateModalOpened(false)}
-        title="Create Template Model"
+        title="Create template model"
       >
         <Stack gap="md">
           <TextInput
@@ -171,7 +171,7 @@ export const ModelListPage: FC = () => {
               loading={isCreating}
               disabled={!newModelName.trim()}
             >
-              Create Template Model
+              Create template model
             </Button>
           </Group>
         </Stack>

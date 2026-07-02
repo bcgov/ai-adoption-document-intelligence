@@ -171,14 +171,14 @@ export function TableDetailPage() {
                       );
                     }}
                   >
-                    Save Settings
+                    Save settings
                   </Button>
                   <Button
                     color="red"
                     leftSection={<IconTrash size={16} />}
                     onClick={() => setConfirmDelete(true)}
                   >
-                    Delete Table
+                    Delete table
                   </Button>
                 </Group>
               </Stack>
@@ -189,7 +189,7 @@ export function TableDetailPage() {
               >
                 <Stack>
                   <Text>
-                    This deletes the table and all its rows. Cannot be undone.
+                    This deletes the table and all its rows. cannot be undone.
                   </Text>
                   <TextInput
                     label='Type "delete" to confirm'

@@ -345,8 +345,8 @@ export function CreateDefinitionDialog({
       onClose={handleClose}
       title={
         mode === "edit"
-          ? "Edit Benchmark Definition"
-          : "Create Benchmark Definition"
+          ? "Edit benchmark definition"
+          : "Create benchmark definition"
       }
       size="lg"
     >
@@ -365,7 +365,7 @@ export function CreateDefinitionDialog({
         />
 
         <Select
-          label="Dataset Version"
+          label="Dataset version"
           placeholder="Select dataset version"
           data={versionOptions}
           value={datasetVersionId}
@@ -427,10 +427,10 @@ export function CreateDefinitionDialog({
               label={
                 <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
                   <Text size="sm" fw={500}>
-                    Workflow Config Overrides (JSON)
+                    Workflow config overrides (JSON)
                   </Text>
                   <Tooltip
-                    label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
+                    label="Override workflow parameters like OCR model, confidence threshold, etc. keys are parameter paths from the workflow's exposed parameters."
                     multiline
                     w={300}
                   >
@@ -460,7 +460,7 @@ export function CreateDefinitionDialog({
           label={
             <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
               <Text size="sm" fw={500}>
-                Evaluator Type
+                Evaluator type
               </Text>
               <Tooltip
                 label="Determines how workflow outputs are compared to ground truth. Schema-Aware compares structured JSON fields. Black-Box treats the evaluator as an opaque scoring function."
@@ -486,10 +486,10 @@ export function CreateDefinitionDialog({
             label={
               <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
                 <Text size="sm" fw={500}>
-                  Evaluator Config (JSON)
+                  Evaluator config (JSON)
                 </Text>
                 <Tooltip
-                  label="Optional JSON configuration passed to the evaluator. Keys depend on the evaluator type."
+                  label="Optional JSON configuration passed to the evaluator. keys depend on the evaluator type."
                   multiline
                   w={250}
                 >
@@ -521,11 +521,11 @@ export function CreateDefinitionDialog({
         </Stack>
 
         <Text size="sm" fw={500}>
-          Runtime Settings
+          Runtime settings
         </Text>
 
         <NumberInput
-          label="Max Parallel Documents"
+          label="Max parallel documents"
           value={maxParallelDocuments}
           onChange={(value) =>
             setMaxParallelDocuments(typeof value === "number" ? value : 10)
@@ -536,7 +536,7 @@ export function CreateDefinitionDialog({
         />
 
         <NumberInput
-          label="Per Document Timeout (ms)"
+          label="Per document timeout (ms)"
           value={perDocumentTimeout}
           onChange={(value) =>
             setPerDocumentTimeout(typeof value === "number" ? value : 300000)
@@ -559,7 +559,7 @@ export function CreateDefinitionDialog({
             loading={isCreating}
             data-testid="submit-definition-btn"
           >
-            {mode === "edit" ? "Save Changes" : "Create"}
+            {mode === "edit" ? "save changes" : "create"}
           </Button>
         </Group>
       </Stack>

@@ -55,7 +55,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
 
   return (
     <Group>
-      {/* 1) Invisible hit area for click detection across the whole polygon */}
+      {/* 1) invisible hit area for click detection across the whole polygon */}
       <Line
         points={points}
         closed={true}
@@ -70,7 +70,7 @@ const BoundingBoxShape: FC<BoundingBoxProps> = ({
         onMouseLeave={() => onMouseLeave?.(id)}
       />
 
-      {/* 2) Visible border only (doesn't capture events) */}
+      {/* 2) visible border only (doesn't capture events) */}
       <Line
         points={points}
         closed={true}

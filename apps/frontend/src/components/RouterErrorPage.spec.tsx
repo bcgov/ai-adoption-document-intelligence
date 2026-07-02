@@ -45,7 +45,7 @@ describe("RouterErrorPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("reports an Error instance to the backend", async () => {
+  it("reports an error instance to the backend", async () => {
     const error = new Error("Route crashed");
     mockUseRouteError.mockReturnValue(error);
 
@@ -63,19 +63,19 @@ describe("RouterErrorPage", () => {
   });
 
   it("reports a non-Error thrown value to the backend", async () => {
-    mockUseRouteError.mockReturnValue("404 Not Found");
+    mockUseRouteError.mockReturnValue("404 not found");
 
     renderPage();
 
     await waitFor(() => {
       expect(mockPost).toHaveBeenCalledWith(
         "client-errors",
-        expect.objectContaining({ message: "404 Not Found" }),
+        expect.objectContaining({ message: "404 not found" }),
       );
     });
   });
 
-  it("navigates to / when Go to home page is clicked", () => {
+  it("navigates to / when go to home page is clicked", () => {
     mockUseRouteError.mockReturnValue(new Error("Route crashed"));
 
     renderPage();

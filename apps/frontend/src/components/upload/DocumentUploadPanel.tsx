@@ -198,7 +198,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
             title: "Conversion failed",
             message:
               response.message ||
-              "Document could not be converted to PDF. You can remove it and try another file.",
+              "Document could not be converted to PDF. you can remove it and try another file.",
             color: "red",
           });
           queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -312,7 +312,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         </div>
         <Select
           mt="md"
-          label="Processing Model"
+          label="Processing model"
           placeholder="Select a model"
           data={models?.map((m) => ({ value: m, label: m })) || []}
           value={selectedModel}
@@ -323,7 +323,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         />
         <Select
           mt="md"
-          label="Workflow (Optional)"
+          label="Workflow (optional)"
           placeholder="Select a workflow"
           description="Choose a custom workflow configuration for processing"
           data={
@@ -417,7 +417,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
                 leftSection={<IconUpload size={16} />}
                 data-disabled={activeGroup === null || undefined}
               >
-                {isUploading ? "Uploading..." : "Upload"}
+                {isUploading ? "uploading..." : "upload"}
               </Button>
             </Tooltip>
           </Group>

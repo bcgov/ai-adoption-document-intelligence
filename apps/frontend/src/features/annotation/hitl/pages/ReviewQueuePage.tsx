@@ -132,27 +132,27 @@ export const ReviewQueuePage: FC = () => {
   return (
     <Stack gap="lg">
       <PageHeader
-        title="HITL Review Queue"
+        title="HITL review queue"
         description="Review and correct OCR results with low confidence scores"
       />
 
       {activeQueue.stats && (
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
           <StatCard
-            label="Total Documents"
+            label="Total documents"
             value={activeQueue.stats.totalDocuments}
           />
           <StatCard
-            label="Requires Review"
+            label="Requires review"
             value={activeQueue.stats.requiresReview}
             valueColor="orange"
           />
           <StatCard
-            label="Avg Confidence"
+            label="Avg confidence"
             value={`${Math.round(activeQueue.stats.averageConfidence * 100)}%`}
           />
           <StatCard
-            label="Reviewed Today"
+            label="Reviewed today"
             value={activeQueue.stats.reviewedToday}
             valueColor="green"
           />
@@ -163,7 +163,7 @@ export const ReviewQueuePage: FC = () => {
         <Tabs value={activeTab} onChange={setActiveTab}>
           <Tabs.List>
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-              Pending Review ({pendingQueue.total})
+              Pending review ({pendingQueue.total})
             </Tabs.Tab>
             <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
               Reviewed ({reviewedQueue.total})
@@ -195,7 +195,7 @@ export const ReviewQueuePage: FC = () => {
                     <DataTable.Th>Document</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>
                     <DataTable.Th>Model</DataTable.Th>
-                    <DataTable.Th>Avg Confidence</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
                     <DataTable.Th>Uploaded</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
@@ -218,7 +218,7 @@ export const ReviewQueuePage: FC = () => {
                         <DataTable.Td>
                           {inProgressSession ? (
                             <Badge variant="light" color="blue" size="sm">
-                              In Review
+                              In review
                             </Badge>
                           ) : (
                             <Badge variant="light" size="sm">
@@ -301,7 +301,7 @@ export const ReviewQueuePage: FC = () => {
                   <DataTable.Tr>
                     <DataTable.Th>Document</DataTable.Th>
                     <DataTable.Th>Reviewer</DataTable.Th>
-                    <DataTable.Th>Reviewed Date</DataTable.Th>
+                    <DataTable.Th>Reviewed date</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>
                     <DataTable.Th>Corrections</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>

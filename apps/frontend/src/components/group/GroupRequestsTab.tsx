@@ -84,7 +84,7 @@ export function GroupRequestsTab({
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to approve membership request. Please try again.",
+            message: "Failed to approve membership request. please try again.",
             color: "red",
           });
         },
@@ -108,7 +108,7 @@ export function GroupRequestsTab({
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to deny membership request. Please try again.",
+            message: "Failed to deny membership request. please try again.",
             color: "red",
           });
         },
@@ -132,7 +132,7 @@ export function GroupRequestsTab({
       <Modal
         opened={approveModalOpen}
         onClose={() => setApproveModalOpen(false)}
-        title="Approve Membership Request"
+        title="Approve membership request"
         data-testid="approve-modal"
       >
         <Stack gap="md">
@@ -170,7 +170,7 @@ export function GroupRequestsTab({
       <Modal
         opened={denyModalOpen}
         onClose={() => setDenyModalOpen(false)}
-        title="Deny Membership Request"
+        title="Deny membership request"
         data-testid="deny-modal"
       >
         <Stack gap="md">

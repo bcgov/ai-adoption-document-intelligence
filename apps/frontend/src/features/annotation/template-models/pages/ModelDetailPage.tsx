@@ -27,6 +27,7 @@ import {
   Button,
   Center,
   Code,
+  ConfirmActionModal,
   CopyButton,
   DataTable,
   Divider,
@@ -128,7 +129,7 @@ export const ModelDetailPage: FC = () => {
   if (!routeModelId) {
     return (
       <Center h="70vh">
-        <Text c="red">Template Model ID is required</Text>
+        <Text c="red">Template model ID is required</Text>
       </Center>
     );
   }
@@ -157,6 +158,12 @@ export const ModelDetailPage: FC = () => {
   } = useFieldSchema(routeModelId);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false);
+  const [pendingRemoveDocument, setPendingRemoveDocument] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [pendingDeleteField, setPendingDeleteField] =
+    useState<FieldDefinition | null>(null);
   const [editingField, setEditingField] = useState<FieldDefinition | null>(
     null,
   );
@@ -225,6 +232,18 @@ export const ModelDetailPage: FC = () => {
     addFiles(acceptedFiles);
   };
 
+  const handleConfirmRemoveDocument = () => {
+    if (!pendingRemoveDocument) return;
+    removeDocument(pendingRemoveDocument.id);
+    setPendingRemoveDocument(null);
+  };
+
+  const handleConfirmDeleteField = () => {
+    if (!pendingDeleteField) return;
+    deleteField(pendingDeleteField.id);
+    setPendingDeleteField(null);
+  };
+
   const handleReject = (rejections: FileRejection[]) => {
     rejections.forEach((rej) => {
       notifications.show({
@@ -278,7 +297,7 @@ export const ModelDetailPage: FC = () => {
           title: "Conversion failed",
           message:
             data.message ||
-            "Document could not be converted to PDF. The file was saved but OCR will not run.",
+            "Document could not be converted to PDF. the file was saved but OCR will not run.",
           color: "orange",
         });
         return {
@@ -396,7 +415,7 @@ export const ModelDetailPage: FC = () => {
       notifications.show({
         title: "Import failed",
         message:
-          "Could not parse file. Expected JSON with { fields: [...] } format.",
+          "Could not parse file. expected JSON with { fields: [...] } format.",
         color: "red",
       });
     } finally {
@@ -426,7 +445,7 @@ export const ModelDetailPage: FC = () => {
       setSuggestionsOpen(true);
     } catch (err) {
       notifications.show({
-        title: "Suggest Formats failed",
+        title: "Suggest formats failed",
         message:
           err instanceof Error ? err.message : "An unexpected error occurred.",
         color: "red",
@@ -497,7 +516,7 @@ export const ModelDetailPage: FC = () => {
         >
           <Group gap="sm" align="center" wrap="wrap">
             <Title order={2} mt={0} mb={0}>
-              {templateModel?.name || "Template Model"}
+              {templateModel?.name || "Template model"}
             </Title>
             <Badge
               variant="light"
@@ -556,7 +575,7 @@ export const ModelDetailPage: FC = () => {
       <Tabs defaultValue="documents">
         <Tabs.List>
           <Tabs.Tab value="documents">Documents</Tabs.Tab>
-          <Tabs.Tab value="schema">Field Schema</Tabs.Tab>
+          <Tabs.Tab value="schema">Field schema</Tabs.Tab>
           <Tabs.Tab value="export">Export</Tabs.Tab>
           <Tabs.Tab value="training">Training</Tabs.Tab>
           <Tabs.Tab value="versions">Versions</Tabs.Tab>
@@ -619,7 +638,7 @@ export const ModelDetailPage: FC = () => {
                               : doc.labeling_document.status === "ongoing_ocr"
                                 ? "Processing OCR"
                                 : doc.labeling_document.status === "extracted"
-                                  ? "OCR Complete"
+                                  ? "OCR complete"
                                   : doc.labeling_document.status === "failed"
                                     ? "Failed"
                                     : doc.labeling_document.status}
@@ -651,7 +670,10 @@ export const ModelDetailPage: FC = () => {
                               color="red"
                               leftSection={<IconTrash size={14} />}
                               onClick={() =>
-                                removeDocument(doc.labeling_document_id)
+                                setPendingRemoveDocument({
+                                  id: doc.labeling_document_id,
+                                  name: doc.labeling_document.original_filename,
+                                })
                               }
                               loading={isRemoving}
                             >
@@ -689,7 +711,7 @@ export const ModelDetailPage: FC = () => {
                   onClick={() => handleSuggestFormats()}
                   loading={isSuggesting}
                 >
-                  Suggest Formats
+                  Suggest formats
                 </Button>
                 <Button
                   variant="light"
@@ -726,7 +748,7 @@ export const ModelDetailPage: FC = () => {
                     <DataTable.Th>Key</DataTable.Th>
                     <DataTable.Th>Type</DataTable.Th>
                     <DataTable.Th>Format</DataTable.Th>
-                    <DataTable.Th>Format Spec</DataTable.Th>
+                    <DataTable.Th>Format spec</DataTable.Th>
                     <DataTable.Th>Order</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
@@ -767,7 +789,7 @@ export const ModelDetailPage: FC = () => {
                             <ActionIcon
                               variant="subtle"
                               color="red"
-                              onClick={() => deleteField(field.id)}
+                              onClick={() => setPendingDeleteField(field)}
                               aria-label={`Delete field ${field.fieldKey}`}
                             >
                               <IconTrash size={16} />
@@ -882,7 +904,7 @@ export const ModelDetailPage: FC = () => {
                 loading={isUploading}
                 leftSection={<IconUpload size={16} />}
               >
-                {isUploading ? "Uploading..." : "Upload"}
+                {isUploading ? "uploading..." : "upload"}
               </Button>
             </Group>
           </Group>
@@ -964,10 +986,29 @@ export const ModelDetailPage: FC = () => {
         </Stack>
       </Modal>
 
+      <ConfirmActionModal
+        opened={pendingRemoveDocument !== null}
+        onClose={() => setPendingRemoveDocument(null)}
+        onConfirm={handleConfirmRemoveDocument}
+        title="Remove document"
+        message={`Are you sure you want to remove${pendingRemoveDocument ? ` ${pendingRemoveDocument.name}` : " this document"}?`}
+        confirmLabel="Remove"
+        confirmLoading={isRemoving}
+      />
+
+      <ConfirmActionModal
+        opened={pendingDeleteField !== null}
+        onClose={() => setPendingDeleteField(null)}
+        onConfirm={handleConfirmDeleteField}
+        title="Delete field"
+        message={`Are you sure you want to delete${pendingDeleteField ? ` ${pendingDeleteField.fieldKey}` : " this field"}?`}
+        confirmLabel="Delete"
+      />
+
       <Modal
         opened={suggestionsOpen}
         onClose={() => setSuggestionsOpen(false)}
-        title="Format Suggestions"
+        title="Format suggestions"
         size="lg"
       >
         {(() => {

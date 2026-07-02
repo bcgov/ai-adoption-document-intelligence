@@ -86,14 +86,14 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
     <Stack>
       <Paper shadow="xs" radius="md" p="md" withBorder>
         <Group justify="space-between" align="center" mb="xs">
-          <h2>Classification Label Training Groups</h2>
+          <h2>Classification label training groups</h2>
           <Group gap={4}>
             <Button
               variant="outline"
               size="xs"
               onClick={() => setUploadModal({ open: true, label: "" })}
             >
-              Add Label Group
+              Add label group
             </Button>
             {classifierModel && (
               <Tooltip label={trainTooltip} disabled={!trainDisabled} withArrow>
@@ -127,7 +127,7 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
           <Notification
             icon={<IconInfoCircle size={18} />}
             color="blue"
-            title="Training Started"
+            title="Training started"
             onClose={() => setShowTrainingNotice(false)}
             mt="sm"
           >
@@ -141,8 +141,8 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
         )}
         <Text size="sm" c="dimmed" mb="md">
           {files.length === 0
-            ? "No files uploaded yet. Use the 'Add Label Group' button to create a new group and upload files."
-            : "Each label represents a group of files used for training. You can add files to an existing label or delete an entire label group."}
+            ? "No files uploaded yet. use the 'add label group' button to create a new group and upload files."
+            : "Each label represents a group of files used for training. you can add files to an existing label or delete an entire label group."}
         </Text>
         <Text size="sm" c="dimmed" mb="md">
           An <strong>other</strong> label is automatically included during

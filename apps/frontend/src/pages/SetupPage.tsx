@@ -62,8 +62,8 @@ export function SetupPage(): JSX.Element {
       <Center mih="100vh" pt="xl">
         <Stack gap="lg" w="100%" maw={500} px="md">
           <PageHeader
-            title="System Setup"
-            description="This application has not been set up yet. As the designated administrator, you can initialize the system below."
+            title="System setup"
+            description="This application has not been set up yet. as the designated administrator, you can initialize the system below."
             showDateBadge={false}
           />
 
@@ -77,7 +77,7 @@ export function SetupPage(): JSX.Element {
                   color="red"
                   data-testid="bootstrap-error"
                 >
-                  Failed to check setup status. Please refresh the page.
+                  Failed to check setup status. please refresh the page.
                 </Alert>
               )}
 
@@ -87,7 +87,7 @@ export function SetupPage(): JSX.Element {
                   color="green"
                   data-testid="bootstrap-success"
                 >
-                  System setup complete! Redirecting...
+                  System setup complete! redirecting...
                 </Alert>
               )}
 
@@ -98,7 +98,7 @@ export function SetupPage(): JSX.Element {
                   data-testid="bootstrap-mutation-error"
                 >
                   {bootstrapMutation.error?.message ??
-                    "Setup failed. Please try again."}
+                    "Setup failed. please try again."}
                 </Alert>
               )}
 

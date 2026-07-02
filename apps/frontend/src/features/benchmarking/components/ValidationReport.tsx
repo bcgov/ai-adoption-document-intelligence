@@ -24,12 +24,12 @@ export function ValidationReport({ validation }: ValidationReportProps) {
 
   return (
     <Stack gap="md">
-      {/* Overall Status */}
+      {/* Overall status */}
       <Card padding="lg" withBorder data-testid="validation-status-card">
         <Group justify="space-between">
           <div>
             <Title order={4} data-testid="validation-result-title">
-              Validation Result
+              Validation result
             </Title>
             {validation.sampled && (
               <Text size="sm" c="dimmed" data-testid="validation-sample-info">
@@ -46,15 +46,15 @@ export function ValidationReport({ validation }: ValidationReportProps) {
             }
             data-testid="validation-status-badge"
           >
-            {validation.valid ? "Valid" : "Invalid"}
+            {validation.valid ? "Valid" : "invalid"}
           </Badge>
         </Group>
       </Card>
 
-      {/* Issue Summary */}
+      {/* Issue summary */}
       <Card padding="lg" withBorder data-testid="validation-issue-summary-card">
         <Title order={5} mb="md" data-testid="issue-summary-title">
-          Issue Summary
+          Issue summary
         </Title>
         <DataTable striped highlightOnHover data-testid="issue-summary-table">
           <DataTable.Thead>
@@ -65,7 +65,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
           </DataTable.Thead>
           <DataTable.Tbody>
             <DataTable.Tr data-testid="schema-violations-row">
-              <DataTable.Td>Schema Violations</DataTable.Td>
+              <DataTable.Td>Schema violations</DataTable.Td>
               <DataTable.Td>
                 <Badge
                   color={
@@ -78,7 +78,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
               </DataTable.Td>
             </DataTable.Tr>
             <DataTable.Tr data-testid="missing-ground-truth-row">
-              <DataTable.Td>Missing Ground Truth</DataTable.Td>
+              <DataTable.Td>Missing ground truth</DataTable.Td>
               <DataTable.Td>
                 <Badge
                   color={
@@ -106,7 +106,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
               </DataTable.Td>
             </DataTable.Tr>
             <DataTable.Tr data-testid="corruption-row">
-              <DataTable.Td>File Corruption</DataTable.Td>
+              <DataTable.Td>File corruption</DataTable.Td>
               <DataTable.Td>
                 <Badge
                   color={validation.issueCount.corruption > 0 ? "red" : "gray"}
@@ -118,7 +118,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
             </DataTable.Tr>
             <DataTable.Tr data-testid="total-issues-row">
               <DataTable.Td>
-                <strong>Total Issues</strong>
+                <strong>Total issues</strong>
               </DataTable.Td>
               <DataTable.Td>
                 <Badge
@@ -133,7 +133,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
         </DataTable>
       </Card>
 
-      {/* Detailed Issues */}
+      {/* Detailed issues */}
       {validation.issues.length > 0 && (
         <Card
           padding="lg"
@@ -141,7 +141,7 @@ export function ValidationReport({ validation }: ValidationReportProps) {
           data-testid="validation-detailed-issues-card"
         >
           <Title order={5} mb="md" data-testid="detailed-issues-title">
-            Detailed Issues
+            Detailed issues
           </Title>
           <Stack gap="sm" data-testid="issues-list">
             {validation.issues.map((issue, index) => (
@@ -224,9 +224,9 @@ function formatCategory(
 ): string {
   switch (category) {
     case "schema_violation":
-      return "Schema Violation";
+      return "Schema violation";
     case "missing_ground_truth":
-      return "Missing Ground Truth";
+      return "Missing ground truth";
     case "duplicate":
       return "Duplicate";
     case "corruption":

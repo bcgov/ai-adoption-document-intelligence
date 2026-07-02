@@ -61,7 +61,7 @@ export function LookupForm({
     }
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
       setNameError(
-        "Letters, digits, underscore. Must start with a letter or underscore.",
+        "Letters, digits, underscore. must start with a letter or underscore.",
       );
       return;
     }
@@ -81,7 +81,7 @@ export function LookupForm({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={initial ? "Edit Lookup" : "Add Lookup"}
+      title={initial ? "Edit lookup" : "Add lookup"}
       size="lg"
     >
       <Stack>

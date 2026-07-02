@@ -165,7 +165,7 @@ export function buildTypographyStyle(
   if (ff) {
     merged.fontFamily =
       ff === "monospace"
-        ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+        ? "ui-monospace, SFMono-Regular, menlo, monaco, consolas, monospace"
         : ff;
   }
   if (fw != null) {

@@ -97,20 +97,20 @@ export function DocumentValidation({
         <div>
           <Group justify="space-between" align="flex-start">
             <div>
-              <Title order={4}>Document Validation Required</Title>
+              <Title order={4}>Document validation required</Title>
               <Text size="sm" c="dimmed" mt={4}>
                 This document has low OCR confidence and requires human review
               </Text>
             </div>
             <Badge color={confidenceColor} size="lg" variant="light">
-              {confidencePercentage}% Confidence
+              {confidencePercentage}% confidence
             </Badge>
           </Group>
         </div>
 
         <Alert
           icon={<IconAlertTriangle size={16} />}
-          title="Review Required"
+          title="Review required"
           color="orange"
           variant="light"
         >
@@ -120,7 +120,7 @@ export function DocumentValidation({
 
         <div>
           <Text size="sm" fw={600} mb="xs">
-            Extracted Text Preview:
+            Extracted text preview:
           </Text>
           <Paper
             p="sm"
@@ -145,7 +145,7 @@ export function DocumentValidation({
         {keyValuePairsArray.length > 0 && (
           <div>
             <Text size="sm" fw={600} mb="xs">
-              Key-Value Pairs ({keyValuePairsArray.length}):
+              Key-Value pairs ({keyValuePairsArray.length}):
             </Text>
             <Paper
               p="sm"
@@ -189,7 +189,7 @@ export function DocumentValidation({
 
         <div>
           <Text size="sm" fw={600} mb="xs">
-            Review Comments (Optional):
+            Review comments (optional):
           </Text>
           <Textarea
             placeholder="Add any comments about the OCR results..."
@@ -202,7 +202,7 @@ export function DocumentValidation({
 
         <div>
           <Text size="sm" fw={600} mb="xs">
-            Rejection Reason{" "}
+            Rejection reason{" "}
             <Text span c="red">
               *
             </Text>{" "}
@@ -213,23 +213,23 @@ export function DocumentValidation({
             data={[
               {
                 value: RejectionReason.INPUT_QUALITY,
-                label: "❌ Input Quality (scan unreadable, cutoff, skew)",
+                label: "❌ Input quality (scan unreadable, cutoff, skew)",
               },
               {
                 value: RejectionReason.OCR_FAILURE,
-                label: "❌ OCR Failure (missing fields, hallucinations)",
+                label: "❌ OCR failure (missing fields, hallucinations)",
               },
               {
                 value: RejectionReason.MODEL_MISMATCH,
-                label: "❌ Model Mismatch (wrong document type/template)",
+                label: "❌ Model mismatch (wrong document type/template)",
               },
               {
                 value: RejectionReason.CONFIDENCE_TOO_LOW,
-                label: "❌ Confidence Too Low (too low to trust)",
+                label: "❌ Confidence too low (too low to trust)",
               },
               {
                 value: RejectionReason.SYSTEMIC_ERROR,
-                label: "❌ Systemic Error (pipeline bug)",
+                label: "❌ Systemic error (pipeline bug)",
               },
             ]}
             value={rejectionReason || null}
@@ -245,10 +245,10 @@ export function DocumentValidation({
 
         <div>
           <Text size="sm" fw={600} mb="xs">
-            Annotations (Optional):
+            Annotations (optional):
           </Text>
           <Textarea
-            placeholder="What failed, where, why? (e.g., 'Field X is missing on page 2', 'OCR hallucinated text in section Y')"
+            placeholder="What failed, where, why? (e.g., 'field X is missing on page 2', 'OCR hallucinated text in section Y')"
             value={annotations}
             onChange={(e) => setAnnotations(e.currentTarget.value)}
             minRows={3}

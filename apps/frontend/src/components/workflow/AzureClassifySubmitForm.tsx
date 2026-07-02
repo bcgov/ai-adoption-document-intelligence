@@ -45,7 +45,7 @@ export function AzureClassifySubmitForm({
   return (
     <Stack gap="sm">
       <Text size="sm" fw={600}>
-        Azure Classifier parameters
+        Azure classifier parameters
       </Text>
       {!activeGroup && (
         <Alert
@@ -62,7 +62,7 @@ export function AzureClassifySubmitForm({
           title="Failed to load classifiers"
           data-testid="classifier-fetch-error-alert"
         >
-          Could not fetch classifiers. Please try again.
+          Could not fetch classifiers. please try again.
         </Alert>
       )}
       <Select

@@ -313,10 +313,10 @@ export function WorkflowEditPage({
   if (error || !workflow) {
     return (
       <Stack gap="lg">
-        <Title order={2}>Edit Workflow</Title>
+        <Title order={2}>Edit workflow</Title>
         <Paper shadow="sm" radius="md" p="lg" withBorder>
           <Text c="red">
-            {error instanceof Error ? error.message : "Workflow not found"}
+            {error instanceof Error ? error.message : "workflow not found"}
           </Text>
           {onBack && (
             <Button
@@ -324,7 +324,7 @@ export function WorkflowEditPage({
               onClick={onBack}
               mt="md"
             >
-              Back to Workflows
+              Back to workflows
             </Button>
           )}
         </Paper>
@@ -336,7 +336,7 @@ export function WorkflowEditPage({
     <Stack gap="lg">
       <Group justify="space-between">
         <Stack gap={4}>
-          <Title order={2}>Edit Workflow</Title>
+          <Title order={2}>Edit workflow</Title>
           <Group gap="xs">
             <Text c="dimmed" size="sm">
               Slug:
@@ -352,7 +352,7 @@ export function WorkflowEditPage({
             Version {workflow.version}
           </Badge>
           <Badge variant="outline" size="lg">
-            Workflow Builder
+            Workflow builder
           </Badge>
         </Group>
       </Group>
@@ -364,8 +364,8 @@ export function WorkflowEditPage({
               <Stack gap="md">
                 <Title order={3}>Description</Title>
                 <TextInput
-                  label="Workflow Name"
-                  placeholder="e.g., High-Confidence OCR Workflow"
+                  label="Workflow name"
+                  placeholder="e.g., High-Confidence OCR workflow"
                   value={workflowName}
                   onChange={(e) => setWorkflowName(e.target.value)}
                   required
@@ -381,15 +381,15 @@ export function WorkflowEditPage({
 
             <Paper shadow="sm" radius="md" p="lg" withBorder>
               <Stack gap="md">
-                <Title order={3}>Workflow Steps</Title>
+                <Title order={3}>Workflow steps</Title>
                 <Text c="dimmed" size="sm">
                   Enable or disable steps and configure their parameters
                 </Text>
 
                 <Stack gap="md">
-                  {/* Update Status */}
+                  {/* Update status */}
                   <Switch
-                    label="Update Status"
+                    label="Update status"
                     description="Update document status in database"
                     checked={config.steps.updateStatus?.enabled ?? true}
                     onChange={(e) =>
@@ -397,9 +397,9 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Prepare File Data */}
+                  {/* Prepare file data */}
                   <Switch
-                    label="Prepare File Data"
+                    label="Prepare file data"
                     description="Validate and prepare file data for OCR"
                     checked={config.steps.prepareFileData?.enabled ?? true}
                     onChange={(e) =>
@@ -410,10 +410,10 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Submit to Azure OCR */}
+                  {/* Submit to azure OCR */}
                   <Switch
-                    label="Submit to Azure OCR"
-                    description="Submit document to Azure Document Intelligence"
+                    label="Submit to azure OCR"
+                    description="Submit document to azure document intelligence"
                     checked={config.steps.submitToAzureOCR?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
@@ -423,10 +423,10 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Update APIM Request ID */}
+                  {/* Update APIM request ID */}
                   <Switch
-                    label="Update APIM Request ID"
-                    description="Store Azure API request ID"
+                    label="Update APIM request ID"
+                    description="Store azure API request ID"
                     checked={config.steps.updateApimRequestId?.enabled ?? true}
                     onChange={(e) =>
                       handleStepToggle(
@@ -436,11 +436,11 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Wait Before Poll */}
+                  {/* Wait before poll */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Wait Before Poll"
+                        label="Wait before poll"
                         description="Wait before starting to poll for OCR results"
                         checked={config.steps.waitBeforePoll?.enabled ?? true}
                         onChange={(e) =>
@@ -452,7 +452,7 @@ export function WorkflowEditPage({
                       />
                       {config.steps.waitBeforePoll?.enabled && (
                         <NumberInput
-                          label="Wait Time (ms)"
+                          label="Wait time (ms)"
                           value={waitBeforePollTime}
                           onChange={(value) =>
                             updateStepParameter(
@@ -469,12 +469,12 @@ export function WorkflowEditPage({
                     </Stack>
                   </Paper>
 
-                  {/* Poll OCR Results */}
+                  {/* Poll OCR results */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Poll OCR Results"
-                        description="Poll Azure API for OCR completion status"
+                        label="Poll OCR results"
+                        description="Poll azure API for OCR completion status"
                         checked={config.steps.pollOCRResults?.enabled ?? true}
                         onChange={(e) =>
                           handleStepToggle(
@@ -486,7 +486,7 @@ export function WorkflowEditPage({
                       {config.steps.pollOCRResults?.enabled && (
                         <Stack gap="xs">
                           <NumberInput
-                            label="Max Retries"
+                            label="Max retries"
                             value={pollMaxRetries}
                             onChange={(value) =>
                               updateStepParameter(
@@ -500,7 +500,7 @@ export function WorkflowEditPage({
                             description="Maximum number of polling attempts"
                           />
                           <NumberInput
-                            label="Wait Before First Poll (ms)"
+                            label="Wait before first poll (ms)"
                             value={pollWaitBeforeFirst}
                             onChange={(value) =>
                               updateStepParameter(
@@ -514,7 +514,7 @@ export function WorkflowEditPage({
                             description="Time to wait before first poll attempt"
                           />
                           <NumberInput
-                            label="Wait Between Polls (ms)"
+                            label="Wait between polls (ms)"
                             value={pollWaitBetween}
                             onChange={(value) =>
                               updateStepParameter(
@@ -532,9 +532,9 @@ export function WorkflowEditPage({
                     </Stack>
                   </Paper>
 
-                  {/* Extract OCR Results */}
+                  {/* Extract OCR results */}
                   <Switch
-                    label="Extract OCR Results"
+                    label="Extract OCR results"
                     description="Extract structured data from OCR response"
                     checked={config.steps.extractOCRResults?.enabled ?? true}
                     onChange={(e) =>
@@ -545,9 +545,9 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Post-OCR Cleanup */}
+                  {/* Post-OCR cleanup */}
                   <Switch
-                    label="Post-OCR Cleanup"
+                    label="Post-OCR cleanup"
                     description="Clean up OCR text (unicode fixes, dehyphenation, etc.)"
                     checked={config.steps.postOcrCleanup?.enabled ?? true}
                     onChange={(e) =>
@@ -558,12 +558,12 @@ export function WorkflowEditPage({
                     }
                   />
 
-                  {/* Enrich Results */}
+                  {/* Enrich results */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Enrich Results"
-                        description="Apply rules and optional LLM enrichment using a document type (Template Model)"
+                        label="Enrich results"
+                        description="Apply rules and optional LLM enrichment using a document type (template model)"
                         checked={config.steps.enrichResults?.enabled ?? false}
                         onChange={(e) =>
                           handleStepToggle(
@@ -608,7 +608,7 @@ export function WorkflowEditPage({
                           />
                           <Switch
                             label="Enable LLM enrichment"
-                            description="Send low-confidence fields to Azure OpenAI for correction"
+                            description="Send low-confidence fields to azure OpenAI for correction"
                             checked={enrichmentEnableLlm}
                             onChange={(e) =>
                               updateStepParameter(
@@ -623,11 +623,11 @@ export function WorkflowEditPage({
                     </Stack>
                   </Paper>
 
-                  {/* Check OCR Confidence */}
+                  {/* Check OCR confidence */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Check OCR Confidence"
+                        label="Check OCR confidence"
                         description="Validate OCR confidence threshold"
                         checked={
                           config.steps.checkOcrConfidence?.enabled ?? true
@@ -641,7 +641,7 @@ export function WorkflowEditPage({
                       />
                       {config.steps.checkOcrConfidence?.enabled && (
                         <NumberInput
-                          label="Confidence Threshold"
+                          label="Confidence threshold"
                           value={confidenceThreshold}
                           onChange={(value) =>
                             updateStepParameter(
@@ -653,17 +653,17 @@ export function WorkflowEditPage({
                           min={0}
                           max={1}
                           step={0.05}
-                          description="Minimum confidence score (0-1). Documents below this will require human review."
+                          description="Minimum confidence score (0-1). documents below this will require human review."
                         />
                       )}
                     </Stack>
                   </Paper>
 
-                  {/* Human Review */}
+                  {/* Human review */}
                   <Paper p="md" withBorder>
                     <Stack gap="xs">
                       <Switch
-                        label="Human Review"
+                        label="Human review"
                         description="Require human approval for low-confidence results"
                         checked={config.steps.humanReview?.enabled ?? true}
                         onChange={(e) =>
@@ -675,7 +675,7 @@ export function WorkflowEditPage({
                       />
                       {config.steps.humanReview?.enabled && (
                         <NumberInput
-                          label="Review Timeout (days)"
+                          label="Review timeout (days)"
                           value={humanReviewTimeoutDays}
                           onChange={(value) => {
                             const days = Number(value) || 0;
@@ -688,15 +688,15 @@ export function WorkflowEditPage({
                           }}
                           min={0}
                           step={1}
-                          description="Maximum time to wait for human review (days). Default: 1 day"
+                          description="Maximum time to wait for human review (days). default: 1 day"
                         />
                       )}
                     </Stack>
                   </Paper>
 
-                  {/* Store Results */}
+                  {/* Store results */}
                   <Switch
-                    label="Store Results"
+                    label="Store results"
                     description="Save OCR results to database"
                     checked={config.steps.storeResults?.enabled ?? true}
                     onChange={(e) =>
@@ -714,7 +714,7 @@ export function WorkflowEditPage({
                   leftSection={<IconArrowLeft size={16} />}
                   onClick={onBack}
                 >
-                  Back to Workflows
+                  Back to workflows
                 </Button>
               )}
               <Button
@@ -723,7 +723,7 @@ export function WorkflowEditPage({
                 size="lg"
                 loading={updateWorkflowMutation.isPending}
               >
-                Save Changes
+                Save changes
               </Button>
             </Group>
           </Stack>

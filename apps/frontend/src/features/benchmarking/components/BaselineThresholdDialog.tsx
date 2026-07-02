@@ -130,7 +130,7 @@ export function BaselineThresholdDialog({
       opened={opened}
       onClose={onClose}
       title={
-        isEditing ? "Edit Baseline Thresholds" : "Configure Baseline Thresholds"
+        isEditing ? "Edit baseline thresholds" : "Configure baseline thresholds"
       }
       size="lg"
       data-testid="baseline-threshold-dialog"
@@ -154,8 +154,8 @@ export function BaselineThresholdDialog({
 
         <Text size="sm" c="dimmed">
           {isEditing
-            ? "Update threshold limits for each metric. Future runs will be compared against these thresholds to detect regressions."
-            : "Set threshold limits for each metric. Future runs will be compared against these thresholds to detect regressions."}
+            ? "Update threshold limits for each metric. future runs will be compared against these thresholds to detect regressions."
+            : "Set threshold limits for each metric. future runs will be compared against these thresholds to detect regressions."}
         </Text>
 
         <Stack gap="sm">
@@ -240,7 +240,7 @@ export function BaselineThresholdDialog({
             loading={isPromoting}
             data-testid="submit-threshold-btn"
           >
-            {isEditing ? "Update Thresholds" : "Promote to Baseline"}
+            {isEditing ? "update thresholds" : "promote to baseline"}
           </Button>
         </div>
       </Stack>

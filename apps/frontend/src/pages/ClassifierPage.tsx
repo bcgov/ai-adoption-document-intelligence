@@ -73,7 +73,7 @@ const ClassifierPage = () => {
         </PanelCard>
         {!selectedModel && (
           <Text c="dimmed" size="sm">
-            No model selected. Please select a model or create a new model.
+            No model selected. please select a model or create a new model.
           </Text>
         )}
       </>

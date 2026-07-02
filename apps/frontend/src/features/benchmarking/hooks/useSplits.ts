@@ -47,7 +47,7 @@ export function useSplits(
     queryKey: ["datasets", datasetId, "versions", versionId, "splits"],
     queryFn: async () => {
       if (!datasetId || !versionId) {
-        throw new Error("Dataset ID and Version ID are required");
+        throw new Error("Dataset ID and version ID are required");
       }
       const response = await apiService.get<{ splits: Split[] }>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/splits`,
@@ -70,7 +70,7 @@ export function useSplit(
     queryKey: ["datasets", datasetId, "versions", versionId, "splits", splitId],
     queryFn: async () => {
       if (!datasetId || !versionId || !splitId) {
-        throw new Error("Dataset ID, Version ID, and Split ID are required");
+        throw new Error("Dataset ID, version ID, and split ID are required");
       }
       return apiService.get<SplitDetail>(
         `/benchmark/datasets/${datasetId}/versions/${versionId}/splits/${splitId}`,

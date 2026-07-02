@@ -31,7 +31,7 @@ export const ShortcutsOverlay: FC<ShortcutsOverlayProps> = ({
   onClose,
   shortcuts,
 }) => (
-  <Modal opened={opened} onClose={onClose} title="Keyboard Shortcuts" size="md">
+  <Modal opened={opened} onClose={onClose} title="Keyboard shortcuts" size="md">
     <Stack gap="xs">
       <DataTable>
         <DataTable.Thead>

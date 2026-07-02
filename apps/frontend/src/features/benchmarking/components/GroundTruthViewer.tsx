@@ -15,7 +15,7 @@ export function GroundTruthViewer({
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Ground Truth JSON"
+      title="Ground truth JSON"
       size="xl"
       withinPortal={true}
       closeOnClickOutside={true}

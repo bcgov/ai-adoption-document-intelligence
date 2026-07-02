@@ -70,7 +70,7 @@ export function CreateProjectDialog({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Create New Project"
+      title="Create new project"
       size="md"
       data-testid="create-project-dialog"
     >
@@ -88,7 +88,7 @@ export function CreateProjectDialog({
         )}
 
         <TextInput
-          label="Project Name"
+          label="Project name"
           placeholder="Enter project name"
           value={name}
           onChange={(e) => {
@@ -129,7 +129,7 @@ export function CreateProjectDialog({
             loading={isCreating}
             data-testid="submit-project-btn"
           >
-            Create Project
+            Create project
           </Button>
         </Group>
       </Stack>

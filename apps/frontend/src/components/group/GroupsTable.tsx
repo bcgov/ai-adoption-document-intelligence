@@ -204,7 +204,7 @@ export function GroupsTable({
                     data-testid={`join-btn-${group.id}`}
                   >
                     {pendingRequestGroupIds.has(group.id)
-                      ? "Request Pending"
+                      ? "Request pending"
                       : "Join"}
                   </Button>
                 )}

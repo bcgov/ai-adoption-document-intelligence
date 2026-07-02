@@ -48,7 +48,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
       onError: () => {
         notifications.show({
           title: "Error",
-          message: "Failed to remove member. Please try again.",
+          message: "Failed to remove member. please try again.",
           color: "red",
         });
         setConfirmMember(null);
@@ -69,7 +69,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
         onError: () => {
           notifications.show({
             title: "Error",
-            message: "Failed to update member role. Please try again.",
+            message: "Failed to update member role. please try again.",
             color: "red",
           });
         },
@@ -92,7 +92,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
         color="red"
         data-testid="members-error"
       >
-        Failed to load members. Please try again.
+        Failed to load members. please try again.
       </Alert>
     );
   }
@@ -163,7 +163,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
       <Modal
         opened={confirmMember !== null}
         onClose={() => setConfirmMember(null)}
-        title="Remove Member"
+        title="Remove member"
         data-testid="remove-confirm-modal"
       >
         <Text>

@@ -123,7 +123,7 @@ export function RowsTab({
   if (columns.length === 0) {
     return (
       <Text c="dimmed" fs="italic">
-        Define columns first (use the Columns tab).
+        Define columns first (use the columns tab).
       </Text>
     );
   }
@@ -219,13 +219,13 @@ export function RowsTab({
             </Popover.Dropdown>
           </Popover>
           <Button leftSection={<IconPlus size={16} />} onClick={onCreate}>
-            Create Row
+            Create row
           </Button>
         </Group>
       </Group>
       {rows.data.rows.length === 0 ? (
         <Text c="dimmed" fs="italic">
-          No rows yet — click Create Row to add one.
+          No rows yet — click create row to add one.
         </Text>
       ) : (
         <>
@@ -351,7 +351,7 @@ export function RowsTab({
         title="Delete row?"
       >
         <Stack>
-          <Text>This will permanently delete the row. Cannot be undone.</Text>
+          <Text>This will permanently delete the row. cannot be undone.</Text>
           {deleteRows.isError && (
             <Text c="red" size="sm">
               {(deleteRows.error as Error).message}
