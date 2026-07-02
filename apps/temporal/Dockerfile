@@ -36,6 +36,9 @@ RUN mkdir -p /packages/monitoring/node_modules/@ai-di && \
     ln -s /packages/logging /packages/monitoring/node_modules/@ai-di/shared-logging && \
     cd /packages/monitoring && npm install --ignore-scripts && npm run build
 
+COPY packages/billing /packages/billing
+RUN cd /packages/billing && npm install --ignore-scripts && npm run build
+
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install --ignore-scripts
 

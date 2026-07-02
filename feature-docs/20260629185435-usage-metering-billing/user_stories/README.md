@@ -67,7 +67,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-002** (rate_versions.json file and startup seeder service)
 
 ### Phase 3 — Core Event Write Service
-- [ ] **US-003** (shared service for writing UsageEvents and maintaining UsagePeriodSummary) — required by all metering instrumentation in Phases 4–6
+- [x] **US-003** (shared service for writing UsageEvents and maintaining UsagePeriodSummary) — required by all metering instrumentation in Phases 4–6
 
 ### Phase 4 — Workflow Metering
 - [ ] **US-004** (pre-flight cost estimation via max-flow DAG traversal)

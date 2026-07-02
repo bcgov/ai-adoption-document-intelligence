@@ -34,6 +34,7 @@
 		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
 	},
 	"dependencies": {
+		"@ai-di/billing": "file:../../packages/billing",
 		"@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
 		"@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
 		"@ai-di/graph-workflow": "file:../../packages/graph-workflow",
