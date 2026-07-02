@@ -8,14 +8,6 @@ patches:
   target:
     kind: ConfigMap
     name: backend-services-config
-- path: route-allowlist-patch.yml
-  target:
-    kind: Route
-    name: backend-services
-- path: route-allowlist-patch.yml
-  target:
-    kind: Route
-    name: frontend
 images:
 # Pin digest so cluster pulls the image currently in Artifactory (avoids stale tag cache)
 - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services

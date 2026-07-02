@@ -33,7 +33,9 @@ The template uses placeholder tokens that the deploy script replaces with actual
 
 ### Route IP restrictions
 
-Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_allowlist` so the OpenShift router (HAProxy) only allows traffic whose source IP is in `142.16.0.0/11` (approximate VPN range). Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see `docs-md/PROMETHEUS_METRICS.md`). Multiple CIDRs or IPs use a space-separated annotation value if needed later.
+Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_allowlist` so the OpenShift router (HAProxy) only allows traffic whose source IP is in the BC Gov public `142.x` allocation (ARIN org `PBC-51-Z`): `142.22.0.0/16`–`142.36.0.0/16`, space-separated. This covers all BC Gov networks including VPN egress and the Silver/Gold/Gold-DR NAT pools (all within `142.34.0.0/16`). Other clients receive HTTP 403 at the router. Because the allowlist lives in the base manifests, all overlays (`dev`, `test`, `prod`, and instance-template deployments) inherit it — there is no per-overlay allowlist patch. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see `docs-md/PROMETHEUS_METRICS.md`).
+
+> Note: the previous value `142.16.0.0/11` was incorrect — a `/11` only spans `142.0.0.0`–`142.31.255.255`, silently excluding BC Gov clients in `142.32.0.0/16`–`142.36.0.0/16`.
 
 ### What Gets Patched
 
