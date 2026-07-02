@@ -8,12 +8,20 @@ kind: Component
 # runs heavier, sustained document-processing workloads, so the main
 # application containers need more memory headroom to avoid OOMKills.
 #
+# It also applies the production-only source-IP allowlist to the public Routes:
+# the base Routes are intentionally open (so test/dev/PR instances need no VPN),
+# and prod restricts ingress to the BC Gov 142.x range via the patches below.
+#
 # This component is included by scripts/lib/generate-overlay.sh automatically
-# when the target namespace is *-prod. It only raises the memory *limit*
-# (requests are unchanged) so it has no effect on the namespace request quota.
+# when the target namespace is *-prod. The memory patches only raise the memory
+# *limit* (requests are unchanged) so they have no effect on the namespace
+# request quota.
 patches:
   - path: backend-services-memory.yml
   - path: temporal-worker-memory.yml
+  # Production-only source-IP allowlist on the public Routes (see each file).
+  - path: route-allowlist-backend.yml
+  - path: route-allowlist-frontend.yml
   # Prod's temporal Postgres data volume was expanded in-place to 5Gi. The base
   # manifest keeps 1.5Gi for ephemeral/test instances; match the live prod size
   # here so the Crunchy operator stops trying to reconcile it down to 1.5Gi

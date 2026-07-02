@@ -797,12 +797,12 @@ docker run \
 
 ### OpenShift/Kubernetes
 
-Kubernetes manifests are provided in `deployments/openshift/kustomize/`:
-
-```bash
-# Apply to cluster
-kubectl apply -k deployments/openshift/kustomize/overlays/dev
-```
+Kubernetes manifests are provided in `deployments/openshift/kustomize/`. Deployments are
+driven by the **Deploy Instance** GitHub Actions workflow, which renders an instance-specific
+overlay from `overlays/instance-template` and applies it (pushes to `develop` deploy to
+`fd34fb-test`, pushes to `main` deploy to `fd34fb-prod`). See
+[docs-md/openshift-deployment/AUTO_DEPLOY.md](docs-md/openshift-deployment/AUTO_DEPLOY.md) and
+[docs-md/openshift-deployment/KUSTOMIZE_INSTANCE_TEMPLATE.md](docs-md/openshift-deployment/KUSTOMIZE_INSTANCE_TEMPLATE.md).
 
 **Features:**
 - Database migration init containers
