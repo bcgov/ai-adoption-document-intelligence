@@ -15,6 +15,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.checkConfidence",
   "mistralOcr.process",
   "mistralAzureOcr.process",
+  "azureContentUnderstanding.deployAnalyzer",
+  "azureContentUnderstanding.analyze",
   "ocr.storeResults",
   "ocr.enrich",
   "document.storeRejection",
