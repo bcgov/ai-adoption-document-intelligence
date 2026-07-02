@@ -2,19 +2,19 @@
  * Single-document smoke test for the Mistral Document AI Foundry path.
  *
  * Usage (from apps/temporal):
- *   npx tsx src/scripts/test-mistral-foundry-single.ts [sampleId]
+ *   npx tsx scripts/test-mistral-foundry-single.ts [sampleId]
  *
  * Calls Foundry once for one sample and prints whether `document_annotation`
  * comes back populated. Used to verify schema fixes (e.g. `strict: true`)
  * without burning a full 33-sample benchmark run.
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
-import { getPrismaClient } from "../activities/database-client";
-import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
+import { getPrismaClient } from "../src/activities/database-client";
+import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
 
 const FOUNDRY_PATH = "/providers/mistral/azure/ocr";
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
@@ -135,6 +135,7 @@ async function main(): Promise<void> {
   const outPath = path.join(
     __dirname,
     "..",
+    "src",
     "__fixtures__",
     "experiment-02",
     `mistral-azure-ocr-response-${sampleId}-smoketest.json`,

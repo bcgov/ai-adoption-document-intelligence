@@ -157,10 +157,10 @@ No new env vars introduced by E05.
   hierarchy paragraph).
 - `experiments/results/05-vlm-ocr-hybrid/iteration/field-descriptions.json`
   — per-field description overlay (keyed by `field_key`).
-- [`apps/temporal/src/scripts/iterate-hybrid-extraction.ts`](../../apps/temporal/src/scripts/iterate-hybrid-extraction.ts)
+- [`apps/temporal/scripts/iterate-hybrid-extraction.ts`](../../apps/temporal/scripts/iterate-hybrid-extraction.ts)
   — end-to-end smoke test: DI read-plain + VLM call on one sample,
   diff vs ground truth, dumps `last-{request,response,layout,diff}.{json,md}`.
-- [`apps/temporal/src/scripts/preflight-hybrid.ts`](../../apps/temporal/src/scripts/preflight-hybrid.ts)
+- [`apps/temporal/scripts/preflight-hybrid.ts`](../../apps/temporal/scripts/preflight-hybrid.ts)
   — env + DI markdown round-trip + Azure OpenAI strict-mode round-trip
   + dataset/template DB checks. Run this once at the start of any
   session.

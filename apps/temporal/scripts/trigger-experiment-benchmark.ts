@@ -6,10 +6,10 @@
  * env file directly.
  *
  * Usage (from apps/temporal):
- *   npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts 03
+ *   npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 03
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -24,7 +24,7 @@ const overrideDir =
   process.env.DI_SECRETS_DIR ?? resolve(homedir(), ".config/bcgov-di");
 const candidates = [
   resolve(overrideDir, "backend-services.env"),
-  resolve(__dirname, "..", "..", "..", "backend-services", ".env"),
+  resolve(__dirname, "..", "..", "backend-services", ".env"),
 ];
 for (const p of candidates) {
   if (existsSync(p)) {

@@ -55,16 +55,16 @@
  *
  *   # Dry-run by default — lists what WOULD be promoted, doesn't write files.
  *   npx tsx -r tsconfig-paths/register \
- *     src/scripts/promote-gt-format-variants.ts <slug>
+ *     scripts/promote-gt-format-variants.ts <slug>
  *
  *   # Pass --write to actually update the GT JSON files.
  *   npx tsx -r tsconfig-paths/register \
- *     src/scripts/promote-gt-format-variants.ts <slug> --write
+ *     scripts/promote-gt-format-variants.ts <slug> --write
  *
  *   # Override the dataset folder (default detects from the workflow JSON's
  *   # metadata.targetLocalDataset, falling back to samples-mix/public).
  *   npx tsx -r tsconfig-paths/register \
- *     src/scripts/promote-gt-format-variants.ts <slug> --write \
+ *     scripts/promote-gt-format-variants.ts <slug> --write \
  *     --dataset-dir data/datasets/samples-mix/public
  *
  * Safety:
@@ -80,7 +80,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { parseToCalendarParts } from "../form-field-normalization";
+import { parseToCalendarParts } from "../src/form-field-normalization";
 
 const PROMOTABLE_FIELDS = new Set<string>([
   "sin",
@@ -320,7 +320,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     }
   }
 
-  const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
 
   // Resolve dataset dir from the workflow JSON's metadata.targetLocalDataset
   // (format "<folder>-<visibility>"), falling back to samples-mix/public if
@@ -361,7 +361,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 function loadExport(slug: string): BenchmarkExport {
-  const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+  const repoRoot = path.resolve(__dirname, "..", "..", "..");
   const exportPath = path.join(
     repoRoot,
     "experiments",

@@ -28,7 +28,7 @@ Pricing splits content-extraction charges (OCR layer) from generative-model toke
 
 3. **Set up the iteration kit before any benchmark run.**
    - Copy `experiments/results/02-mistral-doc-ai-azure/iteration/` to `experiments/results/03-content-understanding/iteration/`. Replace the Mistral-specific bits in `prompt.md` with CU equivalents (CU's analyzer schema accepts a top-level `description` plus per-field `description` strings — same conceptual surface, different keys).
-   - Add `apps/temporal/src/scripts/iterate-cu-extraction.ts` lifted from `iterate-mistral-extraction.ts`. Same skeleton: load image + ground truth + iteration files, build the analyzer schema, call CU, compare, dump diff.
+   - Add `apps/temporal/scripts/iterate-cu-extraction.ts` lifted from `iterate-mistral-extraction.ts`. Same skeleton: load image + ground truth + iteration files, build the analyzer schema, call CU, compare, dump diff.
    - Smoke-test on `synth-full (1)` (synth samples are typed and clean — ideal for prompt tuning). Iterate until per-field accuracy ≥ 95% before triggering the full benchmark.
 
 4. **Create `apps/temporal/src/ocr-providers/azure-content-understanding/`** with:

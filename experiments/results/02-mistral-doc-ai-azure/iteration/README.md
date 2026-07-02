@@ -9,7 +9,7 @@ Run a single sample (default: `synth-full (3)`):
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-mistral-extraction.ts "synth-full (3)"
+npx tsx -r tsconfig-paths/register scripts/iterate-mistral-extraction.ts "synth-full (3)"
 ```
 
 The script prints a per-field diff (predicted vs ground truth) and writes three files into this folder:

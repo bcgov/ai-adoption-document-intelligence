@@ -162,7 +162,11 @@ function rawValueToAzureDocumentFieldValue(
         type: "date",
         content: s,
         valueString: s,
-        valueDate: s,
+        // Only emit valueDate when non-empty. An empty-string valueDate reads
+        // as a populated value downstream (extractAzureFieldDisplayValue
+        // prefers valueDate over content), so a blank date would look filled
+        // in — mirror the numeric blank handling which omits valueNumber.
+        ...(s.trim() !== "" ? { valueDate: s } : {}),
         confidence,
       };
     }

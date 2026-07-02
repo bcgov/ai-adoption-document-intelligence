@@ -28,7 +28,6 @@ import {
   getWorkflowGraphConfig,
   loadDatasetManifest,
   materializeDataset,
-  mistralAzureOcrProcess,
   mistralOcrProcess,
   pollOCRResults,
   postOcrCleanup,
@@ -40,7 +39,6 @@ import {
 } from "./activities";
 import { azureClassifyPoll } from "./activities/azure-classify-poll";
 import { azureClassifySubmit } from "./activities/azure-classify-submit";
-import { azureDiReadPlain } from "./activities/azure-di-read-plain";
 import { blobRead } from "./activities/blob-read";
 import { classifyDocument } from "./activities/classify-document";
 import { combineSegmentResult } from "./activities/combine-segment-result";
@@ -151,29 +149,6 @@ register({
 });
 
 register({
-  activityType: "mistralAzureOcr.process",
-  activityFn: mistralAzureOcrProcess as (
-    ...args: unknown[]
-  ) => Promise<unknown>,
-  // Foundry's annotation step "can be slower and may result in timeouts" per
-  // Microsoft docs; allow generous wallclock plus extra retry attempts vs the
-  // public-API path. The deployment is rate-limited by per-minute requests
-  // (default 10 RPM on GlobalStandard) and a 33-sample benchmark fan-out
-  // gets sustained 429s — the retry policy is therefore tuned to spread
-  // retries across the quota window with backoff jitter rather than the
-  // public-API path's tighter 3-attempt policy.
-  defaultTimeout: "20m",
-  defaultRetry: {
-    maximumAttempts: 30,
-    initialInterval: "15s",
-    backoffCoefficient: 1.5,
-    maximumInterval: "60s",
-  },
-  description:
-    "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
-});
-
-register({
   activityType: "azureContentUnderstanding.deployAnalyzer",
   activityFn: azureCuDeployAnalyzer as (...args: unknown[]) => Promise<unknown>,
   // Idempotent PUT against the CU control plane; the in-memory cache + GET
@@ -236,23 +211,6 @@ register({
   },
   description:
     "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
-});
-
-register({
-  activityType: "azureOcr.readPlain",
-  activityFn: azureDiReadPlain as (...args: unknown[]) => Promise<unknown>,
-  // Sync wrapper around DI prebuilt-layout submit + poll. Single-page
-  // wallclock is ~1–3 s; allow generous startToClose for multi-page
-  // documents and DI cold starts.
-  defaultTimeout: "10m",
-  defaultRetry: {
-    maximumAttempts: 5,
-    initialInterval: "5s",
-    backoffCoefficient: 1.5,
-    maximumInterval: "30s",
-  },
-  description:
-    "Azure DI prebuilt-layout (markdown content + per-line/per-word polygons; no field extraction). Sync submit+poll wrapper for the VLM hybrid pre-pass.",
 });
 
 register({

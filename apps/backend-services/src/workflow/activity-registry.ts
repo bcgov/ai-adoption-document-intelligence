@@ -29,11 +29,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.extract": { description: "Extract structured OCR data" },
     "mistralOcr.process": {
       description:
-        "Mistral Document AI OCR (sync) with optional document annotation",
-    },
-    "mistralAzureOcr.process": {
-      description:
-        "Mistral Document AI on Azure AI Foundry (sync) with optional document annotation",
+        "Mistral Document AI OCR (sync, native or Azure Foundry transport) with optional document annotation",
     },
     "azureContentUnderstanding.deployAnalyzer": {
       description:
@@ -50,10 +46,6 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "vlmOcrHybrid.extract": {
       description:
         "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
-    },
-    "azureOcr.readPlain": {
-      description:
-        "Azure DI prebuilt-layout (markdown content + per-line/per-word polygons; no field extraction). Sync submit+poll wrapper for the VLM hybrid pre-pass.",
     },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {

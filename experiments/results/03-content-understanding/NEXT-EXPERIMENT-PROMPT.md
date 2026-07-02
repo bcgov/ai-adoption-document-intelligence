@@ -37,7 +37,7 @@ START BY READING (in this order):
      closest pattern to fork — schema-aware engine, structured-output
      mode, idempotent deploy with status-poll, sync-shape activity that
      polls internally, ocrResponse port for cache emission)
-  5. apps/temporal/src/scripts/iterate-cu-extraction.ts  (lift this for
+  5. apps/temporal/scripts/iterate-cu-extraction.ts  (lift this for
      iterate-vlm-extraction.ts; same skeleton)
   6. apps/temporal/src/activities/enrichment-llm.ts  (existing
      callAzureOpenAI helper — use this, don't write a new one)
@@ -47,7 +47,7 @@ START BY READING (in this order):
   8. apps/temporal/src/experiment-03-content-understanding.test.ts
      (test pattern: 16 static + 4 fixture-aware + 2 runtime, CI gate via
      process.env.CI)
-  9. apps/temporal/src/scripts/{trigger-experiment-benchmark,poll-experiment-run,setup-cu-defaults}.ts
+  9. apps/temporal/scripts/{trigger-experiment-benchmark,poll-experiment-run,setup-cu-defaults}.ts
      (reusable scripts E03 left for the chained stack — trigger + poll
      accept any slug, no need to fork)
   10. CLAUDE.md

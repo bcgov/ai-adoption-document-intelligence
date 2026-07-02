@@ -41,11 +41,12 @@ import {
   type TemplateFieldType,
   type VlmExtractionRequest,
 } from "./vlm-prompt-builder";
+import { parseVlmStructuredJson } from "./vlm-response-parser";
 import {
   type VlmFieldDefRow,
   vlmExtractionToOcrResult,
 } from "./vlm-to-ocr-result";
-import type { VlmDirectRawResponse, VlmExtractionResponse } from "./vlm-types";
+import type { VlmDirectRawResponse } from "./vlm-types";
 
 const DEFAULT_API_VERSION = "2024-12-01-preview";
 const DEFAULT_MAX_COMPLETION_TOKENS = 8192;
@@ -127,7 +128,12 @@ async function loadTemplate(
       templateModelId,
       error: getErrorMessage(error),
     });
-    return null;
+    // Rethrow genuine DB/query failures — a transient Prisma error is not a
+    // missing template. The caller maps `null` to "field_schema not found",
+    // so swallowing here would mislabel an infrastructure error (and let
+    // Temporal retry against the wrong failure mode). A genuinely-absent or
+    // empty schema already returns `null` from the try block above.
+    throw error;
   }
 }
 
@@ -155,30 +161,6 @@ function buildMockResponse(
     durationMs: 0,
     parsed: { fields, source_quotes: sourceQuotes },
     raw: { mock: true, fileName: fileData.fileName },
-  };
-}
-
-function parseStructuredJson(content: string): VlmExtractionResponse {
-  let raw = content.trim();
-  // Strict mode usually returns a clean JSON object, but the helper
-  // tolerates the optional code-fence form too.
-  const fence = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/;
-  const match = raw.match(fence);
-  if (match) raw = match[1].trim();
-  const parsed = JSON.parse(raw) as Partial<VlmExtractionResponse>;
-  if (!parsed.fields || typeof parsed.fields !== "object") {
-    throw new Error(
-      "VLM response missing `fields` object — strict mode appears not to be active.",
-    );
-  }
-  if (!parsed.source_quotes || typeof parsed.source_quotes !== "object") {
-    throw new Error(
-      "VLM response missing `source_quotes` object — strict mode appears not to be active.",
-    );
-  }
-  return {
-    fields: parsed.fields as Record<string, string | number | null>,
-    source_quotes: parsed.source_quotes as Record<string, string>,
   };
 }
 
@@ -287,7 +269,7 @@ async function callAzureOpenAiVlm(
       "Azure OpenAI VLM response missing choices[0].message.content",
     );
   }
-  const parsed = parseStructuredJson(content);
+  const parsed = parseVlmStructuredJson(content);
   return {
     deployment,
     apiVersion,

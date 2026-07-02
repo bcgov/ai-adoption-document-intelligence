@@ -21,7 +21,7 @@ Tunable inputs for the VLM + OCR hybrid extraction:
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-5.2
+npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-5.2
 ```
 
 Checks env vars, DI prebuilt-layout reachability + markdown round-trip,
@@ -37,7 +37,7 @@ for prompt tuning. Default deployment for E08: `gpt-5.2`.
 ```bash
 cd apps/temporal
 ITERATION_DIR=$(pwd)/../../experiments/results/08-vlm-ocr-hybrid-gpt-5.2/iteration \
-  npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.2
+  npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.2
 ```
 
 The script:

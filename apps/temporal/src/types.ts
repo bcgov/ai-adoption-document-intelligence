@@ -101,7 +101,12 @@ export interface Page {
 export interface Word {
   content: string;
   polygon: number[];
-  confidence: number;
+  /**
+   * Per-word OCR confidence (0-1). Optional: some providers (e.g. the
+   * VLM+OCR hybrid) deliberately omit it so raw OCR word confidence does
+   * not drown the evidence-based field confidence in `ocr.checkConfidence`.
+   */
+  confidence?: number;
   span: Span;
 }
 

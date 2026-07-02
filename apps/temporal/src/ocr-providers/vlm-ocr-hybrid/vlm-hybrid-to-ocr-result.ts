@@ -13,7 +13,10 @@
  *     analytics, future spatial-aware components) see the data they
  *     used to in the Azure DI path.
  *   - Keeps the evidence-based confidence synthesis on the
- *     structured-fields result so the HITL gate behaviour is unchanged.
+ *     structured-fields result (`keyValuePairs` / `documents[].fields`) and
+ *     deliberately drops per-word confidence from the borrowed DI pages, so
+ *     the HITL gate is driven by field evidence rather than swamped by the
+ *     raw OCR word confidences. See `clonePages`.
  */
 
 import type {
@@ -37,7 +40,7 @@ export interface VlmHybridToOcrResultContext extends VlmToOcrResultContext {}
 
 export interface VlmHybridToOcrResultOptions extends VlmToOcrResultOptions {
   /**
-   * The prebuilt-layout response from `azureOcr.readPlain`. When
+   * The prebuilt-layout response from `azureOcr.submit`/`azureOcr.poll`. When
    * present, the resulting `OCRResult.pages`, `paragraphs`, `tables`
    * are populated from it (instead of the E04 synthetic single-page
    * summary). Confidence values stay attached to the structured
@@ -54,10 +57,16 @@ function clonePages(layout: OCRResponse | undefined): Page[] {
     width: p.width,
     height: p.height,
     unit: p.unit,
+    // Intentionally omit per-word OCR confidence. The HITL gate
+    // (`ocr.checkConfidence`) averages page-word confidence together with
+    // key-value-pair confidence; the hundreds of high-confidence DI words
+    // would otherwise swamp the ~dozens of evidence-based field confidences
+    // and the gate would never fire. Dropping it lets the gate reflect the
+    // structured-field evidence confidence (carried on `keyValuePairs` /
+    // `documents[].fields`). Word content + polygons are kept for layout.
     words: (p.words ?? []).map((w) => ({
       content: w.content,
       polygon: [...(w.polygon ?? [])],
-      confidence: w.confidence,
       span: { offset: w.span.offset, length: w.span.length },
     })),
     lines: (p.lines ?? []).map((l) => ({

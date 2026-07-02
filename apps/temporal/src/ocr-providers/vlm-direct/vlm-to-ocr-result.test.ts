@@ -161,15 +161,39 @@ describe("vlmExtractionToOcrResult", () => {
     expect(r.pages[0].words[0].confidence).toBeCloseTo(0.725, 3);
   });
 
-  it("evidenceConfidence helper returns the canonical constants", () => {
-    expect(__testInternals.evidenceConfidence("anything")).toBe(
+  it("evidenceConfidence: a quote always means high confidence", () => {
+    expect(__testInternals.evidenceConfidence("anything", "value")).toBe(
       __testInternals.CONF_WITH_EVIDENCE,
     );
-    expect(__testInternals.evidenceConfidence("")).toBe(
-      __testInternals.CONF_NO_EVIDENCE,
+    // value irrelevant when a quote is present
+    expect(__testInternals.evidenceConfidence("quote", "")).toBe(
+      __testInternals.CONF_WITH_EVIDENCE,
     );
     expect(__testInternals.CONF_WITH_EVIDENCE).toBe(0.95);
     expect(__testInternals.CONF_NO_EVIDENCE).toBe(0.5);
+  });
+
+  it("evidenceConfidence: no quote penalises only a populated value", () => {
+    // populated value, no quote -> suspicious
+    expect(__testInternals.evidenceConfidence("", "1234.56")).toBe(
+      __testInternals.CONF_NO_EVIDENCE,
+    );
+    expect(__testInternals.evidenceConfidence(undefined, 42)).toBe(
+      __testInternals.CONF_NO_EVIDENCE,
+    );
+    // genuinely-blank value, no quote -> correct empty extraction, stays high
+    expect(__testInternals.evidenceConfidence("", "")).toBe(
+      __testInternals.CONF_WITH_EVIDENCE,
+    );
+    expect(__testInternals.evidenceConfidence("", "   ")).toBe(
+      __testInternals.CONF_WITH_EVIDENCE,
+    );
+    expect(__testInternals.evidenceConfidence(undefined, null)).toBe(
+      __testInternals.CONF_WITH_EVIDENCE,
+    );
+    expect(__testInternals.evidenceConfidence("", undefined)).toBe(
+      __testInternals.CONF_WITH_EVIDENCE,
+    );
   });
 
   it("emits keyValuePairs for every field def (in order)", () => {

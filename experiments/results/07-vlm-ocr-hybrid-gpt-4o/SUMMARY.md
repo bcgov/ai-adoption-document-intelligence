@@ -137,10 +137,10 @@ The single dominant gpt-4o failure mode (spouse-column `_no` checkboxes flipping
 
 - **New** [`docs-md/graph-workflows/templates/experiment-07-vlm-ocr-hybrid-gpt-4o-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-07-vlm-ocr-hybrid-gpt-4o-workflow.json) — standalone copy of E05's workflow, deployment defaults flipped to `gpt-4o` + metadata/labels updated. Auto-discovered by `seedExperimentWorkflows()` as definition `seed-experiment-07-vlm-ocr-hybrid-gpt-4o-definition`.
 - **New** [`experiments/results/07-vlm-ocr-hybrid-gpt-4o/iteration/`](iteration/) — verbatim copy of E05's iteration kit; only the README was rewritten to reference E07 paths + gpt-4o + the `ITERATION_DIR` env-var override.
-- [`apps/temporal/src/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/src/scripts/iterate-hybrid-extraction.ts) — two small edits:
+- [`apps/temporal/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/scripts/iterate-hybrid-extraction.ts) — two small edits:
   - Fixed stale path `data/datasets/samples-mix/private` → `samples-mix/public` (the dataset folder rename from commit `8bd2ccb1` left this iterate script broken for any sample lookup; bug was pre-existing on the parent branch).
   - Added `ITERATION_DIR` env-var override so the iteration kit can be pointed at a folder other than E05's (defaults preserved).
-- [`apps/temporal/src/scripts/trigger-experiment-benchmark.ts`](../../../apps/temporal/src/scripts/trigger-experiment-benchmark.ts) — added `07-vlm-ocr-hybrid-gpt-4o` to the slug allow-list so the trigger accepts `07` as the prefix.
+- [`apps/temporal/scripts/trigger-experiment-benchmark.ts`](../../../apps/temporal/scripts/trigger-experiment-benchmark.ts) — added `07-vlm-ocr-hybrid-gpt-4o` to the slug allow-list so the trigger accepts `07` as the prefix.
 - **gpt-4o deployment** on the Foundry resource (`az cognitiveservices account deployment create`, model `gpt-4o` version `2024-11-20`, GlobalStandard cap 100). One-time Azure-side change; not a code change.
 
 Not changed (per the standing scope for this branch):
@@ -165,18 +165,18 @@ cd apps/temporal && npm run dev
 
 # 3. Preflight on gpt-4o.
 cd apps/temporal
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-4o
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-4o
 
 # 4. (Optional) 3-sample smoke iteration on gpt-4o.
 ITERATION_DIR=$(pwd)/../../experiments/results/07-vlm-ocr-hybrid-gpt-4o/iteration \
   TEST_API_KEY=... \
-  npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "1 81" gpt-4o
+  npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "1 81" gpt-4o
 
 # 5. Trigger E07 benchmark + poll.
 rm -rf /tmp/benchmark-cache/*
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts 07
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 07
 # Capture the run id from the response, then:
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/poll-experiment-run.ts <runId> 07-vlm-ocr-hybrid-gpt-4o
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/poll-experiment-run.ts <runId> 07-vlm-ocr-hybrid-gpt-4o
 ```
 
 Per-sample timing: ~8.2 s wallclock at gpt-4o cap 100 (DI ~5 s + VLM ~13–25 s).

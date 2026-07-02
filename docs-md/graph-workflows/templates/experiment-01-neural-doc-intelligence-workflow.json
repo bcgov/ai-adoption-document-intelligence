@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 01 - Neural DI + Post-Processing",
     "description": "E01: Trained neural Azure DI model + cleanup, normalizeFields, characterConfusion, and confidence-gated HITL. Spellcheck dropped vs the base corrections template (not valuable for the handwritten field set). LLM enrichment and cross-field validation are out of scope for E01.",
     "tags": ["ocr", "azure", "experiment", "experiment-01", "neural"],

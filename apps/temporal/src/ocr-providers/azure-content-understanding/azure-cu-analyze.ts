@@ -34,10 +34,11 @@ import {
 import {
   type CuAuthMode,
   createCuAxiosInstance,
-  cuAnalyzeResultUrlFromId,
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
+  readEnv,
+  sleep,
 } from "./azure-cu-client";
 import { azureCuDeployAnalyzer } from "./azure-cu-deploy-analyzer";
 import {
@@ -49,11 +50,6 @@ import type { CuAnalyzeOperation, CuAnalyzeResult } from "./cu-types";
 const DEFAULT_ANALYZER_PREFIX = "di-experiment";
 const DEFAULT_POLL_INTERVAL_MS = 1500;
 const DEFAULT_POLL_MAX_ATTEMPTS = 240; // ~6 min at 1.5 s/poll, well under the activity's 20 m timeout.
-
-function readEnv(name: string): string | undefined {
-  const v = process.env[name];
-  return v && v.trim().length > 0 ? v.trim() : undefined;
-}
 
 async function readBlobData(blobKey: string): Promise<Buffer> {
   if (path.isAbsolute(blobKey)) {
@@ -69,6 +65,20 @@ async function readBlobData(blobKey: string): Promise<Buffer> {
   } catch (_error) {
     throw new Error(`Blob not found: "${blobKey}"`);
   }
+}
+
+/**
+ * Interpret a synchronous 200 analyze response body. It may arrive either as
+ * the long-running-operation envelope (`{ status, result }`) or as a bare
+ * `CuAnalyzeResult` (`{ contents }`). Returns the result to map, or undefined
+ * if the 200 carries no usable result (caller falls through to polling). (B2)
+ */
+function extractInlineResult(
+  body: CuAnalyzeOperation & CuAnalyzeResult,
+): CuAnalyzeResult | undefined {
+  if (body.status === "Succeeded" && body.result) return body.result;
+  if (body.contents !== undefined) return body as CuAnalyzeResult;
+  return undefined;
 }
 
 function buildInlineInput(
@@ -248,10 +258,6 @@ export interface AzureCuAnalyzeResult {
   ocrResponse: CuAnalyzeOperation;
 }
 
-async function sleep(ms: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /**
  * Activity: Run an Azure Content Understanding analyzer on one document.
  * Returns a canonical {@link OCRResult} + the raw CU operation response.
@@ -286,7 +292,17 @@ export async function azureCuAnalyze(
   });
 
   if (useMock) {
-    const ocrResponse = buildMockAnalyzeOperation(params.fileData);
+    // Test seam: an integration harness may supply a specific CuAnalyzeResult
+    // via MOCK_AZURE_CU_RESULT (JSON) so the real mapping + gate run against a
+    // chosen payload; otherwise fall back to a minimal canned result.
+    const injected = process.env.MOCK_AZURE_CU_RESULT;
+    const ocrResponse: CuAnalyzeOperation = injected
+      ? {
+          id: `mock-cu-${randomUUID()}`,
+          status: "Succeeded",
+          result: JSON.parse(injected) as CuAnalyzeResult,
+        }
+      : buildMockAnalyzeOperation(params.fileData);
     const ocrResult = cuAnalyzeResultToOcrResult(
       ocrResponse.result ?? {},
       {
@@ -385,12 +401,15 @@ export async function azureCuAnalyze(
       (headers["operation-location"] as string | undefined) ??
       (headers["Operation-Location"] as string | undefined);
     if (submitResp.status === 200 && submitResp.data) {
-      // Some CU rollouts return the result inline on 200. Treat that as a
-      // synchronous success.
-      const inline = submitResp.data as CuAnalyzeOperation;
-      if (inline.status === "Succeeded" && inline.result) {
+      // Some CU rollouts return the result inline on 200. It can arrive
+      // either as the long-running-operation envelope (`{ status, result }`)
+      // or as a bare `CuAnalyzeResult` (`{ contents }`) — handle both rather
+      // than assuming the envelope (the latter shape was silently dropped).
+      const body = submitResp.data as CuAnalyzeOperation & CuAnalyzeResult;
+      const inlineResult = extractInlineResult(body);
+      if (inlineResult) {
         const ocrResult = cuAnalyzeResultToOcrResult(
-          inline.result,
+          inlineResult,
           {
             fileName: params.fileData.fileName,
             fileType: params.fileData.fileType,
@@ -405,7 +424,13 @@ export async function azureCuAnalyze(
           analyzerId,
           durationMs: Date.now() - startTime,
         });
-        return { ocrResult, ocrResponse: inline };
+        return {
+          ocrResult,
+          ocrResponse:
+            body.status === "Succeeded"
+              ? body
+              : { status: "Succeeded", result: inlineResult },
+        };
       }
     }
   } catch (err) {
@@ -421,12 +446,19 @@ export async function azureCuAnalyze(
     );
   }
 
-  // 3. Poll until terminal.
+  // 3. Poll until terminal. A 202 must carry an `operation-location` header
+  //    pointing at the server-assigned result. Without it (and with no inline
+  //    result handled above) there is nothing valid to poll — fail fast
+  //    rather than GET a fabricated client-generated id, which CU never knew
+  //    about and which always 404s.
+  if (!operationLocation) {
+    throw new Error(
+      "Azure CU analyze: response provided neither an inline result nor an 'operation-location' header; cannot retrieve the analysis result.",
+    );
+  }
   const pollIntervalMs = params.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const pollMaxAttempts = params.pollMaxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS;
-  const pollUrl = operationLocation
-    ? cuAnalyzeResultUrlFromOperation(operationLocation)
-    : cuAnalyzeResultUrlFromId(requestId);
+  const pollUrl = cuAnalyzeResultUrlFromOperation(operationLocation);
 
   let lastBody: CuAnalyzeOperation | undefined;
   for (let attempt = 0; attempt < pollMaxAttempts; attempt++) {
@@ -515,4 +547,5 @@ export async function azureCuAnalyze(
 
 export const __testInternals = {
   defaultAnalyzerIdForTemplate,
+  extractInlineResult,
 };

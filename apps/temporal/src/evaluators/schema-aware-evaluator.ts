@@ -14,7 +14,9 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
+import { canonicalize } from "../field-format-engine";
 import { parseToCalendarParts } from "../form-field-normalization";
+import { levenshteinDistance } from "./levenshtein";
 
 /**
  * Check if a scalar value represents "no value" — null, undefined, empty string,
@@ -41,15 +43,6 @@ function isWildcardExpected(expected: unknown): boolean {
 }
 
 /**
- * Fields whose GT value cannot be reliably character-transcribed (handwritten
- * signatures vary widely between writers and across renderings). For these
- * fields the evaluator checks presence — i.e. did the engine produce a value
- * where one was expected, and conversely return null where the form was blank
- * — instead of literal character equality.
- */
-const PRESENCE_ONLY_FIELDS = new Set<string>(["signature", "spouse_signature"]);
-
-/**
  * Check if a value represents "no value". For arrays (one-of GT alternates),
  * returns true only when every alternate is itself null-like (or the array is
  * empty), so `["", null]` is treated as "blank is acceptable" but
@@ -72,14 +65,46 @@ function alternativesOf(expected: unknown): unknown[] {
   return Array.isArray(expected) ? expected : [expected];
 }
 
+/** A non-null, non-array object — i.e. a nested record of sub-fields. */
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * An array whose every element is a plain object — i.e. a table / list of
+ * rows (`[{...}, {...}]`). This is distinct from a scalar one-of-alternates
+ * array (`["", "0"]`), which `alternativesOf` handles.
+ */
+function isArrayOfRows(v: unknown): v is Record<string, unknown>[] {
+  return Array.isArray(v) && v.length > 0 && v.every(isPlainObject);
+}
+
+/**
+ * "Structured" ground truth that must be compared field-by-field / row-by-row
+ * rather than via the scalar matchers (which stringify and would collapse
+ * every object to `"[object Object]"`). A nested object or a non-empty array
+ * of objects. Empty arrays and scalar arrays are NOT structured — they remain
+ * one-of alternates.
+ */
+function isStructuredExpected(v: unknown): boolean {
+  return isPlainObject(v) || isArrayOfRows(v);
+}
+
 /**
  * Matching rule configuration for a field
  */
 export interface FieldMatchingRule {
   /**
-   * Matching rule type
+   * Matching rule type.
+   *
+   * `presence` scores a field on presence rather than character equality —
+   * i.e. did the engine produce a value where one was expected, and stay blank
+   * where the form was blank. Use it for fields whose ground truth cannot be
+   * reliably character-transcribed (e.g. handwritten signatures). The set of
+   * such fields is document-specific and is supplied via `fieldRules` in the
+   * benchmark's evaluatorConfig, never hardcoded in the evaluator.
    */
-  rule: "exact" | "fuzzy" | "numeric" | "date" | "boolean";
+  rule: "exact" | "fuzzy" | "numeric" | "date" | "boolean" | "presence";
 
   /**
    * Similarity threshold for fuzzy matching (0.0 to 1.0)
@@ -298,16 +323,13 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       return { field, matched: false, predicted: undefined, expected };
     }
 
-    // Presence-only fields (signatures): we've already established predicted
-    // is non-null-like; treat the field as matched iff at least one expected
-    // alternate is also non-null-like. This avoids penalising the engine for
-    // imperfect handwriting transcription while still catching hallucinated
-    // signatures where the form was blank.
-    if (PRESENCE_ONLY_FIELDS.has(field)) {
-      const anyExpectedNonNullLike = alternativesOf(expected).some(
-        (a) => !isNullLikeScalar(a),
-      );
-      return { field, matched: anyExpectedNonNullLike, predicted, expected };
+    // Structured GT (nested object or array of rows): the scalar matchers
+    // below stringify via String(), which collapses every object to
+    // "[object Object]" (so any two objects falsely match) and can never
+    // match a multi-row array. Compare structurally instead.
+    if (isStructuredExpected(expected)) {
+      const matched = this.structuralMatch(predicted, expected, config);
+      return { field, matched, predicted, expected };
     }
 
     // Apply matching rule
@@ -333,9 +355,81 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         return this.dateMatch(field, predicted, expected, rule.dateFormats);
       case "boolean":
         return this.booleanMatch(field, predicted, expected);
+      case "presence":
+        return this.presenceMatch(field, predicted, expected);
       default:
         return this.exactMatch(field, predicted, expected);
     }
+  }
+
+  /**
+   * Presence-only comparison. Predicted is already known to be non-null-like
+   * at this point (the null-like-prediction path returns earlier). Matched iff
+   * at least one expected alternate is also non-null-like — i.e. a value was
+   * expected. This avoids penalising the engine for imperfect transcription of
+   * un-transcribable content (e.g. handwritten signatures) while still catching
+   * a hallucinated value where the form was blank. Which fields use this rule
+   * is document-specific and supplied via `fieldRules`, not hardcoded here.
+   */
+  private presenceMatch(
+    field: string,
+    predicted: unknown,
+    expected: unknown,
+  ): FieldComparisonResult {
+    const anyExpectedNonNullLike = alternativesOf(expected).some(
+      (a) => !isNullLikeScalar(a),
+    );
+    return { field, matched: anyExpectedNonNullLike, predicted, expected };
+  }
+
+  /**
+   * Compare structured GT (nested object or array of rows). Returns a single
+   * matched boolean for the parent field.
+   *
+   *  - Nested object: every key in `expected` must match the corresponding
+   *    key in `predicted` (extra predicted keys are ignored for this field).
+   *  - Array of rows: matched only when lengths are equal AND every row
+   *    matches positionally (row i of predicted vs row i of expected).
+   *
+   * Leaves recurse back through `deepFieldMatch`, so the per-field matching
+   * rules (exact/fuzzy/numeric/date/boolean, null-like, wildcard) still apply.
+   */
+  private structuralMatch(
+    predicted: unknown,
+    expected: unknown,
+    config: SchemaAwareConfig,
+  ): boolean {
+    if (isPlainObject(expected)) {
+      if (!isPlainObject(predicted)) return false;
+      return Object.keys(expected).every((key) =>
+        this.deepFieldMatch(key, predicted[key], expected[key], config),
+      );
+    }
+    if (isArrayOfRows(expected)) {
+      if (!Array.isArray(predicted) || predicted.length !== expected.length) {
+        return false;
+      }
+      return expected.every((row, i) =>
+        this.deepFieldMatch(`row${i}`, predicted[i], row, config),
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Match a single value that may itself be structured (recurse) or a scalar
+   * (delegate to the rule-based `compareField`).
+   */
+  private deepFieldMatch(
+    field: string,
+    predicted: unknown,
+    expected: unknown,
+    config: SchemaAwareConfig,
+  ): boolean {
+    if (isStructuredExpected(expected)) {
+      return this.structuralMatch(predicted, expected, config);
+    }
+    return this.compareField(field, predicted, expected, config).matched;
   }
 
   /**
@@ -387,36 +481,9 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     if (s1 === s2) return 1.0;
     if (s1.length === 0 || s2.length === 0) return 0.0;
 
-    const distance = this.levenshteinDistance(s1, s2);
+    const distance = levenshteinDistance(s1, s2);
     const maxLength = Math.max(s1.length, s2.length);
     return 1.0 - distance / maxLength;
-  }
-
-  /**
-   * Calculate Levenshtein distance between two strings
-   */
-  private levenshteinDistance(s1: string, s2: string): number {
-    const m = s1.length;
-    const n = s2.length;
-
-    const dp: number[][] = Array.from({ length: m + 1 }, () =>
-      Array(n + 1).fill(0),
-    );
-
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-    for (let i = 1; i <= m; i++) {
-      for (let j = 1; j <= n; j++) {
-        if (s1[i - 1] === s2[j - 1]) {
-          dp[i][j] = dp[i - 1][j - 1];
-        } else {
-          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-        }
-      }
-    }
-
-    return dp[m][n];
   }
 
   /**
@@ -485,7 +552,11 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
    * Parse numeric value (handle commas and spaces so "6 191.12" and "6,191.12" parse)
    */
   private parseNumeric(value: string): number | null {
-    const cleaned = value.replace(/,/g, "").replace(/\s/g, "");
+    // Reuse the shared "number" canonicalizer so currency symbols (£$€¥),
+    // thousands separators, and whitespace are all stripped — a hand-rolled
+    // comma/space strip missed currency, so "$6,191.12" failed to parse and
+    // silently fell back to an exact-string mismatch.
+    const cleaned = canonicalize(value, { canonicalize: "number" });
     if (cleaned === "") return null;
     const num = parseFloat(cleaned);
     return Number.isNaN(num) ? null : num;
