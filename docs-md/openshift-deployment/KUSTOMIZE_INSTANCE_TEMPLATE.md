@@ -33,13 +33,13 @@ The template uses placeholder tokens that the deploy script replaces with actual
 
 ### Route IP restrictions
 
-The source-IP allowlist is **production-only**. Base `Route` manifests under `deployments/openshift/kustomize/base/` carry **no** allowlist, so ephemeral PR and `test`/`dev` instances are reachable without VPN. For production namespaces the `components/prod-resources` component adds `haproxy.router.openshift.io/ip_whitelist` to both public Routes, so the OpenShift router (HAProxy) only allows traffic whose source IP is in the BC Gov public `142.x` allocation (ARIN org `PBC-51-Z`): `142.22.0.0/16`–`142.36.0.0/16`, space-separated. This covers all BC Gov networks including VPN egress and the Silver/Gold/Gold-DR NAT pools (all within `142.34.0.0/16`); other clients receive HTTP 403 at the router.
+The source-IP allowlist is **production-only**. Base `Route` manifests under `deployments/openshift/kustomize/base/` carry **no** allowlist, so ephemeral PR and `test`/`dev` instances are reachable without VPN. For production namespaces the `components/prod-resources` component adds `haproxy.router.openshift.io/ip_allowlist` to both public Routes, so the OpenShift router (HAProxy) only allows traffic whose source IP is in the BC Gov public `142.x` allocation (ARIN org `PBC-51-Z`): `142.22.0.0/16`–`142.36.0.0/16`, space-separated. This covers all BC Gov networks including VPN egress and the Silver/Gold/Gold-DR NAT pools (all within `142.34.0.0/16`); other clients receive HTTP 403 at the router.
 
 `scripts/lib/generate-overlay.sh` includes `components/prod-resources` automatically when the target namespace ends in `-prod` — the same mechanism used for prod-only memory limits and PVC sizes. There is no per-overlay allowlist patch; the legacy `overlays/{prod,test,dev}` directories are not part of the deploy path (the **Deploy Instance** workflow always renders from `overlays/instance-template`).
 
 The backend Route keeps `haproxy.router.openshift.io/deny-list` for `/metrics` in base, so `/metrics` is blocked in every environment (see `docs-md/PROMETHEUS_METRICS.md`).
 
-> Annotation key: use `ip_whitelist`, which the OpenShift 4.x HAProxy router honors and is verified to enforce on Silver. `ip_allowlist` is **not** relied upon.
+> Annotation key: `ip_allowlist` (renamed from `ip_whitelist` in PR #218 / AI-1341 for inclusive naming).
 >
 > History: a prior base value of `142.16.0.0/11` both over-restricted (a `/11` only spans `142.0.0.0`–`142.31.255.255`, silently excluding BC Gov clients in `142.32.0.0/16`–`142.36.0.0/16`) and applied to every environment, including test/dev.
 

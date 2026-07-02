@@ -6,7 +6,7 @@ metadata:
     app: frontend
   # No source-IP allowlist here on purpose: base is open so ephemeral PR and
   # test/dev instances are reachable without VPN. The production-only source-IP
-  # allowlist (haproxy.router.openshift.io/ip_whitelist) is applied by the
+  # allowlist (haproxy.router.openshift.io/ip_allowlist) is applied by the
   # components/prod-resources component, which scripts/lib/generate-overlay.sh
   # includes automatically when the target namespace ends in -prod.
 spec:
