@@ -44,6 +44,7 @@ async function main(): Promise<void> {
     "04-vlm-direct",
     "05-vlm-ocr-hybrid",
     "07-vlm-ocr-hybrid-gpt-4o",
+    "08-vlm-ocr-hybrid-gpt-5.2",
   ];
   const slug = allSlugs.find((s) => s.startsWith(slugArg)) ?? slugArg;
 

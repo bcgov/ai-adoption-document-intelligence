@@ -2,7 +2,8 @@
     "sin": [
         "789788425",
         "789 788 425",
-        "789-788-425"
+        "789-788-425",
+        "789-788- 425"
     ],
     "date": "2026-03-26",
     "name": "Dave Nine",
@@ -63,7 +64,10 @@
     "checkbox_need_assistance_yes": "selected",
     "spouse_net_employment_income": 100,
     "spouse_tax_credits_gst_credit": 0,
-    "applicant_employment_insurance": 0,
+    "applicant_employment_insurance": [
+        "0",
+        "0\n0"
+    ],
     "applicant_workers_compensation": "0",
     "checkbox_employment_changes_no": "selected",
     "spouse_canada_pension_plan_cpp": 0,

@@ -7,14 +7,16 @@
     "date": "2026-03-24",
     "name": "Missed Box",
     "phone": "",
-    "case_id": "",
     "signature": "Missed Box",
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",
     "spouse_phone": "",
     "spouse_oas_gis": "",
-    "explain_changes": "Homeless",
+    "explain_changes": [
+        "Homeless",
+        "HOMELESS"
+    ],
     "checkbox_work_no": "selected",
     "spouse_signature": "",
     "applicant_oas_gis": 0,

@@ -25,6 +25,31 @@ function isNullLikeScalar(v: unknown): boolean {
 }
 
 /**
+ * GT sentinel values that act as wildcards — the field is treated as unscored.
+ * Labellers use `:garbled:` when the form value is unreadable; counting that
+ * cell against an engine that did or didn't transcribe it isn't meaningful.
+ * Any prediction (null or otherwise) matches when an expected alternate is in
+ * this set.
+ */
+const WILDCARD_SENTINELS = new Set<string>([":garbled:"]);
+
+function isWildcardExpected(expected: unknown): boolean {
+  for (const a of Array.isArray(expected) ? expected : [expected]) {
+    if (typeof a === "string" && WILDCARD_SENTINELS.has(a)) return true;
+  }
+  return false;
+}
+
+/**
+ * Fields whose GT value cannot be reliably character-transcribed (handwritten
+ * signatures vary widely between writers and across renderings). For these
+ * fields the evaluator checks presence — i.e. did the engine produce a value
+ * where one was expected, and conversely return null where the form was blank
+ * — instead of literal character equality.
+ */
+const PRESENCE_ONLY_FIELDS = new Set<string>(["signature", "spouse_signature"]);
+
+/**
  * Check if a value represents "no value". For arrays (one-of GT alternates),
  * returns true only when every alternate is itself null-like (or the array is
  * empty), so `["", null]` is treated as "blank is acceptable" but
@@ -248,6 +273,12 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
     expected: unknown,
     config: SchemaAwareConfig,
   ): FieldComparisonResult {
+    // Wildcard GT — any prediction matches when an alternate is `:garbled:`
+    // (labellers' flag for "form value is unreadable, do not score").
+    if (isWildcardExpected(expected)) {
+      return { field, matched: true, predicted, expected };
+    }
+
     // Get matching rule for this field
     const rule = config.fieldRules?.[field] ||
       config.defaultRule || {
@@ -265,6 +296,18 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
         return { field, matched: true, predicted, expected };
       }
       return { field, matched: false, predicted: undefined, expected };
+    }
+
+    // Presence-only fields (signatures): we've already established predicted
+    // is non-null-like; treat the field as matched iff at least one expected
+    // alternate is also non-null-like. This avoids penalising the engine for
+    // imperfect handwriting transcription while still catching hallucinated
+    // signatures where the form was blank.
+    if (PRESENCE_ONLY_FIELDS.has(field)) {
+      const anyExpectedNonNullLike = alternativesOf(expected).some(
+        (a) => !isNullLikeScalar(a),
+      );
+      return { field, matched: anyExpectedNonNullLike, predicted, expected };
     }
 
     // Apply matching rule

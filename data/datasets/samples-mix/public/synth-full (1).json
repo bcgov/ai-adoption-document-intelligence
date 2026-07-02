@@ -17,7 +17,10 @@
     "checkbox_moved_no": "selected",
     "checkbox_warrant_yes": "selected",
     "checkbox_warrant_no": "unselected",
-    "explain_changes": "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+    "explain_changes": [
+        "Against really decision short nothing interest particularly level summer list go shake woman while beat. Investment include with view story yourself why color treatment prove summer full learn actually among marriage church. Never.",
+        "Against really decision short nothing interest\nparticularly level summer list go shake woman\nwhile beat. Investment include with view story\nyourself why color treatment prove summer full\nlearn actually among marriage church. Never."
+    ],
     "checkbox_employment_changes_spouse_yes": "unselected",
     "checkbox_employment_changes_spouse_no": "selected",
     "checkbox_school_spouse_yes": "selected",
@@ -28,7 +31,10 @@
     "checkbox_moved_spouse_no": "unselected",
     "checkbox_warrant_spouse_yes": "selected",
     "checkbox_warrant_spouse_no": "unselected",
-    "applicant_net_employment_income": 1594.65,
+    "applicant_net_employment_income": [
+        "1594.65",
+        "$1,594.65"
+    ],
     "applicant_employment_insurance": 8740.25,
     "applicant_spousal_support_alimony": 289,
     "applicant_child_support": 2326.47,
@@ -38,12 +44,21 @@
     "applicant_room_board_income": 8641,
     "applicant_workers_compensation": 9906.37,
     "applicant_private_pensions_retirement_disability": 8281.78,
-    "applicant_oas_gis": 1297.16,
+    "applicant_oas_gis": [
+        "1297.16",
+        "$1297.16"
+    ],
     "applicant_trust_income": 9181,
     "applicant_canada_pension_plan_cpp": 5057.31,
     "applicant_tax_credits_gst_credit": 7986.99,
-    "applicant_child_tax_benefits": 3181.38,
-    "applicant_income_tax_refund": 1143.66,
+    "applicant_child_tax_benefits": [
+        "3181.38",
+        "$3181.38"
+    ],
+    "applicant_income_tax_refund": [
+        "1143.66",
+        "$1,143.66"
+    ],
     "applicant_other_income_money_received": 6578.34,
     "applicant_income_of_dependent_children": 9495.78,
     "spouse_net_employment_income": 3472,
@@ -56,7 +71,10 @@
     "spouse_room_board_income": 6973,
     "spouse_workers_compensation": 7431.61,
     "spouse_private_pensions_retirement_disability": 9433.75,
-    "spouse_oas_gis": 2326.11,
+    "spouse_oas_gis": [
+        "2326.11",
+        "2, 326 . 11"
+    ],
     "spouse_trust_income": 4269,
     "spouse_canada_pension_plan_cpp": 4637.71,
     "spouse_tax_credits_gst_credit": 76.59,

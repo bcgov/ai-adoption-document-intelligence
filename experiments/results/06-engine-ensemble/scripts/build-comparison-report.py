@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Cross-engine comparison analysis for E00 / E02 / E03 / E04 / E05 (+ E06 when
-INCLUDE_E06=1).
+Cross-engine comparison analysis for E00 / E02 / E03 / E04 / E05 / E07 / E08
+(+ E06 when INCLUDE_E06=1).
 
 Reads each engine's `experiments/results/<slug>/benchmark-run.json` (already
 re-evaluated against the current local GT by
@@ -43,12 +43,16 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # (tag, slug, short_label, full_name)
 ENGINES = [
     ("E00", "00-doc-intelligence-template", "Azure DI custom template", "E00 — Azure DI custom template"),
+    ("E01", "01-neural-doc-intelligence", "Azure DI Neural custom", "E01 — Azure DI Neural custom model"),
     ("E02", "02-mistral-doc-ai-azure", "Mistral on Foundry", "E02 — Mistral on Azure Foundry"),
     ("E03", "03-content-understanding", "Azure CU + gpt-5.2", "E03 — Azure Content Understanding + gpt-5.2"),
     ("E04", "04-vlm-direct", "gpt-5.4 VLM-direct", "E04 — gpt-5.4 vision-language model (direct)"),
     ("E05", "05-vlm-ocr-hybrid", "gpt-5.4 VLM + Azure DI layout", "E05 — gpt-5.4 VLM + Azure DI prebuilt-layout (hybrid)"),
+    ("E07", "07-vlm-ocr-hybrid-gpt-4o", "gpt-4o VLM + Azure DI layout", "E07 — gpt-4o VLM + Azure DI prebuilt-layout (hybrid)"),
+    ("E08", "08-vlm-ocr-hybrid-gpt-5.2", "gpt-5.2 VLM + Azure DI layout", "E08 — gpt-5.2 VLM + Azure DI prebuilt-layout (hybrid)"),
 ]
-INCLUDE_E06 = os.environ.get("INCLUDE_E06", "0") == "1"
+# E06 is included by default — pass INCLUDE_E06=0 to skip it (rarely useful).
+INCLUDE_E06 = os.environ.get("INCLUDE_E06", "1") == "1"
 if INCLUDE_E06:
     ENGINES = ENGINES + [
         (
@@ -60,17 +64,27 @@ if INCLUDE_E06:
     ]
 ENGINE_COLORS = {
     "E00": "#7f7f7f",
+    "E01": "#bcbd22",
     "E02": "#1f77b4",
     "E03": "#2ca02c",
     "E04": "#d62728",
     "E05": "#9467bd",
     "E06": "#ff7f0e",
+    "E07": "#e377c2",
+    "E08": "#17becf",
 }
 
 TOTAL_FIELDS_PER_SAMPLE = 74  # SDPR template schema size
 
+# Fields that appear in GT for some samples but are not part of the engine schema
+# (no engine returns a prediction for them). Excluded from per-category aggregation
+# to avoid inflating category sizes and means.
+IGNORE_FIELDS = {"case_id"}
+
 
 def classify_field(field: str) -> str:
+    if field in IGNORE_FIELDS:
+        return "_ignored"
     if field.startswith("checkbox_"):
         return "checkboxes"
     if field in {"sin", "spouse_sin"}:
@@ -222,11 +236,14 @@ def main() -> None:
     plt.close(fig)
 
     # ---- 5. Per-field accuracy
+    # Schema note: older exports use "field", newer exports use "name". Accept both.
     per_field = defaultdict(dict)
     all_fields: set[str] = set()
     for tag, _, _, _ in ENGINES:
         for pf in runs[tag].get("perFieldResults", []):
-            field = pf["field"]
+            field = pf.get("field") or pf.get("name")
+            if not field:
+                continue
             per_field[field][tag] = pf.get("accuracy", 0.0)
             all_fields.add(field)
     sorted_fields = sorted(all_fields, key=lambda f: (classify_field(f), f))
@@ -243,7 +260,10 @@ def main() -> None:
     # ---- 6. Per-category accuracy
     cat_field_lists: dict[str, list[str]] = defaultdict(list)
     for f in sorted_fields:
-        cat_field_lists[classify_field(f)].append(f)
+        cat = classify_field(f)
+        if cat == "_ignored":
+            continue
+        cat_field_lists[cat].append(f)
 
     per_category: dict[str, dict[str, float]] = {}
     for cat, fields_in_cat in cat_field_lists.items():

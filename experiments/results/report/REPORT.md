@@ -1,6 +1,71 @@
 # Cross-engine extraction comparison report
 
-This report compares five end-to-end OCR / form-extraction approaches against the same set of monthly-report documents, plus a synthesised ensemble that combines the five (E06). Each engine extracts the same 74 fields per document; every engine is scored the same way against the same ground truth so the numbers are directly comparable.
+## Executive summary
+
+We tested eight ways to turn a hand-filled SDPR Monthly Report into structured data, scored each one against 40 real and synthetic forms, and measured both accuracy and per-page cost.
+
+> **What this report is and isn't.** The findings below are specific to **a hand-filled, scanned, key-value-extraction workload** — a one-page form with handwritten data going into a fixed JSON schema. The right tool for a different document class (digital-native PDFs with selectable text, free-form contracts requiring summarisation or Q&A, multi-page tabular reports, ID cards, etc.) is very likely a different tool. In particular, the two-stage OCR + LLM pipeline that wins on this workload is a custom architecture — it takes ongoing prompt and schema maintenance and isn't a turnkey product. Treat the result as "this architecture is the strongest candidate observed on this benchmark of the SDPR Monthly Report" — not as "this is the universally best document-AI stack", and not as a final production endorsement (see [Statistical significance and confidence intervals](#statistical-significance-and-confidence-intervals) for what 40 samples can and cannot tell us).
+
+The bottom line:
+
+- **Our custom pipeline beats Microsoft's off-the-shelf managed product on both accuracy *and* cost.** Combining Azure's OCR service with a GPT-5.2 call — sending both the form image *and* the OCR text — reads ~**95% of fields correctly per form** on this dataset, ~2 percentage points better than Azure's managed "Content Understanding" service (averaged across 40 samples). On the cost side, our pipeline runs at **~$0.046/page** vs the managed product's **~$0.073/page** — about 37% cheaper — measured across 5 representative samples per engine.
+- **The previous approach (a hand-trained custom model, V1) has been overtaken.** Modern generative AI engines now match or beat the supervised template's accuracy *without* needing re-training every time the form changes — removing a significant ongoing maintenance cost.
+- **One engine is far cheaper but with a structural accuracy ceiling.** Mistral's document AI runs at ~$0.003/page (~20× cheaper than the GPT-based options) but cannot recover handwriting its OCR layer misses. A reasonable fallback for low-stakes documents, not for income reporting.
+- **Results are directional, not a production guarantee.** The 40-sample dataset includes deliberately-hard edge cases (blank, coffee-stained, pencil-filled forms). On production volume the *rankings* between engines should hold; the *absolute* accuracy numbers will move.
+
+### When to choose each engine
+
+The single best engine on this workload (E08, our custom pipeline) isn't the right answer for every situation. The other engines remain meaningfully useful in specific contexts:
+
+- **Azure Content Understanding (CU, E03) — the managed-service alternative.** Choose CU when (a) you want a single managed service that handles OCR-to-LLM orchestration, structured output, and retries (you still maintain the schema and prompt), (b) downstream workflows need per-field confidence scores and bounding-box source spans on *generative* answers (DI grounds what its OCR reads; CU grounds what the LLM infers — including derived or summarised values), or (c) the documents are unstructured or vary heavily in layout. CU is bring-your-own-deployment: you connect any supported Foundry model (gpt-5.2, gpt-4.1, gpt-4.1-mini, mini/nano variants) and can swap to a cheaper/lower-latency model if accuracy allows. Note that this means CU shares the same model-region constraints as our pipeline (e.g. gpt-5.2 in Canada is still PTU-only) — CU is not a shortcut around data residency. CU is ~2 pp less accurate on this workload and ~37% more expensive per page, but it is a turnkey product.
+
+- **Document Intelligence custom Neural model (E01) — the supervised, non-LLM alternative.** Best of the non-LLM engines on this dataset (~95% of fields per form, F1.mean 0.946) and the best single-engine on the `sin` category. Choose DI Neural when (a) data residency or compliance rules out generative AI, (b) you have a representative labelled training set, or (c) you want a turnkey Microsoft-managed deployment with no prompt or schema maintenance and no LLM token cost. The trade-offs are still the labelling-and-retraining loop — labelling effort is the same as E00's (same training-data shape and volume); the Neural model's advantage over E00 is not less labelling work but greater tolerance of layout variations, which lowers the *retraining cadence* as the form drifts over time — and meaningfully lower accuracy than E08 (-2.7 pp F1.mean). Cost is the standard DI custom rate (~$0.030/page).
+
+- **Document Intelligence custom template (E00) — the older supervised path.** A template-based custom model. **Largely superseded by E01** (the Neural model) on the same workload — E01 hits F1.mean 0.946 vs E00's 0.916. Choose E00 only if you already have a trained template in production and the cost of migrating to E01 outweighs the accuracy gain.
+
+- **Mistral Document AI (E02) — the high-volume, cost-sensitive option.** Choose Mistral when (a) per-page cost dominates the decision (it is ~15× cheaper than every gpt-5.x option at $0.003/page), (b) the documents are mostly typed or have clean handwriting that OCRs reliably, or (c) the workload tolerates a structural accuracy ceiling. Mistral's annotation pass doesn't see the image, so anything its OCR layer misses is irrecoverable. On this hand-filled handwriting workload that ceiling matters; on cleaner documents it might not.
+
+- **Our custom pipeline (E08) — the accuracy-optimised path.** A custom two-stage pipeline: **Azure Document Intelligence (`prebuilt-layout`) OCR + GPT-5.2 chat-completion, with both the form image *and* the OCR text sent to the model**. Highest accuracy on this benchmark (~95% of fields, F1.mean 0.973) and lowest cost among the gpt-based options. The architecture warrants further exploration for SDPR-shaped workloads (image-based forms going into a fixed key-value schema, where the volume justifies maintaining a prompt + schema). Treat the result as promising rather than conclusive: a larger production sample is needed before committing it as the production path, and the choice of Azure OpenAI deployment mode (Global Standard, PTU Regional in Canada, etc.) changes the per-page cost picture materially — see [Production deployment — Canada data residency](#production-deployment--canada-data-residency).
+
+## Overview — what we tested and why it matters
+
+Each SDPR Monthly Report has 74 fields (names, SINs, dates, signatures, 14 yes/no checkboxes, 35 income amounts). The system needs to read all 74 from a scanned or photographed page and produce reliable structured data for downstream eligibility processing. We compared eight approaches: two supervised models trained against the form, two managed Microsoft / Mistral products, one direct vision-language model call, and three variants of a custom pipeline that combines Microsoft's OCR with a generative AI call.
+
+Two seemingly-technical choices drive most of the accuracy gap between the winner and Microsoft's managed alternative:
+
+1. **We give the AI both the image and the OCR text.** When the OCR layer misses a small handwritten `0` on an income line, the model can still recover it from the picture. Microsoft's managed product never shows the image to the AI, so it cannot recover what the OCR drops — and on this dataset it drops **13× more handwritten zeros** than our pipeline does.
+2. **We control the prompt directly.** The managed product hides its prompt behind a "contextualization" layer that re-builds the instructions server-side. Our pipeline tells the model in plain language to *trust the image when the OCR text disagrees* and *return blank rather than guessing*. That **reduces** a class of "fluent-but-wrong" answers the managed product produces more often — but does not eliminate them: both pipelines still occasionally fabricate plausible values, just at different rates.
+
+The cost picture turned out to favour the custom pipeline for the same reasons: the managed product's hidden contextualization layer inflates the prompt enough that, end-to-end, it sends more tokens to the AI model than our pipeline does *even with the image attached*, and it pays its own per-page meters on top.
+
+## Observations on a candidate production path
+
+**On this benchmark**, the strongest single engine is the custom pipeline (Azure Document Intelligence `prebuilt-layout` OCR + GPT-5.2, with both the form image *and* the OCR text sent to the model — referenced as "E08" in this report): F1.mean 0.973, ~95% field accuracy, ~$0.046/page cold-cache. It beats Microsoft's managed Content Understanding service on both accuracy (+2.0 pp F1.mean) and per-page cost (~37% lower), and beats the V1 trained-template approach by ~5.7 pp F1.mean. These results warrant further exploration of the architecture as a candidate production path for SDPR — not a commitment to it.
+
+Caveats to weigh before any production decision:
+
+1. **Small, edge-case-skewed dataset.** 40 samples; rankings should hold but absolute deltas will shift. Differences below ~2 pp F1.mean are close to noise — see [Statistical significance and confidence intervals](#statistical-significance-and-confidence-intervals).
+2. **Workload-specific.** E08 suits image-based, key-value-shaped forms going into a fixed schema. Digital-native PDFs, free-form documents, multi-page tabular reports, or one-off extraction likely favour a managed product or different tooling.
+3. **Operating cost depends on the Azure OpenAI deployment mode** (Global Standard vs gpt-5.2 PTU Regional in Canada vs a Canada-pinned alternate model). The architectural choice is independent of the residency question; the per-page cost is not — see [Production deployment — Canada data residency](#production-deployment--canada-data-residency).
+4. **Generative engines hallucinate, including E08** (FP.mean 1.58 vs E03's 1.85 — reduced, not eliminated). For high-stakes fields like incomes and names, the safety net has to be a **comparison source** — full/majority human review, ensemble disagreement-flagging, or cross-data consistency checks — not a confidence-gated sample, because confidence thresholds cannot reliably separate fabrications from correct answers. A custom pipeline also requires ongoing prompt-and-schema maintenance (lower effort than re-training a template, but not zero); managed Content Understanding (E03) is the trade-off if maintenance cost dominates.
+
+If exploring E08 further: re-measure on a larger production sample, resolve the deployment-mode question with the BC data-residency policy owner (this shifts cost more than the architectural choice does), and right-size human-in-the-loop review to each field category's risk profile.
+
+## Introduction
+
+The British Columbia government's **SDPR Monthly Report** is a one-page form that income-assistance recipients fill out monthly. Each form has 74 fields covering applicant and spouse names, signatures, dates, SINs, phone numbers, a free-form comment box, two parallel income-amount columns (18 applicant lines, 17 spouse lines — the spouse column has no `income_of_dependent_children` row), and 14 yes/no checkbox pairs. Most fields are filled by hand. The forms come in via scanner or phone photo and need to be turned into structured data that downstream eligibility processing can consume.
+
+![SDPR Monthly Report — example hand-filled form (manual sample 5)](images/sdpr-monthly-report-sample.jpg)
+
+This report is a head-to-head comparison of **eight different ways to do that extraction**, plus a synthesised ensemble. Each engine reads the same set of 40 sample forms, returns the same 74 fields per form, and is scored the same way against the same ground truth. The forms span hand-filled real-world samples (varying handwriting styles, including pencil and a phone photo), synthetically generated samples, and two deliberately-hard edge cases (a blank form and one with coffee stains over the data).
+
+**What the engines have in common.** Every engine takes an image (or PDF page) of the form and returns a JSON object with 74 field values. Re-scoring is strict: an answer is either an exact match to ground truth (with small allowances for known-equivalent format variants on dates, SINs, and phone numbers) or it isn't.
+
+**What the engines differ on.** They differ on the OCR layer (or whether there is one), whether the engine is trained on this specific form (E00 and E01 are; the rest aren't), the generative model used to interpret the text and fill the schema, whether the image itself is shown to the generative model, and how the prompt and schema are presented to it. Those levers turn out to drive most of the accuracy differences we see — picking the right combination matters more than picking the latest model.
+
+**Headline finding.** A custom pipeline that pairs **Azure Document Intelligence's `prebuilt-layout` OCR with a Foundry-deployed GPT-5.2 chat-completions call** — sending both the image and the OCR markdown to the model — is the strongest single engine on this dataset, beating the managed Azure Content Understanding (CU) service on most aggregates *even though CU runs the same gpt-5.2 model internally*. The gap is structural, not model-driven: CU's OCR (Microsoft-confirmed) is tuned for stricter grounding than the standalone DI `prebuilt-layout` E08 uses, and CU never shows the image to the LLM. Our pipeline sees both the image *and* the OCR text, which lets the model recover content the OCR step did not capture. Measured per-page cost (across 5 samples per engine) also favours our pipeline: E08 averages **~$0.046/page** vs E03's **~$0.073/page** — ~37% cheaper. CU sends substantially more input tokens to gpt-5.2 than we do (mean 18,844 vs 11,968) and produces ~37% more output tokens. Full breakdown in the [E08 section](#e08--gpt-52-vlm--azure-di-layout-hybrid) and [Cost per page](#cost-per-page).
+
+**How to read the rest of this document.** The headline aggregate metrics at the top give the bottom line. The per-category and per-field views show where each engine wins and loses. The per-engine sections describe what each engine is and how we ran it. The Reflection ties the patterns together. Appendix A documents the ensemble (E06).
 
 ## The dataset
 
@@ -15,17 +80,19 @@ The dataset contains **40 SDPR Monthly Report documents** — the form that anch
 ## Engines compared
 
 - **E00 — Azure Document Intelligence custom template.** A supervised, form-specific model: a labelled template is trained against the SDPR form and inferred against new images. This is the same workflow that produced the **V1 Report**.
+- **E01 — Azure Document Intelligence custom Neural model.** A deep-learning custom model in the Azure DI family — same training-data shape as E00 (labelled SDPR forms) but the model infers field positions from learned representations rather than from labelled bounding boxes. Trained on the production-grade `sdpr-monthly-prod-neural-v2` model and evaluated on the same 40-sample dataset as the other engines.
 - **E02 — Mistral on Azure AI Foundry.** A general-purpose document AI model. The engine first runs OCR over the page, then a Mistral generative pass extracts structured fields against a JSON schema.
-- **E03 — Azure Content Understanding (CU) + GPT-5.2.** Azure CU reads the image through a content-extraction layer that produces structured fields directly; a GPT-5.2 generative pass fills any fields the structured layer left ambiguous.
+- **E03 — Azure Content Understanding (CU) + GPT-5.2.** A managed two-stage Microsoft service. Stage 1 is a specialized OCR/Layout model (the same Document Intelligence `prebuilt-layout` family, tuned for stricter grounding) that produces a layout-aware Markdown representation of the page. Stage 2 sends that Markdown plus the analyzer schema (field names, types, descriptions) to a customer-deployed GPT-5.2 chat model and gets a structured JSON response back. **The image itself is never sent to the LLM** — stage 2 is text-only.
 - **E04 — GPT-5.4 vision-language model (direct).** The page image is sent directly to GPT-5.4 with a strict JSON-schema response format. No separate OCR step.
 - **E05 — GPT-5.4 VLM + Azure DI layout (hybrid).** Two-pass: Azure DI's layout reader transcribes the page to markdown, then GPT-5.4 sees both the raw image and the OCR text, with a prompt that tells it to trust the image when the OCR text disagrees.
-- **E06 — ensemble combiner.** Not itself a deployed engine. It takes the predictions produced by the other five and picks the per-field value using a weighted-majority vote, where each engine's vote weight is its own historical per-field accuracy. Full details in [Appendix A](#appendix-a--e06-ensemble-combiner).
+- **E07 — GPT-4o VLM + Azure DI layout (hybrid).** Same pipeline as E05; the only difference is the generative model — GPT-4o instead of GPT-5.4. Lets us isolate the model contribution on the hybrid pipeline.
+- **E08 — GPT-5.2 VLM + Azure DI layout (hybrid).** Same pipeline as E05 and E07; the generative model is GPT-5.2 — the same model E03's Content Understanding uses internally. The third leg of the same-pipeline model bake-off.
+- **E06 — ensemble combiner.** Not itself a deployed engine. It takes the predictions produced by all eight upstream engines (E00, E01, E02, E03, E04, E05, E07, E08) and picks each field's value from that category's best single engine (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). Full details in [Appendix A](#appendix-a--e06-ensemble-combiner).
 
-E01 (an earlier Azure DI extraction pipeline) is being worked on separately and is not included in this comparison.
 
 ## How the metrics are computed
 
-Each document has 74 fields with known correct values. Every engine returns the same 74 fields with whatever values it extracted. For each field on each document, we ask: did the engine's value match the correct value? The comparison is strict — values either match exactly or they don't (with a small allowance for known-equivalent format variants on dates / SINs / phones, so e.g. `2025-Nov-12` and `2025-11-12` are both accepted for a date written `Nov 12`).
+Each document has 74 fields with known correct values. Every engine returns the same 74 fields with whatever values it extracted. For each field on each document, we ask: did the engine's value match the correct value? The comparison is strict — values either match exactly or they don't (with a small allowance for known-equivalent format variants on dates / SINs / phones, so e.g. `2025-Nov-12` and `2025-11-12` are both accepted for a date written on the form as `2025-Nov-12`).
 
 ### The atomic units: TP, FP, FN
 
@@ -51,27 +118,152 @@ These definitions match the standard OCR / information-extraction formulation. A
 
 Per-engine aggregates (median, mean) are computed across the 40 per-sample F1 / precision / recall values.
 
+## Statistical significance and confidence intervals
+
+Accuracy numbers come from **40 samples per engine** (2,852 field observations); cost numbers come from **5 samples per engine**. Both are small. Some of the engine-vs-engine deltas this report quotes are within the noise band — treat rankings as directional and absolute deltas with caution.
+
+**Reading the F1.mean deltas by size:**
+
+- **≥ 5 pp gaps are robust.** E04 vs E08 (8.6 pp), E00 vs E08 (5.7 pp) are well outside any plausible noise band.
+- **2–4 pp gaps are directional, not precise.** This includes the headline **E08 vs E03 gap (2.0 pp)** and the **same-pipeline E05 / E07 / E08 ordering**. Each engine ran against the same 40 samples (paired comparison), and the per-sample direction agrees with the mean for these gaps — plus each is supported by an identified structural mechanism — so the ordering is likely to hold. The *magnitude* of the lead would move materially on a larger corpus.
+- **Sub-2 pp gaps should be read as essentially tied.** This applies to several per-category comparisons and the tightest cost spreads.
+
+**Per-category numbers are noisier than the aggregates** because the denominators are smaller. The five 2-field categories (`sin`, `date`, `phone`, `name`, `signature`) have only 80 observations each — naïve 95% CI of roughly **± 5–7 pp**. So per-category leaders separated by less than that — e.g. E01 (0.963) vs E08 (0.950) on `sin`, or E05 (0.948) vs E08 (0.923) on `name` — are **not statistically distinguishable** on this dataset. Treat the per-category leader call-outs as suggestive, not as confident "engine X wins category Y" claims. Large per-category gaps (e.g. E08 0.970 vs E03 0.880 on `income_amounts` over n ≈ 1,315) remain robust.
+
+**Single-sample claims are anecdotes, not statistics** — useful for understanding *which* failures each engine is prone to, but they don't generalise to "engine X is N pp better on samples like Y".
+
+**Dataset composition matters independent of size.** The 40-sample set is deliberately tilted toward edge cases (blank, coffee-stained, pencil-filled, dense-handwriting) to expose failure modes. Production form-mix will lean heavier on "normal" documents, which tend to be easier for every engine. Expect absolute accuracy numbers to rise and gaps between engines to narrow on a representative production sample. **The rankings should hold; the deltas almost certainly won't.**
+
 ## Headline aggregate metrics
 
 ![Aggregate metrics by engine](plots/01-aggregate-metrics.png)
 
 > **How to read:** every metric on this chart runs from 0 to 1 (1 is perfect). The Y-axis is zoomed (the visible range starts well above 0) so that small differences between engines are visible — the absolute differences look modest here, but they compound: a 2 pp difference in field accuracy is roughly 1.5 extra correct fields per document, or several hundred extra correct extractions across a batch of 10,000 documents. Each group of bars is one metric; each colour is one engine (full names in the legend). Higher is better.
 
-| | E00 (DI custom template) | E02 (Mistral / Foundry) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 VLM) | E05 (VLM + DI hybrid) | **E06 (ensemble)** |
-|---|---|---|---|---|---|---|
-| **F1 (median)** | 0.939 | 0.959 | 0.969 | 0.903 | 0.960 | **0.973** |
-| **F1 (mean)** | 0.903 | 0.918 | 0.947 | 0.870 | 0.942 | **0.962** |
-| **Precision (mean)** | 0.917 | 0.941 | 0.958 | 0.876 | 0.951 | **0.973** |
-| **Recall (mean)** | 0.899 | 0.902 | 0.939 | 0.866 | 0.935 | **0.953** |
-| **matchedFields (median)** | 66 | 69 | 70 | 66 | 71 | **71** |
-| **Field accuracy (matched / processed)** | 0.872 (2488/2852) | 0.896 (2555/2852) | 0.935 (2668/2852) | 0.868 (2475/2852) | 0.934 (2664/2852) | **0.951 (2712/2852)** |
-| **False positives (mean per sample)** | 5.60 | 4.05 | 3.00 | **8.48** | 3.38 | **1.93** |
+| | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU + gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | **E06 (ensemble)** |
+|---|---|---|---|---|---|---|---|---|---|
+| **F1 (median)** | 0.952 | 0.980 | 0.966 | 0.981 | 0.918 | 0.980 | 0.973 | 0.984 | **0.990** |
+| **F1 (mean)** | 0.916 | 0.946 | 0.927 | 0.953 | 0.887 | 0.957 | 0.936 | 0.973 | **0.984** |
+| **Precision (mean)** | 0.930 | 0.966 | 0.950 | 0.972 | 0.892 | 0.965 | 0.955 | 0.978 | **0.989** |
+| **Recall (mean)** | 0.912 | 0.931 | 0.910 | 0.937 | 0.882 | 0.950 | 0.921 | 0.968 | **0.980** |
+| **matchedFields (median)** | 68 | 70 | 70 | 71 | 67 | 72 | 69 | 72 | **73** |
+| **Field accuracy (matched / processed)** | 0.885 (2524/2852) | 0.920 (2625/2852) | 0.905 (2580/2852) | 0.928 (2648/2852) | 0.884 (2522/2852) | 0.949 (2707/2852) | 0.911 (2599/2852) | 0.965 (2752/2852) | **0.978 (2787/2850)** |
+| **False positives (mean per sample)** | 4.73 | 2.25 | 3.45 | 1.85 | **7.30** | 2.33 | 3.10 | 1.58 | **0.83** |
 
-Three observations to keep in mind throughout the rest of the document:
+Four observations to keep in mind throughout the rest of the document:
 
-1. **E03 (CU + gpt-5.2) and E05 (VLM + DI hybrid) are the strong single-engine performers.** They sit within 0.005 of each other on every aggregate. E03 wins F1.mean by a hair (0.947 vs 0.942); E05 wins matched.median (71 vs 70). Both clear precision 0.95 and recall 0.93.
-2. **E04 (gpt-5.4 VLM-direct) is meaningfully weaker than its peers in the gpt-5.x stack.** Lowest precision (0.876, vs E05's 0.951) — the engine substitutes wrong values for fields it isn't sure about. F1.mean 0.870 trails E03/E05 by 7+ pp. The vision encoder alone isn't enough without OCR support.
-3. **The ensemble (E06) measurably beats every single engine on every aggregate.** F1.mean 0.962 is 1.5 pp above E03's 0.947; precision 0.973 is the only number above 0.96; FP.mean 1.93 is roughly half of the best single engine's. The ensemble doesn't just edge out — it noticeably reduces the wrong-value substitution rate that every individual engine suffers from.
+1. **E08 (gpt-5.2 on the hybrid pipeline) is the strongest single engine on every accuracy aggregate.** F1.mean 0.973, F1.median 0.984, precision.mean 0.978, recall.mean 0.968, FP.mean 1.58. It beats E03 — which uses the same gpt-5.2 generative model internally — by 2.0 pp on F1.mean and 3.1 pp on recall. The gap is structural: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses, and CU's stage 2 is text-only (image never reaches the LLM), while E08 sends image + OCR Markdown together. **E08 is also cheaper per page than E03** (~$0.0455 vs ~$0.0725, ~37% lower, measured across 5 samples per engine): CU sent ~57% more input tokens and ~37% more output tokens to its gpt-5.2 call than our pipeline did, and the per-sample variance is much wider on CU (E03 input ranged 17,287–21,952 across our 5 samples vs E08's tight 11,817–12,165 over the same samples). We can observe the token counts but not the contents of CU's prompt, so the *mechanism* behind the input-side gap is not directly verifiable. See [Cost per page](#cost-per-page) for the full build-up and the [E08 notes](#e08--gpt-52-vlm--azure-di-layout-hybrid) for the accuracy mechanism.
+2. **The same-pipeline model bake-off (E05 / E07 / E08) gives a clear model ranking on this task: gpt-5.2 > gpt-5.4 > gpt-4o.** With pipeline, prompt, and field-descriptions held constant, gpt-5.2 wins by 1.6 pp F1.mean over gpt-5.4 and 3.7 pp over gpt-4o. Counter-intuitive ordering (the older model number wins on this workload).
+3. **E04 (gpt-5.4 VLM-direct) is meaningfully weaker than its peers.** Lowest precision (0.892) and highest FP.mean (7.30) — the engine substitutes wrong values for fields it isn't sure about. F1.mean 0.887 trails the hybrid-pipeline siblings by 5–9 pp. The OCR layer in front of the same VLM closes that gap entirely (compare E04 vs E05).
+4. **The ensemble (E06) beats every single engine on every aggregate** (F1.mean 0.984, F1.median 0.990, precision 0.989, recall 0.980, matched.median 73, FP.mean 0.83). It picks each field's value from that category's best single engine: E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts. Per-category, E06 ties the category leader (by construction — it *is* that engine for that category); the aggregate lift comes from the fact that no single engine wins all 8 categories, so combining specialists outperforms picking one engine for everything. The deployable form requires running those five specialist engines per page (~$0.249/page, ~5.5× E08 alone). Full breakdown in [Appendix A](#appendix-a--e06-ensemble-combiner).
+
+## Cost per page
+
+The per-page numbers below are bottom-up estimates built from Azure's published retail-pricing rates for the East US 2 region (Global Standard SKU, 2026-05-14) combined with per-call token and page counts measured across 5 representative samples per token-consuming engine.
+
+The five samples (`synth-full (1)`, `manual sample (1)`, `1 81`, `HR0081 (10)`, `81 blank`) were chosen to span the form-density spectrum, from dense typed to sparse blank. Token-consuming engines are E03, E04, E05, E07, and E08 — for E00 / E01 (DI custom and Neural) and E02 (Mistral) the billing is per page with no token component, so a single rate is exact.
+
+All prices in USD.
+
+| engine | OCR / extraction layer | LLM input mean (range) | LLM output mean (range) | **cold $/page mean** | warm $/page mean |
+|---|---|---|---|---|---|
+| **E00** — DI custom template | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
+| **E01** — DI Neural custom | DI S0 Custom Pages $30/1K | n/a | n/a | **$0.030** | $0.030 |
+| **E02** — Mistral on Foundry | Mistral Doc AI 2512 $3/1K (annotation meter; OCR bundled) | n/a (billed per page) | n/a | **$0.003** | $0.003 |
+| **E03** — CU + gpt-5.2 | CU Std $0.005/page + Std Contextualization $0.001/page | 18,844 (17,287–21,952) | 2,395 (2,051–3,390) | **$0.0725** | $0.0725* |
+| **E04** — gpt-5.4 VLM-direct | none (image goes straight to LLM) | 10,283 (10,264–10,288) | 1,437 (1,197–2,014) | **$0.0473** | $0.0307 |
+| **E05** — gpt-5.4 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,953 (11,801–12,154) | 1,660 (1,213–1,973) | **$0.0548** | $0.0379 |
+| **E07** — gpt-4o hybrid | DI S0 Pre-built (layout) $0.010/page | 11,689 (11,528–11,905) | 1,654 (1,429–1,942) | **$0.0458** | $0.0370 |
+| **E08** — gpt-5.2 hybrid | DI S0 Pre-built (layout) $0.010/page | 11,968 (11,817–12,165) | 1,751 (1,412–2,186) | **$0.0455** | $0.0301 |
+| **E06** — ensemble (per-category specialist routing: E01+E03+E05+E07+E08) | sum of constituent engines | — | — | **~$0.249** | — |
+
+\* For E03 the warm-cache rate is shown as equal to cold. The Azure OpenAI cached-input field is not exposed in CU's response payload, so we cannot tell whether CU's gpt-5.2 calls benefit from the 5-minute prompt cache in the same way our pipeline's direct calls do. The "warm = cold" assumption is conservative; if CU does benefit from caching, its true warm-cache cost is somewhat lower.
+
+> **How to read.**
+>
+> **Cold-cache cost** is the per-page bill if no prompt caching applies — i.e. single-document inference with sparse call cadence, the worst-case rate.
+>
+> **Warm-cache cost** is what continuous-batch processing pays, where Azure's 5-minute prompt cache serves the static system prompt + schema at 10% of base rate.
+>
+> For production planning, cold-cache is the conservative number for sporadic inference and warm-cache is the floor for continuous batched processing.
+>
+> The "OCR / extraction layer" column is the pre-LLM page-based meter (where one exists); the LLM columns are the customer-side Azure OpenAI tokens. For E03 (Content Understanding), gpt-5.2 tokens bill to the customer's own gpt-5.2 deployment on top of CU's meters.
+
+**Per-sample variance.** E03 shows ~5× more input-token variance than every other engine.
+
+Its input ranged 17,287 → 21,952 across 5 samples (a 27% spread), while E08 ranged 11,817 → 12,165 (a 3% spread). The sample where E03 sent the most tokens was `HR0081 (10)` at 21,952 — ~82% more than E08's 12,068 on the same sample. Notably this is *not* the same sample by handwritten-content density: `synth-full (1)` has all income cells filled with real numbers, whereas `HR0081 (10)` has most income cells filled with `0`. But `HR0081 (10)` triggered the largest E03 prompt of the five samples — we can observe this but cannot inspect CU's internal prompt to attribute it to a specific mechanism.
+
+This variance is the practical reason E03's per-page cost lands meaningfully higher than E08's on average.
+
+**E03 vs E08 cost gap.** E08 averages **~$0.0455/page (cold)** vs E03 **~$0.0725/page (cold)** — E08 is **~$0.027/page cheaper, or ~37% lower per-page cost**. With prompt caching warm, E08 falls to ~$0.0301/page while E03 stays at ~$0.0725 (no observable caching) — a ~58% cost gap.
+
+**Reference rates** (`eastus2`, Global Standard SKU, 2026-05-15):
+
+- DI S0 Custom Pages $30/1K · S0 Pre-built (layout) Pages $10/1K · S0 Read Pages $1.50/1K.
+- CU Doc Content Extraction Standard $5/1K pages · CU Std Contextualization $1.00/1M tokens.
+- Mistral Doc AI 2512 $3/1K pages · Mistral OCR 2512 $2/1K pages.
+- Azure OpenAI Global Standard token rates: gpt-5.2 $1.75/1M input · $14/1M output · $0.18/1M cached input; gpt-5.4 $2.50/1M input · $15/1M output · $0.25/1M cached input; gpt-4o (1120) $2.50/1M input · $10/1M output · $1.25/1M cached input.
+
+**Observations.**
+1. **E08 is meaningfully cheaper per page than E03** at ~$0.0455 vs ~$0.0725 (cold-cache means across 5 samples per engine) — ~37% lower per-page cost. E08 wins on every individual sample, not just the mean. CU consistently sends a larger prompt to gpt-5.2 than our pipeline does, even though it never includes the image; on the sample where CU sent the most tokens (`HR0081 (10)`) it issued 21,952 input tokens vs E08's 12,068 (~82% more). We can observe these token counts directly via Azure's `usage` field but cannot inspect what's in CU's prompt — the mechanism for the gap is not directly verifiable.
+2. **Mistral (E02) is the cheapest engine by a large margin** at ~$0.003/page — roughly 15× cheaper than the cheapest gpt-5.x-based engine. The trade-off is the accuracy ceiling documented in the E02 section (handwriting that doesn't OCR cleanly is lost, because Mistral's annotation pass doesn't see the image).
+3. **The custom DI template (E00) is the most expensive non-LLM option** at $0.030/page — 10× Mistral. That cost is the supervised-template billing tier, not anything about the form complexity.
+4. **The hybrid trio (E05/E07/E08) costs ~$0.046–$0.055/page cold-cache** — ~20% cost swing across the three models, 3.7 pp F1.mean accuracy swing. **gpt-5.2 (E08, $0.0455) and gpt-4o (E07, $0.0458) are essentially tied on cold-cache cost** — gpt-4o's lower output rate offsets gpt-5.2's lower input rate. gpt-5.4 (E05, $0.0548) is the most expensive of the three. With prompt caching warm, E08 ($0.0301) edges out E07 ($0.0370) by ~20%. On accuracy, E08 wins by 1.8 pp F1.mean over E05 and 3.7 pp over E07 — so for the same money or cheaper, E08 is the right choice on this workload.
+5. **The ensemble (E06) is ~5.5× more expensive than E08 alone** (~$0.249/page vs ~$0.046/page) because it runs five specialist engines (E01+E03+E05+E07+E08) per page. The deltas vs E08: +1.1 pp F1.mean (0.984 vs 0.973), +1 matched field at the median (73 vs 72), FP.mean roughly halved (0.83 vs 1.58). Paying ~$0.20/page extra makes sense for workloads where every wrong-value substitution costs human-review time worth more than the inference delta, or where the extra recall on hard samples justifies the cost.
+6. **Prompt caching is highly effective for batched workloads.** Azure's 5-minute prompt cache was active on most calls (cache hit rates 77–95% after the first call). Cached input is billed at ~10% of the base rate. Across the trio, warm-cache costs fall to **$0.030 (E08), $0.037 (E07), $0.038 (E05)** — roughly 30–35% below cold-cache. E03 cannot benefit the same way: its Contextualization layer rebuilds the prompt server-side, and CU's response payload does not expose the `cached_tokens` field, so we have no visibility into whether CU's gpt-5.2 calls cache internally.
+
+**Caveats on the cost numbers.**
+
+- All figures in USD. CAD conversion at the FX rate of the day applies for billing in Canada.
+- Token counts come from 5 samples per token-consuming engine, deliberately spread from dense-typed to sparse-blank. The E08-vs-E03 cost gap is consistent on every individual sample, not just the mean. A larger pass would tighten the bounds but is unlikely to flip the ranking.
+- Prompt-caching savings depend on call cadence (≥5 min idle drops the cache). Quoted cold-cache numbers are conservative for production single-document inference.
+- Egress, storage of the source document, and the per-month Azure resource flat fees are ignored — at this volume they are noise relative to the per-page numbers.
+- The Mistral OCR-only meter ($2/1K) is *not* what E02 bills against — E02 uses the higher Doc AI annotation meter ($3/1K) which is a single combined OCR+annotation page price.
+- **Content Understanding has three content-extraction tiers**, not one. We quote the **Standard** meter ($5/1K pages) which is correct for image-based scans / phone photos / image-PDFs with full layout analysis. CU also bills **Basic** ($1/1K — Read on image PDFs without layout) and **Minimal** ($0.01/1K — digital-native PDFs with a selectable text layer). If any portion of production volume arrived as digital-native PDFs the effective CU rate would be ~5× lower on that subset. SDPR forms are scans / photos, so Standard applies.
+
+### Production deployment — Canada data residency
+
+The benchmark was run in `eastus2` on Azure OpenAI **Global Standard** SKU. Production for this workload will realistically run in Canada (BC government data).
+
+Azure OpenAI offers three deployment types (per Microsoft's pricing page):
+
+- **Global Deployment** — worldwide capacity pool; Microsoft routes each request to whichever data centre has spare capacity. The data may execute outside Canada moment-to-moment.
+- **Data Zone Deployment** — geographic pool (EU or US). **GPT-5.2 has no Data Zone offering** (the price row shows N/A).
+- **Regional Deployment** — pinned to a specific region (up to 27 regions available, including Canada Central / Canada East). For GPT-5.2 specifically, Regional is **only offered as Provisioned Throughput Units (PTUs)** — there is no token-based Regional Standard for GPT-5.2. GPT-4o (2024-11-20) *does* have a token-based Regional Standard, at a ~21% uplift over Global.
+
+**A note on PTU pricing.** A Provisioned Throughput Unit is *reserved capacity*, not metered usage — you pay for the reservation regardless of how many pages flow through it, and the data stays in the region you reserved capacity in. Microsoft offers three commitment tiers (longer commitment = bigger discount):
+
+- **Hourly** — no commitment, billed hour-by-hour, can be stopped anytime. Highest unit rate.
+- **Monthly reservation** — 1-month commitment, ~80% off the hourly rate.
+- **Yearly reservation** — 1-year commitment, ~83% off the hourly rate.
+
+Each model has its own minimum-PTU floor (e.g. 15 PTUs for GPT-5.2 Global, 50 PTUs for GPT-5.2 Regional) — you cannot deploy below it.
+
+**GPT-5.2 Regional (PTU) pricing per Microsoft's published rate card:**
+
+| Tier | Per-PTU rate | 50-PTU minimum, $/month |
+|---|---|---|
+| Hourly (no commitment) | $2.20 / hour | ~$80,300 / month |
+| Monthly reservation | $315 / month | $15,750 / month |
+| Yearly reservation | $3,204 / year | ~$13,350 / month equivalent |
+
+**GPT-4o-2024-1120 Canada Regional token-based pricing per the same rate card:**
+
+| Meter | Per-1M tokens | vs Global Standard |
+|---|---|---|
+| Input | $3.025 | ~21% uplift |
+| Cached input | $1.513 | ~21% uplift |
+| Output | $12.10 | ~21% uplift |
+
+**Implications for production.** Three deployment paths exist, depending on the residency requirement:
+
+1. **GPT-5.2 Global Standard** (the benchmark's deployment) preserves the per-page cost numbers above (~$0.046 cold, ~$0.030 warm) but routes data outside Canada at Microsoft's discretion. Whether this satisfies BC data-residency rules is a policy question, not a technical one.
+2. **GPT-5.2 PTU Regional in Canada Central** keeps inference in-country with the highest accuracy but converts the cost model from "per token" to "fixed monthly reservation". At SDPR-realistic volume the per-page cost is much higher than Global — only economic at sustained high page volume.
+3. **GPT-4o token-based Regional in Canada East** is the only Canada-pinned token-based fallback. E07's per-page cost moves from ~$0.046 (measured in eastus2 Global) to ~$0.055 (projected at the +21% Regional uplift). The trade-off is the 3.7 pp F1.mean accuracy drop from gpt-5.2 to gpt-4o documented in the model bake-off — meaningful on this workload but acceptable if Canada residency is non-negotiable and PTU is uneconomic.
+
+The DI / CU / Mistral page-meter rates do not change between US and Canada in Microsoft's published rate card.
+
+**Open question for any production decision:** confirm with the BC data-residency policy owner whether Global Standard routing (where inference may execute outside Canada) meets the residency requirement. If it doesn't, the deployment model shifts to one of the two Canada-pinned options above — resolve by quote at deployment time, particularly for PTU sizing. The architectural choice between E08, CU, and DI Neural is largely independent of this question; the per-page cost picture is not.
 
 ## Per-sample F1 distribution
 
@@ -85,35 +277,37 @@ Three observations to keep in mind throughout the rest of the document:
 > - The **whiskers** (the thin lines extending above and below the box) reach to the most-extreme samples that are still "within reach" of the bulk of the data — specifically, up to 1.5× the box's height (the interquartile range) above and below the box edges. This is the standard Tukey convention for box plots; it's not based on standard deviation. Any sample further out than that shows up as a separate dot — an *outlier*, meaning a sample that is unusually bad (or unusually good) compared to the engine's typical performance.
 > - Higher boxes are better. Tighter (shorter) boxes mean the engine performs consistently across samples.
 
-The bottom of each box and the whiskers tell the worst-case story. E04 has the lowest whisker and widest box — its performance varies a lot across samples. E00 also has a wide box (the custom template either nails a sample or struggles meaningfully). E03 and E05 have the tightest distributions sitting at the top of the chart.
+The bottom of each box and the whiskers tell the worst-case story. E04 has the lowest whisker and widest box — its performance varies a lot across samples. E00 also has a wide box (the custom template either nails a sample or struggles meaningfully). E07 (gpt-4o on the hybrid pipeline) widens out vs E05/E08 — its `81 blank` outlier sits noticeably lower than any other engine's worst case. **E08 has the tightest distribution of any single engine** (stdDev 0.039 vs E05's 0.053 vs E07's 0.075); its box sits highest on the chart and its whiskers don't reach as far down as E03's or E05's. **The ensemble (E06) is tighter still** (stdDev 0.026, min F1 0.862) — by routing each field to its category specialist, it avoids every engine's worst single-category failures.
 
 ## Per-category field accuracy
 
 ![Per-category accuracy by engine](plots/03-per-category-accuracy.png)
 
-> **How to read:** Each group of bars is one field category; each colour is one engine. The Y-axis is zoomed so the differences are visible. The 74 schema fields are grouped into 8 categories: `sin` (2 fields), `date` (2), `phone` (2), `name` (2), `signature` (2), `freeform_text` (`explain_changes`, 1 field), `checkboxes` (28), and `income_amounts` (37 numeric fields).
+> **How to read:** Each group of bars is one field category; each colour is one engine. The Y-axis is zoomed so the differences are visible. The 74 schema fields are grouped into 8 categories: `sin` (2 fields), `date` (2), `phone` (2), `name` (2), `signature` (2), `freeform_text` (`explain_changes`, 1 field), `checkboxes` (28), and `income_amounts` (35 numeric fields — 18 applicant + 17 spouse; the spouse column does not have `income_of_dependent_children`).
 
-| category | n fields | E00 (DI template) | E02 (Mistral) | E03 (CU+gpt-5.2) | E04 (gpt-5.4 VLM) | E05 (VLM+DI hybrid) | E06 (ensemble) |
-|---|---|---|---|---|---|---|---|
-| **sin** | 2 | 0.825 | 0.861 | 0.871 | 0.809 | **0.923** | 0.898 |
-| **date** | 2 | 0.907 | 0.873 | 0.896 | 0.693 | 0.936 | **0.936** |
-| **phone** | 2 | 0.818 | 0.884 | 0.963 | 0.820 | 0.936 | **0.963** |
-| **name** | 2 | 0.696 | 0.779 | 0.843 | 0.777 | **0.880** | 0.880 |
-| **signature** | 2 | 0.605 | 0.579 | 0.625 | 0.509 | 0.675 | **0.680** |
-| **freeform_text** | 1 | 0.575 | 0.600 | 0.600 | 0.575 | 0.650 | **0.700** |
-| **checkboxes** | 28 | 0.952 | 0.939 | 0.975 | 0.885 | 0.952 | **0.989** |
-| **income_amounts** | 37 | 0.852 | 0.905 | 0.944 | 0.912 | 0.951 | **0.953** |
+| category | n fields | E00 (DI template) | E01 (DI Neural) | E02 (Mistral) | E03 (CU+gpt-5.2) | E04 (gpt-5.4 direct) | E05 (gpt-5.4 hybrid) | E07 (gpt-4o hybrid) | E08 (gpt-5.2 hybrid) | E06 (ensemble) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **sin** | 2 | 0.825 | **0.963** | 0.861 | 0.934 | 0.809 | 0.923 | 0.923 | 0.950 | **0.963** |
+| **date** | 2 | 0.907 | 0.934 | 0.873 | 0.920 | 0.693 | **0.936** | **0.936** | 0.909 | **0.936** |
+| **phone** | 2 | 0.818 | 0.934 | 0.884 | **0.988** | 0.820 | 0.936 | 0.909 | **0.988** | **0.988** |
+| **name** | 2 | 0.738 | 0.898 | 0.818 | 0.845 | 0.845 | **0.948** | 0.923 | 0.923 | **0.948** |
+| **signature** | 2 | 0.961 | 0.948 | 0.796 | 0.923 | 0.945 | 0.986 | **1.000** | 0.946 | **1.000** |
+| **freeform_text** | 1 | 0.625 | 0.800 | 0.625 | 0.800 | 0.675 | **0.900** | 0.850 | 0.825 | **0.900** |
+| **checkboxes** | 28 | 0.952 | 0.984 | 0.939 | **0.996** | 0.885 | 0.952 | 0.941 | 0.973 | **0.996** |
+| **income_amounts** | 35 | 0.851 | 0.870 | 0.906 | 0.880 | 0.912 | 0.952 | 0.883 | **0.970** | **0.970** |
 
 **Category leaders** among the single engines:
-- **E03 (Azure CU + GPT-5.2)** wins phone (0.963) and checkboxes (0.975) — CU has dedicated structured primitives for checkbox-style selection marks, which work especially well on the form's two-column Yes/No layout, and CU's phone normalisation produces consistent output.
-- **E05 (VLM + DI hybrid)** wins everywhere else: sin, date, name, signature, freeform_text, income_amounts. The hybrid path benefits from both the VLM's contextual interpretation and the OCR layer's literal character transcription.
+- **E01 (Azure DI Neural)** wins `sin` outright (0.963) — the supervised model's fixed-position recognition is best in class for the SIN field, edging out E08. E01 is also strong on `checkboxes` (0.984) and `phone` (0.934).
+- **E03 (Azure CU + GPT-5.2)** wins checkboxes (0.996) and ties phone (0.988) — CU's dedicated `selectionMark` primitive is purpose-built for box-style yes/no inputs and edges out every VLM-based approach when it works, and CU's phone normalisation is reliable. (Caveat: E03's `selectionMark` has a separate hard-failure mode on a small number of edge-case samples where it flips spouse-column `_no` checkboxes to "selected" — covered in the [E08 notes](#e08--gpt-52-vlm--azure-di-layout-hybrid).)
+- **E08 (gpt-5.2 hybrid)** wins on `income_amounts` (0.970) and ties `phone` (0.988). The same gpt-5.2 model that powers E03's generative leg outperforms E03 on these categories when paired with Azure DI prebuilt-layout instead of CU's content-extraction layer. DI's OCR layer transcribes dense digit handwriting more reliably than CU's on this dataset.
+- **E05 (gpt-5.4 hybrid)** wins on name (0.948) and freeform_text (0.900), and ties date (0.936 with E07). gpt-5.4 on this pipeline is best at interpretive text fields with fewer literal-character constraints.
+- **E07 (gpt-4o hybrid)** wins on signature outright (1.000). Signature is scored as presence/absence, so most engines near-saturate this category and its discriminative power is limited.
 
-**Category floor for every engine: signature and freeform_text** (~0.55–0.70 across all engines). These two categories are weakest because the metric isn't a great fit:
+E06 ties the per-category leader in every category — by construction, since the chosen S1 strategy takes its value from the category's best engine on each field.
 
-- **Signature** is being scored as exact text matching. But what matters in production is usually whether a signature *exists* on the form, not what the squiggle actually spells out. Re-scoring signature as presence-or-absence would lift every engine substantially.
-- **`explain_changes`** (the freeform text field) is a single long natural-language string per document. Strict equality fails on any minor wording difference, so the metric reads as low even when the engine's extraction is substantively correct. Fuzzy matching (e.g. Levenshtein similarity ≥ 0.85) would be a more honest metric for this field.
+**Where E08 makes up ground on E03** — most of E08's aggregate lead over E03 is on `income_amounts` (+9.0 pp: 0.970 vs 0.880) and `sin` (+1.6 pp: 0.950 vs 0.934). These are categories where literal-digit fidelity matters most. Both engines run the same gpt-5.2 generative model; two architectural choices explain the gap: (a) DI's standalone prebuilt-layout transcribes handwritten digits with less aggressive grounding than CU's prebuilt-layout, so it drops fewer small zeros and faint glyphs; (b) E08's gpt-5.2 receives the image alongside the OCR Markdown, so it can recover digits the OCR layer mistranscribed by reading them off the image — CU's gpt-5.2 never sees the image and can only work with what the OCR produced.
 
-So the floor on these two categories isn't an OCR or extraction problem — it's a metric-choice issue. The aggregate F1 numbers would rise noticeably if these two were measured against more appropriate rules.
+**`name` and `freeform_text` are the lowest-scoring categories for the weaker engines.** Signature is scored as presence/absence and most engines clear 0.94 there. `freeform_text` sits at 0.625 on E00 and E02 because `explain_changes` is a single long natural-language string per document and the simpler engines transcribe verbatim less reliably than the generative ones. `name` is the only other category where multiple engines sit below 0.85.
 
 ## Per-field accuracy heatmap
 
@@ -121,10 +315,10 @@ So the floor on these two categories isn't an OCR or extraction problem — it's
 
 > **How to read:** Each row is one of the 74 SDPR fields, grouped by category (horizontal black lines mark category boundaries) and sorted within each category by mean accuracy. Each column is an engine. Cell colour is the field's accuracy across the 40 samples — red ≈ 40% or worse, yellow ≈ 70%, green ≈ 100%. Visual stripes within a category mean "all 5 engines struggle here in the same way"; lone-red cells mean "this engine has a specific weak spot the others don't".
 
-The heatmap surfaces the long-tail variation that the per-category averages hide:
-- Within `checkboxes`, the weakest fields are the *spouse-column "No" boxes* (`checkbox_employment_changes_spouse_no`, `checkbox_school_spouse_no`, `checkbox_work_spouse_no`, etc.). The weakness is specifically in the GPT-5.4-based engines: E04 drops to 0.62–0.75 on these fields, E05 to 0.80–0.82, while E00 / E02 / E03 hold 0.93+. The GPT-5.4 vision encoder appears less reliable on this specific layout element.
-- Within `income_amounts`, the weakest fields are the *applicant-column* income lines (`applicant_net_employment_income`, `applicant_income_of_dependent_children`, `applicant_spousal_support_alimony`, etc.), where E00 and E02 sit in the 0.70–0.80 range. The spouse-column equivalents are 5–15 pp easier for the same engines. The pattern across engines suggests applicant-column income cells in this dataset are systematically harder to read than spouse-column ones — possibly because the applicant fields have more variation in handwriting and value range across the samples.
-- E04's row is visibly redder than the others in the date band — gpt-5.4's vision encoder makes systematic year misreads on hand-written dates regardless of which sample it's looking at.
+Patterns the per-category averages hide:
+- **Spouse-column `_no` checkboxes flip to "selected" on empty cells.** E07 (gpt-4o hybrid) and E04 (gpt-5.4 VLM-direct) hit this broadly (0.62–0.75); E03 hits it on a smaller subset (`81 coffee`, `Fake 1`, etc.); E08 only on `manual sample (6)`; E05 rarely. The OCR pre-pass appears to help gpt-5.4 anchor on the actual checkbox state, but does not help gpt-4o the same way.
+- **Applicant-column income lines are weaker than spouse-column lines** for E00 and E02 (applicant 0.70–0.80, spouse 5–15 pp higher). Most likely because applicant cells are filled on far more samples than the spouse column, so there are simply more opportunities to make errors there.
+- **E04's date band is visibly redder than the others** — gpt-5.4's vision encoder makes systematic year misreads on hand-written dates. The same gpt-5.4 model with an OCR pre-pass (E05) recovers the date band.
 
 ## Per-sample F1 heatmap
 
@@ -132,313 +326,496 @@ The heatmap surfaces the long-tail variation that the per-category averages hide
 
 > **How to read:** Each row is one of the 40 samples, sorted from hardest (top) to easiest (bottom) by the mean F1 across engines. Each column is an engine. Cells are coloured by F1 — red ≈ 0.5 or worse, yellow ≈ 0.78, green ≈ 1.0 — and the numeric F1 is printed in each cell. Rows that are red across the board are the genuinely hard samples (e.g. `81 blank`, `81 coffee`); rows that are red on one engine but green elsewhere are engine-specific failures.
 
-This view makes the failure clusters obvious:
-- **The top 3 rows (`81 blank`, `Fake 3`, `81 coffee`)** are the dataset's floor. `81 blank` and `81 coffee` are the intentionally-hard samples (see [Failure-mode samples](#failure-mode-samples) below). `Fake 3` is hard mostly for E02 (F1 0.63 there); the other engines clear 0.83 on this sample.
-- **The `Fake` series (`Fake 1`, `Fake 4`, `Fake 5`, `Fake 7`)** is where the OCR-based engines E00 and E02 struggle most — they drop to F1 0.69–0.80 on these handwritten samples, while E03/E04/E05 mostly clear 0.85.
-- **The `synth-*` cluster** is where **E04 (GPT-5.4 VLM-direct) specifically fails** — every synth sample drops E04 below 0.80 (F1 0.69–0.79). The OCR pre-pass in E05 closes most of this gap; E03 also handles these samples cleanly. So the failure mode is something about how GPT-5.4 vision reads the synthetic forms specifically, rather than a property of synthetic data in general — note that E04 handles the real-form sample `HR0081 (10)` (which also has all 74 fields filled in handwriting) at F1 0.98.
-- **`HR0081 (10)`** is hard specifically for E02 (F1 0.67) — Mistral cannot read the dense handwriting on that sample. Every other engine clears 0.80 on it.
-- **The bottom ~25 samples** are largely green across the board; the engine ranking on the easy samples is essentially noise.
+Failure clusters:
+- **`81 blank`, `81 coffee`** — the dataset's floor across all engines; both are intentionally-hard samples.
+- **`Fake` series (`Fake 1`, `Fake 4`, `Fake 5`, `Fake 7`)** — the OCR-based engines E00 and E02 struggle most here; E03/E04/E05/E08 mostly clear 0.85.
+- **`synth-*` cluster** — every synth sample drops E04 (gpt-5.4 VLM-direct) below 0.80. The same gpt-5.4 model with an OCR pre-pass (E05) closes most of the gap.
+- **`HR0081 (10)`** — hard specifically for E02 (F1 0.67) and E07 (0.825). Every other engine clears 0.80.
+- The bottom ~25 samples are green across the board; the engine ranking on easy samples is essentially noise.
 
-## Per-engine deep dive
+## Per-engine notes
+
+The sections below describe each engine — what it is and how we ran it. Accuracy and failure-mode commentary is in the per-category / per-field / per-sample sections above and in the Reflection. The verbatim prompts sent to the generative engines (E02 / E03 / E04 / E05 / E07 / E08) are reproduced in [Appendix B — Extraction prompts](#appendix-b--extraction-prompts-verbatim).
 
 ### E00 — Azure DI custom template
 
-**Headline:** field accuracy **0.872**, F1.median **0.939**, F1.mean **0.903**, precision.mean **0.917**, recall.mean **0.899**, FP.mean **5.60**.
+A supervised, form-specific model trained inside Azure Document Intelligence. A representative set of forms was uploaded with manual field-position labels and value annotations; Azure trained a custom template model that locates each field by its position on the form and reads the value at that position. At inference time, the engine submits the page image to the trained model, polls the long-running operation until terminal, and receives a JSON object of `{ field_key: value }` pairs. There is no prompt — extraction behaviour is entirely a function of the labels in the training set. This is the same workflow that produced the V1 Report.
 
-**Methodology:** a supervised, form-specific model trained inside Azure Document Intelligence. A representative set of forms was uploaded with manual field-position labels and value annotations; Azure trained a custom template model that locates each field by its position on the form and reads the value at that position. At inference time, the engine submits the page image to the trained model, polls the long-running operation until terminal, and receives a JSON object of `{ field_key: value }` pairs. There is no prompt — extraction behaviour is entirely a function of the labels in the training set. This is the same workflow that produced the V1 Report.
+### E01 — Azure DI Neural custom model
 
-**Strengths:**
-- Reasonably balanced — no single category drops below 0.60.
-- Highest single-engine accuracy on `date` (0.907) — the labelled training data exposed it to the form's specific date positions.
-- Strong on `checkboxes` (0.952) — tied with E05.
-
-**Weaknesses:**
-- **Worst single-engine on `name` (0.696) and `signature` (0.605).** The template reads from fixed bounding boxes; handwritten signatures and names vary in placement and the template's geometric tolerance can't always keep up.
-- **High FP.mean (5.60)** — substitution errors (engine produces a wrong value rather than returning null) dominate. The template extracts a value even when the cell is empty on some samples.
-- **Lowest field accuracy of the five single engines (0.872).** The supervised-template approach has been overtaken by general-purpose generative engines.
-
-Errors by category (raw counts / total predictions): sin 13/75 (17.3%), date 7/75 (9.3%), phone 14/75 (18.7%), name 23/75 (30.7%), signature 31/75 (41.3%), freeform 17/40 (42.5%), checkboxes 54/1120 (4.8%), income 205/1317 (15.6%).
+A custom Neural deep-learning model in the Azure Document Intelligence family. Unlike E00's template path (which locates each field by labelled bounding boxes), the Neural model learns field positions from training examples and generalises to layout variations. Same labelling workflow as E00 — a representative set of forms is uploaded with field-value annotations; Azure trains the model, and at inference time the customer submits the page image and receives a JSON object of `{ field_key: value }` pairs with per-field confidence. **There is no prompt and no LLM step.** The model evaluated here is the production-trained `sdpr-monthly-prod-neural-v2`.
 
 ### E02 — Mistral on Azure AI Foundry
 
-**Headline:** field accuracy **0.896**, F1.median **0.959**, F1.mean **0.918**, precision.mean **0.941**, recall.mean **0.902**, FP.mean **4.05**.
-
-**Methodology:** Mistral's general-purpose Document AI model, accessed via the Azure AI Foundry deployment route. Each document goes through two passes inside Mistral: (1) an OCR pass that transcribes the page to text + markdown, and (2) a generative annotation pass that maps that text into a JSON schema. We supply a JSON Schema of the 74 fields (with per-field descriptions) plus a ~2 KB instruction prompt that describes the SDPR form's two-column income layout, checkbox conventions, and blank-vs-zero rules. Important caveat: **Mistral's annotation pass on this deployment reads only the OCR text output from the first pass, not the raw image** — so anything the OCR layer fails to transcribe (small or sloppy handwriting) cannot be recovered by the structured pass.
-
-**Strengths:**
-- **Highest precision among the OCR-based engines (0.941)** — Mistral is generally conservative; when it doesn't see a field clearly, it tends to return null rather than guessing.
-- F1.median (0.959) is competitive with the gpt-5.4-based engines.
-
-**Weaknesses:**
-- **Worst single-engine on `signature` (0.579)**, second-worst on `name` (0.779) — the OCR-only annotation pipeline can't disambiguate handwritten "X" the signature from "X" the unselected-checkbox glyph.
-- **Lowest performance on the hand-written `Fake` series and `HR0081 (10)`** — F1 0.626 to 0.785 on these samples. The pattern points back to Mistral's structural limitation: the annotation pass sees only what the OCR layer transcribed, so handwriting that doesn't OCR cleanly is lost.
-- **14 blank-when-zero errors** (predicted null where GT is `0`) — Mistral interprets blank-looking cells conservatively and under-extracts the literal zero. See [the blank-vs-zero problem](#the-blank-vs-zero-problem).
-
-Errors by category: sin 11/75 (14.7%), date 10/75 (13.3%), phone 9/75 (12.0%), name 17/75 (22.7%), signature 33/75 (44.0%), freeform 16/40 (40.0%), checkboxes 68/1120 (6.1%), income 133/1317 (10.1%).
+Mistral's general-purpose Document AI model, accessed via the Azure AI Foundry deployment route. Each document goes through two passes inside Mistral: (1) an OCR pass that transcribes the page to text + markdown, and (2) a generative annotation pass that maps that text into a JSON schema. We supply a JSON Schema of the 74 fields (with per-field descriptions) plus a ~2 KB instruction prompt that describes the SDPR form's two-column income layout, checkbox conventions, and blank-vs-zero rules. **Mistral's annotation pass on this deployment reads only the OCR text output from the first pass, not the raw image** — anything the OCR layer fails to transcribe cannot be recovered by the structured pass.
 
 ### E03 — Azure Content Understanding + GPT-5.2
 
-**Headline:** field accuracy **0.935**, F1.median **0.969**, F1.mean **0.947**, precision.mean **0.958**, recall.mean **0.939**, FP.mean **3.00** — the strongest single engine.
+Azure Content Understanding is a managed two-stage extraction service. Per Microsoft's GA documentation (November 2025):
 
-**Methodology:** Azure Content Understanding is a managed extraction service where you POST a JSON "analyzer" describing your schema, and CU runs OCR + a generative model (GPT-5.2 in this configuration) over the raw image internally, returning structured JSON. The analyzer's schema includes:
-- One typed field per output key (string, number, date) with a per-field description string.
-- Checkbox fields are mapped to CU's `selectionMark` primitive (`classify` method with enum `selected` / `unselected`), which is purpose-built for box-style yes/no inputs.
-- A global ~2 KB instruction string describing the form's column conventions, blank-vs-zero rules, and checkbox semantics. CU forwards this to its generative pass alongside the OCR layer's output and the raw image.
+1. **Stage 1 — Content Extraction.** A specialized OCR/Layout model from the Document Intelligence family (Microsoft Learn: *"prebuilt-read and prebuilt-layout analyzers now bring key Document Intelligence capabilities to Content Understanding"*) reads the image and produces a layout-aware Markdown representation plus parallel structural metadata (pages, paragraphs, sections, tables with HTML-like markup, words with bounding polygons, selection-mark detector output, confidence scores). This stage is **tuned for stricter grounding than the standalone DI `prebuilt-layout` model** — Microsoft's own Q&A documents cases where CU's prebuilt returns empty content for documents the standalone DI prebuilt parses cleanly: *"Content Understanding prebuilt analyzers are designed for higher-level content extraction, RAG, and domain-specific scenarios, not as a drop-in replacement for raw OCR."* No LLM is involved at this stage.
 
-Unlike E02, CU's generative pass sees the raw image, not just OCR text — so it can read handwriting the OCR layer missed.
+2. **Stage 2 — Field Extraction.** A customer-deployed Foundry GPT-5.2 chat model receives the **Markdown output from stage 1** plus the analyzer's JSON schema (field names, typed property declarations, per-field descriptions) and returns a structured JSON object. **The image is not sent to the LLM** — stage 2 is text-only at the model layer. Microsoft handles the prompt construction (the "Contextualization" layer), grounding back-mapping, confidence scoring, and output normalization.
 
-**Strengths:**
-- **Best single-engine F1.mean (0.947) and best precision (0.958)** — the combination of a structured analyzer schema and image-aware generative pass reduces both substitution errors and null-when-blank insertions.
-- **Best single engine on `checkboxes` (0.975)** — CU's dedicated `selectionMark` primitive shows its value here.
-- **Best single engine on `phone` (0.963)** — consistent punctuation normalisation.
+Our analyzer configuration includes one typed field per output key (string, number, date) with a per-field description string, checkbox fields mapped to CU's `selectionMark` primitive (which runs as a dedicated specialized model in stage 1), and a global ~2 KB instruction string describing the form's column conventions, blank-vs-zero rules, and checkbox semantics — sent as part of the analyzer schema; how exactly CU's Contextualization layer surfaces this to the LLM is hidden.
 
-**Weaknesses:**
-- **13 blank-when-zero errors** — CU misses small handwritten zeros at roughly the same rate as Mistral. See [the blank-vs-zero problem](#the-blank-vs-zero-problem).
-- **Signature (0.625) and freeform_text (0.600)** sit in the lower tier — CU treats signature as a generic string field; the metric is also a poor fit for these two categories (see [Per-category field accuracy](#per-category-field-accuracy)).
-- A few hard-to-read dates on the obscured forms are misread (e.g. `1 81`: pred `2026-25-07` vs expected `2026-07-25`; `81 coffee`: pred `2018-04-27` vs expected `2026-03-24`).
-
-Errors by category: sin 10/75 (13.3%), date 8/75 (10.7%), phone 3/75 (4.0%), name 12/75 (16.0%), signature 29/75 (38.7%), freeform 16/40 (40.0%), checkboxes 28/1120 (2.5%), income 78/1317 (5.9%).
+CU "forces grounding" (Microsoft Q&A): *"Content Understanding forces grounding — anchoring outputs in the text of the input documents — and will not return answers if they cannot be grounded."* So if the stage-1 OCR layer didn't transcribe a value, stage 2 returns null rather than guessing from context.
 
 ### E04 — GPT-5.4 vision-language model (direct)
 
-**Headline:** field accuracy **0.868**, F1.median **0.903**, F1.mean **0.870**, precision.mean **0.876** (lowest), recall.mean **0.866**, FP.mean **8.48** (highest) — the weakest engine overall.
-
-**Methodology:** A direct call to Azure OpenAI's GPT-5.4 deployment with the form page sent as an inline base64-encoded image. The request uses strict JSON-Schema response formatting — GPT-5.4 must return a JSON object that conforms to a schema with one property per field key, plus a sibling `source_quotes` object mapping each field to a verbatim quote the model believes it pulled the value from. The same ~2.5 KB instruction prompt as the other generative engines describes the form layout, column conventions, and blank-vs-zero rules. There is **no OCR pre-pass** — GPT-5.4's vision encoder reads the image directly.
-
-**Strengths:**
-- Strong on `income_amounts` (0.912) **at the dataset level**, but see the failure pattern below.
-- Fastest wallclock per sample (~5.9 s), no separate OCR step.
-
-**Weaknesses:**
-- **Lowest precision (0.876) and highest FP.mean (8.48)** — when GPT-5.4 vision-direct doesn't know a value, it tends to fill in a plausible-looking wrong value rather than returning null.
-- **Failure pattern concentrates on the synth-* samples** — every synth sample drops E04 below F1 0.80 (F1 0.69–0.79, with 11–21 false-positive predictions per sample). This is **not driven by raw density of filled fields**: on the real-world handwritten form `HR0081 (10)` with all 74 fields filled, E04 holds F1 0.98 — so density on its own isn't the issue. Something about the synthetic samples specifically (the uniform handwriting style, the layout density, the digit shapes) trips GPT-5.4's vision encoder in a way that real handwriting doesn't.
-- **Worst single-engine on `date` (0.693)** — the GPT-5.4 vision encoder makes systematic year misreads on hand-written dates (e.g. `2023` for `2025`, `2020` for `2026`). These are real digit misreads, not format variants.
-- **Worst single-engine on `signature` (0.509)** and **`checkboxes` (0.885)** — the latter 9 pp below E03; GPT-5.4 doesn't distinguish marked from unmarked checkboxes as reliably as CU's structured primitive does.
-
-The pattern is consistent: **E04 trades structural reliability for the simplicity of a single VLM call**. When the same GPT-5.4 model is given an OCR pre-pass (E05), F1.mean jumps from 0.870 to 0.942 and FP.mean drops from 8.48 to 3.38 — that gap is the concrete value of an OCR layer in front of a VLM for schema-driven extraction.
-
-Errors by category: sin 15/75 (20.0%), date 24/75 (32.0%), phone 14/75 (18.7%), name 17/75 (22.7%), signature 38/75 (50.7%), freeform 17/40 (42.5%), checkboxes 129/1120 (11.5%), income 123/1317 (9.3%).
+A direct call to Azure OpenAI's GPT-5.4 deployment with the form page sent as an inline base64-encoded image. The request uses strict JSON-Schema response formatting — GPT-5.4 must return a JSON object that conforms to a schema with one property per field key, plus a sibling `source_quotes` object mapping each field to a verbatim quote the model believes it pulled the value from. The same ~2.5 KB instruction prompt as the other generative engines describes the form layout, column conventions, and blank-vs-zero rules. There is **no OCR pre-pass** — GPT-5.4's vision encoder reads the image directly.
 
 ### E05 — GPT-5.4 VLM + Azure DI layout (hybrid)
 
-**Headline:** field accuracy **0.934**, F1.median **0.960**, F1.mean **0.942**, precision.mean **0.951**, recall.mean **0.935**, FP.mean **3.38**, matchedFields.median **71** (highest among single engines).
-
-**Methodology:** A two-pass setup that combines the strengths of OCR and a vision LLM:
+A two-pass setup that combines the strengths of OCR and a vision LLM:
 1. Azure Document Intelligence's `prebuilt-layout` reader transcribes the page to markdown plus per-word bounding boxes.
 2. GPT-5.4 receives **both** the raw image **and** the OCR markdown, wrapped in `<ocr_text>` delimiters. The system prompt explicitly tells the model: *"Use both inputs together. The OCR text helps you locate fields and read structure. The image is the source of truth. When the OCR text and the image disagree, trust the image and ignore the OCR text."*
 
 The same ~2.5 KB instruction prompt as E03/E04 describes the form's column conventions, blank-vs-zero rules, and checkbox semantics. The output schema is identical to E04's (one property per field plus a sibling `source_quotes` mapping).
 
-**Strengths:**
-- **Best single-engine on 5 of 8 categories**: sin (0.923), date (0.936), name (0.880), signature (0.675), income_amounts (0.951).
-- **Zero blank-when-zero errors** — uniquely among the engines, the hybrid never under-extracts a literal zero. The DI OCR pre-pass transcribes small `0` glyphs that the standalone CU and Mistral OCR layers miss, and GPT-5.4 trusts the OCR text on numerals.
-- **Highest matched-fields median (71)** — closer to the 74-field ceiling than any other engine.
-- Carries real word/line bounding boxes through to the final output, which downstream consumers (cleanup, confidence checking) can use.
+### E07 — GPT-4o VLM + Azure DI layout (hybrid)
 
-**Weaknesses:**
-- `checkboxes` (0.952) tied with E00, below E03's 0.975 — the hybrid's checkbox accuracy is constrained by GPT-5.4's vision, not by the OCR layer. CU's analyzer schema with dedicated checkbox primitive is still better for this category.
-- `phone` (0.936) below E03 (0.963) — DI's OCR markdown drops parentheses around area codes; GPT-5.4 trusts that and the variant doesn't match the GT exactly.
-- Slight over-extraction tendency on a small number of hand-written samples (FP.mean 3.38 vs E03's 3.00).
+Identical pipeline to E05 — the only change is the generative model. Azure DI prebuilt-layout transcribes the page to markdown plus per-word bounding boxes; the GPT-4o deployment receives both the raw image and the OCR markdown (wrapped in `<ocr_text>` delimiters); the response is constrained by the same strict JSON-Schema response format with the same prompt and field descriptions as E05.
 
-Errors by category: sin 6/75 (8.0%), date 5/75 (6.7%), phone 5/75 (6.7%), name 9/75 (12.0%), signature 25/75 (33.3%), freeform 14/40 (35.0%), checkboxes 54/1120 (4.8%), income 70/1317 (5.3%).
+### E08 — GPT-5.2 VLM + Azure DI layout (hybrid)
+
+Same pipeline as E05 and E07 — Azure DI prebuilt-layout → image + OCR markdown → strict-mode JSON Schema. The generative model is GPT-5.2 (already deployed for E03's Content Understanding generative leg, so no new Azure infrastructure was needed).
+
+The architectural differences between E08 and E03 — which run the same generative model but differ on (a) which OCR layer (standalone DI vs CU's stricter-tuned one), (b) whether the image is shown to the LLM, and (c) whether the prompt is direct or hidden behind CU's Contextualization layer — drive the 2.0 pp F1.mean / ~37% per-page-cost gap documented above. The [Headline aggregate metrics](#headline-aggregate-metrics), [Cost per page](#cost-per-page), and [Reflection](#reflection) sections cover the comparison.
+
+### Industry context — this pattern is "document anchoring"
+
+The "OCR markdown + page image into a generalist VLM" architecture E08 uses has a name and an academic reference: **document anchoring**, introduced by Allen AI's **olmOCR** (arXiv:2502.18443, Feb 2025). The paper validates the same trade we observe here — dual-input (image + OCR text) reduces hallucinations versus image-only VLM prompting and outperforms image-only OCR on the olmOCR-Bench (75.5% vs Mistral OCR's 72.0%). The "trust the image when OCR text disagrees" clause in E08's prompt is the same disambiguation hint that paper (and TNG Technology's follow-up fine-tuning work) recommends.
+
+Commercial vendors running variants of this architecture include **Reducto** (Agentic OCR — multi-pass VLM review of OCR regions, $24.5M Series A led by Benchmark in Apr 2025), **LandingAI** Agentic Document Extraction, **LlamaParse Premium**, **Tensorlake** (with `skip_ocr=False`), and **Google Document AI Layout Parser v1.6** (Gemini 3-powered, Preview from Dec 2025). The *dominant* commercial pattern is still OCR-then-text-only-LLM (Azure CU, AWS Textract → Bedrock by default, most Mistral-chained pipelines) — primarily because attaching the page image at inference time is roughly 10–20× more expensive than the OCR meter alone. So E08 is a known but less common point on the accuracy/cost curve, not a novel architecture.
+
+Direction-of-travel caveat worth tracking: with stronger fine-tuned VLMs, **olmOCR-2** (Oct 2025) and Reducto's **RolmOCR** fork both dropped the OCR-anchor input in favour of image-only prompting. If frontier VLMs keep improving on raw handwriting, the OCR-anchor leg may eventually become unnecessary — but on this dataset's scanned handwritten forms, the OCR layer is still doing real work (E08's +8.6 pp F1.mean over E04 vision-direct demonstrates that the anchor is load-bearing here, not redundant).
+
+## Same-pipeline model bake-off (E05 / E07 / E08)
+
+E05, E07, and E08 run an identical pipeline with three different generative models. With the pipeline / prompt / field descriptions held constant, the gap between them is entirely attributable to the VLM. The ordering on this dataset:
+
+| metric | **E08 (gpt-5.2)** | E05 (gpt-5.4) | E07 (gpt-4o) |
+|---|---|---|---|
+| `f1.mean` | **0.973** | 0.957 | 0.936 |
+| `f1.median` | **0.984** | 0.980 | 0.973 |
+| `precision.mean` | **0.978** | 0.965 | 0.955 |
+| `recall.mean` | **0.968** | 0.950 | 0.921 |
+| `matchedFields.median` | **72** | **72** | 69 |
+| `falsePositives.mean` | **1.58** | 2.33 | 3.10 |
+| Wallclock | 356 s | 344 s | 326 s |
+
+**Counter-intuitive direction: the older model number wins.** gpt-5.2 is roughly 1.6 pp F1.mean ahead of the more recently released gpt-5.4 on this task. We don't have a confirmed mechanism for this — it's what the dataset shows. gpt-4o sits clearly behind both.
+
+The gap between E05 (gpt-5.4) and E07 (gpt-4o) is roughly the same size as the gap between E08 (gpt-5.2) and E05 (gpt-5.4), so model-quality differences on this task scale linearly: ~1.5–2 pp F1.mean per generation step. The wallclock differences are small (~9% spread across the three).
 
 ## The blank-vs-zero problem
 
-Across the dataset, **the most common error mode is "engine returns blank when the form has a 0"** — what we call a *blank-when-zero* error. The income-amount fields are particularly affected: many cells on the form are visually empty *and* the GT marks them as `null`, but a few cells contain a hand-written `0` (typically a small loop). Engines vary widely in how often they recognise that small `0` as a zero vs treat it as empty.
+Across the dataset, **the most common error mode is "engine returns blank when the form has a 0"** — what we call a *blank-when-zero* error. The income-amount fields are particularly affected: many cells on the form are visually empty *and* the GT marks them as `null`, but a fair number of cells contain a hand-written `0`. Engines vary widely in how often they pick up that `0` as a zero vs treat it as empty.
 
-| engine | blank_when_zero (predicted null, GT 0) | zero_when_blank (predicted 0, GT null) |
+| engine | blank_when_zero (predicted blank/null, GT 0) | zero_when_blank (predicted 0, GT blank) |
 |---|---|---|
-| E00 (DI custom template) | 4 | 1 |
-| E02 (Mistral / Foundry) | **14** | 1 |
-| E03 (CU + gpt-5.2) | **13** | 1 |
-| E04 (gpt-5.4 VLM) | 3 | 1 |
-| E05 (VLM + DI hybrid) | **0** | 2 |
+| E00 (DI custom template) | 93 | 1 |
+| E02 (Mistral / Foundry) | 96 | 1 |
+| E03 (CU + gpt-5.2) | 95 | 1 |
+| E04 (gpt-5.4 VLM-direct) | 10 | 1 |
+| E05 (gpt-5.4 hybrid) | 29 | 2 |
+| **E07 (gpt-4o hybrid)** | **103** | **17** |
+| **E08 (gpt-5.2 hybrid)** | **7** | 2 |
 
-The hybrid (E05) is uniquely good at this because its OCR pre-pass (Azure DI prebuilt-layout) transcribes the small `0` glyphs that Mistral and CU's content-extraction layers tend to drop. The VLM-direct path (E04) is also better than Mistral/CU here — gpt-5.4 vision sees the small handwritten `0`s without help from an OCR layer.
+Counts are total per-cell occurrences across the 40-sample dataset (each sample has ~10 GT-`0` numeric cells on the income-amount fields).
 
-The conservative engines (Mistral, CU) prefer null when uncertain — which keeps their precision and false-positive rates clean, at the cost of recall (which is exactly what the numbers show: E02 recall 0.899 and E03 recall 0.937 vs E05 recall 0.933). For workloads where missing a `0` is costlier than emitting a stray null, E05 (or an E03+E05 ensemble) is the better choice.
+**E08 (gpt-5.2 hybrid) is the best of any single engine on this metric** — only 7 dropped zeros across the whole dataset. **E04 (gpt-5.4 VLM-direct) is second at 10**, surprisingly strong here. E04 has no OCR layer in front of it — its vision encoder reads the cells directly.
 
-The reverse direction (`zero_when_blank` — engine guesses 0 for a blank cell) is rare (1–2 per engine). The hybrid's 2 is the highest, consistent with its slight over-extraction tendency.
+**E07 (gpt-4o hybrid) is by far the worst** — 103 dropped zeros and 17 spurious zeros (10× any other engine on the `zero_when_blank` side). The same gpt-4o tendency that hammers E07 on the spouse-column `_no` checkboxes: it is more eager to "see" content where the form is actually blank, and yet misses zeros more often.
 
-## Failure-mode samples
+**E03 (CU + gpt-5.2) is nearly as bad as E07 and E00 / E02** — 95 dropped zeros — despite using the same generative model as E08. Spot-checks of CU's stage-1 output show two failure modes: a handwritten `0` is sometimes absent from the OCR output entirely, and sometimes mis-classified by CU's `selectionMark` checkbox detector and never reaches the LLM as a digit at all. Whichever path the failure takes in stage 1, CU's stage 2 can't recover because the LLM never sees the image. E08 hits both situations differently: standalone DI `prebuilt-layout` produces an OCR output for many of these cells, and where it doesn't, the gpt-5.2 call still has the image and can read the `0` directly. We can observe the resulting 13× gap (95 vs 7) but the exact split between "OCR captured it" and "image recovered it" inside E08 is not separately broken out in the benchmark data. E05 (gpt-5.4 hybrid) sits in the middle at 29 on the same pipeline as E08 — the difference here is purely the generative model.
 
-A handful of samples are worth calling out by name — these are the rows at the top of the [Per-sample F1 heatmap](#per-sample-f1-heatmap), sorted hardest to easiest:
-
-- **`81 blank`** — an intentionally blank form. F1 ~0.56–0.91 across engines. The engines fill in some fields that aren't really there (insertions against the mostly-null GT), and some of the form's pre-printed labels get read as data. This is a calibration sample — every engine should be uncertain here.
-- **`81 coffee`** — a printed form with coffee stains over the key data. F1 ~0.58–0.89 across engines. The hybrid and CU read the unobscured parts well; E00 fails hardest because its template-position approach can't recover when the data isn't where the template expects.
-- **`Fake 1`** — a form filled out **in pencil**, not pen. Light grey strokes on white paper. F1 ranges from 0.69 (E02) to 0.91 (E03 / E04) — perhaps surprisingly, the VLM-based engines tolerate the low-contrast pencil strokes *better* than the OCR-based engines. Pencil contrast is hardest for the OCR-first paths (E00, E02), which depend on text-recognition fidelity.
-- **`Fake 4`** — a phone-camera photo of a form, with visible background around the form edges. The form itself is sharp. F1 ranges from 0.74 (E00) to 0.95 (E06). E00 and E02 substitute heavily on this sample; the VLM-based engines handle the background better.
-- **`Fake 5` / `Fake 7`** — additional hand-written samples in the next failure tier. E00 sits lowest (F1 0.77 / 0.80); other engines are at 0.78–0.97. These join the broader cluster where the OCR-based engines struggle on handwriting.
-- **`synth-*` cluster (synth-full / synth-no-spouse / synth-regular)** — synthetically-generated forms with hand-written field values. This cluster is where **E04 (GPT-5.4 VLM-direct) underperforms specifically** — every synth sample drops E04 below F1 0.80 (range 0.69–0.79). All other engines, including the hybrid E05 which uses the same GPT-5.4 model with an OCR pre-pass, handle these samples cleanly (F1 0.87+). The failure mode is specific to how GPT-5.4's vision encoder reads the synthetic forms; we don't have a precise explanation, but it's not driven by simply having many filled fields (the real-form `HR0081 (10)` sample is also fully filled with handwriting and E04 reads it at F1 0.98).
-- **`HR0081 (10)`** — a real hand-written form. F1 dropped most on E02 (0.67) — Mistral's pipeline cannot read this sample's handwriting in its OCR pass, which means the structured pass has nothing to work with. The VLM-based engines (E04, E05) and E03 all clear F1 0.93 on this same sample.
-
-The first two are the dataset's universal floor — every engine struggles, and these would benefit from human-in-the-loop review by design. The rest are engine-specific failure patterns: pencil contrast hurts the OCR-based engines most; the phone-photo / background sample challenges everyone moderately; the synth-* cluster is specifically a GPT-5.4-vision-direct problem; and dense or sloppy handwriting that the OCR layer can't read is specifically Mistral's problem. **The choice of engine for a production workload should weigh which of these failure modes is most likely in the expected input mix.**
+For production workloads where literal zeros matter (income reporting, financial-document extraction), **E08 is the strongest engine on this dataset** on this metric — and per the [Cost per page](#cost-per-page) section it is also ~37% cheaper than E03.
 
 ## Reflection
 
-1. **Generative engines + good prompts have eclipsed the custom-trained template** on this form. E00 (a trained Azure DI template — the V1 Report approach) lands at field accuracy 0.872, F1.mean 0.903 — competitive but no longer leading. The four generative paths (E02–E05) all sit between 0.870 and 0.947 on F1.mean. The template's structural advantage (it knows the form layout exactly) is matched and exceeded by generative engines once they have field-level descriptions and a workflow-level prompt.
+1. **E08 (gpt-5.2 hybrid) is the strongest single engine on every accuracy aggregate.** F1.mean 0.973, F1.median 0.984, precision.mean 0.978, recall.mean 0.968, FP.mean 1.58. It beats E03 — which runs the same gpt-5.2 model internally — by 2.0 pp F1.mean and 3.1 pp recall. The gap is structural, not model-driven: CU's stage-1 OCR is tuned for stricter grounding than the standalone DI prebuilt-layout E08 uses (E08 captures 13× more handwritten zeros: 7 vs 95 dropped), and CU's stage 2 is text-only — the LLM never sees the image, so it cannot recover content the OCR step did not produce. E08 sends image + OCR Markdown to gpt-5.2 with an instruction to trust the image. **E08 is also ~37% cheaper per page than E03 cold-cache** (~$0.0455 vs ~$0.0725, measured across 5 representative samples per engine; E08 wins on every sample individually). CU sent ~57% more input tokens and ~37% more output tokens to its gpt-5.2 call than our pipeline did, with much wider per-sample variance (input 17,287–21,952 vs E08's tight 11,817–12,165). See [Cost per page](#cost-per-page).
 
-2. **The hybrid (E05) and Content Understanding (E03) are co-leaders.** They sit within 0.005 of each other on every aggregate metric and beat the other engines comfortably. They win different categories — the hybrid takes recall-heavy text fields (names, signatures, free-form, SIN, date) because the VLM can interpret context; CU takes structural fields (phone, checkboxes) because its analyzer schema and dedicated checkbox primitive make those structures explicit to the model. The choice between them is workload-dependent: if structural fidelity on checkbox-style inputs matters most, pick CU; if reading interpretive content and recovering small handwritten zeros matters most, pick the hybrid.
+2. **The same-pipeline model bake-off (E05 / E07 / E08) settles a clear ranking on this task: gpt-5.2 > gpt-5.4 > gpt-4o.** With pipeline, prompt, field descriptions, and OCR pre-pass held constant, the gap is entirely attributable to the generative model: E08 wins F1.mean by 1.6 pp over E05 and 3.7 pp over E07. The older-numbered model winning is counter-intuitive; we don't have a confirmed mechanism for it on this workload.
 
-3. **VLM-direct (E04) has a real precision problem on this workload.** Its precision (0.876) is 8 pp below E03 and 7.5 pp below E05; its FP.mean (8.48) is the highest of any single engine. When the same GPT-5.4 model is given an OCR pre-pass (E05), F1.mean jumps from 0.870 to 0.942 and FP.mean drops from 8.48 to 3.38. That gap is the concrete value of an OCR layer in front of a VLM for schema-driven extraction — the OCR text gives the model a literal transcription to anchor on, instead of leaving it to guess from the image alone.
+3. **Three architectural levers are co-equal in importance; "same model" doesn't mean "same engine".** The E03 vs E08 comparison isolates three differences while holding the generative model (gpt-5.2) constant: (a) OCR tuning — CU's `prebuilt-layout` is tuned for stricter grounding than the standalone DI `prebuilt-layout`; (b) image visibility — CU never shows the image to the LLM, E08 always does; (c) prompt control — CU's prompt is hidden behind its Contextualization layer, E08's is direct. Together these three give a 2.0 pp F1.mean gap. The model-only lever (E05 vs E08, same pipeline different generative model) gives a 1.6 pp gap. Practical implication: when picking a production engine, "we're using gpt-5.2" is far less informative than "we're using DI prebuilt-layout + gpt-5.2 with image-on-the-prompt and a 2.5 KB instruction string". Microsoft's own GA documentation acknowledges this trade-off — CU is designed for managed grounding and confidence; a custom pipeline like E08 trades that for flexibility and recall.
 
-4. **Mistral has a structural ceiling on this dataset.** E02's annotation step reads only the OCR output of its first pass, not the raw image — so when the OCR layer fails to transcribe handwriting cleanly, the structured pass has nothing to work with. This is visible in the `Fake` and `HR0081 (10)` failure cluster, where Mistral lags significantly behind the engines whose generative pass sees the image directly (E03, E05).
+4. **Generative engines + good prompts have eclipsed the custom-trained template, and the Neural model has eclipsed the template-based one.** E00 (the V1 Report's labelled-bounding-box approach) lands at F1.mean 0.916; **E01 (the Neural custom model trained on the same labelling workflow but with a deep-learning model class) lands at F1.mean 0.946** — a clear successor to E00 within the supervised-non-LLM family. The four hybrid / generative paths (E02, E03, E05, E08) all sit between 0.927 and 0.973 on F1.mean. The template's structural advantage (it knows the form layout exactly) is matched and exceeded by generative engines once they have field-level descriptions and a workflow-level prompt, and by E01's Neural model within the supervised family.
 
-5. **Custom-trained models carry a lifecycle cost penalty that generative engines don't.** Even where E00 matches the generative engines on accuracy, the trained template needs re-labelling and re-training whenever the form schema changes. Schema changes on a generative engine are a prompt edit. For forms that evolve over time, the generative path wins on maintenance even when accuracy is roughly equal.
+5. **VLM-direct (E04) and gpt-4o (E07) both have precision problems on this workload.** E04 precision 0.892 (FP.mean 7.30) is the worst overall; E07 precision 0.955 (FP.mean 3.10) is the second-worst among the generative engines. Both share a tendency to fill in plausible-but-wrong values on cells where the model isn't certain. The OCR pre-pass closes most of the gap for gpt-5.4 (E04 → E05 jumps F1.mean from 0.887 to 0.957), but gpt-4o's empty-checkbox failure mode persists even with the OCR layer in front. The OCR layer is the bigger lever for *gpt-5.4*; for *gpt-4o*, model choice itself is the lever.
 
-6. **The ensemble (E06) is a meaningful but bounded improvement.** Combining the five engines via per-field weighted-majority voting beats every single engine on every aggregate metric — most importantly cutting FP.mean roughly in half (3.00 → 1.93 vs the best single engine). But it's not magic: it closes about 40% of the gap to a cheating oracle that knows the right answer. The remaining headroom needs either cross-engine confidence calibration, more genuinely-different engines, or improvements to the underlying engines themselves.
+6. **Mistral has a structural ceiling on this dataset.** E02's annotation step reads only the OCR output of its first pass, not the raw image — so when the OCR layer fails to transcribe handwriting cleanly, the structured pass has nothing to work with. This is visible in the `Fake` and `HR0081 (10)` failure cluster, where Mistral lags significantly behind the engines whose generative pass sees the image directly (E03, E05, E08).
 
-7. **Some of the apparent weak spots are measurement artifacts, not engine deficiencies.** Signature (~0.65 across every engine) and `explain_changes` (~0.65) are being scored as strict exact-text matching, which is the wrong rule for these two categories. Signature should be presence/absence; freeform text should be fuzzy. Re-scoring these two categories under appropriate rules would lift every engine's aggregate F1 noticeably — the engines are doing better than the numbers suggest on these fields.
+7. **Custom-trained models carry a lifecycle cost penalty that generative engines don't.** Even where E00 matches the generative engines on accuracy, the trained template needs re-labelling and re-training whenever the form schema changes. Schema changes on a generative engine are a prompt edit. For forms that evolve over time, the generative path wins on maintenance even when accuracy is roughly equal.
 
-8. **Production behaviour will differ from these numbers.** The 40-sample dataset is small and skews toward known-hard edge cases (blank/coffee/pencil samples included by design to test robustness). On a larger and more representative production corpus, expect the relative rankings to hold but the absolute numbers to move — both up (more typical samples will be easier) and down (more unfamiliar edge cases will appear). Use these numbers as a directional guide to engine selection, not as a guarantee of production accuracy.
+8. **The ensemble (E06) beats E08 across the board, but at ~5.5× the per-page cost.** E06 routes each field to its category specialist (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). It posts F1.mean 0.984, F1.median 0.990, precision 0.989, recall 0.980, matched.median 73, FP.mean 0.83 — every aggregate beats E08 (0.973 / 0.984 / 0.978 / 0.968 / 72 / 1.58). Per-page cost is ~$0.249 (sum of the five specialist engines that participate in routing) vs E08's ~$0.046. E06 is the right call when wrong-value substitutions cost human-review time worth more than the inference delta, or when the extra recall on hard samples justifies the spend. E08 alone is the right call when per-page cost dominates.
+
+9. **Freeform text remains a weak spot for the simpler engines.** Signature is scored as presence/absence and most engines clear 0.94 there, leaving `explain_changes` as the only category where strict-equality friction is visible — and only on the non-generative engines (E00 / E02 at ~0.63), where verbatim transcription of a long natural-language string is the actual challenge, not metric choice. The generative engines clear 0.80 on freeform_text without any metric relaxation.
+
+10. **Production behaviour will differ from these numbers.** The 40-sample dataset is small and skews toward known-hard edge cases (blank/coffee/pencil samples included by design to test robustness). On a larger and more representative production corpus, expect the relative rankings to hold but the absolute numbers to move — both up (more typical samples will be easier) and down (more unfamiliar edge cases will appear). Use these numbers as a directional guide to engine selection, not as a guarantee of production accuracy.
 
 ---
 
 # Appendix A — E06 ensemble combiner
 
-This appendix documents the per-field weighted-majority combiner that produces the E06 row in the comparison tables above. The full source data and benchmark export live in [`../06-engine-ensemble/`](../06-engine-ensemble/).
+This appendix documents the ensemble combiner that produces the E06 row in the comparison tables above.
 
 ## Production note (read this first)
 
-**E06 is NOT a deployment.** It uses predictions that were already produced by E00–E05; running E06 against new documents means running all five upstream engines first and then combining their outputs. That is ~5× the inference cost of any single engine. The ensemble is documented as a **measurement artifact** showing the headroom that exists above the best single engine — the recommended deployable path is still one of E03 or E05 alone.
+**E06 is a synthesised measurement, not a packaged deployment.** Each field's value comes from a different upstream engine — the engine that wins that category on the per-category accuracy table. Reproducing E06 on new documents means running the five specialist engines (E01, E03, E05, E07, E08) per page and routing each field to its specialist. That is ~5.5× the per-page cost of E08 alone (~$0.249 vs ~$0.046 cold-cache). The remaining engines (E00, E02, E04) are part of the strategy-selection step — they are evaluated to confirm the chosen strategy still wins, but their predictions aren't used at routing time.
+
+If the architecture observations in the body of this report led to E08 alone being explored as a candidate production path (best single engine on this benchmark, ~$0.046/page), E06 would be worth considering only when wrong-value substitutions cost human-review time worth more than the ~$0.20/page inference delta.
 
 ## Strategies explored
 
-Six deployable strategies plus one oracle baseline ([`../06-engine-ensemble/scripts/build-ensemble.py`](../06-engine-ensemble/scripts/build-ensemble.py)):
+Six deployable strategies plus one oracle baseline:
 
 | code | how it picks |
 |---|---|
-| `S1_per_category_best` | per field's category, take the per-category best engine (E03 for phone/checkboxes, E05 for the other six). No fallback. |
+| **`S1_per_category_best`** | per field's category, take the per-category best engine (E01 for sin, E03 for checkboxes, E05 for date/name/freeform_text, E07 for signature, E08 for phone/income_amounts). No fallback. **Chosen.** |
 | `S2_best_then_majority_fallback` | S1, but if the best engine returns null-like, fall back to a ≥3 majority vote. |
 | `S3_majority_then_best` | If ≥3 engines agree on a non-null value, use it. Else, fall back to per-category best. |
 | `S4_weighted_majority` | Weighted vote: each engine's vote weight = its per-category accuracy on this field's category. Pick the highest-weighted value. |
 | `S5_weighted_with_null_preference` | S4, but if the per-category best engine returned null AND any other engine agrees null, prefer null (avoids over-extraction). |
-| `S6_per_field_weighted_majority` | Same as S4 but with **per-field** weights instead of per-category — finer granularity. **Chosen.** |
+| `S6_per_field_weighted_majority` | Same as S4 but with **per-field** weights instead of per-category — finer granularity. |
 | `Z_oracle_upper_bound` | Cheating baseline: if any engine got the field right, take that engine's value. Headroom measurement only. |
 
 ## Results — strategies vs single-engine baselines
 
 | strategy | F1.median | F1.mean | Precision.mean | Recall.mean | matched.median | FP.mean |
 |---|---|---|---|---|---|---|
-| E00 alone | 0.939 | 0.903 | 0.917 | 0.899 | 66 | 5.60 |
-| E02 alone | 0.959 | 0.918 | 0.941 | 0.902 | 69 | 4.05 |
-| E03 alone | 0.969 | 0.947 | 0.958 | 0.939 | 70 | 3.00 |
-| E04 alone | 0.903 | 0.870 | 0.876 | 0.866 | 66 | 8.48 |
-| E05 alone | 0.960 | 0.942 | 0.951 | 0.935 | 71 | 3.38 |
-| `S1_per_category_best` | 0.969 | 0.953 | 0.962 | 0.947 | 71 | 2.65 |
-| `S2_best_then_majority_fallback` | 0.969 | 0.954 | 0.962 | 0.947 | 71 | 2.65 |
-| `S3_majority_then_best` | 0.973 | 0.959 | 0.970 | 0.950 | 71 | 2.15 |
-| `S4_weighted_majority` | 0.973 | 0.962 | 0.973 | 0.953 | 71 | 1.93 |
-| `S5_weighted_with_null_preference` | 0.973 | 0.962 | 0.973 | 0.952 | 71 | 1.90 |
-| **`S6_per_field_weighted_majority`** | **0.973** | **0.962** | **0.973** | **0.953** | **71** | **1.93** |
-| `Z_oracle_upper_bound` (cheating) | 0.986 | 0.984 | 0.986 | 0.983 | 73 | 1.03 |
+| E00 alone | 0.952 | 0.916 | 0.930 | 0.912 | 68 | 4.73 |
+| E01 alone | 0.980 | 0.946 | 0.966 | 0.931 | 70 | 2.25 |
+| E02 alone | 0.966 | 0.927 | 0.950 | 0.910 | 70 | 3.45 |
+| E03 alone | 0.981 | 0.953 | 0.972 | 0.937 | 71 | 1.85 |
+| E04 alone | 0.918 | 0.887 | 0.892 | 0.882 | 67 | 7.30 |
+| E05 alone | 0.980 | 0.957 | 0.965 | 0.950 | 72 | 2.33 |
+| E07 alone | 0.973 | 0.936 | 0.955 | 0.921 | 69 | 3.10 |
+| E08 alone | 0.984 | 0.973 | 0.978 | 0.968 | 72 | 1.58 |
+| **`S1_per_category_best`** | **0.990** | **0.984** | **0.989** | **0.980** | **73** | **0.83** |
+| `S2_best_then_majority_fallback` | 0.990 | 0.984 | 0.989 | 0.980 | 73 | 0.83 |
+| `S3_majority_then_best` | 0.986 | 0.970 | 0.989 | 0.956 | 72 | 0.80 |
+| `S4_weighted_majority` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.85 |
+| `S5_weighted_with_null_preference` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.83 |
+| `S6_per_field_weighted_majority` | 0.986 | 0.973 | 0.988 | 0.961 | 72 | 0.85 |
+| `Z_oracle_upper_bound` (cheating) | 1.000 | 0.995 | 0.996 | 0.995 | 74 | 0.30 |
 
-S6 edges out S4 and S5 by a hair on most aggregates. S3/S4/S5/S6 are all within 0.2 pp of each other — any of them would be a reasonable production choice. The interesting result is that **every ensemble strategy beats every single engine on precision** (S1 = 0.962 vs E03 = 0.958), which is where the F1 lift comes from: the ensemble doesn't extract many more correct fields than E03 (matched.median 71 vs 70, just +1 field), but it makes meaningfully fewer wrong-value substitutions (FP.mean ~2 vs E03's 3).
+S1 and S2 tie at F1.mean 0.984; the null-fallback in S2 doesn't fire often enough to matter on this dataset. S1 is the simpler of the two and is the strategy used to produce the E06 numbers in the headline tables.
 
-Full strategy CSV: [`../06-engine-ensemble/data/strategy-comparison.csv`](../06-engine-ensemble/data/strategy-comparison.csv).
+**Per-category specialist routing wins outright.** With eight engines and clear category leaders, the weighted-majority strategies (S3/S4/S5/S6) trail S1 by 1.1–1.4 pp F1.mean: their votes drag the result toward the average of the engine pool rather than the specialist's answer. The per-category leaders are clearly differentiated — E01 dominates sin, E07 dominates signature, E08 dominates income, E03 dominates checkboxes — so trusting the specialist unconditionally outperforms diluting its vote with non-specialists.
 
-## Why per-category-best alone (S1/S2) underperforms
+## Per-category accuracy — E06 vs the leader of each category
 
-S1 and S2 are the most defensible-looking strategies — pick the engine you know is best at this category. They do beat the best single engine on F1.mean (0.953 vs E03 0.947), but they trail the weighted-majority strategies (S3+) by 0.6–1 pp. The problem: the "per-category best" engine is best *on average* over that category, but on individual fields where another engine reads the form better, S1 takes the wrong answer. Voting across engines (S3 onwards) recovers those wins without sacrificing the category-leader's average advantage.
-
-**The lesson:** when you have multiple roughly-equal engines, **agreement is a stronger signal than category-level ranking**. The weighted-majority strategies treat per-category accuracy as a Bayesian prior, then update it with the actual votes; that beats trusting the prior unconditionally.
-
-## Where the ensemble beats every single engine
-
-| category | E06 | best single | engine | delta |
+| category | E06 (S1) | best single | engine | delta |
 |---|---|---|---|---|
-| sin | 0.898 | 0.923 | E05 | **−2.5 pp** |
-| date | 0.936 | 0.936 | E05 | tie |
-| phone | 0.963 | 0.963 | E03 | tie |
-| name | 0.880 | 0.880 | E05 | tie |
-| signature | 0.680 | 0.675 | E05 | +0.5 pp |
-| freeform_text | 0.700 | 0.650 | E05 | **+5.0 pp** |
-| checkboxes | 0.989 | 0.975 | E03 | **+1.4 pp** |
-| income_amounts | 0.953 | 0.951 | E05 | +0.2 pp |
+| sin | 0.963 | 0.963 | E01 | tie (by construction) |
+| date | 0.936 | 0.936 | E05 / E07 | tie |
+| phone | 0.988 | 0.988 | E03 / E08 | tie |
+| name | 0.948 | 0.948 | E05 | tie |
+| signature | 1.000 | 1.000 | E07 | tie |
+| freeform_text | 0.900 | 0.900 | E05 | tie |
+| checkboxes | 0.996 | 0.996 | E03 | tie |
+| income_amounts | 0.970 | 0.970 | E08 | tie |
 
-The per-category accuracy is computed on the matched-field count only (it doesn't penalise substitution-FPs the way the per-sample precision does). The ensemble wins or ties on 7 of 8 categories. The single category where E06 underperforms meaningfully is **sin**, where E05 alone hits 0.923 but E06 lands at 0.898. The mechanism: on a handful of samples, E05 reads the SIN correctly but every other engine misreads it, so the weighted majority votes against E05.
+S1 routes each field to the category's best engine, so per-category accuracy is identical to that engine's per-category accuracy by construction. The aggregate F1 lift over any single engine comes from combining specialists: no single engine wins every category, so picking the category-specific best beats picking one engine for everything.
 
-The bigger story is in the **aggregate precision and FP.mean**: the ensemble cuts FP.mean from E03's 3.00 (and E04's 8.48) to 1.93 — roughly halving the substitution-error count. That's where the F1 gains come from.
+## Where the F1 lift over E08 alone comes from
+
+E08 is the strongest single engine but it is not best in every category. The table below shows the per-category gap between E08 and the engine S1 routes to:
+
+| category | E08 | S1 routes to | specialist score | gap closed |
+|---|---|---|---|---|
+| sin | 0.950 | E01 | 0.963 | +1.3 pp |
+| date | 0.909 | E05 | 0.936 | +2.7 pp |
+| phone | 0.988 | E08 | 0.988 | (no gap) |
+| name | 0.923 | E05 | 0.948 | +2.5 pp |
+| signature | 0.946 | E07 | 1.000 | +5.4 pp |
+| freeform_text | 0.825 | E05 | 0.900 | +7.5 pp |
+| checkboxes | 0.973 | E03 | 0.996 | +2.3 pp |
+| income_amounts | 0.970 | E08 | 0.970 | (no gap) |
+
+The biggest contributions to E06's F1 lead over E08 come from **freeform_text** (E05's natural-language transcription), **signature** (E07's presence detection), **date / name / sin** (small but consistent), and **checkboxes** (CU's dedicated `selectionMark` primitive).
 
 ## Headroom — the oracle baseline
 
-The oracle baseline cheats: for every field, it asks "did any engine got this right?" and takes that engine's answer. It is not deployable but tells us the upper bound any router could achieve on these five engines' predictions.
+The oracle baseline cheats: for every field it asks "did any engine get this right?" and takes that engine's answer. It is not deployable but tells us the upper bound any router could achieve on these eight engines' predictions.
 
-| | best single (E03) | E06 (S6) | Oracle |
+| | best single (E08) | E06 (S1) | Oracle |
 |---|---|---|---|
-| F1.median | 0.969 | 0.973 | 0.986 |
-| F1.mean | 0.947 | 0.962 | 0.984 |
-| precision.mean | 0.958 | 0.973 | 0.986 |
-| recall.mean | 0.939 | 0.953 | 0.983 |
-| matched.median | 70 | 71 | 73 |
-| FP.mean | 3.00 | 1.93 | 1.03 |
+| F1.median | 0.984 | 0.990 | 1.000 |
+| F1.mean | 0.973 | 0.984 | 0.995 |
+| precision.mean | 0.978 | 0.989 | 0.996 |
+| recall.mean | 0.968 | 0.980 | 0.995 |
+| matched.median | 72 | 73 | 74 |
+| FP.mean | 1.58 | 0.83 | 0.30 |
 
-E06 closes about **40% of the F1.mean gap** between the best single engine (0.947) and the oracle (0.984). The remaining 60% is on the table for a smarter router — primarily through better per-field confidence scoring, possibly with cross-engine confidence calibration. The matched-fields gap (E03 = 70, Oracle = 73 of 74) means there exist 3 fields per sample at the median where *one of the five engines* got it right but the others didn't, and our ensemble didn't pick the right one. The FP gap (1.93 → 1.03) shows the same headroom: the ensemble already roughly halves the wrong-answer rate; an oracle would halve it again.
+E06 closes roughly **half** of the F1.mean gap between the best single engine (0.973) and the oracle (0.995). The remaining gap is on the table for a smarter router — primarily through per-field (not per-category) confidence scoring with cross-engine calibration. The matched-fields gap (E08 = 72, S1 = 73, Oracle = 74) means there exists at least 1 field per sample at the median where *one of the eight engines* got it right but the category-best engine didn't, and S1 doesn't switch to that engine.
 
 ## E06 residual errors
 
-The per-sample mismatch table for E06 is at [`../06-engine-ensemble/iteration/errors-for-gt-cleanup.md`](../06-engine-ensemble/iteration/errors-for-gt-cleanup.md) — **140 mismatches across 33 samples** (7 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
+E06 has **63 mismatches across 23 samples** (17 samples have zero mismatches under strict eval). This is the lowest mismatch count of any engine on this dataset:
 
 | engine | mismatches | samples with ≥1 mismatch |
 |---|---|---|
-| E03 (CU + gpt-5.2) | 184 | 39 |
-| E05 (VLM + DI hybrid) | 188 | 34 |
-| E02 (Mistral / Foundry) | 297 | 38 |
-| E00 (DI custom template) | 364 | 39 |
-| E04 (gpt-5.4 VLM) | 377 | 39 |
-| **E06 (ensemble)** | **140** | **33** |
+| E00 (DI custom template) | 328 | 36 |
+| E04 (gpt-5.4 VLM-direct) | 330 | 39 |
+| E02 (Mistral / Foundry) | 272 | 36 |
+| E07 (gpt-4o hybrid) | 253 | 27 |
+| E01 (DI Neural custom) | 227 | 27 |
+| E03 (CU + gpt-5.2) | 204 | 29 |
+| E05 (gpt-5.4 hybrid) | 145 | 28 |
+| E08 (gpt-5.2 hybrid) | 100 | 29 |
+| **E06 (ensemble)** | **63** | **23** |
 
-The ensemble's structural strength shows up not just in fewer total mismatches but also in fewer samples that have any mismatch at all — 7 samples come back perfectly matched.
+E06's structural strength shows up not just in fewer total mismatches but also in fewer samples that have any mismatch at all — 17 samples come back perfectly matched.
 
 The residual error categories on E06 break down into:
-- **Single-character handwriting** (X-marks, isolated `0`s, signature placeholders). When 4+ engines misread the same character, voting can't recover.
-- **Numeric blank-vs-zero ambiguity** on a small handful of income-amount fields where the form has a stray pen mark visible. Multiple engines extract `0`; the GT is `""`.
-- **One-of-array GT not yet covering an engine's format variant.** Caught by `promote-gt-format-variants.ts` and absorbed in subsequent GT cleanup passes.
-- **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors that no ensemble can fix.
-
-## E06 reproducibility
-
-```bash
-cd /home/alstruk/GitHub/ai-adoption-document-intelligence/apps/temporal
-
-# 1. Re-evaluate every upstream engine's predictions against current GT.
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid; do
-  npx tsx -r tsconfig-paths/register src/scripts/reevaluate-against-local-gt.ts $slug
-done
-
-# 2. Generate per-field/per-category accuracy data into results/report/data/.
-cd ../..
-python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
-
-# 3. Run the ensemble combiner — writes ../06-engine-ensemble/ outputs.
-python3 experiments/results/06-engine-ensemble/scripts/build-ensemble.py
-
-# 4. Refresh comparison-report plots so E06 is included alongside E00-E05.
-INCLUDE_E06=1 python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
-
-# 5. Dump E06's per-sample mismatch table.
-cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/dump-errors-for-gt-cleanup.ts 06-engine-ensemble
-```
+- **Single-character handwriting** (X-marks, isolated `0`s). When the category specialist misreads the character, S1 has no fallback because it doesn't consult the other engines.
+- **Numeric blank-vs-zero ambiguity** on a small handful of income-amount fields where the form has a stray pen mark visible. E08 (the income specialist) extracts `0`; the GT is `""`.
+- **One-of-array GT not yet covering an engine's format variant.** Caught by the GT format-variant promotion step and absorbed in subsequent GT cleanup passes.
+- **Genuine OCR misreads** — `5` vs `8`, `1` vs `7` confusions on dense handwriting. The irreducible per-engine errors the category specialist makes that no router can fix without consulting another engine.
 
 ---
 
-# Appendix B — Reproducing the comparison report
+# Appendix B — Extraction prompts (verbatim)
 
-```bash
-cd /home/alstruk/GitHub/ai-adoption-document-intelligence/apps/temporal
+The prompts below are the *global instruction text* sent to each generative engine, captured verbatim as of this report. They are paired with a 74-field JSON schema carrying the per-field type declarations and descriptions (not included here for length).
 
-# 1. Apply any newly-surfaced format-variant GT promotions (idempotent).
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid; do
-  npx tsx -r tsconfig-paths/register src/scripts/promote-gt-format-variants.ts $slug --write
-done
+E00 has no prompt (it's a supervised trained template — extraction behaviour is encoded in the labelled training set, not in instructions).
 
-# 2. Re-evaluate every engine's stored predictions against current local GT.
-for slug in 00-doc-intelligence-template 02-mistral-doc-ai-azure 03-content-understanding 04-vlm-direct 05-vlm-ocr-hybrid; do
-  npx tsx -r tsconfig-paths/register src/scripts/reevaluate-against-local-gt.ts $slug
-done
+## E04 / E05 / E07 / E08 — VLM and VLM+OCR-hybrid prompt (shared, verbatim)
 
-# 3. Generate this report's plots + CSVs into results/report/.
-cd ../..
-INCLUDE_E06=1 python3 experiments/results/06-engine-ensemble/scripts/build-comparison-report.py
+The four VLM-based engines share a single byte-for-byte identical prompt — only the deployment target (gpt-5.4 / gpt-4o / gpt-5.2 / VLM-direct vs. hybrid) differs between them. This is the cleanest evidence that the same-pipeline model bake-off (E05 / E07 / E08) actually isolates the model contribution rather than smuggling in prompt differences.
+
+E05/E07/E08 also receive the OCR markdown produced by Azure DI's `prebuilt-layout` reader, wrapped in `<ocr_text>...</ocr_text>` delimiters and appended *after* the prompt below — with one extra system-side instruction the engines inject programmatically: *"Use both inputs together. The OCR text helps you locate fields and read structure. The image is the source of truth. When the OCR text and the image disagree, trust the image and ignore the OCR text."* E04 receives only the image (no OCR pass), so this hybrid-specific clause is omitted.
+
 ```
+Extract structured field values from this BC SDPR Monthly Report form.
+
+Conventions:
+- The form has two parallel income columns: **Applicant** (left) and **Spouse** (right). Each `applicant_*` field reads the LEFT column; each `spouse_*` field reads the RIGHT column. Never mix columns.
+- **Numeric income fields:** Look at the cell carefully and distinguish two cases:
+  - If the cell is **completely blank** (no number written, no "0", no "$0", no dash), return **null**.
+  - If the cell explicitly shows `0`, `$0`, `$ 0`, `0.00`, or any literal zero, return the number `0`.
+  - Otherwise, return the dollar amount as a plain number with no `$`, no commas, no spaces (e.g., `1234.56`).
+  - This distinction matters: do NOT default empty cells to 0 — that loses information.
+- **Comma is a thousands separator, not a decimal.** When you see `$8,641` or `$ 8,641`, the value is `8641` (eight thousand six hundred forty-one), NOT `8.641`. The decimal separator on this form is the period (`.`); commas only group thousands. So `$1,234.56` → `1234.56` and `$ 8,641` → `8641`.
+- Checkbox fields ending in `_yes` or `_no`: return `selected` if the box is filled/checked, `unselected` otherwise. The form gives a Yes/No pair for every question — for any answered question exactly one of the pair is `selected` and the other is `unselected`. Some questions have separate Applicant and Spouse Yes/No pairs (suffix `_spouse_yes` / `_spouse_no`); read those from the spouse-specific row.
+- Text fields (`signature`, `name`, `phone`, `sin`, and their `spouse_*` counterparts): extract the visible text exactly as written, preserving punctuation, hyphens, parentheses, dots, and spacing as they appear on the form. For phone numbers, do NOT normalize the format — if the form shows `(227) 837-843`, return `(227) 837-843`, not `227 837 843`. Use empty string `""` if blank.
+- `signature` is the cursive/initial mark in the signature box. `name` is the printed full name. They are separate fields and must not be swapped.
+- Date fields (`date`, `spouse_date`): extract in `YYYY-MM-DD` format. The form prints date headers like `(yyyy-mmm-dd)` — interpret the value accordingly (`mmm` is a 3-letter month abbreviation, e.g. `MAR` → `03`, `SEP` → `09`).
+- `explain_changes`: free-text field. Capture the entire paragraph if present, otherwise empty string.
+- Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD, etc.) are NOT in the schema — ignore them.
+
+Be conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.
+```
+
+## E03 — Azure Content Understanding prompt
+
+CU receives this prompt as part of the analyzer configuration's `description` field. CU's managed "Contextualization" layer wraps it server-side with additional schema metadata, in-context examples, and grounding instructions before sending the final prompt to gpt-5.2 — we do not see and cannot edit that wrapping. The text below is the *only* prompt-side lever we control on E03.
+
+```
+Extract structured field values from this BC SDPR Monthly Report form.
+
+Conventions:
+- The form has two parallel income columns: **Applicant** (left) and **Spouse** (right). Each `applicant_*` field reads the LEFT column; each `spouse_*` field reads the RIGHT column. Never mix columns.
+- **Numeric income fields:** Look at the cell carefully and distinguish two cases:
+  - If the cell is **completely blank** (no number written, no "0", no "$0", no dash), return **null**.
+  - If the cell explicitly shows `0`, `$0`, `$ 0`, `0.00`, or any literal zero, return the number `0`.
+  - Otherwise, return the dollar amount as a plain number with no `$`, no commas, no spaces (e.g., `1234.56`).
+  - This distinction matters: do NOT default empty cells to 0 — that loses information.
+- Checkbox fields ending in `_yes` or `_no`: return `selected` if the box is filled/checked, `unselected` otherwise. The form gives a Yes/No pair for every question — for any answered question exactly one of the pair is `selected` and the other is `unselected`. Some questions have separate Applicant and Spouse Yes/No pairs (suffix `_spouse_yes` / `_spouse_no`); read those from the spouse-specific row.
+- Text fields (`signature`, `name`, `phone`, `sin`, and their `spouse_*` counterparts): extract the visible text exactly as written, preserving punctuation, hyphens, and spacing where present. Use empty string `""` if blank.
+- `signature` is the cursive/initial mark in the signature box. `name` is the printed full name. They are separate fields and must not be swapped.
+- Date fields (`date`, `spouse_date`): extract in `YYYY-MM-DD` format. The form prints date headers like `(yyyy-mmm-dd)` — interpret the value accordingly (`mmm` is a 3-letter month abbreviation, e.g. `MAR`).
+- `explain_changes`: free-text field. Capture the entire paragraph if present, otherwise empty string.
+- Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD, etc.) are NOT in the schema — ignore them.
+
+Be conservative: if a number is illegible, return null (treat as blank). Do NOT guess values that aren't visibly written on the form.
+```
+
+The CU prompt is a near-twin of the shared VLM/hybrid prompt — only minor wording differs (no thousands-separator clause, no parenthesis/dot guidance on phone formatting, no `→ 03 / SEP → 09` example on date abbreviation). Worth noting: both prompts are short (~18 lines, ~2.5 KB). The accuracy gap between E03 and E08 is therefore *not* a prompt-quality story — both engines get roughly the same instructions; the gap traces to whether the image reaches the LLM and how the OCR layer is tuned (see the [E08 notes](#e08--gpt-52-vlm--azure-di-layout-hybrid)).
+
+## E02 — Mistral on Azure AI Foundry prompt
+
+Mistral's prompt is ~10× longer than the others (179 lines vs ~18). The reason is structural: Mistral's annotation pass **sees only the OCR text from the first stage, not the image**. The prompt therefore has to encode the form layout knowledge explicitly — which row is which income field, where checkboxes live in the two-column layout, which field-keys map to which boxes — because the model has no visual fallback when the OCR text is ambiguous. The VLM-based prompts can stay terse because the model can read the image directly and infer layout from what it sees.
+
+```
+You are extracting structured field values from a BC SDPR Monthly Report form.
+Read the form image carefully and return values for every field in the schema.
+Treat the printed form layout as the source of truth and prefer literal,
+verbatim transcription over normalisation.
+
+<form_layout>
+The form has two parallel income columns in Section 2: APPLICANT (left) and
+SPOUSE (right). Each `applicant_*` field reads the LEFT column ONLY; each
+`spouse_*` field reads the RIGHT column ONLY. Never copy a value across
+columns. Income rows are ordered: Net Employment Income, Employment Insurance,
+Spousal Support / Alimony, Child Support, WorkBC Financial Support, Student
+Funding, Rental Income, Room/Board Income, Worker's Compensation, Private
+Pensions, OAS/GIS, Trust Income, Canada Pension Plan (CPP), Tax Credits,
+Child Tax Benefits, Income Tax Refund, All Other Income, Income of Dependent
+Children. Section 1 has Yes/No checkbox pairs for nine questions; questions
+5-9 have separate Applicant and Spouse pairs (suffix `_spouse_yes` /
+`_spouse_no`).
+</form_layout>
+
+<numeric_income_rules>
+For every `applicant_*` and `spouse_*` numeric field in Section 2, decide
+between three outputs:
+
+1. The dollar amount as a plain number (no `$`, no commas, no spaces) —
+   `1,234.56` → `1234.56`. Use this when the cell clearly shows a non-zero
+   amount.
+2. The number `0` — use this ONLY when the cell VISIBLY contains one of:
+   the digit `0` (printed or handwritten), `$0`, `$ 0`, `0.00`, a written-out
+   "zero" / "nil" / "none", a horizontal dash `-` written in the cell, or the
+   literal text `N/A` written in the cell. The mark must be unambiguously
+   inside the cell's bounding box.
+3. `null` — for any other case, including:
+   - The cell is completely empty (no ink, no print, no mark inside the
+     cell's bounding box).
+   - The cell has stray pen marks, smudges, dots, light shadows, faint
+     printing residue, or scanner noise that you cannot confidently
+     identify as a `0` or any other digit. **When in doubt, return `null`.**
+   - The entire column appears unused (e.g. spouse column where no spouse
+     fields are filled in elsewhere on the form).
+
+Hard rule: **DO NOT INFER ZEROS.** Do not return `0` just because the cell
+*looks* like it might have a zero — only return `0` when you would, looking
+at this single cell in isolation, say "yes, there is a clear `0` here". If
+adjacent cells in the same column all show clear zeros and this cell is
+ambiguous, the ambiguous cell still returns `null`, not `0`. False-positive
+`0`s are worse than missed `0`s — they corrupt the financial data.
+
+Do NOT propagate zeros across columns: if the applicant column is filled
+with `0`s and the spouse column has no marks at all, the spouse cells
+return `null`, not `0`.
+</numeric_income_rules>
+
+<checkbox_rules>
+Section 1 has nine numbered questions. The checkbox LAYOUT differs between
+two groups — read each group with its own rule.
+
+**Group A — Questions 1-4 (single Yes/No pair, no applicant/spouse split):**
+
+Each of these four questions has exactly ONE Yes box and ONE No box on the
+form, spanning the full width of the row. There is no separate applicant
+or spouse column for these questions.
+
+Field-key mapping for Group A (NOTE: even though these field keys do not
+contain the word "applicant", they belong to this single-pair group, NOT
+to the applicant column of Group B):
+
+Q1 "Are you still in need of assistance?"   → checkbox_need_assistance_yes / _no
+Q2 "Has your family unit received or disposed of any assets?"  → checkbox_family_assets_yes / _no
+Q3 "Any changes to your shelter costs?"     → checkbox_shelter_yes / _no
+Q4 "Any changes in Dependants or Persons living in the home?"  → checkbox_dependants_yes / _no
+
+Read the single Yes box and the single No box for these four questions.
+
+**Group B — Questions 5-9 (TWO COLUMNS: Applicant column on the left,
+Spouse column on the right):**
+
+Each of these five questions has FOUR boxes laid out as:
+
+                                         APPLICANT col    SPOUSE col
+                                         [Yes] [No]       [Yes] [No]
+Q5 Any employment changes?
+Q6 Are you attending school/training?
+Q7 Are you looking for work?
+Q8 Have you moved or entered a facility?
+Q9 Any outstanding warrants for arrest?
+
+Field-key mapping for Group B — the `_yes` / `_no` keys WITHOUT `_spouse_`
+read the APPLICANT (left) column; the keys WITH `_spouse_` read the SPOUSE
+(right) column:
+
+Q5: checkbox_employment_changes_yes / _no       → APPLICANT column boxes (left)
+    checkbox_employment_changes_spouse_yes / _no → SPOUSE column boxes (right)
+Q6: checkbox_school_yes / _no                    → APPLICANT (left)
+    checkbox_school_spouse_yes / _no             → SPOUSE (right)
+Q7: checkbox_work_yes / _no                      → APPLICANT (left)
+    checkbox_work_spouse_yes / _no               → SPOUSE (right)
+Q8: checkbox_moved_yes / _no                     → APPLICANT (left)
+    checkbox_moved_spouse_yes / _no              → SPOUSE (right)
+Q9: checkbox_warrant_yes / _no                   → APPLICANT (left)
+    checkbox_warrant_spouse_yes / _no            → SPOUSE (right)
+
+**Read each box INDEPENDENTLY using these rules:**
+
+The form's checkbox style is a small square `☐` that becomes filled (`☑`,
+`☒`, X-mark `×`, tick `✓`, scribble, blacked-out fill, clear dot inside)
+when selected.
+
+- If the box visibly contains ANY clear mark inside it (X, ✓, scribble,
+  fill, clear dot), return `selected` for THAT field.
+- If the box is empty/clean (no ink inside the box's borders), return
+  `unselected` for THAT field.
+
+Yes and No boxes are SEPARATE fields. Do not assume "if YES is selected,
+then NO is unselected" without looking at NO. Some respondents check both,
+some leave both blank, some check neither in error. Return what you
+literally see in each box.
+
+For Group B, **do not swap the columns**: read the APPLICANT (left) pair
+ONLY for `_yes` / `_no` keys, and the SPOUSE (right) pair ONLY for
+`_spouse_yes` / `_spouse_no` keys. If the spouse column on this form is
+entirely empty (no spouse name, no spouse signature, no marks anywhere in
+the spouse column), every `_spouse_yes` and `_spouse_no` field returns
+`unselected`.
+
+Stray marks outside the box (e.g. ink that touches the box border from
+outside, signature loops that cross over the box) are NOT selections —
+only marks visibly INSIDE the box count.
+</checkbox_rules>
+
+<text_field_rules>
+PRESERVE FORMAT. For every text field, return the value EXACTLY as written on
+the form, character for character including:
+
+- Spaces, including double spaces or unusual spacing.
+- Punctuation: hyphens, parentheses, slashes, commas, periods.
+- Capitalization (do not change case).
+- Original separators in numbers (do NOT strip hyphens from `123-456-789`,
+  do NOT add hyphens to `123456789`, do NOT change `2025-Nov-12` to ISO).
+
+Specifically:
+
+- `sin` / `spouse_sin`: the Social Insurance Number AS WRITTEN — preserve
+  hyphens, spaces, or no separators based on what appears on the form.
+- `phone` / `spouse_phone`: the telephone number AS WRITTEN — preserve
+  parens, hyphens, dots, spaces, or whatever format appears.
+- `date` / `spouse_date`: the date AS WRITTEN. If the form prints
+  `2025-Nov-12`, return `2025-Nov-12`. If it prints `1985JAN4`, return
+  `1985JAN4`. If it prints `2026-03-24`, return `2026-03-24`. Do NOT
+  normalise to a different format.
+- `name` / `spouse_name`: the printed full name AS WRITTEN, preserving
+  spacing and capitalization. Distinct from `signature`.
+- `signature` / `spouse_signature`: WHATEVER MARK is visible inside the
+  signature box — cursive name, initials, single character (e.g. `X`),
+  scribble, or short text. If the box is completely empty, return `""`.
+  This is a recall-sensitive field: do not skip the box. If you see ANY ink
+  inside, transcribe it.
+- `explain_changes`: the free-text paragraph AT BOTTOM of the form, character
+  for character including punctuation, spacing, capitalization, and
+  abbreviations. Do not paraphrase, do not "clean up". `""` if blank.
+
+Return `""` (empty string) ONLY for text fields where the field on the form
+is genuinely blank (no ink inside the cell or signature box).
+</text_field_rules>
+
+<scope>
+Officer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD,
+ADDRESS BLOCK, etc.) are NOT in the schema — ignore them. Only return values
+for the field_keys provided in the schema.
+</scope>
+
+Be conservative on illegible text fields: return `""` only when the cell is
+truly empty. If you can read SOMETHING inside the box (even partially),
+return what you see.
+```
+
+Note the prompt opens with *"Read the form image carefully"* even though Mistral's annotation pass does not actually receive the image — that wording is aspirational, preserved from earlier prompt iterations. In practice the annotation model sees only the OCR text output of Mistral's first stage, which is why the prompt has to encode the form layout (income-row order, checkbox grid) explicitly.
+

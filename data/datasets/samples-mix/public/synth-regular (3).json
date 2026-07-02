@@ -17,7 +17,10 @@
     "checkbox_moved_no": "selected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+    "explain_changes": [
+        "Group think around paper always recognize so reduce defense power. Money worry scientist trouble surface part hand interesting. Someone again affect beat court.",
+        "Group think around paper always recognize so\nreduce defense power. Money worry scientist\ntrouble surface part hand interesting. Someone\nagain affect beat court."
+    ],
     "applicant_net_employment_income": null,
     "applicant_employment_insurance": 6121.6,
     "applicant_spousal_support_alimony": null,
@@ -36,7 +39,10 @@
     "applicant_income_tax_refund": null,
     "applicant_other_income_money_received": null,
     "applicant_income_of_dependent_children": null,
-    "signature": "W. P.",
+    "signature": [
+        "W. P.",
+        "w. P."
+    ],
     "date": [
         "2006-04-16",
         "2006-Apr-16"

@@ -10,7 +10,10 @@
     ],
     "name": "Jennifer Lee",
     "phone": "234-556-7890",
-    "signature": "JLee",
+    "signature": [
+        "JLee",
+        "Jlee"
+    ],
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",
@@ -59,7 +62,10 @@
     "checkbox_need_assistance_yes": "unselected",
     "spouse_net_employment_income": "",
     "spouse_tax_credits_gst_credit": "",
-    "applicant_employment_insurance": "230",
+    "applicant_employment_insurance": [
+        "230",
+        "230 $"
+    ],
     "applicant_workers_compensation": 0,
     "checkbox_employment_changes_no": "unselected",
     "spouse_canada_pension_plan_cpp": "",

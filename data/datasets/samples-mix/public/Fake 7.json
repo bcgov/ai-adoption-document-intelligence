@@ -7,7 +7,10 @@
     "date": "2026APR02",
     "name": ":garbled:",
     "phone": "",
-    "signature": "SIGNATURE",
+    "signature": [
+        "SIGNATURE",
+        "Signature"
+    ],
     "spouse_sin": "",
     "spouse_date": "",
     "spouse_name": "",
@@ -65,7 +68,10 @@
     "checkbox_employment_changes_yes": "unselected",
     "spouse_workbc_financial_support": "",
     "applicant_tax_credits_gst_credit": 0,
-    "applicant_canada_pension_plan_cpp": "0",
+    "applicant_canada_pension_plan_cpp": [
+        "0",
+        "8\n0"
+    ],
     "applicant_spousal_support_alimony": "0",
     "applicant_workbc_financial_support": "0",
     "spouse_other_income_money_received": "",

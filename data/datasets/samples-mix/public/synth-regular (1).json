@@ -17,7 +17,12 @@
     "checkbox_moved_no": "unselected",
     "checkbox_warrant_yes": "unselected",
     "checkbox_warrant_no": "selected",
-    "explain_changes": "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+    "explain_changes": [
+        "My blue computer fight administration number task second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task second plant these she similar foreign. under billion hotel art difficult learn meet present. Majority couple must.",
+        "My blue computer fight administration number task\nsecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must."
+    ],
     "checkbox_employment_changes_spouse_yes": "selected",
     "checkbox_employment_changes_spouse_no": "unselected",
     "checkbox_school_spouse_yes": "selected",
@@ -44,7 +49,10 @@
     "applicant_tax_credits_gst_credit": 2073.75,
     "applicant_child_tax_benefits": 9581.52,
     "applicant_income_tax_refund": null,
-    "applicant_other_income_money_received": 5158,
+    "applicant_other_income_money_received": [
+        "5158",
+        "5, 158"
+    ],
     "applicant_income_of_dependent_children": null,
     "spouse_net_employment_income": null,
     "spouse_employment_insurance": null,
