@@ -33,3 +33,9 @@ infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.backup
 infra/.terraform.lock.hcl
+
+# Local benchmark dataset drops — private subset never committed.
+# See docs/superpowers/specs/2026-05-08-extraction-experiments-design.md
+data/datasets/*/private/**
+!data/datasets/*/private/.gitkeep
+!data/datasets/.gitkeep
