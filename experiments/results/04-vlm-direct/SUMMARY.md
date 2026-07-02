@@ -1,11 +1,37 @@
 # E04 — VLM-direct (gpt-5.4) — Results
 
-**Branch**: `experiment/04-vlm-direct` (chained on `experiment/03-content-understanding`)
+**Branch**: `experiment/04-vlm-direct` (chained on `experiment/03-content-understanding`); strict re-evaluation continued on `improve/02-strict-eval-e03-e04-e05`.
 **Resource**: `strukalex-8338-resource` (Foundry, eastus2). Model deployment: `gpt-5.4` GlobalStandard cap 100 (= 100K TPM)
 **Workflow template**: [`docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json)
 **Provider doc**: [`docs-md/graph-workflows/04-vlm-direct-OCR.md`](../../../docs-md/graph-workflows/04-vlm-direct-OCR.md)
-**Dataset**: `seed-local-samples-mix-public-v1` (40 samples)
+**Dataset**: `seed-local-samples-mix-public-v1` (40 samples; force-resynced on the improve branch so the canonical run sees the SIN-format one-of GT promotion)
 **Azure OpenAI API version**: `2024-12-01-preview`
+**Current canonical run** ([`benchmark-run.json`](benchmark-run.json)): `f71d0efb-eb1e-4171-a7e1-9e194e6572b4` — strict-evaluated under `defaultRule: { rule: "exact" }`, no prompt iteration.
+
+## Strict-equality re-evaluation (improve/02)
+
+The cross-experiment strict-equality rollout from [POST_BENCHMARK_FOLLOWUPS](../../POST_BENCHMARK_FOLLOWUPS.md) item 1 reached E04 on `improve/02-strict-eval-e03-e04-e05`. Same dataset, same workflow JSON, same prompt — only the evaluator rule changed (fuzzy@0.85 → exact). gpt-5.4 VLM-direct turned out to need essentially no GT cleanup (only one SIN-format variant absorbed).
+
+| | Fuzzy@0.85 (historical) | Strict (no GT cleanup) ¹ | **Strict + GT cleanup (canonical)** |
+|---|---|---|---|
+| Run id | `d5db8a69-c802-49c1-9b71-492586d459fd` | `7035a75e-6e61-47e1-a809-9da18a320379` | **`f71d0efb-eb1e-4171-a7e1-9e194e6572b4`** |
+| `pass_rate` | 0.925 | 0.800 ¹ | **1.000** |
+| `f1.median` | 0.943 | 0.950 | **0.943** |
+| `f1.mean` | 0.911 | 0.937 | **0.924** |
+| `precision.mean` | 0.972 | 1.000 | **1.000** |
+| `recall.mean` | 0.864 | 0.885 | **0.862** |
+| `matchedFields.median` | 66 | 67 | **66** |
+| `falsePositives.mean` | 1.25 | 0.00 | **0.00** |
+
+¹ The "Strict (no GT cleanup)" round-1 run was triggered in parallel with E05 against the same shared `gpt-5.4` deployment (capacity 100); 8 of 40 samples returned `no_prediction_output` (workflow failures from contention, not strict-eval failures). The reported `pass_rate 0.800` reflects those 8 forced-zero samples; the surviving 32-sample medians (`f1.median 0.950`, `matchedFields.median 67`) are still meaningful but the column is not a clean comparison point. The canonical column re-ran E04 with E05 sequenced afterwards — every sample produced output and the metrics are uncontaminated.
+
+**Strict + GT cleanup is the strongest E04 result on record on `pass_rate`, `precision.mean`, and `falsePositives.mean`** — the 0.8 pass threshold is now cleared on **all 40 samples** (vs fuzzy-era's 37/40). On `f1.median` and `matchedFields.median`, strict+cleanup ties the fuzzy era because gpt-5.4's residual misses on the harder samples (single-character handwriting, dense-numeric synth tables) are real OCR limits — close-but-not-exact reads (`2326.4` vs `2326.47`) that fuzzy@0.85 forgave are now correctly counted as misses, but the matched-field count holds because the engine isn't producing new errors, just exposing the same ones at higher fidelity. `f1.mean` lifts +1.3 pp (mean is more sensitive to the tail moving from "near miss under fuzzy" to "miss under strict"), `precision.mean` and `falsePositives.mean` improve substantially (+2.8 pp and -1.25 respectively) because the strict rule kills the fuzzy era's spurious low-similarity matches.
+
+**GT cleanup absorbed:** exactly 1 SIN-format promotion on `manual sample (1)` (`123-456-78` → `["123-456-78", "12345678"]`). gpt-5.4 VLM does NOT normalise dates the way CU does — it reads the date as written on the form, so none of E03's 7 date-format promotions were needed for E04 (and the same `samples-mix/public` GT, with the date variants now accepting both formats, is fully backward-compatible).
+
+**Engine-ceiling note:** like CU, gpt-5.4 VLM does NOT hit a Foundry-style annotation ceiling. The vision encoder reads the raw image; the dense-handwriting and obscured-form samples that historically bottomed every engine (`81 blank`, `81 coffee`) now clear the 0.8 threshold under strict + cleanup with `f1` ≥ 0.85. The remaining `f1.median` gap to E03/E05 (0.943 vs 0.976/0.979) is gpt-5.4's per-sample mean drag from the dense-numeric synth tables and a handful of single-character vision-encoder misreads — a real engine limit, not a measurement artifact.
+
+The full per-sample mismatch table (post-cleanup) is at [`iteration/errors-for-gt-cleanup.md`](iteration/errors-for-gt-cleanup.md) — 381 mismatches across 39 samples (one sample fully matched). The mismatch density is higher than E03/E05 because the median sample is at `matchedFields = 66` (vs 70 for the other two) — more residual fields per sample, but still none drop below the 0.8 pass threshold.
 
 ## Scope
 
