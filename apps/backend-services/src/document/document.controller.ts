@@ -370,6 +370,12 @@ export class DocumentController {
     required: false,
     description: 'Filter by document source (e.g., "api").',
   })
+  @ApiQuery({
+    name: "content_hash",
+    required: false,
+    description:
+      "Filter by SHA-256 hex digest of the original upload bytes (exact match).",
+  })
   @ApiOkResponse({
     description: "Returns a paginated list of documents",
     type: PaginatedDocumentsDto,
@@ -387,6 +393,7 @@ export class DocumentController {
     @Query("sort_by") sortBy?: string,
     @Query("sort_dir") sortDir?: string,
     @Query("source") source?: string,
+    @Query("content_hash") contentHash?: string,
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
@@ -413,6 +420,7 @@ export class DocumentController {
           sortBy: sortBy || "created_at",
           sortDir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
           source: source || undefined,
+          contentHash: contentHash?.trim() || undefined,
         },
       );
 

@@ -95,6 +95,7 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
       );
     });
@@ -121,6 +122,7 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
       );
     });
@@ -145,6 +147,7 @@ describe("DocumentController", () => {
         sortBy: "created_at",
         sortDir: "desc",
         source: undefined,
+        contentHash: undefined,
       });
     });
 
@@ -181,6 +184,7 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
       );
     });
@@ -204,6 +208,7 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
       );
     });
@@ -227,6 +232,7 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
       );
     });
@@ -264,7 +270,36 @@ describe("DocumentController", () => {
           sortBy: "created_at",
           sortDir: "desc",
           source: undefined,
+          contentHash: undefined,
         },
+      );
+    });
+
+    it("should forward content_hash query param to the service (trimmed)", async () => {
+      const hash =
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+      documentService.findAllDocuments.mockResolvedValue(
+        paginatedResult([]) as any,
+      );
+
+      await controller.getAllDocuments(
+        mockReqWithIdentity as any,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        `  ${hash}  `,
+      );
+
+      expect(documentService.findAllDocuments).toHaveBeenCalledWith(
+        [mockGroupId],
+        expect.objectContaining({
+          contentHash: hash,
+        }),
       );
     });
   });

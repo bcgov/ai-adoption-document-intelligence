@@ -30,6 +30,8 @@ model Document {
   normalized_file_path  String?
   file_type             String
   file_size             Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash          String?
   metadata              Json?
   source                String
   status                DocumentStatus         @default(pre_ocr)
@@ -52,6 +54,7 @@ model Document {
   workflowVersion       WorkflowVersion?       @relation(fields: [workflow_config_id], references: [id], onDelete: SetNull)
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@index([workflow_config_id])
   // Supports the documents list endpoint's common access pattern:
   // filter by group_id, order by created_at DESC, limit/offset. Lets Postgres
@@ -79,6 +82,8 @@ model LabelingDocument {
   normalized_file_path String?
   file_type         String
   file_size         Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash      String?
   metadata          Json?
   source            String
   status            DocumentStatus    @default(pre_ocr)
@@ -92,6 +97,7 @@ model LabelingDocument {
   group             Group             @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@map("labeling_documents")
 }
 

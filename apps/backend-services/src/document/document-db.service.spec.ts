@@ -37,6 +37,8 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   normalized_file_path: "documents/doc-1/normalized.pdf",
   file_type: "pdf",
   file_size: 1024,
+  content_hash:
+    "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
   metadata: {},
   source: "api",
   status: DocumentStatus.ongoing_ocr,
@@ -78,6 +80,7 @@ describe("DocumentDbService", () => {
         normalized_file_path: doc.normalized_file_path,
         file_type: doc.file_type,
         file_size: doc.file_size,
+        content_hash: doc.content_hash,
         metadata: doc.metadata,
         source: doc.source,
         status: doc.status,
@@ -269,6 +272,22 @@ describe("DocumentDbService", () => {
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { status: DocumentStatus.complete },
+        }),
+      );
+    });
+
+    it("should filter by content_hash when provided", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+      const hash =
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+      await service.findAllDocuments(undefined, { contentHash: hash });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { content_hash: hash },
         }),
       );
     });

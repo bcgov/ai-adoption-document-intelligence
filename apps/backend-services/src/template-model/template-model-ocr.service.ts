@@ -11,6 +11,7 @@ import {
   OperationCategory,
   validateBlobFilePath,
 } from "@/blob-storage/storage-path-builder";
+import { computeContentHash } from "@/document/content-hash.util";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -68,6 +69,8 @@ export class TemplateModelOcrService {
 
     await this.pdfNormalization.validateForUpload(fileBuffer, dto.file_type);
 
+    const contentHash = computeContentHash(fileBuffer);
+
     const documentId = uuidv4();
     const extension = extensionForOriginalBlob(originalFilename, dto.file_type);
     const blobKey = buildBlobFilePath(
@@ -109,6 +112,7 @@ export class TemplateModelOcrService {
           normalized_file_path: null,
           file_type: dto.file_type,
           file_size: fileBuffer.length,
+          content_hash: contentHash,
           metadata: dto.metadata,
           source: "labeling",
           status: DocumentStatus.conversion_failed,
@@ -129,6 +133,7 @@ export class TemplateModelOcrService {
         normalized_file_path: normalizedKey,
         file_type: dto.file_type,
         file_size: fileBuffer.length,
+        content_hash: contentHash,
         metadata: dto.metadata,
         source: "labeling",
         status: DocumentStatus.ongoing_ocr,

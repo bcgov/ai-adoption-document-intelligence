@@ -29,6 +29,14 @@ export class DocumentDataDto {
   @ApiProperty()
   file_size!: number;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      "SHA-256 hex digest of the original upload bytes; identifies file content.",
+  })
+  content_hash!: string | null;
+
   @ApiProperty({ type: Object, required: false, nullable: true })
   metadata?: JsonValue;
 

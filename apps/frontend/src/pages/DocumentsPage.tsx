@@ -31,6 +31,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { type JSX, useEffect, useState } from "react";
+import { ContentHashCell } from "../components/document/ContentHashCell";
 import { DocumentViewerModal } from "../components/document/DocumentViewerModal";
 import { useDeleteDocument } from "../data/hooks/useDeleteDocument";
 import { useDocumentStats } from "../data/hooks/useDocumentStats";
@@ -389,6 +390,7 @@ export function DocumentsPage() {
                           />
                         </UnstyledButton>
                       </Table.Th>
+                      <Table.Th>Hash</Table.Th>
                       <Table.Th>
                         <UnstyledButton
                           onClick={() => toggleSort("created_at")}
@@ -448,6 +450,9 @@ export function DocumentsPage() {
                           <Table.Td>{doc.source ?? "—"}</Table.Td>
                           <Table.Td>
                             <Text size="sm">{doc.workflow_name ?? "—"}</Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <ContentHashCell hash={doc.content_hash} />
                           </Table.Td>
                           <Table.Td>
                             {formatDate(new Date(doc.created_at))}
