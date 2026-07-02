@@ -43,6 +43,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
       description:
         "Azure Content Understanding analyze (async; polls until terminal); deploys analyzer first if a template schema is supplied",
     },
+    "vlmDirect.extract": {
+      description:
+        "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+    },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
       description: "Enrich OCR results using field schema and optional LLM",
