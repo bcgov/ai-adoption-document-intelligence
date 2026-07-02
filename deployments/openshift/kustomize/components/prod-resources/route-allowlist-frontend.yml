@@ -1,0 +1,21 @@
+# Production-only source-IP allowlist for the frontend Route.
+#
+# Merged in only for *-prod namespaces (see components/prod-resources/kustomization.yml,
+# included by scripts/lib/generate-overlay.sh when the namespace ends in -prod). Test/dev
+# and ephemeral PR instances inherit the open base Route and stay reachable without VPN.
+#
+# Value is the full BC Gov public 142.x allocation (ARIN org PBC-51-Z): 142.22.0.0/16–
+# 142.36.0.0/16. This covers VPN egress and the Silver/Gold/Gold-DR NAT pools (all within
+# 142.34.0.0/16). Ref: https://whois.arin.net/rest/org/PBC-51-Z/nets
+#
+# Uses the ip_whitelist annotation key (not ip_allowlist): ip_whitelist is the key the
+# OpenShift 4.x HAProxy router honors and is verified to enforce on the Silver cluster.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+  annotations:
+    haproxy.router.openshift.io/ip_whitelist: >-
+      142.22.0.0/16 142.23.0.0/16 142.24.0.0/16 142.25.0.0/16 142.26.0.0/16
+      142.27.0.0/16 142.28.0.0/16 142.29.0.0/16 142.30.0.0/16 142.31.0.0/16
+      142.32.0.0/16 142.33.0.0/16 142.34.0.0/16 142.35.0.0/16 142.36.0.0/16
