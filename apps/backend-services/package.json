@@ -23,7 +23,7 @@
 		"test:int:workflow:with-worker": "MANAGE_WORKER=true ts-node -r tsconfig-paths/register integration-tests/graph-workflow-tests/test-graph-workflow.ts",
 		"test:cov": "jest --coverage",
 		"db:generate": "node ../shared/scripts/generate-prisma.js",
-		"db:migrate": "prisma migrate dev",
+		"db:migrate": "prisma migrate deploy",
 		"db:reset": "prisma migrate reset",
 		"db:status": "prisma migrate status",
 		"db:studio": "BROWSER=none prisma studio --port 5555",

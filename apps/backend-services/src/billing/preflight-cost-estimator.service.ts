@@ -1,4 +1,4 @@
-import type { GraphWorkflowConfig } from "@ai-di/graph-workflow";
+import type { GraphWorkflowConfig, MapNode } from "@ai-di/graph-workflow";
 import { Injectable } from "@nestjs/common";
 import { RateVersionSeederService } from "./rate-version-seeder.service";
 
@@ -37,8 +37,32 @@ export class PreflightCostEstimatorService {
       rateVersion.activity_costs.map((ac) => [ac.activity_name, ac]),
     );
     const maxPagesAssumption = rateVersion.max_pages_assumption;
+    const maxArrayItemsAssumption = rateVersion.max_array_items_assumption;
 
     const nodeIds = Object.keys(config.nodes);
+
+    // Identify map body nodes: BFS from each MapNode's bodyEntryNodeId.
+    // Body node costs are multiplied by maxArrayItemsAssumption because the
+    // body executes once per array item (worst-case fan-out estimate).
+    const mapBodyMultiplier = new Map<string, number>();
+    for (const node of Object.values(config.nodes)) {
+      if (node.type !== "map") continue;
+      const mapNode = node as MapNode;
+      const visited = new Set<string>();
+      const bfsQueue: string[] = [mapNode.bodyEntryNodeId];
+      while (bfsQueue.length > 0) {
+        const current = bfsQueue.shift()!;
+        if (visited.has(current)) continue;
+        visited.add(current);
+        mapBodyMultiplier.set(current, maxArrayItemsAssumption);
+        if (current === mapNode.bodyExitNodeId) continue;
+        for (const edge of config.edges) {
+          if (edge.source === current && !visited.has(edge.target)) {
+            bfsQueue.push(edge.target);
+          }
+        }
+      }
+    }
 
     // Build predecessor map using normal and conditional edges
     const predecessors = new Map<string, string[]>();
@@ -93,7 +117,7 @@ export class PreflightCostEstimatorService {
       }
     }
 
-    // Compute node-level unit cost
+    // Compute node-level unit cost, multiplied by map fan-out if applicable
     const nodeCost = (nodeId: string): number => {
       const node = config.nodes[nodeId];
       if (!node) return 0;
@@ -110,13 +134,16 @@ export class PreflightCostEstimatorService {
       const costEntry = costMap.get(activityType);
       if (!costEntry) return 0;
 
+      let baseCost: number;
       if (costEntry.cost_type === "flat") {
-        return Number(costEntry.units);
+        baseCost = Number(costEntry.units);
+      } else if (costEntry.cost_type === "per_page") {
+        baseCost = maxPagesAssumption * Number(costEntry.units);
+      } else {
+        return 0;
       }
-      if (costEntry.cost_type === "per_page") {
-        return maxPagesAssumption * Number(costEntry.units);
-      }
-      return 0;
+
+      return baseCost * (mapBodyMultiplier.get(nodeId) ?? 1);
     };
 
     // Longest-path DP: dp[node] = max cost from any entry node to this node

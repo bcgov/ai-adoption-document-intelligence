@@ -56,6 +56,7 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
           unit_cost_dollars: entry.unit_cost_dollars,
           units_per_gb_per_month: entry.units_per_gb_per_month,
           max_pages_assumption: entry.max_pages_assumption,
+          max_array_items_assumption: entry.max_array_items_assumption,
         },
       });
 

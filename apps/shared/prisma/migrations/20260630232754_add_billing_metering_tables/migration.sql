@@ -4,15 +4,6 @@ CREATE TYPE "UsageEventType" AS ENUM ('workflow_started', 'activity_completed', 
 -- CreateEnum
 CREATE TYPE "ActivityCostType" AS ENUM ('flat', 'per_page');
 
--- Restore trigram GIN indexes dropped by Prisma drift detection.
--- These are managed manually (Prisma cannot express GIN indexes).
--- See migration 20260626000000_add_documents_list_indexes.
-CREATE INDEX IF NOT EXISTS "documents_title_trgm_idx"
-  ON "documents" USING GIN ("title" gin_trgm_ops);
-
-CREATE INDEX IF NOT EXISTS "documents_original_filename_trgm_idx"
-  ON "documents" USING GIN ("original_filename" gin_trgm_ops);
-
 -- CreateTable
 CREATE TABLE "rate_versions" (
     "id" TEXT NOT NULL,

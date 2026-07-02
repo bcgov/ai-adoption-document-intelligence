@@ -12,6 +12,7 @@ function createMockPrisma() {
     units_per_gb_per_month:
       10 as unknown as RateVersion["units_per_gb_per_month"],
     max_pages_assumption: 50,
+    max_array_items_assumption: 10,
     created_at: new Date(),
   };
 
@@ -53,6 +54,7 @@ const sampleEntry: RateVersionEntry = {
   unit_cost_dollars: 0.001,
   units_per_gb_per_month: 10,
   max_pages_assumption: 50,
+  max_array_items_assumption: 10,
   activity_costs: {
     "azureOcr.submit": { cost_type: "flat", units: 10 },
     "azureOcr.extract": { cost_type: "per_page", units: 40 },

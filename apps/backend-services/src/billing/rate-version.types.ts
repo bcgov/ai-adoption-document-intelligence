@@ -23,6 +23,8 @@ export interface RateVersionEntry {
   units_per_gb_per_month: number;
   /** Upper-bound page count used when estimating cost for per_page activities pre-flight. */
   max_pages_assumption: number;
+  /** Upper-bound item count used when estimating cost for map (fan-out) node bodies pre-flight. */
+  max_array_items_assumption: number;
   activity_costs: Record<string, ActivityCostEntry>;
   training_costs: TrainingCosts;
 }

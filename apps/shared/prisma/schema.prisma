@@ -613,6 +613,7 @@ model RateVersion {
   unit_cost_dollars           Decimal        @db.Decimal(18, 8)
   units_per_gb_per_month      Decimal        @db.Decimal(18, 8)
   max_pages_assumption        Int
+  max_array_items_assumption  Int
   created_at                  DateTime       @default(now())
   activity_costs              ActivityCost[]
   usage_events                UsageEvent[]

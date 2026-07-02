@@ -11,6 +11,7 @@ function makeRateVersion(
     id: string;
     unit_cost_dollars: number;
     max_pages_assumption: number;
+    max_array_items_assumption: number;
     activity_costs: {
       activity_name: string;
       cost_type: "flat" | "per_page";
@@ -22,6 +23,7 @@ function makeRateVersion(
     id: overrides.id ?? "rv-1",
     unit_cost_dollars: overrides.unit_cost_dollars ?? 0.001,
     max_pages_assumption: overrides.max_pages_assumption ?? 50,
+    max_array_items_assumption: overrides.max_array_items_assumption ?? 10,
     activity_costs: overrides.activity_costs ?? [],
   };
 }
@@ -200,6 +202,54 @@ describe("PreflightCostEstimatorService", () => {
       expect(
         rateVersionSeederService.getActiveRateVersion,
       ).toHaveBeenCalledWith(expect.any(Date));
+    });
+
+    it("Scenario 6: map body nodes are multiplied by max_array_items_assumption", async () => {
+      rateVersionSeederService.getActiveRateVersion.mockResolvedValue(
+        makeRateVersion({
+          max_array_items_assumption: 5,
+          activity_costs: [
+            { activity_name: "classify", cost_type: "flat", units: 30 },
+            { activity_name: "store", cost_type: "flat", units: 10 },
+          ],
+        }) as never,
+      );
+
+      // map → [classify → store] (body) → join
+      const config = {
+        nodes: {
+          fanOut: {
+            id: "fanOut",
+            label: "fanOut",
+            type: "map" as const,
+            collectionCtxKey: "items",
+            itemCtxKey: "item",
+            bodyEntryNodeId: "classify",
+            bodyExitNodeId: "store",
+          },
+          classify: makeActivityNode("classify"),
+          store: makeActivityNode("store"),
+          fanIn: {
+            id: "fanIn",
+            label: "fanIn",
+            type: "join" as const,
+            sourceMapNodeId: "fanOut",
+            strategy: "all" as const,
+            resultsCtxKey: "results",
+          },
+        },
+        edges: [
+          makeEdge("e1", "fanOut", "classify"),
+          makeEdge("e2", "classify", "store"),
+          makeEdge("e3", "store", "fanIn"),
+        ],
+        entryNodeId: "fanOut",
+      };
+
+      const result = await service.estimateWorkflowCost(makeConfig(config));
+
+      // classify: 30 × 5 = 150, store: 10 × 5 = 50 → longest path = 150 + 50 = 200
+      expect(result.estimatedUnits).toBe(200);
     });
   });
 });
