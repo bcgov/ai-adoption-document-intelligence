@@ -813,7 +813,7 @@ export const ReviewWorkspacePage: FC = () => {
             </Button>
             <Stack gap={2}>
               <Title order={2}>
-                {readOnly ? "View Session" : "Review Session"}
+                {readOnly ? "view session" : "review session"}
               </Title>
               <Text size="sm" c="dimmed">
                 {session?.document?.original_filename || "Document review"}
@@ -828,7 +828,7 @@ export const ReviewWorkspacePage: FC = () => {
               onClick={handleReopen}
               loading={isReopening}
             >
-              Reopen for Editing
+              Reopen for editing
             </Button>
           )}
         </Group>

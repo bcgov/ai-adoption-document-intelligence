@@ -45,7 +45,7 @@ export function AzureClassifySubmitForm({
   return (
     <Stack gap="sm">
       <Text size="sm" fw={600}>
-        Azure Classifier parameters
+        Azure classifier parameters
       </Text>
       {!activeGroup && (
         <Alert

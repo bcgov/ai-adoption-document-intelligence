@@ -63,14 +63,14 @@ export function DatasetListPage() {
               onClick={() => setHitlDialogOpened(true)}
               data-testid="create-dataset-from-hitl-btn"
             >
-              From Verified Documents
+              From verified documents
             </Button>
             <Button
               leftSection={<IconPlus size={18} />}
               onClick={() => setCreateDialogOpened(true)}
               data-testid="create-dataset-btn"
             >
-              Create Dataset
+              Create dataset
             </Button>
           </>
         }
@@ -93,7 +93,7 @@ export function DatasetListPage() {
                   onClick={() => setCreateDialogOpened(true)}
                   data-testid="create-dataset-empty-btn"
                 >
-                  Create Dataset
+                  Create dataset
                 </Button>
               </Stack>
             </Center>
@@ -111,8 +111,8 @@ export function DatasetListPage() {
               <DataTable.Tr>
                 <DataTable.Th>Name</DataTable.Th>
                 <DataTable.Th>Description</DataTable.Th>
-                <DataTable.Th>Version Count</DataTable.Th>
-                <DataTable.Th>Created Date</DataTable.Th>
+                <DataTable.Th>Version count</DataTable.Th>
+                <DataTable.Th>Created date</DataTable.Th>
               </DataTable.Tr>
             </DataTable.Thead>
             <DataTable.Tbody>

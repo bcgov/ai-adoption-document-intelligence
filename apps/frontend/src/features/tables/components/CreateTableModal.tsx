@@ -58,7 +58,7 @@ export function CreateTableModal({ opened, onClose, onCreated }: Props) {
   };
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Create Table">
+    <Modal opened={opened} onClose={handleClose} title="Create table">
       <form onSubmit={form.onSubmit((v) => mutation.mutate(v))}>
         <Stack>
           <TextInput

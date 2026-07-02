@@ -51,8 +51,8 @@ export function GroupSelector(): JSX.Element {
   };
 
   return (
-    <Tooltip label="Active Group" position="bottom" withArrow>
-      <span style={{ display: "inline-flex" }}>
+    <Tooltip label="Active group" position="bottom" withArrow>
+      <span style={{ display: "inline-flex", width: 176 }}>
         <Select
           data={data}
           value={activeGroup?.id ?? null}

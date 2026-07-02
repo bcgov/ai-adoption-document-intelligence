@@ -33,7 +33,7 @@ interface FormatSpec {
 const CANONICALIZE_PRESETS = [
   { value: "", label: "None (no format spec)" },
   { value: "digits", label: "Digits only" },
-  { value: "date:YYYY-MM-DD", label: "Date (ISO)" },
+  { value: "date:YYYY-MM-DD", label: "Date (iso)" },
   { value: "text", label: "Text (clean whitespace)" },
   { value: "number", label: "Number" },
   { value: "noop", label: "No operation" },

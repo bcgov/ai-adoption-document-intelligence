@@ -25,13 +25,11 @@ import {
   ActionIcon,
   AppShell,
   Avatar,
-  Badge,
-  Button,
   Group,
+  Menu,
   NavLink,
   ScrollArea,
   Stack,
-  Text,
   Tooltip,
   useDisclosure,
 } from "../ui";
@@ -40,6 +38,43 @@ const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
 
 const MAIN_CONTENT_ID = "main-content";
+
+function getUserInitials(name?: string, email?: string): string {
+  const source = name?.trim();
+
+  if (source) {
+    const cleaned = source.replace(/[^a-zA-Z,\s-]/g, " ").trim();
+
+    // Handle "Last, first ..." identity-provider format.
+    if (cleaned.includes(",")) {
+      const [lastRaw, firstRaw = ""] = cleaned.split(",", 2);
+      const last = lastRaw.split(/\s+/).find(Boolean);
+      const first = firstRaw
+        .split(/\s+/)
+        .find((token) => token && !/^[A-Z]{2,}$/.test(token));
+
+      if (first && last) {
+        return `${first[0]}${last[0]}`.toUpperCase();
+      }
+    }
+
+    const tokens = cleaned
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((token) => !/^[A-Z]{2,}$/.test(token));
+
+    if (tokens.length >= 2) {
+      return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+    }
+
+    if (tokens.length === 1) {
+      return tokens[0].slice(0, 2).toUpperCase();
+    }
+  }
+
+  const idir = email?.split("@")[0]?.replace(/[^a-zA-Z]/g, "") || "User";
+  return idir.slice(0, 2).toUpperCase();
+}
 
 /** Routes that use a fixed viewport workspace (document + field panel). */
 function isWorkspaceRoute(pathname: string): boolean {
@@ -57,6 +92,12 @@ export function RootLayout() {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
+  const displayName = user?.profile?.name ?? "Authenticated user";
+  const displayIdir = user?.profile?.email?.split("@")[0] ?? "Logged in";
+  const userInitials = getUserInitials(
+    user?.profile?.name,
+    user?.profile?.email,
+  );
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
   const workspaceRoute = isWorkspaceRoute(location.pathname);
@@ -77,7 +118,7 @@ export function RootLayout() {
       },
       {
         path: "/template-models",
-        label: "Template Models",
+        label: "Template models",
         description: "Manage template models",
         icon: IconTags,
       },
@@ -89,7 +130,7 @@ export function RootLayout() {
       },
       {
         path: "/review",
-        label: "HITL Review",
+        label: "HITL review",
         description: "Validate OCR results",
         icon: IconClipboardCheck,
       },
@@ -113,7 +154,7 @@ export function RootLayout() {
       },
       {
         path: "/confusion-profiles",
-        label: "Confusion Profiles",
+        label: "Confusion profiles",
         description: "Manage OCR confusion profiles",
         icon: IconAdjustments,
       },
@@ -153,7 +194,7 @@ export function RootLayout() {
     >
       <AppShell.Header p={0} className="app-shell-bcds-header">
         <Header
-          title="Document intelligence"
+          title="Document Intelligence"
           skipLinks={[
             <a key="skip-main" href={`#${MAIN_CONTENT_ID}`}>
               Skip to main content
@@ -162,28 +203,33 @@ export function RootLayout() {
         >
           <div className="app-shell-header-actions">
             <Group gap="sm">
-              <Badge variant="light" color="blue">
-                Live OCR
-              </Badge>
               <GroupSelector />
-              <div className="app-header-user">
-                <Text size="sm" fw={600} span>
-                  {user?.profile?.name ?? "Authenticated user"}
-                </Text>
-                <Text size="xs" c="dimmed" span>
-                  {user?.profile?.email ?? "Logged in"}
-                </Text>
-              </div>
-              <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
-              <Button
-                variant="light"
-                color="red"
-                leftSection={<IconLogout size={16} />}
-                onClick={() => logout()}
-                data-testid="logout-btn"
-              >
-                Logout
-              </Button>
+              <Menu shadow="md" width={260} position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    size="lg"
+                    radius="xl"
+                    aria-label="User menu"
+                  >
+                    <Avatar radius="xl">{userInitials}</Avatar>
+                  </ActionIcon>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>{displayName}</Menu.Label>
+                  <Menu.Item disabled>{displayIdir}</Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    leftSection={<IconLogout size={16} />}
+                    onClick={() => logout()}
+                    data-testid="logout-btn"
+                  >
+                    Logout
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             </Group>
           </div>
         </Header>

@@ -9,7 +9,7 @@ export interface PageHeaderProps {
   description?: string;
   /** Optional actions (buttons) rendered beside the date badge */
   actions?: ReactNode;
-  /** When false, omit the date badge. Default true. */
+  /** When true, show the date badge. Default false. */
   showDateBadge?: boolean;
 }
 
@@ -21,7 +21,7 @@ export function PageHeader({
   title,
   description,
   actions,
-  showDateBadge = true,
+  showDateBadge = false,
 }: PageHeaderProps) {
   return (
     <Group justify="space-between" align="flex-start" wrap="wrap">

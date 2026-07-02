@@ -94,13 +94,13 @@ export function ColumnsTab({ groupId, tableId, columns, isAdmin }: Props) {
             leftSection={<IconPlus size={16} />}
             onClick={() => setEditing("new")}
           >
-            Add Column
+            Add column
           </Button>
         </Group>
       )}
       {columns.length === 0 ? (
         <Text c="dimmed" fs="italic">
-          No columns defined yet. Click Add Column to create the first one.
+          No columns defined yet. Click add column to create the first one.
         </Text>
       ) : (
         <Table striped highlightOnHover>

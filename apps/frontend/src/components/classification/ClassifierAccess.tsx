@@ -108,7 +108,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
   return (
     <Paper shadow="xs" radius="md" p="md" withBorder>
       <Stack>
-        <Title order={2}>Classifier Test</Title>
+        <Title order={2}>Classifier test</Title>
         <Text c="dimmed">
           This classifier is ready for use. Upload a document to test it below.
         </Text>
@@ -128,7 +128,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
             loading={loading || polling}
             disabled={!file || loading || polling}
           >
-            Submit for Classification
+            Submit for classification
           </Button>
         </Group>
         {error && (
@@ -139,7 +139,7 @@ const ClassifierAccess = ({ model }: ClassifierAccessProps) => {
         {result && (
           <Paper shadow="xs" radius="md" p="md" withBorder>
             <Text fw={500} mb={4}>
-              Classification Analyze Result:
+              Classification analyze result:
             </Text>
             <Code block style={{ width: "100%", whiteSpace: "pre-wrap" }}>
               {result}

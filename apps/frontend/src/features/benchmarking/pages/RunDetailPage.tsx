@@ -397,7 +397,7 @@ export function RunDetailPage() {
         onSuccess: () => {
           setConfusionModalOpen(false);
           notifications.show({
-            title: "Confusion Profile Created",
+            title: "Confusion profile created",
             message:
               "Confusion profile has been derived from this benchmark run.",
             color: "green",
@@ -590,7 +590,7 @@ export function RunDetailPage() {
               <Tooltip
                 label={
                   run.status !== "completed"
-                    ? `Only completed runs can be promoted to baseline. Current status: ${run.status}`
+                    ? `Only completed runs can be promoted to baseline. current status: ${run.status}`
                     : ""
                 }
                 disabled={run.status === "completed"}
@@ -604,7 +604,7 @@ export function RunDetailPage() {
                   disabled={run.status !== "completed"}
                   data-testid="promote-baseline-btn"
                 >
-                  Promote to Baseline
+                  Promote to baseline
                 </Button>
               </Tooltip>
             )}
@@ -617,7 +617,7 @@ export function RunDetailPage() {
                 loading={isPromoting}
                 data-testid="edit-thresholds-btn"
               >
-                Edit Thresholds
+                Edit thresholds
               </Button>
             )}
             {canApplyCandidateWorkflow && candidateWorkflowVersionId && (
@@ -741,7 +741,7 @@ export function RunDetailPage() {
                 }
                 data-testid="view-regression-report-btn"
               >
-                View Regression Report
+                View regression report
               </Button>
             )}
             {run.status === "completed" && (
@@ -754,7 +754,7 @@ export function RunDetailPage() {
                 }
                 data-testid="view-all-samples-btn"
               >
-                View All Samples
+                View all samples
               </Button>
             )}
             <Button
@@ -764,7 +764,7 @@ export function RunDetailPage() {
               loading={downloadRunMutation.isPending}
               data-testid="download-run-btn"
             >
-              Download Results
+              Download results
             </Button>
             {run.status === "completed" && project?.groupId && (
               <Button
@@ -772,7 +772,7 @@ export function RunDetailPage() {
                 onClick={handleConfusionOpen}
                 data-testid="create-confusion-profile-btn"
               >
-                Create Confusion Profile
+                Create confusion profile
               </Button>
             )}
             {run.status === "completed" && project?.groupId && (
@@ -782,7 +782,7 @@ export function RunDetailPage() {
                 onClick={handleSuggestFormatsOpen}
                 data-testid="suggest-formats-btn"
               >
-                Suggest Formats
+                Suggest formats
               </Button>
             )}
           </Group>
@@ -834,8 +834,8 @@ export function RunDetailPage() {
           color={run.baselineComparison.overallPassed ? "green" : "orange"}
           title={
             run.baselineComparison.overallPassed
-              ? "Baseline Comparison: PASSED"
-              : "Baseline Comparison: REGRESSION DETECTED"
+              ? "Baseline comparison: PASSED"
+              : "Baseline comparison: REGRESSION DETECTED"
           }
           data-testid="baseline-comparison-alert"
         >
@@ -870,7 +870,7 @@ export function RunDetailPage() {
           <Alert
             icon={<IconAlertCircle size={16} />}
             color="blue"
-            title="No Baseline Set"
+            title="No baseline set"
             data-testid="no-baseline-alert"
           >
             <Stack gap="sm" align="flex-start">
@@ -884,7 +884,7 @@ export function RunDetailPage() {
                 loading={isPromoting}
                 data-testid="promote-to-baseline-suggestion-btn"
               >
-                Promote this run to Baseline
+                Promote this run to baseline
               </Button>
             </Stack>
           </Alert>
@@ -893,7 +893,7 @@ export function RunDetailPage() {
       <Card>
         <Stack gap="md">
           <Title order={3} data-testid="run-info-heading">
-            Run Information
+            Run information
           </Title>
           <DataTable data-testid="run-info-table">
             <DataTable.Tbody>
@@ -904,7 +904,7 @@ export function RunDetailPage() {
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Started At</DataTable.Td>
+                <DataTable.Td fw={500}>Started at</DataTable.Td>
                 <DataTable.Td>
                   {run.startedAt
                     ? new Date(run.startedAt).toLocaleString()
@@ -912,7 +912,7 @@ export function RunDetailPage() {
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                <DataTable.Td fw={500}>Completed at</DataTable.Td>
                 <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
@@ -926,7 +926,7 @@ export function RunDetailPage() {
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Temporal Workflow</DataTable.Td>
+                <DataTable.Td fw={500}>Temporal workflow</DataTable.Td>
                 <DataTable.Td>
                   <Anchor
                     href={temporalUrl}
@@ -942,21 +942,21 @@ export function RunDetailPage() {
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Worker Git SHA</DataTable.Td>
+                <DataTable.Td fw={500}>Worker git sha</DataTable.Td>
                 <DataTable.Td>
                   <Code>{run.workerGitSha}</Code>
                 </DataTable.Td>
               </DataTable.Tr>
               {run.workerImageDigest && (
                 <DataTable.Tr>
-                  <DataTable.Td fw={500}>Worker Image Digest</DataTable.Td>
+                  <DataTable.Td fw={500}>Worker image digest</DataTable.Td>
                   <DataTable.Td>
                     <Code>{run.workerImageDigest}</Code>
                   </DataTable.Td>
                 </DataTable.Tr>
               )}
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Is Baseline</DataTable.Td>
+                <DataTable.Td fw={500}>Is baseline</DataTable.Td>
                 <DataTable.Td>
                   {run.isBaseline ? (
                     <Badge color="green">Yes</Badge>
@@ -967,7 +967,7 @@ export function RunDetailPage() {
               </DataTable.Tr>
               {run.isBaseline && (
                 <DataTable.Tr>
-                  <DataTable.Td fw={500}>Retention Policy</DataTable.Td>
+                  <DataTable.Td fw={500}>Retention policy</DataTable.Td>
                   <DataTable.Td>
                     <Text size="sm" c="dimmed">
                       Protected from retention - baseline runs are exempt from
@@ -989,7 +989,7 @@ export function RunDetailPage() {
           <Accordion.Item value="baseline-comparison">
             <Accordion.Control>
               <Title order={3} data-testid="baseline-comparison-heading">
-                Baseline Comparison
+                Baseline comparison
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
@@ -1078,7 +1078,7 @@ export function RunDetailPage() {
           <Accordion.Item value="metrics">
             <Accordion.Control>
               <Title order={3} data-testid="aggregated-metrics-heading">
-                Aggregated Metrics
+                Aggregated metrics
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
@@ -1089,7 +1089,7 @@ export function RunDetailPage() {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Metric Name</DataTable.Th>
+                    <DataTable.Th>Metric name</DataTable.Th>
                     <DataTable.Th>Value</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
@@ -1117,7 +1117,7 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Title order={3} data-testid="params-tags-heading">
-              Run Parameters & Tags
+              Run parameters & tags
             </Title>
             {run.params && Object.keys(run.params).length > 0 && (
               <Stack gap="xs">
@@ -1128,7 +1128,7 @@ export function RunDetailPage() {
                       <DataTable.Tr key={key}>
                         <DataTable.Td fw={500}>
                           {key === "ocrCacheBaselineRunId"
-                            ? "OCR Cache Source Run"
+                            ? "OCR cache source run"
                             : key}
                         </DataTable.Td>
                         <DataTable.Td>
@@ -1166,7 +1166,7 @@ export function RunDetailPage() {
               return (
                 <Stack gap={4}>
                   <Text size="sm" fw={500}>
-                    Workflow Config Overrides
+                    Workflow config overrides
                   </Text>
                   <Code block style={{ fontSize: 13 }}>
                     {JSON.stringify(overrides, null, 2)}
@@ -1229,7 +1229,7 @@ export function RunDetailPage() {
                   <DataTable.Th>Sample ID</DataTable.Th>
                   <DataTable.Th>Node ID</DataTable.Th>
                   <DataTable.Th>Size</DataTable.Th>
-                  <DataTable.Th>MIME Type</DataTable.Th>
+                  <DataTable.Th>MIME type</DataTable.Th>
                 </DataTable.Tr>
               </DataTable.Thead>
               <DataTable.Tbody>
@@ -1267,13 +1267,13 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Title order={3} data-testid="drill-down-heading">
-              Drill-Down Summary
+              Drill-Down summary
             </Title>
 
             {drillDown.fieldErrorBreakdown &&
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
-                  <Text fw={500}>Per-Field Error Breakdown</Text>
+                  <Text fw={500}>Per-Field error breakdown</Text>
                   <DataTable
                     striped
                     highlightOnHover
@@ -1281,9 +1281,9 @@ export function RunDetailPage() {
                   >
                     <DataTable.Thead>
                       <DataTable.Tr>
-                        <DataTable.Th>Field Name</DataTable.Th>
-                        <DataTable.Th>Error Count</DataTable.Th>
-                        <DataTable.Th>Error Rate</DataTable.Th>
+                        <DataTable.Th>Field name</DataTable.Th>
+                        <DataTable.Th>Error count</DataTable.Th>
+                        <DataTable.Th>Error rate</DataTable.Th>
                         <DataTable.Th />
                       </DataTable.Tr>
                     </DataTable.Thead>
@@ -1319,7 +1319,7 @@ export function RunDetailPage() {
         <ErrorDetectionAnalysis projectId={projectId} runId={runId || ""} />
       )}
 
-      {/* Artifact Viewer */}
+      {/* Artifact viewer */}
       <ArtifactViewer
         artifact={selectedArtifact}
         projectId={projectId}
@@ -1354,11 +1354,11 @@ export function RunDetailPage() {
         />
       )}
 
-      {/* Create Confusion Profile Modal */}
+      {/* Create confusion profile Modal */}
       <Modal
         opened={confusionModalOpen}
         onClose={() => setConfusionModalOpen(false)}
-        title="Create Confusion Profile"
+        title="Create confusion profile"
         data-testid="create-confusion-profile-modal"
       >
         <Stack gap="sm">
@@ -1402,11 +1402,11 @@ export function RunDetailPage() {
         </Stack>
       </Modal>
 
-      {/* Suggest Formats Modal */}
+      {/* Suggest formats modal */}
       <Modal
         opened={suggestFormatsModalOpen}
         onClose={() => setSuggestFormatsModalOpen(false)}
-        title="Suggest Formats"
+        title="Suggest formats"
         data-testid="suggest-formats-modal"
       >
         <Stack gap="sm">
@@ -1416,7 +1416,7 @@ export function RunDetailPage() {
             benchmark run.
           </Text>
           <Select
-            label="Template Model"
+            label="Template model"
             placeholder="Select a template model"
             data={templateModels.map((tm) => ({
               value: tm.id,
@@ -1439,13 +1439,13 @@ export function RunDetailPage() {
               onClick={handleSuggestFormatsNavigate}
               data-testid="suggest-formats-navigate-btn"
             >
-              Open Template Model
+              Open template model
             </Button>
           </Group>
         </Stack>
       </Modal>
 
-      {/* Field Error Detail Drawer */}
+      {/* Field error detail drawer */}
       <Drawer
         opened={drawerField !== null}
         onClose={() => setDrawerField(null)}
@@ -1453,7 +1453,7 @@ export function RunDetailPage() {
         size="xl"
         title={
           <Text fw={600}>
-            Field Errors: <Code>{drawerField}</Code>
+            Field errors: <Code>{drawerField}</Code>
           </Text>
         }
         data-testid="field-error-drawer"

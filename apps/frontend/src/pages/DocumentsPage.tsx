@@ -1,12 +1,10 @@
 import {
   ActionIcon,
   Badge,
-  Button,
   Collapse,
   Group,
   Image,
   Loader,
-  Modal,
   Pagination,
   Paper,
   Select,
@@ -38,14 +36,14 @@ import { useDocuments } from "../data/hooks/useDocuments";
 import { useDocumentThumbnails } from "../data/hooks/useDocumentThumbnails";
 import type { Document, DocumentStatus } from "../shared/types";
 import { formatDate, formatFileSize } from "../shared/utils";
-import { PageHeader } from "../ui";
+import { ConfirmActionModal, PageHeader } from "../ui";
 
 const statusOptions: { value: DocumentStatus | "all"; label: string }[] = [
   { value: "all", label: "All statuses" },
   { value: "pre_ocr", label: "Waiting" },
   { value: "ongoing_ocr", label: "Processing" },
   { value: "extracted", label: "Extracted" },
-  { value: "awaiting_review", label: "Awaiting Review" },
+  { value: "awaiting_review", label: "Awaiting review" },
   { value: "complete", label: "Complete" },
   { value: "failed", label: "Failed" },
 ];
@@ -54,10 +52,10 @@ const statusStyles: Record<string, { color: string; label: string }> = {
   pre_ocr: { color: "gray", label: "Queued" },
   ongoing_ocr: { color: "yellow", label: "Processing" },
   extracted: { color: "blue", label: "Extracted" },
-  awaiting_review: { color: "orange", label: "Awaiting Review" },
+  awaiting_review: { color: "orange", label: "Awaiting review" },
   complete: { color: "green", label: "Complete" },
   failed: { color: "red", label: "Failed" },
-  conversion_failed: { color: "red", label: "Conversion Failed" },
+  conversion_failed: { color: "red", label: "Conversion failed" },
 };
 
 const PAGE_SIZE = 50;
@@ -239,7 +237,7 @@ export function DocumentsPage() {
             </Paper>
             <Paper radius="md" p="md" withBorder>
               <Text size="xs" c="dimmed">
-                Awaiting Review
+                Awaiting review
               </Text>
               <Text fw={600} size="lg" c="orange">
                 {statsData?.awaiting_review ?? 0}
@@ -512,21 +510,20 @@ export function DocumentsPage() {
         </Paper>
       </Stack>
 
-      {/* Document Viewer Modal */}
+      {/* Document viewer modal */}
       <DocumentViewerModal
         document={selectedDocument}
         opened={!!selectedDocument}
         onClose={() => setSelectedDocument(null)}
       />
 
-      {/* Delete Confirmation Modal */}
-      <Modal
+      {/* Delete confirmation modal */}
+      <ConfirmActionModal
         opened={docPendingDelete !== null}
         onClose={() => setDocPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
         title="Confirm deletion"
-        centered
-      >
-        <Stack gap="md">
+        message={
           <Text>
             Are you sure you want to delete{" "}
             <Text span fw={600}>
@@ -534,25 +531,10 @@ export function DocumentsPage() {
             </Text>
             ? This action cannot be undone.
           </Text>
-          <Group justify="flex-end">
-            <Button
-              variant="subtle"
-              onClick={() => setDocPendingDelete(null)}
-              disabled={deleteDocument.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              color="red"
-              leftSection={<IconTrash size={16} />}
-              onClick={handleConfirmDelete}
-              loading={deleteDocument.isPending}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        }
+        confirmLabel="Delete"
+        confirmLoading={deleteDocument.isPending}
+      />
     </>
   );
 }

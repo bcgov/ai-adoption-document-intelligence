@@ -62,7 +62,7 @@ export function SetupPage(): JSX.Element {
       <Center mih="100vh" pt="xl">
         <Stack gap="lg" w="100%" maw={500} px="md">
           <PageHeader
-            title="System Setup"
+            title="System setup"
             description="This application has not been set up yet. As the designated administrator, you can initialize the system below."
             showDateBadge={false}
           />
@@ -87,7 +87,7 @@ export function SetupPage(): JSX.Element {
                   color="green"
                   data-testid="bootstrap-success"
                 >
-                  System setup complete! Redirecting...
+                  System setup complete! redirecting...
                 </Alert>
               )}
 

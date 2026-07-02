@@ -105,7 +105,7 @@ export function LookupsTab({
             onClick={() => setEditing("new")}
             disabled={columns.length === 0}
           >
-            Add Lookup
+            Add lookup
           </Button>
         </Group>
       )}
@@ -116,7 +116,7 @@ export function LookupsTab({
         </Text>
       ) : lookups.length === 0 ? (
         <Text c="dimmed" fs="italic">
-          No lookups defined yet. Click Add Lookup to create one.
+          No lookups defined yet. Click add lookup to create one.
         </Text>
       ) : (
         <Table striped highlightOnHover>

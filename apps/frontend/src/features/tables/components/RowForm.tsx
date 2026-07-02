@@ -141,7 +141,7 @@ export function RowForm({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={existing ? "Edit Row" : "Create Row"}
+      title={existing ? "Edit row" : "Create row"}
       size="lg"
     >
       <form onSubmit={form.onSubmit((v) => mutation.mutate(v))}>

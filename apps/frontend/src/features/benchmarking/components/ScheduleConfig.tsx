@@ -68,7 +68,7 @@ export function ScheduleConfig({
       <Group justify="space-between" align="center">
         <Group>
           <IconClock size={20} />
-          <Text fw={500}>Scheduled Runs</Text>
+          <Text fw={500}>Scheduled runs</Text>
         </Group>
         {scheduleInfo && !scheduleInfo.paused && (
           <Badge color="green" variant="light">
@@ -93,7 +93,7 @@ export function ScheduleConfig({
 
       {enabled && (
         <TextInput
-          label="Cron Expression"
+          label="Cron expression"
           description="Schedule pattern (e.g., '0 2 * * *' for daily at 2 AM)"
           placeholder="0 2 * * *"
           value={cron}
@@ -108,7 +108,7 @@ export function ScheduleConfig({
       {scheduleInfo && (
         <Stack gap="xs">
           <Text size="sm" c="dimmed">
-            Schedule Status
+            Schedule status
           </Text>
           <Text size="sm">
             <strong>Schedule ID:</strong> {scheduleInfo.scheduleId}
@@ -117,10 +117,10 @@ export function ScheduleConfig({
             <strong>Cron:</strong> {scheduleInfo.cron || "Not set"}
           </Text>
           <Text size="sm">
-            <strong>Next Run:</strong> {formatDate(scheduleInfo.nextRunTime)}
+            <strong>Next run:</strong> {formatDate(scheduleInfo.nextRunTime)}
           </Text>
           <Text size="sm">
-            <strong>Last Run:</strong> {formatDate(scheduleInfo.lastRunTime)}
+            <strong>Last run:</strong> {formatDate(scheduleInfo.lastRunTime)}
           </Text>
         </Stack>
       )}
@@ -131,7 +131,7 @@ export function ScheduleConfig({
           loading={configureSchedule.isPending}
           disabled={enabled && !cron}
         >
-          Save Schedule
+          Save schedule
         </Button>
       </Group>
     </Stack>

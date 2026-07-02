@@ -130,7 +130,7 @@ export function BaselineThresholdDialog({
       opened={opened}
       onClose={onClose}
       title={
-        isEditing ? "Edit Baseline Thresholds" : "Configure Baseline Thresholds"
+        isEditing ? "Edit baseline thresholds" : "Configure baseline thresholds"
       }
       size="lg"
       data-testid="baseline-threshold-dialog"
@@ -240,7 +240,7 @@ export function BaselineThresholdDialog({
             loading={isPromoting}
             data-testid="submit-threshold-btn"
           >
-            {isEditing ? "Update Thresholds" : "Promote to Baseline"}
+            {isEditing ? "update thresholds" : "promote to baseline"}
           </Button>
         </div>
       </Stack>
