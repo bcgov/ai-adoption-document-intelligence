@@ -18,6 +18,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "azureContentUnderstanding.deployAnalyzer",
   "azureContentUnderstanding.analyze",
   "vlmDirect.extract",
+  "vlmOcrHybrid.extract",
+  "azureOcr.readPlain",
   "ocr.storeResults",
   "ocr.enrich",
   "document.storeRejection",
