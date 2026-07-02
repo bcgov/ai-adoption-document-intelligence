@@ -199,13 +199,14 @@ export class DocumentDbService {
       where.content_hash = options.contentHash.trim();
     }
 
-    // Search filter (title or filename)
+    // Search filter (title, filename, or content hash)
     if (options?.search?.trim()) {
       where.OR = [
         { title: { contains: options.search, mode: "insensitive" } },
         {
           original_filename: { contains: options.search, mode: "insensitive" },
         },
+        { content_hash: { contains: options.search, mode: "insensitive" } },
       ];
     }
 

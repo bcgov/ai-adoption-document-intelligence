@@ -269,7 +269,7 @@ export function DocumentsPage() {
           <Stack gap="lg">
             <Group gap="md" align="flex-end">
               <TextInput
-                placeholder="Search by document name or filename"
+                placeholder="Search by name, filename, or Content ID"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.currentTarget.value)}
                 leftSection={<IconSearch size={16} />}
@@ -305,6 +305,7 @@ export function DocumentsPage() {
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th w={56} />
+                      <Table.Th>Content ID</Table.Th>
                       <Table.Th>
                         <UnstyledButton
                           onClick={() => toggleSort("title")}
@@ -390,7 +391,6 @@ export function DocumentsPage() {
                           />
                         </UnstyledButton>
                       </Table.Th>
-                      <Table.Th>Hash</Table.Th>
                       <Table.Th>
                         <UnstyledButton
                           onClick={() => toggleSort("created_at")}
@@ -434,6 +434,9 @@ export function DocumentsPage() {
                             />
                           </Table.Td>
                           <Table.Td>
+                            <ContentHashCell hash={doc.content_hash} />
+                          </Table.Td>
+                          <Table.Td>
                             <Stack gap={2}>
                               <Text fw={600}>{doc.title}</Text>
                               <Text size="xs" c="dimmed">
@@ -450,9 +453,6 @@ export function DocumentsPage() {
                           <Table.Td>{doc.source ?? "—"}</Table.Td>
                           <Table.Td>
                             <Text size="sm">{doc.workflow_name ?? "—"}</Text>
-                          </Table.Td>
-                          <Table.Td>
-                            <ContentHashCell hash={doc.content_hash} />
                           </Table.Td>
                           <Table.Td>
                             {formatDate(new Date(doc.created_at))}

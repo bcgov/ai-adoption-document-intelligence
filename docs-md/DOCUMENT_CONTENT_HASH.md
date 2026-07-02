@@ -27,8 +27,8 @@ The hash is computed **before** PDF normalization so it reflects the caller’s 
 
 | Surface | Field / query |
 |---------|----------------|
-| Document list `GET /api/documents` | Response: `content_hash`. Filter: `?content_hash=<hex>` (exact match, scoped to accessible groups). |
-| Documents UI (`/documents`) | **Hash** column: truncated by default (`abcdef12…9f2a`), click to expand full value and copy. Legacy rows show `—`. |
+| Document list `GET /api/documents` | Response: `content_hash`. Filter: `?content_hash=<hex>` (exact match, scoped to accessible groups). Search: `?search=` matches title, filename, or Content ID (partial). |
+| Documents UI (`/documents`) | **Content ID** column: truncated by default (`abcdef12…9f2a`), click to expand full value and copy. Legacy rows show `—`. The documents search box matches title, filename, or Content ID (partial match). |
 | Document detail / upload responses | `content_hash` on `DocumentDataDto` |
 | Labeling upload | `content_hash` on `LabelingDocumentResponseDto` |
 

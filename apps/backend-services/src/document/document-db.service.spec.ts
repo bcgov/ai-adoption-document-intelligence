@@ -292,6 +292,33 @@ describe("DocumentDbService", () => {
       );
     });
 
+    it("should include content_hash in search filter when provided", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, { search: "2cf24dba" });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { title: { contains: "2cf24dba", mode: "insensitive" } },
+              {
+                original_filename: {
+                  contains: "2cf24dba",
+                  mode: "insensitive",
+                },
+              },
+              {
+                content_hash: { contains: "2cf24dba", mode: "insensitive" },
+              },
+            ],
+          },
+        }),
+      );
+    });
+
     it("should throw if prisma throws", async () => {
       mockPrismaDocument.findMany.mockRejectedValue(new Error("DB error"));
       mockPrismaDocument.count.mockResolvedValue(0);

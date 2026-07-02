@@ -347,7 +347,8 @@ export class DocumentController {
   @ApiQuery({
     name: "search",
     required: false,
-    description: "Search documents by title or original filename.",
+    description:
+      "Search documents by title, original filename, or content hash (Content ID).",
   })
   @ApiQuery({
     name: "status",

@@ -24,7 +24,7 @@ interface ContentHashCellProps {
   hash: string | null | undefined;
 }
 
-/** Truncated SHA-256 file hash; click to expand and copy the full value. */
+/** Truncated Content ID (SHA-256 file hash); click to expand and copy the full value. */
 export function ContentHashCell({ hash }: ContentHashCellProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -46,13 +46,13 @@ export function ContentHashCell({ hash }: ContentHashCellProps) {
       onClick={(event) => event.stopPropagation()}
     >
       <Tooltip
-        label={expanded ? "Click to collapse" : "Click to show full hash"}
+        label={expanded ? "Click to collapse" : "Click to show full Content ID"}
         withArrow
       >
         <UnstyledButton
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
-          aria-label={expanded ? "Collapse file hash" : "Expand file hash"}
+          aria-label={expanded ? "Collapse Content ID" : "Expand Content ID"}
           data-testid="content-hash-toggle"
         >
           <Code
@@ -70,13 +70,13 @@ export function ContentHashCell({ hash }: ContentHashCellProps) {
       {expanded ? (
         <CopyButton value={hash} timeout={1500}>
           {({ copied, copy }) => (
-            <Tooltip label={copied ? "Copied" : "Copy hash"} withArrow>
+            <Tooltip label={copied ? "Copied" : "Copy Content ID"} withArrow>
               <ActionIcon
                 size="sm"
                 variant="subtle"
                 color={copied ? "green" : "gray"}
                 onClick={copy}
-                aria-label="Copy file hash"
+                aria-label="Copy Content ID"
                 data-testid="content-hash-copy"
               >
                 {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
