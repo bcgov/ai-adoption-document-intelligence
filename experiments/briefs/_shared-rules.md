@@ -55,7 +55,7 @@ You are on `experiment/<slug>`, stacked on `feature/extraction-experiments`. **S
   - `experiments/results/<slug>/iteration/prompt.md` — global instruction prompt sent to the engine
   - `experiments/results/<slug>/iteration/field-descriptions.json` — per-field description overlay (keys must match `field_key`s)
   - `experiments/results/<slug>/iteration/README.md` — how to iterate
-  - `apps/temporal/src/scripts/iterate-<slug>-extraction.ts` — single-doc smoke test (~14 s per call); pattern lifted from `iterate-mistral-extraction.ts`
+  - `apps/temporal/scripts/iterate-<slug>-extraction.ts` — single-doc smoke test (~14 s per call); pattern lifted from `iterate-mistral-extraction.ts`
   - The iteration files are the source of truth; copy their content into the workflow JSON's activity `parameters` once you're happy. Re-seed before running the full benchmark.
 - `experiments/results/<slug>/SUMMARY.md` — your results write-up
 - `experiments/results/<slug>/benchmark-run.json` — the full export from `GET /runs/{runId}/download`
@@ -155,7 +155,7 @@ These were discovered during E01 + E02 and are fixed in the chained stack — ke
 Setting up production-grade prompts is iterative; setting up the *iteration loop* is one-time. Pattern:
 
 1. Drop a starter `prompt.md` and `field-descriptions.json` into `experiments/results/<slug>/iteration/`. Both are editable text — the user (and you) refine them.
-2. Add `apps/temporal/src/scripts/iterate-<slug>-extraction.ts` (lift from `iterate-mistral-extraction.ts`). It:
+2. Add `apps/temporal/scripts/iterate-<slug>-extraction.ts` (lift from `iterate-mistral-extraction.ts`). It:
    - Loads `prompt.md` and `field-descriptions.json` directly from the iteration folder.
    - Loads ONE sample's image + ground truth from `data/datasets/<folder>/<visibility>/`.
    - Calls the engine directly (NOT through Temporal — avoids worker reloads).

@@ -1,7 +1,7 @@
 # Extraction-Engine Experiment Stack (#155–#184) — Code Review
 
 **Reviewed:** 2026-06-27 · **Scope:** production-affecting system code and per-workflow/unit tests only.
-**Out of scope (ignored):** everything under `experiments/`, `data/datasets/`, `apps/temporal/src/scripts/`, benchmark-result JSONs, generated reports, and stale rebase noise.
+**Out of scope (ignored):** everything under `experiments/`, `data/datasets/`, `apps/temporal/scripts/`, benchmark-result JSONs, generated reports, and stale rebase noise.
 
 Design spec: `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` (lives on the branches, not `develop`).
 

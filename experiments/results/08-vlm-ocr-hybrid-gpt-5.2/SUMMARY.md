@@ -153,7 +153,7 @@ Stacks on top of [E07](../07-vlm-ocr-hybrid-gpt-4o/SUMMARY.md):
 
 - **New** [`docs-md/graph-workflows/templates/experiment-08-vlm-ocr-hybrid-gpt-5.2-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-08-vlm-ocr-hybrid-gpt-5.2-workflow.json) — standalone copy of E05's workflow, deployment defaults flipped to `gpt-5.2` + metadata/labels updated. Auto-discovered as `seed-experiment-08-vlm-ocr-hybrid-gpt-5.2-definition`.
 - **New** [`experiments/results/08-vlm-ocr-hybrid-gpt-5.2/iteration/`](iteration/) — verbatim copy of E05's iteration kit; only the README references E08 paths + gpt-5.2 + the `ITERATION_DIR` env-var override.
-- [`apps/temporal/src/scripts/trigger-experiment-benchmark.ts`](../../../apps/temporal/src/scripts/trigger-experiment-benchmark.ts) — added `08-vlm-ocr-hybrid-gpt-5.2` to the slug allow-list (E07's `07-vlm-ocr-hybrid-gpt-4o` entry preserved from the parent commit).
+- [`apps/temporal/scripts/trigger-experiment-benchmark.ts`](../../../apps/temporal/scripts/trigger-experiment-benchmark.ts) — added `08-vlm-ocr-hybrid-gpt-5.2` to the slug allow-list (E07's `07-vlm-ocr-hybrid-gpt-4o` entry preserved from the parent commit).
 - **No code/test/fixture changes**; the iterate script's `ITERATION_DIR` env-var override + the `samples-mix/public` path fix were both already on E07's parent commit.
 
 Not changed:
@@ -176,17 +176,17 @@ npm run test:db:reset
 cd apps/temporal && npm run dev
 
 # 3. Preflight on gpt-5.2.
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-5.2
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-5.2
 
 # 4. (Optional) 3-sample smoke iteration on gpt-5.2.
 ITERATION_DIR=$(pwd)/../../experiments/results/08-vlm-ocr-hybrid-gpt-5.2/iteration \
   TEST_API_KEY=... \
-  npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "1 81" gpt-5.2
+  npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "1 81" gpt-5.2
 
 # 5. Trigger E08 benchmark + poll.
 rm -rf /tmp/benchmark-cache/*
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts 08
-TEST_API_KEY=... npx tsx -r tsconfig-paths/register src/scripts/poll-experiment-run.ts <runId> 08-vlm-ocr-hybrid-gpt-5.2
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 08
+TEST_API_KEY=... npx tsx -r tsconfig-paths/register scripts/poll-experiment-run.ts <runId> 08-vlm-ocr-hybrid-gpt-5.2
 ```
 
 Per-sample timing: ~8.9 s wallclock at gpt-5.2 cap 100 (DI ~5–7 s + VLM ~10–25 s).

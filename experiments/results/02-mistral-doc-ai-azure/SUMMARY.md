@@ -131,7 +131,7 @@ Round 1 rewrote the iteration kit ([`iteration/prompt.md`](iteration/prompt.md),
 2. **Format-preservation rules** for `sin`, `phone`, `date`, `name`, `signature`, and `explain_changes` — the engine returns whatever is on the form character-for-character, with no normalisation (no SIN hyphen-stripping, no date ISO-conversion, no signature defaulting to `""`).
 3. **Tighter blank-vs-zero rules** on numeric income fields, with explicit "do not infer 0 from context" + "if you can see no marks in the entire spouse column, prefer null" guards added after the first smoke test showed the model over-applying zero in genuinely blank columns.
 
-Smoke tests (script: [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts), ~14 s / sample):
+Smoke tests (script: [`apps/temporal/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/scripts/iterate-mistral-extraction.ts), ~14 s / sample):
 
 | sample | strict-baseline matched | round-1 matched | Δ | comment |
 |---|---|---|---|---|
@@ -319,7 +319,7 @@ The prompt and per-field description text used by this run live as editable arti
 - `field-descriptions.json` — per-field description overlay (keyed by `field_key`).
 - `README.md` — how to iterate.
 
-The same files are embedded into [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json) as parameters on the `mistralAzureOcr` node. To iterate: edit the iteration files, run [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts) for a single-document smoke test (~14 s, no benchmark), then re-copy the tuned content into the workflow JSON and re-seed before triggering the full benchmark.
+The same files are embedded into [`docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json`](../../../docs-md/graph-workflows/templates/experiment-02-mistral-doc-ai-azure-workflow.json) as parameters on the `mistralAzureOcr` node. To iterate: edit the iteration files, run [`apps/temporal/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/scripts/iterate-mistral-extraction.ts) for a single-document smoke test (~14 s, no benchmark), then re-copy the tuned content into the workflow JSON and re-seed before triggering the full benchmark.
 
 ## Confidence-distribution observations
 
@@ -351,10 +351,10 @@ Plus 9 unit tests in `apps/temporal/src/ocr-providers/mistral-azure/mistral-azur
 
 ## Smoke-test helper
 
-A standalone Node script lives at [`apps/temporal/src/scripts/test-mistral-foundry-single.ts`](../../../apps/temporal/src/scripts/test-mistral-foundry-single.ts) and hits Foundry once for a single sample, prints whether annotation is populated, and saves the raw response. Useful for verifying schema fixes (e.g. `strict: true`) without burning a 33-sample run.
+A standalone Node script lives at [`apps/temporal/scripts/test-mistral-foundry-single.ts`](../../../apps/temporal/scripts/test-mistral-foundry-single.ts) and hits Foundry once for a single sample, prints whether annotation is populated, and saves the raw response. Useful for verifying schema fixes (e.g. `strict: true`) without burning a 33-sample run.
 
 ```bash
-cd apps/temporal && npx tsx -r tsconfig-paths/register src/scripts/test-mistral-foundry-single.ts "1 81"
+cd apps/temporal && npx tsx -r tsconfig-paths/register scripts/test-mistral-foundry-single.ts "1 81"
 ```
 
 ## Parent-shared infra fixes applied (per `_shared-rules.md`'s "fix forward" rule)
@@ -432,7 +432,7 @@ This is a candid record of the things that surprised us, the workarounds we buil
 
 ### Process improvements built into this branch
 
-- **Iteration kit pattern** — [`experiments/results/02-mistral-doc-ai-azure/iteration/`](iteration/) (prompt.md + field-descriptions.json + last-{request,response,diff}). One-shot smoke-test script at [`apps/temporal/src/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts) hits the engine for one sample (~14 s) so prompt tweaks can be validated without burning a 33+ sample run. The same prompt + descriptions are then embedded into the workflow JSON for benchmarks.
+- **Iteration kit pattern** — [`experiments/results/02-mistral-doc-ai-azure/iteration/`](iteration/) (prompt.md + field-descriptions.json + last-{request,response,diff}). One-shot smoke-test script at [`apps/temporal/scripts/iterate-mistral-extraction.ts`](../../../apps/temporal/scripts/iterate-mistral-extraction.ts) hits the engine for one sample (~14 s) so prompt tweaks can be validated without burning a 33+ sample run. The same prompt + descriptions are then embedded into the workflow JSON for benchmarks.
 - **Force-resync mode** — `FORCE_RESYNC_LOCAL_DATASETS=true` on the backend triggers a wipe-then-reupload of the dataset's blob prefix on next start, so local renames propagate to cloud.
 - **Real-fixture deliverable** — the canonical run dumps one sample's full Foundry response into `__fixtures__/experiment-02/` for replay tests; same pattern in E01.
 

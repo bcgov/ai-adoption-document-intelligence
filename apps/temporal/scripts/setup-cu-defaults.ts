@@ -5,7 +5,7 @@
  * the override file without leaking secrets to the shell.
  *
  * Usage (from apps/temporal):
- *   npx tsx -r tsconfig-paths/register src/scripts/setup-cu-defaults.ts
+ *   npx tsx -r tsconfig-paths/register scripts/setup-cu-defaults.ts
  *
  * Idempotent — repeating the call simply overwrites defaults to the same
  * values.
@@ -18,11 +18,11 @@
  *                               prebuilt-analyzer-completion-mini)
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import {
   type CuAuthMode,
   createCuAxiosInstance,
-} from "../ocr-providers/azure-content-understanding/azure-cu-client";
+} from "../src/ocr-providers/azure-content-understanding/azure-cu-client";
 
 async function main(): Promise<void> {
   const endpoint = process.env.AZURE_CU_ENDPOINT?.replace(/\/+$/, "");
