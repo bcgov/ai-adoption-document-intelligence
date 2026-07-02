@@ -47,11 +47,23 @@ function makeFakeBlobStorage(prePopulated: string[] = []): FakeBlobStore {
   return { blobs, storage, writes };
 }
 
+interface DatasetVersionUpdateData {
+  storagePrefix: string;
+  manifestPath: string;
+  documentCount: number;
+}
+
 function makePrismaStub() {
-  const updates: Array<{ where: { id: string }; data: unknown }> = [];
+  const updates: Array<{
+    where: { id: string };
+    data: DatasetVersionUpdateData;
+  }> = [];
   const client = {
     datasetVersion: {
-      update: async (args: { where: { id: string }; data: unknown }) => {
+      update: async (args: {
+        where: { id: string };
+        data: DatasetVersionUpdateData;
+      }) => {
         updates.push(args);
         return null as unknown;
       },
@@ -179,10 +191,16 @@ describe("syncLocalDatasetToBlobStorage", () => {
         ),
       ).toHaveLength(1);
 
-      // DatasetVersion updated
+      // DatasetVersion updated — manifestPath stored relative to storagePrefix
+      // so the benchmark materializer's path.join(materializedPath, manifestPath)
+      // resolves to the file that materializeDataset wrote at <materializedPath>/dataset-manifest.json.
       expect(prisma.updates).toHaveLength(1);
       expect(prisma.updates[0].where.id).toBe(
         "seed-local-samples-mix-private-v1",
+      );
+      expect(prisma.updates[0].data.manifestPath).toBe("dataset-manifest.json");
+      expect(prisma.updates[0].data.storagePrefix).toBe(
+        "datasets/seed-local-samples-mix-private/seed-local-samples-mix-private-v1",
       );
     } finally {
       cleanup();
