@@ -13,7 +13,7 @@
  *      minimal vision request (1×1 PNG) with a tiny strict-mode schema.
  *      Verifies a 200 + parseable JSON response, plus capacity ≥ 50 if
  *      the response includes deployment usage info.
- *   4. The dataset version `seed-local-samples-mix-private-v1` is present
+ *   4. The dataset version `seed-local-samples-mix-public-v1` is present
  *      in the DB.
  *   5. The seeded SDPR template (`seed-sdpr-monthly-report-template`) has
  *      a populated `field_schema`.
@@ -48,7 +48,7 @@ for (const p of candidates) {
 }
 
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
-const DATASET_VERSION_ID = "seed-local-samples-mix-private-v1";
+const DATASET_VERSION_ID = "seed-local-samples-mix-public-v1";
 const MIN_API_VERSION = "2024-12-01-preview";
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";

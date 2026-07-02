@@ -20,7 +20,7 @@ const FOUNDRY_PATH = "/providers/mistral/azure/ocr";
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "1 81";
 const SAMPLES_DIR =
-  "/tmp/benchmark-cache/seed-local-samples-mix-private-seed-local-samples-mix-private-v1/inputs";
+  "/tmp/benchmark-cache/seed-local-samples-mix-public-seed-local-samples-mix-public-v1/inputs";
 
 async function main(): Promise<void> {
   const sampleId = process.argv[2] ?? DEFAULT_SAMPLE_ID;

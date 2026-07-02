@@ -11,7 +11,7 @@ Wire the existing trained neural model into a workflow alongside the relevant po
 
 - Neural training capability shipped in PR #134 (`BuildMode = neural`, training-hours, `/training/info` endpoint, UI mode selector).
 - A neural model is **already trained** — model id is `"sdpr_synth_test"`.
-- The user's 33-sample dataset is seeded and synced to blob storage at `seed-local-samples-mix-private-v1`.
+- The user's 33-sample dataset is seeded and synced to blob storage at `seed-local-samples-mix-public-v1`.
 
 So this experiment is mostly **wiring** — no training, no new providers. The Azure DI activities (`azureOcr.submit/poll/extract`) already exist and are registered. You're composing them with the right post-processing nodes for handwritten input.
 

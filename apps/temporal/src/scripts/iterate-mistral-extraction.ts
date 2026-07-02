@@ -37,7 +37,7 @@ const SAMPLES_DIR = path.join(
   "data",
   "datasets",
   "samples-mix",
-  "private",
+  "public",
 );
 const ITERATION_DIR = path.join(
   REPO_ROOT,
@@ -82,7 +82,7 @@ interface DiffRow {
   matched: boolean;
 }
 
-function valuesEqual(a: unknown, b: unknown): boolean {
+function valuesEqualScalar(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   // Both empty/null
   const aEmpty = a === null || a === undefined || a === "";
@@ -104,6 +104,17 @@ function valuesEqual(a: unknown, b: unknown): boolean {
       .toLowerCase()
       .replace(/[\s\-_.]/g, "");
   return norm(a) === norm(b);
+}
+
+function valuesEqual(a: unknown, b: unknown): boolean {
+  // One-of array GT support — matches if predicted equals any alternate.
+  if (Array.isArray(b)) {
+    return b.some((alt) => valuesEqualScalar(a, alt));
+  }
+  if (Array.isArray(a)) {
+    return a.some((alt) => valuesEqualScalar(alt, b));
+  }
+  return valuesEqualScalar(a, b);
 }
 
 function buildDiff(
@@ -209,7 +220,16 @@ async function main(): Promise<void> {
 
   const prompt = loadPrompt();
   const descriptions = loadDescriptions();
-  const promptText = prompt.length > 0 ? prompt : undefined;
+
+  // Probe: circled-checkbox rule append (per Mistral support guidance).
+  // When OCR3_CIRCLE_RULE=1, append a sentence to the prompt directing the
+  // annotation LMM to treat circled checkboxes as selected.
+  const circleClause =
+    process.env.OCR3_CIRCLE_RULE === "1"
+      ? "\n\n<form_specific_marks>\nIMPORTANT: On this form, checkbox selections may be indicated by ANY of these marks: an X inside the box, a checkmark (✓ / ✔), a filled or blacked-out box, a dot inside the box, OR a circle drawn AROUND the entire checkbox or AROUND the Yes / No label next to it. Treat ALL of these as a 'selected' marking. A circle around the checkbox is just as valid a selection as a checkmark — do not ignore circled checkboxes. If the OCR markdown shows `☐` (unmarked) for a box that the image clearly shows is circled, prefer the image: that field is 'selected'.\n</form_specific_marks>"
+      : "";
+  const finalPrompt = `${prompt}${circleClause}`;
+  const promptText = finalPrompt.length > 0 ? finalPrompt : undefined;
 
   const prisma = getPrismaClient();
   const tm = await prisma.templateModel.findUnique({
@@ -235,12 +255,57 @@ async function main(): Promise<void> {
       field_format: f.field_format,
     }),
   );
+  // Probe: applicant-prefix renaming (per user hypothesis on
+  // naming-asymmetry confusion). When OCR3_APPLICANT_PREFIX=1, rename the
+  // 10 Q5-Q9 applicant checkbox fields to mirror the `_spouse_` pattern:
+  //   checkbox_school_no  →  checkbox_school_applicant_no
+  // The schema sent to Mistral uses the renamed keys; the response is
+  // remapped back to original keys before the diff against GT.
+  // Q1-Q4 fields (no applicant/spouse distinction) stay unchanged.
+  const Q5_Q9_APPLICANT_KEYS = [
+    "checkbox_employment_changes_yes",
+    "checkbox_employment_changes_no",
+    "checkbox_school_yes",
+    "checkbox_school_no",
+    "checkbox_work_yes",
+    "checkbox_work_no",
+    "checkbox_moved_yes",
+    "checkbox_moved_no",
+    "checkbox_warrant_yes",
+    "checkbox_warrant_no",
+  ];
+  function applicantPrefixed(k: string): string {
+    if (k.endsWith("_yes")) return `${k.slice(0, -4)}_applicant_yes`;
+    if (k.endsWith("_no")) return `${k.slice(0, -3)}_applicant_no`;
+    return k;
+  }
+  const renameMap = new Map<string, string>();
+  if (process.env.OCR3_APPLICANT_PREFIX === "1") {
+    for (const k of Q5_Q9_APPLICANT_KEYS) {
+      renameMap.set(k, applicantPrefixed(k));
+    }
+  }
+  const renamedFieldDefs =
+    renameMap.size > 0
+      ? fieldDefs.map((fd) => ({
+          ...fd,
+          field_key: renameMap.get(fd.field_key) ?? fd.field_key,
+        }))
+      : fieldDefs;
+  const renamedDescriptions: FieldDescriptions = {};
+  for (const [k, v] of Object.entries(descriptions)) {
+    renamedDescriptions[renameMap.get(k) ?? k] = v;
+  }
+
   // Numeric fields are made nullable so Mistral can distinguish "cell is
   // blank" (return null) from "cell explicitly shows 0" (return 0). The
   // converter does this directly via the `numericFieldsNullable` option.
   const annotationFormat = fieldDefinitionsToMistralDocumentAnnotationFormat(
-    fieldDefs,
-    { descriptions, numericFieldsNullable: true },
+    renamedFieldDefs,
+    {
+      descriptions: renamedDescriptions,
+      numericFieldsNullable: true,
+    },
   );
 
   const requestBody: Record<string, unknown> = {
@@ -252,6 +317,32 @@ async function main(): Promise<void> {
   }
   if (promptText) {
     requestBody.document_annotation_prompt = promptText;
+  }
+
+  // OCR-3 features opt-in via env vars so the smoke-test loop can probe each
+  // one without rewriting the script. The Foundry deployment is stricter
+  // than the public Mistral API (e.g. it rejects `confidence_scores_granularity`
+  // with HTTP 422) — set these once you've confirmed Foundry accepts them.
+  //
+  //   OCR3_TABLE_FORMAT=html                  → table_format: "html"
+  //   OCR3_IMAGE_MIN_SIZE=64                  → image_min_size: 64
+  //   OCR3_IMAGE_LIMIT=8                      → image_limit: 8
+  //   OCR3_BBOX_ANNOTATION_FORMAT=1           → bbox_annotation_format derived
+  //                                             from the same schema as the
+  //                                             document annotation (small
+  //                                             typed schema is the simplest
+  //                                             credible signal for the LMM)
+  if (process.env.OCR3_TABLE_FORMAT) {
+    requestBody.table_format = process.env.OCR3_TABLE_FORMAT;
+  }
+  if (process.env.OCR3_IMAGE_MIN_SIZE) {
+    requestBody.image_min_size = Number(process.env.OCR3_IMAGE_MIN_SIZE);
+  }
+  if (process.env.OCR3_IMAGE_LIMIT) {
+    requestBody.image_limit = Number(process.env.OCR3_IMAGE_LIMIT);
+  }
+  if (process.env.OCR3_BBOX_ANNOTATION_FORMAT === "1" && annotationFormat) {
+    requestBody.bbox_annotation_format = annotationFormat;
   }
 
   // Persist the request body (with the data URL truncated for readability).
@@ -310,7 +401,22 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const predicted = JSON.parse(annotationStr) as Record<string, unknown>;
+  const predictedRaw = JSON.parse(annotationStr) as Record<string, unknown>;
+  // Reverse the applicant-prefix rename so we can diff against the GT (which
+  // uses the original field names).
+  const reverseRenameMap = new Map<string, string>();
+  for (const [orig, renamed] of renameMap) {
+    reverseRenameMap.set(renamed, orig);
+  }
+  const predicted: Record<string, unknown> =
+    reverseRenameMap.size > 0
+      ? Object.fromEntries(
+          Object.entries(predictedRaw).map(([k, v]) => [
+            reverseRenameMap.get(k) ?? k,
+            v,
+          ]),
+        )
+      : predictedRaw;
   const expected = JSON.parse(
     await fs.promises.readFile(jsonPath, "utf-8"),
   ) as Record<string, unknown>;
