@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 02 - Mistral Document AI on Azure Foundry",
     "description": "E02: Mistral Document AI accessed via the Azure AI Foundry serverless deployment (mistral-document-ai-2512), parallel to the public-API path. Sync OCR + document_annotation in a single HTTP call; same canonical post-processing chain (cleanup \u2192 checkConfidence) and HITL gate as the public-API Mistral template. Forks the Mistral provider to keep the public-API path intact for fallback comparison.",
     "tags": [

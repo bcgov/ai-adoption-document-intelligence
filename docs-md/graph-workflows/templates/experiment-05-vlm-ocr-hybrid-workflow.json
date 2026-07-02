@@ -1,6 +1,14 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
+    "evaluatorConfig": {
+      "defaultRule": { "rule": "exact" },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": { "rule": "presence" },
+        "spouse_signature": { "rule": "presence" }
+      }
+    },
     "name": "Experiment 05 - VLM + OCR hybrid (gpt-5.4)",
     "description": "E05 single-pass VLM + OCR hybrid extraction. Runs Azure Document Intelligence prebuilt-layout (via the standard submit/poll activities, outputFormat=markdown) to produce markdown + bbox layout, then sends the document image AND the OCR markdown to Azure OpenAI chat-completions (gpt-5.4 by default) with a strict-mode JSON Schema response_format. The system prompt explicitly instructs the model to prefer the image over the OCR markdown when they disagree. The mapper reuses bbox info from the DI layout response so the resulting OCRResult has populated word/line polygons (which pure VLM-direct in E04 lacked). Chain: prepareFileData → submitOcr → pollOcrResults → vlmOcrHybridExtract → ocr.cleanup → ocr.checkConfidence → reviewSwitch → humanReview/storeResults. Image inputs only; PDF rendering is deferred to a follow-up experiment (the canonical 40-sample dataset is 100% JPEG).",
     "tags": [

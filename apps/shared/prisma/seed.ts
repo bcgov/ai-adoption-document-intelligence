@@ -1977,7 +1977,12 @@ async function seedExperimentWorkflows() {
     const definitionId = `seed-experiment-${slug}-definition`;
 
     let config: {
-      metadata?: { name?: string; description?: string; targetLocalDataset?: string };
+      metadata?: {
+        name?: string;
+        description?: string;
+        targetLocalDataset?: string;
+        evaluatorConfig?: Record<string, unknown>;
+      };
     };
     try {
       config = JSON.parse(fs.readFileSync(path.join(templatesDir, filename), "utf-8"));
@@ -2040,6 +2045,16 @@ async function seedExperimentWorkflows() {
       }
     }
 
+    // Evaluator config is per-experiment data: read it from the workflow
+    // template's metadata so document-specific matching rules (e.g. presence-
+    // only signature fields on the SDPR form) live in the template, not in the
+    // generic seed or the generic evaluator engine. Falls back to a plain
+    // exact-match default when a template doesn't declare one.
+    const evaluatorConfig: object = config.metadata?.evaluatorConfig ?? {
+      defaultRule: { rule: "exact" },
+      passThreshold: 0.8,
+    };
+
     await prisma.benchmarkDefinition.upsert({
       where: { id: definitionId },
       update: {
@@ -2047,10 +2062,7 @@ async function seedExperimentWorkflows() {
         workflowVersionId: versionId,
         workflowConfigHash: `seed-${slug}`,
         evaluatorType: "schema-aware",
-        evaluatorConfig: {
-          defaultRule: { rule: "exact" },
-          passThreshold: 0.8,
-        },
+        evaluatorConfig,
         runtimeSettings: { timeout: 600, retries: 2 },
       },
       create: {
@@ -2061,10 +2073,7 @@ async function seedExperimentWorkflows() {
         workflowVersionId: versionId,
         workflowConfigHash: `seed-${slug}`,
         evaluatorType: "schema-aware",
-        evaluatorConfig: {
-          defaultRule: { rule: "exact" },
-          passThreshold: 0.8,
-        },
+        evaluatorConfig,
         runtimeSettings: { timeout: 600, retries: 2 },
       },
     });
