@@ -8,11 +8,11 @@ patches:
   target:
     kind: ConfigMap
     name: backend-services-config
-- path: route-whitelist-patch.yml
+- path: route-allowlist-patch.yml
   target:
     kind: Route
     name: backend-services
-- path: route-whitelist-patch.yml
+- path: route-allowlist-patch.yml
   target:
     kind: Route
     name: frontend
