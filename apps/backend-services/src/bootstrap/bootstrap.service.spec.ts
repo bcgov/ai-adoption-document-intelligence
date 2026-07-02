@@ -140,6 +140,7 @@ describe("BootstrapService", () => {
           event_type: "system_bootstrap",
           actor_id: "actor-1",
         }),
+        expect.anything(),
       );
     });
 

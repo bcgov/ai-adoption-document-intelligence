@@ -2,7 +2,9 @@ import { DocumentStatus } from "@generated/client";
 import { ConflictException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Prisma } from "@generated/client";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -95,6 +97,15 @@ describe("OcrService", () => {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(
+              async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+                fn({} as Prisma.TransactionClient),
+            ),
+          },
+        },
       ],
     }).compile();
 
@@ -126,6 +137,9 @@ describe("OcrService", () => {
             mockBlobStorage as any,
             mockAppLogger,
             { recordEvent: jest.fn() } as unknown as AuditService,
+            {
+              transaction: jest.fn(async (fn) => fn({})),
+            } as unknown as PrismaService,
           ),
       ).not.toThrow();
     });

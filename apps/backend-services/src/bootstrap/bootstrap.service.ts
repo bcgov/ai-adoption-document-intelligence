@@ -124,7 +124,7 @@ export class BootstrapService {
           user_email: userEmail,
           group_name: group.name,
         },
-      });
+      }, tx);
       return { user, group };
     });
 

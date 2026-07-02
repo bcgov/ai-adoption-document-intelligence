@@ -17,6 +17,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { computeConfigHash } from "@/workflow/config-hash";
 import { validateGraphConfig } from "@/workflow/graph-schema-validator";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
@@ -55,6 +56,7 @@ export class BenchmarkDefinitionService {
     private readonly definitionDb: BenchmarkDefinitionDbService,
     private readonly evaluatorRegistry: EvaluatorRegistryService,
     private readonly temporalService: BenchmarkTemporalService,
+    private readonly auditService: AuditService,
   ) {}
 
   /**
@@ -857,6 +859,18 @@ export class BenchmarkDefinitionService {
       }
     }
 
+    await this.auditService.recordEvent({
+      event_type: "benchmark_workflow_promoted",
+      resource_type: "benchmark_definition",
+      resource_id: definitionId,
+      group_id: project.group_id,
+      payload: {
+        project_id: projectId,
+        candidate_workflow_version_id: candidateWorkflowVersionId,
+        base_lineage_id: baseLineageId,
+      },
+    });
+
     // Best-effort: remove the candidate lineage now that config lives on the base lineage.
     // May fail if workflow versions are still referenced (e.g. ground-truth jobs); that is OK.
     try {
@@ -1004,6 +1018,20 @@ export class BenchmarkDefinitionService {
       }
 
       return created;
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "benchmark_workflow_applied_to_base",
+      resource_type: "workflow_version",
+      resource_id: newVersion.id,
+      group_id: project.group_id,
+      payload: {
+        project_id: projectId,
+        candidate_workflow_version_id: candidateWorkflowVersionId,
+        base_lineage_id: baseLineageId,
+        new_version_number: newVersion.version_number,
+        cleaned_up: cleanupCandidateArtifacts,
+      },
     });
 
     return {

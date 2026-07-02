@@ -9,6 +9,7 @@ import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { PrismaService } from "../database/prisma.service";
 import { TrainingDbService } from "./training-db.service";
 
 interface AzureErrorResponse {
@@ -48,6 +49,7 @@ export class TrainingPollerService {
 
   constructor(
     private readonly trainingDb: TrainingDbService,
+    private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
   ) {
@@ -282,47 +284,46 @@ export class TrainingPollerService {
           }
         }
 
-        // Update job status to SUCCEEDED
-        await this.trainingDb.updateTrainingJob(jobId, {
-          status: TrainingStatus.SUCCEEDED,
-          completed_at: new Date(),
-        });
-
-        // Build a snapshot of the labeled documents that just trained this
-        // version. Captured here (rather than at startTraining) because users
-        // very rarely modify labels mid-Azure-training, and the simpler model
-        // is easier to reason about than threading the snapshot through the
-        // job row.
         const snapshot = await this.trainingDb.buildTrainedModelSnapshot(
           job.template_model_id,
         );
 
-        // Resolve the version + Azure model id this job targets. Legacy
-        // jobs (started before this column existed) fall back to v1 / the
-        // bare template model id so they keep working.
         const targetVersion = job.target_version ?? 1;
         const targetModelId =
           job.target_model_id ?? job.template_model.model_id;
 
-        // Atomically demote the prior active version and create the new one.
-        // Wrapping these together avoids leaving the template with zero
-        // active versions if the process dies between writes.
-        await this.trainingDb.replaceActiveTrainedModel(job.template_model_id, {
-          template_model_id: job.template_model_id,
-          training_job_id: jobId,
-          model_id: targetModelId,
-          version: targetVersion,
-          is_active: true,
-          description,
-          doc_types:
-            docTypes == null
-              ? Prisma.DbNull
-              : (docTypes as Prisma.InputJsonValue),
-          field_count: fieldCount,
-          dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
-          build_mode: job.build_mode,
-          max_training_hours: job.max_training_hours,
-          actual_training_hours: actualTrainingHours,
+        // Mark job succeeded and activate the new trained model atomically.
+        await this.prismaService.transaction(async (tx) => {
+          await this.trainingDb.updateTrainingJob(
+            jobId,
+            {
+              status: TrainingStatus.SUCCEEDED,
+              completed_at: new Date(),
+            },
+            tx,
+          );
+
+          await this.trainingDb.replaceActiveTrainedModel(
+            job.template_model_id,
+            {
+              template_model_id: job.template_model_id,
+              training_job_id: jobId,
+              model_id: targetModelId,
+              version: targetVersion,
+              is_active: true,
+              description,
+              doc_types:
+                docTypes == null
+                  ? Prisma.DbNull
+                  : (docTypes as Prisma.InputJsonValue),
+              field_count: fieldCount,
+              dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
+              build_mode: job.build_mode,
+              max_training_hours: job.max_training_hours,
+              actual_training_hours: actualTrainingHours,
+            },
+            tx,
+          );
         });
 
         this.logger.log(

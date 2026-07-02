@@ -11,10 +11,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { Prisma } from "@generated/client";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetService } from "./dataset.service";
 import { DatasetDbService } from "./dataset-db.service";
@@ -56,6 +58,13 @@ const mockAuditLogDbService = {
 const mockGroundTruthJobDbService = {
   deleteJobsForSample: jest.fn().mockResolvedValue({ documentIds: [] }),
   deleteJobsForVersions: jest.fn().mockResolvedValue({ documentIds: [] }),
+};
+
+const mockPrismaService = {
+  transaction: jest.fn(
+    async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+      fn({} as Prisma.TransactionClient),
+  ),
 };
 
 describe("DatasetService", () => {
@@ -115,6 +124,10 @@ describe("DatasetService", () => {
           provide: GroundTruthJobDbService,
           useValue: mockGroundTruthJobDbService,
         },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
       ],
     }).compile();
@@ -145,10 +158,12 @@ describe("DatasetService", () => {
           storagePath: "",
           createdBy: "user-1",
         }),
+        expect.anything(),
       );
       expect(mockDatasetDbService.updateDataset).toHaveBeenCalledWith(
         "dataset-1",
         { storagePath: "datasets/dataset-1" },
+        expect.anything(),
       );
       expect(result.id).toBe("dataset-1");
       expect(result.storagePath).toBe("datasets/dataset-1");
@@ -260,6 +275,7 @@ describe("DatasetService", () => {
 
       expect(mockDatasetDbService.deleteDataset).toHaveBeenCalledWith(
         "dataset-1",
+        expect.anything(),
       );
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
         "testgroup1/benchmark/datasets/dataset-1",
@@ -267,7 +283,7 @@ describe("DatasetService", () => {
       // Even with no versions, the cleanup should run (with empty list).
       expect(
         mockGroundTruthJobDbService.deleteJobsForVersions,
-      ).toHaveBeenCalledWith([]);
+      ).toHaveBeenCalledWith([], expect.anything());
     });
 
     it("removes ground-truth jobs and OCR blobs for all versions before cascade", async () => {
@@ -286,7 +302,7 @@ describe("DatasetService", () => {
 
       expect(
         mockGroundTruthJobDbService.deleteJobsForVersions,
-      ).toHaveBeenCalledWith(["v-1", "v-2"]);
+      ).toHaveBeenCalledWith(["v-1", "v-2"], expect.anything());
       // Ground-truth cleanup must run before the version cascade.
       const cleanupOrder =
         mockGroundTruthJobDbService.deleteJobsForVersions.mock
@@ -619,13 +635,14 @@ describe("DatasetService", () => {
       expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({ documentCount: 1 }),
+        expect.anything(),
       );
 
       // Verify ground-truth jobs/documents for this sample were cleaned up so
       // the sample doesn't linger in the HITL ground-truth review queue.
       expect(
         mockGroundTruthJobDbService.deleteJobsForSample,
-      ).toHaveBeenCalledWith("version-1", "sample-1");
+      ).toHaveBeenCalledWith("version-1", "sample-1", expect.anything());
     });
 
     it("removes OCR blob prefix for each document linked to deleted jobs", async () => {
@@ -826,7 +843,11 @@ describe("DatasetService", () => {
       // Cleanup must run for the version even when no documents are returned.
       expect(
         mockGroundTruthJobDbService.deleteJobsForVersions,
-      ).toHaveBeenCalledWith(["version-1"]);
+      ).toHaveBeenCalledWith(["version-1"], expect.anything());
+      expect(mockDatasetDbService.deleteDatasetVersion).toHaveBeenCalledWith(
+        "version-1",
+        expect.anything(),
+      );
     });
 
     it("removes orphaned documents and their OCR blobs", async () => {
@@ -1793,9 +1814,13 @@ describe("DatasetService", () => {
 
       await service.deleteSample("dataset-1", "v1", "s1", "group-1");
 
-      expect(mockDatasetDbService.updateSplit).toHaveBeenCalledWith("split-1", {
-        sampleIds: ["s2"],
-      });
+      expect(mockDatasetDbService.updateSplit).toHaveBeenCalledWith(
+        "split-1",
+        {
+          sampleIds: ["s2"],
+        },
+        expect.anything(),
+      );
     });
   });
 

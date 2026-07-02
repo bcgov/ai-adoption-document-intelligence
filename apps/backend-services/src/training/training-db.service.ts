@@ -358,11 +358,19 @@ export class TrainingDbService {
   async replaceActiveTrainedModel(
     templateModelId: string,
     data: TrainedModelCreateData,
+    tx?: Prisma.TransactionClient,
   ): Promise<TrainedModel> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.demoteActiveTrainedModels(templateModelId, tx);
-      return this.createTrainedModel(data, tx);
-    });
+    const run = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ): Promise<TrainedModel> => {
+      await this.demoteActiveTrainedModels(templateModelId, client);
+      return this.createTrainedModel(data, client);
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((txClient) => run(txClient));
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   GeneratedApiKeyDto,
 } from "@/actor/dto/api-key-info.dto";
 import type { ValidatedApiKey } from "@/auth/types";
+import { AuditService } from "@/audit/audit.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { ApiKeyDbService } from "./api-key-db.service";
 
@@ -14,6 +15,7 @@ export class ApiKeyService {
   constructor(
     private readonly apiKeyDb: ApiKeyDbService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   async getApiKey(groupId: string): Promise<ApiKeyInfoDto | null> {
@@ -72,6 +74,14 @@ export class ApiKeyService {
 
     this.logger.log(`API key generated for user ${userId} in group ${groupId}`);
 
+    await this.auditService.recordEvent({
+      event_type: "api_key_created",
+      resource_type: "api_key",
+      resource_id: apiKey.id,
+      group_id: groupId,
+      payload: { key_prefix: keyPrefix, generating_user_id: userId },
+    });
+
     return {
       id: apiKey.id,
       key,
@@ -84,10 +94,24 @@ export class ApiKeyService {
   }
 
   async deleteApiKey(keyId: string): Promise<void> {
+    const existing = await this.apiKeyDb.findApiKeyById(keyId);
+    if (!existing) {
+      throw new NotFoundException("No API key found with this ID");
+    }
+
     const deleted = await this.apiKeyDb.deleteApiKeyById(keyId);
     if (!deleted) {
       throw new NotFoundException("No API key found with this ID");
     }
+
+    await this.auditService.recordEvent({
+      event_type: "api_key_deleted",
+      resource_type: "api_key",
+      resource_id: keyId,
+      group_id: existing.group_id,
+      payload: { key_prefix: existing.key_prefix },
+    });
+
     this.logger.log(`API key ${keyId} deleted`);
   }
 
@@ -105,6 +129,14 @@ export class ApiKeyService {
     });
 
     this.logger.log(`API key generated for user ${userId} in group ${groupId}`);
+
+    await this.auditService.recordEvent({
+      event_type: "api_key_regenerated",
+      resource_type: "api_key",
+      resource_id: apiKey.id,
+      group_id: groupId,
+      payload: { key_prefix: keyPrefix, generating_user_id: userId },
+    });
 
     return {
       id: apiKey.id,

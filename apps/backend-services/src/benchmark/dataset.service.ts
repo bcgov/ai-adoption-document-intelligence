@@ -31,6 +31,7 @@ import {
   OperationCategory,
   validateBlobPrefixPath,
 } from "@/blob-storage/storage-path-builder";
+import { PrismaService } from "@/database/prisma.service";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetDbService } from "./dataset-db.service";
 import {
@@ -60,6 +61,7 @@ export class DatasetService {
     private readonly datasetDbService: DatasetDbService,
     private readonly auditLogDbService: AuditLogDbService,
     private readonly groundTruthJobDb: GroundTruthJobDbService,
+    private readonly prismaService: PrismaService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {}
 
@@ -77,35 +79,46 @@ export class DatasetService {
     }
 
     try {
-      // Create dataset record in database
-      const dataset = await this.datasetDbService.createDataset({
-        name: createDto.name,
-        description: createDto.description || null,
-        metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
-        storagePath: "", // Will be set after we have the ID
-        createdBy: actorId,
-        group_id: createDto.groupId,
-      });
+      const dataset = await this.prismaService.transaction(async (tx) => {
+        const created = await this.datasetDbService.createDataset(
+          {
+            name: createDto.name,
+            description: createDto.description || null,
+            metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
+            storagePath: "",
+            createdBy: actorId,
+            group_id: createDto.groupId,
+          },
+          tx,
+        );
 
-      // Set storage path based on dataset ID
-      const storagePath = `datasets/${dataset.id}`;
-      await this.datasetDbService.updateDataset(dataset.id, { storagePath });
+        const storagePath = `datasets/${created.id}`;
+        const updated = await this.datasetDbService.updateDataset(
+          created.id,
+          { storagePath },
+          tx,
+        );
 
-      // Create audit log entry
-      await this.auditLogDbService.createAuditLog({
-        actorId: actorId,
-        action: AuditAction.dataset_created,
-        entityType: "Dataset",
-        entityId: dataset.id,
-        metadata: {
-          name: dataset.name,
-          storagePath,
-        },
+        await this.auditLogDbService.createAuditLog(
+          {
+            actorId: actorId,
+            action: AuditAction.dataset_created,
+            entityType: "Dataset",
+            entityId: created.id,
+            metadata: {
+              name: created.name,
+              storagePath,
+            },
+          },
+          tx,
+        );
+
+        return { ...updated, storagePath };
       });
 
       this.logger.log(`Dataset created successfully: ${dataset.id}`);
 
-      return this.mapToResponseDto({ ...dataset, storagePath });
+      return this.mapToResponseDto(dataset);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -201,33 +214,42 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
     }
 
-    // Manually cascade delete to handle foreign key constraints
-    for (const version of dataset.versions) {
-      for (const definition of version.benchmarkDefinitions) {
-        await this.datasetDbService.deleteManyBenchmarkRuns({
-          definitionId: definition.id,
-        });
-      }
-      await this.datasetDbService.deleteManyBenchmarkDefinitions({
-        datasetVersionId: version.id,
-      });
-      await this.datasetDbService.deleteManySplits({
-        datasetVersionId: version.id,
-      });
-    }
-
-    // Remove ground-truth jobs and the Documents they reference before the
-    // version cascade fires. The DatasetVersion → DatasetGroundTruthJob
-    // relation cascades, but DatasetGroundTruthJob → Document does not, so
-    // skipping this leaves orphaned Documents that would surface in the
-    // regular HITL queue (its filter is `groundTruthJob: null`).
     const versionIds = dataset.versions.map((v) => v.id);
-    const { documentIds: orphanedDocumentIds } =
-      await this.groundTruthJobDb.deleteJobsForVersions(versionIds);
 
-    await this.datasetDbService.deleteManyDatasetVersions({ datasetId: id });
+    const orphanedDocumentIds = await this.prismaService.transaction(
+      async (tx) => {
+        for (const version of dataset.versions) {
+          for (const definition of version.benchmarkDefinitions) {
+            await this.datasetDbService.deleteManyBenchmarkRuns(
+              { definitionId: definition.id },
+              tx,
+            );
+          }
+          await this.datasetDbService.deleteManyBenchmarkDefinitions(
+            { datasetVersionId: version.id },
+            tx,
+          );
+          await this.datasetDbService.deleteManySplits(
+            { datasetVersionId: version.id },
+            tx,
+          );
+        }
 
-    await this.datasetDbService.deleteDataset(id);
+        const { documentIds } = await this.groundTruthJobDb.deleteJobsForVersions(
+          versionIds,
+          tx,
+        );
+
+        await this.datasetDbService.deleteManyDatasetVersions(
+          { datasetId: id },
+          tx,
+        );
+
+        await this.datasetDbService.deleteDataset(id, tx);
+
+        return documentIds;
+      },
+    );
 
     // Best-effort cleanup of OCR-side blobs for those documents (they live
     // outside the dataset's storagePath).
@@ -739,42 +761,49 @@ export class DatasetService {
         Buffer.from(JSON.stringify(manifest, null, 2)),
       );
 
-      // Update version record
-      await this.datasetDbService.updateDatasetVersion(versionId, {
-        documentCount: manifest.samples.length,
-      });
-
-      // Remove the sample ID from any splits that reference it
+      // Update version record and related DB rows atomically
       const splits =
         await this.datasetDbService.findAllSplitsForVersion(versionId);
 
-      for (const split of splits) {
-        const currentSampleIds = Array.isArray(split.sampleIds)
-          ? (split.sampleIds as string[])
-          : [];
-        if (currentSampleIds.includes(sampleId)) {
-          const updatedSampleIds = currentSampleIds.filter(
-            (id) => id !== sampleId,
+      const orphanedDocumentIds = await this.prismaService.transaction(
+        async (tx) => {
+          await this.datasetDbService.updateDatasetVersion(
+            versionId,
+            { documentCount: manifest.samples.length },
+            tx,
           );
-          await this.datasetDbService.updateSplit(split.id, {
-            sampleIds: updatedSampleIds,
-          });
-        }
-      }
 
-      // Remove ground-truth-generation jobs and their documents for this sample.
-      // Without this, the deleted sample lingers in the HITL ground-truth review
-      // queue (jobs survive because the job→document FK has no cascade, and the
-      // queue filter only checks status + datasetVersionId).
-      const { documentIds } = await this.groundTruthJobDb.deleteJobsForSample(
-        versionId,
-        sampleId,
+          for (const split of splits) {
+            const currentSampleIds = Array.isArray(split.sampleIds)
+              ? (split.sampleIds as string[])
+              : [];
+            if (currentSampleIds.includes(sampleId)) {
+              const updatedSampleIds = currentSampleIds.filter(
+                (id) => id !== sampleId,
+              );
+              await this.datasetDbService.updateSplit(
+                split.id,
+                { sampleIds: updatedSampleIds },
+                tx,
+              );
+            }
+          }
+
+          const { documentIds } =
+            await this.groundTruthJobDb.deleteJobsForSample(
+              versionId,
+              sampleId,
+              tx,
+            );
+
+          return documentIds;
+        },
       );
 
       // Best-effort blob cleanup for any OCR-side artifacts the document
       // produced (e.g., normalized PDF). Failures are logged but not fatal —
       // the user-visible HITL queue entry is already gone.
-      for (const documentId of documentIds) {
+      for (const documentId of orphanedDocumentIds) {
         try {
           const documentPrefix = buildBlobPrefixPath(
             groupId,
@@ -832,19 +861,21 @@ export class DatasetService {
       );
     }
 
-    // Delete splits for the version first
-    await this.datasetDbService.deleteManySplits({
-      datasetVersionId: versionId,
-    });
+    const orphanedDocumentIds = await this.prismaService.transaction(
+      async (tx) => {
+        await this.datasetDbService.deleteManySplits(
+          { datasetVersionId: versionId },
+          tx,
+        );
 
-    // Remove ground-truth jobs and their Documents before the version cascade
-    // fires (job→document has no onDelete cascade). See deleteSample for the
-    // same reasoning.
-    const { documentIds: orphanedDocumentIds } =
-      await this.groundTruthJobDb.deleteJobsForVersions([versionId]);
+        const { documentIds } =
+          await this.groundTruthJobDb.deleteJobsForVersions([versionId], tx);
 
-    // Delete the version record
-    await this.datasetDbService.deleteDatasetVersion(versionId);
+        await this.datasetDbService.deleteDatasetVersion(versionId, tx);
+
+        return documentIds;
+      },
+    );
 
     // Delete files from object storage
     const dataset = await this.datasetDbService.findDataset(version.datasetId);

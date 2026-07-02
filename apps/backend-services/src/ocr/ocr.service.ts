@@ -13,6 +13,7 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import {
   type DocumentData,
@@ -57,6 +58,7 @@ export class OcrService {
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   /**
@@ -145,26 +147,33 @@ export class OcrService {
           workflowConfigOverrides,
         );
 
-      // Update document with workflow configuration ID and Temporal workflow execution ID
-      // Note: Status is set automatically by workflow pre-execution hook
-      const updateResult = await this.documentService.updateDocument(
-        documentId,
-        {
-          workflow_config_id: workflowConfigId || undefined,
-          workflow_execution_id: workflowExecutionId,
-        },
-      );
+      // Update document with workflow execution ID (Temporal start is external).
+      const updateResult = await this.prismaService.transaction(async (tx) => {
+        const updated = await this.documentService.updateDocument(
+          documentId,
+          {
+            workflow_config_id: workflowConfigId || undefined,
+            workflow_execution_id: workflowExecutionId,
+          },
+          tx,
+        );
 
-      await this.auditService.recordEvent({
-        event_type: "workflow_run_started",
-        resource_type: "workflow_run",
-        resource_id: workflowExecutionId,
-        document_id: documentId,
-        workflow_execution_id: workflowExecutionId,
-        group_id: document.group_id,
-        payload: {
-          workflow_config_id: workflowConfigId ?? undefined,
-        },
+        await this.auditService.recordEvent(
+          {
+            event_type: "workflow_run_started",
+            resource_type: "workflow_run",
+            resource_id: workflowExecutionId,
+            document_id: documentId,
+            workflow_execution_id: workflowExecutionId,
+            group_id: document.group_id,
+            payload: {
+              workflow_config_id: workflowConfigId ?? undefined,
+            },
+          },
+          tx,
+        );
+
+        return updated;
       });
 
       this.logger.log(

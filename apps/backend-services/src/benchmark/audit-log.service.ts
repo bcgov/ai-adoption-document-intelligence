@@ -7,7 +7,11 @@
  * See feature-docs/003-benchmarking-system/user-stories/US-025-audit-logging.md
  */
 
-import { AuditAction, BenchmarkAuditLog } from "@generated/client";
+import {
+  AuditAction,
+  BenchmarkAuditLog,
+  Prisma,
+} from "@generated/client";
 import { Injectable, Logger } from "@nestjs/common";
 import { AuditLogDbService, FindAuditLogsWhere } from "./audit-log-db.service";
 
@@ -143,20 +147,26 @@ export class AuditLogService {
   /**
    * Generic method to log any audit event
    */
-  async logAuditEvent(params: LogAuditEventParams): Promise<BenchmarkAuditLog> {
+  async logAuditEvent(
+    params: LogAuditEventParams,
+    tx?: Prisma.TransactionClient,
+  ): Promise<BenchmarkAuditLog> {
     const { actorId, action, entityType, entityId, metadata } = params;
 
     this.logger.log(
       `Audit log: ${action} | ${entityType}:${entityId} | actor:${actorId}`,
     );
 
-    return this.auditLogDbService.createAuditLog({
-      actorId,
-      action,
-      entityType,
-      entityId,
-      metadata: metadata as Record<string, unknown>,
-    });
+    return this.auditLogDbService.createAuditLog(
+      {
+        actorId,
+        action,
+        entityType,
+        entityId,
+        metadata: metadata as Record<string, unknown>,
+      },
+      tx,
+    );
   }
 
   /**

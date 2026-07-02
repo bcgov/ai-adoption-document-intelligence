@@ -8,6 +8,31 @@ This document describes the durable audit table used to record **workflow runs**
 - **Compliance:** Append-only record of who did what and when (for the in-scope events).
 - **Non-fatal:** Audit writes are best-effort; failures are logged and do not fail the main operation.
 
+## Mutation audit requirements
+
+In addition to the event types listed below, **every user-initiated create, update, or delete** exposed via the API must emit an audit row:
+
+| Domain | Service | Audit helper |
+|--------|---------|--------------|
+| Global (HITL, groups, tables, documents, workflows) | Feature service or controller | `AuditService.recordEvent` |
+| Benchmark (datasets, runs, definitions) | Feature service | `AuditLogService` or `AuditLogDbService` |
+
+### Placement rules
+
+1. **Transactional mutations:** include the audit insert in the same Prisma transaction by passing `tx` to the audit db-service. If the transaction rolls back, the audit row rolls back with it.
+2. **Non-transactional mutations:** call `recordEvent` / `logAuditEvent` immediately after the write succeeds. Failures are logged and ignored (main operation already committed).
+3. **Read/access endpoints:** record access events per the tables in this document; these are not part of mutation transactions.
+
+### Review checklist
+
+When adding or changing backend mutations, verify:
+
+- [ ] Two or more related writes use a single transaction (see [DATABASE_SERVICES.md](./DATABASE_SERVICES.md)).
+- [ ] An audit event is recorded with the correct `event_type` / `AuditAction`, `resource_type`, `resource_id`, and `actor_id`.
+- [ ] Audit uses the same `tx` when the mutation is transactional.
+
+Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSACTION_AND_AUDIT_AUDIT.md).
+
 ## Schema
 
 - **Table:** `audit_events` (Prisma model `AuditEvent`).
@@ -36,6 +61,25 @@ This document describes the durable audit table used to record **workflow runs**
 | event_type             | When | resource_type  | resource_id              | Payload / notes                    |
 |------------------------|------|----------------|--------------------------|------------------------------------|
 | `workflow_run_started`  | Backend starts graph workflow for a document | workflow_run | workflow_execution_id | workflow_config_id, request_id     |
+
+### Workflow configuration
+
+| event_type | When | resource_type | resource_id | Payload / notes |
+|------------|------|---------------|-------------|-----------------|
+| `workflow_created` | New workflow lineage + v1 created | workflow_lineage | lineage.id | workflow_version_id, version_number, slug, name |
+| `workflow_updated` | Lineage metadata updated (no new version) | workflow_lineage | lineage.id | workflow_version_id, fields_updated |
+| `workflow_version_appended` | New config version appended to lineage | workflow_lineage | lineage.id | workflow_version_id, version_number |
+| `workflow_candidate_created` | Benchmark candidate lineage created | workflow_lineage | candidate lineage.id | source_workflow_version_id, source_lineage_id |
+| `benchmark_workflow_promoted` | Candidate promoted into definition's base lineage | benchmark_definition | definition.id | project_id, candidate_workflow_version_id, base_lineage_id |
+| `benchmark_workflow_applied_to_base` | Candidate applied directly to base lineage | workflow_version | new version.id | project_id, candidate_workflow_version_id, base_lineage_id, new_version_number |
+
+### API keys
+
+| event_type | When | resource_type | resource_id | Payload / notes |
+|------------|------|---------------|-------------|-----------------|
+| `api_key_created` | New API key generated for a group | api_key | key.id | key_prefix, generating_user_id |
+| `api_key_deleted` | API key revoked | api_key | key.id | key_prefix |
+| `api_key_regenerated` | API key rotated in place | api_key | key.id | key_prefix, generating_user_id |
 
 ### HITL events
 
@@ -78,7 +122,10 @@ This document describes the durable audit table used to record **workflow runs**
 ## Implementation
 
 - **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. When `request_id` or `actor_id` are omitted in the input, they are filled from the current request context (AsyncLocalStorage) when available, so callers do not need to pass them explicitly. It is called from:
-  - **OcrService:** after starting a graph workflow and updating the document.
+  - **OcrService:** after starting a graph workflow and updating the document (document update + audit in one transaction).
+  - **WorkflowService:** after creating, updating, or appending workflow versions; after creating benchmark candidate lineages.
+  - **BenchmarkDefinitionService:** after promoting or applying candidate workflows to the base lineage.
+  - **ApiKeyService:** after creating, deleting, or regenerating group API keys.
   - **HitlService:** after creating a session, submitting corrections, approving, escalating, or skipping a session.
   - **DocumentController:** after successfully sending the human approval signal to a workflow; and after authorized delivery of document metadata, file bytes, or OCR to a user (see "Document access" above for the full list of controllers and endpoints).
 - **Migration:** `apps/shared/prisma/migrations/20250224120000_add_audit_events/`.

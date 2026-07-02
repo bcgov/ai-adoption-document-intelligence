@@ -233,6 +233,7 @@ export class DocumentService {
           workflow_execution_id: null,
           model_id: modelId,
           group_id: groupId,
+          content_hash: null,
         };
 
         const saved = await this.documentDb.createDocument(failedDoc);
@@ -267,6 +268,7 @@ export class DocumentService {
         workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
+        content_hash: null,
       };
 
       const savedDocument = await this.documentDb.createDocument(documentData);

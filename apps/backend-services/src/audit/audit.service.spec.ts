@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { Prisma } from "@generated/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import * as requestContextModule from "@/logging/request-context";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -60,6 +61,7 @@ describe("AuditService", () => {
           group_id: "grp-1",
           request_id: "req-1",
         }),
+        undefined,
       );
     });
 
@@ -74,6 +76,7 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({ actor_id: null }),
+        undefined,
       );
     });
 
@@ -91,6 +94,7 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({ actor_id: null }),
+        undefined,
       );
     });
 
@@ -108,6 +112,7 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({ request_id: "ctx-req-1" }),
+        undefined,
       );
     });
 
@@ -130,7 +135,48 @@ describe("AuditService", () => {
           workflow_execution_id: null,
           group_id: null,
         }),
+        undefined,
       );
+    });
+
+    it("should pass tx to createAuditEvent when provided", async () => {
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      await service.recordEvent(
+        {
+          event_type: "TEST",
+          resource_type: "document",
+          resource_id: "res-1",
+        },
+        tx,
+      );
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "TEST",
+          resource_id: "res-1",
+        }),
+        tx,
+      );
+    });
+
+    it("should propagate errors when tx is provided", async () => {
+      mockAuditDb.createAuditEvent.mockRejectedValue(new Error("DB write failed"));
+      const tx = {} as Prisma.TransactionClient;
+
+      await expect(
+        service.recordEvent(
+          {
+            event_type: "FAIL",
+            resource_type: "doc",
+            resource_id: "r1",
+          },
+          tx,
+        ),
+      ).rejects.toThrow("DB write failed");
+
+      expect(mockAppLogger.warn).not.toHaveBeenCalled();
     });
   });
 

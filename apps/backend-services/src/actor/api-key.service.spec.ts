@@ -2,6 +2,7 @@ import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as bcrypt from "bcrypt";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { AuditService } from "@/audit/audit.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { ApiKeyService } from "./api-key.service";
 import { ApiKeyDbService } from "./api-key-db.service";
@@ -14,6 +15,10 @@ const mockApiKeyDbService = {
   deleteApiKeysByGroupId: jest.fn(),
   deleteApiKeyById: jest.fn(),
   updateApiKeyLastUsed: jest.fn(),
+};
+
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
 };
 
 describe("ApiKeyService", () => {
@@ -32,6 +37,10 @@ describe("ApiKeyService", () => {
         {
           provide: ApiKeyDbService,
           useValue: mockApiKeyDbService,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -140,15 +149,28 @@ describe("ApiKeyService", () => {
 
   describe("deleteApiKey", () => {
     it("should throw NotFoundException if no key exists", async () => {
-      mockApiKeyDbService.deleteApiKeyById.mockRejectedValue({ code: "P2025" });
-      await expect(service.deleteApiKey("key123")).rejects.toBeDefined();
+      mockApiKeyDbService.findApiKeyById.mockResolvedValue(null);
+      await expect(service.deleteApiKey("key123")).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it("should delete a key by its ID", async () => {
+      mockApiKeyDbService.findApiKeyById.mockResolvedValue({
+        id: "key123",
+        group_id: "group123",
+        key_prefix: "abcd1234",
+      });
       mockApiKeyDbService.deleteApiKeyById.mockResolvedValue({ id: "key123" });
       await service.deleteApiKey("key123");
       expect(mockApiKeyDbService.deleteApiKeyById).toHaveBeenCalledWith(
         "key123",
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "api_key_deleted",
+          resource_id: "key123",
+        }),
       );
     });
   });

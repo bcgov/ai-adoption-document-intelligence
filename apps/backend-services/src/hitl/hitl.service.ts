@@ -16,6 +16,7 @@ import {
 } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DocumentService } from "../document/document.service";
@@ -71,6 +72,7 @@ export class HitlService {
     private readonly analyticsService: AnalyticsService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly prismaService: PrismaService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -219,34 +221,43 @@ export class HitlService {
       );
     }
 
-    // Create review session
-    const session = await this.reviewDb.createReviewSession(
-      dto.documentId,
-      reviewerId,
-    );
-
-    // Acquire document lock with 10-minute TTL
     const lockTtlMs = 10 * 60 * 1000;
-    await this.reviewDb.acquireDocumentLock({
-      document_id: dto.documentId,
-      reviewer_id: reviewerId,
-      session_id: session.id,
-      expires_at: new Date(Date.now() + lockTtlMs),
-    });
+    const session = await this.prismaService.transaction(async (tx) => {
+      const created = await this.reviewDb.createReviewSession(
+        dto.documentId,
+        reviewerId,
+        tx,
+      );
 
-    const doc = session.document as {
-      group_id?: string;
-      workflow_execution_id?: string;
-    };
-    await this.auditService.recordEvent({
-      event_type: "review_session_started",
-      resource_type: "review_session",
-      resource_id: session.id,
-      actor_id: reviewerId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { document_id: session.document_id },
+      await this.reviewDb.acquireDocumentLock(
+        {
+          document_id: dto.documentId,
+          reviewer_id: reviewerId,
+          session_id: created.id,
+          expires_at: new Date(Date.now() + lockTtlMs),
+        },
+        tx,
+      );
+
+      const doc = created.document as {
+        group_id?: string;
+        workflow_execution_id?: string;
+      };
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_started",
+          resource_type: "review_session",
+          resource_id: created.id,
+          actor_id: reviewerId,
+          document_id: created.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: created.document_id },
+        },
+        tx,
+      );
+
+      return created;
     });
 
     return {
@@ -356,31 +367,43 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    // Save all corrections
-    const savedCorrections = await Promise.all(
-      dto.corrections.map((correction) =>
-        this.reviewDb.createFieldCorrection(sessionId, {
-          field_key: correction.field_key,
-          original_value: correction.original_value,
-          corrected_value: correction.corrected_value,
-          original_conf: correction.original_conf,
-          action: correction.action,
-        }),
-      ),
-    );
-
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
-    await this.auditService.recordEvent({
-      event_type: "review_corrections_submitted",
-      resource_type: "review_session",
-      resource_id: sessionId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { correction_count: savedCorrections.length },
+
+    const savedCorrections = await this.prismaService.transaction(async (tx) => {
+      const corrections = [];
+      for (const correction of dto.corrections) {
+        corrections.push(
+          await this.reviewDb.createFieldCorrection(
+            sessionId,
+            {
+              field_key: correction.field_key,
+              original_value: correction.original_value,
+              corrected_value: correction.corrected_value,
+              original_conf: correction.original_conf,
+              action: correction.action,
+            },
+            tx,
+          ),
+        );
+      }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_corrections_submitted",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { correction_count: corrections.length },
+        },
+        tx,
+      );
+
+      return corrections;
     });
 
     return {
@@ -398,35 +421,50 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const updated = await this.reviewDb.updateReviewSession(sessionId, {
-      status: ReviewStatus.approved,
-      completed_at: new Date(),
-    });
-
-    // Transition document to 'complete' status after HITL approval
-    await this.documentService.updateDocument(session.document_id, {
-      status: DocumentStatus.complete,
-    });
-
-    await this.reviewDb.releaseDocumentLock(sessionId);
-
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
-    await this.auditService.recordEvent({
-      event_type: "review_session_approved",
-      resource_type: "review_session",
-      resource_id: sessionId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { document_id: session.document_id },
-    });
 
-    if (!updated) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.approved,
+          completed_at: new Date(),
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.documentService.updateDocument(
+        session.document_id,
+        {
+          status: DocumentStatus.complete,
+        },
+        tx,
+      );
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_approved",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
+    });
 
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
     // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
@@ -468,36 +506,51 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    // Create a correction record to track the escalation reason
-    await this.reviewDb.createFieldCorrection(sessionId, {
-      field_key: "_escalation",
-      original_value: dto.reason,
-      action: CorrectionAction.flagged,
-    });
-
-    const updated = await this.reviewDb.updateReviewSession(sessionId, {
-      status: ReviewStatus.escalated,
-      completed_at: new Date(),
-    });
-
-    if (!updated) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
-
-    await this.reviewDb.releaseDocumentLock(sessionId);
-
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
-    await this.auditService.recordEvent({
-      event_type: "review_session_escalated",
-      resource_type: "review_session",
-      resource_id: sessionId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { document_id: session.document_id, reason: dto.reason },
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      await this.reviewDb.createFieldCorrection(
+        sessionId,
+        {
+          field_key: "_escalation",
+          original_value: dto.reason,
+          action: CorrectionAction.flagged,
+        },
+        tx,
+      );
+
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.escalated,
+          completed_at: new Date(),
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_escalated",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id, reason: dto.reason },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
     });
 
     return {
@@ -516,29 +569,41 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const updated = await this.reviewDb.updateReviewSession(sessionId, {
-      status: ReviewStatus.skipped,
-      completed_at: new Date(),
-    });
-
-    if (!updated) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
-
-    await this.reviewDb.releaseDocumentLock(sessionId);
-
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
-    await this.auditService.recordEvent({
-      event_type: "review_session_skipped",
-      resource_type: "review_session",
-      resource_id: sessionId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { document_id: session.document_id },
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.skipped,
+          completed_at: new Date(),
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_skipped",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
     });
 
     return {
@@ -639,34 +704,45 @@ export class HitlService {
       }
     }
 
-    // Update session to in_progress
-    await this.reviewDb.updateReviewSession(sessionId, {
-      status: ReviewStatus.in_progress,
-      completed_at: null,
-    });
-
-    // Re-acquire document lock
     const lockTtlMs = 10 * 60 * 1000;
-    await this.reviewDb.acquireDocumentLock({
-      document_id: session.document_id,
-      reviewer_id: reviewerId,
-      session_id: sessionId,
-      expires_at: new Date(Date.now() + lockTtlMs),
-    });
-
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
     };
-    await this.auditService.recordEvent({
-      event_type: "review_session_reopened",
-      resource_type: "review_session",
-      resource_id: sessionId,
-      actor_id: reviewerId,
-      document_id: session.document_id,
-      workflow_execution_id: doc.workflow_execution_id ?? undefined,
-      group_id: doc.group_id ?? undefined,
-      payload: { document_id: session.document_id },
+
+    await this.prismaService.transaction(async (tx) => {
+      await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.in_progress,
+          completed_at: null,
+        },
+        tx,
+      );
+
+      await this.reviewDb.acquireDocumentLock(
+        {
+          document_id: session.document_id,
+          reviewer_id: reviewerId,
+          session_id: sessionId,
+          expires_at: new Date(Date.now() + lockTtlMs),
+        },
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_reopened",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          actor_id: reviewerId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id },
+        },
+        tx,
+      );
     });
 
     // Revert ground truth job to awaiting_review if this document is part of GT generation
