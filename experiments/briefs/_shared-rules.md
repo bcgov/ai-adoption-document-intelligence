@@ -51,6 +51,12 @@ You are on `experiment/<slug>`, stacked on `feature/extraction-experiments`. **S
 - **Per-experiment test + fixture layout** (consistent across the stack):
   - `apps/temporal/src/experiment-<slug>.test.ts` — workflow-level tests for your template
   - `apps/temporal/src/__fixtures__/experiment-<slug>/` — recorded engine responses for replay
+- **Per-experiment iteration kit** (canonical from E02; reuse it):
+  - `experiments/results/<slug>/iteration/prompt.md` — global instruction prompt sent to the engine
+  - `experiments/results/<slug>/iteration/field-descriptions.json` — per-field description overlay (keys must match `field_key`s)
+  - `experiments/results/<slug>/iteration/README.md` — how to iterate
+  - `apps/temporal/src/scripts/iterate-<slug>-extraction.ts` — single-doc smoke test (~14 s per call); pattern lifted from `iterate-mistral-extraction.ts`
+  - The iteration files are the source of truth; copy their content into the workflow JSON's activity `parameters` once you're happy. Re-seed before running the full benchmark.
 - `experiments/results/<slug>/SUMMARY.md` — your results write-up
 - `experiments/results/<slug>/benchmark-run.json` — the full export from `GET /runs/{runId}/download`
 - `docs-md/EXTRACTION_EXPERIMENTS.md` — fill in your experiment's row in the status table and the engine-integration checklist
@@ -69,14 +75,20 @@ For everything else (including parent-branch infra), the rule is: **fix it on yo
 
 Confirm and document these 12 items as you implement. Fill in the checklist row for your experiment in `docs-md/EXTRACTION_EXPERIMENTS.md`.
 
-1. **Map engine output to canonical `OCRResult`** — mapper at `apps/temporal/src/ocr-providers/<engine>/<engine>-to-ocr-result.ts`. Pages with words/lines/KVPs at the granularity downstream activities consume. Reference: `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`.
+1. **Map engine output to canonical `OCRResult`** — mapper at `apps/temporal/src/ocr-providers/<engine>/<engine>-to-ocr-result.ts`. Pages with words/lines/KVPs at the granularity downstream activities consume. Reference: `apps/temporal/src/ocr-providers/mistral/mistral-to-ocr-result.ts`. **Numeric fields' nullability is engine-dependent.** Some grounds-truth conventions distinguish "blank cell" (returned as `null` or `""`) from "explicit zero" (returned as `0`). If your engine emits a structured-output schema, support a `numericFieldsNullable` toggle so blank ≠ 0. The Mistral converter (`field-definitions-to-mistral-annotation-format.ts`) is the canonical example — it emits `["number", "null"]` when the toggle is on.
 2. **Activity types registered in all three registries** (per `ADDING_OCR_PROVIDERS.md`): `apps/temporal/src/activity-registry.ts`, `apps/temporal/src/activity-types.ts`, and `apps/backend-services/src/workflow/activity-registry.ts`. Choose single sync activity (Mistral pattern, `mistralOcr.process`) or multi-step `submit`/`poll`/`extract` (Azure DI pattern, with `pollUntil` node). Naming: `<provider>Ocr.process` (sync) or `<provider>Ocr.{submit,poll,extract}` (async). Set timeout + retry policy that matches engine's SLA.
 3. **Field schema → engine format converter** — if engine takes a schema (Mistral, CU), file at `apps/temporal/src/ocr-providers/<engine>/field-definitions-to-<engine>.ts`. Convert `FieldDefinition[]` (with `field_type`, `field_format`) to engine format. Reference: `apps/temporal/src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format.ts`.
 4. **Confidence values 0–1** — `OCRResult` confidences must be 0–1 to interop with `apps/temporal/src/activities/check-ocr-confidence.ts` (default threshold 0.95).
-5. **Bounding-box coordinate convention** — Azure DI returns inches from top-left at API `2024-11-30`. If your engine returns pixels or page-relative coordinates, convert in the mapper.
+5. **Bounding-box coordinate convention** — Azure DI returns inches from top-left at API `2024-11-30`. If your engine returns pixels or page-relative coordinates, convert in the mapper. **Some engines don't return per-word/per-line bboxes at all** (Mistral OCR is one — only embedded-image bboxes via `pages[].images[]`). The Mistral mapper still populates polygons *if* bbox data is present, but in practice they stay empty for that engine. Don't promise downstream consumers (E05's hybrid) word polygons unless you've confirmed they exist by inspecting a real response.
 6. **Page indexing** — match the convention used in `OCRResult` and downstream activities. Document 0- or 1-indexed in your `SUMMARY.md`.
-7. **Auth & endpoint via env vars** — declared in `apps/{backend-services,temporal}/.env.sample` already (parent-branch deliverable). Document whether engine routes through APIM or direct in `SUMMARY.md`.
+7. **Auth & endpoint via env vars** — declared in `apps/{backend-services,temporal}/.env.sample` already (parent-branch deliverable). Document whether engine routes through APIM or direct in `SUMMARY.md`. **Foundry deployments default to ~10 RPM**, and the public-API-style 3-attempt retry policy gets blanket-429'd under benchmark fan-out. The canonical retry pattern is **30 attempts × initialInterval 15 s × backoffCoefficient 1.5 × maximumInterval 60 s** — apply it on engine-specific activities (see `mistralAzureOcr.process` in `activity-registry.ts`). Either request a quota uplift up-front via Azure support, or accept the latency cost and tune the retry. Verify the actual auth header by inspecting an existing client (e.g., LiteLLM source) — Foundry's "Azure-AI" route uses `Authorization: Bearer`, **not** `api-key`, despite what some docs imply.
 8. **Workflow graph template** at `docs-md/graph-workflows/templates/<slug>-workflow.json`, validated by the graph schema test suite (`graph-schema-validator.test.ts`). Follow the standard node sequence per `ADDING_OCR_PROVIDERS.md` § 3 step 4: `file.prepare` → provider OCR (sync activity, or `submit` → `pollUntil(poll)` → `extract`) → `ocr.cleanup` → `ocr.checkConfidence` → HITL switch/gate → `ocr.storeResults`. Add `ocr.enrich` after cleanup if the engine benefits from schema-aware LLM enrichment. Reference `templates/mistral-standard-ocr-workflow.json` for the sync pattern, `templates/standard-ocr-workflow.json` for the async pattern. Pass provider-specific options (model/version, template id, prompt overrides) via `initialCtx` keys, not new global env vars (per `ADDING_OCR_PROVIDERS.md` § 3 step 5).
+
+   **Production-grade prompts are part of the deliverable, not a follow-up.** Bare schemas with field_keys-only consistently underperform on general-purpose engines. The canonical pattern from E02:
+   - A global `documentAnnotationPrompt` (or engine equivalent) describing form layout, column conventions, blank-vs-zero rules, signature-vs-name distinctions, etc.
+   - A per-field `description` overlay (one description per `field_key`) attached to each property in the structured-output schema. Set the descriptions to disambiguate ambiguous fields (e.g. APPLICANT-column-vs-SPOUSE-column on parallel income tables).
+   - Both live in `experiments/results/<slug>/iteration/{prompt.md, field-descriptions.json}` and are embedded into the workflow JSON's activity `parameters` for the benchmark.
+   - **Verify that your engine's structured-output mode is actually running.** Some Foundry routes silently skip the structured pass on 200 OK responses unless a strictness flag is set (e.g. Mistral on Foundry needs `json_schema.strict: true`; OpenAI structured outputs need `strict: true`; CU's analyzer config has its own). After the first benchmark run, inspect ONE cached response and confirm: did `pages_processed_annotation` (or the equivalent counter for your engine) go above 0? Did the structured-fields object come back populated? If not, search for the engine's strict-mode flag before debugging anything else.
 9. **Engine-internal preprocessing** — does the engine deskew/rotate/denoise internally? Document so we don't double-process. Upstream is `apps/backend-services/src/document/pdf-normalization.service.ts`.
 10. **Test coverage** — see dev loop below. Two layers: static template assertions + runtime tests against the local Temporal cluster. Both live at `apps/temporal/src/experiment-<slug>.test.ts` with fixtures at `apps/temporal/src/__fixtures__/experiment-<slug>/`.
 11. **Benchmark integration — auto-discovered from your workflow JSON**. The seed (`seedExperimentWorkflows()` in `apps/shared/prisma/seed.ts`) scans `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each file idempotently creates:
@@ -94,6 +106,8 @@ Confirm and document these 12 items as you implement. Fill in the checklist row 
       "http://localhost:3002/api/benchmark/projects/seed-experiments-project/runs/<runId>/download" \
       > experiments/results/<slug>/benchmark-run.json
     ```
+
+    **Sync providers must emit a raw-response output port for `benchmark_ocr_cache` to populate.** The benchmark sample workflow's `persistOcrCache` step looks for `ctx.ocrResponse` specifically — a workflow that only emits `ctx.ocrResult` produces no cache rows, which silently breaks fixture capture and the OCR-replay path. Pattern: have your activity return `{ ocrResult, ocrResponse }`, declare `ocrResponse: { type: "object" }` in the workflow's `ctx`, and add a second `outputs` mapping on the activity node (`{ port: "ocrResponse", ctxKey: "ocrResponse" }`). Reference: `experiment-02-mistral-doc-ai-azure-workflow.json`.
 12. **Cost/usage telemetry** — record per-call usage on the run's `metrics` JSON. DI per page, Mistral per page/char, Azure OpenAI per token, CU has both content-extraction and generative-model components.
 
 ## Dev loop
@@ -125,13 +139,32 @@ Cross-engine accuracy comparison happens **after** all experiments land, by read
 
 ## Common bugs you'll hit (runbook)
 
-These were discovered during E01 and are fixed in the chained stack — keep an eye out in case your engine's path tickles a similar issue:
+These were discovered during E01 + E02 and are fixed in the chained stack — keep an eye out in case your engine's path tickles a similar issue:
 
 - **Benchmark trigger script**: previously sent `tags` as an array; `CreateRunDto` expects an object (`{"tags":{"experiment":"<slug>"},"persistOcrCache":true}`). Fixed in `scripts/run-experiment-benchmarks.sh` on the E01 branch.
 - **`manifestPath` storage**: previously stored as the full blob key. Both `seed.ts` and `local-dataset-sync.service.ts` now store `"dataset-manifest.json"` (relative), matching `dataset.service.ts createVersion`. Fixed in the E01 branch.
 - **Evaluator naming**: `seedExperimentWorkflows()` previously seeded `evaluatorType: "field-accuracy"` which doesn't exist in the registry. Now uses `"schema-aware"` with `defaultRule: { rule: "fuzzy", fuzzyThreshold: 0.85 }, passThreshold: 0.8`. Tune the rule per engine if needed.
 - **Confidence threshold recalibration** — `check-ocr-confidence.ts` defaults to 0.95, tuned for template OCR. Each engine's confidence distribution may shift this. Document your engine's observed spread in `SUMMARY.md`; if HITL never fires (every sample passes), or always fires (every sample fails), recalibrate the per-experiment template's `ctx.confidenceThreshold.defaultValue`. Engines that emit a single canned confidence value (some VLMs do) need a different gating strategy — flag in your SUMMARY rather than hack around it.
 - **Hot reload (`apps/temporal`)**: the dev script narrowly watches `'src/**/*.ts'` so JSON fixture edits don't trigger a worker drain/reload cycle. Don't drop fixtures outside `apps/temporal/src/__fixtures__/<slug>/` or you'll lose this. The worker also explicitly closes its `NativeConnection` and `process.exit(0)`s so `ts-node-dev --respawn` reliably brings up a new instance after source-file edits.
+- **Local-dataset edits don't propagate to cloud automatically.** `LocalDatasetSyncService` is idempotent (skips files that already exist on blob storage), so renames or content edits in `data/datasets/<folder>/<visibility>/` stay local. The benchmark reads from cloud via the materializer, so the misalignment looks fixed locally but produces unchanged metrics on the next run. **Workaround:** restart the backend with `FORCE_RESYNC_LOCAL_DATASETS=true npm run start:dev` — this nukes the dataset's blob prefix and re-uploads from disk before continuing the bootstrap. Drop the env var on the next start. Also clear `/tmp/benchmark-cache/<datasetId>-<versionId>/` so the next benchmark materialises fresh. Implemented on the E02 branch in `local-dataset-sync.service.ts`.
+- **Stale `templateModelId` defaults when forking workflows.** When you copy `mistral-standard-ocr-workflow.json` (or any sibling template) and adapt it, the `templateModelId` `defaultValue` is a UUID that may not exist after `npm run test:db:reset` (the seed creates the SDPR template with the deterministic id `seed-sdpr-monthly-report-template`). If the activity logs `template_not_found_or_empty_schema`, this is why — replace the default with `seed-sdpr-monthly-report-template`.
+- **Engine response shape may not match the brief's preamble.** The brief writer doesn't always have a real response in front of them. **Capture a fixture before you trust assertions about field availability.** E02's brief claimed Mistral returns per-word bboxes — it doesn't. Run the iteration script (or a one-shot curl) once before writing the mapper, and adapt the mapper to what's actually there.
+
+## Iteration kit pattern (E02 standard)
+
+Setting up production-grade prompts is iterative; setting up the *iteration loop* is one-time. Pattern:
+
+1. Drop a starter `prompt.md` and `field-descriptions.json` into `experiments/results/<slug>/iteration/`. Both are editable text — the user (and you) refine them.
+2. Add `apps/temporal/src/scripts/iterate-<slug>-extraction.ts` (lift from `iterate-mistral-extraction.ts`). It:
+   - Loads `prompt.md` and `field-descriptions.json` directly from the iteration folder.
+   - Loads ONE sample's image + ground truth from `data/datasets/<folder>/<visibility>/`.
+   - Calls the engine directly (NOT through Temporal — avoids worker reloads).
+   - Compares predicted to expected, prints a per-field diff, dumps `last-{request,response,diff}.{json,md}` back into the iteration folder.
+   - Run time: ~14 s per sample on Foundry-routed engines.
+3. Iterate prompt + descriptions → re-run smoke test → look at diff → repeat.
+4. When you're happy, copy `prompt.md` content + `field-descriptions.json` content into the workflow JSON's activity `parameters` (key names: `documentAnnotationPrompt`, `fieldDescriptions`, plus engine-specific flags like `numericFieldsNullable`).
+5. Re-seed (`npm run test:db:reset`) so the `WorkflowVersion` row in the DB picks up the new JSON. Trigger the full benchmark.
+6. After the benchmark, inspect `benchmark_ocr_cache` for ONE sample to confirm the prompts arrived at the engine end-to-end. If structured fields are still empty, check the strict-mode flag.
 
 ## Done criteria
 

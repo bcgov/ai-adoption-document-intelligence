@@ -40,8 +40,13 @@ function makeFakeBlobStorage(prePopulated: string[] = []): FakeBlobStore {
     async list(_prefix: BlobPrefixPath): Promise<string[]> {
       return Array.from(blobs.keys());
     },
-    async deleteByPrefix(_prefix: BlobPrefixPath): Promise<void> {
-      // unused
+    async deleteByPrefix(prefix: BlobPrefixPath): Promise<void> {
+      const p = String(prefix);
+      for (const key of Array.from(blobs.keys())) {
+        if (key.startsWith(p)) {
+          blobs.delete(key);
+        }
+      }
     },
   };
   return { blobs, storage, writes };
@@ -246,6 +251,68 @@ describe("syncLocalDatasetToBlobStorage", () => {
       expect(blob.writes[blob.writes.length - 1].key).toMatch(
         /dataset-manifest\.json$/,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("force mode wipes the dataset prefix and re-uploads even when files already exist", async () => {
+    const { repoRoot, parsed, cleanup } = setupRepoWithDataset(
+      "ds-force",
+      "private",
+      [
+        { name: "a.jpg", content: "img" },
+        { name: "a.json", content: "{}" },
+      ],
+    );
+    const blob = makeFakeBlobStorage();
+    const prisma = makePrismaStub();
+    try {
+      const first = await syncLocalDatasetToBlobStorage(
+        parsed,
+        repoRoot,
+        blob.storage,
+        prisma.client,
+      );
+      expect(first.uploaded).toBe(2);
+
+      // Add a stale orphan file under the dataset prefix that wouldn't be
+      // touched by an idempotent sync (simulates a renamed/removed file
+      // from a prior layout).
+      const datasetPrefix =
+        "seeddefaultgroup/benchmark/datasets/seed-local-ds-force-private/seed-local-ds-force-private-v1";
+      blob.blobs.set(
+        `${datasetPrefix}/inputs/orphan.jpg` as unknown as BlobFilePath,
+        Buffer.from("stale"),
+      );
+      expect(blob.blobs.size).toBeGreaterThan(2);
+
+      // Force mode: deletes everything under the prefix, then re-uploads.
+      const forced = await syncLocalDatasetToBlobStorage(
+        parsed,
+        repoRoot,
+        blob.storage,
+        prisma.client,
+        { force: true },
+      );
+      expect(forced.uploaded).toBe(2);
+      // Orphan must be gone after force resync.
+      expect(
+        blob.blobs.has(
+          `${datasetPrefix}/inputs/orphan.jpg` as unknown as BlobFilePath,
+        ),
+      ).toBe(false);
+      // The two manifest files plus dataset-manifest.json are present.
+      expect(
+        blob.blobs.has(
+          `${datasetPrefix}/inputs/a.jpg` as unknown as BlobFilePath,
+        ),
+      ).toBe(true);
+      expect(
+        blob.blobs.has(
+          `${datasetPrefix}/dataset-manifest.json` as unknown as BlobFilePath,
+        ),
+      ).toBe(true);
     } finally {
       cleanup();
     }
