@@ -1,7 +1,7 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client, Connection } from "@temporalio/client";
+import { Client, Connection, WorkflowNotFoundError } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
 import { computeConfigHashWithOverrides } from "../workflow/config-hash";
@@ -289,6 +289,30 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       throw this.handleError(error, `get workflow status for ${workflowId}`);
+    }
+  }
+
+  /**
+   * Reports whether a workflow execution is currently Running.
+   *
+   * Returns false when no execution exists for the given ID (never started, or
+   * the record was reclaimed), so callers can safely treat a missing execution
+   * as "not running" — e.g. an orphaned document whose prior run already closed.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async isWorkflowRunning(workflowId: string): Promise<boolean> {
+    this.ensureClientInitialized();
+
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      const description = await handle.describe();
+      return description.status.name === "RUNNING";
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        return false;
+      }
+      throw this.handleError(error, `check running state for ${workflowId}`);
     }
   }
 
