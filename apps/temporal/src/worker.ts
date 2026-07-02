@@ -9,9 +9,15 @@
 import "./env-loader";
 
 import * as http from "node:http";
+import type { ActivityInterceptorsFactory } from "@temporalio/worker";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getPrismaClient } from "./activities/database-client";
 import { getActivityRegistry } from "./activity-registry";
+import {
+  ActivityBillingInterceptor,
+  loadRateVersionContext,
+} from "./billing/activity-billing-interceptor";
+import { UsageEventWriter } from "./billing/usage-event-writer";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
 import { temporalDataConverter } from "./temporal-data-converter";
@@ -202,6 +208,23 @@ async function run() {
     activitiesMap[activityType] = entry.activityFn;
   }
 
+  // Load billing rate version context for the activity interceptor (US-007/008)
+  const prisma = getPrismaClient();
+  const rateVersionContext = await loadRateVersionContext(prisma);
+  const billingWriter = new UsageEventWriter(prisma);
+
+  const billingInterceptorFactory: ActivityInterceptorsFactory = (_ctx) => {
+    if (!rateVersionContext) {
+      return {};
+    }
+    return {
+      inbound: new ActivityBillingInterceptor(
+        billingWriter,
+        rateVersionContext,
+      ),
+    };
+  };
+
   // Create workers array to track all running workers
   const workers: Worker[] = [];
 
@@ -217,6 +240,9 @@ async function run() {
     // Concurrency limits for horizontal scaling (Group 5: HA)
     maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
+    interceptors: {
+      activity: [billingInterceptorFactory],
+    },
   });
   workers.push(ocrWorker);
 
@@ -235,6 +261,9 @@ async function run() {
       // Concurrency limits for horizontal scaling (Group 5: HA)
       maxConcurrentActivityTaskExecutions,
       maxConcurrentWorkflowTaskExecutions,
+      interceptors: {
+        activity: [billingInterceptorFactory],
+      },
     });
     workers.push(benchmarkWorker);
 

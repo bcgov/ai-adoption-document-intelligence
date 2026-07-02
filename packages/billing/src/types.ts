@@ -34,6 +34,12 @@ export interface RecordUsageEventInput {
   storage_gb_hours?: number;
   resource_id?: string;
   resource_type?: string;
+  /**
+   * When true, the UsagePeriodSummary is not updated.
+   * Use for informational lifecycle events (workflow_started, workflow_completed, etc.)
+   * that record estimates or aggregates rather than new spend.
+   */
+  skipSummaryUpdate?: boolean;
 }
 
 /** Minimal shape of the usageEvent.create data argument, Prisma-compatible. */

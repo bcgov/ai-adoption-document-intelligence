@@ -15,6 +15,7 @@ import {
   setHandler,
   workflowInfo,
 } from "@temporalio/workflow";
+import type { RecordWorkflowLifecycleInput } from "./billing/record-workflow-lifecycle.activity";
 import { runGraphExecution } from "./graph-engine";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import {
@@ -46,6 +47,12 @@ type PreExecutionActivities = {
   "document.getStatus": (params: { documentId: string }) => Promise<{
     status: string;
   }>;
+};
+
+type BillingActivities = {
+  "billing.recordWorkflowLifecycle": (
+    input: RecordWorkflowLifecycleInput,
+  ) => Promise<unknown>;
 };
 
 // Workflow type constant
@@ -274,9 +281,48 @@ export async function graphWorkflow(
       }
     }
 
+    // US-006: Record workflow terminal lifecycle billing event
+    if (input.groupId) {
+      try {
+        const billingProxy = proxyActivities<BillingActivities>({
+          startToCloseTimeout: "30s",
+          retry: { maximumAttempts: 3 },
+        });
+        await billingProxy["billing.recordWorkflowLifecycle"]({
+          workflowExecutionId: workflowInfo().workflowId,
+          groupId: input.groupId,
+          status: result.status,
+        });
+      } catch (billingError) {
+        console.warn(
+          `[GraphWorkflow] Billing lifecycle event failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
+        );
+      }
+    }
+
     return result;
   } catch (error) {
     overallStatus = "failed";
+
+    // US-006: Record workflow_failed billing event before rethrowing
+    if (input.groupId) {
+      try {
+        const billingProxy = proxyActivities<BillingActivities>({
+          startToCloseTimeout: "30s",
+          retry: { maximumAttempts: 3 },
+        });
+        await billingProxy["billing.recordWorkflowLifecycle"]({
+          workflowExecutionId: workflowInfo().workflowId,
+          groupId: input.groupId,
+          status: "failed",
+        });
+      } catch (billingError) {
+        console.warn(
+          `[GraphWorkflow] Billing lifecycle event (failed) failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
+        );
+      }
+    }
+
     if (error instanceof Error) {
       workflowError = error.message;
     }

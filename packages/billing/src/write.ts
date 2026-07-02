@@ -8,8 +8,11 @@ import type {
 export interface UsageEventWriteOps {
   /** Pass to `tx.usageEvent.create({ data: createData })` */
   createData: UsageEventCreateData;
-  /** Pass to `tx.usagePeriodSummary.upsert(upsertArgs)` */
-  upsertArgs: UsagePeriodSummaryUpsertArgs;
+  /**
+   * Pass to `tx.usagePeriodSummary.upsert(upsertArgs)`, or null when
+   * `skipSummaryUpdate` is true (lifecycle events that should not modify the summary).
+   */
+  upsertArgs: UsagePeriodSummaryUpsertArgs | null;
 }
 
 /**
@@ -38,20 +41,26 @@ export function buildUsageEventWriteOps(
   const periodMonth = now.getUTCMonth() + 1;
   const dollarsIncrement = input.units_consumed * input.unit_cost_dollars;
 
+  const createData: UsageEventCreateData = {
+    event_type: input.event_type,
+    group_id: input.group_id,
+    rate_version_id: input.rate_version_id,
+    units_consumed: input.units_consumed,
+    workflow_execution_id: input.workflow_execution_id ?? null,
+    activity_name: input.activity_name ?? null,
+    metered_quantity: input.metered_quantity ?? null,
+    estimated_units: input.estimated_units ?? null,
+    storage_gb_hours: input.storage_gb_hours ?? null,
+    resource_id: input.resource_id ?? null,
+    resource_type: input.resource_type ?? null,
+  };
+
+  if (input.skipSummaryUpdate) {
+    return { createData, upsertArgs: null };
+  }
+
   return {
-    createData: {
-      event_type: input.event_type,
-      group_id: input.group_id,
-      rate_version_id: input.rate_version_id,
-      units_consumed: input.units_consumed,
-      workflow_execution_id: input.workflow_execution_id ?? null,
-      activity_name: input.activity_name ?? null,
-      metered_quantity: input.metered_quantity ?? null,
-      estimated_units: input.estimated_units ?? null,
-      storage_gb_hours: input.storage_gb_hours ?? null,
-      resource_id: input.resource_id ?? null,
-      resource_type: input.resource_type ?? null,
-    },
+    createData,
     upsertArgs: {
       where: {
         group_id_period_year_period_month: {
@@ -74,3 +83,4 @@ export function buildUsageEventWriteOps(
     },
   };
 }
+

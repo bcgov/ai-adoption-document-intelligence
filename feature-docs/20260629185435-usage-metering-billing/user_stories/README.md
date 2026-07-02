@@ -70,11 +70,11 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-003** (shared service for writing UsageEvents and maintaining UsagePeriodSummary) — required by all metering instrumentation in Phases 4–6
 
 ### Phase 4 — Workflow Metering
-- [ ] **US-004** (pre-flight cost estimation via max-flow DAG traversal)
-- [ ] **US-005** (pre-flight spending cap check with HTTP 402) — depends on US-003 and US-004
-- [ ] **US-006** (workflow_started / completed / failed / cancelled lifecycle events) — depends on US-003
-- [ ] **US-007** (Temporal ActivityInboundCallsInterceptor for flat-cost activities) — depends on US-003
-- [ ] **US-008** (per-page billing via _metered_quantity on azureOcr.extract) — depends on US-007
+- [x] **US-004** (pre-flight cost estimation via max-flow DAG traversal)
+- [x] **US-005** (pre-flight spending cap check with HTTP 402) — depends on US-003 and US-004
+- [x] **US-006** (workflow_started / completed / failed / cancelled lifecycle events) — depends on US-003
+- [x] **US-007** (Temporal ActivityInboundCallsInterceptor for flat-cost activities) — depends on US-003
+- [x] **US-008** (per-page billing via _metered_quantity on azureOcr.extract) — depends on US-007
 
 ### Phase 5 — Storage Tracking
 - [ ] **US-009** (BlobStorageClient instrumentation — both backend and Temporal worker) — depends on US-001

@@ -29,7 +29,7 @@ export async function extractOCRResults(params: {
   groupId?: string | null;
   outputFormat?: OcrOutputFormat;
   ocrResponse?: OCRResponse | OcrPayloadRef;
-}): Promise<{ ocrResult: OcrPayloadRef }> {
+}): Promise<{ ocrResult: OcrPayloadRef; _metered_quantity?: number }> {
   const activityName = "extractOCRResults";
   const documentId = requireDocumentId(params);
   const {
@@ -138,6 +138,7 @@ export async function extractOCRResults(params: {
         "succeeded",
         byteLength,
       ),
+      _metered_quantity: result.pages.length,
     };
   } catch (error) {
     const errorMessage = getErrorMessage(error);

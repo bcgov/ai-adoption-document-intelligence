@@ -125,6 +125,10 @@ export type {
   AiRecommendationOutput,
   ToolRecommendation,
 } from "./ai-recommendation-types";
+export type { RecordWorkflowLifecycleInput } from "./billing/record-workflow-lifecycle.activity";
+
+// Billing lifecycle activity (US-006)
+export { recordWorkflowLifecycle } from "./billing/record-workflow-lifecycle.activity";
 export type {
   CorrectionResult,
   CorrectionToolParams,

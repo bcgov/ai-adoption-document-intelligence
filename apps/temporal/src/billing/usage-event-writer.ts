@@ -29,7 +29,9 @@ export class UsageEventWriter {
     const { createData, upsertArgs } = buildUsageEventWriteOps(input);
     return this.prisma.$transaction(async (tx) => {
       const event = await tx.usageEvent.create({ data: createData });
-      await tx.usagePeriodSummary.upsert(upsertArgs);
+      if (upsertArgs) {
+        await tx.usagePeriodSummary.upsert(upsertArgs);
+      }
       return event;
     });
   }
