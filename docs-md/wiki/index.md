@@ -6,6 +6,7 @@ This wiki is a compact map of the Document Intelligence Platform. Use it to find
 
 - [System overview](system-overview.md): service boundaries, platform shape, and major source paths.
 - [Graph workflows](graph-workflows.md): DAG workflow engine, activity registration, and execution semantics.
+- [Extraction](extraction.md): OCR, classifiers, correction/enrichment activities, and extraction-quality feedback loops.
 - [Workflow builder](workflow-builder.md): frontend authoring UI, node palette, and workflow JSON editing.
 - [Tables and extensions](tables-and-extensions.md): reference data tables and the preferred workflow extension pattern.
 - [Blob storage](blob-storage.md): unified MinIO/Azure storage abstraction across backend and Temporal.

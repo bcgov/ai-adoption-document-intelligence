@@ -3,7 +3,7 @@
 - When creating or updating backend code also create and update related tests. If backend code was updated, run tests to ensure they still pass. Adjust tests if they fail and re-run.
 - Do not create "placeholders" or any other types of partial implementations or stubs for "future use", implement features requested only.
 - Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
-- When creating or modifying features, create/update documentation in /docs-md folder
+- When creating or modifying features, create/update documentation in the matching `/docs-md` topic folder (taxonomy in `docs-md/README.md`). The `docs-sync` skill (`.claude/skills/docs-sync/`) has workflows for keeping docs in sync, auditing accuracy, adding docs, and archiving stale ones.
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
 - All backend controllers must have full Swagger/OpenAPI documentation: use specific decorators (`@ApiOkResponse`, `@ApiForbiddenResponse`, `@ApiUnauthorizedResponse`, `@ApiConflictResponse`, etc.) instead of generic `@ApiResponse`, create dedicated DTO classes with `@ApiProperty` decorators for all request/response shapes, and reference those DTOs via the `type` field in response decorators.

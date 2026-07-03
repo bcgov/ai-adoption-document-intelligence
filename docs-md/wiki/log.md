@@ -70,3 +70,7 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Finished the remaining 56 doc audits inline (architecture, auth, benchmarking, extraction, frontend, groups UI, monitoring, operations, workflows batches); notable fixes: blob key scheme is group-scoped `{groupId}/{category}/...`, confusion-matrix derivation is the confusion-profiles module, legacy step-based enrichment config removed, node catalog now covers all registry activities, DAG engine historical migration appendix replaced.
 - Gap scan across backend/temporal/frontend/packages/ops/CI found one substantive gap: added docs-md/operations/CI_WORKFLOWS.md (GitHub Actions map). Thin modules (queue, health, ocr) are covered indirectly by upload/HA/template-model docs.
 - Archived stray docs/LOGGING.md as docs-md/archive/LOGGING_CATEGORIES_2026-03.md.
+
+## [2026-07-03] ingest | Add Extraction wiki topic page
+
+- Added `extraction.md` topic page routing the 11 OCR/extraction docs (previously reachable only by folder browsing); linked from `index.md` and registered in `sources.md`. Resolves the extraction-topic open question.

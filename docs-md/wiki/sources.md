@@ -8,6 +8,7 @@ This registry names the places the wiki should route readers to before summarizi
 | --- | --- |
 | Platform shape and app boundaries | [System overview](system-overview.md) |
 | `docs-md/workflows/` | [Graph workflows](graph-workflows.md) |
+| `docs-md/extraction/` | [Extraction](extraction.md) |
 | `docs-md/workflows/` | [Workflow builder](workflow-builder.md) |
 | `docs-md/architecture/TABLES.md`, `docs-md/architecture/PATTERNS_NODE_AND_UI.md` | [Tables and extensions](tables-and-extensions.md) |
 | `docs-md/architecture/BLOB_STORAGE.md` | [Blob storage](blob-storage.md) |
@@ -40,6 +41,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 ## Stable Docs
 
 - Graph workflows: `docs-md/workflows/` — wiki: [Graph workflows](graph-workflows.md)
+- Extraction: `docs-md/extraction/` — wiki: [Extraction](extraction.md)
 - Workflow builder: `docs-md/workflows/` — wiki: [Workflow builder](workflow-builder.md)
 - HITL: `docs-md/architecture/HITL_ARCHITECTURE.md` — wiki: [HITL](hitl.md)
 - Authentication: `docs-md/auth/AUTHENTICATION.md` — wiki: [Auth and groups](auth-and-groups.md)
