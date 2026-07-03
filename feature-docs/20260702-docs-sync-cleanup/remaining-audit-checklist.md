@@ -20,12 +20,12 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 - [x] monitoring (local/logging): verified; stray `docs/LOGGING.md` archived as `docs-md/archive/LOGGING_CATEGORIES_2026-03.md`
 - [x] operations (env/secrets): verified — all 58 documented env vars exist in code/manifests/deploy scripts; npm hardening and rotation script claims check out
 - [x] operations (infra): verified — scripts/manifests/terraform paths resolve (oc-deploy.sh mention is explicitly historical)
-- [ ] workflows: `DAG_WORKFLOW_ENGINE.md` *(large — verify section-by-section against apps/temporal/src/graph-engine/ and packages/graph-workflow/)*
-- [ ] workflows: `WORKFLOW_NODE_CATALOG.md` *(large — verify against activity registries)*
-- [ ] workflows: `WORKFLOW_BUILDER_GUIDE.md`, `WORKFLOW_DESIGN_BRIEF.md` *(design references — verify status disclaimers, not the target UX)*
-- [ ] workflows: `ADDING_GRAPH_NODES_AND_ACTIVITIES.md`, `ADDING_OCR_PROVIDERS.md`, `MISTRAL_OCR.md`
-- [ ] workflows: `GRAPH_TYPES.md`, `WORKFLOW_LINEAGE_AND_VERSIONS.md`, `page-extract-blob-path.md`, `workflow-config-overrides.md`, `TEMPORAL_WORKER_CONCURRENCY.md`
-- [ ] workflows: `WORKFLOW_NODE_IO_MODEL_DECISION.md` *(decision record — verify disclaimer)*, `templates/README.md` + validate `templates/*.json` still load (they seed via apps/shared/prisma/seed.ts)
+- [x] workflows: `DAG_WORKFLOW_ENGINE.md` — all paths/activity IDs verified; historical Appendix A (migration file list) replaced with a note
+- [x] workflows: `WORKFLOW_NODE_CATALOG.md` — diffed against activity registry; added missing utility activities section (blob.read, tables.lookup, document.* helpers) and 2 benchmark rows
+- [x] workflows: `WORKFLOW_BUILDER_GUIDE.md` (disclaimer verified: visualization still read-only, nodesDraggable=false), `WORKFLOW_DESIGN_BRIEF.md` (design-brief framing intact)
+- [x] workflows: `ADDING_GRAPH_NODES_AND_ACTIVITIES.md`, `ADDING_OCR_PROVIDERS.md`, `MISTRAL_OCR.md` — verified (paths, mistralOcr.process, env vars)
+- [x] workflows: `GRAPH_TYPES.md`, `WORKFLOW_LINEAGE_AND_VERSIONS.md`, `page-extract-blob-path.md`, `workflow-config-overrides.md`, `TEMPORAL_WORKER_CONCURRENCY.md` — verified (node types, revert-head, override safety, concurrency env)
+- [x] workflows: `WORKFLOW_NODE_IO_MODEL_DECISION.md` (decision-record disclaimer intact; links fixed earlier), `templates/README.md` (all 8 templates present; seed paths updated in Phase 1)
 
 ## Gap scan (never completed — one area per session)
 

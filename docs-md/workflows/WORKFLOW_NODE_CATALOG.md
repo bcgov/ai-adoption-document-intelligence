@@ -739,6 +739,22 @@ The activity loads `osd.traineddata` from `apps/temporal/osd.traineddata` (commi
 
 ---
 
+# Utility activities (registry-registered, minimal UI)
+
+These activities are registered in the activity registry and usable in workflow JSON today. They follow the standard settings-panel pattern (inputs/outputs, parameters, timeouts, retry) and mostly serve plumbing roles between the main nodes.
+
+| Display name | Activity ID | One-line description |
+|---|---|---|
+| Get Document Status | `document.getStatus` | Read a document's current status from the database (e.g. for polling loops). |
+| Read Blob | `blob.read` | Read a blob by key from the primary blob store and expose its contents downstream. |
+| Extract Page Range | `document.extractPageRange` | Extract a page range from a stored PDF into a new blob. |
+| Extract Pages (blob path) | `document.extractToBase64` | Extract a page range and return a `pageBlobPath` blob reference (name is historical — output is a blob path, not inline base64; see [page-extract-blob-path.md](./page-extract-blob-path.md)). |
+| Select Classified Pages | `document.selectClassifiedPages` | Select page ranges from classification results for downstream per-segment processing. |
+| Flatten Classified Documents | `document.flattenClassifiedDocuments` | Flatten per-segment classification results into a single document list. |
+| Table Lookup | `tables.lookup` | Query a group-scoped reference data table via a named lookup (see [TABLES.md](../architecture/TABLES.md)). |
+
+---
+
 # Benchmarking (Advanced — usually hidden)
 
 These nodes are used by the benchmarking subsystem and don't usually appear in user-built workflows. They should be in a collapsed "Advanced" section of the palette, behind a feature flag or admin-only toggle.
@@ -755,6 +771,8 @@ These nodes are used by the benchmarking subsystem and don't usually appear in u
 | Benchmark — Load Dataset Manifest | `benchmark.loadDatasetManifest` | Load dataset manifest from materialized data |
 | Benchmark — Load OCR Cache | `benchmark.loadOcrCache` | Load cached Azure OCR poll JSON for a benchmark sample |
 | Benchmark — Persist OCR Cache | `benchmark.persistOcrCache` | Persist Azure OCR poll JSON for a benchmark sample |
+| Benchmark — Flatten Prediction From Refs | `benchmark.flattenPredictionFromRefs` | Build the flat prediction map from OCR blob references for evaluation |
+| Benchmark — Persist Evaluation Details | `benchmark.persistEvaluationDetails` | Persist per-sample evaluation details for run drill-down |
 | Load Workflow Graph Config | `getWorkflowGraphConfig` | Load workflow configuration from database |
 
 These follow the same general settings-panel pattern as other Activities (input/output pickers, parameters, standard error handling) and don't have unique visual requirements beyond the "advanced" tag.

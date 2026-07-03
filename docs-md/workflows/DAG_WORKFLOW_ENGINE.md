@@ -1900,53 +1900,6 @@ During the transition:
 
 ---
 
-## Appendix A: File Changes Summary
+## Appendix A: File Changes Summary (historical)
 
-### Files to Remove
-
-| File | Reason |
-|---|---|
-| `apps/frontend/src/pages/WorkflowPage.tsx` | Replaced by WorkflowEditorPage |
-| `apps/frontend/src/pages/WorkflowEditPage.tsx` | Replaced by WorkflowEditorPage |
-| `apps/frontend/src/components/workflow/WorkflowVisualization.tsx` | Replaced by GraphVisualization |
-| `apps/temporal/src/workflow-config.ts` | DEFAULT_WORKFLOW_STEPS and mergeWorkflowConfig no longer needed |
-| `apps/temporal/src/workflow-config-validator.ts` | Replaced by graph schema validator |
-| `apps/backend-services/src/workflow/workflow-validator.ts` | Replaced by graph schema validator |
-| `apps/backend-services/src/temporal/workflow-constants.ts` | VALID_WORKFLOW_STEP_IDS no longer needed |
-
-### Files to Create
-
-| File | Purpose |
-|---|---|
-| `apps/frontend/src/pages/WorkflowEditorPage.tsx` | Combined create/edit page with JSON editor + React Flow |
-| `apps/frontend/src/components/workflow/GraphVisualization.tsx` | React Flow based graph visualization |
-| `apps/frontend/src/types/graph-workflow.ts` | GraphWorkflowConfig and all sub-types |
-| `apps/temporal/src/graph-workflow.ts` | graphWorkflow function and runner |
-| `apps/temporal/src/graph-runner.ts` | Core DAG execution engine |
-| `apps/temporal/src/activity-registry.ts` | Activity type registry |
-| `apps/temporal/src/expression-evaluator.ts` | Condition expression evaluator |
-| `apps/temporal/src/graph-schema-validator.ts` | Graph config validator (used at execution time) |
-| `apps/backend-services/src/workflow/graph-schema-validator.ts` | Graph config validator (used at save time) |
-| `apps/backend-services/src/workflow/graph-workflow-types.ts` | Shared types for graph workflow |
-| `apps/backend-services/src/blob-storage/blob-storage.service.ts` | Blob storage abstraction |
-| `apps/backend-services/src/blob-storage/local-blob-storage.service.ts` | Local filesystem implementation |
-| `apps/temporal/src/activities/split-document.ts` | PDF splitting activity |
-| `apps/temporal/src/activities/classify-document.ts` | Document classification activity |
-
-### Files to Modify
-
-| File | Change |
-|---|---|
-| `apps/frontend/src/types/workflow.ts` | Replace WorkflowStepsConfig with import from graph-workflow.ts |
-| `apps/frontend/src/data/hooks/useWorkflows.ts` | Change config type to GraphWorkflowConfig |
-| `apps/frontend/src/pages/WorkflowListPage.tsx` | Add schemaVersion column |
-| `apps/frontend/src/App.tsx` | Update route to WorkflowEditorPage |
-| `apps/backend-services/src/workflow/workflow.service.ts` | Use GraphWorkflowConfig type, new validator |
-| `apps/backend-services/src/workflow/workflow.controller.ts` | Updated DTOs |
-| `apps/backend-services/src/workflow/workflow-types.ts` | Replace with GraphWorkflowConfig types |
-| `apps/backend-services/src/workflow/dto/create-workflow.dto.ts` | Change config type |
-| `apps/backend-services/src/temporal/temporal-client.service.ts` | Replace startOCRWorkflow with startGraphWorkflow |
-| `apps/backend-services/src/temporal/workflow-types.ts` | Replace WORKFLOW_TYPES |
-| `apps/temporal/src/worker.ts` | Register graphWorkflow, add new activities |
-| `apps/temporal/src/types.ts` | Add graph workflow types |
-| `apps/temporal/src/activities.ts` | Refactor into activity registry pattern |
+The original file-changes plan from the DAG engine migration (files to remove/create/modify) has been dropped from this reference — it described the one-time migration, not current behavior, and several paths have since moved (e.g. the runner lives at `apps/temporal/src/graph-engine/graph-runner.ts`, and shared engine code was extracted to `packages/graph-workflow/`). For current file locations, see the code references throughout Sections 5 and 9 and the activity registries.
