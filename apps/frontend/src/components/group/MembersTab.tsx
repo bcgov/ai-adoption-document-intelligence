@@ -1,15 +1,3 @@
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Table,
-  Text,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import {
@@ -19,6 +7,18 @@ import {
   useRemoveGroupMember,
   useUpdateGroupMemberRole,
 } from "../../data/hooks/useGroups";
+import {
+  Alert,
+  Button,
+  Center,
+  DataTable,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  Select,
+  Text,
+} from "../../ui";
 
 interface MembersTabProps {
   groupId: string;
@@ -107,23 +107,23 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
 
   return (
     <>
-      <Table highlightOnHover data-testid="members-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Email</Table.Th>
-            <Table.Th>Joined</Table.Th>
-            <Table.Th>Role</Table.Th>
-            {isAdmin && <Table.Th>Actions</Table.Th>}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable highlightOnHover data-testid="members-table">
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Email</DataTable.Th>
+            <DataTable.Th>Joined</DataTable.Th>
+            <DataTable.Th>Role</DataTable.Th>
+            {isAdmin && <DataTable.Th>Actions</DataTable.Th>}
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {members.map((member) => (
-            <Table.Tr key={member.userId}>
-              <Table.Td>{member.email}</Table.Td>
-              <Table.Td>
+            <DataTable.Tr key={member.userId}>
+              <DataTable.Td>{member.email}</DataTable.Td>
+              <DataTable.Td>
                 {new Date(member.joinedAt).toLocaleDateString()}
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 {isAdmin ? (
                   <Select
                     size="xs"
@@ -132,6 +132,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                     onChange={(value) => handleRoleChange(member, value)}
                     disabled={updateRoleMutation.isPending}
                     allowDeselect={false}
+                    aria-label="Member role"
                     data-testid={`role-select-${member.userId}`}
                   />
                 ) : (
@@ -140,9 +141,9 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                       ?.label ?? member.role}
                   </Text>
                 )}
-              </Table.Td>
+              </DataTable.Td>
               {isAdmin && (
-                <Table.Td>
+                <DataTable.Td>
                   <Button
                     size="xs"
                     variant="light"
@@ -152,12 +153,12 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
                   >
                     Remove
                   </Button>
-                </Table.Td>
+                </DataTable.Td>
               )}
-            </Table.Tr>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
 
       <Modal
         opened={confirmMember !== null}

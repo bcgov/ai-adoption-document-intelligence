@@ -1,6 +1,6 @@
 import { ApplicationFailure } from "@temporalio/activity";
 import { parse as parseCsv } from "csv/sync";
-import { XMLValidator } from "fast-xml-parser";
+import { SyntaxValidator } from "fast-xml-validator";
 import { BindingResolutionError, resolveBindings } from "./binding-resolver";
 import { renderCsv } from "./csv-renderer";
 import type { InputFormat } from "./input-parser";
@@ -20,6 +20,7 @@ const KNOWN_PARAM_KEYS = new Set([
   "fieldMapping",
   "xmlEnvelope",
   "requestId",
+  "groupId",
 ]);
 
 /**
@@ -45,6 +46,8 @@ export interface ExecuteTransformNodeParams {
   xmlEnvelope?: string;
   /** Optional request correlation ID (injected by the workflow runner). */
   requestId?: string;
+  /** Tenant scope (injected by the workflow runner; not a port-binding input). */
+  groupId?: string | number;
   /** Port-binding inputs from the workflow context (any additional keys). */
   [key: string]: unknown;
 }
@@ -131,21 +134,30 @@ export async function executeTransformNode(
 
   // Step 4: Render the resolved mapping to the configured output format.
   let output: string;
-  switch (outputFormat) {
-    case "json":
-      output = renderJson(resolvedMapping);
-      break;
-    case "xml": {
-      const innerXml = renderXml(
-        resolvedMapping,
-        xmlEnvelope ? null : undefined,
-      );
-      output = injectXmlEnvelope(innerXml, xmlEnvelope);
-      break;
+  try {
+    switch (outputFormat) {
+      case "json":
+        output = renderJson(resolvedMapping);
+        break;
+      case "xml": {
+        const innerXml = renderXml(
+          resolvedMapping,
+          xmlEnvelope ? null : undefined,
+        );
+        output = injectXmlEnvelope(innerXml, xmlEnvelope);
+        break;
+      }
+      case "csv":
+        output = renderCsv(resolvedMapping);
+        break;
     }
-    case "csv":
-      output = renderCsv(resolvedMapping);
-      break;
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw ApplicationFailure.create({
+      type: "TRANSFORM_OUTPUT_ERROR",
+      message: `Rendered ${outputFormat} output failed validation: ${detail}`,
+      nonRetryable: true,
+    });
   }
 
   // Step 5: Post-render output validation.
@@ -159,9 +171,9 @@ export async function executeTransformNode(
         JSON.parse(output);
         break;
       case "xml": {
-        const result = XMLValidator.validate(output);
+        const result = SyntaxValidator.validate(output);
         if (result !== true) {
-          throw new Error(result.err.msg);
+          throw new Error((result as { err: { msg: string } }).err.msg);
         }
         break;
       }

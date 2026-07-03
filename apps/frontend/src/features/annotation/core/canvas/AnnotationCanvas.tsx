@@ -1,4 +1,3 @@
-import { Box } from "@mantine/core";
 import Konva from "konva";
 import { KonvaEventObject } from "konva/lib/Node";
 import {
@@ -11,6 +10,7 @@ import {
   useState,
 } from "react";
 import { Image as KonvaImage, Layer, Stage } from "react-konva";
+import { Box } from "../../../../ui";
 import { BoundingBox, CanvasTool } from "../types";
 import { BoundingBoxLayer } from "./BoundingBoxLayer";
 import { DrawingLayer } from "./DrawingLayer";
@@ -36,6 +36,11 @@ interface AnnotationCanvasProps {
   onBoxSelect?: (boxId: string | null) => void;
   onBoxCreate?: (box: BoundingBox) => void;
   onBoxHover?: (info: { boxId: string; x: number; y: number } | null) => void;
+  rotation?: number;
+  /** Vertical position when the image is smaller than the canvas (default: center). */
+  verticalAlign?: "top" | "center";
+  /** Fraction of container used when fitting (1 = edge-to-edge). Default 0.95. */
+  fitPadding?: number;
 }
 
 export const AnnotationCanvas = forwardRef<
@@ -52,6 +57,9 @@ export const AnnotationCanvas = forwardRef<
       onBoxSelect,
       onBoxCreate,
       onBoxHover,
+      rotation = 0,
+      verticalAlign = "center",
+      fitPadding = 0.95,
     },
     ref,
   ) => {
@@ -76,13 +84,23 @@ export const AnnotationCanvas = forwardRef<
       endDrawing,
     } = useCanvasSelection();
 
+    // Determine effective dimensions based on rotation
+    const effectiveDimensions = useMemo(() => {
+      if (!imageSize) return null;
+      // For 90° and 270° rotation, width and height are swapped
+      if (rotation === 90 || rotation === 270) {
+        return { width: imageSize.height, height: imageSize.width };
+      }
+      return { width: imageSize.width, height: imageSize.height };
+    }, [imageSize, rotation]);
+
     // Calculate fit scale to make content fit in container
     const fitScale = useMemo(() => {
-      if (!imageSize || width <= 0 || height <= 0) return 1;
-      const scaleX = width / imageSize.width;
-      const scaleY = height / imageSize.height;
-      return Math.min(scaleX, scaleY) * 0.95; // 95% to leave some padding
-    }, [width, height, imageSize]);
+      if (!effectiveDimensions || width <= 0 || height <= 0) return 1;
+      const scaleX = width / effectiveDimensions.width;
+      const scaleY = height / effectiveDimensions.height;
+      return Math.min(scaleX, scaleY) * fitPadding;
+    }, [width, height, effectiveDimensions, fitPadding]);
 
     // Combined scale = fitScale * userZoom
     const effectiveScale = fitScale * userZoom;
@@ -100,10 +118,11 @@ export const AnnotationCanvas = forwardRef<
 
     const clampPan = useCallback(
       (nextPan: { x: number; y: number }, scale: number) => {
-        if (!imageSize || width <= 0 || height <= 0) return { x: 0, y: 0 };
+        if (!effectiveDimensions || width <= 0 || height <= 0)
+          return { x: 0, y: 0 };
 
-        const scaledWidth = imageSize.width * scale;
-        const scaledHeight = imageSize.height * scale;
+        const scaledWidth = effectiveDimensions.width * scale;
+        const scaledHeight = effectiveDimensions.height * scale;
 
         const minX = Math.min(0, width - scaledWidth);
         const minY = Math.min(0, height - scaledHeight);
@@ -116,12 +135,14 @@ export const AnnotationCanvas = forwardRef<
             : clamp(nextPan.x, minX, maxX);
         const y =
           scaledHeight < height
-            ? (height - scaledHeight) / 2
+            ? verticalAlign === "top"
+              ? 0
+              : (height - scaledHeight) / 2
             : clamp(nextPan.y, minY, maxY);
 
         return { x, y };
       },
-      [clamp, imageSize, width, height],
+      [clamp, effectiveDimensions, verticalAlign, width, height],
     );
 
     useImperativeHandle(
@@ -285,8 +306,15 @@ export const AnnotationCanvas = forwardRef<
             setPan(nextPan);
           }}
         >
-          {imageRef.current && (
-            <Layer listening={false}>
+          {imageRef.current && imageSize && (
+            <Layer
+              listening={false}
+              rotation={rotation}
+              offsetX={imageSize.width / 2}
+              offsetY={imageSize.height / 2}
+              x={imageSize.width / 2}
+              y={imageSize.height / 2}
+            >
               <KonvaImage image={imageRef.current} listening={false} />
             </Layer>
           )}
@@ -309,9 +337,21 @@ export const AnnotationCanvas = forwardRef<
               hoverBox(null);
               onBoxHover?.(null);
             }}
+            rotation={rotation}
+            offsetX={imageSize ? imageSize.width / 2 : 0}
+            offsetY={imageSize ? imageSize.height / 2 : 0}
+            x={imageSize ? imageSize.width / 2 : 0}
+            y={imageSize ? imageSize.height / 2 : 0}
           />
 
-          <DrawingLayer drawingBox={drawingBox} />
+          <DrawingLayer
+            drawingBox={drawingBox}
+            rotation={rotation}
+            offsetX={imageSize ? imageSize.width / 2 : 0}
+            offsetY={imageSize ? imageSize.height / 2 : 0}
+            x={imageSize ? imageSize.width / 2 : 0}
+            y={imageSize ? imageSize.height / 2 : 0}
+          />
         </Stage>
       </Box>
     );

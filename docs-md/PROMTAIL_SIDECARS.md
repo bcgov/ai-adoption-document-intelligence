@@ -22,14 +22,16 @@ Each application pod includes a Promtail sidecar container that:
 
 ## Resource Limits
 
-All Promtail sidecars use minimal resource allocations:
+Promtail sidecars on PVC-backed services (`backend-services`, `temporal-worker`) use the following allocations:
 
 | Resource | Request | Limit |
 |----------|---------|-------|
-| Memory | 32Mi | 64Mi |
+| Memory | 64Mi | 128Mi |
 | CPU | 50m | 100m |
 
-These defaults are sized for low-traffic environments. To adjust resource limits, modify the Promtail container resource specifications in the relevant deployment manifests under `deployments/openshift/kustomize/base/`.
+The memory limit is set to 128Mi to prevent OOMKills caused by Loki backpressure. When Loki is under memory pressure it slows ingest responses, causing Promtail to buffer pending log batches in-heap. A 64Mi limit was insufficient in practice and caused CrashLoopBackOff on both `backend-services` and `temporal-worker` pods.
+
+To adjust resource limits, modify the Promtail container resource specifications in the relevant deployment manifests under `deployments/openshift/kustomize/base/`.
 
 ## Configuration
 

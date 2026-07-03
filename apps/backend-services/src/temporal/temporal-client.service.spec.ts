@@ -3,9 +3,14 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { Client, Connection } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import {
+  computeConfigHash,
+  computeConfigHashWithOverrides,
+} from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
 import { TemporalClientService } from "./temporal-client.service";
+import { temporalDataConverter } from "./temporal-data-converter";
 
 const graphConfig: GraphWorkflowConfig = {
   schemaVersion: "1.0",
@@ -49,6 +54,7 @@ jest.mock("@temporalio/client", () => {
       connect: jest.fn(() => Promise.resolve(mockConnection)),
     },
     Client: jest.fn(() => mockClient),
+    WorkflowNotFoundError: class WorkflowNotFoundError extends Error {},
   };
 });
 
@@ -88,6 +94,7 @@ describe("TemporalClientService", () => {
       workflowService: {
         describeNamespace: jest.fn().mockResolvedValue(undefined),
         registerNamespace: jest.fn().mockResolvedValue(undefined),
+        deleteWorkflowExecution: jest.fn().mockResolvedValue(undefined),
       },
       operatorService: {
         addSearchAttributes: jest.fn().mockResolvedValue(undefined),
@@ -155,6 +162,7 @@ describe("TemporalClientService", () => {
       expect(Client).toHaveBeenCalledWith({
         connection: mockConnection,
         namespace: "default",
+        dataConverter: temporalDataConverter,
       });
     });
 
@@ -187,6 +195,7 @@ describe("TemporalClientService", () => {
       expect(Client).toHaveBeenCalledWith({
         connection: mockConnection,
         namespace: "default",
+        dataConverter: temporalDataConverter,
       });
 
       await newService.onModuleDestroy();
@@ -257,13 +266,13 @@ describe("TemporalClientService", () => {
         expect.objectContaining({
           args: [
             {
-              graph: graphConfig,
+              workflowVersionId: "workflow-123",
               initialCtx: {
                 documentId: "doc-123",
                 fileName: "test.pdf",
                 fileType: "pdf",
               },
-              configHash: expect.any(String),
+              configHash: computeConfigHash(graphConfig),
               runnerVersion: "1.0.0",
               groupId: "g-test",
               // Phase 4 (US-133): lineage id is `workflowConfig.id` from
@@ -328,6 +337,57 @@ describe("TemporalClientService", () => {
       });
     });
 
+    it("includes workflowConfigOverrides and merged configHash when provided", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      const overrides = { "ctx.modelId.defaultValue": "prebuilt-read" };
+      const graphWithModel: GraphWorkflowConfig = {
+        ...graphConfig,
+        ctx: {
+          ...graphConfig.ctx,
+          modelId: { type: "string", defaultValue: "prebuilt-layout" },
+        },
+      };
+      mockWorkflowService.getWorkflowVersionById.mockResolvedValue({
+        id: "workflow-123",
+        workflowVersionId: "workflow-123",
+        slug: "graph-workflow",
+        name: "Graph Workflow",
+        description: "Test graph",
+        actorId: "user-1",
+        groupId: "g-test",
+        config: graphWithModel,
+        schemaVersion: "1.0",
+        version: 1,
+        configHash: computeConfigHash(graphWithModel),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await service.startGraphWorkflow(
+        "doc-123",
+        "workflow-123",
+        { documentId: "doc-123" },
+        "g-test",
+        overrides,
+      );
+
+      expect(mockClient.workflow.start).toHaveBeenCalledWith(
+        "graphWorkflow",
+        expect.objectContaining({
+          args: [
+            expect.objectContaining({
+              workflowConfigOverrides: overrides,
+              configHash: computeConfigHashWithOverrides(
+                graphWithModel,
+                overrides,
+              ),
+            }),
+          ],
+        }),
+      );
+    });
+
     it("should throw error if client not initialized", async () => {
       const newService = new TemporalClientService(
         configService,
@@ -387,6 +447,30 @@ describe("TemporalClientService", () => {
       await expect(
         newService.getWorkflowStatus("workflow-123"),
       ).rejects.toThrow("Temporal client not initialized");
+    });
+  });
+
+  describe("isWorkflowRunning", () => {
+    it("returns true when the execution is Running", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "RUNNING" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(true);
+    });
+
+    it("returns false when the execution is closed", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "FAILED" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
+    });
+
+    it("returns false when no execution exists", async () => {
+      const { WorkflowNotFoundError } = jest.requireMock("@temporalio/client");
+      mockWorkflowHandle.describe.mockRejectedValue(
+        new WorkflowNotFoundError("not found"),
+      );
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
     });
   });
 
@@ -502,6 +586,51 @@ describe("TemporalClientService", () => {
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
         "Temporal client not initialized",
       );
+    });
+  });
+
+  describe("deleteWorkflowExecution", () => {
+    it("deletes the execution record via the workflow service", async () => {
+      await service.deleteWorkflowExecution("workflow-123");
+
+      expect(
+        mockConnection.workflowService.deleteWorkflowExecution,
+      ).toHaveBeenCalledWith({
+        namespace: "default",
+        workflowExecution: { workflowId: "workflow-123" },
+      });
+    });
+
+    it("treats a NOT_FOUND response as success (idempotent)", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws on other errors", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("permission denied"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("delete Temporal execution workflow-123");
+    });
+
+    it("throws if the connection is not initialized", async () => {
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+        mockAppLogger,
+      );
+
+      await expect(
+        newService.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("Temporal client not initialized");
     });
   });
 

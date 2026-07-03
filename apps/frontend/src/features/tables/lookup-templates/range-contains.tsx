@@ -1,10 +1,12 @@
-import { Select, Stack, TextInput } from "@mantine/core";
+import { Select, Stack, TextInput } from "../../../ui";
 import type { ColumnDef } from "../types";
 import type { LookupTemplate } from "./types";
 
 export const rangeContains: LookupTemplate = {
   id: "range-contains",
   label: "Range contains value",
+  description:
+    "Returns a row whose start and end columns bracket the value you pass in — e.g. find the tax band that contains a given income.",
   toLookupDef(name, v, columns) {
     const start = String(v.startColumn);
     const end = String(v.endColumn);
@@ -47,6 +49,7 @@ export const rangeContains: LookupTemplate = {
       <Stack>
         <Select
           label="Range start column"
+          description="The column that stores the lower bound of the range"
           required
           data={colData}
           value={(values.startColumn as string) ?? null}
@@ -54,6 +57,7 @@ export const rangeContains: LookupTemplate = {
         />
         <Select
           label="Range end column"
+          description="The column that stores the upper bound of the range"
           required
           data={colData}
           value={(values.endColumn as string) ?? null}
@@ -61,6 +65,7 @@ export const rangeContains: LookupTemplate = {
         />
         <TextInput
           label="Param name"
+          description="Name this input — the workflow supplies a value for it at runtime (e.g. income, check_date)"
           required
           value={(values.param as string) ?? ""}
           onChange={(e) => setValue("param", e.currentTarget.value)}

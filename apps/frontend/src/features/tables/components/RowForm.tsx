@@ -1,5 +1,13 @@
+import { DateTimePicker, MonthPickerInput } from "@mantine/dates";
+import "@mantine/dates/styles.css";
+import { IconCalendar } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { zodResolver } from "mantine-form-zod-resolver";
+import { useEffect } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Button,
+  DateInput,
   Group,
   Modal,
   NumberInput,
@@ -8,14 +16,8 @@ import {
   Switch,
   Text,
   TextInput,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
-import "@mantine/dates/styles.css";
-import { useForm } from "@mantine/form";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "mantine-form-zod-resolver";
-import { useEffect } from "react";
-import { apiService } from "@/data/services/api.service";
+  useForm,
+} from "../../../ui";
 import type { ColumnDef, TableRow } from "../types";
 import { buildRowZodSchema } from "../utils/build-row-zod-schema";
 
@@ -36,9 +38,28 @@ function defaultsFor(
   for (const c of cols) {
     const existingValue = existing?.data[c.key];
     if (existingValue !== undefined) {
-      out[c.key] = existingValue;
+      if (c.type === "year-month" && typeof existingValue === "string") {
+        // Picker expects "YYYY-MM-DD"; existing data is "YYYY-MM"
+        out[c.key] = `${existingValue}-01`;
+      } else if (c.type === "datetime" && typeof existingValue === "string") {
+        // Picker expects "YYYY-MM-DD HH:mm:ss" (local); existing data is ISO
+        const d = new Date(existingValue as string);
+        const p = (n: number) => String(n).padStart(2, "0");
+        out[c.key] =
+          `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+      } else {
+        out[c.key] = existingValue;
+      }
+    } else if (c.type === "boolean") {
+      out[c.key] = false;
+    } else if (
+      c.type === "date" ||
+      c.type === "datetime" ||
+      c.type === "year-month"
+    ) {
+      out[c.key] = null; // date pickers start empty
     } else {
-      out[c.key] = c.type === "boolean" ? false : "";
+      out[c.key] = "";
     }
   }
   return out;
@@ -58,25 +79,38 @@ export function RowForm({
     validate: zodResolver(buildRowZodSchema(columns)),
   });
 
-  // Reset form when opened with different existing row
+  // Reset form (and any stale mutation error) when opened with different existing row
   useEffect(() => {
     if (opened) {
       form.setValues(defaultsFor(columns, existing));
       form.resetDirty();
+      mutation.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, existing?.id]);
 
   const mutation = useMutation({
     mutationFn: async (values: Record<string, unknown>) => {
-      // Strip empty optional fields so the backend receives undefined, not ""
+      // Strip empty/null optional fields; convert picker-native formats for the API
       const stripped: Record<string, unknown> = {};
       for (const c of columns) {
         const v = values[c.key];
+        let serialized: unknown = v;
+        if (c.type === "year-month" && typeof v === "string") {
+          // Picker stores "YYYY-MM-DD"; API expects "YYYY-MM"
+          serialized = v.substring(0, 7);
+        } else if (c.type === "datetime" && typeof v === "string") {
+          // Picker stores "YYYY-MM-DD HH:mm:ss" (local); API expects ISO UTC
+          serialized = new Date(v.replace(" ", "T")).toISOString();
+        }
         if (c.required) {
-          stripped[c.key] = v;
-        } else if (v !== "" && v !== undefined && v !== null) {
-          stripped[c.key] = v;
+          stripped[c.key] = serialized;
+        } else if (
+          serialized !== "" &&
+          serialized !== undefined &&
+          serialized !== null
+        ) {
+          stripped[c.key] = serialized;
         }
       }
 
@@ -116,12 +150,23 @@ export function RowForm({
             const props = form.getInputProps(c.key);
             switch (c.type) {
               case "string":
-              case "datetime":
                 return (
                   <TextInput
                     key={c.key}
                     label={c.label}
                     required={c.required}
+                    {...props}
+                  />
+                );
+              case "datetime":
+                return (
+                  <DateTimePicker
+                    key={c.key}
+                    label={c.label}
+                    required={c.required}
+                    valueFormat="YYYY-MM-DD HH:mm"
+                    leftSection={<IconCalendar size={16} />}
+                    leftSectionPointerEvents="none"
                     {...props}
                   />
                 );
@@ -148,8 +193,11 @@ export function RowForm({
                   <DateInput
                     key={c.key}
                     label={c.label}
+                    description="Click the calendar icon to pick a date"
                     required={c.required}
                     valueFormat="YYYY-MM-DD"
+                    leftSection={<IconCalendar size={16} />}
+                    leftSectionPointerEvents="none"
                     {...props}
                   />
                 );
@@ -160,6 +208,18 @@ export function RowForm({
                     label={c.label}
                     required={c.required}
                     data={c.enumValues ?? []}
+                    {...props}
+                  />
+                );
+              case "year-month":
+                return (
+                  <MonthPickerInput
+                    key={c.key}
+                    label={c.label}
+                    required={c.required}
+                    valueFormat="YYYY-MM"
+                    leftSection={<IconCalendar size={16} />}
+                    leftSectionPointerEvents="none"
                     {...props}
                   />
                 );

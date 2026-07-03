@@ -3,16 +3,17 @@ import type { ExtractPagesBase64Input } from "./extract-pages-base64";
 import { extractPagesBase64 } from "./extract-pages-base64";
 
 const mockBlobRead = jest.fn();
+const mockBlobWrite = jest.fn();
 jest.mock("../blob-storage/blob-storage-client", () => ({
   getBlobStorageClient: () => ({
     read: mockBlobRead,
+    write: mockBlobWrite,
   }),
 }));
 
-/**
- * Build a minimal real PDF with the given number of pages using pdf-lib.
- * This ensures PDFDocument.load and copyPages work correctly in tests.
- */
+const GROUP_ID = "gtestgroupidfortests01";
+const DOCUMENT_ID = "doc-extract-pages";
+
 async function buildPdf(pageCount: number): Promise<Buffer> {
   const doc = await PDFDocument.create();
   for (let i = 0; i < pageCount; i++) {
@@ -24,102 +25,95 @@ async function buildPdf(pageCount: number): Promise<Buffer> {
 describe("extractPagesBase64 activity", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockBlobWrite.mockResolvedValue(undefined);
   });
 
-  // Scenario 1: returns a valid base64-encoded PDF
-  it("returns the extracted pages as a base64 string", async () => {
+  it("writes extracted pages to blob storage and returns pageBlobPath", async () => {
     mockBlobRead.mockResolvedValue(await buildPdf(3));
 
     const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/original.pdf",
+      blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/original.pdf`,
       startPage: 1,
       endPage: 3,
+      groupId: GROUP_ID,
+      documentId: DOCUMENT_ID,
     };
 
     const result = await extractPagesBase64(input);
 
-    expect(typeof result.base64).toBe("string");
-    expect(result.base64.length).toBeGreaterThan(0);
+    expect(result.pageBlobPath).toBe(
+      `${GROUP_ID}/ocr/${DOCUMENT_ID}/page-extracts/page-range-1-3.pdf`,
+    );
+    expect(result.pageIndex).toBe(1);
+    expect(result.pageCount).toBe(3);
+    expect(result.byteLength).toBeGreaterThan(0);
+    expect(mockBlobWrite).toHaveBeenCalledWith(
+      result.pageBlobPath,
+      expect.any(Buffer),
+    );
 
-    // verify it decodes back to a valid PDF
-    const decoded = Buffer.from(result.base64, "base64");
-    const decoded_doc = await PDFDocument.load(new Uint8Array(decoded));
-    expect(decoded_doc.getPageCount()).toBe(3);
+    const written = mockBlobWrite.mock.calls[0][1] as Buffer;
+    const decodedDoc = await PDFDocument.load(new Uint8Array(written));
+    expect(decodedDoc.getPageCount()).toBe(3);
   });
 
-  // Scenario 2: pageCount equals endPage - startPage + 1
-  it("reports the correct page count", async () => {
+  it("reports the correct page count for a sub-range", async () => {
     mockBlobRead.mockResolvedValue(await buildPdf(5));
 
-    const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/original.pdf",
+    const result = await extractPagesBase64({
+      blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/original.pdf`,
       startPage: 2,
       endPage: 5,
-    };
-
-    const result = await extractPagesBase64(input);
+      groupId: GROUP_ID,
+      documentId: DOCUMENT_ID,
+    });
 
     expect(result.pageCount).toBe(4);
+    expect(result.pageIndex).toBe(2);
   });
 
-  // Scenario 3: single page extraction
   it("handles single-page extraction (startPage === endPage)", async () => {
     mockBlobRead.mockResolvedValue(await buildPdf(5));
 
-    const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/original.pdf",
+    const result = await extractPagesBase64({
+      blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/original.pdf`,
       startPage: 3,
       endPage: 3,
-    };
-
-    const result = await extractPagesBase64(input);
+      groupId: GROUP_ID,
+      documentId: DOCUMENT_ID,
+    });
 
     expect(result.pageCount).toBe(1);
-    const decoded = Buffer.from(result.base64, "base64");
-    const decodedDoc = await PDFDocument.load(new Uint8Array(decoded));
+    const written = mockBlobWrite.mock.calls[0][1] as Buffer;
+    const decodedDoc = await PDFDocument.load(new Uint8Array(written));
     expect(decodedDoc.getPageCount()).toBe(1);
   });
 
-  // Scenario 4: extracted PDF contains only the requested pages
-  it("output PDF contains exactly the requested number of pages", async () => {
-    mockBlobRead.mockResolvedValue(await buildPdf(10));
-
-    const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/original.pdf",
-      startPage: 3,
-      endPage: 6,
-    };
-
-    const result = await extractPagesBase64(input);
-
-    const decoded = Buffer.from(result.base64, "base64");
-    const decodedDoc = await PDFDocument.load(new Uint8Array(decoded));
-    expect(decodedDoc.getPageCount()).toBe(4);
-  });
-
-  // Scenario 5: propagates blob storage errors
-  it("propagates errors from blob storage", async () => {
+  it("propagates errors from blob storage read", async () => {
     mockBlobRead.mockRejectedValue(new Error("blob not found"));
 
-    const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/missing.pdf",
-      startPage: 1,
-      endPage: 1,
-    };
-
-    await expect(extractPagesBase64(input)).rejects.toThrow("blob not found");
+    await expect(
+      extractPagesBase64({
+        blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/missing.pdf`,
+        startPage: 1,
+        endPage: 1,
+        groupId: GROUP_ID,
+        documentId: DOCUMENT_ID,
+      }),
+    ).rejects.toThrow("blob not found");
   });
 
-  // Scenario 6: propagates pdf-lib errors for invalid PDF bytes
   it("propagates errors when the blob is not a valid PDF", async () => {
     mockBlobRead.mockResolvedValue(Buffer.from("this is not a pdf"));
 
-    const input: ExtractPagesBase64Input = {
-      blobKey: "atestgroup/ocr/doc-1/bad.pdf",
-      startPage: 1,
-      endPage: 1,
-    };
-
-    await expect(extractPagesBase64(input)).rejects.toThrow();
+    await expect(
+      extractPagesBase64({
+        blobKey: `${GROUP_ID}/ocr/${DOCUMENT_ID}/bad.pdf`,
+        startPage: 1,
+        endPage: 1,
+        groupId: GROUP_ID,
+        documentId: DOCUMENT_ID,
+      }),
+    ).rejects.toThrow();
   });
 });

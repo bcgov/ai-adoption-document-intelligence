@@ -18,12 +18,18 @@ import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import { computeConfigHash } from "../config-hash";
-import { graphWorkflow } from "../graph-workflow";
+import { getStatus, graphWorkflow } from "../graph-workflow";
 import type {
   GraphWorkflowConfig,
   GraphWorkflowInput,
   GraphWorkflowResult,
+  GraphWorkflowStatus,
 } from "../graph-workflow-types";
+
+/** Final result plus terminal ctx from getStatus (for assertions). */
+type DynRunOutcome = GraphWorkflowResult & { ctx: Record<string, unknown> };
+/** Test input that carries the graph the mocked loader returns by reference. */
+type TestDynInput = GraphWorkflowInput & { __testGraph: GraphWorkflowConfig };
 
 const TASK_QUEUE = "graph-workflow-dynamic-nodes-test";
 
@@ -75,13 +81,14 @@ function makeDynGraph(
   };
 }
 
-function makeInput(graph: GraphWorkflowConfig): GraphWorkflowInput {
+function makeInput(graph: GraphWorkflowConfig): TestDynInput {
   return {
-    graph,
+    workflowVersionId: "dyn-test-wv",
     initialCtx: {},
     configHash: computeConfigHash(graph),
     runnerVersion: "1.0.0",
     groupId: "g-test",
+    __testGraph: graph,
   };
 }
 
@@ -100,16 +107,24 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
   });
 
   async function runWith(
-    input: GraphWorkflowInput,
+    input: TestDynInput,
     resolveFn: (args: ResolveCall) => Promise<{ versionId: string }>,
     dynRunFn: (args: DynRunCall) => Promise<Record<string, unknown>>,
     workflowId: string,
-  ): Promise<GraphWorkflowResult> {
+  ): Promise<DynRunOutcome> {
+    const { __testGraph, ...workflowInput } = input;
     const activities = {
       "dynamicNode.resolveLineage": resolveFn as (
         ...a: unknown[]
       ) => Promise<unknown>,
       "dyn.run": dynRunFn as (...a: unknown[]) => Promise<unknown>,
+      // Develop's by-reference workflow entry loads its graph from this
+      // activity; mock it to return the inline test graph + matching hash.
+      getWorkflowGraphConfig: async () => ({
+        graph: __testGraph,
+        workflowVersionId: workflowInput.workflowVersionId,
+        configHash: computeConfigHash(__testGraph),
+      }),
     };
 
     const worker = await Worker.create({
@@ -120,13 +135,16 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
       activities,
     });
 
-    return worker.runUntil(
-      testEnv.client.workflow.execute(graphWorkflow, {
+    return worker.runUntil(async () => {
+      const result = (await testEnv.client.workflow.execute(graphWorkflow, {
         workflowId,
         taskQueue: TASK_QUEUE,
-        args: [input],
-      }),
-    );
+        args: [workflowInput],
+      })) as GraphWorkflowResult;
+      const handle = testEnv.client.workflow.getHandle(workflowId);
+      const status = (await handle.query(getStatus)) as GraphWorkflowStatus;
+      return { ...result, ctx: status.ctx };
+    });
   }
 
   it("Scenario 1+4: workflow with dyn.<slug> executes resolve→run; versionId threads to dyn.run", async () => {

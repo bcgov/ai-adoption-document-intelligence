@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-const RENDER_SCALE = 2;
+// Increasing the render scale causes image to swell in size.
+// The original 2.5x scale created 8MB+ images for render.
+// I think this is still an area for concern, but 1x is perfectly readable.
+export const RENDER_SCALE = 1;
 
 interface PdfPageImageResult {
   /** Data URL of the rendered page image, or null while loading / on error. */

@@ -27,7 +27,7 @@ ENV VITE_ENV=${VITE_ENV}
 COPY packages/graph-workflow /packages/graph-workflow
 RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
 
-COPY package*.json ./
+COPY apps/frontend/package*.json ./
 RUN npm install --ignore-scripts
 COPY apps/frontend/ .
 RUN npm run build
@@ -36,10 +36,10 @@ RUN npm run build
 FROM nginx:alpine
 
 # Custom main config: writable paths under /tmp for non-root and read-only fs
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY nginx-default.conf /etc/nginx/conf.d/default.conf
+COPY apps/frontend/nginx.conf /etc/nginx/nginx.conf
+COPY apps/frontend/nginx-default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 
 # Create nginx temp/cache dirs (nginx does not create parent dirs); world-writable for OpenShift arbitrary UID.
 # Make entrypoint and nginx config writable so the entrypoint can substitute env vars at startup.

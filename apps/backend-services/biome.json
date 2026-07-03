@@ -57,6 +57,26 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/tools/load-testing/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/tools/load-testing/k6/**/*.js"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off"
+          }
+        }
+      }
     }
   ]
 }

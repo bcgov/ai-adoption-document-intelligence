@@ -1,8 +1,14 @@
-import { Button, Modal, Stack, Textarea, TextInput } from "@mantine/core";
-import { useForm } from "@mantine/form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
+import {
+  Button,
+  Modal,
+  Stack,
+  Textarea,
+  TextInput,
+  useForm,
+} from "../../../ui";
 import type { TableDetail } from "../types";
 
 interface Props {

@@ -1,3 +1,4 @@
+import { FC, useEffect, useMemo, useState } from "react";
 import {
   Button,
   Divider,
@@ -7,8 +8,7 @@ import {
   Stack,
   Text,
   TextInput,
-} from "@mantine/core";
-import { FC, useEffect, useMemo, useState } from "react";
+} from "../../../../ui";
 import { FieldDefinition, FieldType } from "../../core/types/field";
 
 interface FieldSchemaEditorProps {

@@ -1,3 +1,7 @@
+import { IconInfoCircle } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierModel } from "@/shared/types/classifier";
 import {
   Button,
   Group,
@@ -6,11 +10,7 @@ import {
   Stack,
   Text,
   Tooltip,
-} from "@mantine/core";
-import { IconInfoCircle } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierModel } from "@/shared/types/classifier";
+} from "../../ui";
 import ClassificationFileCards from "./ClassificationFileCards";
 import {
   DeleteClassifierModal,
@@ -84,7 +84,7 @@ const ClassificationFiles = (props: ClassificationFilesProps) => {
 
   return (
     <Stack>
-      <Paper shadow="xs" radius="md" p="sm" withBorder>
+      <Paper shadow="xs" radius="md" p="md" withBorder>
         <Group justify="space-between" align="center" mb="xs">
           <h2>Classification Label Training Groups</h2>
           <Group gap={4}>

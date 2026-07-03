@@ -1,6 +1,5 @@
 import "@xyflow/react/dist/style.css";
 
-import { Badge } from "@mantine/core";
 import {
   IconBolt,
   IconCloudUpload,
@@ -38,6 +37,7 @@ import type {
   MapNode,
   SwitchNode,
 } from "../../types/workflow";
+import { Badge } from "../../ui";
 
 export interface GraphVisualizationError {
   path: string;

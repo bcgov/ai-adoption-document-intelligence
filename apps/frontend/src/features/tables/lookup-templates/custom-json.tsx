@@ -1,3 +1,4 @@
+import { IconTrash } from "@tabler/icons-react";
 import {
   ActionIcon,
   Button,
@@ -6,8 +7,7 @@ import {
   Select,
   Stack,
   TextInput,
-} from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+} from "../../../ui";
 import type {
   ColumnType,
   LookupParam,
@@ -29,12 +29,15 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "boolean", label: "Boolean" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Datetime" },
+  { value: "year-month", label: "Year-Month" },
   { value: "enum", label: "Enum" },
 ];
 
 export const customJson: LookupTemplate = {
   id: "custom-json",
   label: "Custom (advanced)",
+  description:
+    "Write a raw filter expression. Use this when none of the other match types fit your needs.",
   toLookupDef(name, v) {
     const filterText = (v.filterJson as string) ?? "{}";
     let filter: Record<string, unknown>;

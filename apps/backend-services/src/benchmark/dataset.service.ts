@@ -414,13 +414,13 @@ export class DatasetService {
     _actorId: string, // TODO: Why isn't this used?
     groupId: string,
   ): Promise<UploadResponseDto> {
-    this.logger.log(
-      `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
-    );
-
     if (!Array.isArray(files)) {
       throw new BadRequestException("Invalid files payload");
     }
+
+    this.logger.log(
+      `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
+    );
 
     const dataset = await this.datasetDbService.findDataset(datasetId);
 

@@ -1,13 +1,4 @@
-import {
-  Button,
-  Group,
-  Paper,
-  Select,
-  Stack,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import ClassificationFiles from "@/components/classification/ClassificationFiles";
@@ -16,6 +7,17 @@ import ClassifierDetails from "@/components/classification/ClassifierDetails";
 import { CreateClassifierModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
 import { ClassifierStatus } from "@/shared/types/classifier";
+import {
+  Button,
+  Group,
+  PageHeader,
+  PanelCard,
+  Select,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "../ui";
 
 const ClassifierPage = () => {
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -23,12 +25,19 @@ const ClassifierPage = () => {
 
   const { getClassifiers } = useClassifier();
   const { activeGroup } = useGroup();
+  const modelOptions = (getClassifiers.data || [])
+    .filter((model) => model?.name && model?.group_id)
+    .map((model) => ({
+      value: `${model.name}::${model.group_id}`,
+      label: model.name,
+    }));
+  const hasExistingModels = modelOptions.length > 0;
 
   const ModelSelect = () => {
     return (
       <>
-        <Paper shadow="sm" radius="md" p="lg" withBorder>
-          <Stack gap="md" mt="md">
+        <PanelCard>
+          <Stack gap="md">
             <Group justify="space-between">
               <Title order={3}>Select a model</Title>
               <Tooltip
@@ -37,7 +46,8 @@ const ClassifierPage = () => {
               >
                 <span>
                   <Button
-                    variant="outline"
+                    leftSection={<IconPlus size={14} />}
+                    variant={hasExistingModels ? "outline" : "filled"}
                     size="xs"
                     disabled={!activeGroup}
                     onClick={() => {
@@ -52,12 +62,7 @@ const ClassifierPage = () => {
             <Select
               placeholder="Choose a model"
               value={selectedModel}
-              data={(getClassifiers.data || [])
-                .filter((model) => model?.name && model?.group_id)
-                .map((model) => ({
-                  value: `${model.name}::${model.group_id}`,
-                  label: model.name,
-                }))}
+              data={modelOptions}
               searchable
               clearable
               onChange={(value) => {
@@ -65,7 +70,7 @@ const ClassifierPage = () => {
               }}
             />
           </Stack>
-        </Paper>
+        </PanelCard>
         {!selectedModel && (
           <Text c="dimmed" size="sm">
             No model selected. Please select a model or create a new model.
@@ -87,14 +92,10 @@ const ClassifierPage = () => {
 
   return (
     <Stack gap={"lg"} mb="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Classify</Title>
-          <Text c="dimmed" size="sm">
-            Build document classifiers and classify documents
-          </Text>
-        </Stack>
-      </Group>
+      <PageHeader
+        title="Classify"
+        description="Build document classifiers and classify documents"
+      />
       <ModelSelect />
       {selectedModel && selectedModelDetails && (
         <>

@@ -1,3 +1,7 @@
+import { useEffect, useRef, useState } from "react";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { ClassifierModel } from "@/shared/types/classifier";
+import { dropzoneAccept } from "@/shared/utils/upload";
 import {
   Button,
   Code,
@@ -7,11 +11,7 @@ import {
   Stack,
   Text,
   Title,
-} from "@mantine/core";
-import { useEffect, useRef, useState } from "react";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { ClassifierModel } from "@/shared/types/classifier";
-import { dropzoneAccept } from "@/shared/utils/upload";
+} from "../../ui";
 
 interface ClassifierAccessProps {
   model: ClassifierModel;

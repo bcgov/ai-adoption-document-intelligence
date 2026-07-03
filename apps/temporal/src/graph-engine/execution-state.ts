@@ -32,6 +32,7 @@ export interface ExecutionState {
   ctx: Record<string, unknown>;
   selectedEdges: Map<string, string>; // nodeId -> selected edgeId for switch nodes
   mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
+  workflowVersionId?: string;
   configHash: string;
   runnerVersion: string;
   requestId?: string;
@@ -61,6 +62,7 @@ export interface ExecutionState {
    * `dyn-run.activity.ts`.
    */
   workflowRunId?: string;
+  workflowConfigOverrides?: Record<string, unknown>;
   lastError: {
     current?: {
       nodeId: string;

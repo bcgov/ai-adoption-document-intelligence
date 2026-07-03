@@ -117,7 +117,11 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
 
   it("Scenario 1: forwards `version` to getWorkflowGraphConfig when pinned", async () => {
     const cfg = v3Config();
-    mockGetWorkflowGraphConfig.mockResolvedValue({ graph: cfg });
+    mockGetWorkflowGraphConfig.mockResolvedValue({
+      graph: cfg,
+      workflowVersionId: "wv-v3",
+      configHash: "hash-v3",
+    });
 
     const node = makeLibraryChildNode({
       workflowId: "lineage-abc",
@@ -132,18 +136,28 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
       version: 3,
     });
 
-    // And the loaded v3 config is what gets handed to the child runner.
+    // The resolved (pinned) version id + hash are handed to the child runner,
+    // which loads the config itself by reference.
     expect(mockExecuteChild).toHaveBeenCalledWith(
       "graphWorkflow",
       expect.objectContaining({
-        args: [expect.objectContaining({ graph: cfg })],
+        args: [
+          expect.objectContaining({
+            workflowVersionId: "wv-v3",
+            configHash: "hash-v3",
+          }),
+        ],
       }),
     );
   });
 
   it("Scenario 2: passes `version: undefined` (head-resolution) when not pinned", async () => {
     const cfg = v3Config();
-    mockGetWorkflowGraphConfig.mockResolvedValue({ graph: cfg });
+    mockGetWorkflowGraphConfig.mockResolvedValue({
+      graph: cfg,
+      workflowVersionId: "wv-head",
+      configHash: "hash-head",
+    });
 
     const node = makeLibraryChildNode({ workflowId: "lineage-abc" });
 

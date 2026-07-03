@@ -35,7 +35,7 @@ deployments/openshift/helm/plg/
 | `loki.storageClassName` | Storage class (empty = cluster default) | `""` |
 | `loki.resources.requests.memory` | Memory request | `256Mi` |
 | `loki.resources.requests.cpu` | CPU request | `500m` |
-| `loki.resources.limits.memory` | Memory limit | `256Mi` |
+| `loki.resources.limits.memory` | Memory limit | `256Mi` (OpenShift override: `2Gi`) |
 | `loki.resources.limits.cpu` | CPU limit | `500m` |
 | `loki.httpPort` | HTTP listen port | `3100` |
 
@@ -65,10 +65,46 @@ LogQL queries can extract these fields using the `json` parser:
 
 Retention is enforced by the Loki compactor, which runs on a 10-minute interval and deletes chunks older than the configured retention period. The default retention period is 30 days (720 hours).
 
+The compactor writes temporary marker files under `/tmp` during retention processing. The Loki StatefulSet mounts a writable `emptyDir` at `/tmp` because the container runs with `readOnlyRootFilesystem: true`; without that mount, retention fails with `read-only file system` errors and log data is never purged.
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `compaction_interval` | 10m | How often the compactor runs |
+| `retention_delete_delay` | 2h | Grace period before marked chunks are deleted |
+| `retention_delete_worker_count` | 20 | Parallel delete workers (lower value reduces memory spikes) |
+
 To change the retention period, override `loki.retentionDays`:
 
 ```bash
 helm upgrade plg ./deployments/openshift/helm/plg --set loki.retentionDays=14
+```
+
+## Ingestion Rate Limits
+
+The OpenShift deployment configures ingestion limits to apply back-pressure before Loki exhausts its memory ceiling:
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `ingestion_rate_mb` | 4 | Sustained ingest rate per tenant (MB/s) |
+| `ingestion_burst_size_mb` | 8 | Burst allowance above the sustained rate |
+| `chunk_idle_period` | 5m | Flush idle chunks to disk after this interval |
+| `chunk_target_size` | 1536000 (~1.5MB) | Flush a chunk to disk once it reaches this size |
+
+Without these limits, Loki accumulates unbounded in-memory chunks when ingestion outpaces disk flushes, eventually reaching the memory ceiling and being OOMKilled. The ingestion limits cause Promtail to receive a `429 Too Many Requests` response and retry, rather than Loki silently growing until it is killed.
+
+## Prometheus Metrics
+
+Loki exposes a `/metrics` endpoint on its HTTP port. The PLG Prometheus instance scrapes it via a dedicated `loki` scrape job configured in `prometheus-configmap.yaml`. Use `{job="loki"}` as the label selector in queries, for example:
+
+```promql
+# Current RSS memory usage
+process_resident_memory_bytes{job="loki"}
+
+# In-memory ingester chunks
+loki_ingester_memory_chunks
+
+# Ingest rate (bytes/sec)
+rate(loki_distributor_bytes_received_total[5m])
 ```
 
 ## Deployment
@@ -102,6 +138,7 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 ## Architecture Notes
 
 - Loki runs as a single-replica StatefulSet in monolithic mode (`-target=all`).
+- The container uses `readOnlyRootFilesystem: true` with writable mounts at `/loki` (PVC) and `/tmp` (`emptyDir`).
 - Data is persisted to a PVC using the TSDB store with filesystem object storage.
 - The existing Kustomize deployment for the application is not modified. PLG is a separate Helm release.
 - Loki is not exposed via an OpenShift Route; access is via in-cluster services or port-forwarding.

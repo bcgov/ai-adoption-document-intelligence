@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+# Opt-in MinIO blob storage stack for disposable / load-test instances.
+# Pulled in by the instance-template overlay only when --with-minio is passed
+# to scripts/lib/generate-overlay.sh (via scripts/oc-deploy-instance.sh
+# --blob-storage-provider minio).
+#
+# Resources defined here:
+#   - PersistentVolumeClaim:  minio                  (RWO, sized via --minio-pvc-size)
+#   - Deployment:             minio                  (single replica, image minio/minio)
+#   - Service:                minio                  (ClusterIP, ports 9000 API and 9001 console)
+#   - Job:                    minio-init             (creates document-blobs and benchmark-outputs buckets)
+#
+# Credentials Secret (<instance>-minio-credentials) is generated below from
+# placeholders that scripts/lib/generate-overlay.sh substitutes with values
+# supplied by the deploy script. Generating via kustomize lets `namePrefix`
+# rewrite all `secretKeyRef.name: minio-credentials` references in the base
+# deployments and in this Component to the per-instance prefixed name.
+resources:
+  - pvc.yml
+  - deployment.yml
+  - service.yml
+  - init-job.yml
+
+secretGenerator:
+  - name: minio-credentials
+    literals:
+      - MINIO_ROOT_USER=__MINIO_ROOT_USER__
+      - MINIO_ROOT_PASSWORD=__MINIO_ROOT_PASSWORD__
+
+generatorOptions:
+  # Keep the Secret name stable so refs like "minio-credentials" resolve after
+  # namePrefix without a content hash suffix.
+  disableNameSuffixHash: true

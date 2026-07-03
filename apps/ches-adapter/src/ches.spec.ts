@@ -1,5 +1,5 @@
-import { buildEmail, getChesToken, resetTokenCache, sendEmail } from "./ches";
 import type { AlertmanagerPayload } from "./ches";
+import { buildEmail, getChesToken, resetTokenCache, sendEmail } from "./ches";
 import type { Config } from "./config";
 
 const baseConfig: Config = {
@@ -146,7 +146,9 @@ describe("sendEmail", () => {
     } as unknown as Response);
 
     const email = buildEmail(firingPayload, baseConfig);
-    await expect(sendEmail("token-abc", email, baseConfig)).resolves.toBeUndefined();
+    await expect(
+      sendEmail("token-abc", email, baseConfig),
+    ).resolves.toBeUndefined();
   });
 
   it("throws when CHES returns an error", async () => {

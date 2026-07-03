@@ -1,22 +1,4 @@
 import {
-  Badge,
-  Button,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Menu,
-  Modal,
-  Pagination,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import {
   IconArrowLeft,
   IconCheck,
   IconDotsVertical,
@@ -33,6 +15,25 @@ import {
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiService } from "@/data/services/api.service";
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Card,
+  Center,
+  DataTable,
+  Group,
+  Loader,
+  Menu,
+  Modal,
+  Pagination,
+  Stack,
+  Tabs,
+  Text,
+  TextInput,
+  Title,
+  useDisclosure,
+} from "../../../ui";
 import { CreateDatasetFromHitlDialog } from "../components/CreateDatasetFromHitlDialog";
 import { FileUploadDialog } from "../components/FileUploadDialog";
 import { GroundTruthGenerationPanel } from "../components/GroundTruthGenerationPanel";
@@ -257,22 +258,38 @@ export function DatasetDetailPage() {
   return (
     <>
       <Stack gap="lg">
-        <Stack gap={2}>
-          <Group justify="space-between">
-            <Group gap="sm" align="center">
-              <Button
-                variant="subtle"
-                leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate("/benchmarking/datasets")}
-                data-testid="back-to-datasets-btn"
-              >
-                Back
-              </Button>
-              <Title order={2} data-testid="dataset-name-title">
+        <Stack gap="xs">
+          <Group>
+            <Button
+              variant="subtle"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate("/benchmarking/datasets")}
+              data-testid="back-to-datasets-btn"
+            >
+              Back
+            </Button>
+          </Group>
+
+          <Group justify="space-between" align="flex-start" wrap="wrap">
+            <Stack
+              className="bcds-page-header__title-block"
+              style={{ gap: "var(--layout-margin-xsmall)" }}
+            >
+              <Title order={2} data-testid="dataset-name-title" mt={0} mb={0}>
                 {dataset.name}
               </Title>
-            </Group>
-            <Group gap="sm">
+              <Text
+                c="dimmed"
+                size="sm"
+                data-testid="dataset-description"
+                mt={0}
+                mb={0}
+              >
+                {dataset.description || "No description"}
+              </Text>
+            </Stack>
+
+            <Group gap="sm" className="bcds-page-header__meta">
               <Button
                 variant="light"
                 leftSection={<IconFileCheck size={16} />}
@@ -291,9 +308,15 @@ export function DatasetDetailPage() {
               </Button>
             </Group>
           </Group>
-          <Text c="dimmed" size="sm" data-testid="dataset-description">
-            {dataset.description || "No description"}
-          </Text>
+
+          <Group gap="xs" wrap="wrap">
+            <Text size="sm" c="dimmed" fw={500}>
+              Dataset ID
+            </Text>
+            <Text size="sm" c="dimmed" data-testid="dataset-id-text">
+              {dataset.id}
+            </Text>
+          </Group>
         </Stack>
 
         <Tabs
@@ -363,21 +386,21 @@ export function DatasetDetailPage() {
                 </Center>
               </Card>
             ) : (
-              <Table striped highlightOnHover data-testid="versions-table">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Version</Table.Th>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Documents</Table.Th>
-                    <Table.Th>Storage Prefix</Table.Th>
-                    <Table.Th>Created</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover data-testid="versions-table">
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Version</DataTable.Th>
+                    <DataTable.Th>Name</DataTable.Th>
+                    <DataTable.Th>Status</DataTable.Th>
+                    <DataTable.Th>Documents</DataTable.Th>
+                    <DataTable.Th>Storage Prefix</DataTable.Th>
+                    <DataTable.Th>Created</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {versions.map((version) => (
-                    <Table.Tr
+                    <DataTable.Tr
                       key={version.id}
                       style={{ cursor: "pointer" }}
                       onClick={() => {
@@ -386,8 +409,8 @@ export function DatasetDetailPage() {
                       }}
                       data-testid={`version-row-${version.id}`}
                     >
-                      <Table.Td>{version.version}</Table.Td>
-                      <Table.Td onClick={(e) => e.stopPropagation()}>
+                      <DataTable.Td>{version.version}</DataTable.Td>
+                      <DataTable.Td onClick={(e) => e.stopPropagation()}>
                         {editingVersionNameId === version.id ? (
                           <Group gap="xs" wrap="nowrap">
                             <TextInput
@@ -451,8 +474,8 @@ export function DatasetDetailPage() {
                             )}
                           </Group>
                         )}
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Badge
                           color={version.frozen ? "gray" : "green"}
                           variant="light"
@@ -462,26 +485,27 @@ export function DatasetDetailPage() {
                         >
                           {version.frozen ? "Frozen" : "Editable"}
                         </Badge>
-                      </Table.Td>
-                      <Table.Td>{version.documentCount}</Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>{version.documentCount}</DataTable.Td>
+                      <DataTable.Td>
                         {version.storagePrefix
                           ? version.storagePrefix.substring(0, 8)
                           : "-"}
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         {new Date(version.createdAt).toLocaleDateString()}
-                      </Table.Td>
-                      <Table.Td onClick={(e) => e.stopPropagation()}>
-                        <Menu position="bottom-end">
+                      </DataTable.Td>
+                      <DataTable.Td onClick={(e) => e.stopPropagation()}>
+                        <Menu position="bottom-end" withinPortal>
                           <Menu.Target>
-                            <Button
-                              size="xs"
+                            <ActionIcon
                               variant="subtle"
+                              size="sm"
+                              aria-label="Version actions"
                               data-testid={`version-actions-btn-${version.id}`}
                             >
                               <IconDotsVertical size={16} />
-                            </Button>
+                            </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
                             <Menu.Item
@@ -536,11 +560,11 @@ export function DatasetDetailPage() {
                             </Menu.Item>
                           </Menu.Dropdown>
                         </Menu>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             )}
           </Tabs.Panel>
 
@@ -582,38 +606,42 @@ export function DatasetDetailPage() {
                   </Card>
                 ) : (
                   <>
-                    <Table striped highlightOnHover data-testid="samples-table">
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Sample ID</Table.Th>
-                          <Table.Th>Input Files</Table.Th>
-                          <Table.Th>Ground Truth</Table.Th>
-                          <Table.Th>Metadata</Table.Th>
-                          <Table.Th>Actions</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
+                    <DataTable
+                      striped
+                      highlightOnHover
+                      data-testid="samples-table"
+                    >
+                      <DataTable.Thead>
+                        <DataTable.Tr>
+                          <DataTable.Th>Sample ID</DataTable.Th>
+                          <DataTable.Th>Input Files</DataTable.Th>
+                          <DataTable.Th>Ground Truth</DataTable.Th>
+                          <DataTable.Th>Metadata</DataTable.Th>
+                          <DataTable.Th>Actions</DataTable.Th>
+                        </DataTable.Tr>
+                      </DataTable.Thead>
+                      <DataTable.Tbody>
                         {samples.map((sample) => (
-                          <Table.Tr
+                          <DataTable.Tr
                             key={sample.id}
                             data-testid={`sample-row-${sample.id}`}
                           >
-                            <Table.Td>{sample.id}</Table.Td>
-                            <Table.Td>
+                            <DataTable.Td>{sample.id}</DataTable.Td>
+                            <DataTable.Td>
                               {sample.inputs.map((input, idx) => (
                                 <Text key={idx} size="sm">
                                   {input.path}
                                 </Text>
                               ))}
-                            </Table.Td>
-                            <Table.Td>
+                            </DataTable.Td>
+                            <DataTable.Td>
                               {sample.groundTruth.map((gt, idx) => (
                                 <Text key={idx} size="sm">
                                   {gt.path}
                                 </Text>
                               ))}
-                            </Table.Td>
-                            <Table.Td>
+                            </DataTable.Td>
+                            <DataTable.Td>
                               {sample.metadata ? (
                                 <Text size="sm" c="dimmed">
                                   {Object.keys(sample.metadata).length} field(s)
@@ -621,8 +649,8 @@ export function DatasetDetailPage() {
                               ) : (
                                 "-"
                               )}
-                            </Table.Td>
-                            <Table.Td>
+                            </DataTable.Td>
+                            <DataTable.Td>
                               <Group gap="xs">
                                 <Button
                                   size="xs"
@@ -657,11 +685,11 @@ export function DatasetDetailPage() {
                                   </Button>
                                 )}
                               </Group>
-                            </Table.Td>
-                          </Table.Tr>
+                            </DataTable.Td>
+                          </DataTable.Tr>
                         ))}
-                      </Table.Tbody>
-                    </Table>
+                      </DataTable.Tbody>
+                    </DataTable>
 
                     {totalPages > 1 && (
                       <Center>

@@ -8,10 +8,13 @@ import {
 import { PrismaService } from "@/database/prisma.service";
 import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { computeConfigHash, stampConfigWithPersistedHash } from "./config-hash";
 import { validateGraphConfigWithDynamicNodes } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
+/** Max slug suffix probes (`-2`, `-3`, …) before giving up on auto-naming. */
+const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
 
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
@@ -36,6 +39,8 @@ export interface WorkflowInfo {
   schemaVersion: string;
   /** Immutable version number (WorkflowVersion.version_number) */
   version: number;
+  /** SHA-256 of normalized config (also stored in config.metadata.configHash). */
+  configHash: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -185,6 +190,7 @@ export class WorkflowService {
     },
   ): WorkflowInfo {
     const config = this.asGraphConfig(version.config);
+    const configHash = config.metadata?.configHash ?? computeConfigHash(config);
     return {
       id: lineage.id,
       workflowVersionId: version.id,
@@ -196,6 +202,7 @@ export class WorkflowService {
       config,
       schemaVersion: config.schemaVersion,
       version: version.version_number,
+      configHash,
       createdAt: lineage.created_at,
       updatedAt: lineage.updated_at,
     };
@@ -225,12 +232,19 @@ export class WorkflowService {
     const base = this.slugifyName(name);
     let candidate = base;
     let counter = 2;
+    let attempts = 0;
     while (
       await tx.workflowLineage.findUnique({
         where: { group_id_slug: { group_id: groupId, slug: candidate } },
         select: { id: true },
       })
     ) {
+      attempts++;
+      if (attempts >= WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS) {
+        throw new ConflictException(
+          `Could not allocate a unique workflow slug for "${name}" in this group`,
+        );
+      }
       candidate = `${base}-${counter}`;
       counter++;
     }
@@ -293,15 +307,18 @@ export class WorkflowService {
 
     if (workflowConfigId) {
       // Could be a WorkflowVersion.id or a WorkflowLineage.id. Try version first.
-      const version = await this.prisma.workflowVersion.findUnique({
-        where: { id: workflowConfigId },
+      // Both lookups are scoped to the caller's group (via the owning lineage)
+      // so a config id belonging to another group cannot be resolved, executed,
+      // or have its configuration disclosed.
+      const version = await this.prisma.workflowVersion.findFirst({
+        where: { id: workflowConfigId, lineage: { group_id: groupId } },
         select: { id: true },
       });
       if (version) {
         return version.id;
       }
-      const lineage = await this.prisma.workflowLineage.findUnique({
-        where: { id: workflowConfigId },
+      const lineage = await this.prisma.workflowLineage.findFirst({
+        where: { id: workflowConfigId, group_id: groupId },
         select: { head_version_id: true },
       });
       if (lineage?.head_version_id) {
@@ -318,11 +335,15 @@ export class WorkflowService {
   /**
    * Look up the workflow's declared default `modelId` from its graph config
    * (`ctx.modelId.defaultValue`). Returns null when no version matches or no
-   * default is present.
+   * default is present. The lookup is scoped to the caller's group (via the
+   * owning lineage) so another group's workflow default cannot be disclosed.
    */
-  async getModelIdDefault(workflowVersionId: string): Promise<string | null> {
-    const row = await this.prisma.workflowVersion.findUnique({
-      where: { id: workflowVersionId },
+  async getModelIdDefault(
+    workflowVersionId: string,
+    groupId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.workflowVersion.findFirst({
+      where: { id: workflowVersionId, lineage: { group_id: groupId } },
       select: { config: true },
     });
     if (!row) {
@@ -516,6 +537,7 @@ export class WorkflowService {
         errors: validation.errors,
       });
     }
+    const configToPersist = stampConfigWithPersistedHash(dto.config);
 
     const full = await this.prisma.$transaction(async (tx) => {
       const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
@@ -533,7 +555,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: dto.config as object,
+          config: configToPersist as object,
         },
       });
       await tx.workflowLineage.update({
@@ -647,7 +669,7 @@ export class WorkflowService {
               data: {
                 lineage_id: lineageId,
                 version_number: nextNum,
-                config: nextConfig as object,
+                config: stampConfigWithPersistedHash(nextConfig) as object,
               },
             });
             await tx.workflowLineage.update({
@@ -791,7 +813,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: candidateConfig as object,
+          config: stampConfigWithPersistedHash(candidateConfig) as object,
         },
       });
       await tx.workflowLineage.update({

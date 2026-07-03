@@ -7,25 +7,19 @@ The project includes an opt-in PLG (Prometheus, Loki, Grafana) monitoring stack 
 Start the monitoring stack:
 
 ```bash
-npm run dev:monitoring
-```
-
-Or start it alongside the core stack:
-
-```bash
-docker compose -f apps/backend-services/docker-compose.yml -f deployments/local/docker-compose.monitoring.yml up -d
+docker compose --profile monitoring up -d
 ```
 
 Stop the monitoring stack:
 
 ```bash
-npm run dev:monitoring:down
+docker compose --profile monitoring down
 ```
 
 View monitoring container logs:
 
 ```bash
-npm run dev:monitoring:logs
+docker compose --profile monitoring logs -f
 ```
 
 ## Services and Ports

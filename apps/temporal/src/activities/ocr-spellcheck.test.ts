@@ -1,14 +1,70 @@
-import type { OCRResult } from "../types";
-
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
     info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
+    child: jest.fn(),
   }),
 }));
 
+const ocrBodiesByPath = new Map<string, unknown>();
+
+jest.mock("../ocr-payload-ref", () => {
+  const actual = jest.requireActual(
+    "../ocr-payload-ref",
+  ) as typeof import("../ocr-payload-ref");
+  return {
+    ...actual,
+    writeOcrPayloadBlob: jest.fn(
+      async (
+        groupId: string,
+        documentId: string,
+        fileName: string,
+        body: unknown,
+      ) => {
+        const blobPath = `${groupId}/ocr/${documentId}/${fileName}`;
+        ocrBodiesByPath.set(blobPath, body);
+        return { blobPath, byteLength: 64 };
+      },
+    ),
+    persistOcrArtifactRef: jest.fn(
+      async (
+        groupId: string,
+        documentId: string,
+        fileName: string,
+        body: unknown,
+      ) => {
+        const blobPath = `${groupId}/ocr/${documentId}/${fileName}`;
+        ocrBodiesByPath.set(blobPath, body);
+        return {
+          documentId,
+          blobPath,
+          storage: "blob" as const,
+          status: "succeeded" as const,
+        };
+      },
+    ),
+    loadOcrResultFromPort: jest.fn(async (ref: { blobPath: string }) =>
+      ocrBodiesByPath.get(ref.blobPath),
+    ),
+  };
+});
+
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import type { OCRResult } from "../types";
 import { spellcheckOcrResult } from "./ocr-spellcheck";
+
+const DOC_ID = "doc-spellcheck-test";
+const TEST_GROUP_ID = "gtestgroupidfortests01";
+
+function ocrFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (!body) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return body as OCRResult;
+}
 
 function makeOcrResult(
   kvps: Array<{ key: string; value: string; confidence: number }>,
@@ -40,12 +96,20 @@ function makeOcrResult(
 }
 
 describe("spellcheckOcrResult", () => {
+  beforeEach(() => {
+    ocrBodiesByPath.clear();
+  });
+
   it("corrects misspelled words", async () => {
     const ocrResult = makeOcrResult([
       { key: "Name", value: "Jonh Doe", confidence: 0.9 },
     ]);
 
-    const result = await spellcheckOcrResult({ ocrResult });
+    const result = await spellcheckOcrResult({
+      ocrResult,
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
+    });
 
     expect(result.ocrResult).toBeDefined();
     expect(result.changes.length).toBeGreaterThanOrEqual(0);
@@ -58,7 +122,11 @@ describe("spellcheckOcrResult", () => {
     ]);
     const originalValue = ocrResult.keyValuePairs[0].value?.content;
 
-    await spellcheckOcrResult({ ocrResult });
+    await spellcheckOcrResult({
+      ocrResult,
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
+    });
 
     expect(ocrResult.keyValuePairs[0].value?.content).toBe(originalValue);
   });
@@ -71,6 +139,8 @@ describe("spellcheckOcrResult", () => {
 
     const result = await spellcheckOcrResult({
       ocrResult,
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
       fieldScope: ["Name"],
     });
 
@@ -83,9 +153,15 @@ describe("spellcheckOcrResult", () => {
       { key: "Amount", value: "12345", confidence: 0.9 },
     ]);
 
-    const result = await spellcheckOcrResult({ ocrResult });
+    const result = await spellcheckOcrResult({
+      ocrResult,
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
+    });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("12345");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "12345",
+    );
     expect(result.changes).toHaveLength(0);
   });
 
@@ -94,7 +170,11 @@ describe("spellcheckOcrResult", () => {
       { key: "Description", value: "teh quick brown fox", confidence: 0.9 },
     ]);
 
-    const result = await spellcheckOcrResult({ ocrResult });
+    const result = await spellcheckOcrResult({
+      ocrResult,
+      documentId: DOC_ID,
+      groupId: TEST_GROUP_ID,
+    });
 
     if (result.changes.length > 0) {
       expect(result.changes[0]).toHaveProperty("fieldKey");

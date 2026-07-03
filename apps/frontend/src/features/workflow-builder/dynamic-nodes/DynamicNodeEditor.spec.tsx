@@ -9,6 +9,7 @@
  */
 
 import "@testing-library/jest-dom";
+import { mockNotificationsShow } from "../../../test/mockNotifications";
 
 import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
@@ -331,9 +332,12 @@ describe("DynamicNodeEditor (US-176)", () => {
       screen.getByTestId("dynamic-node-editor-code-col"),
     ).toBeInTheDocument();
 
-    // A red notification fired with the "Publish failed" copy.
+    // A red notification fired with the "Publish failed" copy. The global
+    // test mock no-ops the toast render, so assert against the show() spy.
     await waitFor(() => {
-      expect(screen.getByText(/Publish failed/i)).toBeInTheDocument();
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Publish failed", color: "red" }),
+      );
     });
   });
 

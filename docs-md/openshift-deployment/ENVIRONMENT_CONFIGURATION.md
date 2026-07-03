@@ -102,16 +102,23 @@ These values are derived automatically by the deploy script — do not set them 
 | `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | No | Azure Document Intelligence API endpoint |
 | `AZURE_DOCUMENT_INTELLIGENCE_API_KEY` | Yes | Azure Document Intelligence API key |
 | `AZURE_DOC_INTELLIGENCE_MODELS` | No | Comma-separated allowed model IDs |
+| `DOCUMENT_INTELLIGENCE_MODE` | No | `live` (default) or `mock`; mock avoids live Azure for classification polling and labeling OCR and returns **503** for template/classifier training — use only on disposable environments |
 
-### Azure Blob Storage
+See [LOAD_TESTING.md](../LOAD_TESTING.md) for load-test usage of `mock`.
+
+### Blob Storage
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
-| `BLOB_STORAGE_PROVIDER` | No | Storage backend (`azure` for cloud) |
+| `BLOB_STORAGE_PROVIDER` | No | Storage backend (`azure` for cloud, `minio` for in-cluster MinIO mock — load-test only) |
 | `AZURE_STORAGE_CONTAINER_NAME` | No | Azure blob container name |
 | `AZURE_STORAGE_CONNECTION_STRING` | Yes | Azure storage connection string |
 | `AZURE_STORAGE_ACCOUNT_NAME` | Yes | Azure storage account name |
 | `AZURE_STORAGE_ACCOUNT_KEY` | Yes | Azure storage account key |
+| `MINIO_DOCUMENT_BUCKET` | No | Bucket created on the per-instance MinIO when `BLOB_STORAGE_PROVIDER=minio` (default `document-blobs`) |
+| `MINIO_PVC_SIZE` | No | PVC size for the per-instance MinIO data volume (default `5Gi`); CLI override: `scripts/oc-deploy-instance.sh --minio-pvc-size` |
+
+`MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, and `MINIO_SECRET_KEY` are not configured through `dev.env`/`prod.env`. The deploy script renders `MINIO_ENDPOINT` from the per-instance Service name and seeds a random `<instance>-minio-credentials` Secret when `--blob-storage-provider minio` is used. See [MANUAL_LOAD_TEST_INSTANCE.md](./MANUAL_LOAD_TEST_INSTANCE.md) for the full opt-in flow.
 
 ### Azure OpenAI (LLM Enrichment)
 
@@ -131,6 +138,7 @@ These values are derived automatically by the deploy script — do not set them 
 | `TEMPORAL_TASK_QUEUE` | Temporal task queue name |
 | `BENCHMARK_TASK_QUEUE` | Benchmark processing task queue |
 | `ENABLE_BENCHMARK_QUEUE` | Enable separate benchmark worker |
+| `MOCK_AZURE_OCR` | Worker OCR stub (`true` / `false`). Use `true` only on disposable stacks (see [LOAD_TESTING.md](../LOAD_TESTING.md)); substituted into the worker ConfigMap by [`scripts/lib/generate-overlay.sh`](../../scripts/lib/generate-overlay.sh). CLI override: `scripts/oc-deploy-instance.sh --mock-azure-ocr`. |
 
 ### Database Storage
 
@@ -158,6 +166,12 @@ These values are derived automatically by the deploy script — do not set them 
 | Variable | Description |
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
+
+### Database Connection Pool
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_POOL_MAX` | `10` | Max concurrent PostgreSQL connections per **backend-services** pod. Wired to the Prisma/pg pool (`PrismaPg` `max`). Without an explicit value, Prisma defaults to `num_cpus * 2 + 1`, which is **3** in a 500m container and caps read throughput at ~7 req/s per pod regardless of VU count. Default **10** keeps `(backend_pods × DB_POOL_MAX) + (worker_pods × 3)` under Postgres `max_connections` (100) at HPA max scale. Override to **20** on single-replica load-test instances if needed. |
 
 ### Rate Limiting
 

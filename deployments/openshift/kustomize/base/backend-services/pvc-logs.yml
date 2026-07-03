@@ -6,7 +6,8 @@ metadata:
     app: backend-services
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
+  storageClassName: netapp-file-standard
   resources:
     requests:
       storage: 1Gi

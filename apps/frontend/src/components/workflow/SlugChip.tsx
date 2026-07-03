@@ -1,5 +1,5 @@
-import { ActionIcon, Code, CopyButton, Group, Tooltip } from "@mantine/core";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { ActionIcon, Code, CopyButton, Group, Tooltip } from "../../ui";
 
 type Size = "xs" | "sm";
 

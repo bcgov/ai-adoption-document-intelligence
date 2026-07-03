@@ -1,34 +1,10 @@
 import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Button,
-  Center,
-  Code,
-  CopyButton,
-  Divider,
-  Group,
-  Loader,
-  Modal,
-  Paper,
-  Progress,
-  rem,
-  ScrollArea,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { Dropzone, FileRejection } from "@mantine/dropzone";
-import { notifications } from "@mantine/notifications";
-import {
   IconArrowLeft,
   IconCheck,
   IconCopy,
   IconFileDescription,
   IconFileImport,
+  IconPencil,
   IconPhoto,
   IconPlus,
   IconSparkles,
@@ -44,6 +20,32 @@ import {
   useUploadQueue,
 } from "@/data/hooks/useUploadQueue";
 import { apiService } from "@/data/services/api.service";
+import {
+  ActionIcon,
+  Avatar,
+  Badge,
+  Button,
+  Center,
+  Code,
+  CopyButton,
+  DataTable,
+  Divider,
+  Dropzone,
+  type FileRejection,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  Paper,
+  Progress,
+  rem,
+  ScrollArea,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+  Tooltip,
+} from "../../../../ui";
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
@@ -256,6 +258,7 @@ export const ModelDetailPage: FC = () => {
       const response = await apiService.post<{
         labelingDocument?: { id: string };
         code?: string;
+        message?: string;
       }>(`/template-models/${routeModelId}/upload`, payload);
 
       if (
@@ -477,7 +480,7 @@ export const ModelDetailPage: FC = () => {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
+      <Stack gap="xs">
         <Group>
           <Button
             variant="subtle"
@@ -486,55 +489,69 @@ export const ModelDetailPage: FC = () => {
           >
             Back
           </Button>
-          <Stack gap={2}>
-            <Title order={2}>{templateModel?.name || "Template Model"}</Title>
-            {copyableModelId && (
-              <Group gap="xs">
-                <Code>{copyableModelId}</Code>
-                {activeTrainedModel && (
-                  <Code c="dimmed">v{activeTrainedModel.version}</Code>
-                )}
-                <CopyButton value={copyableModelId}>
-                  {({ copied, copy }) => (
-                    <Tooltip
-                      label={
-                        copied
-                          ? "Copied!"
-                          : activeTrainedModel
-                            ? `Copy active model ID (v${activeTrainedModel.version})`
-                            : "Copy model ID"
-                      }
-                    >
-                      <ActionIcon
-                        color={copied ? "green" : "gray"}
-                        variant="subtle"
-                        size="sm"
-                        onClick={copy}
-                      >
-                        {copied ? (
-                          <IconCheck size={14} />
-                        ) : (
-                          <IconCopy size={14} />
-                        )}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
-                </CopyButton>
-              </Group>
-            )}
-            <Text size="sm" c="dimmed">
-              {templateModel?.description ||
-                "Manage template model documents and schema"}
-            </Text>
-          </Stack>
         </Group>
-        <Badge
-          variant="light"
-          color={getStatusBadgeColor(templateModel?.status || "draft")}
+
+        <Stack
+          className="bcds-page-header__title-block"
+          style={{ gap: "var(--layout-margin-xsmall)" }}
         >
-          {templateModel?.status || "draft"}
-        </Badge>
-      </Group>
+          <Group gap="sm" align="center" wrap="wrap">
+            <Title order={2} mt={0} mb={0}>
+              {templateModel?.name || "Template Model"}
+            </Title>
+            <Badge
+              variant="light"
+              color={getStatusBadgeColor(templateModel?.status || "draft")}
+            >
+              {templateModel?.status || "draft"}
+            </Badge>
+          </Group>
+          <Text size="sm" c="dimmed" mt={0} mb={0}>
+            {templateModel?.description ||
+              "Manage template model documents and schema"}
+          </Text>
+        </Stack>
+
+        <Group gap="xs" wrap="wrap">
+          {copyableModelId && (
+            <>
+              <Text size="sm" c="dimmed" fw={500}>
+                Model ID
+              </Text>
+              <Code>{copyableModelId}</Code>
+              {activeTrainedModel && (
+                <Code c="dimmed">v{activeTrainedModel.version}</Code>
+              )}
+              <CopyButton value={copyableModelId}>
+                {({ copied, copy }) => (
+                  <Tooltip
+                    label={
+                      copied
+                        ? "Copied!"
+                        : activeTrainedModel
+                          ? `Copy active model ID (v${activeTrainedModel.version})`
+                          : "Copy model ID"
+                    }
+                  >
+                    <ActionIcon
+                      color={copied ? "green" : "gray"}
+                      variant="subtle"
+                      size="sm"
+                      onClick={copy}
+                    >
+                      {copied ? (
+                        <IconCheck size={14} />
+                      ) : (
+                        <IconCopy size={14} />
+                      )}
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </CopyButton>
+            </>
+          )}
+        </Group>
+      </Stack>
 
       <Tabs defaultValue="documents">
         <Tabs.List>
@@ -550,7 +567,7 @@ export const ModelDetailPage: FC = () => {
             <Group justify="space-between">
               <Text fw={600}>Template model documents</Text>
               <Button
-                leftSection={<IconPlus size={16} />}
+                leftSection={<IconUpload size={16} />}
                 onClick={() => setIsUploadOpen(true)}
               >
                 Upload documents
@@ -566,31 +583,31 @@ export const ModelDetailPage: FC = () => {
                 </Text>
               </Paper>
             ) : (
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Document</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Labels</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>Status</DataTable.Th>
+                    <DataTable.Th>Labels</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {documents.map((doc) => {
                     const isReady =
-                      doc.labeling_document.status === "completed_ocr";
+                      doc.labeling_document.status === "extracted";
 
                     return (
-                      <Table.Tr key={doc.id}>
-                        <Table.Td>
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
                           {doc.labeling_document.original_filename}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Badge
                             size="sm"
                             variant="light"
                             color={
-                              doc.labeling_document.status === "completed_ocr"
+                              doc.labeling_document.status === "extracted"
                                 ? "green"
                                 : doc.labeling_document.status === "failed"
                                   ? "red"
@@ -601,16 +618,15 @@ export const ModelDetailPage: FC = () => {
                               ? "Pending OCR"
                               : doc.labeling_document.status === "ongoing_ocr"
                                 ? "Processing OCR"
-                                : doc.labeling_document.status ===
-                                    "completed_ocr"
+                                : doc.labeling_document.status === "extracted"
                                   ? "OCR Complete"
                                   : doc.labeling_document.status === "failed"
                                     ? "Failed"
                                     : doc.labeling_document.status}
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>{doc.labels?.length || 0}</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>{doc.labels?.length || 0}</DataTable.Td>
+                        <DataTable.Td>
                           <Group gap="xs">
                             <Button
                               size="xs"
@@ -642,12 +658,12 @@ export const ModelDetailPage: FC = () => {
                               Remove
                             </Button>
                           </Group>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     );
                   })}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             )}
           </Stack>
         </Tabs.Panel>
@@ -704,24 +720,24 @@ export const ModelDetailPage: FC = () => {
                 </Text>
               </Paper>
             ) : (
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Key</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Format</Table.Th>
-                    <Table.Th>Format Spec</Table.Th>
-                    <Table.Th>Order</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Key</DataTable.Th>
+                    <DataTable.Th>Type</DataTable.Th>
+                    <DataTable.Th>Format</DataTable.Th>
+                    <DataTable.Th>Format Spec</DataTable.Th>
+                    <DataTable.Th>Order</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {schema.map((field) => (
-                    <Table.Tr key={field.id}>
-                      <Table.Td>{field.fieldKey}</Table.Td>
-                      <Table.Td>{field.fieldType}</Table.Td>
-                      <Table.Td>{field.fieldFormat || "—"}</Table.Td>
-                      <Table.Td>
+                    <DataTable.Tr key={field.id}>
+                      <DataTable.Td>{field.fieldKey}</DataTable.Td>
+                      <DataTable.Td>{field.fieldType}</DataTable.Td>
+                      <DataTable.Td>{field.fieldFormat || "—"}</DataTable.Td>
+                      <DataTable.Td>
                         {(() => {
                           if (!field.formatSpec) return "—";
                           try {
@@ -731,34 +747,38 @@ export const ModelDetailPage: FC = () => {
                             return field.formatSpec;
                           }
                         })()}
-                      </Table.Td>
-                      <Table.Td>{field.displayOrder}</Table.Td>
-                      <Table.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            onClick={() => {
-                              setEditingField(field);
-                              setSchemaEditorOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="subtle"
-                            color="red"
-                            onClick={() => deleteField(field.id)}
-                          >
-                            Delete
-                          </Button>
+                      </DataTable.Td>
+                      <DataTable.Td>{field.displayOrder}</DataTable.Td>
+                      <DataTable.Td>
+                        <Group gap="xs" justify="flex-start" wrap="nowrap">
+                          <Tooltip label="Edit field" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              onClick={() => {
+                                setEditingField(field);
+                                setSchemaEditorOpen(true);
+                              }}
+                              aria-label={`Edit field ${field.fieldKey}`}
+                            >
+                              <IconPencil size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete field" withArrow>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => deleteField(field.id)}
+                              aria-label={`Delete field ${field.fieldKey}`}
+                            >
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
                         </Group>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             )}
           </Stack>
         </Tabs.Panel>
@@ -857,7 +877,11 @@ export const ModelDetailPage: FC = () => {
               >
                 Clear all
               </Button>
-              <Button onClick={handleUpload} loading={isUploading}>
+              <Button
+                onClick={handleUpload}
+                loading={isUploading}
+                leftSection={<IconUpload size={16} />}
+              >
                 {isUploading ? "Uploading..." : "Upload"}
               </Button>
             </Group>

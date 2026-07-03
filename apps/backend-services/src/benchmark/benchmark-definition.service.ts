@@ -80,12 +80,17 @@ export class BenchmarkDefinitionService {
       );
     }
 
-    // Validate that the dataset version exists
+    // Validate that the dataset version exists AND belongs to the project's
+    // group. A version owned by another group is reported as non-existent so a
+    // member of one group cannot pin (and thereby read) another group's data.
     const datasetVersion = await this.definitionDb.findDatasetVersion(
       dto.datasetVersionId,
     );
 
-    if (!datasetVersion) {
+    if (
+      !datasetVersion ||
+      datasetVersion.dataset.group_id !== project.group_id
+    ) {
       throw new BadRequestException(
         `Dataset version with ID "${dto.datasetVersionId}" does not exist`,
       );
@@ -108,13 +113,19 @@ export class BenchmarkDefinitionService {
       }
     }
 
-    // Validate that the workflow version exists
+    // Validate that the workflow version exists AND belongs to the project's
+    // group (via its owning lineage). A version owned by another group is
+    // reported as non-existent so its configuration cannot be pinned, executed,
+    // or disclosed by a member of a different group.
     const workflowVersion =
       await this.definitionDb.findWorkflowVersionWithLineage(
         dto.workflowVersionId,
       );
 
-    if (!workflowVersion) {
+    if (
+      !workflowVersion ||
+      workflowVersion.lineage.group_id !== project.group_id
+    ) {
       throw new BadRequestException(
         `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
       );
@@ -239,13 +250,26 @@ export class BenchmarkDefinitionService {
       );
     }
 
+    // Resolve the owning project's group: every newly referenced entity must
+    // belong to it, so a member of one group cannot re-point a definition at
+    // another group's dataset/workflow.
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
+    if (!project) {
+      throw new NotFoundException(
+        `Benchmark project with ID "${projectId}" not found`,
+      );
+    }
+
     // Validate referenced entities if they are being changed
     if (dto.datasetVersionId) {
       const datasetVersion = await this.definitionDb.findDatasetVersion(
         dto.datasetVersionId,
       );
 
-      if (!datasetVersion) {
+      if (
+        !datasetVersion ||
+        datasetVersion.dataset.group_id !== project.group_id
+      ) {
         throw new BadRequestException(
           `Dataset version with ID "${dto.datasetVersionId}" does not exist`,
         );
@@ -274,11 +298,17 @@ export class BenchmarkDefinitionService {
     let workflowConfigHash = existing.workflowConfigHash;
     let resolvedWorkflow: { config: unknown } | null = null;
     if (dto.workflowVersionId) {
-      const workflowVersion = await this.definitionDb.findWorkflowVersion(
-        dto.workflowVersionId,
-      );
+      // Resolve with lineage so the owning group can be verified: a version
+      // belonging to another group must be treated as non-existent.
+      const workflowVersion =
+        await this.definitionDb.findWorkflowVersionWithLineage(
+          dto.workflowVersionId,
+        );
 
-      if (!workflowVersion) {
+      if (
+        !workflowVersion ||
+        workflowVersion.lineage.group_id !== project.group_id
+      ) {
         throw new BadRequestException(
           `Workflow version with ID "${dto.workflowVersionId}" does not exist`,
         );
@@ -288,7 +318,7 @@ export class BenchmarkDefinitionService {
 
       // Recompute workflow config hash
       workflowConfigHash = computeConfigHash(
-        workflowVersion.config as GraphWorkflowConfig,
+        workflowVersion.config as unknown as GraphWorkflowConfig,
       );
     }
 
@@ -682,6 +712,22 @@ export class BenchmarkDefinitionService {
       );
     }
 
+    // Resolve the owning project's group. Both the base lineage promoted into
+    // and the candidate must belong to it, so a member of one group cannot
+    // write into another group's workflow lineage.
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
+    if (!project) {
+      throw new NotFoundException(
+        `Benchmark project with ID "${projectId}" not found`,
+      );
+    }
+
+    if (definition.workflowVersion.lineage.group_id !== project.group_id) {
+      throw new NotFoundException(
+        `Definition ${definitionId} not found in project ${projectId}`,
+      );
+    }
+
     const baseLineageId = definition.workflowVersion.lineage.id;
 
     const candidateVersion =
@@ -689,7 +735,10 @@ export class BenchmarkDefinitionService {
         candidateWorkflowVersionId,
       );
 
-    if (!candidateVersion?.lineage) {
+    if (
+      !candidateVersion?.lineage ||
+      candidateVersion.lineage.group_id !== project.group_id
+    ) {
       throw new NotFoundException(
         `Candidate workflow version not found: ${candidateWorkflowVersionId}`,
       );
@@ -838,12 +887,24 @@ export class BenchmarkDefinitionService {
       `Applying candidate workflow ${candidateWorkflowVersionId} to base lineage (project ${projectId})`,
     );
 
+    // Resolve the owning project's group so both the candidate and the base
+    // lineage it writes into can be confined to it.
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
+    if (!project) {
+      throw new NotFoundException(
+        `Benchmark project with ID "${projectId}" not found`,
+      );
+    }
+
     const candidateVersion =
       await this.definitionDb.findWorkflowVersionWithLineage(
         candidateWorkflowVersionId,
       );
 
-    if (!candidateVersion?.lineage) {
+    if (
+      !candidateVersion?.lineage ||
+      candidateVersion.lineage.group_id !== project.group_id
+    ) {
       throw new NotFoundException(
         `Candidate workflow version not found: ${candidateWorkflowVersionId}`,
       );
@@ -864,6 +925,18 @@ export class BenchmarkDefinitionService {
     }
 
     const baseLineageId = candidateLineage.source_workflow_id;
+
+    // The base lineage being written into must also belong to the project's
+    // group; otherwise a candidate whose source points at another group's
+    // lineage would let the caller write a version into — and move the head of
+    // — a workflow they do not own.
+    const baseLineage =
+      await this.definitionDb.findWorkflowLineageHead(baseLineageId);
+    if (!baseLineage || baseLineage.group_id !== project.group_id) {
+      throw new NotFoundException(
+        `Base workflow lineage not found: ${baseLineageId}`,
+      );
+    }
 
     const candidateConfig =
       candidateVersion.config as unknown as GraphWorkflowConfig;

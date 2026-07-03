@@ -9,9 +9,10 @@
 # Usage:
 #   ./scripts/oc-teardown.sh
 #   ./scripts/oc-teardown.sh --instance feature-other-work
+#   ./scripts/oc-teardown.sh --namespace fd34fb-test --instance loadtest-1
 #
 # Prerequisites:
-#   - .oc-deploy-token exists (created by oc-setup-sa.sh)
+#   - .oc-deploy/token or .oc-deploy/token-<namespace> (created by oc-setup-sa.sh)
 #   - oc CLI installed
 #
 
@@ -23,7 +24,9 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Source library functions
 source "${SCRIPT_DIR}/lib/instance-name.sh"
 
-TOKEN_FILE="${PROJECT_ROOT}/.oc-deploy/token"
+TOKEN_DIR="${PROJECT_ROOT}/.oc-deploy"
+TOKEN_FILE=""
+TOKEN_NAMESPACE=""
 SA_NAME="deploy-sa"
 ROLE_NAME="deploy-sa-role"
 ROLE_BINDING_NAME="deploy-sa-rolebinding"
@@ -32,14 +35,15 @@ ROLE_BINDING_NAME="deploy-sa-rolebinding"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") [--instance <name>]
+Usage: $(basename "$0") [--namespace <ns>] [--instance <name>]
 
 Tears down all resources for an instance in OpenShift.
 Instance name defaults to the current git branch if --instance is not specified.
 
 Options:
-  --instance, -i  Instance name to tear down (default: derived from git branch)
-  --help, -h      Show this help message
+  --namespace, -n  Use token file .oc-deploy/token-<namespace> (same as oc-login-sa.sh)
+  --instance, -i   Instance name to tear down (default: derived from git branch)
+  --help, -h       Show this help message
 EOF
 }
 
@@ -64,6 +68,14 @@ PASS_THROUGH_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --namespace|-n)
+      if [[ -z "${2:-}" ]]; then
+        log_error "--namespace requires a value"
+        exit 1
+      fi
+      TOKEN_NAMESPACE="$2"
+      shift 2
+      ;;
     --instance|-i)
       if [[ -z "${2:-}" ]]; then
         log_error "--instance requires a value"
@@ -83,6 +95,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "${TOKEN_NAMESPACE}" ]]; then
+  TOKEN_FILE="${TOKEN_DIR}/token-${TOKEN_NAMESPACE}"
+else
+  TOKEN_FILE="${TOKEN_DIR}/token"
+fi
 
 # ============================================================
 # Step 1: Token validation
@@ -156,6 +174,7 @@ log_step "Step 3: Deleting instance resources"
 # Resource types to delete — order matters: dependents before parents
 RESOURCE_TYPES=(
   "deployments.apps"
+  "jobs.batch"
   "services"
   "routes.route.openshift.io"
   "networkpolicies.networking.k8s.io"

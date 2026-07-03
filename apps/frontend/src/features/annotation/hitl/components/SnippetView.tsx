@@ -1,3 +1,5 @@
+import { FC, useEffect, useRef, useState } from "react";
+import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
   Checkbox,
   Group,
@@ -6,9 +8,7 @@ import {
   Stack,
   Text,
   Textarea,
-} from "@mantine/core";
-import { FC, useEffect, useRef, useState } from "react";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
+} from "../../../../ui";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 
 interface SnippetField {

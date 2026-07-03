@@ -34,6 +34,7 @@ export {
   benchmarkAggregate,
   benchmarkEvaluate,
 } from "./activities/benchmark-evaluate";
+export { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 export type { DatasetManifest } from "./activities/benchmark-materialize";
 export {
   loadDatasetManifest,
@@ -91,6 +92,7 @@ export type {
   FlattenClassifiedDocumentsOutput,
 } from "./activities/flatten-classified-documents";
 export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
+export { getDocumentStatus } from "./activities/get-document-status";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
 export type { MistralOcrProcessParams } from "./activities/mistral-ocr-process";
 export {

@@ -1,3 +1,5 @@
+import { IconAlertCircle } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -6,9 +8,7 @@ import {
   Stack,
   Textarea,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+} from "../../../ui";
 
 interface CreateProjectDialogProps {
   opened: boolean;

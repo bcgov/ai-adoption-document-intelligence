@@ -443,12 +443,12 @@ export class GroundTruthGenerationService {
       });
 
       // Start OCR workflow with confidenceThreshold=0 to skip humanGate.
-      // Pass the override-applied graph so exposed-param overrides take effect.
+      // Overrides are merged when the worker loads graph config.
       const ocrResult = await this.ocrService.requestOcr(
         documentId,
         { confidenceThreshold: 0 },
-        effectiveConfig && jobOverrides && Object.keys(jobOverrides).length > 0
-          ? effectiveConfig
+        jobOverrides && Object.keys(jobOverrides).length > 0
+          ? jobOverrides
           : undefined,
       );
 
@@ -711,15 +711,15 @@ export class GroundTruthGenerationService {
   // ---- Private helpers ----
 
   /**
-   * Sync job statuses: processing → awaiting_review when document is completed_ocr.
+   * Sync job statuses: processing → awaiting_review when document is extracted.
    */
   private async syncJobStatuses(versionId: string): Promise<void> {
-    // Sync document-level status transitions (completed_ocr → awaiting_review, failed → failed)
+    // Sync document-level status transitions (extracted → awaiting_review, failed → failed)
     const processingJobs =
       await this.jobDb.findProcessingJobsWithDocumentStatus(versionId);
 
     const jobsToUpdate = processingJobs.filter(
-      (j) => j.document?.status === DocumentStatus.completed_ocr,
+      (j) => j.document?.status === DocumentStatus.extracted,
     );
 
     const jobsToFail = processingJobs.filter(

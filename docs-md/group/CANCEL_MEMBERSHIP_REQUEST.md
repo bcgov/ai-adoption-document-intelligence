@@ -48,4 +48,4 @@ Cancellation is exposed in the **My Requests** tab on the Groups page (`/groups`
 - Clicking **Cancel** opens a Mantine `Modal` asking the user to confirm the cancellation.
 - Clicking **Confirm** in the modal calls `PATCH /api/groups/requests/:requestId/cancel` and, on success, closes the modal and invalidates the `my-requests` query so the table refreshes.
 - Clicking **Back** dismisses the modal without making any API call.
-- If the API call fails, a red error notification is shown via `@mantine/notifications`.
+- If the API call fails, a red error notification is shown via the shared `notifications` API from `apps/frontend/src/ui/`.

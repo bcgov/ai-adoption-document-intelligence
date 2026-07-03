@@ -1,25 +1,31 @@
-# DAG Workflow Engine -- Requirements Specification
+# DAG Workflow Engine -- Architecture Reference
 
-## 1. Title and Overview
+## 1. Overview
 
-This project transforms the existing linear step-based OCR workflow execution system into a generic DAG (Directed Acyclic Graph) workflow engine. The current system runs a single `ocrWorkflow` function with 11 hardcoded sequential steps controlled by enable/disable flags. The new system replaces this with a data-driven graph runner: a single `graphWorkflow` Temporal function that interprets arbitrary workflow graphs stored as JSON in the database at runtime.
+This document is the architecture reference for the DAG (Directed Acyclic Graph) workflow engine. The system replaced the legacy linear step-based `ocrWorkflow` with a data-driven graph runner: a single `graphWorkflow` Temporal function that interprets arbitrary workflow graphs stored as JSON in the database at runtime. Any document processing pipeline expressible as a DAG can be defined and run without code changes.
 
-The multi-page report with supporting documents is the initial test case, but the engine is generic from day one -- any document processing pipeline expressible as a DAG should be runnable without code changes.
+### Document Index
 
-### Current State
+| File | Description |
+|---|---|
+| [DAG_WORKFLOW_ENGINE.md](./DAG_WORKFLOW_ENGINE.md) | This file: architecture overview, schema specification, execution engine, error handling, versioning |
+| [GRAPH_TYPES.md](./GRAPH_TYPES.md) | TypeScript type reference: all interfaces, node types, expression DSL, activity registry |
+| [ADDING_GRAPH_NODES_AND_ACTIVITIES.md](./ADDING_GRAPH_NODES_AND_ACTIVITIES.md) | Developer guide: adding new activities and node types end-to-end |
 
-- **Temporal workflow**: `ocrWorkflow()` with 11 sequential steps, each wrapped in `isStepEnabled()` guards
-- **Config format**: `WorkflowStepsConfig` -- flat map of step IDs to `{ enabled: boolean, parameters?: Record<string, unknown> }`
-- **Frontend**: Form-based workflow builder (toggle switches per step) + custom SVG `WorkflowVisualization` component
-- **Backend**: NestJS CRUD endpoints (`/api/workflows`) with Prisma-backed `workflows` table (config stored as JSONB)
-- **Worker**: Single Temporal worker running `ocrWorkflow`, dispatched via `TemporalClientService.startOCRWorkflow()`
+### Current Architecture
 
-### Target State
+- **Temporal workflow**: `graphWorkflow()` -- a generic graph interpreter that reads a DAG definition and executes nodes in topological order with parallel branches
+- **Config format**: `GraphWorkflowConfig` -- typed nodes, directed edges with port bindings, and a workflow-scoped context (`ctx`). Stored as JSONB in the database.
+- **Shared types/validator**: `packages/graph-workflow` (`@ai-di/graph-workflow`) -- single source of truth for all TypeScript interfaces and the shared `validateGraphConfig()` function. Backend, temporal, and frontend all import from this package via thin re-export shims.
+- **Frontend**: JSON text editor (CodeMirror) with React Flow (`@xyflow/react`) read-only visualization, auto-synced with debounce
+- **Backend**: NestJS CRUD endpoints (`/api/workflows`) with Prisma-backed database. Save-time validation via thin wrapper in `apps/backend-services/src/workflow/graph-schema-validator.ts`.
 
-- **Temporal workflow**: `graphWorkflow()` -- a generic graph interpreter that reads a DAG definition and executes nodes according to topological order with parallel branches
-- **Config format**: Graph JSON schema with typed nodes, directed edges with port bindings, and a workflow-scoped context (`ctx`)
-- **Frontend**: JSON text editor with React Flow (`@xyflow/react`) read-only visualization, auto-synced with debounce
-- **Backend**: Updated CRUD endpoints accepting the new graph JSON, validation against the graph schema, same `workflows` table with replaced config format
+### Replaced / Legacy
+
+- `ocrWorkflow()` -- replaced by `graphWorkflow()`
+- `WorkflowStepsConfig` -- replaced by `GraphWorkflowConfig`
+- Form-based workflow builder (toggle switches per step) -- replaced by JSON editor + React Flow visualization
+- `TemporalClientService.startOCRWorkflow()` -- replaced by `startGraphWorkflow()`
 
 ---
 
@@ -113,6 +119,7 @@ The multi-page report with supporting documents is the initial test case, but th
 2. **Activity registry**: A mapping from activity type strings (e.g., `"azureOcr.submit"`, `"document.split"`) to actual Temporal activity implementations. The graph JSON references activities by registry key.
 3. **Deterministic execution**: The graph runner schedules nodes in a stable topological sort order. Parallel branches are scheduled in deterministic order by node ID.
 4. **Library workflows as data**: Reusable subgraphs are stored as `Workflow` records in the database. A `childWorkflow` node references a library workflow by its database ID. At runtime, the graph runner starts a new `graphWorkflow` Temporal child workflow with the referenced subgraph.
+5. **Shared type/validator package**: `packages/graph-workflow` (`@ai-di/graph-workflow`) is the single source of truth for all TypeScript interfaces and the `validateGraphConfig()` function. Backend and temporal each have thin validator wrappers that inject their own activity registry. The frontend (`WorkflowEditorPage.tsx`) calls `validateGraphConfig()` directly without an activity registry — the shared validator's optional `options` parameter defaults to `SKIP_ACTIVITY_VALIDATION` (skips activity-type and parameter checks) for this purpose.
 
 ---
 
@@ -123,10 +130,7 @@ The multi-page report with supporting documents is the initial test case, but th
 ```typescript
 interface GraphWorkflowConfig {
   schemaVersion: "1.0";
-  metadata: {
-    description?: string;
-    tags?: string[];
-  };
+  metadata: GraphMetadata;
   nodes: Record<string, GraphNode>;
   edges: GraphEdge[];
   entryNodeId: string;        // Node to execute first (must have no incoming edges)
@@ -137,6 +141,14 @@ interface GraphWorkflowConfig {
       defaultValue?: unknown;
     };
   };
+  nodeGroups?: Record<string, NodeGroup>;  // Optional UI grouping metadata (ignored by executor)
+}
+
+interface GraphMetadata {
+  name?: string;
+  description?: string;
+  version?: string;
+  tags?: string[];
 }
 ```
 
@@ -334,6 +346,8 @@ Edge types:
 - `"error"` -- fallback path from a node's error port; only followed when the source node fails and has an `errorPolicy` with `fallbackEdgeId`
 
 ### 4.4 Worked Example: Current OCR Workflow as a Graph
+
+> **Canonical OCR templates** use `ocrResponseRef`, `ocrResultRef`, and `cleanedResultRef` in workflow `ctx` (activity **ports** stay `ocrResponse` / `ocrResult` / `cleanedResult`). See [`templates/standard-ocr-workflow.json`](templates/standard-ocr-workflow.json) and [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md). The JSON below is an older illustration of graph shape; do not copy legacy ctx key names into new workflows.
 
 This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new graph schema:
 
@@ -662,6 +676,30 @@ This demonstrates multi-page document splitting, parallel OCR, classification, a
 
 ## 5. Temporal Execution Engine
 
+### 5.0 Temporal payload footprint (OCR refs)
+
+Large Azure OCR JSON must not flow through Temporal event history. The footprint-reduction release uses:
+
+**`OcrPayloadRef` in workflow `ctx`** (not inline JSON):
+
+| Legacy ctx key | Current ctx key | Activity port (unchanged) |
+|----------------|-----------------|-----------------------------|
+| `ocrResponse` | `ocrResponseRef` | `response` on poll; `ocrResponse` on extract |
+| `ocrResult` | `ocrResultRef` | `ocrResult` |
+| `cleanedResult` | `cleanedResultRef` | `cleanedResult` |
+
+Each ref is a small object: `{ documentId, blobPath, storage: "blob", status?, byteLength? }`. Activities read/write blobs under `{groupId}/ocr/{documentId}/` (e.g. `azure-response.json`, `ocr-result.json`, `cleaned-result.json`). Structured fields for the UI still land in `ocr_results` via `ocr.storeResults`.
+
+**Poll conditions** reference ref status, e.g. `ctx.ocrResponseRef.status` (not `ctx.ocrResponse.status`).
+
+**`transform` / `fieldMapping` templates** use `{{ocrResultRef.*}}`, `{{ocrResponseRef.*}}`, `{{cleanedResultRef.*}}`.
+
+On **document delete**, `DocumentService.deleteDocument` best-effort deletes the `{groupId}/ocr/{documentId}/` prefix.
+
+**Benchmark / ground-truth overrides:** optional `workflowConfigOverrides` on `GraphWorkflowInput` (dot paths from `exposedParams`). The worker merges them in `getWorkflowGraphConfig` before hash check and execution; `configHash` must be `hash(merged config)`.
+
+See [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) and [TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md](../temporal/TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md).
+
 ### 5.1 The `graphWorkflow` Function
 
 A single exported Temporal workflow function that replaces `ocrWorkflow`:
@@ -672,15 +710,18 @@ export const GRAPH_WORKFLOW_TYPE = 'graphWorkflow';
 export async function graphWorkflow(input: GraphWorkflowInput): Promise<GraphWorkflowResult>;
 ```
 
-**Input**:
+**Start args (versionId-only)** — the full graph JSON is **not** passed on `workflow.start`. The worker loads it via the `getWorkflowGraphConfig` activity using `workflowVersionId` and verifies `configHash`.
 
 ```typescript
 interface GraphWorkflowInput {
-  graph: GraphWorkflowConfig;    // The full graph definition
-  initialCtx: Record<string, unknown>;  // Initial context values (documentId, blobKey, etc.)
-  configHash: string;            // SHA-256 of the canonicalized graph (see Section 12)
-  runnerVersion: string;         // Version of the graph runner engine
+  workflowVersionId: string;       // WorkflowVersion.id (or lineage id/name resolved in activity)
+  configHash: string;              // SHA-256 of canonicalized config at publish time (see Section 12)
+  initialCtx: Record<string, unknown>;  // documentId, blobKey, fileName, etc.
+  runnerVersion: string;         // Graph runner semver
+  groupId?: string | null;       // Injected into activities as groupId
+  requestId?: string;            // API correlation id
   parentWorkflowId?: string;     // Set when invoked as a child workflow
+  workflowConfigOverrides?: Record<string, unknown>;  // Merged at load (benchmark / ground truth)
 }
 ```
 
@@ -688,11 +729,21 @@ interface GraphWorkflowInput {
 
 ```typescript
 interface GraphWorkflowResult {
-  ctx: Record<string, unknown>;  // Final context state
-  completedNodes: string[];      // IDs of all nodes that completed
   status: "completed" | "failed" | "cancelled";
+  completedNodes: string[];
+  documentId?: string;
+  refs?: {
+    ocrResponseRef?: OcrPayloadRef;
+    ocrResultRef?: OcrPayloadRef;
+    cleanedResultRef?: OcrPayloadRef;
+  };
+  failedNodeId?: string;
+  outputPaths?: string[];
+  error?: string;
 }
 ```
+
+`getStatus` queries return progress and node status; large OCR bodies are not included in the query payload (refs only where needed).
 
 ### 5.1.1 Pre-Execution Hook: Automatic Status Update
 
@@ -728,7 +779,7 @@ if (input.initialCtx.documentId && typeof input.initialCtx.documentId === 'strin
 
 For benchmark runs that only change nodes **after** Azure OCR (`extractResults` and downstream), the benchmark orchestrator may set a reserved key on `initialCtx`:
 
-- **`__benchmarkOcrCache`**: `{ ocrResponse: OCRResponse }` — full Azure poll response JSON from a prior benchmark run (stored in `benchmark_ocr_cache`).
+- **`__benchmarkOcrCache`**: `{ ocrResponse: OCRResponse }` — full Azure poll response JSON from a prior benchmark run (stored in `benchmark_ocr_cache`). Merged into submit/poll/extract parameters for replay; activities still write **`ocrResponseRef`** to ctx when executing the poll/extract path.
 
 The graph runner merges this into **`azureOcr.submit`**, **`azureOcr.poll`**, and **`azureOcr.extract`** activity parameters so submit/poll skip the network when replaying. See [OCR_IMPROVEMENT_PIPELINE.md](../OCR_IMPROVEMENT_PIPELINE.md) § Benchmark OCR cache.
 
@@ -796,22 +847,93 @@ interface ActivityRegistryEntry {
 
 The graph runner resolves `activityType` from the node definition to the actual activity implementation via this registry. Unknown activity types cause a validation error at graph load time (before execution begins).
 
-Initial registry entries (mapping from graph `activityType` to existing/new activity functions):
+Current registered activity types (see `apps/temporal/src/activity-registry.ts` for the full runtime registry):
 
-| activityType | Maps to | Description |
-|---|---|---|
-| `document.updateStatus` | `updateDocumentStatus` | Update document status in DB |
-| `file.prepare` | `prepareFileData` | Validate and prepare file data |
-| `azureOcr.submit` | `submitToAzureOCR` | Submit to Azure Document Intelligence |
-| `azureOcr.poll` | `pollOCRResults` | Poll Azure for results |
-| `azureOcr.extract` | `extractOCRResults` | Parse Azure response |
-| `ocr.cleanup` | `postOcrCleanup` | Text normalization |
-| `ocr.checkConfidence` | `checkOcrConfidence` | Calculate confidence |
-| `ocr.storeResults` | `upsertOcrResult` | Store OCR results in DB |
-| `document.storeRejection` | `storeDocumentRejection` | Store rejection data |
-| `document.split` | NEW: `splitDocument` | Split multi-page PDF |
-| `document.classify` | NEW: `classifyDocument` | Rule-based classification |
-| `document.validateFields` | NEW: `validateDocumentFields` | Validate fields across related documents |
+**Document / File**
+
+| activityType | Description |
+|---|---|
+| `document.updateStatus` | Update document status in database |
+| `document.storeRejection` | Store document rejection data |
+| `document.split` | Split multi-page PDF into segments |
+| `document.classify` | Classify document type (rule-based) |
+| `document.splitAndClassify` | Split PDF and classify segments based on OCR keyword markers |
+| `document.validateFields` | Validate fields across related documents; can consume `map`/`join` outputs |
+| `document.extractPageRange` | Extract a specific page range from a source document and write it as a new blob segment |
+| `document.selectClassifiedPages` | Select all page range segments for a specific classifier label from `azureClassify.poll` output |
+| `document.flattenClassifiedDocuments` | Flatten all (or filtered) classifier labels into a single sorted `ClassifiedSegment` array for `map` node iteration |
+| `document.extractToBase64` | Extract a page range from a PDF blob and return it as base64 (no blob write) |
+| `document.normalizeOrientation` | Detect and correct per-page orientation using mupdf rendering and Tesseract OSD |
+| `file.prepare` | Validate and prepare file data |
+
+**Azure OCR**
+
+| activityType | Description |
+|---|---|
+| `azureOcr.submit` | Submit to Azure Document Intelligence |
+| `azureOcr.poll` | Poll Azure for OCR results |
+| `azureOcr.extract` | Extract structured OCR data |
+
+**Azure Classifier**
+
+| activityType | Description |
+|---|---|
+| `azureClassify.submit` | Submit document to Azure Document Intelligence classifier |
+| `azureClassify.poll` | Poll Azure Document Intelligence classifier results and split document into labelled segments |
+
+**Mistral OCR**
+
+| activityType | Description |
+|---|---|
+| `mistralOcr.process` | Mistral Document AI OCR (sync) with optional document annotation |
+
+**OCR Processing**
+
+| activityType | Description |
+|---|---|
+| `ocr.cleanup` | Post-OCR text normalization |
+| `ocr.enrich` | Enrich OCR results using field schema and optional LLM |
+| `ocr.checkConfidence` | Calculate OCR confidence |
+| `ocr.storeResults` | Store OCR results in database |
+| `ocr.spellcheck` | Dictionary-based spellcheck on OCR field values |
+| `ocr.characterConfusion` | Character confusion replacements (O→0, l→1, etc.) |
+| `ocr.normalizeFields` | Field normalization: whitespace cleanup, digit grouping, date separators |
+
+**Segment**
+
+| activityType | Description |
+|---|---|
+| `segment.combineResult` | Combine segment metadata with OCR result for join collection |
+
+**Data / Utility**
+
+| activityType | Description |
+|---|---|
+| `data.transform` | Execute data transformation: parse input, resolve field-mapping bindings, render output |
+| `blob.read` | Read a blob from storage and return its contents as base64 |
+| `tables.lookup` | Look up a row from a Tables-managed reference table |
+
+**Internal**
+
+| activityType | Description |
+|---|---|
+| `getWorkflowGraphConfig` | Load workflow configuration from database (used internally by `childWorkflow` nodes) |
+
+**Benchmarking** (temporal-only; not in the backend registry)
+
+| activityType | Description |
+|---|---|
+| `benchmark.evaluate` | Evaluate OCR results against ground truth |
+| `benchmark.aggregate` | Aggregate evaluation results across segments |
+| `benchmark.cleanup` | Clean up benchmark run artifacts |
+| `benchmark.updateRunStatus` | Update benchmark run status in database |
+| `benchmark.compareAgainstBaseline` | Compare results against baseline benchmark run |
+| `benchmark.writePrediction` | Write OCR prediction to benchmark dataset |
+| `benchmark.materializeDataset` | Materialize benchmark dataset from source documents |
+| `benchmark.loadDatasetManifest` | Load benchmark dataset manifest |
+| `benchmark.loadOcrCache` | Load cached OCR results for benchmark run |
+| `benchmark.persistOcrCache` | Persist OCR results cache for benchmark run |
+| `benchmark.persistEvaluationDetails` | Persist detailed evaluation results for a document |
 
 `document.validateFields` can consume map/join outputs that include
 `combinedSegment` objects with `ocrResult.keyValuePairs`. When present, the
@@ -951,7 +1073,9 @@ When a `map` node creates parallel branches:
 
 ### 7.4 Context Serialization
 
-The ctx object must be JSON-serializable at all times (it flows through Temporal's event history). Large payloads (binary data, full OCR results) should be stored externally (see Section 13) with only references (blob keys, document IDs) kept in ctx.
+The ctx object must be JSON-serializable at all times (it flows through Temporal's event history). **OCR pipeline graphs must use `*Ref` ctx keys** (`ocrResponseRef`, `ocrResultRef`, `cleanedResultRef`) holding `OcrPayloadRef` metadata; activities load full JSON from blob storage. Activity **port names** remain `ocrResponse`, `ocrResult`, `cleanedResult` — bindings map ports to `*Ref` ctx keys (see §5.0).
+
+Other large payloads (binary data, page PDFs) use blob paths (`pageBlobPath`, `blobKey`) rather than inline base64 in ctx. Temporal clients and the worker use a gzip `PayloadCodec` for remaining payloads (see [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) §3.10).
 
 ---
 

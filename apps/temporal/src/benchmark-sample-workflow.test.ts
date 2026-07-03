@@ -1,12 +1,15 @@
 const mockExecuteChild = jest.fn();
 const mockWritePrediction = jest.fn();
 const mockPersistOcrCache = jest.fn();
+const mockFlattenPrediction = jest.fn();
 
 jest.mock("@temporalio/workflow", () => ({
   executeChild: mockExecuteChild,
   proxyActivities: () => ({
     "benchmark.writePrediction": mockWritePrediction,
     "benchmark.persistOcrCache": mockPersistOcrCache,
+    "benchmark.flattenPredictionFromRefs": mockFlattenPrediction,
+    "benchmark.loadOcrCache": jest.fn(),
   }),
 }));
 
@@ -14,28 +17,21 @@ import {
   type BenchmarkSampleWorkflowInput,
   benchmarkSampleWorkflow,
 } from "./benchmark-sample-workflow";
-import type { GraphWorkflowConfig } from "./graph-workflow-types";
 
 beforeEach(() => {
   mockExecuteChild.mockReset();
   mockWritePrediction.mockReset();
   mockPersistOcrCache.mockReset();
+  mockFlattenPrediction.mockReset();
+  mockFlattenPrediction.mockResolvedValue({
+    predictionData: { name: "Alex" },
+    confidenceData: { name: null },
+  });
 });
-
-const baseConfig: GraphWorkflowConfig = {
-  schemaVersion: "1.0",
-  metadata: { name: "test", version: "1.0" },
-  nodes: {
-    n1: { id: "n1", type: "activity", label: "n1", activityType: "test.a" },
-  },
-  edges: [],
-  entryNodeId: "n1",
-  ctx: {},
-};
 
 const baseInput: BenchmarkSampleWorkflowInput = {
   sampleId: "sample-001",
-  workflowConfig: baseConfig,
+  workflowVersionId: "test-workflow-version-id",
   configHash: "abc",
   inputPaths: ["/tmp/in/doc.pdf"],
   outputBaseDir: "/tmp/out",
@@ -44,16 +40,72 @@ const baseInput: BenchmarkSampleWorkflowInput = {
 };
 
 describe("benchmarkSampleWorkflow", () => {
+  it("forwards groupId to graphWorkflow child for OCR blob tenant scope", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      refs: {},
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      groupId: "benchmark-tenant-group",
+    });
+
+    expect(mockExecuteChild).toHaveBeenCalledWith(
+      "graphWorkflow",
+      expect.objectContaining({
+        args: [
+          expect.objectContaining({
+            groupId: "benchmark-tenant-group",
+            initialCtx: expect.objectContaining({
+              groupId: "benchmark-tenant-group",
+            }),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("forwards workflowConfigOverrides to graphWorkflow child", async () => {
+    mockExecuteChild.mockResolvedValue({
+      status: "completed",
+      completedNodes: ["n1"],
+      refs: {},
+    });
+    mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
+
+    await benchmarkSampleWorkflow({
+      ...baseInput,
+      workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+    });
+
+    expect(mockExecuteChild).toHaveBeenCalledWith(
+      "graphWorkflow",
+      expect.objectContaining({
+        args: [
+          expect.objectContaining({
+            workflowConfigOverrides: {
+              "ctx.modelId.defaultValue": "prebuilt-read",
+            },
+          }),
+        ],
+      }),
+    );
+  });
+
   it("runs graphWorkflow, writes prediction, returns slim result without ctx", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1", "n2"],
-      ctx: {
-        cleanedResult: {
-          documents: [{ fields: { name: { content: "Alex" } } }],
+      outputPaths: ["/tmp/out/doc.json"],
+      refs: {
+        cleanedResultRef: {
+          documentId: "benchmark-sample-001",
+          blobPath: "g/ocr/benchmark-sample-001/cleaned-result.json",
+          storage: "blob",
         },
-        ocrResponse: { huge: "payload" },
-        outputPaths: ["/tmp/out/doc.json"],
       },
     });
     mockWritePrediction.mockResolvedValue({
@@ -68,7 +120,7 @@ describe("benchmarkSampleWorkflow", () => {
       expect.objectContaining({
         args: [
           expect.objectContaining({
-            graph: baseConfig,
+            workflowVersionId: "test-workflow-version-id",
             configHash: "abc",
           }),
         ],
@@ -97,7 +149,7 @@ describe("benchmarkSampleWorkflow", () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: { ocrResponse: { foo: "bar" } },
+      refs: {},
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -110,7 +162,13 @@ describe("benchmarkSampleWorkflow", () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: { ocrResponse: { foo: "bar" } },
+      refs: {
+        ocrResponseRef: {
+          documentId: "benchmark-sample-001",
+          blobPath: "g/ocr/benchmark-sample-001/azure-response.json",
+          storage: "blob",
+        },
+      },
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -122,7 +180,11 @@ describe("benchmarkSampleWorkflow", () => {
     expect(mockPersistOcrCache).toHaveBeenCalledWith({
       sourceRunId: "run-42",
       sampleId: "sample-001",
-      ocrResponse: { foo: "bar" },
+      ocrResponseRef: {
+        documentId: "benchmark-sample-001",
+        blobPath: "g/ocr/benchmark-sample-001/azure-response.json",
+        storage: "blob",
+      },
     });
   });
 
@@ -130,7 +192,7 @@ describe("benchmarkSampleWorkflow", () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: {},
+      outputPaths: [],
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -146,7 +208,7 @@ describe("benchmarkSampleWorkflow", () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: {},
+      outputPaths: [],
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -171,7 +233,7 @@ describe("benchmarkSampleWorkflow", () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: {},
+      outputPaths: [],
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -188,16 +250,11 @@ describe("benchmarkSampleWorkflow", () => {
     });
   });
 
-  it("extracts outputPaths from results[].outputPath in ctx", async () => {
+  it("extracts outputPaths from graphWorkflow result", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: {
-        results: [
-          { outputPath: "/data/output/file1.json" },
-          { outputPath: "/data/output/file2.json" },
-        ],
-      },
+      outputPaths: ["/data/output/file1.json", "/data/output/file2.json"],
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
@@ -209,24 +266,24 @@ describe("benchmarkSampleWorkflow", () => {
     ]);
   });
 
-  it("falls back to outputBaseDir when ctx has no explicit output paths", async () => {
+  it("returns empty outputPaths when graph result has none", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "completed",
       completedNodes: ["n1"],
-      ctx: { outputBaseDir: "/data/output/run-1/sample-001" },
+      outputPaths: [],
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 
     const result = await benchmarkSampleWorkflow(baseInput);
 
-    expect(result.outputPaths).toEqual(["/data/output/run-1/sample-001"]);
+    expect(result.outputPaths).toEqual([]);
   });
 
   it("returns success=false with graphStatus when inner graphWorkflow returns status=failed", async () => {
     mockExecuteChild.mockResolvedValue({
       status: "failed",
       completedNodes: ["n1"],
-      ctx: { failedNodeId: "n2" },
+      failedNodeId: "n2",
     });
     mockWritePrediction.mockResolvedValue({ predictionPath: "/p" });
 

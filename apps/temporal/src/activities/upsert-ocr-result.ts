@@ -1,6 +1,11 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Prisma } from "@generated/client";
 import { createActivityLogger } from "../logger";
+import {
+  isOcrPayloadRef,
+  loadOcrResultFromPort,
+  type OcrPayloadRef,
+} from "../ocr-payload-ref";
 import type { EnrichmentSummary, OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 
@@ -12,11 +17,15 @@ import { getPrismaClient } from "./database-client";
  */
 export async function upsertOcrResult(params: {
   documentId: string;
-  ocrResult: OCRResult;
+  ocrResult: OCRResult | OcrPayloadRef;
+  groupId?: string | null;
   enrichmentSummary?: EnrichmentSummary | null;
 }): Promise<void> {
   const activityName = "upsertOcrResult";
-  const { documentId, ocrResult, enrichmentSummary } = params;
+  const { documentId, enrichmentSummary } = params;
+  const ocrResult = isOcrPayloadRef(params.ocrResult)
+    ? await loadOcrResultFromPort(params.ocrResult, params.groupId)
+    : params.ocrResult;
   const log = createActivityLogger(activityName, { documentId });
   const startTime = Date.now();
 
@@ -182,11 +191,11 @@ export async function upsertOcrResult(params: {
       },
     });
 
-    // Update document status to completed_ocr
+    // Update document status to extracted
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
     await prisma.document.update({
       where: { id: documentId },
-      data: { status: "completed_ocr" as const },
+      data: { status: "extracted" as const },
     });
 
     log.info("Upsert OCR result complete", {
@@ -195,6 +204,7 @@ export async function upsertOcrResult(params: {
       modelId: ocrResult.modelId,
       fieldCount: extractedFields ? Object.keys(extractedFields).length : 0,
       dataSize: extractedFields ? JSON.stringify(extractedFields).length : 0,
+      alertType: "upsert_ocr_result",
     });
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -220,6 +230,7 @@ export async function upsertOcrResult(params: {
       error: getErrorMessage(error),
       durationMs: duration,
       stack: getErrorStack(error),
+      alertType: "upsert_ocr_result",
     });
     throw error;
   }

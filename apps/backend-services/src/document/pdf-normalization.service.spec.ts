@@ -1,10 +1,13 @@
 import { BadRequestException } from "@nestjs/common";
 import { degrees, PDFDocument } from "pdf-lib";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { loadMupdf } from "./esm-imports";
 import {
   PdfNormalizationError,
   PdfNormalizationService,
 } from "./pdf-normalization.service";
+
+jest.mock("./esm-imports");
 
 /** Minimal valid 1×1 PNG (RGB, no alpha — sharp accepts). */
 const MIN_PNG = Buffer.from([
@@ -81,19 +84,6 @@ describe("PdfNormalizationService", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it("rejects PDF when header is valid but body is truncated", async () => {
-      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-      try {
-        const full = await minimalValidPdfBuffer();
-        const truncated = full.subarray(0, Math.floor(full.length / 2));
-        await expect(
-          service.validateForUpload(truncated, "pdf"),
-        ).rejects.toThrow(BadRequestException);
-      } finally {
-        warnSpy.mockRestore();
-      }
-    });
-
     it("accepts a minimal valid PDF", async () => {
       const buf = await minimalValidPdfBuffer();
       await expect(
@@ -122,6 +112,14 @@ describe("PdfNormalizationService", () => {
   });
 
   describe("normalizeToPdf", () => {
+    it("rejects PDF when header is valid but body is truncated", async () => {
+      const full = await minimalValidPdfBuffer();
+      const truncated = full.subarray(0, Math.floor(full.length / 2));
+      await expect(service.normalizeToPdf(truncated, "pdf")).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
     it("returns a copy of the buffer for pdf", async () => {
       const buf = await minimalValidPdfBuffer();
       const out = await service.normalizeToPdf(buf, "pdf");
@@ -189,6 +187,57 @@ describe("PdfNormalizationService", () => {
       await expect(
         service.normalizeToPdf(Buffer.from("x"), "unknown"),
       ).rejects.toThrow(PdfNormalizationError);
+    });
+  });
+
+  describe("normalizeToPdf – password-protected PDFs", () => {
+    function mockNeedsPassword(needsPassword: boolean): void {
+      jest.mocked(loadMupdf).mockResolvedValue({
+        Document: {
+          openDocument: jest.fn(() => ({
+            needsPassword: () => needsPassword,
+          })),
+        },
+      } as unknown as Awaited<ReturnType<typeof loadMupdf>>);
+    }
+
+    afterEach(() => {
+      jest.mocked(loadMupdf).mockReset();
+    });
+
+    it("rejects a password-protected PDF as conversion failure (not OCR)", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      await expect(service.normalizeToPdf(buf, "pdf")).rejects.toThrow(
+        PdfNormalizationError,
+      );
+    });
+
+    it("includes a clear password-protected message", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      await expect(service.normalizeToPdf(buf, "pdf")).rejects.toThrow(
+        /password protected/i,
+      );
+    });
+
+    it("tags the error with a `password_protected` code", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      const error = await service.normalizeToPdf(buf, "pdf").catch((e) => e);
+      expect(error).toBeInstanceOf(PdfNormalizationError);
+      expect((error as PdfNormalizationError).code).toBe("password_protected");
+    });
+
+    it("allows a PDF that does not require a password", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(false);
+
+      const out = await service.normalizeToPdf(buf, "pdf");
+      expect(out.equals(buf)).toBe(true);
     });
   });
 
@@ -273,6 +322,97 @@ describe("PdfNormalizationService", () => {
       const out = await service.normalizeToPdf(buf, "scan");
       const parsed = await PDFDocument.load(out);
       expect(parsed.getPage(0).getRotation().angle).toBe(0);
+    });
+  });
+
+  describe("generateThumbnailWebp", () => {
+    // biome-ignore lint/style/noCommonJs: sharp uses export = syntax
+    const sharpFn: typeof import("sharp") = require("sharp");
+
+    let openDocumentMock: jest.Mock;
+    let loadPageMock: jest.Mock;
+    let toPixmapMock: jest.Mock;
+
+    beforeEach(() => {
+      toPixmapMock = jest.fn(() => ({ asPNG: () => MIN_PNG }));
+      loadPageMock = jest.fn(() => ({ toPixmap: toPixmapMock }));
+      openDocumentMock = jest.fn(() => ({ loadPage: loadPageMock }));
+      jest.mocked(loadMupdf).mockResolvedValue({
+        Document: { openDocument: openDocumentMock },
+        Matrix: { scale: jest.fn(() => ({})) },
+        ColorSpace: { DeviceRGB: {} },
+      } as never);
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+    });
+
+    it("returns a WebP buffer for image type", async () => {
+      const out = await service.generateThumbnailWebp(MIN_PNG, "image");
+      const meta = await sharpFn(out).metadata();
+      expect(meta.format).toBe("webp");
+    });
+
+    it("does not enlarge images smaller than 200px wide", async () => {
+      const out = await service.generateThumbnailWebp(MIN_PNG, "image");
+      const meta = await sharpFn(out).metadata();
+      // MIN_PNG is 1×1; withoutEnlargement keeps it at its natural width
+      expect(meta.width).toBeLessThanOrEqual(200);
+    });
+
+    it("does not call loadMupdf for image type", async () => {
+      await service.generateThumbnailWebp(MIN_PNG, "image");
+      expect(jest.mocked(loadMupdf)).not.toHaveBeenCalled();
+    });
+
+    it("returns a WebP buffer for pdf type via mupdf rasterization", async () => {
+      const pdfBuf = await minimalValidPdfBuffer();
+      const out = await service.generateThumbnailWebp(pdfBuf, "pdf");
+      const meta = await sharpFn(out).metadata();
+      expect(meta.format).toBe("webp");
+      expect(openDocumentMock).toHaveBeenCalledWith(
+        expect.any(Uint8Array),
+        "application/pdf",
+      );
+      expect(loadPageMock).toHaveBeenCalledWith(0);
+    });
+
+    it("returns a WebP buffer for scan type via mupdf rasterization", async () => {
+      const pdfBuf = await minimalValidPdfBuffer();
+      const out = await service.generateThumbnailWebp(pdfBuf, "scan");
+      const meta = await sharpFn(out).metadata();
+      expect(meta.format).toBe("webp");
+      expect(openDocumentMock).toHaveBeenCalled();
+    });
+
+    it("throws PdfNormalizationError with correct message for unsupported file type", async () => {
+      await expect(
+        service.generateThumbnailWebp(Buffer.from("x"), "unknown"),
+      ).rejects.toThrow(
+        new PdfNormalizationError(
+          "Cannot generate thumbnail for file type: unknown",
+        ),
+      );
+    });
+
+    it("wraps unexpected errors from loadMupdf into PdfNormalizationError", async () => {
+      jest.mocked(loadMupdf).mockRejectedValue(new Error("wasm load failed"));
+      await expect(
+        service.generateThumbnailWebp(await minimalValidPdfBuffer(), "pdf"),
+      ).rejects.toThrow(PdfNormalizationError);
+    });
+
+    it("re-throws PdfNormalizationError from inner path unchanged", async () => {
+      // Simulate unsupported type going through the outer catch — the inner
+      // throw is a PdfNormalizationError and must not be double-wrapped.
+      const err = await service
+        .generateThumbnailWebp(Buffer.from("x"), "unknown")
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(PdfNormalizationError);
+      expect((err as Error).message).toBe(
+        "Cannot generate thumbnail for file type: unknown",
+      );
     });
   });
 });

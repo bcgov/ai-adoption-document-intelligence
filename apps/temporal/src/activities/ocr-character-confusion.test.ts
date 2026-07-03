@@ -1,4 +1,8 @@
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
+
+const mockBlobBodies = new Map<string, Buffer>();
 
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
@@ -12,10 +16,79 @@ jest.mock("./database-client", () => ({
   getPrismaClient: jest.fn(),
 }));
 
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    write: async (key: string, data: Buffer) => {
+      mockBlobBodies.set(key, data);
+    },
+    read: async (key: string) => {
+      const body = mockBlobBodies.get(key);
+      if (!body) {
+        throw new Error(`missing blob body for ${key}`);
+      }
+      return body;
+    },
+  }),
+}));
+
 import { getPrismaClient } from "./database-client";
 import { characterConfusionCorrection } from "./ocr-character-confusion";
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
+const DOC_ID = "doc-character-confusion-test";
+const ocrBodiesByPath = new Map<string, OCRResult>();
+
+function ocrFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (body) {
+    return body;
+  }
+  const blobBody = mockBlobBodies.get(ref.blobPath);
+  if (!blobBody) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return JSON.parse(blobBody.toString("utf8")) as OCRResult;
+}
+
+function correct(
+  params: Omit<
+    Parameters<typeof characterConfusionCorrection>[0],
+    "documentId"
+  > & {
+    documentId?: string;
+  },
+) {
+  return characterConfusionCorrection({ documentId: DOC_ID, ...params });
+}
+
+beforeEach(() => {
+  ocrBodiesByPath.clear();
+  mockBlobBodies.clear();
+  jest
+    .spyOn(ocrRefUtils, "resolveOcrResultInput")
+    .mockImplementation(async (params) => ({
+      ocrResult: params.ocrResult as OCRResult,
+      groupId: "gtestgroupidfortests01",
+    }));
+  jest
+    .spyOn(ocrRefUtils, "toOcrResultPort")
+    .mockImplementation(async (body, documentId, groupId) => {
+      const blobPath = `${groupId}/ocr/${documentId}/ocr-result.json`;
+      ocrBodiesByPath.set(blobPath, body);
+      return {
+        ocrResult: {
+          documentId,
+          blobPath,
+          storage: "blob",
+          status: "succeeded",
+        },
+      };
+    });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function makeOcrResult(
   kvps: Array<{ key: string; value: string; confidence: number }>,
@@ -57,12 +130,12 @@ describe("characterConfusionCorrection", () => {
       },
     ]);
 
-    const result = await characterConfusionCorrection({ ocrResult });
+    const result = await correct({ ocrResult });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
       "Amy Scott MD",
     );
-    expect(result.ocrResult.keyValuePairs[1].value?.content).toBe(
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[1].value?.content).toBe(
       "More method discussi",
     );
     expect(result.changes).toHaveLength(0);
@@ -73,12 +146,14 @@ describe("characterConfusionCorrection", () => {
       { key: "Date", value: "2O24-01-15", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["Date"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("2024-01-15");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "2024-01-15",
+    );
     expect(result.changes.length).toBe(1);
     expect(result.changes[0].reason).toContain("Character confusion");
   });
@@ -88,12 +163,14 @@ describe("characterConfusionCorrection", () => {
       { key: "Amount", value: "l,234.56", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["Amount"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("1,234.56");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "1,234.56",
+    );
   });
 
   it("does not mutate original", async () => {
@@ -102,7 +179,7 @@ describe("characterConfusionCorrection", () => {
     ]);
     const originalValue = ocrResult.keyValuePairs[0].value?.content;
 
-    await characterConfusionCorrection({ ocrResult });
+    await correct({ ocrResult });
 
     expect(ocrResult.keyValuePairs[0].value?.content).toBe(originalValue);
   });
@@ -112,13 +189,15 @@ describe("characterConfusionCorrection", () => {
       { key: "Code", value: "ABC-XYZ", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       confusionMapOverride: { X: "K" },
       applyToAllFields: true,
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("ABC-KYZ");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "ABC-KYZ",
+    );
   });
 
   it("respects fieldScope", async () => {
@@ -127,13 +206,17 @@ describe("characterConfusionCorrection", () => {
       { key: "Name", value: "2O24-01-15", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["Date"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("2024-01-15");
-    expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("2O24-01-15");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "2024-01-15",
+    );
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[1].value?.content).toBe(
+      "2O24-01-15",
+    );
   });
 
   it("protects month abbreviations", async () => {
@@ -141,12 +224,13 @@ describe("characterConfusionCorrection", () => {
       { key: "Date", value: "Sep-2O24", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       applyToAllFields: true,
     });
 
-    const corrected = result.ocrResult.keyValuePairs[0].value?.content;
+    const corrected = ocrFromRef(result.ocrResult).keyValuePairs[0].value
+      ?.content;
     expect(corrected).toContain("Sep");
     expect(corrected).toContain("2024");
   });
@@ -156,7 +240,7 @@ describe("characterConfusionCorrection", () => {
       { key: "Amount", value: "12345", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({ ocrResult });
+    const result = await correct({ ocrResult });
     expect(result.changes).toHaveLength(0);
   });
 
@@ -165,12 +249,14 @@ describe("characterConfusionCorrection", () => {
       { key: "Date", value: "30/03/2016", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       confusionMapOverride: { "/": "1" },
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("30/03/2016");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "30/03/2016",
+    );
   });
 
   it("with default map, corrects slash-as-one in money-like value (6/91.12 → 6191.12)", async () => {
@@ -182,12 +268,14 @@ describe("characterConfusionCorrection", () => {
       },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["applicant_spousal_support_alimony"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("6191.12");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "6191.12",
+    );
     expect(result.changes).toHaveLength(1);
   });
 
@@ -196,12 +284,14 @@ describe("characterConfusionCorrection", () => {
       { key: "spouse_date", value: "30/03/2016", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["spouse_date"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("30/03/2016");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "30/03/2016",
+    );
   });
 
   it("applies slash substitution for non-date values", async () => {
@@ -209,13 +299,15 @@ describe("characterConfusionCorrection", () => {
       { key: "AccountCode", value: "12/34", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       confusionMapOverride: { "/": "1" },
       fieldScope: ["AccountCode"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("12134");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "12134",
+    );
   });
 
   it("does not clear standalone mask symbol", async () => {
@@ -223,13 +315,15 @@ describe("characterConfusionCorrection", () => {
       { key: "spouse_date", value: "$", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       confusionMapOverride: { $: "" },
       applyToAllFields: true,
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("$");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "$",
+    );
   });
 
   it("confusionMapOverride replaces built-in rules; enabledRules are ignored", async () => {
@@ -237,14 +331,16 @@ describe("characterConfusionCorrection", () => {
       { key: "Code", value: "O-only", confidence: 0.9 },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       confusionMapOverride: { X: "K" },
       enabledRules: ["oToZero"],
       applyToAllFields: true,
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("O-only");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "O-only",
+    );
     expect(result.metadata?.useOverride).toBe(true);
   });
 
@@ -257,13 +353,15 @@ describe("characterConfusionCorrection", () => {
       },
     ]);
 
-    const result = await characterConfusionCorrection({
+    const result = await correct({
       ocrResult,
       fieldScope: ["applicant_spousal_support_alimony"],
       disabledRules: ["slashToOne"],
     });
 
-    expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("6/91.12");
+    expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+      "6/91.12",
+    );
     expect(result.changes).toHaveLength(0);
   });
 
@@ -318,13 +416,15 @@ describe("characterConfusionCorrection", () => {
         { key: "code", value: "7:2O.OO", confidence: 0.9 },
       ]);
 
-      const result = await characterConfusionCorrection({
+      const result = await correct({
         ocrResult,
         confusionProfileId: "profile-1",
         applyToAllFields: true,
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("7120.00");
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+        "7120.00",
+      );
       expect(result.changes).toHaveLength(1);
       expect(result.metadata?.useProfile).toBe(true);
       expect(result.metadata?.confusionProfileId).toBe("profile-1");
@@ -335,12 +435,12 @@ describe("characterConfusionCorrection", () => {
         { key: "Amount", value: "O89714425", confidence: 0.9 },
       ]);
 
-      const result = await characterConfusionCorrection({
+      const result = await correct({
         ocrResult,
         applyToAllFields: true,
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
         "089714425",
       );
       expect(result.metadata?.useProfile).toBe(false);
@@ -382,13 +482,13 @@ describe("characterConfusionCorrection", () => {
         { key: "total_amount", value: "2O24-01-15", confidence: 0.9 },
       ]);
 
-      const result = await characterConfusionCorrection({
+      const result = await correct({
         ocrResult,
         documentType: "proj-1",
         fieldScope: ["total_amount"],
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
         "2024-01-15",
       );
       expect(result.metadata?.schemaAware).toBe(true);
@@ -412,13 +512,15 @@ describe("characterConfusionCorrection", () => {
         { key: "notes", value: "6/91.12", confidence: 0.9 },
       ]);
 
-      const result = await characterConfusionCorrection({
+      const result = await correct({
         ocrResult,
         documentType: "proj-1",
         fieldScope: ["notes"],
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("6/91.12");
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+        "6/91.12",
+      );
       expect(result.changes).toHaveLength(0);
     });
 
@@ -439,13 +541,15 @@ describe("characterConfusionCorrection", () => {
         { key: "agree", value: "2O24", confidence: 0.9 },
       ]);
 
-      const result = await characterConfusionCorrection({
+      const result = await correct({
         ocrResult,
         documentType: "proj-1",
         fieldScope: ["agree"],
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe("2O24");
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+        "2O24",
+      );
       expect(result.changes).toHaveLength(0);
     });
   });

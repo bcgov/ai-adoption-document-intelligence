@@ -54,7 +54,7 @@ jest.mock("@temporalio/workflow", () => ({
 import type { CachedActivityDeps } from "../cache/cached-activity";
 import type {
   GraphWorkflowConfig,
-  GraphWorkflowInput,
+  GraphWorkflowExecutionInput,
 } from "../graph-workflow-types";
 import type { ExecutionState } from "./execution-state";
 import { runGraphExecution } from "./graph-runner";
@@ -94,9 +94,10 @@ function makeFreshState(cacheDeps?: CachedActivityDeps): ExecutionState {
   };
 }
 
-function makeInput(graph: GraphWorkflowConfig): GraphWorkflowInput {
+function makeInput(graph: GraphWorkflowConfig): GraphWorkflowExecutionInput {
   return {
     graph,
+    workflowVersionId: "wv",
     initialCtx: {},
     configHash: "h",
     runnerVersion: "1.0.0",
@@ -308,6 +309,7 @@ describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", (
     await runGraphExecution(
       {
         graph,
+        workflowVersionId: "wv",
         initialCtx: { fromBody: "value-1" },
         configHash: "h",
         runnerVersion: "1.0.0",
@@ -387,6 +389,7 @@ describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", (
     await runGraphExecution(
       {
         graph,
+        workflowVersionId: "wv",
         initialCtx: {},
         configHash: "h",
         runnerVersion: "1.0.0",
@@ -411,6 +414,7 @@ describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", (
     await runGraphExecution(
       {
         graph: minimalActivityGraph,
+        workflowVersionId: "wv",
         initialCtx: {},
         configHash: "h",
         runnerVersion: "1.0.0",

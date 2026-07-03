@@ -7,8 +7,9 @@
  */
 
 import { BlobServiceClient, ContainerClient } from "@azure/storage-blob";
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   AzureBlobStorageConfig,
   BlobStorageInterface,
@@ -33,11 +34,13 @@ export function createAzureContainerClient(
 export class AzureBlobProviderService
   implements BlobStorageInterface, OnModuleInit
 {
-  private readonly logger = new Logger(AzureBlobProviderService.name);
   private readonly containerClient!: ContainerClient;
   private readonly containerName!: string;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLoggerService,
+  ) {
     const connectionString = this.configService.get<string>(
       "AZURE_STORAGE_CONNECTION_STRING",
     );
@@ -72,11 +75,14 @@ export class AzureBlobProviderService
     }
     try {
       await this.containerClient.createIfNotExists();
-      this.logger.log(`Ensured container exists: ${this.containerName}`);
+      this.logger.log(`Ensured container exists: ${this.containerName}`, {
+        alertType: "blob_storage_container",
+      });
     } catch (error: unknown) {
       const err = error as Error;
       this.logger.error(
         `Failed to ensure container "${this.containerName}" exists: ${err.message}`,
+        { alertType: "blob_storage_container" },
       );
     }
   }
@@ -90,10 +96,15 @@ export class AzureBlobProviderService
     try {
       const blockBlobClient = this.containerClient.getBlockBlobClient(key);
       await blockBlobClient.uploadData(data);
-      this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`);
+      this.logger.debug(`Wrote blob: ${key} (${data.length} bytes)`, {
+        alertType: "blob_storage_write",
+      });
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to write blob: ${key}`, err.stack);
+      this.logger.error(`Failed to write blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_write",
+      });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
   }
@@ -115,7 +126,9 @@ export class AzureBlobProviderService
       }
       const data = Buffer.concat(chunks);
 
-      this.logger.debug(`Read blob: ${key} (${data.length} bytes)`);
+      this.logger.debug(`Read blob: ${key} (${data.length} bytes)`, {
+        alertType: "blob_storage_read",
+      });
       return data;
     } catch (error: unknown) {
       const err = error as Error & { statusCode?: number };
@@ -124,7 +137,10 @@ export class AzureBlobProviderService
           `Blob not found: "${key}" does not exist in container "${this.containerName}"`,
         );
       }
-      this.logger.error(`Failed to read blob: ${key}`, err.stack);
+      this.logger.error(`Failed to read blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_read",
+      });
       throw new Error(`Failed to read blob "${key}": ${err.message}`);
     }
   }
@@ -140,7 +156,10 @@ export class AzureBlobProviderService
       return await blockBlobClient.exists();
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to check blob existence: ${key}`, err.stack);
+      this.logger.error(`Failed to check blob existence: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_exists",
+      });
       throw new Error(
         `Failed to check blob existence "${key}": ${err.message}`,
       );
@@ -155,10 +174,15 @@ export class AzureBlobProviderService
     try {
       const blockBlobClient = this.containerClient.getBlockBlobClient(key);
       await blockBlobClient.deleteIfExists();
-      this.logger.debug(`Deleted blob: ${key}`);
+      this.logger.debug(`Deleted blob: ${key}`, {
+        alertType: "blob_storage_delete",
+      });
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(`Failed to delete blob: ${key}`, err.stack);
+      this.logger.error(`Failed to delete blob: ${key}`, {
+        stack: err.stack,
+        alertType: "blob_storage_delete",
+      });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
   }
@@ -176,14 +200,16 @@ export class AzureBlobProviderService
         keys.push(blob.name);
       }
 
-      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`);
+      this.logger.debug(`Listed ${keys.length} blobs with prefix "${prefix}"`, {
+        alertType: "blob_storage_list",
+      });
       return keys;
     } catch (error: unknown) {
       const err = error as Error;
-      this.logger.error(
-        `Failed to list blobs with prefix "${prefix}"`,
-        err.stack,
-      );
+      this.logger.error(`Failed to list blobs with prefix "${prefix}"`, {
+        stack: err.stack,
+        alertType: "blob_storage_list",
+      });
       throw new Error(
         `Failed to list blobs with prefix "${prefix}": ${err.message}`,
       );
@@ -202,6 +228,8 @@ export class AzureBlobProviderService
       deleted += 1;
     }
 
-    this.logger.debug(`Deleted ${deleted} blobs with prefix "${prefix}"`);
+    this.logger.debug(`Deleted ${deleted} blobs with prefix "${prefix}"`, {
+      alertType: "blob_storage_delete_by_prefix",
+    });
   }
 }

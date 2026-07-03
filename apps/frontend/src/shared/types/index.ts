@@ -3,10 +3,10 @@
 export type DocumentStatus =
   | "pre_ocr"
   | "ongoing_ocr"
-  | "completed_ocr"
-  | "needs_validation"
+  | "extracted"
+  | "awaiting_review"
+  | "complete"
   | "failed"
-  | "rejected_by_human"
   | "conversion_failed";
 
 export enum RejectionReason {
@@ -30,6 +30,12 @@ export interface Document {
   status: DocumentStatus | string;
   created_at: string;
   updated_at: string;
+  /**
+   * Set once the ephemeral-cleanup janitor purged the document's blobs per its
+   * workflow's retention policy. When set, the original/normalized PDF is gone
+   * (view/download return 410) but the extracted OCR data is retained.
+   */
+  purged_at?: string | null;
   metadata?: Record<string, unknown>;
   apim_request_id?: string | null;
   intake_method?: string | null;
@@ -42,6 +48,7 @@ export interface Document {
   };
   model_id?: string;
   needsReview?: boolean; // Set by backend when workflow is awaiting review
+  workflow_name?: string | null; // Name of the workflow used to process this document
 }
 
 export interface BoundingRegion {
@@ -70,10 +77,22 @@ export interface DocumentField {
 
 export type ExtractedFields = Record<string, DocumentField>;
 
+/**
+ * Structured OCR text output, populated for prebuilt read/layout models where
+ * there are no key/value fields to extract. `format` indicates whether
+ * `markdown` is meaningful; `text` is always the plain-text rendering.
+ */
+export interface OcrContent {
+  format: "text" | "markdown";
+  text?: string | null;
+  markdown?: string | null;
+}
+
 export interface OcrResult {
   id: string;
   document_id: string;
   keyValuePairs?: ExtractedFields;
+  content?: OcrContent | null;
   processed_at: string;
 }
 

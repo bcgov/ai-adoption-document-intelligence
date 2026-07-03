@@ -1,5 +1,5 @@
-import { Kbd, Modal, Stack, Table, Text } from "@mantine/core";
 import { FC } from "react";
+import { DataTable, Kbd, Modal, Stack, Text } from "../../../../ui";
 import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcuts";
 
 interface ShortcutsOverlayProps {
@@ -33,17 +33,17 @@ export const ShortcutsOverlay: FC<ShortcutsOverlayProps> = ({
 }) => (
   <Modal opened={opened} onClose={onClose} title="Keyboard Shortcuts" size="md">
     <Stack gap="xs">
-      <Table>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Shortcut</Table.Th>
-            <Table.Th>Action</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable>
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Shortcut</DataTable.Th>
+            <DataTable.Th>Action</DataTable.Th>
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {shortcuts.map((s, i) => (
-            <Table.Tr key={i}>
-              <Table.Td>
+            <DataTable.Tr key={i}>
+              <DataTable.Td>
                 {formatShortcut(s).map((part, j) => (
                   <span key={j}>
                     {j > 0 && (
@@ -54,14 +54,14 @@ export const ShortcutsOverlay: FC<ShortcutsOverlayProps> = ({
                     <Kbd size="sm">{part}</Kbd>
                   </span>
                 ))}
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Text size="sm">{s.description}</Text>
-              </Table.Td>
-            </Table.Tr>
+              </DataTable.Td>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
     </Stack>
   </Modal>
 );

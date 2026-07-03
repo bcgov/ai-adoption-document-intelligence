@@ -42,7 +42,7 @@ jest.mock("@temporalio/workflow", () => ({
 
 import type {
   GraphWorkflowConfig,
-  GraphWorkflowInput,
+  GraphWorkflowExecutionInput,
 } from "../graph-workflow-types";
 import type { ExecutionState } from "./execution-state";
 import { runGraphExecution } from "./graph-runner";
@@ -88,8 +88,9 @@ describe("runGraphExecution — groupId propagation from input to activity", () 
   });
 
   it("injects input.groupId into activity inputs", async () => {
-    const input: GraphWorkflowInput = {
+    const input: GraphWorkflowExecutionInput = {
       graph: minimalGraph,
+      workflowVersionId: "wv-1",
       initialCtx: {},
       configHash: "h",
       runnerVersion: "1.0.0",
@@ -104,8 +105,9 @@ describe("runGraphExecution — groupId propagation from input to activity", () 
   });
 
   it("does not inject groupId when input.groupId is null", async () => {
-    const input: GraphWorkflowInput = {
+    const input: GraphWorkflowExecutionInput = {
       graph: minimalGraph,
+      workflowVersionId: "wv-1",
       initialCtx: {},
       configHash: "h",
       runnerVersion: "1.0.0",
@@ -122,8 +124,9 @@ describe("runGraphExecution — groupId propagation from input to activity", () 
   });
 
   it("does not inject groupId when input.groupId is omitted", async () => {
-    const input: GraphWorkflowInput = {
+    const input: GraphWorkflowExecutionInput = {
       graph: minimalGraph,
+      workflowVersionId: "wv-1",
       initialCtx: {},
       configHash: "h",
       runnerVersion: "1.0.0",
@@ -141,7 +144,7 @@ describe("runGraphExecution — groupId propagation from input to activity", () 
   it("input.groupId wins over an attempt to spoof via initialCtx.__workflowMetadata", async () => {
     // Even if a workflow author plants __workflowMetadata in ctx defaults or
     // initialCtx, only input.groupId (set server-side) reaches the activity.
-    const input: GraphWorkflowInput = {
+    const input: GraphWorkflowExecutionInput = {
       graph: {
         ...minimalGraph,
         ctx: {
@@ -151,6 +154,7 @@ describe("runGraphExecution — groupId propagation from input to activity", () 
           },
         },
       },
+      workflowVersionId: "wv-1",
       initialCtx: {
         __workflowMetadata: { groupId: "also-spoofed" },
       },

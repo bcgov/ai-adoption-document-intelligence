@@ -215,7 +215,7 @@ export function SegmentArrayPreview({
   const { data: documents } = useDocuments();
   const parentDoc = useMemo<Document | undefined>(() => {
     if (activeParentDocId === null || documents === undefined) return undefined;
-    return documents.find((d) => d.id === activeParentDocId);
+    return documents.documents.find((d) => d.id === activeParentDocId);
   }, [documents, activeParentDocId]);
   const parentImageUrl = documentImageUrl(parentDoc);
 
@@ -253,7 +253,7 @@ export function SegmentArrayPreview({
             setActiveSegmentIdx(null);
           }}
           data={parentDocIds.map((id) => {
-            const doc = documents?.find((d) => d.id === id);
+            const doc = documents?.documents.find((d) => d.id === id);
             return { value: id, label: doc?.title ?? id };
           })}
           allowDeselect={false}

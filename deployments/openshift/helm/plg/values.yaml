@@ -186,6 +186,9 @@ chesAdapter:
     repository: ""
     tag: "latest"
     pullPolicy: IfNotPresent
+  # Name of an existing docker-registry Secret to use for pulling the image.
+  # Leave empty to use the namespace default pull secret.
+  imagePullSecret: ""
   # Port the service listens on (must match PORT env var passed to the container).
   port: 3003
   # Name of the Kubernetes Secret containing all sensitive values.

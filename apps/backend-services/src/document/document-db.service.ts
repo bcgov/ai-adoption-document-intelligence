@@ -1,3 +1,4 @@
+import type { EphemeralConfig } from "@ai-di/graph-workflow";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   DocumentStatus,
@@ -15,6 +16,43 @@ import {
 } from "@/ocr/azure-types";
 import { PrismaService } from "../database/prisma.service";
 import type { DocumentData } from "./document-db.types";
+
+/** A terminal document to purge, with its workflow's ephemeral policy. */
+export interface PurgeableEphemeralDocument {
+  id: string;
+  group_id: string;
+  workflow_execution_id: string | null;
+  ephemeral: EphemeralConfig;
+}
+
+/**
+ * Extracts `metadata.ephemeral` from a workflow version config (stored as JSON),
+ * normalizing the object form to explicit booleans. Returns `false` when absent
+ * or malformed.
+ */
+function extractEphemeralConfig(
+  config: Prisma.JsonValue | null | undefined,
+): EphemeralConfig {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+  const metadata = (config as Record<string, unknown>).metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+  const ephemeral = (metadata as Record<string, unknown>).ephemeral;
+  if (ephemeral === true) {
+    return true;
+  }
+  if (ephemeral && typeof ephemeral === "object" && !Array.isArray(ephemeral)) {
+    const obj = ephemeral as Record<string, unknown>;
+    return {
+      files: obj.files === true,
+      temporalRecord: obj.temporalRecord === true,
+    };
+  }
+  return false;
+}
 
 @Injectable()
 export class DocumentDbService {
@@ -34,7 +72,7 @@ export class DocumentDbService {
    * @returns The created document record.
    */
   async createDocument(
-    data: Omit<DocumentData, "created_at" | "updated_at">,
+    data: Omit<DocumentData, "created_at" | "updated_at" | "purged_at">,
     tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
     const client = tx ?? this.prisma;
@@ -103,26 +141,187 @@ export class DocumentDbService {
   }
 
   /**
-   * Returns all documents, optionally filtered by group IDs.
+   * Returns documents, optionally filtered by group IDs, with pagination.
    *
    * @param groupIds - Optional list of group IDs to filter by.
-   * @returns Array of matching document records ordered by creation date descending.
+   * @param options - Pagination options: `limit` (default 50) and `offset` (default 0).
+   * @returns Object with matching document records and total count.
    */
   async findAllDocuments(
     groupIds?: string[],
+    options?: {
+      limit?: number;
+      offset?: number;
+      search?: string;
+      status?: DocumentStatus | "all";
+      sortBy?: string;
+      sortDir?: "asc" | "desc";
+      source?: string;
+    },
     tx?: Prisma.TransactionClient,
-  ): Promise<DocumentData[]> {
+  ): Promise<{
+    documents: (DocumentData & { workflow_name?: string | null })[];
+    total: number;
+  }> {
     const client = tx ?? this.prisma;
-    this.logger.debug("Finding all documents");
+    const take = options?.limit ?? 50;
+    const skip = options?.offset ?? 0;
+    const sortBy = options?.sortBy ?? "created_at";
+    const sortDir = options?.sortDir ?? "desc";
+
+    // Build where clause
+    const where: Prisma.DocumentWhereInput = {};
+
+    // Group filter (required)
+    if (groupIds) {
+      where.group_id = { in: groupIds };
+    }
+
+    // Status filter
+    // The "failed" filter covers both failure states surfaced under a single
+    // "Failed" bucket in the UI: extraction failures and PDF conversion failures.
+    if (options?.status && options.status !== "all") {
+      where.status =
+        options.status === "failed"
+          ? { in: ["failed", "conversion_failed"] }
+          : options.status;
+    }
+
+    // Source filter
+    if (options?.source) {
+      where.source = options.source;
+    }
+
+    // Search filter (title or filename)
+    if (options?.search?.trim()) {
+      where.OR = [
+        { title: { contains: options.search, mode: "insensitive" } },
+        {
+          original_filename: { contains: options.search, mode: "insensitive" },
+        },
+      ];
+    }
+
+    // Build orderBy
+    const orderBy: Prisma.DocumentOrderByWithRelationInput = {};
+    switch (sortBy) {
+      case "title":
+        orderBy.title = sortDir;
+        break;
+      case "status":
+        orderBy.status = sortDir;
+        break;
+      case "size":
+        orderBy.file_size = sortDir;
+        break;
+      case "source":
+        orderBy.source = sortDir;
+        break;
+      case "workflow":
+        orderBy.workflowVersion = { lineage: { name: sortDir } };
+        break;
+      case "created_at":
+      default:
+        orderBy.created_at = sortDir;
+        break;
+    }
+
+    this.logger.debug("Finding all documents", {
+      take,
+      skip,
+      sortBy,
+      sortDir,
+      status: options?.status,
+      search: options?.search,
+    });
+
     try {
-      const documents = await client.document.findMany({
-        where: groupIds ? { group_id: { in: groupIds } } : undefined,
-        orderBy: { created_at: "desc" },
-      });
-      this.logger.debug("Found documents", { count: documents.length });
-      return documents;
+      const [documents, total] = await Promise.all([
+        client.document.findMany({
+          where,
+          orderBy,
+          take,
+          skip,
+          include: {
+            workflowVersion: {
+              select: {
+                lineage: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        client.document.count({ where }),
+      ]);
+
+      this.logger.debug("Found documents", { count: documents.length, total });
+
+      // Map to include workflow_name at top level
+      const documentsWithWorkflow = documents.map((doc) => ({
+        ...doc,
+        workflow_name: doc.workflowVersion?.lineage?.name ?? null,
+        workflowVersion: undefined, // Remove the nested object
+      }));
+
+      return { documents: documentsWithWorkflow, total };
     } catch (error) {
       this.logger.error("Failed to find documents", {
+        error: getErrorMessage(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Returns document counts grouped by status, plus a grand total.
+   *
+   * @param groupIds - Optional list of group IDs to scope the counts.
+   * @returns An object with a count per `DocumentStatus` value and a `total`.
+   */
+  async getDocumentStatusCounts(groupIds?: string[]): Promise<{
+    total: number;
+    pre_ocr: number;
+    ongoing_ocr: number;
+    extracted: number;
+    awaiting_review: number;
+    complete: number;
+    failed: number;
+    rejected_by_human: number;
+    conversion_failed: number;
+  }> {
+    const where = groupIds ? { group_id: { in: groupIds } } : undefined;
+    this.logger.debug("Getting document status counts", { groupIds });
+    try {
+      const [rows, total] = await this.prisma.$transaction(async (tx) => {
+        return Promise.all([
+          tx.document.groupBy({
+            by: ["status"],
+            where,
+            _count: { _all: true },
+          }),
+          tx.document.count({ where }),
+        ]);
+      });
+      const counts: Record<string, number> = {};
+      for (const row of rows) {
+        counts[row.status] = row._count._all;
+      }
+      return {
+        total,
+        pre_ocr: counts["pre_ocr"] ?? 0,
+        ongoing_ocr: counts["ongoing_ocr"] ?? 0,
+        extracted: counts["extracted"] ?? 0,
+        awaiting_review: counts["awaiting_review"] ?? 0,
+        complete: counts["complete"] ?? 0,
+        failed: counts["failed"] ?? 0,
+        rejected_by_human: counts["rejected_by_human"] ?? 0,
+        conversion_failed: counts["conversion_failed"] ?? 0,
+      };
+    } catch (error) {
+      this.logger.error("Failed to get document status counts", {
         error: getErrorMessage(error),
       });
       throw error;
@@ -203,6 +402,76 @@ export class DocumentDbService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Finds documents eligible for ephemeral cleanup: those processed by a
+   * workflow whose config declares an ephemeral policy that deletes at least
+   * one target (`metadata.ephemeral` is `true`, or an object with `files` or
+   * `temporalRecord` set to `true`), in a terminal status, and not yet purged.
+   * Ephemerality is configured on the workflow — there is no global or
+   * per-group setting. Each result carries its workflow's ephemeral policy so
+   * the janitor knows which targets to delete.
+   *
+   * @param statuses - Terminal statuses considered safe to purge.
+   * @param limit - Maximum number of documents to return in one batch.
+   * @returns Records (id, group, Temporal execution id, ephemeral policy).
+   */
+  async findPurgeableEphemeralDocuments(
+    statuses: DocumentStatus[],
+    limit: number,
+  ): Promise<PurgeableEphemeralDocument[]> {
+    const rows = await this.prisma.document.findMany({
+      where: {
+        status: { in: statuses },
+        purged_at: null,
+        workflowVersion: {
+          is: {
+            OR: [
+              { config: { path: ["metadata", "ephemeral"], equals: true } },
+              {
+                config: {
+                  path: ["metadata", "ephemeral", "files"],
+                  equals: true,
+                },
+              },
+              {
+                config: {
+                  path: ["metadata", "ephemeral", "temporalRecord"],
+                  equals: true,
+                },
+              },
+            ],
+          },
+        },
+      },
+      select: {
+        id: true,
+        group_id: true,
+        workflow_execution_id: true,
+        workflowVersion: { select: { config: true } },
+      },
+      orderBy: { updated_at: "asc" },
+      take: limit,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      group_id: row.group_id,
+      workflow_execution_id: row.workflow_execution_id,
+      ephemeral: extractEphemeralConfig(row.workflowVersion?.config),
+    }));
+  }
+
+  /**
+   * Stamps a document as purged so the cleanup janitor will not reprocess it.
+   *
+   * @param id - The document ID to mark purged.
+   */
+  async markDocumentPurged(id: string): Promise<void> {
+    await this.prisma.document.update({
+      where: { id },
+      data: { purged_at: new Date() },
+    });
   }
 
   /**

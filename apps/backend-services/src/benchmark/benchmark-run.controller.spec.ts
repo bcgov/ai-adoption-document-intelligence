@@ -253,6 +253,7 @@ describe("BenchmarkRunController", () => {
 
     it("uses source workflow owner as actorId when resolvedIdentity.actorId is absent", async () => {
       const sourceWorkflow: WorkflowInfo = {
+        configHash: "hash-1",
         id: "workflow-1",
         workflowVersionId: "wv-workflow-1",
         slug: "wf",

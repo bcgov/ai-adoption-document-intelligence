@@ -1,19 +1,4 @@
 import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Code,
-  Group,
-  Loader,
-  Modal,
-  ScrollArea,
-  Stack,
-  Table,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconDownload,
   IconFile,
@@ -21,6 +6,21 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Code,
+  DataTable,
+  Group,
+  Loader,
+  Modal,
+  ScrollArea,
+  Stack,
+  Text,
+  Title,
+  Tooltip,
+} from "../../../ui";
 
 interface SampleFile {
   path: string;
@@ -121,28 +121,28 @@ export function SampleDetailViewer({
             </Badge>
           </Group>
           {inputs.length > 0 ? (
-            <Table striped highlightOnHover withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Path</Table.Th>
-                  <Table.Th>MIME Type</Table.Th>
-                  <Table.Th w={50}>Download</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover withTableBorder>
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Path</DataTable.Th>
+                  <DataTable.Th>MIME Type</DataTable.Th>
+                  <DataTable.Th w={50}>Download</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {inputs.map((file, idx) => (
-                  <Table.Tr key={idx}>
-                    <Table.Td>
+                  <DataTable.Tr key={idx}>
+                    <DataTable.Td>
                       <Text size="sm" ff="monospace">
                         {file.path}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge size="sm" variant="outline">
                         {file.mimeType || "unknown"}
                       </Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Tooltip label="Download file">
                         <ActionIcon
                           variant="subtle"
@@ -152,11 +152,11 @@ export function SampleDetailViewer({
                           <IconDownload size={16} />
                         </ActionIcon>
                       </Tooltip>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           ) : (
             <Text size="sm" c="dimmed">
               No input files
@@ -175,28 +175,28 @@ export function SampleDetailViewer({
           </Group>
           {groundTruthFiles.length > 0 ? (
             <Stack gap="xs">
-              <Table striped highlightOnHover withTableBorder>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Path</Table.Th>
-                    <Table.Th>Format</Table.Th>
-                    <Table.Th w={50}>Download</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped highlightOnHover withTableBorder>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Path</DataTable.Th>
+                    <DataTable.Th>Format</DataTable.Th>
+                    <DataTable.Th w={50}>Download</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {groundTruthFiles.map((file, idx) => (
-                    <Table.Tr key={idx}>
-                      <Table.Td>
+                    <DataTable.Tr key={idx}>
+                      <DataTable.Td>
                         <Text size="sm" ff="monospace">
                           {file.path}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Badge size="sm" variant="outline">
                           {file.format || "unknown"}
                         </Badge>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Tooltip label="Download file">
                           <ActionIcon
                             variant="subtle"
@@ -206,11 +206,11 @@ export function SampleDetailViewer({
                             <IconDownload size={16} />
                           </ActionIcon>
                         </Tooltip>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
 
               {/* Ground Truth Content */}
               {isLoadingGroundTruth ? (

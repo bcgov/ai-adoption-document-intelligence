@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: load-test-k6-review-hitl
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          args:
+            - run
+            - --summary-export=/tmp/k6-review-hitl-summary.json
+            - /scripts/review-hitl-apis.js
+          env:
+            - name: BASE_URL
+              value: "http://backend-services:3002"
+            - name: LOAD_TEST_GROUP_ID
+              value: "seed-default-group"
+            - name: LOAD_TEST_VUS
+              value: "1"
+            - name: LOAD_TEST_DURATION
+              value: "60s"
+            - name: LOAD_TEST_HITL_SESSION_MODE
+              value: "skip"
+            - name: LOAD_TEST_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: load-test-k6-secrets
+                  key: LOAD_TEST_API_KEY
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: load-test-k6-scripts
+            defaultMode: 420

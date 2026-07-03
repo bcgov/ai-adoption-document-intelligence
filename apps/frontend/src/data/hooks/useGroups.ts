@@ -67,7 +67,7 @@ export function useAllGroups() {
       if (!response.success) {
         throw new Error(response.message ?? "Failed to fetch groups");
       }
-      return response.data ?? [];
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
 }
@@ -117,6 +117,7 @@ export function useRequestMembership() {
 export function useMyGroups(userId: string) {
   return useQuery({
     queryKey: ["groups", "user", userId],
+    enabled: !!userId,
     queryFn: async (): Promise<UserGroup[]> => {
       const response = await apiService.get<UserGroup[]>(
         `/groups/user/${userId}`,
@@ -124,7 +125,7 @@ export function useMyGroups(userId: string) {
       if (!response.success) {
         throw new Error(response.message ?? "Failed to fetch user groups");
       }
-      return response.data ?? [];
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
 }
@@ -149,7 +150,7 @@ export function useMyRequests(status?: string) {
           response.message ?? "Failed to fetch membership requests",
         );
       }
-      return response.data ?? [];
+      return Array.isArray(response.data) ? response.data : [];
     },
   });
 }
@@ -295,6 +296,12 @@ export function useApproveMembershipRequest(groupId: string) {
       });
       queryClient.invalidateQueries({
         queryKey: ["groups", groupId, "members"],
+      });
+      // Refresh the user's group memberships and their own requests list so that
+      // button states (Join/Leave, pending request badges) update immediately.
+      queryClient.invalidateQueries({ queryKey: ["groups", "user"] });
+      queryClient.invalidateQueries({
+        queryKey: ["groups", "requests", "mine"],
       });
     },
   });

@@ -5,13 +5,15 @@ import {
   Client,
   Connection,
   defaultPayloadConverter,
+  WorkflowNotFoundError,
 } from "@temporalio/client";
 import type { temporal } from "@temporalio/proto";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
-import { computeConfigHash } from "../workflow/config-hash";
+import { computeConfigHashWithOverrides } from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
+import { temporalDataConverter } from "./temporal-data-converter";
 import { WORKFLOW_TYPES } from "./workflow-types";
 
 /**
@@ -214,6 +216,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.client = new Client({
         connection: this.connection,
         namespace: this.namespace,
+        dataConverter: temporalDataConverter,
       });
 
       this.logger.log("Temporal client connected successfully");
@@ -251,7 +254,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
     groupId: string | null,
-    graphOverride?: GraphWorkflowConfig,
+    workflowConfigOverrides?: Record<string, unknown>,
   ): Promise<string> {
     this.ensureClientInitialized();
 
@@ -271,13 +274,18 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      const graph = (graphOverride ??
-        workflowConfig.config) as GraphWorkflowConfig;
-      const configHash = computeConfigHash(graph);
+      const graph = workflowConfig.config as GraphWorkflowConfig;
+      const configHash = computeConfigHashWithOverrides(
+        graph,
+        workflowConfigOverrides,
+      );
       const runnerVersion = "1.0.0";
 
       const workflowType = WORKFLOW_TYPES.GRAPH_WORKFLOW;
       const requestId = getRequestContext()?.requestId;
+      const hasOverrides =
+        workflowConfigOverrides !== undefined &&
+        Object.keys(workflowConfigOverrides).length > 0;
 
       const searchAttributes: Record<string, string[]> = documentId
         ? {
@@ -310,7 +318,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       const handle = await this.client!.workflow.start(workflowType, {
         args: [
           {
-            graph,
+            workflowVersionId: workflowConfigId,
             initialCtx,
             configHash,
             runnerVersion,
@@ -327,6 +335,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             // worker's `dyn.run` activity sources the platform API key
             // server-side from its own config (`PLATFORM_API_KEY`).
             ...(requestId && { requestId }),
+            ...(hasOverrides && { workflowConfigOverrides }),
           },
         ],
         taskQueue: this.taskQueue,
@@ -371,6 +380,30 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       throw this.handleError(error, `get workflow status for ${workflowId}`);
+    }
+  }
+
+  /**
+   * Reports whether a workflow execution is currently Running.
+   *
+   * Returns false when no execution exists for the given ID (never started, or
+   * the record was reclaimed), so callers can safely treat a missing execution
+   * as "not running" — e.g. an orphaned document whose prior run already closed.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async isWorkflowRunning(workflowId: string): Promise<boolean> {
+    this.ensureClientInitialized();
+
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      const description = await handle.describe();
+      return description.status.name === "RUNNING";
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        return false;
+      }
+      throw this.handleError(error, `check running state for ${workflowId}`);
     }
   }
 
@@ -901,6 +934,39 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       );
     } catch (error) {
       throw this.handleError(error, `cancel workflow ${workflowId}`);
+    }
+  }
+
+  /**
+   * Permanently deletes a workflow execution's history and visibility record
+   * from Temporal. Used by the ephemeral-document cleanup janitor to drop the
+   * Temporal footprint of completed documents ahead of the namespace retention
+   * window. Only valid for closed (completed/failed/terminated) executions.
+   *
+   * Idempotent: a NOT_FOUND response (already deleted or already expired by
+   * retention) is treated as success so callers can safely mark the work done.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async deleteWorkflowExecution(workflowId: string): Promise<void> {
+    if (!this.connection) {
+      throw new Error("Temporal client not initialized");
+    }
+
+    try {
+      await this.connection.workflowService.deleteWorkflowExecution({
+        namespace: this.namespace,
+        workflowExecution: { workflowId },
+      });
+      this.logger.log(`Deleted Temporal execution record for ${workflowId}`);
+    } catch (error) {
+      if (getErrorMessage(error).toLowerCase().includes("not found")) {
+        this.logger.debug(
+          `Temporal execution ${workflowId} already absent; nothing to delete`,
+        );
+        return;
+      }
+      throw this.handleError(error, `delete Temporal execution ${workflowId}`);
     }
   }
 

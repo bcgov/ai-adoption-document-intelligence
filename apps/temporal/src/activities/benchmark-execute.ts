@@ -14,7 +14,6 @@
 
 import { executeChild, workflowInfo } from "@temporalio/workflow";
 import type { BenchmarkSampleWorkflowOutput } from "../benchmark-sample-workflow";
-import type { GraphWorkflowConfig } from "../graph-workflow-types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,15 +21,17 @@ import type { GraphWorkflowConfig } from "../graph-workflow-types";
 
 export interface BenchmarkExecuteInput {
   sampleId: string;
-  workflowConfig: GraphWorkflowConfig;
+  workflowVersionId: string;
   configHash: string;
   inputPaths: string[];
   outputBaseDir: string;
   sampleMetadata: Record<string, unknown>;
-  /** Directory under which the per-sample prediction JSON should be written. */
   predictionOutputDir: string;
-  /** When set, wrapper persists OCR response under this benchmark run id. */
   persistOcrCache?: { sourceRunId: string };
+  ocrCacheBaselineRunId?: string;
+  workflowConfigOverrides?: Record<string, unknown>;
+  /** Dataset tenant scope for OCR blob writes (benchmark samples have no Document row). */
+  groupId?: string;
   timeoutMs?: number;
   taskQueue?: string;
   requestId?: string;
@@ -66,13 +67,16 @@ export async function benchmarkExecuteWorkflow(
   const startTime = Date.now();
   const {
     sampleId,
-    workflowConfig,
+    workflowVersionId,
     configHash,
     inputPaths,
     outputBaseDir,
     sampleMetadata,
     predictionOutputDir,
     persistOcrCache,
+    ocrCacheBaselineRunId,
+    workflowConfigOverrides,
+    groupId,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     taskQueue = BENCHMARK_TASK_QUEUE,
     requestId,
@@ -99,13 +103,16 @@ export async function benchmarkExecuteWorkflow(
       args: [
         {
           sampleId,
-          workflowConfig,
+          workflowVersionId,
           configHash,
           inputPaths,
           outputBaseDir,
           sampleMetadata,
           predictionOutputDir,
           persistOcrCache,
+          ocrCacheBaselineRunId,
+          workflowConfigOverrides,
+          groupId,
           parentWorkflowId,
           requestId,
         },

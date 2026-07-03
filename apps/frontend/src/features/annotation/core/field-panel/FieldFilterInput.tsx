@@ -1,6 +1,6 @@
-import { Stack, Text, TextInput } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { FC } from "react";
+import { Stack, Text, TextInput } from "../../../../ui";
 
 interface FieldFilterInputProps {
   value: string;

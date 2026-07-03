@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import {
   fireEvent,
   render,
@@ -8,11 +7,14 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  GroupInfo,
-  MyMembershipRequest,
-  UserGroup,
+import {
+  type GroupInfo,
+  type MyMembershipRequest,
+  type UserGroup,
 } from "../data/hooks/useGroups";
+import { changeFieldValue } from "../test/fieldHelpers";
+import { mockNotificationsShow } from "../test/mockNotifications";
+import { MantineProvider } from "../ui";
 import { GroupsPage } from "./GroupsPage";
 
 // ---------------------------------------------------------------------------
@@ -32,13 +34,9 @@ const mockUseRequestMembership = vi.fn();
 const mockRequestMutate = vi.fn();
 const mockUseCreateGroup = vi.fn();
 const mockCreateMutate = vi.fn();
-
-const { mockNotificationsShow } = vi.hoisted(() => ({
-  mockNotificationsShow: vi.fn(),
-}));
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: mockNotificationsShow },
-}));
+const mockApproveMembershipRequest = vi.fn().mockResolvedValue({
+  isPending: false,
+});
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -52,6 +50,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useLeaveGroup: () => mockUseLeaveGroup(),
   useRequestMembership: () => mockUseRequestMembership(),
   useCreateGroup: () => mockUseCreateGroup(),
+  useApproveMembershipRequest: () => mockApproveMembershipRequest(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -219,10 +218,10 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 3 – System admin sees all groups
+  // Scenario 3 – System admin sees their groups
   // -------------------------------------------------------------------------
-  describe("Scenario 3 – System admin sees all groups", () => {
-    it("renders all groups including those the admin does not belong to", () => {
+  describe("Scenario 3 – System admin sees their groups", () => {
+    it("renders only the groups the admin belongs to on My Groups tab", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "admin-1" },
         isSystemAdmin: true,
@@ -243,7 +242,7 @@ describe("GroupsPage", () => {
       const panel = screen.getByRole("tabpanel", { name: "My Groups" });
       expect(within(panel).getByText("My Team A")).toBeInTheDocument();
       expect(within(panel).getByText("My Team B")).toBeInTheDocument();
-      expect(within(panel).getByText("Other Team")).toBeInTheDocument();
+      expect(within(panel).queryByText("Other Team")).not.toBeInTheDocument();
     });
   });
 
@@ -560,9 +559,9 @@ describe("GroupsPage", () => {
       fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
 
       await waitFor(() => {
-        // Mantine Select renders a visible input + a hidden input; ensure at least one has PENDING
-        const inputs = screen.getAllByDisplayValue("PENDING");
-        expect(inputs.length).toBeGreaterThan(0);
+        expect(screen.getByTestId("requests-status-filter")).toHaveTextContent(
+          /pending/i,
+        );
       });
     });
 
@@ -1177,9 +1176,7 @@ describe("GroupsPage", () => {
         expect(screen.getByTestId("create-group-name")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-        target: { value: "Duplicate Group" },
-      });
+      changeFieldValue("create-group-name", "Duplicate Group");
 
       fireEvent.click(screen.getByTestId("create-group-submit-btn"));
 
@@ -1189,9 +1186,9 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      expect(
-        screen.getByText("A group with that name already exists"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("create-group-server-error")).toHaveTextContent(
+        "A group with that name already exists",
+      );
 
       // Modal should remain open
       expect(screen.getByTestId("create-group-modal")).toBeInTheDocument();
@@ -1214,10 +1211,16 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+      const form = screen
+        .getByTestId("create-group-submit-btn")
+        .closest("form");
+      expect(form).not.toBeNull();
+      fireEvent.submit(form as HTMLFormElement);
 
       await waitFor(() => {
-        expect(screen.getByText("Name is required")).toBeInTheDocument();
+        expect(screen.getByTestId("create-group-modal")).toHaveTextContent(
+          /name is required/i,
+        );
       });
 
       expect(mockCreateMutate).not.toHaveBeenCalled();

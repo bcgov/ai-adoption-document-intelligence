@@ -1,7 +1,7 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityNode } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { SelectClassifiedPagesForm } from "./SelectClassifiedPagesForm";
 
 function makeNode(

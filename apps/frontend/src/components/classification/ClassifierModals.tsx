@@ -1,16 +1,3 @@
-import {
-  Button,
-  FileInput,
-  Group,
-  List,
-  Modal,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import { ConflictingWorkflow, useClassifier } from "@/data/hooks/useClassifier";
@@ -18,6 +5,19 @@ import {
   ClassifierSource,
   RESERVED_CLASSIFIER_LABELS,
 } from "@/shared/types/classifier";
+import {
+  Button,
+  FileInput,
+  Group,
+  List,
+  Modal,
+  notifications,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  useForm,
+} from "../../ui";
 
 interface DeleteClassifierModalProps {
   isOpen: boolean;

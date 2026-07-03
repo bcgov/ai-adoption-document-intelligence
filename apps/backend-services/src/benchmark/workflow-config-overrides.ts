@@ -1,4 +1,7 @@
+import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
+
+export { applyWorkflowConfigOverrides };
 
 /**
  * Extract a map of { path: currentValue } for all exposed params
@@ -59,17 +62,6 @@ export function validateWorkflowConfigOverrides(
   return errors;
 }
 
-export function applyWorkflowConfigOverrides(
-  config: GraphWorkflowConfig,
-  overrides: Record<string, unknown>,
-): GraphWorkflowConfig {
-  const result = JSON.parse(JSON.stringify(config)) as GraphWorkflowConfig;
-  for (const [path, value] of Object.entries(overrides)) {
-    setNestedValue(result as unknown as Record<string, unknown>, path, value);
-  }
-  return result;
-}
-
 /**
  * Get a value at a dot-separated path in an object.
  * Returns undefined if any segment along the path is missing.
@@ -88,25 +80,4 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
     current = (current as Record<string, unknown>)[part];
   }
   return current;
-}
-
-function setNestedValue(
-  obj: Record<string, unknown>,
-  path: string,
-  value: unknown,
-): void {
-  const parts = path.split(".");
-  let current: Record<string, unknown> = obj;
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (
-      current[part] === undefined ||
-      current[part] === null ||
-      typeof current[part] !== "object"
-    ) {
-      current[part] = {};
-    }
-    current = current[part] as Record<string, unknown>;
-  }
-  current[parts[parts.length - 1]] = value;
 }

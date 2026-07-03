@@ -199,6 +199,12 @@ export class GroupService {
       );
     }
 
+    // Delete any prior resolved records (APPROVED, DENIED, CANCELLED) for this
+    // user+group pair before creating a new PENDING request. This prevents
+    // unique constraint violations on (group_id, user_id, status) when the user
+    // has previously been through one or more request cycles.
+    await this.groupDb.deleteResolvedMembershipRequests(userId, groupId);
+
     const created = await this.groupDb.createMembershipRequest(
       userId,
       groupId,
@@ -238,7 +244,9 @@ export class GroupService {
         "Cannot cancel a request belonging to another user",
       );
     }
-    await this.groupDb.updateMembershipRequest(
+    await this.groupDb.cancelRequestTransaction(
+      request.user_id,
+      request.group_id,
       requestId,
       this.buildResolutionData(
         identity.actorId,

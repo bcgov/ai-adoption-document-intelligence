@@ -1,3 +1,8 @@
+import { IconAlertTriangle, IconCheck, IconX } from "@tabler/icons-react";
+import { useState } from "react";
+import { useDocumentApproval } from "../../data/hooks/useDocumentApproval";
+import type { Document, OcrResult } from "../../shared/types";
+import { RejectionReason } from "../../shared/types";
 import {
   Alert,
   Badge,
@@ -9,12 +14,7 @@ import {
   Text,
   Textarea,
   Title,
-} from "@mantine/core";
-import { IconAlertTriangle, IconCheck, IconX } from "@tabler/icons-react";
-import { useState } from "react";
-import { useDocumentApproval } from "../../data/hooks/useDocumentApproval";
-import type { Document, OcrResult } from "../../shared/types";
-import { RejectionReason } from "../../shared/types";
+} from "../../ui";
 
 interface DocumentValidationProps {
   document: Document;

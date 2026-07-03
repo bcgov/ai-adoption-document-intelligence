@@ -1,4 +1,11 @@
 import "@testing-library/jest-dom";
+import { beforeEach } from "vitest";
+import "./mockNotifications";
+import { mockNotificationsShow } from "./mockNotifications";
+
+beforeEach(() => {
+  mockNotificationsShow.mockClear();
+});
 
 /**
  * Mantine relies on window.matchMedia for colour-scheme handling.

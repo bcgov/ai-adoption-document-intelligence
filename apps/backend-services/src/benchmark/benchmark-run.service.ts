@@ -26,8 +26,8 @@ import {
   BLOB_STORAGE,
   type BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
+import { computeConfigHashWithOverrides } from "../workflow/config-hash";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
@@ -52,7 +52,6 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
-import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkRunService {
@@ -258,15 +257,6 @@ export class BenchmarkRunService {
     return digest;
   }
 
-  /**
-   * Same canonical hash as benchmark definitions and Temporal graph runs
-   * ({@link computeConfigHash}): defaults + key order normalization so an
-   * in-memory config matches JSON loaded from `workflow_version.config`.
-   */
-  private hashWorkflowConfigJson(config: unknown): string {
-    return computeConfigHash(config as GraphWorkflowConfig);
-  }
-
   private async assertOcrCacheBaselineRun(
     projectId: string,
     datasetVersionId: string,
@@ -381,7 +371,6 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
-    let workflowConfigUsed: Record<string, unknown>;
     let workflowConfigHashUsed: string;
 
     // Apply workflow config overrides from the definition
@@ -392,27 +381,29 @@ export class BenchmarkRunService {
       const candidateRow = await this.runDb.findWorkflowVersionConfig(
         dto.candidateWorkflowVersionId,
       );
-      if (!candidateRow) {
+      // The candidate must belong to the run's project group; a version owned
+      // by another group is reported as not found so its config cannot be
+      // executed or its hash disclosed cross-group.
+      if (
+        !candidateRow ||
+        candidateRow.lineage.group_id !== definition.project.group_id
+      ) {
         throw new BadRequestException(
           `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
         );
       }
-      workflowConfigUsed = candidateRow.config as Record<string, unknown>;
-      workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
+      workflowConfigHashUsed = computeConfigHashWithOverrides(
+        candidateRow.config as unknown as GraphWorkflowConfig,
+      );
     } else {
-      const baseConfig = definition.workflowVersion.config as Record<
-        string,
-        unknown
-      >;
-      if (Object.keys(workflowConfigOverrides).length > 0) {
-        workflowConfigUsed = applyWorkflowConfigOverrides(
-          baseConfig as unknown as GraphWorkflowConfig,
-          workflowConfigOverrides,
-        ) as unknown as Record<string, unknown>;
-      } else {
-        workflowConfigUsed = baseConfig;
-      }
-      workflowConfigHashUsed = definition.workflowConfigHash;
+      const baseConfig = definition.workflowVersion
+        .config as unknown as GraphWorkflowConfig;
+      workflowConfigHashUsed = computeConfigHashWithOverrides(
+        baseConfig,
+        Object.keys(workflowConfigOverrides).length > 0
+          ? workflowConfigOverrides
+          : undefined,
+      );
     }
 
     const runParams: Record<string, unknown> = {
@@ -467,7 +458,6 @@ export class BenchmarkRunService {
             : undefined,
           workflowVersionId:
             dto.candidateWorkflowVersionId ?? definition.workflowVersionId,
-          workflowConfig: workflowConfigUsed,
           workflowConfigHash: workflowConfigHashUsed,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
@@ -483,6 +473,10 @@ export class BenchmarkRunService {
           workerImageDigest: workerImageDigest ?? undefined,
           persistOcrCache: effectivePersistOcrCache,
           ocrCacheBaselineRunId: dto.ocrCacheBaselineRunId,
+          workflowConfigOverrides:
+            Object.keys(workflowConfigOverrides).length > 0
+              ? workflowConfigOverrides
+              : undefined,
         });
 
       await this.runDb.postTemporalStartTransaction(

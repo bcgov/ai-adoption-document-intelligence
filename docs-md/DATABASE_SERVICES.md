@@ -141,6 +141,20 @@ await this.prismaService.transaction(async (tx) => {
 
 Service methods that may be called as part of a cross-module transaction accept and pass `tx?` straight through without querying it directly. Controllers never initiate or receive transactions.
 
+## Indexes backing the documents list endpoint
+
+`GET /api/documents` (`DocumentDbService.findAllDocuments`) filters by `group_id`, orders by `created_at DESC`, paginates with `limit`/`offset`, and supports an ILIKE search over `title` / `original_filename`. Three indexes on `documents` support this access pattern:
+
+| Index | Definition | Purpose |
+| --- | --- | --- |
+| `documents_group_id_created_at_idx` | btree `(group_id, created_at DESC)` | Serves the default filter + sort from the index so Postgres does not sort the group's whole row set. Managed in `schema.prisma`. |
+| `documents_title_trgm_idx` | GIN `(title gin_trgm_ops)` | Indexes the leading-wildcard `ILIKE '%term%'` search (a B-tree cannot). |
+| `documents_original_filename_trgm_idx` | GIN `(original_filename gin_trgm_ops)` | Same, for the filename branch of the search `OR`. |
+
+The two trigram indexes require the `pg_trgm` extension and cannot be expressed in `schema.prisma`, so they (and the extension) are managed by the raw SQL migration `20260626000000_add_documents_list_indexes`. As with the partial purge index, do not let `migrate dev` drop them.
+
+Residual scaling notes: `count()` runs per request for the total, and deep `OFFSET` pagination scans-and-discards skipped rows — both acceptable for typical browsing but worth revisiting (approximate counts / cursor pagination) if a single group grows very large.
+
 ## Usage
 
 - **Document operations**: inject `DocumentService` (backed by `DocumentDbService`).

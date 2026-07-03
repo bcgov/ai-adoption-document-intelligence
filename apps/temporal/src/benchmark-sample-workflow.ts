@@ -2,41 +2,31 @@
  * Benchmark Sample Workflow (wrapper child)
  *
  * Runs the generic `graphWorkflow` as its own child and performs benchmark-specific
- * post-processing (writing the flattened prediction file and persisting OCR cache)
- * inside this workflow's context — so the heavy `ocrResponse` and `cleanedResult`
- * payloads stay in this child's history, not the parent benchmark orchestrator's.
- *
- * Returns only a slim summary so the parent's history does not grow with per-sample
- * data. See docs-md/benchmarking/temporal-history-bloat-fix.md for context.
+ * post-processing from blob refs — heavy payloads stay in blob storage, not parent history.
  */
 
 import { executeChild, proxyActivities } from "@temporalio/workflow";
 import {
-  buildFlatConfidenceMapFromCtx,
-  buildFlatPredictionMapFromCtx,
-} from "./azure-ocr-field-display-value";
-import {
   GRAPH_RUNNER_VERSION,
-  type GraphWorkflowConfig,
   type GraphWorkflowInput,
   type GraphWorkflowResult,
 } from "./graph-workflow-types";
+import type { OcrPayloadRef } from "./ocr-payload-ref";
 
 export interface BenchmarkSampleWorkflowInput {
   sampleId: string;
-  workflowConfig: GraphWorkflowConfig;
+  workflowVersionId: string;
   configHash: string;
   inputPaths: string[];
   outputBaseDir: string;
-  /** Free-form metadata forwarded into the graphWorkflow initialCtx. */
   sampleMetadata: Record<string, unknown>;
-  /** Directory under which prediction JSON files should be written. */
   predictionOutputDir: string;
-  /**
-   * If set, the wrapper persists the OCR response to BenchmarkOcrCache for this run.
-   * The activity input is stored in *this* workflow's history, not the parent's.
-   */
   persistOcrCache?: { sourceRunId: string };
+  /** When set, load OCR cache in this wrapper (not the parent orchestrator). */
+  ocrCacheBaselineRunId?: string;
+  workflowConfigOverrides?: Record<string, unknown>;
+  /** Dataset tenant scope; required for OCR ref blob paths on synthetic benchmark documents. */
+  groupId?: string;
   parentWorkflowId?: string;
   requestId?: string;
 }
@@ -44,20 +34,26 @@ export interface BenchmarkSampleWorkflowInput {
 export interface BenchmarkSampleWorkflowOutput {
   sampleId: string;
   success: boolean;
-  /** Status reported by the inner graphWorkflow (when it ran to completion). */
   graphStatus?: "completed" | "failed" | "cancelled";
-  /** Number of graph nodes the inner workflow completed (for logging). */
   completedNodes?: number;
-  /** Path to the per-sample prediction JSON written by benchmark.writePrediction. */
   predictionPath?: string;
-  /** Per-field confidence map flattened from the inner workflow ctx. */
   confidenceData?: Record<string, number | null>;
-  /** Output paths extracted from the inner workflow ctx. */
   outputPaths: string[];
   error?: { message: string; failedNodeId?: string };
 }
 
 interface BenchmarkActivities {
+  "benchmark.loadOcrCache": (input: {
+    sourceRunId: string;
+    sampleId: string;
+  }) => Promise<{ ocrResponse: unknown | null }>;
+  "benchmark.flattenPredictionFromRefs": (input: {
+    cleanedResultRef?: OcrPayloadRef;
+    ocrResultRef?: OcrPayloadRef;
+  }) => Promise<{
+    predictionData: Record<string, unknown>;
+    confidenceData: Record<string, number | null>;
+  }>;
   "benchmark.writePrediction": (input: {
     predictionData: Record<string, unknown>;
     outputDir: string;
@@ -66,7 +62,7 @@ interface BenchmarkActivities {
   "benchmark.persistOcrCache": (input: {
     sourceRunId: string;
     sampleId: string;
-    ocrResponse: unknown;
+    ocrResponseRef?: OcrPayloadRef;
   }) => Promise<void>;
 }
 
@@ -80,13 +76,16 @@ export async function benchmarkSampleWorkflow(
 ): Promise<BenchmarkSampleWorkflowOutput> {
   const {
     sampleId,
-    workflowConfig,
+    workflowVersionId,
     configHash,
     inputPaths,
     outputBaseDir,
     sampleMetadata,
     predictionOutputDir,
     persistOcrCache,
+    ocrCacheBaselineRunId,
+    workflowConfigOverrides,
+    groupId,
     parentWorkflowId,
     requestId,
   } = input;
@@ -112,23 +111,46 @@ export async function benchmarkSampleWorkflow(
     fileName,
     fileType,
     contentType,
+    ...(groupId ? { groupId } : {}),
   };
 
+  if (ocrCacheBaselineRunId) {
+    const loaded = await customActivities["benchmark.loadOcrCache"]({
+      sourceRunId: ocrCacheBaselineRunId,
+      sampleId,
+    });
+    if (loaded.ocrResponse === null || loaded.ocrResponse === undefined) {
+      throw new Error(
+        `OCR cache miss for sample ${sampleId} (baseline run ${ocrCacheBaselineRunId})`,
+      );
+    }
+    initialCtx.__benchmarkOcrCache = { ocrResponse: loaded.ocrResponse };
+  }
+
   const childInput: GraphWorkflowInput = {
-    graph: workflowConfig,
-    initialCtx,
+    workflowVersionId,
     configHash,
+    initialCtx,
     runnerVersion: GRAPH_RUNNER_VERSION,
+    groupId: groupId ?? null,
     parentWorkflowId,
     requestId,
+    ...(workflowConfigOverrides &&
+    Object.keys(workflowConfigOverrides).length > 0
+      ? { workflowConfigOverrides }
+      : {}),
   };
 
   const graphResult = (await executeChild("graphWorkflow", {
     args: [childInput],
   })) as GraphWorkflowResult;
 
-  const predictionData = buildFlatPredictionMapFromCtx(graphResult.ctx);
-  const confidenceData = buildFlatConfidenceMapFromCtx(graphResult.ctx);
+  const { predictionData, confidenceData } = await customActivities[
+    "benchmark.flattenPredictionFromRefs"
+  ]({
+    cleanedResultRef: graphResult.refs?.cleanedResultRef,
+    ocrResultRef: graphResult.refs?.ocrResultRef,
+  });
 
   const { predictionPath } = await customActivities[
     "benchmark.writePrediction"
@@ -138,29 +160,22 @@ export async function benchmarkSampleWorkflow(
     sampleId,
   });
 
-  if (
-    persistOcrCache &&
-    graphResult.ctx.ocrResponse !== undefined &&
-    graphResult.ctx.ocrResponse !== null
-  ) {
+  if (persistOcrCache && graphResult.refs?.ocrResponseRef?.blobPath) {
     await customActivities["benchmark.persistOcrCache"]({
       sourceRunId: persistOcrCache.sourceRunId,
       sampleId,
-      ocrResponse: graphResult.ctx.ocrResponse,
+      ocrResponseRef: graphResult.refs.ocrResponseRef,
     });
   }
 
-  const outputPaths = extractOutputPaths(graphResult.ctx);
+  const outputPaths = graphResult.outputPaths ?? [];
   const success = graphResult.status === "completed";
 
   const error = success
     ? undefined
     : {
         message: `graphWorkflow status: ${graphResult.status}`,
-        failedNodeId:
-          typeof graphResult.ctx.failedNodeId === "string"
-            ? graphResult.ctx.failedNodeId
-            : undefined,
+        failedNodeId: graphResult.failedNodeId,
       };
 
   return {
@@ -173,35 +188,4 @@ export async function benchmarkSampleWorkflow(
     outputPaths,
     error,
   };
-}
-
-function extractOutputPaths(ctx: Record<string, unknown>): string[] {
-  const paths: string[] = [];
-
-  if (Array.isArray(ctx.outputPaths)) {
-    for (const p of ctx.outputPaths) {
-      if (typeof p === "string") paths.push(p);
-    }
-  }
-
-  if (typeof ctx.outputPath === "string") {
-    paths.push(ctx.outputPath);
-  }
-
-  if (Array.isArray(ctx.results)) {
-    for (const result of ctx.results) {
-      if (result && typeof result === "object" && "outputPath" in result) {
-        const r = result as Record<string, unknown>;
-        if (typeof r.outputPath === "string") {
-          paths.push(r.outputPath);
-        }
-      }
-    }
-  }
-
-  if (paths.length === 0 && typeof ctx.outputBaseDir === "string") {
-    paths.push(ctx.outputBaseDir);
-  }
-
-  return paths;
 }

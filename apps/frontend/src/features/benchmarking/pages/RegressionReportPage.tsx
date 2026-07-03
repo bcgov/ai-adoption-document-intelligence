@@ -1,22 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Checkbox,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconCheck,
   IconDownload,
@@ -25,6 +7,24 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  Alert,
+  Badge,
+  Button,
+  Center,
+  Checkbox,
+  Code,
+  DataTable,
+  Drawer,
+  Group,
+  Loader,
+  Modal,
+  PanelCard,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "../../../ui";
 import { TrendChart } from "../components/TrendChart";
 import { useHistoricalRuns, useRun } from "../hooks/useRuns";
 
@@ -353,37 +353,37 @@ export function RegressionReportPage() {
         )}
       </Alert>
 
-      <Card>
+      <PanelCard>
         <Stack gap="md">
           <Title order={3}>Run Information</Title>
-          <Table data-testid="run-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Run ID</Table.Td>
-                <Table.Td>
+          <DataTable data-testid="run-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Run ID</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.id}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Baseline Run ID</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Baseline Run ID</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.baselineComparison.baselineRunId}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Completed At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+                </DataTable.Td>
+              </DataTable.Tr>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card>
+      <PanelCard>
         <Stack gap="md">
           <Group justify="space-between" align="center">
             <Title order={3}>Metric-by-Metric Analysis</Title>
@@ -409,20 +409,24 @@ export function RegressionReportPage() {
             </Alert>
           )}
 
-          <Table data-testid="metric-comparison-table" striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Metric</Table.Th>
-                <Table.Th>Current</Table.Th>
-                <Table.Th>Baseline</Table.Th>
-                <Table.Th>Delta</Table.Th>
-                <Table.Th>Delta %</Table.Th>
-                <Table.Th>Threshold</Table.Th>
-                <Table.Th>Severity</Table.Th>
-                <Table.Th>Status</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          <DataTable
+            data-testid="metric-comparison-table"
+            striped
+            highlightOnHover
+          >
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Metric</DataTable.Th>
+                <DataTable.Th>Current</DataTable.Th>
+                <DataTable.Th>Baseline</DataTable.Th>
+                <DataTable.Th>Delta</DataTable.Th>
+                <DataTable.Th>Delta %</DataTable.Th>
+                <DataTable.Th>Threshold</DataTable.Th>
+                <DataTable.Th>Severity</DataTable.Th>
+                <DataTable.Th>Status</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {filteredComparisons.map((comparison) => {
                 const severityColor = getSeverityColor(
                   comparison.deltaPercent,
@@ -430,20 +434,22 @@ export function RegressionReportPage() {
                 );
 
                 return (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={comparison.metricName}
                     data-testid="metric-row"
                     style={{ cursor: "pointer" }}
                     onClick={() => setDrillDownMetric(comparison.metricName)}
                   >
-                    <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                    <Table.Td>
+                    <DataTable.Td fw={500}>
+                      {comparison.metricName}
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{comparison.currentValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code
                         c={
                           comparison.delta > 0
@@ -456,8 +462,8 @@ export function RegressionReportPage() {
                         {comparison.delta > 0 ? "+" : ""}
                         {comparison.delta.toFixed(4)}
                       </Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code
                         c={
                           comparison.deltaPercent > 0
@@ -470,8 +476,8 @@ export function RegressionReportPage() {
                         {comparison.deltaPercent > 0 ? "+" : ""}
                         {comparison.deltaPercent.toFixed(2)}%
                       </Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {comparison.threshold ? (
                         <Text size="sm">
                           {comparison.threshold.type}:{" "}
@@ -480,28 +486,28 @@ export function RegressionReportPage() {
                       ) : (
                         "-"
                       )}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {!comparison.passed && (
                         <Badge color={severityColor}>
                           {severityColor === "red" ? "Critical" : "Warning"}
                         </Badge>
                       )}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge color={comparison.passed ? "green" : "red"}>
                         {comparison.passed ? "PASS" : "FAIL"}
                       </Badge>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 );
               })}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card data-testid="historical-trend-section">
+      <PanelCard data-testid="historical-trend-section">
         <Stack gap="md">
           <Title order={3}>Historical Trend</Title>
           <TrendChart
@@ -511,7 +517,7 @@ export function RegressionReportPage() {
             isLoading={isLoadingHistorical}
           />
         </Stack>
-      </Card>
+      </PanelCard>
 
       {/* Drill-down Panel */}
       <Drawer
@@ -531,24 +537,24 @@ export function RegressionReportPage() {
               );
               if (!comparison) return null;
               return (
-                <Card withBorder>
-                  <Table>
-                    <Table.Tbody>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Current Value</Table.Td>
-                        <Table.Td>
+                <PanelCard>
+                  <DataTable>
+                    <DataTable.Tbody>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Current Value</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{comparison.currentValue.toFixed(4)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Baseline Value</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Baseline Value</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Delta</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Delta</DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             c={
                               comparison.delta > 0
@@ -561,11 +567,11 @@ export function RegressionReportPage() {
                             {comparison.delta > 0 ? "+" : ""}
                             {comparison.delta.toFixed(4)}
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Delta %</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Delta %</DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             c={
                               comparison.deltaPercent > 0
@@ -578,27 +584,27 @@ export function RegressionReportPage() {
                             {comparison.deltaPercent > 0 ? "+" : ""}
                             {comparison.deltaPercent.toFixed(2)}%
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Threshold</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Threshold</DataTable.Td>
+                        <DataTable.Td>
                           {comparison.threshold
                             ? `${comparison.threshold.type}: ${comparison.threshold.value}`
                             : "-"}
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Status</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Status</DataTable.Td>
+                        <DataTable.Td>
                           <Badge color={comparison.passed ? "green" : "red"}>
                             {comparison.passed ? "PASS" : "FAIL"}
                           </Badge>
-                        </Table.Td>
-                      </Table.Tr>
-                    </Table.Tbody>
-                  </Table>
-                </Card>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    </DataTable.Tbody>
+                  </DataTable>
+                </PanelCard>
               );
             })()}
 

@@ -103,30 +103,15 @@ This is a microservices monorepo containing:
 
 ### Environment Setup
 
-1. **Database Setup**
+1. **Configure environment variables**
    ```bash
-   # Configure PostgreSQL connection
-   cp apps/shared/.env.sample apps/shared/.env
-   # Edit DATABASE_URL in apps/shared/.env
-   ```
-
-2. **Backend Services Configuration**
-   ```bash
-   cp apps/backend-services/.env.sample apps/backend-services/.env
-   # Configure:
+   cp .env.sample .env
+   # Edit .env and fill in:
    # - DATABASE_URL (PostgreSQL)
    # - AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/KEY
    # - AZURE_STORAGE_CONNECTION_STRING
    # - TEMPORAL_ADDRESS
    # - KEYCLOAK_* settings (if using SSO)
-   ```
-
-3. **Temporal Configuration**
-   ```bash
-   cp apps/temporal/.env.sample apps/temporal/.env
-   # Configure:
-   # - TEMPORAL_ADDRESS
-   # - DATABASE_URL
    ```
 
 ### Installation
@@ -156,7 +141,7 @@ npm run dev:frontend   # Frontend on port 3000
 cd apps/temporal && npm run dev
 
 # Start Temporal server (if not running)
-cd apps/temporal && docker-compose up
+docker compose --profile temporal up -d
 
 # Start image service (optional, in separate terminal)
 cd apps/image-service && python -m main

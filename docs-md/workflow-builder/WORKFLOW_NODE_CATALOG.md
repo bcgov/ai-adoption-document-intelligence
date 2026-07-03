@@ -23,6 +23,20 @@ Every node has the same outline:
 
 When a parameter is **required** vs **optional**, that's noted. Optional parameters with sensible defaults should be collapsed into an "Advanced" section by default to keep the UI clean.
 
+### OCR blob references (workflow context)
+
+Azure OCR graphs store **references** in workflow context, not full JSON:
+
+| Context variable (author names this) | Typical default name | Activity port |
+|--------------------------------------|----------------------|---------------|
+| Poll response ref | `ocrResponseRef` | `response` (poll) / `ocrResponse` (extract input) |
+| Structured OCR ref | `ocrResultRef` | `ocrResult` |
+| Cleaned OCR ref | `cleanedResultRef` | `cleanedResult` |
+
+Each value is an `OcrPayloadRef` (`documentId`, `blobPath`, `status`, …). **Poll Until** stop conditions should reference the ref’s status, e.g. `ocrResponseRef.status` not `running`. **Switch** / **transform** expressions use the same `*Ref` names.
+
+Canonical JSON: [`docs-md/graph-workflows/templates/standard-ocr-workflow.json`](../graph-workflows/templates/standard-ocr-workflow.json). Spec: [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../temporal/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md).
+
 ---
 
 ## Standard settings (apply to most nodes)
@@ -86,7 +100,7 @@ A condition is a tree of:
 - **Combinator** — `AND`, `OR`, `NOT` of one or more sub-conditions.
 
 A *value* is either:
-- A **variable reference**, including dotted paths (e.g., `currentSegment.segmentType`, `ocrResponse.status`). Should autocomplete from available upstream outputs and trigger inputs.
+- A **variable reference**, including dotted paths (e.g., `currentSegment.segmentType`, `ocrResponseRef.status`). Should autocomplete from available upstream outputs and trigger inputs.
 - A **literal value** — a typed-in number, text, true/false, or list (depending on what makes sense for the operator).
 
 Designer note: simple cases (a single comparison) should look as clean as possible — like a single row with three fields. The tree structure should only appear when the user adds AND/OR/NOT.
@@ -271,12 +285,13 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
 - **Standard label, timeouts, retry, error handling.**
 - **Inputs ("This step reads"):**
   - **Request ID** *(required)* — From **Submit OCR**'s output.
+  - **Document ID** *(required for blob refs)* — Usually wired from trigger/context (`documentId`).
 - **Outputs ("This step produces"):**
-  - **OCR poll response** *(required)* — Name for the response (becomes available downstream and to the stop condition).
+  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `response`). Used by the stop condition (`ocrResponseRef.status`).
 - **Static parameters:**
   - **OCR model ID** *(required, defaults from upstream)*.
 - **Wait & Retry settings (preconfigured but editable):**
-  - **Stop condition**: pre-filled with "OCR poll response status not equals `running`" — the user shouldn't normally need to edit this.
+  - **Stop condition**: pre-filled with "OCR poll response ref status not equals `running`" (`ocrResponseRef.status`) — the user shouldn't normally need to edit this.
   - **Interval between polls** *(default `10s`)*.
   - **Initial delay** *(default `5s`)*.
   - **Maximum attempts** *(default `20`)*.
@@ -300,9 +315,10 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
   - **File name** *(required)*.
   - **File type** *(required)* — `pdf` or `image`.
   - **OCR model ID** *(required)*.
-  - **OCR poll response** *(optional)* — If provided, used directly; otherwise the activity refetches it from Azure.
+  - **OCR poll response ref** *(required)* — Context `ocrResponseRef` bound to port `ocrResponse`.
+  - **Document ID** *(required for blob refs)*.
 - **Outputs ("This step produces"):**
-  - **OCR result** *(required)* — Name for the structured result.
+  - **OCR result ref** *(required)* — Context name (convention: `ocrResultRef`; port `ocrResult`).
 
 ---
 

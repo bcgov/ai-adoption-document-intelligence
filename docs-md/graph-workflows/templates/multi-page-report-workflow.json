@@ -13,7 +13,7 @@
 
     "preparedFileData": { "type": "object", "description": "Prepared file metadata from file.prepare" },
     "apimRequestId": { "type": "string", "description": "Azure OCR request ID" },
-    "ocrResponse": { "type": "object", "description": "Azure OCR poll response" },
+    "ocrResponseRef": { "type": "object", "description": "Azure OCR poll response" },
     "initialOcrResult": { "type": "object", "description": "Full document OCR result before splitting" },
 
     "segmentsWithTypes": { "type": "array", "description": "Array of segments with embedded segmentType from split-and-classify" },
@@ -73,12 +73,13 @@
       "label": "Poll Initial OCR Results",
       "activityType": "azureOcr.poll",
       "inputs": [
-        { "port": "apimRequestId", "ctxKey": "apimRequestId" }
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "documentId", "ctxKey": "documentId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "outputs": [{ "port": "response", "ctxKey": "ocrResponseRef" }],
       "condition": {
         "operator": "not-equals",
-        "left": { "ref": "ctx.ocrResponse.status" },
+        "left": { "ref": "ctx.ocrResponseRef.status" },
         "right": { "literal": "running" }
       },
       "interval": "10s",
@@ -93,8 +94,9 @@
       "activityType": "azureOcr.extract",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
-        { "port": "ocrResponse", "ctxKey": "ocrResponse" },
-        { "port": "fileName", "ctxKey": "fileName" }
+        { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
+        { "port": "fileName", "ctxKey": "fileName" },
+        { "port": "documentId", "ctxKey": "documentId" }
       ],
       "outputs": [{ "port": "ocrResult", "ctxKey": "initialOcrResult" }],
       "timeout": { "startToClose": "1m" }

@@ -5,7 +5,7 @@
 #   1. Ensure CHES_ADAPTER_SECRET is set in deployments/local/.env
 #      (copy .env.sample → .env and fill it in — .env is gitignored).
 #   2. Recreate alertmanager (required to pick up new env vars):
-#        podman compose -f deployments/local/docker-compose.monitoring.yml up -d --force-recreate alertmanager
+#        docker compose --profile monitoring up -d --force-recreate alertmanager
 #   3. POST a test alert to fire immediately (no need to wait for Prometheus):
 #        curl -s -X POST http://localhost:9093/api/v2/alerts \
 #          -H "Content-Type: application/json" \

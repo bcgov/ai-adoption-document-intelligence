@@ -18,7 +18,7 @@ describe("HitlController", () => {
     id: "doc-1",
     group_id: "group-1",
     original_filename: "test.pdf",
-    status: "completed_ocr" as any,
+    status: "extracted" as any,
     created_at: new Date(),
     updated_at: new Date(),
   };

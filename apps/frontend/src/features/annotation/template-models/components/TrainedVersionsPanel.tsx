@@ -1,16 +1,4 @@
 import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Group,
-  Loader,
-  Stack,
-  Table,
-  Text,
-  Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconHistory,
@@ -20,6 +8,18 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useEffect, useRef, useState } from "react";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  DataTable,
+  Group,
+  Loader,
+  notifications,
+  Stack,
+  Text,
+  Tooltip,
+} from "../../../../ui";
 import { useTrainedVersions } from "../hooks/useTrainedVersions";
 import { useTraining } from "../hooks/useTraining";
 import {
@@ -159,35 +159,35 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
           appear here once it completes.
         </Alert>
       )}
-      <Table striped withTableBorder>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th style={{ width: 80 }}>Version</Table.Th>
-            <Table.Th>Azure model id</Table.Th>
-            <Table.Th style={{ width: 160 }}>Mode</Table.Th>
-            <Table.Th style={{ width: 100 }}>Fields</Table.Th>
-            <Table.Th>Trained</Table.Th>
-            <Table.Th style={{ width: 120 }}>Status</Table.Th>
-            <Table.Th style={{ width: 200 }} />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable striped withTableBorder>
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th style={{ width: 80 }}>Version</DataTable.Th>
+            <DataTable.Th>Azure model id</DataTable.Th>
+            <DataTable.Th style={{ width: 160 }}>Mode</DataTable.Th>
+            <DataTable.Th style={{ width: 100 }}>Fields</DataTable.Th>
+            <DataTable.Th>Trained</DataTable.Th>
+            <DataTable.Th style={{ width: 120 }}>Status</DataTable.Th>
+            <DataTable.Th style={{ width: 200 }} />
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {versions.map((v) => {
             const isDeleted = !!v.deletedAt;
             const blockActivateReason = isDeleted
               ? "Deleted versions can't be reactivated. Re-train instead."
               : null;
             return (
-              <Table.Tr key={v.id}>
-                <Table.Td>
+              <DataTable.Tr key={v.id}>
+                <DataTable.Td>
                   <Text fw={600}>v{v.version}</Text>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Text size="sm" ff="monospace">
                     {v.modelId}
                   </Text>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Tooltip
                     label={
                       v.buildMode === BuildMode.neural &&
@@ -203,14 +203,14 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
                   >
                     <Text size="sm">{formatModeCell(v)}</Text>
                   </Tooltip>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Text size="sm">{v.fieldCount}</Text>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Text size="sm">{formatDateTime(v.createdAt)}</Text>
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   {isDeleted ? (
                     <Badge color="gray">Deleted</Badge>
                   ) : v.isActive ? (
@@ -225,8 +225,8 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
                       Inactive
                     </Badge>
                   )}
-                </Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+                <DataTable.Td>
                   <Group gap="xs" justify="flex-end" wrap="nowrap">
                     <Tooltip label="View training data">
                       <ActionIcon
@@ -274,12 +274,12 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
                       </ActionIcon>
                     </Tooltip>
                   </Group>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
             );
           })}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
 
       {versions.some((v) => v.isActive) ? null : (
         <Alert

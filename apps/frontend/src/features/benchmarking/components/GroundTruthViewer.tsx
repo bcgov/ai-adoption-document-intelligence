@@ -1,4 +1,4 @@
-import { Code, Modal, ScrollArea } from "@mantine/core";
+import { Code, Modal, ScrollArea } from "../../../ui";
 
 interface GroundTruthViewerProps {
   groundTruth: Record<string, unknown> | null;

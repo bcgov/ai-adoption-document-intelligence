@@ -87,9 +87,18 @@ export class ConfusionProfileService {
     return profiles.map((p) => this.toDto(p));
   }
 
-  async findById(id: string): Promise<ConfusionProfileResponseDto> {
-    const profile = await this.prisma.prisma.confusionProfile.findUnique({
-      where: { id },
+  /**
+   * Loads a confusion profile by ID, scoped to the owning group. The
+   * `groupId` constraint ensures a member of one group cannot read a profile
+   * belonging to another group by guessing its ID. A profile that exists but
+   * belongs to a different group is reported as not found.
+   */
+  async findById(
+    id: string,
+    groupId: string,
+  ): Promise<ConfusionProfileResponseDto> {
+    const profile = await this.prisma.prisma.confusionProfile.findFirst({
+      where: { id, group_id: groupId },
     });
     if (!profile) {
       throw new NotFoundException(`Confusion profile "${id}" not found`);
@@ -99,10 +108,11 @@ export class ConfusionProfileService {
 
   async update(
     id: string,
+    groupId: string,
     input: UpdateProfileInput,
   ): Promise<ConfusionProfileResponseDto> {
-    // Ensure profile exists
-    await this.findById(id);
+    // Ensure the profile exists AND belongs to the caller's group.
+    await this.findById(id, groupId);
 
     const data: Prisma.ConfusionProfileUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;
@@ -119,8 +129,9 @@ export class ConfusionProfileService {
     return this.toDto(updated);
   }
 
-  async delete(id: string): Promise<void> {
-    await this.findById(id);
+  async delete(id: string, groupId: string): Promise<void> {
+    // Ensure the profile exists AND belongs to the caller's group.
+    await this.findById(id, groupId);
     await this.prisma.prisma.confusionProfile.delete({ where: { id } });
   }
 

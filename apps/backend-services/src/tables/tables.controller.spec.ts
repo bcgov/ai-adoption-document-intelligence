@@ -11,13 +11,12 @@ import {
 import { Test, TestingModule } from "@nestjs/testing";
 import { Request } from "express";
 import * as identityHelpers from "@/auth/identity.helpers";
-import { ColumnDto } from "./dto/column.dto";
+import { AddColumnDto } from "./dto/add-column.dto";
 import { LookupDto } from "./dto/lookup.dto";
 import { RowDto, RowListDto } from "./dto/row.dto";
 import {
   CreateTableDto,
   TableDetailDto,
-  TableSummaryDto,
   UpdateTableMetadataDto,
 } from "./dto/table.dto";
 import { TablesController } from "./tables.controller";
@@ -29,6 +28,7 @@ describe("TablesController", () => {
 
   const mockTablesService = {
     listTables: jest.fn(),
+    getRowCountsForGroup: jest.fn(),
     getTable: jest.fn(),
     createTable: jest.fn(),
     updateTableMetadata: jest.fn(),
@@ -89,12 +89,14 @@ describe("TablesController", () => {
   // 1. listTables — happy path
   // -------------------------------------------------------------------------
   describe("GET /api/tables (listTables)", () => {
-    it("returns TableSummaryDto[] with row_count 0 on happy path", async () => {
+    it("returns TableSummaryDto[] with actual row counts", async () => {
       const dbRows = [
         { ...baseTable, table_id: "tbl_a", label: "A" },
         { ...baseTable, table_id: "tbl_b", label: "B" },
       ];
+      const rowCounts = { tbl_a: 5, tbl_b: 3 };
       mockTablesService.listTables.mockResolvedValue(dbRows);
+      mockTablesService.getRowCountsForGroup.mockResolvedValue(rowCounts);
 
       const result = await controller.listTables(mockReq, "group-1");
 
@@ -106,10 +108,12 @@ describe("TablesController", () => {
         "group-1",
       );
       expect(service.listTables).toHaveBeenCalledWith("group-1");
+      expect(service.getRowCountsForGroup).toHaveBeenCalledWith("group-1");
       expect(result).toHaveLength(2);
-      const summary = result[0] as TableSummaryDto;
-      expect(summary.row_count).toBe(0);
-      expect(summary.table_id).toBe("tbl_a");
+      expect(result[0].row_count).toBe(5);
+      expect(result[0].table_id).toBe("tbl_a");
+      expect(result[1].row_count).toBe(3);
+      expect(result[1].table_id).toBe("tbl_b");
     });
 
     // 2. listTables — forbidden
@@ -286,7 +290,7 @@ describe("TablesController", () => {
   // -------------------------------------------------------------------------
   describe("POST /api/tables/:tableId/columns (addColumn)", () => {
     it("calls admin check and service.addColumn; returns mapped TableDetailDto", async () => {
-      const colBody: ColumnDto = {
+      const colBody: AddColumnDto = {
         key: "status",
         label: "Status",
         type: "string",
@@ -314,10 +318,33 @@ describe("TablesController", () => {
         "u1",
         "group-1",
         "my_table",
-        colBody,
+        { key: "status", label: "Status", type: "string" },
+        undefined,
       );
       expect(result.columns).toHaveLength(1);
       expect(result.table_id).toBe("my_table");
+    });
+
+    it("passes seed_value to service.addColumn when provided", async () => {
+      const colBody: AddColumnDto = {
+        key: "status",
+        label: "Status",
+        type: "string",
+        required: true,
+        seed_value: "active",
+      };
+      const updatedTable = { ...baseTable, columns: [colBody], lookups: [] };
+      mockTablesService.addColumn.mockResolvedValue(updatedTable);
+
+      await controller.addColumn(mockReq, "my_table", "group-1", colBody);
+
+      expect(service.addColumn).toHaveBeenCalledWith(
+        "u1",
+        "group-1",
+        "my_table",
+        { key: "status", label: "Status", type: "string", required: true },
+        "active",
+      );
     });
 
     // 10. addColumn — forbidden short-circuit
@@ -328,7 +355,11 @@ describe("TablesController", () => {
         throw new ForbiddenException();
       });
 
-      const colBody: ColumnDto = { key: "col", label: "Col", type: "string" };
+      const colBody: AddColumnDto = {
+        key: "col",
+        label: "Col",
+        type: "string",
+      };
 
       await expect(
         controller.addColumn(mockReq, "my_table", "group-1", colBody),

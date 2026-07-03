@@ -176,6 +176,10 @@ apps/frontend/src/features/annotation/template-models/
     FieldSchemaEditor.tsx
 ```
 
+### Labeling workspace layout
+
+The labeling route uses a **full-viewport workspace** with the BC footer below it (page scroll to reach the footer). The document canvas and field panel fill one viewport height; the field list scrolls independently in a fixed-width right panel (`FieldListScrollArea`). The canvas top-aligns the page image and uses full fit scale.
+
 ### Key UX Changes
 
 - **Create modal**: User enters a display name; model_id preview shown below the input

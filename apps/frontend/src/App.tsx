@@ -1,9 +1,9 @@
-import { Stack, Text, Title } from "@mantine/core";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
 import { useAuth } from "./auth/useAuth";
+import { Stack, Text, Title } from "./ui";
 import "./App.css";
-import { Login } from "./components";
+import { Login, RouterErrorPage } from "./components";
 import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
 import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
 import { LabelingWorkspacePage } from "./features/annotation/template-models/pages/LabelingWorkspacePage";
@@ -25,12 +25,13 @@ import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
+import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
+import { DocumentsPage } from "./pages/DocumentsPage";
 import DynamicNodeEditPage from "./pages/dynamic-nodes/DynamicNodeEditPage";
 import DynamicNodeNewPage from "./pages/dynamic-nodes/DynamicNodeNewPage";
 import DynamicNodesListPage from "./pages/dynamic-nodes/DynamicNodesListPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
-import { QueuePage } from "./pages/QueuePage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
@@ -53,9 +54,10 @@ const router = createBrowserRouter([
         <RootLayout />
       </NoGroupGuard>
     ),
+    errorElement: <RouterErrorPage />,
     children: [
       { index: true, element: <UploadPage /> },
-      { path: "queue", element: <QueuePage /> },
+      { path: "documents", element: <DocumentsPage /> },
       { path: "classify", element: <ClassifierPage /> },
       { path: "settings", element: <SettingsPage /> },
 
@@ -100,6 +102,9 @@ const router = createBrowserRouter([
       // Groups
       { path: "groups", element: <GroupsPage /> },
       { path: "groups/:groupId", element: <GroupDetailPage /> },
+
+      // Confusion Profiles
+      { path: "confusion-profiles", element: <ConfusionProfilesPage /> },
 
       // Benchmarking routes
       { path: "benchmarking/datasets", element: <DatasetListPage /> },

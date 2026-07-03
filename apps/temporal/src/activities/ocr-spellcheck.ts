@@ -16,6 +16,10 @@ import type {
 } from "../correction-types";
 import { deepCopyOcrResult } from "../correction-types";
 import { createActivityLogger } from "../logger";
+import {
+  finalizeCorrectionResult,
+  resolveOcrResultInput,
+} from "../ocr-activity-ref-utils";
 import type { EnrichmentChange, KeyValuePair } from "../types";
 
 interface SpellcheckParams extends CorrectionToolParams {
@@ -128,7 +132,8 @@ export async function spellcheckOcrResult(
   params: SpellcheckParams,
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("spellcheckOcrResult");
-  const { ocrResult, fieldScope } = params;
+  const { documentId, fieldScope } = params;
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
 
   log.info("Spellcheck correction start", {
     event: "start",
@@ -200,9 +205,13 @@ export async function spellcheckOcrResult(
     totalWordsChecked,
   });
 
-  return {
-    ocrResult: result,
-    changes,
-    metadata: { totalWordsChecked, language: params.language ?? "en" },
-  };
+  return finalizeCorrectionResult(
+    {
+      ocrResult: result,
+      changes,
+      metadata: { totalWordsChecked, language: params.language ?? "en" },
+    },
+    documentId,
+    groupId,
+  );
 }

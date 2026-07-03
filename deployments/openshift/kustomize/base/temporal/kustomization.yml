@@ -16,5 +16,8 @@ resources:
   - logrotate-configmap.yml
   - promtail-configmap-worker.yml
   - promtail-configmap-server.yml
+  - poddisruptionbudget-worker.yml
+  - poddisruptionbudget-server.yml
+  - horizontalpodautoscaler-worker.yml
 commonLabels:
   app.kubernetes.io/part-of: temporal

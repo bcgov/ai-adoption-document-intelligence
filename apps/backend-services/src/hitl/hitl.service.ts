@@ -83,11 +83,6 @@ export class HitlService {
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const status =
-      filters.status === DocumentStatusFilter.ALL
-        ? undefined
-        : DocumentStatus.completed_ocr;
-
     const reviewStatusFilter =
       filters.reviewStatus === ReviewStatusFilter.ALL
         ? "all"
@@ -95,8 +90,15 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
+    const statuses: DocumentStatus[] =
+      filters.status === DocumentStatusFilter.EXTRACTED
+        ? [DocumentStatus.extracted]
+        : filters.status === DocumentStatusFilter.ALL
+          ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
+          : [DocumentStatus.awaiting_review];
+
     const documents = (await this.reviewDb.findReviewQueue({
-      status,
+      statuses,
       modelId: filters.modelId,
       maxConfidence: filters.maxConfidence ?? 0.9,
       limit: filters.limit ?? 50,
@@ -165,7 +167,7 @@ export class HitlService {
           : "pending";
 
     const allDocs = (await this.reviewDb.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.awaiting_review],
       limit: 1000,
       reviewStatus: reviewStatusFilter,
       groupIds,
@@ -287,7 +289,7 @@ export class HitlService {
    */
   async findReviewQueue(
     filters: {
-      status?: DocumentStatus;
+      statuses: DocumentStatus[];
       modelId?: string;
       minConfidence?: number;
       maxConfidence?: number;
@@ -399,6 +401,11 @@ export class HitlService {
     const updated = await this.reviewDb.updateReviewSession(sessionId, {
       status: ReviewStatus.approved,
       completed_at: new Date(),
+    });
+
+    // Transition document to 'complete' status after HITL approval
+    await this.documentService.updateDocument(session.document_id, {
+      status: DocumentStatus.complete,
     });
 
     await this.reviewDb.releaseDocumentLock(sessionId);
@@ -708,12 +715,13 @@ export class HitlService {
           : "pending";
 
     const documents = (await this.reviewDb.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
       maxConfidence,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,
+      currentReviewerId: reviewerId,
     })) as DocumentWithOcrResult[];
 
     // Filter by confidence — same logic as getQueue

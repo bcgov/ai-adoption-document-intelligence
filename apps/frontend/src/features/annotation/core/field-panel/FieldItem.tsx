@@ -1,7 +1,7 @@
-import { ActionIcon, Badge, Card, Group, Stack, Text } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { FC } from "react";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
+import { ActionIcon, Badge, Card, Group, Stack, Text } from "../../../../ui";
 import type { FieldDefinition } from "../types/field";
 import { FieldEditor } from "./FieldEditor";
 

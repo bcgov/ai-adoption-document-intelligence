@@ -1,3 +1,9 @@
+import { useState } from "react";
+import { useAuth } from "@/auth/AuthContext";
+import { DeleteClassifierConfirmationModal } from "@/components/classification/ClassifierModals";
+import { useClassifier } from "@/data/hooks/useClassifier";
+import { useMyGroups } from "@/data/hooks/useGroups";
+import { ClassifierModel } from "@/shared/types/classifier";
 import {
   Button,
   Group,
@@ -6,14 +12,8 @@ import {
   Stack,
   Text,
   Textarea,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { useState } from "react";
-import { useAuth } from "@/auth/AuthContext";
-import { DeleteClassifierConfirmationModal } from "@/components/classification/ClassifierModals";
-import { useClassifier } from "@/data/hooks/useClassifier";
-import { useMyGroups } from "@/data/hooks/useGroups";
-import { ClassifierModel } from "@/shared/types/classifier";
+  useForm,
+} from "../../ui";
 
 interface ClassifierDetailsProps {
   classifierModel: ClassifierModel;

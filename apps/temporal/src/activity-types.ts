@@ -30,6 +30,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "benchmark.updateRunStatus",
   "benchmark.compareAgainstBaseline",
   "benchmark.writePrediction",
+  "benchmark.flattenPredictionFromRefs",
   "benchmark.materializeDataset",
   "benchmark.loadDatasetManifest",
   "benchmark.loadOcrCache",

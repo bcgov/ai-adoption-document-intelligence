@@ -56,7 +56,7 @@ function buildDoc(id: string, overrides?: Partial<Document>): Document {
 
 function setDocs(docs: Document[]): void {
   mockUseDocuments.mockReturnValue({
-    data: docs,
+    data: { documents: docs, total: docs.length, limit: 100, offset: 0 },
     isLoading: false,
     error: null,
     isSuccess: true,

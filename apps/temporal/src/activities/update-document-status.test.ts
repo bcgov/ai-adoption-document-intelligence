@@ -65,20 +65,20 @@ describe("updateDocumentStatus activity", () => {
     });
   });
 
-  it("updates to completed_ocr status", async () => {
+  it("updates to extracted status", async () => {
     prismaMock.document.update.mockResolvedValue({
       id: "doc-3",
-      status: "completed_ocr",
+      status: "extracted",
     });
 
     await updateDocumentStatus({
       documentId: "doc-3",
-      status: "completed_ocr",
+      status: "extracted",
     });
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: "doc-3" },
-      data: { status: "completed_ocr" },
+      data: { status: "extracted" },
     });
   });
 

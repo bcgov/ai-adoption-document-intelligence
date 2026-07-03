@@ -72,7 +72,7 @@ describe("upsertOcrResult activity", () => {
     });
     prismaMock.document.update.mockResolvedValue({
       id: "doc-1",
-      status: "completed_ocr",
+      status: "extracted",
     });
 
     await upsertOcrResult({ documentId: "doc-1", ocrResult });
@@ -108,7 +108,7 @@ describe("upsertOcrResult activity", () => {
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: "doc-1" },
-      data: { status: "completed_ocr" },
+      data: { status: "extracted" },
     });
   });
 

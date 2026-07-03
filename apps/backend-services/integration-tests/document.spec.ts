@@ -82,7 +82,7 @@ describe("/document endpoints", () => {
           file_type: "pdf",
           file_size: 12345,
           source: "integration-test",
-          status: DocumentStatus.completed_ocr,
+          status: DocumentStatus.extracted,
           group_id: "1",
         },
       });

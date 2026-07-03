@@ -50,6 +50,44 @@ spec:
             summary: Pod is in a crash or OOM error state
             description: A pod in namespace {{ .Release.Namespace }} is in CrashLoopBackOff or was OOMKilled. Check the pod labels in this alert for the affected pod name.
 
+        - alert: PvcCapacityHigh
+          expr: >-
+            (
+              kubelet_volume_stats_used_bytes{namespace="{{ .Release.Namespace }}"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"}
+            ) > 0.85
+            and
+            kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"} > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: PVC is nearing capacity
+            description: >-
+              A PersistentVolumeClaim in namespace {{ .Release.Namespace }} is using more than
+              85% of its capacity. Check the persistentvolumeclaim label in this alert for the
+              affected PVC name.
+
+        - alert: PvcCapacityCritical
+          expr: >-
+            (
+              kubelet_volume_stats_used_bytes{namespace="{{ .Release.Namespace }}"}
+              /
+              kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"}
+            ) > 0.95
+            and
+            kubelet_volume_stats_capacity_bytes{namespace="{{ .Release.Namespace }}"} > 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: PVC is critically full
+            description: >-
+              A PersistentVolumeClaim in namespace {{ .Release.Namespace }} is using more than
+              95% of its capacity and may cause service failures imminently. Check the
+              persistentvolumeclaim label in this alert for the affected PVC name.
+
         - alert: TemporalTaskQueueDepthHigh
           expr: >-
             temporal_task_queue_depth > 1000

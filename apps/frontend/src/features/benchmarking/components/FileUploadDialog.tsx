@@ -1,8 +1,16 @@
 import {
+  IconFile,
+  IconInfoCircle,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import {
   Accordion,
   Badge,
   Button,
   Code,
+  Dropzone,
   Group,
   List,
   Modal,
@@ -10,15 +18,7 @@ import {
   rem,
   Stack,
   Text,
-} from "@mantine/core";
-import { Dropzone } from "@mantine/dropzone";
-import {
-  IconFile,
-  IconInfoCircle,
-  IconUpload,
-  IconX,
-} from "@tabler/icons-react";
-import { useState } from "react";
+} from "../../../ui";
 import { useDatasetUpload } from "../hooks/useDatasetUpload";
 
 interface FileUploadDialogProps {
@@ -264,6 +264,7 @@ export function FileUploadDialog({
               onClick={handleUpload}
               disabled={selectedFiles.length === 0 || isUploading}
               loading={isUploading}
+              leftSection={<IconUpload size={16} />}
               data-testid="upload-submit-btn"
             >
               Upload

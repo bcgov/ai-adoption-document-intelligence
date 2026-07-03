@@ -31,7 +31,7 @@ import {
 import type { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { ColumnDto } from "./dto/column.dto";
+import { AddColumnDto } from "./dto/add-column.dto";
 import { LookupDto } from "./dto/lookup.dto";
 import { CreateRowDto, RowDto, RowListDto, UpdateRowDto } from "./dto/row.dto";
 import {
@@ -60,14 +60,17 @@ export class TablesController {
     @Query("group_id") group_id: string,
   ): Promise<TableSummaryDto[]> {
     identityCanAccessGroup(req.resolvedIdentity, group_id);
-    const tables = await this.svc.listTables(group_id);
+    const [tables, rowCounts] = await Promise.all([
+      this.svc.listTables(group_id),
+      this.svc.getRowCountsForGroup(group_id),
+    ]);
     return tables.map((t) => ({
       id: t.id,
       group_id: t.group_id,
       table_id: t.table_id,
       label: t.label,
       description: t.description,
-      row_count: 0,
+      row_count: rowCounts[t.table_id] ?? 0,
       updated_at: t.updated_at,
     }));
   }
@@ -199,20 +202,29 @@ export class TablesController {
   @ApiOperation({ summary: "Add a column to a table (admin only)" })
   @ApiParam({ name: "tableId", description: "Stable table identifier" })
   @ApiQuery({ name: "group_id", required: true, type: String })
-  @ApiBody({ type: ColumnDto })
+  @ApiBody({ type: AddColumnDto })
   @ApiCreatedResponse({ type: TableDetailDto })
   @ApiForbiddenResponse({ description: "Admin role required" })
-  @ApiBadRequestResponse({ description: "Invalid column definition" })
+  @ApiBadRequestResponse({
+    description: "Invalid column definition or seed_value",
+  })
   @ApiConflictResponse({ description: "Column key already exists" })
   async addColumn(
     @Req() req: Request,
     @Param("tableId") tableId: string,
     @Query("group_id") group_id: string,
-    @Body() body: ColumnDto,
+    @Body() body: AddColumnDto,
   ): Promise<TableDetailDto> {
     identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
     const actor_id = req.resolvedIdentity!.actorId;
-    const updated = await this.svc.addColumn(actor_id, group_id, tableId, body);
+    const { seed_value, ...col } = body;
+    const updated = await this.svc.addColumn(
+      actor_id,
+      group_id,
+      tableId,
+      col,
+      seed_value,
+    );
     return {
       id: updated.id,
       group_id: updated.group_id,
@@ -231,11 +243,12 @@ export class TablesController {
   @ApiParam({ name: "tableId", description: "Stable table identifier" })
   @ApiParam({ name: "columnKey", description: "Column key to update" })
   @ApiQuery({ name: "group_id", required: true, type: String })
-  @ApiBody({ type: ColumnDto })
+  @ApiBody({ type: AddColumnDto })
   @ApiOkResponse({ type: TableDetailDto })
   @ApiForbiddenResponse({ description: "Admin role required" })
   @ApiBadRequestResponse({
-    description: "Invalid column definition or table not found",
+    description:
+      "Invalid column definition, seed_value invalid or misused, or table not found",
   })
   @ApiConflictResponse({
     description: "Column update conflicts with existing lookups",
@@ -245,16 +258,18 @@ export class TablesController {
     @Param("tableId") tableId: string,
     @Param("columnKey") columnKey: string,
     @Query("group_id") group_id: string,
-    @Body() body: ColumnDto,
+    @Body() body: AddColumnDto,
   ): Promise<TableDetailDto> {
     identityCanAccessGroup(req.resolvedIdentity, group_id, GroupRole.ADMIN);
     const actor_id = req.resolvedIdentity!.actorId;
+    const { seed_value, ...col } = body;
     const updated = await this.svc.updateColumn(
       actor_id,
       group_id,
       tableId,
       columnKey,
-      body,
+      col,
+      seed_value,
     );
     return {
       id: updated.id,

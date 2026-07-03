@@ -1,5 +1,15 @@
+jest.mock("@/auth/identity.helpers", () => ({
+  identityCanAccessGroup: jest.fn(),
+}));
+
 import { DocumentStatus, GroupRole } from "@generated/client";
-import { BadRequestException, HttpException, HttpStatus } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
+import * as identityHelpers from "@/auth/identity.helpers";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -14,6 +24,9 @@ describe("UploadController", () => {
   let workflowService: jest.Mocked<WorkflowService>;
 
   beforeEach(() => {
+    jest
+      .mocked(identityHelpers.identityCanAccessGroup)
+      .mockImplementation(() => undefined);
     documentService = {
       uploadDocument: jest.fn(),
     } as any;
@@ -54,7 +67,7 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
-      status: DocumentStatus.completed_ocr,
+      status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),
       file_path: "path",
@@ -96,6 +109,33 @@ describe("UploadController", () => {
       await expect(
         controller.uploadDocument({ ...baseDto, file: "" }, mockReq),
       ).rejects.toThrow(BadRequestException);
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockIdentity,
+        "group-1",
+        GroupRole.MEMBER,
+      );
+    });
+
+    it("checks group access before validating file", async () => {
+      jest
+        .mocked(identityHelpers.identityCanAccessGroup)
+        .mockImplementation(() => {
+          throw new ForbiddenException();
+        });
+
+      await expect(
+        controller.uploadDocument(
+          { ...baseDto, file: "", group_id: "other-group" },
+          mockReq,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
+        mockIdentity,
+        "other-group",
+        GroupRole.MEMBER,
+      );
+      expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });
 
     it("should rethrow BadRequestException if documentService throws", async () => {
@@ -200,6 +240,12 @@ describe("UploadController", () => {
         workflow_slug: "ocr-only-minimal",
       };
       await controller.uploadDocument(dto, reqWithKey);
+      // The workflow default-model lookup must be scoped to the authorized
+      // group so another group's workflow default cannot be disclosed.
+      expect(workflowService.getModelIdDefault).toHaveBeenCalledWith(
+        "wv-2",
+        "group-from-key",
+      );
       expect(documentService.uploadDocument).toHaveBeenLastCalledWith(
         dto.title,
         dto.file,
@@ -221,6 +267,8 @@ describe("UploadController", () => {
       documentService.uploadDocument.mockResolvedValue({
         kind: "conversion_failed",
         document: failedDoc,
+        code: "conversion_failed",
+        reason: "Document could not be converted to PDF",
       });
 
       let caught: unknown;
@@ -243,6 +291,38 @@ describe("UploadController", () => {
       expect(body.document?.id).toBe("1");
 
       expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the specific code and message for a password-protected PDF", async () => {
+      const failedDoc = {
+        ...uploadedDoc,
+        normalized_file_path: null,
+        status: DocumentStatus.conversion_failed,
+      };
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "conversion_failed",
+        document: failedDoc,
+        code: "password_protected",
+        reason:
+          "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+      });
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+      const body = (caught as HttpException).getResponse() as {
+        code?: string;
+        message?: string;
+      };
+      expect(body.code).toBe("password_protected");
+      expect(body.message).toMatch(/password protected/i);
     });
   });
 });

@@ -1,9 +1,9 @@
-import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "@/auth/AuthContext";
+import { MantineProvider } from "../../../../ui";
 import { ModelListPage } from "./ModelListPage";
 
 // ---------------------------------------------------------------------------
@@ -101,18 +101,12 @@ describe("ModelListPage", () => {
       const button = screen.getByRole("button", {
         name: /new template model/i,
       });
-      const tooltipAnchor = button.parentElement;
-      if (tooltipAnchor) {
-        fireEvent.mouseEnter(tooltipAnchor);
-      }
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            /a group must be selected to create a template model/i,
-          ),
-        ).toBeInTheDocument();
-      });
+      expect(button.closest("[title]")).toHaveAttribute(
+        "title",
+        expect.stringMatching(
+          /a group must be selected to create a template model/i,
+        ),
+      );
     });
 
     it("disables the Create Template Model empty-state button when activeGroup is null", () => {
@@ -145,18 +139,12 @@ describe("ModelListPage", () => {
       const button = screen.getByRole("button", {
         name: /create template model/i,
       });
-      const tooltipAnchor = button.parentElement;
-      if (tooltipAnchor) {
-        fireEvent.mouseEnter(tooltipAnchor);
-      }
-
-      await waitFor(() => {
-        expect(
-          screen.getAllByText(
-            /a group must be selected to create a template model/i,
-          ).length,
-        ).toBeGreaterThan(0);
-      });
+      expect(button.closest("[title]")).toHaveAttribute(
+        "title",
+        expect.stringMatching(
+          /a group must be selected to create a template model/i,
+        ),
+      );
     });
   });
 });

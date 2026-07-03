@@ -62,6 +62,8 @@ describe("TablesService", () => {
       updateTableMetadata: jest.fn(),
       deleteTable: jest.fn(),
       addColumn: jest.fn(),
+      backfillColumn: jest.fn(),
+      addColumnAndBackfill: jest.fn(),
       updateColumn: jest.fn(),
       removeColumn: jest.fn(),
       addLookup: jest.fn(),
@@ -72,6 +74,11 @@ describe("TablesService", () => {
       listRows: jest.fn(),
       updateRow: jest.fn(),
       deleteRow: jest.fn(),
+      hasRowWithColumnValue: jest.fn(),
+      columnHasDuplicateValues: jest.fn(),
+      hasRows: jest.fn(),
+      hasRowsMissingColumn: jest.fn(),
+      backfillAndUpdateColumn: jest.fn(),
     } as unknown as jest.Mocked<TablesDbService>;
     audit = { recordEvent: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -125,6 +132,123 @@ describe("TablesService", () => {
     ).rejects.toThrow(/invalid column key/i);
   });
 
+  // Test 2a: addColumn backfills rows when seed_value is provided
+  it("addColumn calls addColumnAndBackfill with seed_value when provided", async () => {
+    const col = {
+      key: "code",
+      label: "Code",
+      type: "string" as const,
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.addColumnAndBackfill.mockResolvedValueOnce(
+      makeTable({ columns: [col] }) as never,
+    );
+
+    await svc.addColumn("user1", "g", "t", col, "ABC");
+
+    expect(db.addColumnAndBackfill).toHaveBeenCalledWith("g", "t", col, "ABC");
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 2b: addColumn does not backfill when seed_value is not provided
+  it("addColumn does not call addColumnAndBackfill when seed_value is not provided", async () => {
+    const col = { key: "name", label: "Name", type: "string" as const };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.addColumn.mockResolvedValueOnce(makeTable({ columns: [col] }) as never);
+
+    await svc.addColumn("user1", "g", "t", col);
+
+    expect(db.addColumnAndBackfill).not.toHaveBeenCalled();
+  });
+
+  // Test 2c: addColumn rejects seed_value that does not match column type
+  it("addColumn rejects seed_value incompatible with column type", async () => {
+    const col = {
+      key: "count",
+      label: "Count",
+      type: "number" as const,
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+
+    await expect(
+      svc.addColumn("user1", "g", "t", col, "not-a-number"),
+    ).rejects.toThrow(/seed_value is invalid/i);
+
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+  // Test 2d: addColumn rejects seed_value when column is unique (non-required column)
+  it("addColumn rejects seed_value when column has unique: true", async () => {
+    const col = {
+      key: "code",
+      label: "Code",
+      type: "string" as const,
+      unique: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+
+    await expect(svc.addColumn("user1", "g", "t", col, "ABC")).rejects.toThrow(
+      /seed value.*unique/i,
+    );
+
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 2e: addColumn rejects required+unique column when table already has rows
+  it("addColumn rejects required+unique column when the table already has rows", async () => {
+    const col = {
+      key: "code",
+      label: "Code",
+      type: "string" as const,
+      required: true,
+      unique: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.hasRows.mockResolvedValueOnce(true);
+
+    await expect(svc.addColumn("user1", "g", "t", col)).rejects.toThrow(
+      /required.*unique.*already has rows/i,
+    );
+
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 2e2: addColumn rejects required-only column (no seed) when table already has rows
+  it("addColumn rejects a required column without seed_value when the table already has rows", async () => {
+    const col = {
+      key: "notes",
+      label: "Notes",
+      type: "string" as const,
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.hasRows.mockResolvedValueOnce(true);
+
+    await expect(svc.addColumn("user1", "g", "t", col)).rejects.toThrow(
+      /required column without a seed_value.*already has rows/i,
+    );
+
+    expect(db.addColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 2f: addColumn allows unique-only column on a table with existing rows
+  it("addColumn allows a nullable unique column when the table already has rows", async () => {
+    const col = {
+      key: "code",
+      label: "Code",
+      type: "string" as const,
+      unique: true,
+    };
+    db.findTable.mockResolvedValueOnce(makeTable() as never);
+    db.addColumn.mockResolvedValueOnce(makeTable() as never);
+
+    await expect(svc.addColumn("user1", "g", "t", col)).resolves.toBeDefined();
+
+    expect(db.hasRows).not.toHaveBeenCalled();
+    expect(db.addColumn).toHaveBeenCalledTimes(1);
+  });
+
   // Test 3: createRow validates required fields
   it("createRow rejects empty data when a required column exists", async () => {
     const cols: ColumnDef[] = [
@@ -133,6 +257,253 @@ describe("TablesService", () => {
     db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
 
     await expect(svc.createRow("user1", "g", "t", {})).rejects.toThrow();
+  });
+
+  // Test 3a: createRow rejects duplicate value for a unique column
+  it("createRow throws ConflictException when a unique column already has the value", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.createRow("user1", "g", "t", { code: "ABC" }),
+    ).rejects.toThrow(/unique values/i);
+
+    expect(db.createRow).not.toHaveBeenCalled();
+  });
+
+  // Test 3b: updateRow rejects duplicate value for a unique column in another row
+  it("updateRow throws ConflictException when another row already holds the unique value", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.updateRow("user1", "g", "t", "row1", {
+        data: { code: "ABC" },
+        expected_updated_at: new Date(),
+      }),
+    ).rejects.toThrow(/unique values/i);
+
+    expect(db.updateRow).not.toHaveBeenCalled();
+  });
+
+  // Test 3c: updateColumn rejects enabling unique when existing rows have duplicates
+  it("updateColumn throws ConflictException when enabling unique on a column with duplicate values", async () => {
+    const before: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string" },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
+    db.columnHasDuplicateValues.mockResolvedValueOnce(true);
+
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      unique: true,
+    };
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next),
+    ).rejects.toThrow(/cannot be saved.*duplicate/i);
+
+    expect(db.updateColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3c3: updateColumn applies seed then rejects if seeded values create duplicates
+  it("updateColumn applies seed_value then rejects with ConflictException if duplicates remain", async () => {
+    const before: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string" },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
+    db.backfillAndUpdateColumn.mockRejectedValueOnce(
+      new ConflictException(
+        'Column "Code" cannot be saved — rows contain duplicate values.',
+      ),
+    );
+
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      unique: true,
+    };
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next, "SAME"),
+    ).rejects.toThrow(/cannot be saved.*duplicate/i);
+
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      next,
+      "SAME",
+      true,
+      "Code",
+    );
+    expect(db.updateColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3c3b: updateColumn rejects when seeding an already-unique column creates duplicates
+  it("updateColumn rejects seed_value on already-unique column when it creates duplicates", async () => {
+    const before: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
+    db.backfillAndUpdateColumn.mockRejectedValueOnce(
+      new ConflictException(
+        'Column "Code" cannot be saved — rows contain duplicate values.',
+      ),
+    );
+
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      required: true,
+      unique: true,
+    };
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next, "SAME"),
+    ).rejects.toThrow(/cannot be saved.*duplicate/i);
+
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      next,
+      "SAME",
+      true,
+      "Code",
+    );
+    expect(db.updateColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3c4: updateColumn uses backfillAndUpdateColumn when seed_value is provided
+  it("updateColumn uses backfillAndUpdateColumn when seed_value is provided", async () => {
+    const before: ColumnDef[] = [
+      { key: "notes", label: "Notes", type: "string" },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: before }) as never);
+    const updated = makeTable({ columns: before });
+    db.backfillAndUpdateColumn.mockResolvedValueOnce(updated as never);
+
+    const next: ColumnDef = {
+      key: "notes",
+      label: "Notes",
+      type: "string",
+      required: true,
+    };
+
+    await svc.updateColumn("user1", "g", "t", "notes", next, "N/A");
+
+    expect(db.backfillAndUpdateColumn).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "notes",
+      next,
+      "N/A",
+      false,
+      "Notes",
+    );
+    expect(db.updateColumn).not.toHaveBeenCalled();
+    expect(db.backfillColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3d: createRow succeeds when hasRowWithColumnValue returns false for a unique column
+  it("createRow calls hasRowWithColumnValue and proceeds when value is not a duplicate", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(false);
+    const row = makeRow({ id: "row-uuid", data: { code: "ABC" } });
+    db.createRow.mockResolvedValueOnce(row as never);
+
+    await svc.createRow("user1", "g", "t", { code: "ABC" });
+
+    expect(db.hasRowWithColumnValue).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      "ABC",
+    );
+    expect(db.createRow).toHaveBeenCalledWith("g", "t", { code: "ABC" });
+  });
+
+  // Test 3e: updateRow calls hasRowWithColumnValue with the row's own id as excludeId
+  it("updateRow calls hasRowWithColumnValue with excludeId and proceeds when value is unique", async () => {
+    const cols: ColumnDef[] = [
+      { key: "code", label: "Code", type: "string", unique: true },
+    ];
+    db.findTable.mockResolvedValueOnce(makeTable({ columns: cols }) as never);
+    db.hasRowWithColumnValue.mockResolvedValueOnce(false);
+    const updatedRow = makeRow({ id: "row1", data: { code: "ABC" } });
+    db.updateRow.mockResolvedValueOnce(updatedRow as never);
+
+    await svc.updateRow("user1", "g", "t", "row1", {
+      data: { code: "ABC" },
+      expected_updated_at: new Date("2025-01-15T09:00:00Z"),
+    });
+
+    expect(db.hasRowWithColumnValue).toHaveBeenCalledWith(
+      "g",
+      "t",
+      "code",
+      "ABC",
+      "row1",
+    );
+    expect(db.updateRow).toHaveBeenCalled();
+  });
+
+  // Test 3f: updateColumn blocks enabling required when rows are missing the value
+  it("updateColumn throws BadRequestException when enabling required without seed_value and rows are missing values", async () => {
+    const before: ColumnDef = { key: "code", label: "Code", type: "string" };
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(
+      makeTable({ columns: [before] }) as never,
+    );
+    db.hasRowsMissingColumn.mockResolvedValueOnce(true);
+
+    await expect(
+      svc.updateColumn("user1", "g", "t", "code", next),
+    ).rejects.toThrow(/required.*missing/i);
+
+    expect(db.hasRowsMissingColumn).toHaveBeenCalledWith("g", "t", "code");
+    expect(db.updateColumn).not.toHaveBeenCalled();
+  });
+
+  // Test 3g: updateColumn allows enabling required when all rows have a value
+  it("updateColumn allows enabling required when no rows are missing a value", async () => {
+    const before: ColumnDef = { key: "code", label: "Code", type: "string" };
+    const next: ColumnDef = {
+      key: "code",
+      label: "Code",
+      type: "string",
+      required: true,
+    };
+    db.findTable.mockResolvedValueOnce(
+      makeTable({ columns: [before] }) as never,
+    );
+    db.hasRowsMissingColumn.mockResolvedValueOnce(false);
+    db.updateColumn.mockResolvedValueOnce(
+      makeTable({ columns: [next] }) as never,
+    );
+
+    await svc.updateColumn("user1", "g", "t", "code", next);
+
+    expect(db.updateColumn).toHaveBeenCalled();
   });
 
   // Test 4: removeColumn blocks when lookup references the column

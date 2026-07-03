@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Shared graph workflow types and validation logic",
   "main": "dist/index.js",
+  "browser": "dist/index.browser.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
@@ -14,6 +15,16 @@
       "types": "./dist/kinds/index.d.ts",
       "import": "./dist/kinds/index.js",
       "default": "./dist/kinds/index.js"
+    },
+    "./config-hash": {
+      "types": "./dist/config-hash.d.ts",
+      "import": "./dist/config-hash.js",
+      "default": "./dist/config-hash.js"
+    },
+    "./dist/config-hash": {
+      "types": "./dist/config-hash.d.ts",
+      "import": "./dist/config-hash.js",
+      "default": "./dist/config-hash.js"
     },
     "./package.json": "./package.json"
   },
