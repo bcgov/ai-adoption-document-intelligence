@@ -1392,8 +1392,8 @@ The `IdentityGuard` (global guard, position 4) runs after authentication and enr
 
 | Auth Method | Identity Fields | How Resolved |
 |------------|----------------|-------------|
-| JWT (Keycloak SSO) | `{ userId, isSystemAdmin, groupRoles }` | Two parallel DB queries: `isUserSystemAdmin(userId)` and `getUsersGroups(userId)`. No additional queries needed downstream. |
-| API Key | `{ isSystemAdmin: false, groupRoles: { [groupId]: MEMBER } }` | Populated directly from `request.apiKeyGroupId`. No database queries required. |
+| JWT (Keycloak SSO) | `{ userId, isSystemAdmin, groupRoles, actorId }` | Single DB query — `UserService.findUserWithGroups(userId)` — returning `is_system_admin` and per-group roles together. No additional queries needed downstream. |
+| API Key | `{ isSystemAdmin: false, groupRoles: { [groupId]: MEMBER }, actorId }` | Populated directly from `request.apiKey` (set by `ApiKeyAuthGuard`). No database queries required. |
 
 See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the full controller-by-controller coverage.
 
@@ -1408,7 +1408,7 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | Decorator | Purpose | Runtime effect |
 |-----------|---------|----------------|
 | `@Public()` | Marks a route as unauthenticated | `JwtAuthGuard` returns `true` immediately — all downstream guards become no-ops |
-| `@Identity()` | Identity resolution + authorization | `IdentityGuard` enriches `request.resolvedIdentity` with `isSystemAdmin` and `groupRoles` (parallel DB queries for JWT, no queries for API key). Enforces options. Also adds Swagger `@ApiBearerAuth` metadata. |
+| `@Identity()` | Identity resolution + authorization | `IdentityGuard` enriches `request.resolvedIdentity` with `isSystemAdmin` and `groupRoles` (one `findUserWithGroups` DB query for JWT, no queries for API key). Enforces options. Also adds Swagger `@ApiBearerAuth` metadata. |
 | `@Identity({ allowApiKey: true })` | Allow API key authentication | Tells `IdentityGuard` to accept API-key-authenticated requests. Also adds Swagger `@ApiSecurity("api-key")` metadata. Without this flag, API key requests receive `403`. |
 | `@Identity({ requireSystemAdmin: true })` | System admin only | `IdentityGuard` throws `403` if the resolved identity is not a system admin. API keys always fail (isSystemAdmin is always false). |
 | `@Identity({ groupIdFrom: {...}, minimumRole?: ... })` | Group-scoped with optional role check | Extracts group ID from request, verifies membership via `groupRoles`, optionally checks minimum role. System admins bypass. |
@@ -1529,9 +1529,9 @@ export class WebhookController {
 1. `JwtAuthGuard` checks if `X-API-Key` header is present — if yes, skips JWT validation (delegates to `ApiKeyAuthGuard`)
 2. `ApiKeyAuthGuard` checks if user is already authenticated (e.g., via JWT) — if so, skips API key validation
 3. Validates the API key against the database (prefix lookup + bcrypt comparison)
-4. Sets `request.user` with user info and roles from the API key record, and sets `request.apiKeyGroupId` to the key's owning group ID
+4. Sets `request.apiKey` to the validated key info (`{ groupId, keyPrefix, actorId }`)
 5. `IdentityGuard` reads the `@Identity()` decorator — if `allowApiKey` is not `true`, rejects with `403 Forbidden`
-6. If allowed, sets `request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [apiKeyGroupId]: GroupRole.MEMBER } }` — no database queries required
+6. If allowed, sets `request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [request.apiKey.groupId]: GroupRole.MEMBER }, actorId }` — no database queries required
 
 **Usage Example:**
 
@@ -1864,24 +1864,11 @@ async createUser(@Body() body: CreateUserDto) {
 - JWKS signature verification prevents token forgery
 - Cookie paths scoped to minimize exposure (e.g., refresh_token only sent to `/api/auth/refresh`)
 
-### Known Open Issues
-
-The following issues have been identified and documented for future resolution:
-
-#### No Resource-Level Authorization (IDOR)
-
-**Severity:** Medium-High
-
-While all endpoints are protected by authentication (JWT or API key), there are no ownership or tenant-level authorization checks on most resource endpoints. Any authenticated user can access or modify any resource by ID (Insecure Direct Object Reference). For example, any authenticated user could read another user's OCR results, download their documents, or interact with their HITL sessions.
-
-**Exceptions (properly scoped):**
-- `WorkflowService` — passes `userId` to service methods for ownership checks
-- `AzureController` — checks `isUserInGroup()` at the service level
-- `ApiKeyController` — scopes operations to `req.user.sub`
-
-**Recommendation:** Add resource ownership validation at the service layer. Either filter queries by `userId` (e.g., `WHERE user_id = $1 AND id = $2`), check ownership after retrieval and throw `ForbiddenException`, or implement a tenant/organization scoping middleware.
-
 ### Resolved Issues
+
+#### ~~No Resource-Level Authorization (IDOR)~~ — RESOLVED
+
+**Resolved via group-scoped authorization.** Every primary resource carries a `group_id`, and access is enforced at the HTTP boundary — declaratively via `@Identity({ groupIdFrom, minimumRole })` or imperatively via `identityCanAccessGroup` after fetching the resource. Cross-group access by ID returns `403`; orphaned records return `404`. Resources are intentionally shared **within** a group (group tenancy), not per-user. See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the controller-by-controller coverage.
 
 #### ~~No Rate Limiting on API Key Validation Path~~ — RESOLVED
 
@@ -2047,7 +2034,8 @@ describe("OAuth Flow", () => {
       .set("Cookie", authCookies);
     
     expect(meRes.body).toHaveProperty("sub");
-    expect(meRes.body).toHaveProperty("roles");
+    expect(meRes.body).toHaveProperty("isAdmin");
+    expect(meRes.body).toHaveProperty("groups");
   });
 });
 ```
