@@ -8,7 +8,7 @@ Soft-deletes an existing group by ID. Only system admins may perform this action
 
 ### Authorization
 - Caller must be authenticated.
-- Caller must be a system admin (`DatabaseService.isUserSystemAdmin`).
+- Caller must be a system admin, enforced by the `@Identity({ requireSystemAdmin: true })` guard.
 
 ### Path Parameters
 | Parameter | Type   | Description |
@@ -23,6 +23,6 @@ Soft-deletes an existing group by ID. Only system admins may perform this action
 
 ## Description
 
-Soft-deletes the specified group by setting `deleted_at` to the current timestamp and `deleted_by` to the caller's `userId`. Associated records (members, workflows, membership requests) are **not** modified.
+Soft-deletes the specified group by setting `deleted_at` to the current timestamp and `deleted_by` to the caller's actor ID. Associated records (members, workflows, membership requests) are **not** modified. A `group_deleted` audit event is recorded on success.
 
 Soft-deleted groups are excluded from all subsequent `GET /api/groups` listings.

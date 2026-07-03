@@ -18,4 +18,4 @@ Creates a new group. Only system admins are permitted to call this endpoint.
 - `409 Conflict` if a group with the same name already exists
 
 ## Description
-Creates a new group with the specified name and optional description. Only system admins (as determined by `DatabaseService.isUserSystemAdmin`) are permitted to create groups. Returns `409 Conflict` if a group with the given name already exists.
+Creates a new group with the specified name and optional description. Only system admins are permitted to create groups, enforced by the `@Identity({ requireSystemAdmin: true })` guard. Returns `409 Conflict` if a group with the given name already exists. A `group_created` audit event is recorded on success.

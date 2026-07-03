@@ -26,7 +26,7 @@ The caller must satisfy one of the following:
 
 Regular group members (role `MEMBER`) are **not** permitted to view requests.
 
-Access is determined from `resolvedIdentity.userId` set by the `IdentityGuard`.
+Access is enforced by the `@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: ADMIN })` guard, which checks `resolvedIdentity.groupRoles` populated by the `IdentityGuard`; system admins bypass the membership check.
 
 ## Response
 
@@ -50,7 +50,6 @@ Returns an array of membership request objects.
     "email": "user2@example.com",
     "groupId": "group-uuid",
     "status": "APPROVED",
-    "actorId": "admin-uuid",
     "reason": "Looks good",
     "resolvedAt": "2026-01-02T00:00:00.000Z",
     "createdAt": "2026-01-01T12:00:00.000Z"
@@ -65,7 +64,6 @@ Returns an array of membership request objects.
 | email       | string | The email address of the user who made the request                 |
 | groupId     | string | The ID of the group the request is for                             |
 | status      | string | Current status: `PENDING`, `APPROVED`, `DENIED`, or `CANCELLED`   |
-| actorId     | string | (Optional) ID of the admin who acted on the request                |
 | reason      | string | (Optional) Reason provided when the request was acted upon         |
 | resolvedAt  | string | (Optional) ISO 8601 timestamp of when the request was resolved     |
 | createdAt   | string | ISO 8601 timestamp of when the request was created                 |

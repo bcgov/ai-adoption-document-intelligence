@@ -5,14 +5,16 @@
 `.env` files in the repo are convenient for local development but leak easily —
 AI coding assistants and tools launched from the project directory can read them
 before any deny rule applies. To keep sensitive keys out of reach while still
-letting other developers use a regular `./.env` for non-sensitive defaults,
-`backend-services` and `temporal` now load env vars from **two layers**:
+letting other developers use a regular `.env` for non-sensitive defaults,
+`backend-services` and `temporal` now load env vars from **three layers**:
 
 1. **External override file** (sensitive, outside the repo) — loaded first.
-2. **Repo-local `./.env`** (non-sensitive defaults) — fills gaps only.
+2. **Repo-root `.env`** (non-sensitive defaults shared by all apps) — fills gaps.
+3. **App-local `./.env`** (app-only overrides) — final fallback.
 
 `dotenv` never overwrites variables that are already set, so anything defined
-in the override file wins; anything missing falls back to the repo `.env`.
+in the override file wins; anything missing falls back to the repo `.env`
+files.
 
 ## Paths
 
@@ -38,15 +40,15 @@ $EDITOR ~/.config/bcgov-di/temporal.env
 chmod 600 ~/.config/bcgov-di/temporal.env
 ```
 
-Keep **non-sensitive** defaults (ports, feature flags, local URLs) in the repo
-`./.env` files so other developers can still clone and run the apps without
-extra setup.
+Keep **non-sensitive** defaults (ports, feature flags, local URLs) in the
+repo-root `.env` (or app-local `./.env`) files so other developers can still
+clone and run the apps without extra setup.
 
 ## Opting out
 
 Developers who don't want the override layer simply don't create the external
-files — the loader silently falls through to the repo `.env`, preserving the
-previous behaviour.
+files — the loader silently falls through to the repo `.env` files, preserving
+the previous behaviour.
 
 ## Custom location
 

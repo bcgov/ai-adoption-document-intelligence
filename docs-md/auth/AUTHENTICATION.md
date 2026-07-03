@@ -137,7 +137,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │                              ▼                                      │    │
 │  │  ┌────────────────────────────────────────────────────────────┐   │    │
 │  │  │        ApiKeyAuthGuard (Optional Fallback)                  │   │    │
-│  │  │  - Validates X-API-Key header when present                   │   │    │
+│  │  │  - Validates X-API-Key header on allowApiKey routes          │   │    │
 │  │  │  - Provides alternative machine-to-machine auth             │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  │                              │                                      │    │
@@ -145,7 +145,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │  ┌────────────────────────────────────────────────────────────┐   │    │
 │  │  │        IdentityGuard (Identity + Authorization)              │   │    │
 │  │  │  - Reads @Identity() decorator options                      │   │    │
-│  │  │  - JWT: enriches with isSystemAdmin + groupRoles (2 DB queries)│  │    │
+│  │  │  - JWT: enriches with isSystemAdmin + groupRoles (1 DB query)│  │    │
 │  │  │  - API key: sets isSystemAdmin=false, groupRoles from key   │   │    │
 │  │  │  - Enforces requireSystemAdmin, groupIdFrom, minimumRole    │   │    │
 │  │  │  - Rejects API keys unless allowApiKey: true                │   │    │
@@ -209,9 +209,9 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `react` | 19.2.0 | UI framework |
-| `react-router-dom` | 7.9.6 | Client-side routing |
-| `axios` | 1.13.2 | HTTP client for backend API calls |
+| `react` | 19.2.1 | UI framework |
+| `react-router-dom` | 7.17.0 | Client-side routing |
+| `axios` | 1.17.0 | HTTP client for backend API calls |
 
 **Frontend Implementation Notes:**
 
@@ -230,7 +230,7 @@ apps/backend-services/src/auth/
 ├── auth.module.ts              # Module definition with global guards
 ├── auth.config.ts              # Env-configurable rate limiting and throttling constants
 ├── auth.controller.ts          # Public HTTP endpoints for OAuth flow
-├── auth.service.ts             # Core OAuth orchestration logic
+├── auth.service.ts             # Core OAuth orchestration logic (+ user upsert on login)
 ├── cookie-auth.utils.ts        # Centralized cookie configuration, token extraction helpers
 ├── csrf.guard.ts               # CSRF double-submit cookie protection guard
 ├── keycloak-jwt.strategy.ts    # Passport JWT strategy (cookie-first extraction)
@@ -238,12 +238,13 @@ apps/backend-services/src/auth/
 ├── api-key-auth.guard.ts       # API key validation guard with failed-attempt throttling
 ├── identity.decorator.ts       # @Identity() — declares auth/authz requirements + Swagger metadata
 ├── identity.guard.ts           # Identity resolution + authorization guard — enriches resolvedIdentity, enforces @Identity() options
-├── identity.helpers.ts         # Authorization helpers — getIdentityGroupIds() and identityCanAccessGroup()
+├── identity.helpers.ts         # Authorization helpers — requireUserId(), getIdentityGroupIds(), identityCanAccessGroup()
+├── role-order.ts               # Numeric GroupRole ordering used for minimum-role comparisons
 ├── public.decorator.ts         # @Public() metadata
-├── types.ts                    # User and ResolvedIdentity interfaces, Express Request augmentation
+├── types.ts                    # User, ResolvedIdentity, ValidatedApiKey interfaces, Express Request augmentation
 └── dto/
     ├── index.ts                      # Barrel export
-    ├── token-response.dto.ts         # Keycloak token response structure
+    ├── token-response.dto.ts         # Keycloak token response structure (incl. decoded claims)
     ├── refresh-token.dto.ts          # Refresh response DTO
     ├── oauth-callback-query.dto.ts   # Callback query parameters
     └── me-response.dto.ts            # Profile endpoint response DTO
@@ -257,7 +258,11 @@ The central orchestrator for the OAuth flow. Key responsibilities:
 
 **Initialization:**
 ```typescript
-constructor(private configService: ConfigService)
+constructor(
+  private configService: ConfigService,
+  private userService: UserService,
+  private readonly logger: AppLoggerService,
+)
 ```
 
 - Performs OIDC discovery via `openid-client` on module init
@@ -269,11 +274,12 @@ constructor(private configService: ConfigService)
 | Method | Purpose |
 |--------|---------|
 | `getLoginUrl()` | Async — returns `Promise<LoginUrlResult>` with authorization URL, PKCE state, code verifier, and nonce |
-| `handleCallback(code, state, codeVerifier, nonce, iss?)` | Exchanges authorization code for tokens with PKCE validation; returns `TokenResponseDto` directly |
+| `handleCallback(code, state, codeVerifier, nonce, iss?)` | Exchanges authorization code for tokens with PKCE validation; returns `TokenResponseDto` (including decoded ID token `claims`) directly |
 | `refreshAccessToken(refreshToken)` | Proxies refresh token grant to Keycloak via openid-client |
 | `getLogoutUrl(idTokenHint?)` | Constructs Keycloak logout URL with `client_id` and `post_logout_redirect_uri` |
 | `getFrontendUrl()` | Returns the configured frontend URL for redirects |
 | `buildErrorRedirect(error)` | Produces a frontend redirect URL for auth failures |
+| `upsertUserFromToken(claims)` | Upserts the `User` row (`sub` + `email`) in the database on each successful login callback |
 
 **PKCE Security:**
 
@@ -319,9 +325,14 @@ async oauthCallback(
 ) {
   const pkceData: PkceCookieData = JSON.parse(req.cookies[AUTH_COOKIE_NAMES.PKCE_VERIFIER]);
   res.clearCookie(AUTH_COOKIE_NAMES.PKCE_VERIFIER, { path: "/api/auth/callback" });
+  if (pkceData.state !== query.state) {
+    throw new UnauthorizedException("State mismatch — possible CSRF");
+  }
   const tokens = await this.authService.handleCallback(
     query.code, query.state, pkceData.codeVerifier, pkceData.nonce, query.iss,
   );
+  // Upsert the User row (sub + email) so DB-backed authorization can resolve it
+  await this.authService.upsertUserFromToken(tokens.claims);
   // Sets HttpOnly auth cookies + CSRF token
   const csrfToken = generateCsrfToken();
   setAuthCookies(res, tokens, csrfToken);
@@ -336,7 +347,15 @@ async refreshToken(
   @Res({ passthrough: true }) res: Response,
 ): Promise<RefreshReturnDto> {
   const refreshTokenValue = req.cookies?.[AUTH_COOKIE_NAMES.REFRESH_TOKEN];
+  if (!refreshTokenValue) {
+    throw new UnauthorizedException("No refresh token available");
+  }
   const tokens = await this.authService.refreshAccessToken(refreshTokenValue);
+  // If Keycloak did not return a new id_token, carry forward the existing
+  // id_token cookie so id_token_hint remains available at logout
+  if (!tokens.id_token) {
+    tokens.id_token = req.cookies?.[AUTH_COOKIE_NAMES.ID_TOKEN];
+  }
   const csrfToken = generateCsrfToken();
   setAuthCookies(res, tokens, csrfToken);
   return { expires_in: tokens.expires_in };
@@ -352,26 +371,27 @@ async logout(@Req() req: Request, @Res() res: Response) {
   res.redirect(logoutUrl);  // 302 redirect to Keycloak logout
 }
 
-// 5. User Profile (protected — NOT @Public)
+// 5. User Profile (protected — JWT only, no API keys)
 @Get("me")
+@Identity({ allowApiKey: false })
 async getMe(@Req() req: Request): Promise<MeResponseDto> {
   const user = req.user as User;
   const now = Math.floor(Date.now() / 1000);
   const exp = (user.exp as number) || now;
-  const userId = user.sub || "";
 
-  const isAdmin = await this.databaseService.isUserSystemAdmin(userId);
-  const groups = isAdmin
-    ? await this.groupService.getAllGroups()
-    : await this.groupService.getUserGroups(userId);
+  const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
+  // Route is JWT-only (allowApiKey: false), so a userId must be present.
+  const userId = requireUserId(req.resolvedIdentity);
+  const groups = await this.groupService.getUserGroups(req.resolvedIdentity, userId);
 
   return {
     sub: userId,
     name: (user.name as string) || (user.display_name as string),
     preferred_username: (user.preferred_username as string) || (user.idir_username as string),
     email: user.email,
+    isAdmin,
     expires_in: Math.max(exp - now, 0),
-    groups,  // all groups for system-admin, otherwise user's memberships
+    groups,  // the user's own group memberships with per-group roles
   };
 }
 ```
@@ -533,7 +553,7 @@ Global guard that validates JWTs on all routes except those marked `@Public()`. 
 **Flow:**
 
 1. Check if route is `@Public()` → skip validation
-2. Check if `X-API-Key` header present → skip JWT (ApiKeyAuthGuard handles it)
+2. Check if the route allows API keys (`@Identity({ allowApiKey: true })`) **and** an `X-API-Key` header is present → skip JWT (ApiKeyAuthGuard handles it)
 3. Extract JWT from `access_token` cookie first; if absent, fall back to `Authorization: Bearer {token}` header
 4. Validate token via Passport JWT strategy (JWKS RS256 signature verification)
 5. Validate `issuer` and `audience` claims
@@ -567,31 +587,28 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       audience: clientId,
       algorithms: ['RS256'],
     });
-    this.clientId = clientId;
   }
 
-  validate(payload: any): User {
-    const normalizedRoles = this.extractRoles(payload);
+  validate(payload: KeycloakJwtPayload): User {
     return {
       sub: payload.sub,
       idir_username: payload.idir_username,
       display_name: payload.display_name,
       email: payload.email,
-      roles: normalizedRoles,
       ...payload,
     };
   }
 }
 ```
 
-**Role Normalization (vestigial):**
+**No JWT role extraction:**
 
-All authorization is now handled by the `IdentityGuard` using **database-backed roles**:
+The strategy does not extract or normalize Keycloak roles. All authorization is handled by the `IdentityGuard` using **database-backed roles**:
 
 - **`is_system_admin`** — boolean on the `User` table, checked via `@Identity({ requireSystemAdmin: true })` or `resolvedIdentity.isSystemAdmin`
 - **`GroupRole`** (`ADMIN` | `MEMBER`) — stored per-group in the `UserGroup` table, checked via `@Identity({ minimumRole: GroupRole.ADMIN })` or `resolvedIdentity.groupRoles`
 
-The `extractRoles` method and the `roles` field on the `User` type are candidates for removal in a future cleanup.
+The vestigial `roles` field on the `User` type remains only as an optional pass-through of the raw JWT claim and is not used for authorization.
 
 #### 5. **Module Wiring** (`auth.module.ts`)
 
@@ -633,7 +650,7 @@ export class AppModule {}
 ```typescript
 // auth.module.ts — Authentication guards
 @Module({
-  imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' }), ApiKeyModule],
+  imports: [ConfigModule, PassportModule.register({ defaultStrategy: 'jwt' }), ActorModule, GroupModule],
   controllers: [AuthController],
   providers: [
     AuthService,
@@ -663,8 +680,8 @@ export class AuthModule {}
 **Guard Execution Order:**
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
-3. `ApiKeyAuthGuard` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key (if applicable) → Sets `request.user` and `request.apiKeyGroupId`
-4. `IdentityGuard` → Reads `@Identity()` decorator options → Enriches `request.resolvedIdentity` with `userId`, `isSystemAdmin`, and `groupRoles` (parallel DB queries for JWT; no queries for API key) → Enforces `requireSystemAdmin`, `groupIdFrom` membership, and `minimumRole` checks → Rejects API key requests unless `allowApiKey: true` → Throws `403`/`401` on authorization failures
+3. `ApiKeyAuthGuard` → Only acts on routes with `@Identity({ allowApiKey: true })` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key → Sets `request.apiKey` (`{ groupId, keyPrefix, actorId }`)
+4. `IdentityGuard` → Reads `@Identity()` decorator options → Enriches `request.resolvedIdentity` with `userId`, `isSystemAdmin`, `groupRoles`, and `actorId` (single DB query — `findUserWithGroups` — for JWT; no queries for API key) → Enforces `requireSystemAdmin`, `groupIdFrom` membership, and `minimumRole` checks → Rejects API key requests unless `allowApiKey: true` → Throws `403`/`401` on authorization failures
 5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
 ### Security Mechanisms
@@ -767,14 +784,18 @@ The frontend authentication is encapsulated in a single React context: `AuthCont
 **File Structure:**
 ```
 apps/frontend/src/auth/
-├── AuthContext.tsx    # Complete auth implementation
+├── AuthContext.tsx    # Complete auth implementation (AuthProvider + AuthContext)
+├── GroupContext.tsx   # Active-group selection context (built on top of auth groups)
+├── NoGroupGuard.tsx   # Route guard for users without any group membership
+├── useAuth.ts         # useAuth hook (also re-exported from AuthContext.tsx)
+├── index.ts           # Barrel export (AuthProvider, useAuth)
 └── README.md          # Documentation
 ```
 
 ### Key Interfaces
 
 ```typescript
-interface AuthUser {
+export interface AuthUser {
   sub: string;
   expires_at: number;
   profile: {
@@ -783,12 +804,14 @@ interface AuthUser {
     email?: string;
     [key: string]: unknown;
   };
-  roles: string[];
+  isSystemAdmin: boolean;
+  groups: Group[];  // { id, name, description?, role? } from /api/auth/me
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSystemAdmin: boolean;
   user: AuthUser | null;
   login: () => void;
   logout: () => void;
@@ -878,8 +901,8 @@ const fetchMe = useCallback(async (): Promise<AuthUser | null> => {
 **How It Works:**
 1. Browser automatically sends auth cookies with the request
 2. Backend's `JwtAuthGuard` validates the `access_token` cookie
-3. If valid, returns `MeResponseDto` with user profile, `expires_in`, and `groups` (the user's group memberships, or all groups for system-admins)
-4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object
+3. If valid, returns `MeResponseDto` with user profile, `isAdmin` (system-admin flag), `expires_in`, and `groups` (the user's own group memberships with per-group roles)
+4. `meResponseToUser()` computes `expires_at` from `expires_in` and builds the `AuthUser` object (`isSystemAdmin` comes from `isAdmin`)
 5. If invalid/missing, returns 401 and frontend shows logged-out state
 
 ### User Session Lifecycle
@@ -1063,7 +1086,8 @@ function MyComponent() {
 **Available Properties:**
 - `isAuthenticated`: Boolean indicating if user is logged in
 - `isLoading`: Boolean indicating if auth state is still initializing
-- `user`: Current user object with profile data from `/api/auth/me`
+- `isSystemAdmin`: Boolean mirroring the `isAdmin` flag from `/api/auth/me`
+- `user`: Current user object with profile data and `groups` from `/api/auth/me`
 - `login()`: Initiates login flow
 - `logout()`: Navigates to backend logout endpoint (clears cookies, redirects to Keycloak)
 - `refreshToken()`: Manually triggers token refresh via cookies
@@ -1184,8 +1208,8 @@ function MyComponent() {
 
 - **Steps 1-5**: User clicks login, SPA navigates to backend `/auth/login`, backend generates PKCE code_verifier/challenge, stores verifier in HttpOnly cookie, redirects to Keycloak
 - **Steps 6-8**: Keycloak authenticates user (login page, 2FA, etc.) and generates authorization code
-- **Steps 9-14**: Keycloak redirects back to backend callback, backend reads PKCE cookie, exchanges code for tokens with code_verifier, `openid-client` validates ID token
-- **Steps 15-20**: Backend sets HttpOnly auth cookies, redirects to frontend, SPA calls `/api/auth/me` to get user profile
+- **Steps 9-14**: Keycloak redirects back to backend callback, backend reads PKCE cookie, verifies the `state`, exchanges code for tokens with code_verifier, `openid-client` validates ID token
+- **Steps 15-20**: Backend upserts the `User` row from the token claims (`upsertUserFromToken`), sets HttpOnly auth cookies, redirects to frontend, SPA calls `/api/auth/me` to get user profile
 - **Step 21**: User is authenticated, SPA can make API calls (cookies sent automatically)
 
 ### Token Refresh Flow

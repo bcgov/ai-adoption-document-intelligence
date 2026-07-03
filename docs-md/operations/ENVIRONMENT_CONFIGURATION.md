@@ -72,8 +72,18 @@ These values are derived automatically by the deploy script — do not set them 
 |----------|-------------|
 | `FRONTEND_URL` | `https://<instance>-frontend-<namespace>.<CLUSTER_DOMAIN>` |
 | `BACKEND_URL` | `https://<instance>-backend-<namespace>.<CLUSTER_DOMAIN>` |
-| `SSO_REDIRECT_URI` | `<BACKEND_URL>/api/auth/callback` |
+| `SSO_REDIRECT_URI` | `<FRONTEND_URL>/api/auth/callback` |
 | `TEMPORAL_ADDRESS` | `<instance>-temporal:7233` |
+
+### Artifactory (Image Registry)
+
+| Variable | Secret | Description |
+|----------|--------|-------------|
+| `ARTIFACTORY_URL` | No | Registry host (e.g., `artifacts.developer.gov.bc.ca`). Image references are computed as `<ARTIFACTORY_URL>/kfd3-fd34fb-local/...` |
+| `ARTIFACTORY_SA_USERNAME` | Yes | Artifactory service account username (matches the `ARTIFACTORY_*` GitHub environment secrets used in CI) |
+| `ARTIFACTORY_SA_PASSWORD` | Yes | Artifactory service account password |
+
+The deploy script uses these to create the `<instance>-artifactory-pull` docker-registry Secret and patches it into every deployment's `imagePullSecrets`.
 
 ### Application Settings
 
@@ -198,7 +208,7 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 The deploy script creates per-instance OpenShift Secrets from values in the env file. Each instance gets its own copy.
 
-### backend-services-secrets
+### `<instance>-backend-services-secrets`
 
 Created by the deploy script with keys:
 - `SSO_CLIENT_SECRET`
@@ -209,7 +219,7 @@ Created by the deploy script with keys:
 
 Referenced by the backend-services deployment via `secretKeyRef`.
 
-### temporal-worker-secrets
+### `<instance>-temporal-worker-secrets`
 
 Created by the deploy script with keys:
 - `AZURE_DOCUMENT_INTELLIGENCE_API_KEY`
@@ -220,9 +230,11 @@ Created by the deploy script with keys:
 
 Referenced by the temporal-worker deployment via `secretKeyRef`.
 
-### Auto-Managed Secrets (not in env files)
+### Other Per-Instance Secrets
 
 | Secret | Managed By | Description |
 |--------|-----------|-------------|
+| `<instance>-artifactory-pull` | Deploy script (from `ARTIFACTORY_*` config) | docker-registry pull secret patched into all deployments' `imagePullSecrets` |
+| `<instance>-minio-credentials` | Deploy script (random) | MinIO access/secret keys, only when `--blob-storage-provider minio` |
 | `<instance>-app-pg-pguser-admin` | Crunchy Operator | PostgreSQL connection credentials (`DATABASE_URL`) |
 | `<instance>-temporal-pg-pguser-temporal` | Crunchy Operator | Temporal database credentials |

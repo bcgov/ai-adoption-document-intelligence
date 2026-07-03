@@ -23,6 +23,8 @@ The template uses placeholder tokens that the deploy script replaces with actual
 | `__SSO_REALM__` | SSO realm name | `my-realm` |
 | `__SSO_CLIENT_ID__` | SSO client identifier | `my-client` |
 
+The template also carries app-configuration tokens beyond the core set above: `__BOOTSTRAP_ADMIN_EMAIL__`, `__BLOB_STORAGE_PROVIDER__`, `__AZURE_STORAGE_CONTAINER_NAME__`, `__BENCHMARK_TASK_QUEUE__`, `__ENABLE_BENCHMARK_QUEUE__`, `__BODY_LIMIT__`, `__THROTTLE_*__` (global/auth/auth-refresh TTL+limit), `__DB_POOL_MAX__`, `__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__`, `__AZURE_DOC_INTELLIGENCE_MODELS__`, `__AZURE_OPENAI_ENDPOINT__`/`__AZURE_OPENAI_DEPLOYMENT__`/`__AZURE_OPENAI_API_VERSION__`, `__ENRICHMENT_REDACT_PII__`, `__DOCUMENT_INTELLIGENCE_MODE__`, `__MOCK_AZURE_OCR__`, `__PG_BACKUP_STORAGE_SIZE__`, and `__MINIO_*__`. Each has a matching `generate_instance_overlay` flag with a sensible default (see `scripts/lib/generate-overlay.sh`); the instance/namespace/domain/image and SSO tokens are required arguments.
+
 ### Kustomize Features Used
 
 - **`namePrefix`**: Prefixes all resource names with `<instance-name>-`. Kustomize automatically updates cross-references (Service selectors, ConfigMap/Secret refs, PVC claims).
@@ -33,7 +35,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 
 ### Route IP restrictions
 
-Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_whitelist` so the OpenShift router (HAProxy) only allows traffic whose source IP is in `142.16.0.0/11` (approximate VPN range). Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see `docs-md/monitoring/PROMETHEUS_METRICS.md`). Multiple CIDRs or IPs use a space-separated annotation value if needed later.
+Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_whitelist` (space-separated entries) so the OpenShift router (HAProxy) only allows traffic from the BC Gov VPN range `142.16.0.0/11` plus the Silver (`142.34.194.121-124`), Gold (`142.34.229.6-9`), and Gold DR (`142.34.64.6-9`) NAT-pool egress IPs. Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see [PROMETHEUS_METRICS.md](../monitoring/PROMETHEUS_METRICS.md)).
 
 ### What Gets Patched
 
@@ -42,8 +44,10 @@ Kustomize's `namePrefix` handles most cross-references automatically, but severa
 #### Hardcoded string values (env vars / ConfigMap data)
 - **Temporal server deployment**: `POSTGRES_SEEDS` env var updated to reference the prefixed PostgreSQL service (`temporal-pg-primary`)
 - **Temporal UI deployment**: `TEMPORAL_ADDRESS` env var updated to reference the prefixed Temporal service
-- **Backend services ConfigMap**: `TEMPORAL_ADDRESS`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, and SSO settings (`SSO_AUTH_SERVER_URL`, `SSO_REALM`, `SSO_CLIENT_ID`)
-- **Temporal worker ConfigMap**: `TEMPORAL_ADDRESS` updated to reference the prefixed Temporal service
+- **Backend services ConfigMap**: `TEMPORAL_ADDRESS`, `FRONTEND_URL`, `BACKEND_URL`, `SSO_REDIRECT_URI`, SSO settings (`SSO_AUTH_SERVER_URL`, `SSO_REALM`, `SSO_CLIENT_ID`), and app-config values (blob storage, throttling, Azure endpoints, etc.)
+- **Temporal worker ConfigMap**: `TEMPORAL_ADDRESS` updated to reference the prefixed Temporal service, plus app-config values (blob storage, Azure OCR/OpenAI settings)
+- **Frontend deployment**: `BACKEND_SERVICE_URL` env var set to the prefixed backend Service FQDN (`http://<instance>-backend-services.<namespace>.svc.cluster.local:3002`) for the nginx reverse proxy
+- **Promtail ConfigMaps** (backend, frontend, temporal server, temporal worker): Loki push URL set to the instance's PLG Helm release Service (`http://<instance>-plg-loki:3100/loki/api/v1/push`)
 - **Route hostnames**: Set to `<instance>-<service>-<namespace>.<cluster-domain>` (single level under wildcard cert to avoid `ERR_CERT_COMMON_NAME_INVALID`)
 - **NetworkPolicies**: Scoped to only allow ingress from pods with the same instance label and from the OpenShift ingress router
 
@@ -55,6 +59,9 @@ Crunchy PostgreSQL operator creates secrets with names derived from the Postgres
 
 #### PostgresCluster databaseInitSQL
 - **Temporal PostgresCluster**: `databaseInitSQL.name` patched to `<instance>-temporal-postgres-init-sql` (Kustomize doesn't auto-update this CRD field)
+
+#### PostgresCluster backup PVC sizes
+- Both PostgresClusters (`app-pg`, `temporal-pg`) have their pgBackRest repo volume size patched to `__PG_BACKUP_STORAGE_SIZE__` (default `10Gi`), so test instances can use smaller backup storage
 
 ## Instance Isolation
 
@@ -85,7 +92,10 @@ OVERLAY_DIR=$(generate_instance_overlay \
   --backend-image "<artifactory-url>/kfd3-fd34fb-local/backend-services" \
   --frontend-image "<artifactory-url>/kfd3-fd34fb-local/frontend" \
   --worker-image "<artifactory-url>/kfd3-fd34fb-local/temporal" \
-  --image-tag "feature-my-thing")
+  --image-tag "feature-my-thing" \
+  --sso-auth-server-url "https://sso.example.com/auth" \
+  --sso-realm "my-realm" \
+  --sso-client-id "my-client")
 
 # Use the overlay
 oc apply -k "${OVERLAY_DIR}"
@@ -94,7 +104,11 @@ oc apply -k "${OVERLAY_DIR}"
 cleanup_generated_overlay "${OVERLAY_DIR}"
 ```
 
+The `--sso-*` arguments are required alongside the instance/namespace/domain/image arguments; all other app-config flags (throttling, blob storage, Azure endpoints, `--pg-backup-storage-size`, etc.) are optional with defaults.
+
 The function copies the template to a nested temporary directory structure (`tmpdir/overlays/instance/`) with a symlink (`tmpdir/base` -> real base dir) so the relative path `../../base` in the kustomization resolves correctly. It replaces all placeholder tokens and returns the path. The caller is responsible for cleanup via `cleanup_generated_overlay`.
+
+Passing `--with-minio` (plus required `--minio-root-user` and `--minio-root-password`) copies the MinIO component from `deployments/openshift/kustomize/components/minio/` into the overlay and appends it under `components:`, deploying an in-namespace MinIO for instances that use `--blob-storage-provider minio`.
 
 ### Testing
 
@@ -104,4 +118,4 @@ bash scripts/lib/generate-overlay.test.sh
 
 ## Existing Overlays
 
-The instance template is additive. Existing overlays at `deployments/openshift/kustomize/overlays/` (`dev/`, `test/`, `prod/`) are not modified.
+The instance template is additive. Existing overlays at `deployments/openshift/kustomize/overlays/` (`dev/`, `prod/`) are not modified.

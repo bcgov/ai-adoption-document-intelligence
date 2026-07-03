@@ -37,7 +37,8 @@ Allows an authenticated user to cancel their own pending group membership reques
 - Only `PENDING` requests can be cancelled. Attempts to cancel an `APPROVED`, `DENIED`, or already `CANCELLED` request will return `400 Bad Request`.
 - A user may only cancel their own requests. Attempting to cancel another user's request returns `403 Forbidden`.
 - `CANCELLED` is distinct from `DENIED`: `CANCELLED` is initiated by the requesting user; `DENIED` is initiated by an admin.
-- On successful cancellation, `status` is set to `CANCELLED`, `actor_id` and `updated_by` are set to the requesting user's ID, and `resolved_at` is set to the current timestamp.
+- On successful cancellation, `status` is set to `CANCELLED`, `updated_by` is set to the requesting user's actor ID, and `resolved_at` is set to the current timestamp.
+- The cancellation runs in a transaction that first deletes any prior resolved (non-`PENDING`) request records for the same user+group pair, to satisfy the unique constraint on `(group_id, user_id, status)`. Request rows are treated as ephemeral state; historical resolution data lives in the audit log (a `membership_request_cancelled` audit event is recorded).
 - `reason` is optional; if not supplied, it remains `null`.
 
 ## Frontend UI

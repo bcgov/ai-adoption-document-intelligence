@@ -21,8 +21,9 @@ Emitted by the shared logger metrics hook whenever a log line includes `{ alertT
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
 | `app_error_total` | Counter | `type`, `severity` | Incremented on each `warn` (`severity=warning`) or `error` (`severity=critical`) log with an `alertType`. Used as the numerator in error-rate alert rules. |
-| `app_recovery_total` | Counter | `type` | Incremented once when the first `info`/`debug` log is emitted for a `type` that was previously in error state. Signals a recovery transition. |
 | `app_success_total` | Counter | `type` | Incremented on every `info`/`debug` log with an `alertType`. Used as the denominator in error-rate alert rules. |
+
+Both counters are created by `createAppMetrics()` in the shared `@ai-di/monitoring` package (`packages/monitoring/src/app-metrics.ts`), which is used by both `backend-services` and the `temporal` worker.
 
 ### Node.js Runtime Metrics
 
@@ -36,7 +37,7 @@ Default `prom-client` metrics are collected, including:
 
 The metrics implementation consists of four files in `apps/backend-services/src/metrics/`:
 
-- **`metrics.service.ts`** -- Registers the Prometheus registry, RED metric instruments, and default Node.js metrics collection.
+- **`metrics.service.ts`** -- Registers the Prometheus registry, RED metric instruments, the shared alert counters (via `createAppMetrics` from `@ai-di/monitoring`), and default Node.js metrics collection. On module init it pre-initializes an `app_error_total`/`app_success_total` series (value 0) for every alert type provided via the `ALERT_PREFILL_TYPES` injection token (populated in `app.module.ts` from `ALERT_THRESHOLDS`), so `increase()` can detect the very first failure after a cold start.
 - **`metrics.middleware.ts`** -- NestJS middleware applied to all routes. Instruments each HTTP request by incrementing counters and recording duration on response finish. The `/metrics` path itself is excluded to avoid self-referential metric inflation.
 - **`metrics.controller.ts`** -- Exposes `GET /metrics` with the `@Public()` decorator (no JWT required). Blocks external access by checking for `X-Forwarded-Host` header (injected by the OpenShift router for external requests).
 - **`metrics.module.ts`** -- Wires the service, middleware, and controller together.
@@ -67,45 +68,44 @@ The middleware uses `req.route?.path` (the Express route pattern, e.g., `/api/do
 
 ## Alert Counters
 
-Three additional counters support the Prometheus alerting pipeline. They are emitted by both `backend-services` and the `temporal` worker whenever a log entry includes an `alertType` field in its context.
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `app_error_total` | Counter | `type`, `severity` | Error-level log with `alertType` |
-| `app_recovery_total` | Counter | `type` | Info/warn log with `alertType` after a previous error |
-| `app_success_total` | Counter | `type` | Successful completion log with `alertType` |
+The alert counters above (`app_error_total`, `app_success_total`) support the Prometheus alerting pipeline. They are emitted by both `backend-services` and the `temporal` worker whenever a log entry includes an `alertType` field in its context.
 
 ### How it works
 
-1. Log sites pass `alertType` in their log context (e.g. `log.error("...", { alertType: "temporal_test" })`).
-2. The shared logger's `MetricsHook` fires after the log is emitted, incrementing the appropriate counter.
+1. Log sites pass `alertType` in their log context (e.g. `log.error("...", { alertType: "enrich_results" })`).
+2. The shared logger's `MetricsHook` fires after the log is emitted, incrementing the appropriate counter (`warn`/`error` → `app_error_total`, `info`/`debug` → `app_success_total`).
 3. Prometheus scrapes the `/metrics` endpoints every 15 seconds.
-4. Alert rules defined in `deployments/alert-thresholds.ts` are generated into Prometheus rule files by `npm run generate:alert-rules`.
+4. Alert rules defined in `ALERT_THRESHOLDS` (in `packages/monitoring/src/alert-thresholds.ts`, re-exported via `deployments/alert-thresholds.ts`) are generated into Prometheus rule files by `npm run generate:alert-rules`.
 
 ### Alert threshold configuration
 
-Edit `deployments/alert-thresholds.ts` to add or modify alert rules:
+Edit `ALERT_THRESHOLDS` in `packages/monitoring/src/alert-thresholds.ts` to add or modify alert rules. It is a record keyed by `alertType`:
 
 ```ts
 // Two modes:
 // "any-error"   — fires when increase(app_error_total[window]) > 0
-// "error-rate"  — fires when error rate exceeds a threshold percentage
-export const ALERT_THRESHOLDS: AlertThresholdConfig[] = [
-  {
-    alertType: "classifier_training_failed",
-    mode: "error-rate",
+// "error-rate"  — fires when the error/(error+success) ratio exceeds errorRateThreshold
+export const ALERT_THRESHOLDS: Record<string, AlertThresholdConfig> = {
+  classifier_training_poll: {
+    mode: "any-error",
     severity: "warning",
     window: "5m",
-    threshold: 0.05, // 5% error rate
+    job: "backend-services",
+    summary: "Classifier training has failed",
+    description: "A classifier training job polled from Azure Document Intelligence has failed within the last 5 minutes.",
   },
-  {
-    alertType: "enrich_results_failed",
+  enrich_results: {
     mode: "any-error",
     severity: "critical",
     window: "5m",
+    job: "temporal-worker",
+    summary: "OCR enrichment activity failed",
+    description: "At least one enrichment activity failed within the last 5 minutes.",
   },
-];
+};
 ```
+
+Alert type names are neutral operation names — do not add a `_failed` suffix. Static infrastructure-level rules (HTTP error rate, p95 latency, heap usage) live in `STATIC_ALERT_RULES` in `packages/monitoring/src/static-alert-rules.ts`.
 
 After editing, regenerate the rules files:
 
@@ -113,67 +113,30 @@ After editing, regenerate the rules files:
 npm run generate:alert-rules
 ```
 
-Then restart the monitoring stack to pick up the new rules:
+This writes `deployments/local/prometheus/rules/app-alerts.yml` (local stack) and `deployments/openshift/helm/plg/files/app-alerts.yml` (embedded into the Helm `prometheus-rules-configmap.yaml`). Then restart the monitoring stack to pick up the new rules:
 
 ```sh
-docker compose --profile monitoring up -d
+docker compose --profile monitoring down && docker compose --profile monitoring up -d
 ```
+
+(The `npm run pod:*` scripts run the generator automatically before starting the stack.)
 
 ### Temporal worker metrics endpoint
 
-The temporal worker exposes metrics on port `9091` (configurable via `METRICS_PORT` env var). Verify it is running:
+The temporal worker exposes metrics on a dedicated HTTP server on port `9091` (configurable via `METRICS_PORT` env var). The same server also serves the worker's health check endpoints (`/health/live`, `/health/ready`). Verify it is running:
 
 ```sh
 curl http://localhost:9091/metrics | grep app_error_total
 ```
 
----
-
-## Testing the Alert Pipeline
-
-A test activity `test.alertMetrics` is registered in the temporal worker to validate the end-to-end alert pipeline without using real workflow data.
-
-### Trigger a simulated failure (increments `app_error_total{type="temporal_test"}`)
-
-```sh
-podman exec temporal temporal workflow execute \
-  --type graphWorkflow \
-  --task-queue ocr-processing \
-  --input '{
-    "graph": {
-      "schemaVersion": "1.0",
-      "metadata": { "name": "Alert test" },
-      "entryNodeId": "n1",
-      "ctx": {},
-      "edges": [],
-      "nodes": {
-        "n1": {
-          "id": "n1",
-          "type": "activity",
-          "label": "Test alert",
-          "activityType": "test.alertMetrics",
-          "parameters": { "shouldFail": true }
-        }
-      }
-    },
-    "initialCtx": {},
-    "configHash": "test",
-    "runnerVersion": "1.0.0"
-  }'
-```
-
-### Trigger a simulated success (increments `app_success_total{type="enrich_results_failed"}`)
-
-Same command with `"shouldFail": false`.
-
 ### Verify in Prometheus
 
-After running the command, wait one scrape interval (~15 s) then query:
+After triggering a failure of an alertable operation, wait one scrape interval (~15 s) then query (substituting the relevant `type`):
 
 ```
-increase(app_error_total{type="enrich_results_failed"}[5m])
+increase(app_error_total{type="enrich_results"}[5m])
 ```
 
-A value > 0 means the `EnrichResultsFailed` alert rule will move to `pending` and then `firing`.
+A value > 0 means the corresponding alert rule (e.g. `EnrichResults`) will move to `pending` and then `firing`.
 
-> **Note**: `increase()` only detects counter increments observed *during* the lookback window. If the counter was already non-zero when Prometheus first scraped it, the first data point will appear as 0. Run the workflow again after the monitoring stack is up to see a real increment.
+> **Note**: `increase()` only detects counter increments observed *during* the lookback window. To ensure the very first failure after a cold start is detectable, backend-services pre-initializes a zero-valued series for every alert type in `ALERT_THRESHOLDS` at startup (see `ALERT_PREFILL_TYPES` in the Architecture section).

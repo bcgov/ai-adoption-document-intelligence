@@ -29,13 +29,14 @@ Product code (pages, features)
 
 ## Continuous integration (frontend)
 
-GitHub Actions workflow [`.github/workflows/frontend-qa.yml`](../../.github/workflows/frontend-qa.yml) runs, in `apps/frontend`:
+GitHub Actions workflow [`.github/workflows/frontend-qa.yml`](../../.github/workflows/frontend-qa.yml) installs dependencies at the repo root, builds `packages/graph-workflow`, then runs in `apps/frontend`:
 
 1. `npm run lint` — Biome
 2. `npm run type-check` — TypeScript
-3. `npm run test` — Vitest (jsdom environment)
+3. `npm run build` — production build (tsc + Vite)
+4. `npm run test` — Vitest (jsdom environment)
 
-CI uses **Node 24** (see workflow), matching the required local Node for Vitest. The repo root `.nvmrc` pins `24` for `nvm use` / auto-switch (see README Quick Start). `jsdom` is **26.1.0** in `apps/frontend/package.json` (pinned after ESM/worker issues with newer jsdom). If tests fail worker startup with `ERR_REQUIRE_ESM`, use Node 24 locally; do not use Node 20.x for frontend tests.
+CI uses **Node 24** (see workflow), matching the required local Node for Vitest. The repo root `.nvmrc` pins `24` for `nvm use` / auto-switch (see README Quick Start). `jsdom` is pinned exact (**29.1.1** at time of writing) in `apps/frontend/package.json`. If tests fail worker startup with `ERR_REQUIRE_ESM`, use Node 24 locally; do not use Node 20.x for frontend tests.
 
 ## Current Implementation Status
 
@@ -45,7 +46,7 @@ Initial migration slice implemented:
 - Imported BC Sans and design token CSS in frontend bootstrap.
 - Added a centralized app theme (`apps/frontend/src/theme/appTheme.ts`) and switched the default color scheme target to light mode.
 - Created local adapter entry point at `apps/frontend/src/ui/index.tsx`.
-- Updated Processing Queue screen files to consume local adapters instead of direct Mantine imports in touched files.
+- Updated Processing Queue screen files to consume local adapters instead of direct Mantine imports in touched files. (The Processing Queue screen has since been removed — see **Reference Screen** below.)
 - Migrated app shell header to B.C. Design System `Header` with keyboard skip-link support. Header layout overrides stretch the bar full width with logo and title on the left and auth/utility controls on the right, matching [gov.bc.ca design system pages](https://www2.gov.bc.ca/gov/content/digital/design-system/components/buttons).
 - Added B.C. Design System `Footer` with acknowledgement and copyright content. The footer sits at the end of `AppShell.Main` scroll content (not in a fixed `AppShell.Footer` slot), matching [gov.bc.ca design system pages](https://www2.gov.bc.ca/gov/content/digital/design-system/components/buttons): it appears only after scrolling to the bottom of the page content.
 - **Typography adapters:** `Text` and `Title` in `apps/frontend/src/ui/` render BC DS `Text` / `Heading` with Mantine-compatible props (`size`, `c`, `fw`, `order`, spacing shorthands, `component="a"` for text links).
@@ -53,7 +54,7 @@ Initial migration slice implemented:
 - **Remaining component adapters (Phases 1–4):** `Badge`, `Tooltip`, `IconActionButton`, `Divider`, `Progress`, `Alert`, `TextInput`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio`, `NumberInput`, `DateInput`, and `Modal` in dedicated files under `apps/frontend/src/ui/`. Shared helpers: `tagUtils.ts`, `formFieldUtils.ts`. Processing Queue screen (US-004): updated copy and BC DS token classes on `PanelCard` / `StatCard`.
 - **Vertical slice (upload):** `UploadPage`, `DocumentUploadPanel`, and `Login` import shared UI from `apps/frontend/src/ui/` (Mantine fallbacks for dropzone, selects, cards, etc.).
 - **Vertical slice (auth/setup pages):** `SetupPage` and `RequestMembershipPage` import layout and feedback primitives from `apps/frontend/src/ui/` instead of `@mantine/core`.
-- **Vertical slice (tables):** All files under `apps/frontend/src/features/tables/` import shared UI from `apps/frontend/src/ui/` (pages, components, lookup templates). `RowForm` still imports `@mantine/dates/styles.css` for date picker styling.
+- **Vertical slice (tables):** All files under `apps/frontend/src/features/tables/` import shared UI from `apps/frontend/src/ui/` (pages, components, lookup templates). `@mantine/dates/styles.css` is imported globally in `main.tsx` and again in `RowForm`; `RowForm` and `ColumnForm` import `DateTimePicker` / `MonthPickerInput` directly from `@mantine/dates`.
 - **Vertical slice (classification, groups, settings):** Pages and components under `components/classification/`, `components/group/`, and `SettingsPage` / `ClassifierPage` / `GroupsPage` / `GroupDetailPage` import from `apps/frontend/src/ui/`, including the `notifications` toast API re-exported from the adapter.
 - **Vertical slice (workflows):** `WorkflowPage`, `WorkflowEditPage`, `WorkflowEditorPage`, `WorkflowListPage`, and all files under `components/workflow/` import from `apps/frontend/src/ui/` (including `useDebouncedValue` for the graph editor).
 - **Vertical slice (benchmarking):** All pages and components under `apps/frontend/src/features/benchmarking/` import from `apps/frontend/src/ui/`, including `notifications` where toasts are used.
@@ -62,9 +63,9 @@ Initial migration slice implemented:
 
 - **Mantine fallback token styling:** `apps/frontend/src/ui/bcds-mantine-fallbacks.css` (loaded after Mantine CSS) styles tables, dropzone, loader, notifications, app shell/nav, and plain `Paper`/`Card` using BC DS design tokens. `appTheme.ts` maps Mantine `blue`/`gray`/`red` scales to BC DS palette values.
 - **Layout spacing:** `appTheme.ts` maps Mantine `spacing` (`xs`–`xl`) to BC DS `--layout-margin-*` tokens (tighter than Mantine defaults). `Stack`/`Group` `gap="sm"` → `--layout-margin-small` (0.5rem); `gap="md"` / `gap="lg"` / `gap="xl"` → `--layout-margin-medium` (1rem). Smaller steps: `--layout-margin-xsmall` (0.25rem), `--layout-margin-hair` (0.125rem).
-- **DataTable composite:** `apps/frontend/src/ui/DataTable.tsx` wraps Mantine `Table` with `bcds-data-table-wrapper` border/radius, optional `caption`, and `Table.*` static aliases. Processing Queue uses `DataTable` instead of raw `Table`.
+- **DataTable composite:** `apps/frontend/src/ui/DataTable.tsx` wraps Mantine `Table` with `bcds-data-table-wrapper` border/radius, optional `caption`, and `Table.*` static aliases. Migrated tabular screens (groups, tables, benchmarking, etc.) use `DataTable` instead of raw `Table`.
 - **Upload panel composite:** `DocumentUploadPanel` uses `PanelCard`, `bcds-upload-panel` / `bcds-upload-queue-*` classes (`bcds-upload-panel.css`), BC DS `IconActionButton` for row actions, and token-colored dropzone icons.
-- **Direct-import cleanup:** Product TSX no longer imports `@mantine/core` or `@mantine/notifications` except inside `apps/frontend/src/ui/` (adapter layer). `rem()` is re-exported from `apps/frontend/src/ui/spacingUtils.ts` instead of Mantine.
+- **Direct-import cleanup:** Product TSX does not import `@mantine/core` or `@mantine/notifications` except inside `apps/frontend/src/ui/` (adapter layer). `rem()` is re-exported from `apps/frontend/src/ui/spacingUtils.ts` instead of Mantine. **Known regressions:** `pages/DocumentsPage.tsx` (added later, replacing the Processing Queue) and `components/RouterErrorPage.tsx` import `@mantine/core` (and, for `DocumentsPage`, `@mantine/hooks` / `@mantine/notifications`) directly.
 
 Not yet implemented in this slice:
 
@@ -164,7 +165,7 @@ When adding or migrating a component, follow this decision order:
 | `NumberInput` | B.C. DS `NumberField` | `BC DS native` | `NumberInput.tsx`. |
 | `DateInput` | B.C. DS `DatePicker` | `BC DS native` | `DateInput.tsx`; Mantine `Date` value via `@internationalized/date`. |
 | `Modal` | B.C. DS `Modal` + `Dialog` | `BC DS native` | `Modal.tsx`; controlled `opened`/`onClose`; width/height on modal shell (`bcds-modal.css`) without overriding BC DS card chrome. Options: `fullBleedBody`, `darkOverlay`, tall layout via `styles.content.height` (`90vh` → `bcds-modal--tall`). Custom title nodes use `bcds-modal-title-custom`. Modal titles render BC DS `Heading` with `slot="title"` for React Aria dialog accessibility; modals without a visible title accept `aria-label`. |
-| `DataTable` | Mantine `Table` | `Mantine fallback` | [`DataTable.tsx`](apps/frontend/src/ui/DataTable.tsx): bordered wrapper, caption, `bcds-mantine-table` tokens |
+| `DataTable` | Mantine `Table` | `Mantine fallback` | [`DataTable.tsx`](../../apps/frontend/src/ui/DataTable.tsx): bordered wrapper, caption, `bcds-mantine-table` tokens |
 | `PanelCard` | Mantine `Paper` | `Application-specific` | `bcds-panel-card` token class |
 | `StatCard` | Mantine `Paper` + `Text` | `Application-specific` | `bcds-stat-card` token class |
 
@@ -192,10 +193,10 @@ When adding or migrating a component, follow this decision order:
 | `Divider` | Yes (`Separator`) | `BC DS native` | Adapter: `Divider.tsx`. |
 | `Progress` | Yes (`ProgressBar`) | `BC DS native` | Adapter: `Progress.tsx`. |
 | `ScrollArea` | No | `Mantine fallback` | Scroll container; no BC DS equivalent. |
-| `Select` | Yes (`Select`) | `BC DS native` | Adapter: `Select.tsx`; `StatusSelect` for queue filter. |
+| `Select` | Yes (`Select`) | `BC DS native` | Adapter: `Select.tsx`; `StatusSelect` remains exported for status-filter patterns (its original Processing Queue consumer was removed). |
 | `Dropzone` | No | `Mantine fallback` | `bcds-mantine-dropzone` + global dropzone token rules. |
 | `Avatar` | No | `Mantine fallback` | No BC DS equivalent. |
-| `rem` | No | `Mantine fallback` | Re-exported from [`spacingUtils.ts`](apps/frontend/src/ui/spacingUtils.ts) (same API as Mantine; no `@mantine/core` in product code). |
+| `rem` | No | `Mantine fallback` | Re-exported from [`spacingUtils.ts`](../../apps/frontend/src/ui/spacingUtils.ts) (same API as Mantine; no `@mantine/core` in product code). |
 | `Container` | No | `Mantine fallback` | Page width constraint. |
 | `TextInput` / `Textarea` | Yes (`TextField` / `TextArea`) | `BC DS native` | Adapters: `TextInput.tsx`, `Textarea.tsx`. |
 | `Tabs` | No | `Mantine fallback` | Tabbed detail views. |
@@ -299,12 +300,12 @@ When a component changes in either Figma or code:
 
 ## Screen migration checklist
 
-Apply this recipe when rolling out beyond the Processing Queue reference. Track per-route status in [BC_DS_SCREEN_MIGRATION_STATUS.md](./BC_DS_SCREEN_MIGRATION_STATUS.md).
+Apply this recipe when migrating a route (the recipe was established on the since-removed Processing Queue reference). Track per-route status in [BC_DS_SCREEN_MIGRATION_STATUS.md](./BC_DS_SCREEN_MIGRATION_STATUS.md).
 
 ### Page shell (top-level route)
 
 - Prefer `PageHeader` from `ui/` (`title`, `description`, optional `actions`, `showDateBadge`).
-- Or manually: `Title` `order={2}` + dimmed `Text` + outline date `Badge` (see `QueuePage.tsx`).
+- Or manually: `Title` `order={2}` + dimmed `Text` + outline date `Badge` (see `PageHeader` call sites such as `TablesListPage.tsx` or `ConfusionProfilesPage.tsx`).
 - `Stack` `gap="lg"` wrapping shell + main content.
 
 ### Main panel
@@ -318,7 +319,7 @@ Apply this recipe when rolling out beyond the Processing Queue reference. Track 
 
 ### Filters
 
-- Use `SearchField` and `StatusSelect` where the queue uses search + status filter; otherwise existing BC DS form adapters from `ui/`.
+- Use `SearchField` (see `TablesListPage.tsx`, `GroupsTable.tsx`) and `StatusSelect` for search + status-filter patterns; otherwise existing BC DS form adapters from `ui/`.
 
 ### Tables
 
@@ -359,13 +360,11 @@ Apply this recipe when rolling out beyond the Processing Queue reference. Track 
 
 ## Reference Screen
 
-The Processing Queue screen is the first migration reference. It maps to the Figma frame `Processing Queue — 1440` in the product design file and exercises global chrome, page headings, stat cards, search, select, table, badges, and row actions.
+The Processing Queue screen was the first migration reference (Figma frame `Processing Queue — 1440`), exercising global chrome, page headings, stat cards, search, select, table, badges, and row actions. That screen has since been removed: `QueuePage.tsx` and `components/queue/ProcessingQueue.tsx` no longer exist, and the `/queue` route was replaced by `/documents` (`pages/DocumentsPage.tsx`), which currently imports Mantine directly and is **not** migrated (see [BC_DS_SCREEN_MIGRATION_STATUS.md](./BC_DS_SCREEN_MIGRATION_STATUS.md)).
 
-Relevant code:
+Surviving reference code:
 
 - `apps/frontend/src/layouts/RootLayout.tsx`
-- `apps/frontend/src/pages/QueuePage.tsx`
-- `apps/frontend/src/components/queue/ProcessingQueue.tsx`
 - `apps/frontend/src/components/upload/DocumentUploadPanel.tsx`
 - `apps/frontend/src/pages/UploadPage.tsx`
 

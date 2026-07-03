@@ -2,7 +2,7 @@
 
 ## Overview
 
-Allows a system admin to approve a pending group membership request. The operation is performed atomically: the user is added to the group and the request status is updated to `APPROVED` in a single database transaction.
+Allows a group admin of the target group or a system admin to approve a pending group membership request. The operation is performed atomically: the user is added to the group and the request status is updated to `APPROVED` in a single database transaction.
 
 ## Endpoint
 
@@ -27,19 +27,22 @@ Allows a system admin to approve a pending group membership request. The operati
 | 200    | Request approved successfully            |
 | 400    | Request is not in `PENDING` state        |
 | 401    | Unauthorized (no valid JWT)              |
+| 403    | Caller is not a group admin of the target group or a system admin |
 | 404    | Membership request not found             |
 | 500    | Internal error; transaction rolled back  |
 
 ## Behaviour
 
-1. The admin's identity is derived from the `sub` claim of the JWT token.
+1. The caller's identity is resolved by the `IdentityGuard` (`req.resolvedIdentity`) from the JWT token.
 2. The service verifies the request exists and is in `PENDING` status.
-3. A single Prisma transaction:
+3. The service verifies the caller is a group admin of the request's group or a system admin (`identityCanAccessGroup` with minimum role `ADMIN`); otherwise `403 Forbidden`.
+4. A single Prisma transaction:
+   - Deletes any prior resolved (non-`PENDING`) request records for the same user+group pair, to satisfy the unique constraint on `(group_id, user_id, status)`.
    - Upserts a `UserGroup` record to add the user to the group.
    - Updates the `GroupMembershipRequest` record with:
      - `status` → `APPROVED`
-     - `actor_id` → admin's user ID
      - `resolved_at` → current timestamp
-     - `updated_by` → admin's user ID
+     - `updated_by` → caller's actor ID
      - `reason` → optional, stored only if provided
-4. If either operation fails, the transaction rolls back and the request remains `PENDING`.
+5. If any operation fails, the transaction rolls back and the request remains `PENDING`.
+6. On success, two audit events are recorded: `membership_request_approved` and `member_added`.

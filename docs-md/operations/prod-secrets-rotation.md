@@ -190,7 +190,8 @@ oc create token deploy-sa -n fd34fb-prod --duration=87600h
 
 The script will:
 - Push the value to GH secrets `OPENSHIFT_TOKEN` and `OPENSHIFT_API_TOKEN`
-  (both point at the same SA; the restore workflow reads the latter).
+  (both point at the same SA; the db-backup/db-restore workflows read the
+  latter).
 - Rewrite `.oc-deploy/token-fd34fb-prod` and `.oc-deploy/token` with the new
   value, preserving the `NAMESPACE` and `SERVER` lines.
 
@@ -217,7 +218,7 @@ Rotating requires editing the `PostgresCluster` `users` field.
 
 - [docs-md/operations/local-dev-secrets.md](local-dev-secrets.md) — local dev override layer
   (same `~/.config/bcgov-di` directory, different files for app runtime).
-- [scripts/oc-deploy.sh](../scripts/oc-deploy.sh) — full deploy that seeds
-  both secrets from `prod.env`.
+- [scripts/oc-deploy-instance.sh](../../scripts/oc-deploy-instance.sh) — full
+  deploy that seeds both secrets from `prod.env`.
 - [scripts/gh-load-secrets.sh](../../scripts/gh-load-secrets.sh) — bulk push of
   non-sensitive config from `prod.env` to GH (separate purpose).

@@ -16,7 +16,8 @@ Allows an authenticated user to request membership to a group. The requesting us
 
 | Status | Description                                      |
 |--------|--------------------------------------------------|
-| `200`  | Request submitted (or silently ignored — see below) |
+| `200`  | Request submitted                                |
+| `400`  | User is already a member, or a `PENDING` request already exists |
 | `401`  | No authenticated user / missing `sub` claim      |
 | `404`  | Group not found                                  |
 
@@ -26,7 +27,8 @@ Allows an authenticated user to request membership to a group. The requesting us
 
 ## Behaviour
 
-- If the user is **already a member** of the group, returns `200` silently — no new record is created.
-- If the user already has a **PENDING** request for the group, returns `200` silently — no duplicate is created.
-- Otherwise, a `GroupMembershipRequest` record is created with `status = PENDING`.
-- `user_id`, `created_by`, and `updated_by` are all set to the requesting user's `sub`.
+- If the user is **already a member** of the group, returns `400 Bad Request` — no new record is created.
+- If the user already has a **PENDING** request for the group, returns `400 Bad Request` — no duplicate is created.
+- Otherwise, any prior resolved (`APPROVED`, `DENIED`, `CANCELLED`) request records for this user+group pair are deleted first (to satisfy the unique constraint on `(group_id, user_id, status)`), then a `GroupMembershipRequest` record is created with `status = PENDING`.
+- `user_id` is set to the requesting user's ID (JWT `sub`); `created_by` and `updated_by` are set to the caller's actor ID.
+- A `membership_request_created` audit event is recorded.

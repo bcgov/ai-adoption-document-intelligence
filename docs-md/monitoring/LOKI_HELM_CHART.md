@@ -4,6 +4,8 @@ Loki is deployed as part of the PLG (Prometheus, Loki, Grafana) observability st
 
 ## Chart Structure
 
+Loki-related files within the chart (the chart also contains Prometheus, Grafana, Alertmanager, and ches-adapter templates — see the other docs in this folder):
+
 ```
 deployments/openshift/helm/plg/
   Chart.yaml                         # Chart metadata
@@ -15,13 +17,6 @@ deployments/openshift/helm/plg/
     loki-configmap.yaml              # Loki server configuration
     loki-statefulset.yaml            # Loki StatefulSet deployment
     loki-service.yaml                # ClusterIP Service for Loki
-    prometheus-configmap.yaml        # Prometheus server configuration
-    prometheus-statefulset.yaml      # Prometheus StatefulSet deployment
-    prometheus-service.yaml          # ClusterIP Service for Prometheus
-    grafana-configmap.yaml           # Grafana server configuration
-    grafana-datasources-configmap.yaml # Pre-provisioned data sources
-    grafana-deployment.yaml          # Grafana Deployment
-    grafana-service.yaml             # ClusterIP Service for Grafana
 ```
 
 ## Configurable Values
@@ -33,7 +28,7 @@ deployments/openshift/helm/plg/
 | `loki.retentionDays` | Log retention period in days | `30` |
 | `loki.pvcSize` | PVC storage size | `10Gi` |
 | `loki.storageClassName` | Storage class (empty = cluster default) | `""` |
-| `loki.resources.requests.memory` | Memory request | `256Mi` |
+| `loki.resources.requests.memory` | Memory request | `256Mi` (OpenShift override: `512Mi`) |
 | `loki.resources.requests.cpu` | CPU request | `500m` |
 | `loki.resources.limits.memory` | Memory limit | `256Mi` (OpenShift override: `2Gi`) |
 | `loki.resources.limits.cpu` | CPU limit | `500m` |
@@ -73,7 +68,7 @@ helm upgrade plg ./deployments/openshift/helm/plg --set loki.retentionDays=14
 
 ## Ingestion Rate Limits
 
-The OpenShift deployment configures ingestion limits to apply back-pressure before Loki exhausts its memory ceiling:
+The Loki configuration (`loki-configmap.yaml`, all environments) sets ingestion limits to apply back-pressure before Loki exhausts its memory ceiling:
 
 | Setting | Value | Purpose |
 |---------|-------|---------|

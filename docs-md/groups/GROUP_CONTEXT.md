@@ -24,6 +24,7 @@ No additional network calls are made.
 interface Group {
   id: string;
   name: string;
+  role?: "ADMIN" | "MEMBER";
 }
 ```
 
@@ -69,6 +70,8 @@ Throws an error if called outside of a `GroupProvider`.
 | `localStorage` has no `activeGroupId`                               | First entry in `availableGroups`   |
 | `localStorage` has an `activeGroupId` that matches a membership     | Matching `Group` object            |
 | `localStorage` has a stale `activeGroupId` (no longer a membership) | First entry in `availableGroups`   |
+
+The active group is re-resolved with the same rules whenever the user's group list changes (e.g. after a fresh `/me` response).
 
 ## Persistence
 

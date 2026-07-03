@@ -20,17 +20,18 @@ Workflows that do not run platform-specific optional tools use `npm install --ig
 
 ### Min-release-age compatibility note
 
-Because QA workflows install with `--no-package-lock`, dependency pins must also satisfy `min-release-age` from `.npmrc` at CI runtime. If a dependency version was published too recently, `npm install` fails with `ETARGET` even when the version exists on npm. For this reason, backend-services currently pins `@nestjs/swagger` to `11.3.2` instead of newer `11.4.x` until it ages past the policy threshold.
+Because QA workflows install with `--no-package-lock`, dependency pins must also satisfy `min-release-age` from `.npmrc` at CI runtime. If a dependency version was published too recently, `npm install` fails with `ETARGET` even when the version exists on npm. For this reason, backend-services pinned `@nestjs/swagger` to `11.3.2` instead of the then-new `11.4.x` (the pin is still `11.3.2`; `11.4.x` has since aged past the threshold and can be bumped normally).
 
 | Workflow | Command |
 |---|---|
 | `backend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
 | `frontend-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
 | `temporal-qa.yml` | `npm install --ignore-scripts --no-package-lock` (root + apps/temporal) |
+| `pages.yml` | `npm install --ignore-scripts --no-package-lock` (root) |
 | `release.yml` | `npm install --ignore-scripts` (root) |
-| `migrate-db.yml` | `npm install --ignore-scripts @changesets/cli` (single tool install) |
+| `deploy-instance.yml` | `npm ci --ignore-scripts` (root, alert-rule generation only) |
 
-`build-apps.yml` builds apps inside Docker containers; the host CI job does not run `npm install`. The npm cache key uses the root `package-lock.json` only.
+`deploy-instance.yml` builds app images inside Docker (buildx); the host job only runs the root install above to generate Prometheus alert rules.
 
 ## Dockerfiles
 
@@ -41,7 +42,8 @@ Dockerfiles do **not** have a lockfile in the build context (monorepo `file:` pa
 | `backend-services` | `npm install --ignore-scripts` | `npm install --omit=dev --ignore-scripts` |
 | `temporal` | `npm install --ignore-scripts` | `npm install --omit=dev --ignore-scripts` |
 | `frontend` | `npm install --ignore-scripts` | n/a (nginx static) |
-| `packages/logging` (build dep) | `npm install --ignore-scripts` + explicit `npm run build` | n/a (pre-built into dist) |
+| `ches-adapter` | `npm install --ignore-scripts` | `npm install --omit=dev --ignore-scripts` |
+| shared packages (build deps: `logging`, `graph-insertion-slots`, `blob-storage-paths`, `graph-workflow`, `monitoring`) | `npm install --ignore-scripts` + explicit `npm run build` (exception: `graph-insertion-slots` runs plain `npm install`) | n/a (pre-built into dist) |
 
 ## Lifecycle Script Exceptions
 
@@ -69,7 +71,7 @@ esbuild: { "postinstall": "node install.js" }
 
 ### cpu-features, ssh2 — no exception needed in CI or Docker
 
-Both are devDependencies of the root workspace (used by `temporal` devtools or testing utilities). Neither appears in any Dockerfile production stage.
+Both arrive transitively via `testcontainers` (a devDependency of `apps/backend-services`, used only in tests). Neither appears in any Dockerfile production stage.
 
 ### lefthook — no exception needed
 
@@ -85,4 +87,4 @@ Installs git hooks on developer machines. Skipping in CI is intentional — git 
 unrs-resolver: { "postinstall": "napi-postinstall unrs-resolver 1.11.1 check" }
 ```
 
-NAPI binary resolver used by Biome (linter). Ships prebuilt binaries as optional packages, same model as esbuild. Works without running postinstall.
+NAPI binary resolver pulled in via Jest (`jest-resolve`). Ships prebuilt binaries as optional packages, same model as esbuild. Works without running postinstall.

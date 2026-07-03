@@ -12,6 +12,7 @@ The `useCreateWorkflow` hook automatically scopes new workflow creation requests
 2. When `mutateAsync` (or `mutate`) is called:
    - If `activeGroup` is `null`, an error is thrown immediately and the API is **not** called.
    - If `activeGroup` is set, its `id` is merged into the request payload as `groupId` before the `POST /workflows` call is made.
+3. On success, the `["workflows"]` TanStack Query cache is invalidated so workflow lists (which are keyed by active group id) refresh.
 
 ## Interface
 

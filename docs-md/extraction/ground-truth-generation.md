@@ -5,7 +5,7 @@
 Ground truth generation is the third pathway for creating dataset ground truth, alongside:
 
 1. **Manual upload** — Upload documents with ground truth files (e.g., PNG + JSON)
-2. **From production HITL** — Import from reviewed production documents
+2. **From production HITL** — Import from reviewed production documents (see [HITL Dataset Creation](./hitl-dataset-creation.md))
 
 This feature allows uploading raw documents without ground truth to a dataset version, running them through an OCR workflow, and then reviewing the results in a dedicated dataset-scoped HITL queue to generate ground truth.
 
@@ -23,6 +23,7 @@ DatasetGroundTruthJob
 ├── workflowVersionId → WorkflowVersion (which workflow version to run)
 ├── temporalWorkflowId
 ├── status           (pending → processing → awaiting_review → completed/failed)
+├── workflowConfigOverrides (optional per-job config overrides)
 ├── groundTruthPath  (blob storage path of generated GT)
 └── error
 ```
@@ -38,8 +39,9 @@ DatasetGroundTruthJob
    b. Create Document record in DB
    c. Copy file to document storage
    d. Start OCR workflow (with confidenceThreshold=0 to skip humanGate)
-5. Workflow runs OCR → stores results → document status = completed_ocr
-6. Job status lazily transitions to awaiting_review
+5. Workflow runs OCR → stores results → document status = extracted
+6. Job status lazily transitions to awaiting_review (or failed if the
+   document or its Temporal workflow ended in a failed state)
 7. Documents appear in dataset-specific HITL queue (NOT production queue)
 8. Reviewer reviews OCR results, makes corrections
 9. On approval: buildGroundTruth() → write to dataset storage → update manifest
@@ -50,7 +52,7 @@ DatasetGroundTruthJob
 
 Production and dataset HITL queues are separated at the database query level:
 
-- **Production queue** (`GET /api/hitl/queue`): Filters `Document WHERE groundTruthJob IS NULL`
+- **Production queue** (`GET /api/hitl/queue`): Filters `Document WHERE source = 'api' AND groundTruthJob IS NULL`
 - **Dataset queue** (`GET /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/review/queue`): Queries `DatasetGroundTruthJob WHERE status = awaiting_review`
 
 Both use the same `ReviewSession` and `FieldCorrection` models for the actual review.
@@ -61,7 +63,8 @@ Both use the same `ReviewSession` and `FieldCorrection` models for the actual re
 
 ```
 POST   /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation
-       Body: { workflowVersionId: string }  // WorkflowVersion.id
+       Body: { workflowVersionId: string,             // WorkflowVersion.id
+               workflowConfigOverrides?: object }     // optional, keyed by exposed-parameter path (e.g. { "ctx.modelId": "prebuilt-layout" })
        Start ground truth generation for samples without GT.
 
 GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/jobs
@@ -82,6 +85,7 @@ GET    /api/benchmark/datasets/:id/versions/:versionId/ground-truth-generation/r
 POST   /api/hitl/sessions                    Start a review session
 POST   /api/hitl/sessions/:id/corrections    Submit corrections
 POST   /api/hitl/sessions/:id/submit         Approve session (triggers GT extraction)
+POST   /api/hitl/sessions/:id/reopen         Reopen session (reverts job to awaiting_review, clears groundTruthPath)
 ```
 
 ## Frontend
@@ -104,8 +108,9 @@ POST   /api/hitl/sessions/:id/submit         Approve session (triggers GT extrac
 - `apps/backend-services/src/benchmark/ground-truth-generation.service.ts` — Core service
 - `apps/backend-services/src/benchmark/ground-truth-generation.controller.ts` — API endpoints
 - `apps/backend-services/src/benchmark/dto/ground-truth-generation.dto.ts` — DTOs
-- `apps/backend-services/src/hitl/hitl.service.ts` — Post-approval hook
-- `apps/backend-services/src/database/review-db.service.ts` — Production queue exclusion filter
+- `apps/backend-services/src/benchmark/ground-truth-job-db.service.ts` — Job persistence/queries
+- `apps/backend-services/src/hitl/hitl.service.ts` — Post-approval and reopen hooks
+- `apps/backend-services/src/hitl/review-db.service.ts` — Production queue exclusion filter
 
 ### Frontend
 - `apps/frontend/src/features/benchmarking/hooks/useGroundTruthGeneration.ts`

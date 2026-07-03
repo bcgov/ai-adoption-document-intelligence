@@ -4,21 +4,24 @@ Prometheus is deployed as part of the PLG (Prometheus, Loki, Grafana) observabil
 
 ## Chart Structure
 
+Prometheus-related files within the chart (the chart also contains Loki, Grafana, Alertmanager, and ches-adapter templates — see the other docs in this folder):
+
 ```
 deployments/openshift/helm/plg/
   Chart.yaml                         # Chart metadata
   values.yaml                        # Default values
   values-local.yaml                  # Local Docker environment overrides
   values-openshift.yaml              # OpenShift environment overrides
+  files/
+    app-alerts.yml                   # Generated alert rules (gitignored; produced by npm run generate:alert-rules)
   templates/
     _helpers.tpl                     # Template helper functions
     prometheus-configmap.yaml        # Prometheus server configuration with scrape targets
+    prometheus-rbac.yaml             # ServiceAccount + Role + RoleBinding for pod service discovery
+    prometheus-rules-configmap.yaml  # Application alert rules ConfigMap (embeds files/app-alerts.yml)
+    prometheus-rule-crd.yaml         # PrometheusRule CRD with infrastructure alerts (OpenShift User Workload Monitoring)
     prometheus-statefulset.yaml      # Prometheus StatefulSet deployment with PVC
     prometheus-service.yaml          # ClusterIP Service for Prometheus
-    grafana-configmap.yaml           # Grafana server configuration
-    grafana-datasources-configmap.yaml # Pre-provisioned data sources
-    grafana-deployment.yaml          # Grafana Deployment
-    grafana-service.yaml             # ClusterIP Service for Grafana
 ```
 
 ## Configurable Values

@@ -20,7 +20,7 @@ The caller must satisfy one of the following:
 
 Group admins (users with role `ADMIN` in `UserGroup`) are also members and therefore have access.
 
-Access is determined from `resolvedIdentity.userId` set by the `IdentityGuard`.
+Access is enforced by the `@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: MEMBER })` guard, which checks `resolvedIdentity.groupRoles` populated by the `IdentityGuard`; system admins bypass the membership check.
 
 ## Response
 
@@ -33,7 +33,8 @@ Returns an array of group member objects.
   {
     "userId": "user-uuid",
     "email": "user@example.com",
-    "joinedAt": "2026-01-01T00:00:00.000Z"
+    "joinedAt": "2026-01-01T00:00:00.000Z",
+    "role": "MEMBER"
   }
 ]
 ```
@@ -43,6 +44,7 @@ Returns an array of group member objects.
 | userId   | string | The user's unique identifier               |
 | email    | string | The user's email address                   |
 | joinedAt | string | ISO 8601 timestamp of when the user joined (from `UserGroup.created_at`) |
+| role     | string | The user's role in the group: `ADMIN` or `MEMBER` |
 
 ### `401 Unauthorized`
 

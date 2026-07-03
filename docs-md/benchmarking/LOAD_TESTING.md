@@ -19,7 +19,7 @@ This document describes how to run bulk data generation and API load tests, how 
 6. **Export** `LOAD_TEST_API_KEY` (and optional `BASE_URL`, `LOAD_TEST_GROUP_ID`).
 7. **Confirm throttling** for sustained scenarios: default backend settings allow **100 requests / 60 s per IP** (`THROTTLE_GLOBAL_LIMIT`). Bundled k6 defaults (1 VU, 1 s sleep) stay under that budget; raise `THROTTLE_GLOBAL_LIMIT` on the backend before multi-VU or zero-think-time stress (see [Global rate limiting](#global-rate-limiting) below).
 8. **Run k6** via `npm run load-test:k6:smoke` (then datasets / documents / upload OCR / blob storage / review HITL scenarios as needed), or run the direct Temporal saturation harness for queue-focused tests.
-9. **Track parameter sweeps** with `npm run load-test:matrix -- <scenario> --vus N --duration STR --seeded-rows N --instance NAME --namespace NAME --notes "..."`. The runner wraps the `npm run load-test:k6:<scenario>` script, parses the resulting `tools/load-testing/results/k6-<scenario>-summary.json`, and appends one row per run to `tools/load-testing/test-matrix.csv` (timestamp, requested params, iterations, throughput, failure rate, p50/p95/max latency, threshold pass, git branch/sha, free-text notes, auto-generated `result_summary`). Use `--no-run` to record an existing summary without re-executing k6. To run every applicable scenario in a single invocation use `npm run load-test:suite -- --instance NAME --namespace NAME --vus N --duration STR` — scenarios whose prerequisites are missing (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, HITL fixtures) are skipped and reported, not failed. Full options: [tools/load-testing/README.md](../../tools/load-testing/README.md#test-matrix-tracker).
+9. **Track parameter sweeps** with `npm run load-test:matrix -- <scenario> --vus N --duration STR --seeded-rows N --instance NAME --namespace NAME --notes "..."`. The runner wraps the `npm run load-test:k6:<scenario>` script, parses the resulting `tools/load-testing/results/k6-<scenario>-summary.json`, and appends one row per run to `tools/load-testing/test-matrix.csv` (timestamp, requested params, iterations, throughput, failure rate, p50/p95/max latency, threshold pass, git branch/sha, free-text notes, auto-generated `result_summary`). Use `--no-run` to record an existing summary without re-executing k6. To run every applicable scenario in a single invocation use `npm run load-test:suite -- --instance NAME --namespace NAME --vus N --duration STR` — when `LOAD_TEST_WORKFLOW_VERSION_ID` or `LOAD_TEST_BLOB_CLASSIFIER_NAME` is unset, the suite auto-provisions the missing workflow version / classifier via `setup-fixtures.sh` (opt out with `--no-auto-fixtures`; provision manually with `eval "$(npm run --silent load-test:setup-fixtures)"`). The review/HITL scenario needs seeded HITL fixtures and the `--include-hitl` flag; scenarios whose prerequisites are still missing are skipped and reported, not failed. Full options: [tools/load-testing/README.md](../../tools/load-testing/README.md#test-matrix-tracker).
 10. **Collect** k6/Temporal harness summary JSON from `tools/load-testing/results/`, database metrics, and pod metrics.
 11. **Clean up** generated rows after the run:
     - `npm run load-test:seed -- --delete-by-prefix --count=0 --group-id=seed-default-group`
@@ -52,7 +52,7 @@ Re-apply the OpenShift patch after redeploying the instance; `oc-deploy-instance
 **Baseline (implemented today)** — aligned with requirements **FR-5**:
 
 - Smoke and paginated benchmark datasets (`npm run load-test:k6:smoke`, `npm run load-test:k6:datasets`).
-- Document list stress (`npm run load-test:k6:documents`) targeting `GET /api/documents` (known hotspot; see [get-all-documents-fixes.md](../../apps/backend-services/src/document/get-all-documents-fixes.md)).
+- Document list stress (`npm run load-test:k6:documents`) targeting `GET /api/documents` (historically a full-table-read hotspot; the endpoint is now paginated — see [get-all-documents-fixes.md](../../apps/backend-services/src/document/get-all-documents-fixes.md) for the original analysis).
 
 The upload/OCR workflow, blob/object storage, and Temporal queue saturation scenarios below extend the baseline suite for **FR-13**. The other extended areas still require separate implementation.
 
@@ -95,7 +95,7 @@ Runtime variables:
 |----------|----------|-------|
 | `LOAD_TEST_API_KEY` | Yes | Sent as `x-api-key`; never commit the value. |
 | `LOAD_TEST_GROUP_ID` | Yes | Disposable group that owns the workflow and generated documents. |
-| `LOAD_TEST_WORKFLOW_VERSION_ID` | Yes | Must be a `WorkflowVersion.id`; the upload path stores it as `workflow_config_id`. |
+| `LOAD_TEST_WORKFLOW_VERSION_ID` | Yes | Sent as `workflow_config_id`; the upload path resolves a `WorkflowVersion.id` (a lineage id is also accepted and resolved to its head version). |
 | `LOAD_TEST_MODEL_ID` | No | Defaults to `prebuilt-layout`. |
 | `LOAD_TEST_VUS`, `LOAD_TEST_DURATION`, `LOAD_TEST_SLEEP_SECONDS` | No | Control sustained submit rate. Start low and scale deliberately. |
 | `LOAD_TEST_RUN_ID` | No | Stored in document metadata for correlation and cleanup. |
@@ -297,11 +297,7 @@ export LOAD_TEST_TEMPORAL_DURATION_SECONDS=300
 npm run load-test:temporal:saturation
 ```
 
-For an OpenShift namespace, port-forward Temporal from the disposable namespace before running the harness:
-
-```bash
-oc -n "$NAMESPACE" port-forward svc/temporal-server 7233:7233
-```
+For an OpenShift namespace, expose the Temporal frontend from the disposable namespace before running the harness. The frontend Service is named `temporal` (`<instance>-temporal` for prefixed instances), and in the Helm-deployed load-test stack it binds to the pod IP only, so a plain `oc port-forward svc/<instance>-temporal 7233:7233` fails with connection refused — use the one-pod socat bridge documented in [MANUAL_LOAD_TEST_INSTANCE.md](../operations/MANUAL_LOAD_TEST_INSTANCE.md#running-temporalsaturation), then point `TEMPORAL_ADDRESS` at the forwarded local port.
 
 Runtime variables:
 
@@ -425,9 +421,9 @@ Use one row per issue, ordered by severity after a run.
 | 1 | | | | |
 | 2 | | | | |
 
-**Known hotspot:** `GET /api/documents` loads all matching rows and may call Temporal per document when `workflow_execution_id` is set and status is `ongoing_ocr` or `completed_ocr` — see [get-all-documents-fixes.md](../../apps/backend-services/src/document/get-all-documents-fixes.md). Seeded load-test rows use `completed_ocr` without `workflow_execution_id` to isolate the full-table read and response mapping cost.
+**Historical hotspot:** `GET /api/documents` used to load all matching rows and call Temporal per document when `workflow_execution_id` was set — see [get-all-documents-fixes.md](../../apps/backend-services/src/document/get-all-documents-fixes.md) for the original analysis. The endpoint is now paginated (`limit` default 50, capped at 200, plus `offset`) and makes no per-document Temporal calls, so the documents k6 scenario exercises the paginated list path (50 rows per request by default). Seeded load-test rows use status `extracted` without `workflow_execution_id`.
 
-**Caution:** At very large row counts, `GET /api/documents` also builds an audit payload listing every document id (`document_list_accessed`), which can add memory and latency beyond the database read itself.
+**Caution:** `GET /api/documents` records one `document_list_accessed` audit event per call; the payload now contains only counts and paging info (not per-document ids), but audit-row volume still grows with request rate during sustained list stress.
 
 ## High availability — configuration gap checklist
 
@@ -435,14 +431,14 @@ Assessment of **current** sample manifests (not a prescription for production wi
 
 | Topic | Finding | References |
 |-------|---------|------------|
-| Backend replicas | `replicas: 1` | [backend-services/deployment.yml](../../deployments/openshift/kustomize/base/backend-services/deployment.yml) |
-| Backend rollout | `strategy: Recreate` — deploy causes full downtime | Same file |
-| Worker replicas | `replicas: 1`, `Recreate` | [temporal-worker-deployment.yml](../../deployments/openshift/kustomize/base/temporal/temporal-worker-deployment.yml) |
-| Temporal server | `replicas: 1` | [temporal-server-deployment.yml](../../deployments/openshift/kustomize/base/temporal/temporal-server-deployment.yml) |
-| PodDisruptionBudget | Not defined in sampled base kustomize | Search `PodDisruptionBudget` under `deployments/openshift` |
-| Postgres HA | Crunchy `instances[0].replicas: 1` — single database instance | [postgrescluster.yml](../../deployments/openshift/kustomize/base/crunchydb/postgrescluster.yml) |
-| Connection pooling | pgBouncer stanza commented out | Same file (`proxy.pgBouncer`) |
-| Backend blob storage | RWO PVC on backend — limits horizontal scale with local disk | [backend-services/deployment.yml](../../deployments/openshift/kustomize/base/backend-services/deployment.yml) (`backend-services-storage`) |
-| Health checks | TCP socket on port 3002 — no HTTP deep health | Same file (`livenessProbe` / `readinessProbe`) |
+| Backend replicas | `replicas: 2` plus HPA (`minReplicas: 2`, `maxReplicas: 5`) | [backend-services/deployment.yml](../../deployments/openshift/kustomize/base/backend-services/deployment.yml), [horizontalpodautoscaler.yml](../../deployments/openshift/kustomize/base/backend-services/horizontalpodautoscaler.yml) |
+| Backend rollout | `strategy: RollingUpdate` (`maxSurge: 1`) — no deploy downtime | Same deployment file |
+| Worker replicas | `replicas: 2`, `RollingUpdate`, HPA (`minReplicas: 2`, `maxReplicas: 4`) | [temporal-worker-deployment.yml](../../deployments/openshift/kustomize/base/temporal/temporal-worker-deployment.yml), [horizontalpodautoscaler-worker.yml](../../deployments/openshift/kustomize/base/temporal/horizontalpodautoscaler-worker.yml) |
+| Temporal server | `replicas: 2` | [temporal-server-deployment.yml](../../deployments/openshift/kustomize/base/temporal/temporal-server-deployment.yml) |
+| PodDisruptionBudget | Defined for backend, Temporal server, and worker (`minAvailable: 1`) | [backend-services/poddisruptionbudget.yml](../../deployments/openshift/kustomize/base/backend-services/poddisruptionbudget.yml), [poddisruptionbudget-server.yml](../../deployments/openshift/kustomize/base/temporal/poddisruptionbudget-server.yml), [poddisruptionbudget-worker.yml](../../deployments/openshift/kustomize/base/temporal/poddisruptionbudget-worker.yml) |
+| Postgres HA | Crunchy `instances[0].replicas: 1` in both the app and Temporal clusters — single database instance each | [crunchydb/postgrescluster.yml](../../deployments/openshift/kustomize/base/crunchydb/postgrescluster.yml), [temporal/postgrescluster.yml](../../deployments/openshift/kustomize/base/temporal/postgrescluster.yml) |
+| Connection pooling | pgBouncer stanza commented out | [crunchydb/postgrescluster.yml](../../deployments/openshift/kustomize/base/crunchydb/postgrescluster.yml) (`proxy.pgBouncer`) |
+| Backend blob storage | `ReadWriteMany` PVC (`netapp-file-standard`) — shared across replicas | [backend-services/pvc.yml](../../deployments/openshift/kustomize/base/backend-services/pvc.yml) (`backend-services-storage`) |
+| Health checks | HTTP probes: `/health/live` (liveness) and `/health/ready` (readiness) on port 3002 | [backend-services/deployment.yml](../../deployments/openshift/kustomize/base/backend-services/deployment.yml) (`livenessProbe` / `readinessProbe`) |
 
 **Overlay:** For load-test namespaces only, you may patch the Temporal worker ConfigMap to set `MOCK_AZURE_OCR: "true"` without changing shared secrets for Azure (submit/poll still skip live calls when mock is enabled).

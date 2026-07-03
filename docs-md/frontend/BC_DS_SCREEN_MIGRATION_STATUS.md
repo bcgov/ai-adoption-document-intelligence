@@ -4,7 +4,7 @@ Track queue-pattern rollout per route. Reference: [BC_DESIGN_SYSTEM_MIGRATION.md
 
 | Route | Page / entry | Status | Notes |
 |-------|----------------|--------|-------|
-| `/queue` | QueuePage + ProcessingQueue | Done | Figma reference (US-004) |
+| `/documents` | DocumentsPage | Not migrated | Replaced `/queue` (QueuePage + ProcessingQueue, the US-004 Figma reference, were removed); imports `@mantine/core` / `@mantine/notifications` directly |
 | `/` | UploadPage + DocumentUploadPanel | Done | Panel composite + page shell |
 | `/review` | ReviewQueuePage | Done | StatCard, PanelCard, DataTable |
 | `/workflows` | WorkflowListPage | Done | PanelCard, DataTable |
@@ -17,6 +17,7 @@ Track queue-pattern rollout per route. Reference: [BC_DESIGN_SYSTEM_MIGRATION.md
 | `/template-models/.../document/:id` | LabelingWorkspacePage | Done | Toolbar polish only |
 | `/classify` | ClassifierPage | Done | |
 | `/settings` | SettingsPage | Done | |
+| `/confusion-profiles` | ConfusionProfilesPage | Done | PageHeader + ui adapters |
 | `/review/:sessionId` | ReviewWorkspacePage | Done | Toolbar IconActionButton |
 | `/workflows/create`, `.../edit` | WorkflowEditorPage | Done | Shell only |
 | `/benchmarking/datasets` | DatasetListPage | Done | |
@@ -35,3 +36,5 @@ Track queue-pattern rollout per route. Reference: [BC_DESIGN_SYSTEM_MIGRATION.md
 | — | DocumentViewerModal, DocumentDetailDrawer | Done | DataTable field grids |
 
 **Not routed:** `WorkflowPage.tsx`, `WorkflowEditPage.tsx` — unchanged unless routes re-enabled.
+
+**Non-adapter exceptions:** `DocumentsPage.tsx` (above) and `RouterErrorPage.tsx` (router `errorElement`) import `@mantine/core` directly.

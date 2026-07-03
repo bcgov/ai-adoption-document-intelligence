@@ -4,6 +4,8 @@ Grafana is deployed as part of the PLG (Prometheus, Loki, Grafana) observability
 
 ## Chart Structure
 
+Grafana-related files within the chart (the chart also contains Loki, Prometheus, Alertmanager, and ches-adapter templates — see the other docs in this folder):
+
 ```
 deployments/openshift/helm/plg/
   Chart.yaml                         # Chart metadata
@@ -12,13 +14,16 @@ deployments/openshift/helm/plg/
   values-openshift.yaml              # OpenShift environment overrides
   dashboards/
     application-overview.json        # Application Overview Grafana dashboard JSON
+    logs-explorer.json               # Logs Explorer Grafana dashboard JSON
+    nodejs-runtime.json              # Node.js Runtime Grafana dashboard JSON
   templates/
     _helpers.tpl                     # Template helper functions
     grafana-configmap.yaml           # Grafana server configuration (grafana.ini)
     grafana-dashboard-provisioner-configmap.yaml # Dashboard provisioning configuration
     grafana-dashboards-configmap.yaml # Dashboard JSON files as ConfigMap data
     grafana-datasources-configmap.yaml # Pre-provisioned data sources (Prometheus + Loki)
-    grafana-deployment.yaml          # Grafana Deployment (stateless)
+    grafana-deployment.yaml          # Grafana Deployment (PVC-backed, Recreate strategy)
+    grafana-pvc.yaml                 # PVC for the Grafana SQLite database and alert history
     grafana-service.yaml             # ClusterIP Service for Grafana
 ```
 
@@ -31,10 +36,12 @@ deployments/openshift/helm/plg/
 | `grafana.adminUser` | Grafana admin username | `admin` |
 | `grafana.adminPassword` | Grafana admin password (override via `GRAFANA_ADMIN_PASSWORD`) | `admin` |
 | `grafana.resources.requests.memory` | Memory request | `256Mi` |
-| `grafana.resources.requests.cpu` | CPU request | `250m` |
-| `grafana.resources.limits.memory` | Memory limit | `256Mi` |
-| `grafana.resources.limits.cpu` | CPU limit | `250m` |
+| `grafana.resources.requests.cpu` | CPU request | `250m` (OpenShift override: `100m`) |
+| `grafana.resources.limits.memory` | Memory limit | `256Mi` (OpenShift override: `512Mi`) |
+| `grafana.resources.limits.cpu` | CPU limit | `250m` (OpenShift override: `500m`) |
 | `grafana.httpPort` | HTTP listen port | `3001` |
+| `grafana.pvcSize` | PVC size for the Grafana SQLite database and alert history | `1Gi` |
+| `grafana.storageClassName` | Storage class (empty = cluster default) | `""` |
 
 ## Pre-Configured Data Sources
 
@@ -80,6 +87,14 @@ Provides an at-a-glance view of application health with four panels:
 
 The dashboard uses Grafana template variables (`prometheus_datasource` and `loki_datasource`) to reference the provisioned Prometheus and Loki data sources, making it portable across environments. Auto-refresh is set to 30 seconds with a default time range of 1 hour.
 
+### Logs Explorer Dashboard
+
+**File**: `dashboards/logs-explorer.json` — a Loki-backed log search and filtering dashboard. See [LOGS_EXPLORER_DASHBOARD.md](LOGS_EXPLORER_DASHBOARD.md).
+
+### Node.js Runtime Dashboard
+
+**File**: `dashboards/nodejs-runtime.json` — Node.js process runtime metrics collected by `prom-client` default metrics. See [NODEJS_RUNTIME_DASHBOARD.md](NODEJS_RUNTIME_DASHBOARD.md).
+
 ### Adding New Dashboards
 
 To add a new dashboard:
@@ -105,10 +120,10 @@ Sign-up is disabled. Only the configured admin account can log in by default.
 
 ## Network Access
 
-Grafana is deployed as a ClusterIP service and is not exposed via an OpenShift Route. Developers access it via port-forwarding, following the same pattern used for the Temporal UI:
+Grafana is deployed as a ClusterIP service and is not exposed via an OpenShift Route. Developers access it via port-forwarding, following the same pattern used for the Temporal UI. The service is named `<release>-grafana`; CI-deployed releases are named `<instance>-plg`, so:
 
 ```bash
-kubectl port-forward svc/<release>-plg-grafana 3001:3001 -n <namespace>
+oc port-forward svc/<instance>-plg-grafana 3001:3001 -n <namespace>
 ```
 
 Then open `http://localhost:3001` in a browser.
@@ -143,7 +158,8 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 
 ## Architecture Notes
 
-- Grafana runs as a single-replica Deployment (not a StatefulSet) because it does not require persistent storage for this use case.
+- Grafana runs as a single-replica Deployment (not a StatefulSet). Its SQLite database and alert history are stored on a `ReadWriteOnce` PVC (`grafana-pvc.yaml`) mounted at `/var/lib/grafana`.
+- The Deployment uses `strategy: Recreate` so the old pod releases the RWO volume before the new pod starts, avoiding `Multi-Attach` errors during upgrades.
 - Data sources are provisioned via Grafana's file-based provisioning mechanism using ConfigMaps mounted into `/etc/grafana/provisioning/datasources`.
 - The admin password is passed via the `GF_SECURITY_ADMIN_PASSWORD` environment variable.
 - Config changes trigger automatic pod restarts via `checksum/config`, `checksum/datasources`, `checksum/dashboards`, and `checksum/dashboard-provisioner` annotations on the Deployment pod template.

@@ -9,7 +9,7 @@ The Temporal UI is deployed as part of each instance but is **not publicly expos
 ### Prerequisites
 
 - `oc` CLI installed and authenticated
-- Deployment token exists (`.oc-deploy/token`, created by `oc-setup-sa.sh`)
+- Deployment token exists (`.oc-deploy/token-<namespace>`, plus a default copy at `.oc-deploy/token`, created by `./scripts/oc-setup-sa.sh --namespace <namespace>`)
 
 ### Port-Forward Command
 
@@ -34,15 +34,24 @@ oc port-forward deployment/feature-deployment-f-temporal-ui 9090:8080 -n fd34fb-
 # Then open http://localhost:9090
 ```
 
-### Using the Service Account
+### Production helper script
 
-If you're using the deployment service account instead of your personal account:
+For the `bcgov-di` instance in `fd34fb-prod`, `scripts/oc-port-forward-prod.sh` wraps the above and forwards both internal-only services in one command — Temporal UI on `localhost:47080` and Grafana on `localhost:47030`:
 
 ```bash
-# Read credentials from token file
-source <(grep -E '^(SERVER|TOKEN|NAMESPACE)=' .oc-deploy/token)
-oc login "${SERVER}" --token="${TOKEN}" --insecure-skip-tls-verify=true
-oc port-forward deployment/<instance-name>-temporal-ui 8080:8080 -n "${NAMESPACE}"
+./scripts/oc-port-forward-prod.sh                  # both services
+./scripts/oc-port-forward-prod.sh --only temporal  # Temporal UI only
+./scripts/oc-port-forward-prod.sh --temporal-port 18080
+```
+
+### Using the Service Account
+
+If you're using the deployment service account instead of your personal account, log in with the stored token via the helper script, then port-forward:
+
+```bash
+./scripts/oc-login-sa.sh --namespace <namespace>   # reads .oc-deploy/token-<namespace>
+# or ./scripts/oc-login-sa.sh                      # uses the default .oc-deploy/token
+oc port-forward deployment/<instance-name>-temporal-ui 8080:8080 -n <namespace>
 ```
 
 ## Why No Public Route?

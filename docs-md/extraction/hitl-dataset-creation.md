@@ -26,7 +26,7 @@ The `HitlDatasetService` bridges the two systems by:
 ## Eligibility
 
 A document is eligible for dataset creation when:
-- Status is `completed_ocr`
+- Status is `complete` (documents transition to `complete` after HITL approval)
 - Has at least one `ReviewSession` with status `approved`
 
 When a document has multiple approved sessions, the most recent one (by `completed_at`) is used.
@@ -37,14 +37,14 @@ For each selected document, corrections from the approved review session are app
 
 | Correction Action | Effect |
 |---|---|
-| `confirmed` | Keep original field value, set confidence to 1.0 |
-| `corrected` | Update field content with corrected value, set confidence to 1.0 |
+| `confirmed` | Keep original field value |
+| `corrected` | Replace field content with the corrected value (typed values are cleared so flattening resolves to the corrected content); fields added during review that were not in the original OCR are included |
 | `deleted` | Remove field from ground truth |
-| `flagged` | Keep field as-is, set confidence to 1.0 |
+| `flagged` | Keep field as-is |
 
-The output is in `ExtractedFields` format (same structure as OCR output) for compatibility with existing evaluators.
+The corrected `ExtractedFields` structure is then flattened to simple key-value pairs (see [Dataset Storage Format](#dataset-storage-format)).
 
-Pseudo-fields (e.g., `_escalation`) are skipped during ground truth construction.
+Pseudo-fields (any field key starting with `_`, e.g. `_escalation`) are skipped during ground truth construction.
 
 ## API Endpoints
 
@@ -55,6 +55,7 @@ GET /api/benchmark/datasets/from-hitl/eligible-documents
   ?page=1
   &limit=20
   &search=invoice
+  &group_id=...   (optional; defaults to all groups the caller can access)
 ```
 
 Returns paginated list of documents with approved HITL sessions, including filename, file type, approval date, reviewer, field count, and correction count.
@@ -66,6 +67,7 @@ POST /api/benchmark/datasets/from-hitl
 {
   "name": "My Dataset",
   "description": "Created from verified documents",
+  "groupId": "group-id",
   "documentIds": ["doc-id-1", "doc-id-2"]
 }
 ```
@@ -83,7 +85,7 @@ POST /api/benchmark/datasets/:id/versions/from-hitl
 }
 ```
 
-Adds a new version to an existing dataset.
+Adds a new version to an existing dataset. `version` and `name` are optional; the version label is auto-generated if omitted.
 
 ## Dataset Storage Format
 

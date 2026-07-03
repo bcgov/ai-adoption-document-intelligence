@@ -4,7 +4,7 @@ This document describes how group membership is enforced when creating or access
 
 ## Overview
 
-When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `TemplateModel`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
+When a user or API key creates or accesses a top-level or sub-resource (`Document`, `Workflow`, `TemplateModel`, `LabelingDocument`, `FieldDefinition`, `DocumentLabel`, `TrainingJob`, `TrainedModel`, `ReviewSession`, `Dataset`, `BenchmarkProject`, `ClassifierModel`, `ConfusionProfile`, `ReferenceTable`, or their child resources), the system verifies that the requestor belongs to the resource's group before allowing the operation to proceed. This prevents resources from being created, read, updated, or deleted by users not authorized to access the group.
 
 ## How to add a group
 
@@ -32,9 +32,10 @@ A system admin can create a group with `POST /api/groups` and body `{ "name": "G
 
 ## Enforcement Location
 
-Group membership checks are performed in the **controller layer** before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling.
+Group membership is enforced through two mechanisms, both at the HTTP boundary:
 
-The shared helper used for all checks is `identityCanAccessGroup` from `src/auth/identity.helpers.ts`.
+1. **Declarative** — when the group ID is present directly in the request (route param, query param, or body field), the controller method declares it via `@Identity({ groupIdFrom: { param | query | body }, minimumRole? })` and `IdentityGuard` performs the membership/role check before the handler runs. Most creation endpoints use this (e.g. `POST /api/template-models`, `POST /api/api-key`, `POST /api/benchmark/projects`, `POST /api/benchmark/datasets`).
+2. **Imperative** — when the group ID must be derived from a fetched resource, the controller calls `identityCanAccessGroup` from `apps/backend-services/src/auth/identity.helpers.ts` before delegating to the service. This keeps authorization concerns at the HTTP boundary while keeping service methods reusable without identity coupling. (A few service methods also call the helper directly where the resource lookup lives in the service: group membership-request approval/denial in `GroupService`, and labeling-document suggestion generation in `TemplateModelService`.)
 
 ## Covered Endpoints
 
@@ -52,6 +53,11 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | BenchmarkProject | `POST /api/benchmark/projects` | `BenchmarkProjectController.createProject` |
 | Dataset | `POST /api/benchmark/datasets` | `DatasetController.createDataset` |
 | Dataset (HITL) | `POST /api/benchmark/datasets/from-hitl` | `HitlDatasetController.createDatasetFromHitl` |
+| ClassifierModel | `POST /api/azure/classifier` (and related `PATCH`/`POST .../documents`/`POST .../train`) | `AzureController.*` |
+| ConfusionProfile | `POST /api/groups/:groupId/confusion-profiles` and `POST .../derive` | `ConfusionProfileController.*` |
+| ReferenceTable | `POST /api/tables` | `TablesController.createTable` |
+
+All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateModel`, `LabelingDocument` (upload), `ApiKey` (generate), `BenchmarkProject`, and `Dataset` creation use the declarative `@Identity({ groupIdFrom: ... })` check; the others call `identityCanAccessGroup` in the handler. `POST /api/upload` treats `group_id` as optional for API-key callers — see [Request DTOs](#request-dtos).
 
 ### Resource Read / Update / Delete (group derived from fetched resource)
 
@@ -60,9 +66,13 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | Document | `GET /api/documents/:id` | `DocumentController.getDocument` |
 | Document | `PATCH /api/documents/:id` | `DocumentController.updateDocument` |
 | Document | `DELETE /api/documents/:id` | `DocumentController.deleteDocument` |
+| Document | `GET /api/documents/:id/ocr` / `/view` / `/download` / `/thumbnail` | `DocumentController.*` |
+| Document | `POST /api/documents/:id/approve` | `DocumentController.approveDocument` |
 | Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
 | Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
 | Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
+| Workflow | `GET /api/workflows/:id/versions` | `WorkflowController.listVersions` |
+| Workflow | `POST /api/workflows/:id/revert-head` | `WorkflowController.revertHead` |
 | TemplateModel | `GET /api/template-models/:id` | `TemplateModelController.getTemplateModel` |
 | TemplateModel | `PUT /api/template-models/:id` | `TemplateModelController.updateTemplateModel` |
 | TemplateModel | `DELETE /api/template-models/:id` | `TemplateModelController.deleteTemplateModel` |
@@ -75,7 +85,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | LabelingDocument | `POST /api/template-models/:id/documents/:docId/labels` | `TemplateModelController.saveDocumentLabels` |
 | LabelingDocument | `DELETE /api/template-models/:id/documents/:docId/labels/:labelId` | `TemplateModelController.deleteLabel` |
 | LabelingDocument | `GET /api/template-models/:id/documents/:docId/ocr` | `TemplateModelController.getDocumentOcr` |
+| LabelingDocument | `POST /api/template-models/:id/documents/:docId/suggestions` | `TemplateModelController.generateDocumentSuggestions` (check in `TemplateModelService`) |
 | TemplateModel | `GET /api/template-models/:id/documents` | `TemplateModelController.getTemplateModelDocuments` |
+| TemplateModel | `POST /api/template-models/:id/suggest-formats` | `TemplateModelController.suggestFormats` |
 | FieldDefinition | `GET /api/template-models/:id/fields` | `TemplateModelController.getFieldSchema` |
 | FieldDefinition | `POST /api/template-models/:id/fields` | `TemplateModelController.addField` |
 | FieldDefinition | `PUT /api/template-models/:id/fields/:fieldId` | `TemplateModelController.updateField` |
@@ -97,6 +109,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/escalate` | `HitlController.escalateSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/heartbeat` | `HitlController.heartbeat` |
+| ReviewSession | `POST /api/hitl/sessions/:id/reopen` | `HitlController.reopenSession` |
+| ReviewSession | `DELETE /api/hitl/sessions/:id/corrections/:correctionId` | `HitlController.deleteCorrection` |
 | BenchmarkProject | `GET /api/benchmark/projects` | `BenchmarkProjectController.listProjects` |
 | BenchmarkProject | `GET /api/benchmark/projects/:id` | `BenchmarkProjectController.getProjectById` |
 | BenchmarkProject | `DELETE /api/benchmark/projects/:id` | `BenchmarkProjectController.deleteProject` |
@@ -112,6 +127,9 @@ The shared helper used for all checks is `identityCanAccessGroup` from `src/auth
 | Dataset (HITL) | `POST /api/benchmark/datasets/:id/versions/from-hitl` | `HitlDatasetController.addVersionFromHitl` |
 | BenchmarkDefinition | `POST/GET/PUT/DELETE /api/benchmark/projects/:pid/definitions/**` | `BenchmarkDefinitionController.*` |
 | BenchmarkRun | `POST/GET/DELETE /api/benchmark/projects/:pid/runs/**` | `BenchmarkRunController.*` |
+| ClassifierModel | `GET/POST/PATCH/DELETE /api/azure/classifier/**` (group from query/body) and `DELETE /api/azure/classifiers/:groupId/:classifierName` | `AzureController.*` |
+| ConfusionProfile | `POST/GET/PATCH/DELETE /api/groups/:groupId/confusion-profiles/**` (group from route param) | `ConfusionProfileController.*` |
+| ReferenceTable | `GET/POST/PATCH/DELETE /api/tables/**` (table/column/lookup mutations require `GroupRole.ADMIN`; row reads/writes require `MEMBER`) | `TablesController.*` |
 
 For read/update/delete endpoints, the resource is fetched first to obtain its `group_id`, and then `identityCanAccessGroup` is called with that value before the operation continues.
 
@@ -127,6 +145,10 @@ For `BenchmarkDefinition` and `BenchmarkRun` endpoints (accessed via `/api/bench
 
 For `Dataset` sub-resource endpoints (versions, splits, samples, ground truth, freeze), the parent `Dataset` is fetched and its `group_id` is checked before proceeding.
 
+### List Endpoints
+
+List endpoints (e.g. `GET /api/documents`, `GET /api/workflows`, `GET /api/template-models`, `GET /api/benchmark/projects`) accept an optional `group_id` query parameter. When provided, `identityCanAccessGroup` validates access to that group and results are scoped to it. When omitted, results are filtered to the identity's accessible groups via `getIdentityGroupIds` (same helper file) — system admins receive results across all groups, API keys are scoped to their key's group, and unauthenticated identities get nothing.
+
 ## Authorization Logic
 
 The `identityCanAccessGroup(identity, groupId, minimumRole?)` helper performs the following checks using the pre-populated `resolvedIdentity` (no additional database queries):
@@ -134,16 +156,18 @@ The `identityCanAccessGroup(identity, groupId, minimumRole?)` helper performs th
 1. If `groupId` is `null` (orphaned record with no group assignment), throws `404 Not Found`. This prevents leaking the existence of orphaned records to any caller, regardless of identity.
 2. If `identity` is `undefined`, throws `403 Forbidden`.
 3. If `identity.isSystemAdmin` is `true`, access is always allowed (system admins bypass group checks).
-4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` from parallel DB queries for JWT, or directly from the key's scope for API keys).
-5. If `minimumRole` is specified, checks that the identity's role within the group meets the minimum (e.g., `MEMBER` < `ADMIN`). Throws `403 Forbidden` if insufficient.
+4. Checks `identity.groupRoles` for the requested `groupId`. If the group is not present, throws `403 Forbidden`. This applies to both JWT and API key identities — both use the same `groupRoles` map (populated by `IdentityGuard` via a `findUserWithGroups` DB lookup for JWT, or directly from the key's scoped group with role `MEMBER` for API keys).
+5. Checks that the identity's role within the group meets `minimumRole` (default `GroupRole.MEMBER`; role order `MEMBER` < `ADMIN`, see `src/auth/role-order.ts`). Throws `403 Forbidden` if insufficient.
 
 ## Request DTOs
 
-All creation DTOs include a required `group_id` (or `groupId`) field. A missing or empty value results in a `400 Bad Request` response enforced by class-validator before the controller logic is reached.
+All creation DTOs include a `group_id` (or `groupId`) field. Except for `UploadDocumentDto`, the field is required — a missing or empty value results in a `400 Bad Request` response enforced by class-validator before the controller logic is reached.
+
+`UploadDocumentDto.group_id` is optional for API-key callers: when omitted, the group is inferred from the key's scoped group. If both are present and disagree, the controller throws `403 Forbidden`; if neither is available (JWT caller with no `group_id`), it throws `400 Bad Request`.
 
 | DTO | Field |
 |---|---|
-| `UploadDocumentDto` | `group_id` |
+| `UploadDocumentDto` | `group_id` (optional with API key) |
 | `CreateWorkflowDto` | `groupId` |
 | `CreateTemplateModelDto` | `group_id` |
 | `LabelingUploadDto` | `group_id` |
@@ -156,8 +180,8 @@ All creation DTOs include a required `group_id` (or `groupId`) field. A missing 
 
 | Status | Condition |
 |---|---|
-| `400 Bad Request` | `group_id` is missing or empty in the request body |
-| `403 Forbidden` | Requestor identity is absent, or identity does not belong to the specified group |
+| `400 Bad Request` | `group_id` is missing or empty in the request body (for `POST /api/upload`, only when no API-key group can be inferred) |
+| `403 Forbidden` | Requestor identity is absent, identity does not belong to the specified group, or the identity's role is below the endpoint's `minimumRole` |
 | `404 Not Found` | The fetched resource has `group_id = null` (orphaned record) — returned to all non-system-admin callers |
 
 ## Auditing

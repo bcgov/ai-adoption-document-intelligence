@@ -10,11 +10,12 @@ When the application is deployed for the first time, there are no system adminis
 2. The `NoGroupGuard` redirects them to `/request-membership` (no groups exist)
 3. The `RequestMembershipPage` checks bootstrap status via `GET /api/bootstrap/status`
 4. If bootstrap is needed (zero system admins), the **Setup page** is shown instead of the membership request form
-5. If the logged-in user's email matches `BOOTSTRAP_ADMIN_EMAIL`, a **Setup** button is displayed
-6. Clicking Setup calls `POST /api/bootstrap`, which:
+5. If the logged-in user's email matches `BOOTSTRAP_ADMIN_EMAIL`, a **Setup** button is displayed (ineligible users see a warning telling them to contact the deployer)
+6. Clicking Setup calls `POST /api/bootstrap`, which (in a single transaction):
    - Promotes the user to system admin (`is_system_admin = true`)
-   - Creates a "Default" group
+   - Creates a "Default" group (an upsert — safe if seed data already defines "Default")
    - Assigns the user as group admin of the Default group
+   - Records a `system_bootstrap` audit event
 7. The page redirects to `/` and the user sees the main application
 
 ## Configuration
@@ -25,7 +26,7 @@ Set the `BOOTSTRAP_ADMIN_EMAIL` environment variable in your deployment config:
 BOOTSTRAP_ADMIN_EMAIL=deployer@example.com
 ```
 
-This is added to the backend ConfigMap via the kustomize overlay and is available as a backend environment variable.
+This is added to the backend ConfigMap via the kustomize overlay (`deployments/openshift/kustomize/overlays/instance-template/kustomization.yml`, sourced from the `config/*.env` files) and is available as a backend environment variable. For local development, `docker-compose.yml` passes `BOOTSTRAP_ADMIN_EMAIL` through to the backend container.
 
 ## Security
 

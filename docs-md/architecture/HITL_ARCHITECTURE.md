@@ -30,14 +30,16 @@ The term "session" emphasizes this is a **temporary, interactive state** rather 
 
 ```prisma
 model ReviewSession {
-  id              String           @id @default(cuid())
-  document_id     String
-  document        Document         @relation(fields: [document_id], references: [id], onDelete: Cascade)
-  reviewer_id     String
-  status          ReviewStatus     @default(in_progress)
-  started_at      DateTime         @default(now())
-  completed_at    DateTime?
-  corrections     FieldCorrection[]
+  id           String            @id @default(cuid())
+  document_id  String
+  document     Document          @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  actor_id     String
+  actor        Actor             @relation(fields: [actor_id], references: [id])
+  status       ReviewStatus      @default(in_progress)
+  started_at   DateTime          @default(now())
+  completed_at DateTime?
+  corrections  FieldCorrection[]
+  lock         DocumentLock?
 
   @@map("review_sessions")
 }
@@ -100,7 +102,7 @@ Document locks prevent concurrent editing:
 
 ### Key Relationships
 
-- **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state
+- **ReviewSession** is the parent entity linking document, reviewer, and lifecycle state. The reviewer is stored as `actor_id` referencing the `Actor` model (the API layer still exposes it as `reviewerId`); `DocumentLock` keeps a plain `reviewer_id` string
 - **FieldCorrection** records are children - one per field interaction
 - **DocumentLock** is a one-to-one relation on both Document and ReviewSession, preventing concurrent edits
 - **Cascade delete**: Deleting a session automatically deletes all its corrections and lock
@@ -132,7 +134,7 @@ in_progress
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, releases lock |
+| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock |
 | `in_progress` | `escalated` | `POST /sessions/:id/escalate` | Sets `completed_at`, stores reason, releases lock |
 | `in_progress` | `skipped` | `POST /sessions/:id/skip` | Sets `completed_at`, releases lock |
 | `approved`/`escalated`/`skipped` | `in_progress` | `POST /sessions/:id/reopen` | Clears `completed_at`, re-acquires lock |
@@ -186,14 +188,10 @@ HitlController.startSession()
       ↓
 HitlService.startSession(documentId, reviewerId)
       ↓
-ReviewDbService.createReviewSession({
-  document_id: documentId,
-  reviewer_id: reviewerId,
-  status: 'in_progress',
-  started_at: new Date()
-})
+ReviewDbService.createReviewSession(documentId, reviewerId)
       ↓
 INSERT INTO review_sessions (...)
+  (status = 'in_progress', started_at = now)
       ↓
 Returns: {
   session: { id, status, started_at, ... },
@@ -234,8 +232,7 @@ HitlController.submitCorrections()
 HitlService.submitCorrections()
       ↓
 For each correction:
-  ReviewDbService.createFieldCorrection({
-    session_id: sessionId,
+  ReviewDbService.createFieldCorrection(sessionId, {
     field_key: correction.field_key,
     original_value: correction.original_value,
     corrected_value: correction.corrected_value,
@@ -263,9 +260,14 @@ SET status = 'approved',
     completed_at = NOW()
 WHERE id = :id
       ↓
+Document status set to 'complete'
+      ↓
+Lock released; if the document belongs to a
+ground truth generation job, that job is completed
+      ↓
 Invalidate query cache
       ↓
-Navigate back to queue
+Navigate back to queue (or auto-advance)
 ```
 
 #### Escalate Path
@@ -279,7 +281,7 @@ POST /api/hitl/sessions/:id/escalate
    INSERT INTO field_corrections (
      session_id,
      field_key = "_escalation",
-     corrected_value = reason,
+     original_value = reason,
      action = 'flagged'
    )
 
@@ -337,6 +339,7 @@ WHERE id = :id
 
 ### Query Parameters for `/api/hitl/queue`
 
+- `status` (enum): Document status filter — `extracted` (default) | `all` (also includes `awaiting_review` documents)
 - `modelId` (string): Filter by OCR model used
 - `maxConfidence` (number): Show documents below this confidence (default: 0.9)
 - `reviewStatus` (enum): `pending` | `reviewed` | `all`
@@ -360,14 +363,14 @@ WHERE id = :id
 
 ### Key Components
 
-**[ReviewQueuePage.tsx](../apps/frontend/src/features/hitl/components/ReviewQueuePage.tsx)**
+**[ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)**
 - Displays list of documents requiring review
 - Filters by model, confidence threshold, review status
 - Shows queue statistics (pending count, reviewed count)
 - Includes last session info for each document
 - "Review" button starts new session
 
-**[ReviewWorkspacePage.tsx](../apps/frontend/src/features/hitl/components/ReviewWorkspacePage.tsx)**
+**[ReviewWorkspacePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx)**
 - Main review interface for active session
 - Side-by-side view: document image + extracted fields
 - Fields panel search/filter for quick field lookup during review
@@ -377,14 +380,14 @@ WHERE id = :id
 
 ### Key Hooks
 
-**[useReviewQueue.ts](../apps/frontend/src/features/hitl/hooks/useReviewQueue.ts)**
+**[useReviewQueue.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useReviewQueue.ts)**
 - Manages queue data fetching and filters
 - Consumes `GroupContext` via `useGroup()` — automatically scopes queue and stats requests to `activeGroup.id` when set
 - `startSessionAsync(documentId)`: Creates new session
 - Handles queue statistics
 - React Query integration for caching; both `queueQuery` and `statsQuery` keys include `activeGroupId` so switching groups triggers automatic re-fetches
 
-**[useReviewSession.ts](../apps/frontend/src/features/hitl/hooks/useReviewSession.ts)**
+**[useReviewSession.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useReviewSession.ts)**
 - Manages active session state
 - `submitCorrectionsAsync(corrections)`: Saves field corrections
 - `approveSessionAsync()`: Completes session as approved
@@ -406,10 +409,10 @@ WHERE id = :id
 - Orchestrates database operations
 - Enforces business rules (e.g., one session per document at a time)
 
-**[database.service.ts](../apps/backend-services/src/database/database.service.ts)**
-- Data access layer using Prisma
-- Query builders for complex filtering
-- Transaction management
+**[review-db.service.ts](../../apps/backend-services/src/hitl/review-db.service.ts)**
+- HITL data access layer using Prisma
+- Query builders for complex filtering (queue, locks, corrections, field definitions)
+- Optional transaction client support for atomic operations
 
 ## Additional Features
 
@@ -431,7 +434,7 @@ Escalation is a special workflow path for complex cases:
 1. Reviewer clicks "Escalate" and provides a reason
 2. System creates a field correction with:
    - `field_key = "_escalation"`
-   - `corrected_value = reason`
+   - `original_value = reason`
    - `action = 'flagged'`
 3. Session status becomes `escalated`
 4. Document appears in "escalated" queue for expert review
@@ -481,13 +484,13 @@ The system tracks metrics for:
 ### Backend
 - **Controller**: [apps/backend-services/src/hitl/hitl.controller.ts](../../apps/backend-services/src/hitl/hitl.controller.ts)
 - **Service**: [apps/backend-services/src/hitl/hitl.service.ts](../../apps/backend-services/src/hitl/hitl.service.ts)
-- **Database Service**: [apps/backend-services/src/database/database.service.ts](../apps/backend-services/src/database/database.service.ts)
+- **Review DB Service**: [apps/backend-services/src/hitl/review-db.service.ts](../../apps/backend-services/src/hitl/review-db.service.ts)
 
 ### Frontend
-- **Queue Page**: [apps/frontend/src/features/hitl/components/ReviewQueuePage.tsx](../apps/frontend/src/features/hitl/components/ReviewQueuePage.tsx)
-- **Workspace Page**: [apps/frontend/src/features/hitl/components/ReviewWorkspacePage.tsx](../apps/frontend/src/features/hitl/components/ReviewWorkspacePage.tsx)
-- **Queue Hook**: [apps/frontend/src/features/hitl/hooks/useReviewQueue.ts](../apps/frontend/src/features/hitl/hooks/useReviewQueue.ts)
-- **Session Hook**: [apps/frontend/src/features/hitl/hooks/useReviewSession.ts](../apps/frontend/src/features/hitl/hooks/useReviewSession.ts)
+- **Queue Page**: [apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewQueuePage.tsx)
+- **Workspace Page**: [apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx)
+- **Queue Hook**: [apps/frontend/src/features/annotation/hitl/hooks/useReviewQueue.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useReviewQueue.ts)
+- **Session Hook**: [apps/frontend/src/features/annotation/hitl/hooks/useReviewSession.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useReviewSession.ts)
 
 ## Use Cases
 
@@ -604,14 +607,15 @@ The review workspace supports VS Code-style modifier keyboard shortcuts for effi
 | `Ctrl+Enter` | Approve session |
 | `Ctrl+Shift+E` | Escalate session |
 | `Ctrl+Shift+S` | Skip session |
-| `Ctrl+Up Arrow` / `Ctrl+Down Arrow` | Navigate between fields |
+| `Tab` / `Shift+Tab` | Next / previous field (while editing a field) |
+| `Escape` | Deselect field |
 | `Ctrl+Z` | Undo last field change |
 | `Ctrl+Shift+Z` | Redo last undone change |
 | `Ctrl+Shift+V` | Toggle between Document view and Snippet view |
 | `Ctrl+Shift+O` | Toggle field sort order |
 | `Ctrl+/` | Show/hide keyboard shortcuts help panel |
 
-All shortcuts use modifier keys to avoid interfering with normal text editing in field inputs.
+Action shortcuts use modifier keys to avoid interfering with normal text editing in field inputs.
 
 ### View Modes
 
@@ -648,14 +652,14 @@ The system provides two levels of undo capability:
 Fields in the review workspace can be sorted in two orders, toggled via `Ctrl+Shift+O`:
 
 - **Confidence order (default)**: Lowest confidence fields appear first, directing reviewer attention to the most uncertain extractions
-- **Document order**: Fields appear in the order they occur in the document, matching the natural reading flow
+- **Alphabetical order**: Fields are sorted by field key, providing a stable, predictable ordering
 
 ### Zoom-to-Field
 
 When a field is selected in Document View:
 
 - The canvas animates to center on the field's bounding box
-- A fixed 2x zoom level is applied
+- A fixed 5x zoom level is applied
 - The transition is animated for smooth visual context switching
 - This allows reviewers to quickly inspect the source region for any field without manual pan/zoom
 

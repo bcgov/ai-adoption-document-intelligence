@@ -1,14 +1,17 @@
 # Local PLG Monitoring Stack
 
-The project includes an opt-in PLG (Prometheus, Loki, Grafana) monitoring stack for local development. It runs alongside the core Docker Compose services (PostgreSQL, MinIO) without affecting them.
+The project includes an opt-in PLG (Prometheus, Loki, Grafana) monitoring stack for local development, plus Alertmanager and a CHES email adapter for alert notifications (see [ALERTING.md](ALERTING.md)). It runs alongside the core Docker Compose services (PostgreSQL, MinIO — `--profile infra`) without affecting them.
 
 ## Quick Start
 
-Start the monitoring stack:
+Generate the Prometheus alert rules (the output file is gitignored, so run this before first start and after changing `deployments/alert-thresholds.ts`), then start the monitoring stack:
 
 ```bash
+npm run generate:alert-rules
 docker compose --profile monitoring up -d
 ```
+
+The repo also provides podman-based convenience scripts that generate alert rules and start the monitoring profile together with the other profiles: `npm run pod:base` (infra + temporal + monitoring) and `npm run pod:all` (everything).
 
 Stop the monitoring stack:
 
@@ -24,11 +27,13 @@ docker compose --profile monitoring logs -f
 
 ## Services and Ports
 
-| Service    | URL                    | Description                              |
-|------------|------------------------|------------------------------------------|
-| Grafana    | http://localhost:3001   | Dashboards and log/metric exploration    |
-| Prometheus | http://localhost:9090   | Metrics storage and querying             |
-| Loki       | http://localhost:3100   | Log aggregation                          |
+| Service      | URL                    | Description                              |
+|--------------|------------------------|------------------------------------------|
+| Grafana      | http://localhost:3001   | Dashboards and log/metric exploration    |
+| Prometheus   | http://localhost:9090   | Metrics storage and querying             |
+| Loki         | http://localhost:3100   | Log aggregation                          |
+| Alertmanager | http://localhost:9093   | Alert routing, deduplication, silencing  |
+| ches-adapter | http://localhost:3003   | Alertmanager webhook → CHES email        |
 
 ## Default Credentials
 
@@ -36,20 +41,23 @@ docker compose --profile monitoring logs -f
 
 ## Collecting Host Process Logs
 
-By default, Promtail only collects logs from Docker containers. To also send logs from processes running on your host (backend-services, frontend, temporal-worker), use the `:log` script variants:
+Promtail collects logs from processes running on your host (backend-services, frontend, temporal-worker) via the standard dev scripts:
 
 ```bash
 # Run backend with logs sent to Loki
-npm run dev:backend:log
+npm run dev:backend
 
 # Run frontend with logs sent to Loki
-npm run dev:frontend:log
+npm run dev:frontend
 
-# Run both with logs sent to Loki
-npm run dev:log
+# Run temporal worker with logs sent to Loki
+npm run dev:temporal-worker
+
+# Run all three with logs sent to Loki
+npm run dev
 ```
 
-These scripts tee process output to `logs/` directory files, which Promtail watches and forwards to Loki. You still see all output in your terminal as normal.
+These scripts tee process output to `logs/` directory files (`backend-services.log`, `frontend.log`, `temporal-worker.log`), which Promtail watches and forwards to Loki. You still see all output in your terminal as normal.
 
 The logs appear in Grafana under the `backend-services`, `frontend`, and `temporal-worker` service labels (same as they would in OpenShift).
 
@@ -58,13 +66,15 @@ The logs appear in Grafana under the `backend-services`, `frontend`, and `tempor
 ### Components
 
 - **Loki** (grafana/loki:3.4.0) - Receives and stores logs. Configured with filesystem storage and 30-day retention.
-- **Promtail** (grafana/promtail:3.4.0) - Discovers running Docker containers via the Docker socket and forwards their stdout logs to Loki. Also watches `logs/` for host process output. Adds `service`, `container`, and `project` labels automatically.
-- **Prometheus** (prom/prometheus:v3.2.1) - Scrapes metrics from backend-services (`host.docker.internal:3002/metrics`) and the Temporal server (`temporal:9090/metrics`). Data is retained for 15 days.
+- **Promtail** (grafana/promtail:3.4.0) - Tails the host process log files under `logs/` (mounted at `/var/log/host-apps`) and the ches-adapter log volume, and forwards them to Loki with `service` and `project` labels.
+- **Alertmanager** (prom/alertmanager:v0.28.1) - Receives alerts fired by Prometheus rules and routes them to the ches-adapter webhook. See [ALERTING.md](ALERTING.md).
+- **ches-adapter** - Built from `apps/ches-adapter`; translates Alertmanager webhook payloads into CHES email. Requires `CHES_*` environment variables (see `docker-compose.yml`).
+- **Prometheus** (prom/prometheus:v3.2.1) - Scrapes metrics from backend-services (`host.containers.internal:3002/metrics`) and the Temporal worker (`host.containers.internal:9091/metrics`), and evaluates alert rules from `deployments/local/prometheus/rules/`. Data is retained for 15 days.
 - **Grafana** (grafana/grafana:11.5.2) - Pre-configured with Prometheus and Loki data sources and pre-built dashboards.
 
 ### Data Persistence
 
-Loki and Prometheus data is stored in named Docker volumes (`loki_data` and `prometheus_data`). Data survives container restarts and `docker compose down`. To clear all monitoring data:
+Loki, Prometheus, Grafana, and Alertmanager data is stored in named Docker volumes (`loki_data`, `prometheus_data`, `grafana_data`, `alertmanager_data`). Data survives container restarts and `docker compose down`. To clear all monitoring data:
 
 ```bash
 docker compose --profile monitoring down -v
@@ -72,11 +82,10 @@ docker compose --profile monitoring down -v
 
 ### Log Collection
 
-Promtail auto-discovers all running Docker containers by mounting `/var/run/docker.sock`. It applies the following labels to each log stream:
+Promtail tails a static set of log files (no Docker socket access is needed). It applies the following labels to each log stream:
 
-- `container` - The Docker container name
-- `service` - The Docker Compose service name
-- `project` - The Docker Compose project name
+- `service` - The originating service (`backend-services`, `frontend`, `temporal-worker`, or `ches-adapter`)
+- `project` - `host` for host process logs, `monitoring` for the ches-adapter container log
 
 ### Grafana Data Sources
 
@@ -84,6 +93,8 @@ Grafana is provisioned with two data sources on startup:
 
 - **Prometheus** (default) - Points to the local Prometheus instance
 - **Loki** - Points to the local Loki instance
+
+Dashboards are provisioned from the shared OpenShift Helm chart directory (`deployments/openshift/helm/plg/dashboards`): application-overview, logs-explorer, and nodejs-runtime.
 
 No manual configuration is required.
 
@@ -93,9 +104,12 @@ No manual configuration is required.
 |---------------------------------------------------------------|-------------------------------|
 | `docker-compose.yml` (`--profile monitoring`)                 | Monitoring service definitions |
 | `deployments/local/loki/loki.yaml`                            | Loki server configuration     |
-| `deployments/local/prometheus/prometheus.yml`                  | Prometheus scrape targets      |
-| `deployments/local/promtail/promtail-config.yml`              | Promtail log discovery rules   |
+| `deployments/local/prometheus/prometheus.yml`                  | Prometheus scrape targets and Alertmanager wiring |
+| `deployments/local/prometheus/rules/` (generated by `npm run generate:alert-rules`) | Prometheus alert rules |
+| `deployments/local/promtail/promtail-config.yml`              | Promtail log file scrape config |
+| `deployments/local/alertmanager/alertmanager.yml`             | Alertmanager routing configuration |
 | `deployments/local/grafana/provisioning/datasources/datasources.yml` | Grafana data source provisioning |
+| `deployments/local/grafana/provisioning/dashboards/dashboards.yml` | Grafana dashboard provisioning |
 
 ## VS Code Integration
 
