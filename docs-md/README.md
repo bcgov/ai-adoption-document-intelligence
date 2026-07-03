@@ -11,7 +11,7 @@ Canonical markdown documentation for the Document Intelligence platform, organiz
 | [groups/](groups/) | Group management: APIs, membership requests, frontend pages and context |
 | [workflows/](workflows/) | DAG workflow engine, graph types, adding nodes/activities/OCR providers (incl. Mistral OCR), workflow builder guide and design brief, node catalog, lineage/versions, config overrides, Temporal worker concurrency, [templates/](workflows/templates/) example configs |
 | [extraction/](extraction/) | OCR and extraction: Azure AI models, classifiers, enrichment, field formatting, image normalization, confusion profiles/matrices, OCR improvement pipeline, ground truth and HITL datasets |
-| [operations/](operations/) | OpenShift deployment, environment configuration, backups, Azure infrastructure, secrets management, npm hardening |
+| [operations/](operations/) | OpenShift deployment, CI workflows overview, environment configuration, backups, Azure infrastructure, secrets management, npm hardening |
 | [monitoring/](monitoring/) | PLG stack (Prometheus, Loki, Grafana), Helm charts, Promtail sidecars, dashboards, metrics, alerting, logging |
 | [benchmarking/](benchmarking/) | Benchmarking system, load testing runbooks and stress run sheets |
 | [frontend/](frontend/) | BC Design System migration, reference data tables UI |

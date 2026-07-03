@@ -29,12 +29,12 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 
 ## Gap scan (never completed — one area per session)
 
-- [ ] apps/backend-services/src/ — NestJS modules with no docs-md coverage
-- [ ] apps/temporal/src/ — workflows/activities/graph-engine coverage
-- [ ] apps/frontend/src/ — features/pages/contexts coverage
-- [ ] packages/* — workspace package coverage (SHARED_PACKAGES.md covers conventions; per-package behavior may need docs)
-- [ ] deployments/, scripts/, tools/ — operational surface coverage
-- [ ] .github/workflows/, lefthook.yml, docker-compose.yml, root scripts — CI/tooling coverage
+- [x] apps/backend-services/src/ — all modules covered; thin queue/health/ocr modules covered indirectly (upload flow, HA probes, /api/models in TEMPLATE_MODELS)
+- [x] apps/temporal/src/ — covered by DAG engine doc + node catalog (catalog extended to all registry activities)
+- [x] apps/frontend/src/ — covered (features, hooks, contexts, ui adapters)
+- [x] packages/* — covered by SHARED_PACKAGES.md (all 7 packages listed)
+- [x] deployments/, scripts/, tools/ — covered by operations docs + scripts/README + tools/load-testing/README
+- [x] .github/workflows/ etc. — gap closed: added `docs-md/operations/CI_WORKFLOWS.md` (workflow map; QA/security/deploy/manual ops)
 
 For each confirmed gap: write the doc per `.claude/skills/docs-sync/Workflows/AddDoc.md` (right topic folder, verified behavior only), and wire it into `docs-md/README.md` + wiki sources.
 

@@ -64,3 +64,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Audited 32 docs against code and fixed drift (groups API endpoints, audit event catalog, database services map, classifier deletion flow, shared packages, ground-truth/HITL dataset flows); remaining docs tracked in feature-docs/20260702-docs-sync-cleanup/remaining-audit-checklist.md.
 - Added the docs-sync skill (.claude/skills/docs-sync/) encoding ingest/audit/add/archive workflows and a docs-md-wide link checker.
 - Untracked generated docs/wiki*.html (gitignored; built at deploy).
+
+## [2026-07-03] lint | Completed code-verified audit of all 88 active docs
+
+- Finished the remaining 56 doc audits inline (architecture, auth, benchmarking, extraction, frontend, groups UI, monitoring, operations, workflows batches); notable fixes: blob key scheme is group-scoped `{groupId}/{category}/...`, confusion-matrix derivation is the confusion-profiles module, legacy step-based enrichment config removed, node catalog now covers all registry activities, DAG engine historical migration appendix replaced.
+- Gap scan across backend/temporal/frontend/packages/ops/CI found one substantive gap: added docs-md/operations/CI_WORKFLOWS.md (GitHub Actions map). Thin modules (queue, health, ocr) are covered indirectly by upload/HA/template-model docs.
+- Archived stray docs/LOGGING.md as docs-md/archive/LOGGING_CATEGORIES_2026-03.md.
