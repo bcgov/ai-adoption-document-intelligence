@@ -35,7 +35,7 @@ import { GroupSelector } from "./components/group/GroupSelector";
 ## Integration Points
 
 - **`GroupContext`** — source of truth for available and active groups.
-- **App header** (`App.tsx`) — rendered adjacent to the user avatar inside `AppShell.Header`.
+- **App header** (`src/layouts/RootLayout.tsx`) — rendered inside `AppShell.Header`.
 - **Membership request page** (`/request-membership`) — navigation target for the empty-groups prompt (implemented as part of US-005).
 
 ## Tests
