@@ -15,9 +15,9 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 - [x] extraction: `ENRICHMENT.md` (removed legacy step-based config; graph node params), `FIELD_FORMAT_ENGINE.md` (benchmark mismatch data IS integrated; suggestFromRun), `DOCUMENT_IMAGE_NORMALIZATION.md` (group-scoped blob prefixes)
 - [x] frontend: `BC_DESIGN_SYSTEM_MIGRATION.md` (all referenced paths/components verified), `BC_DS_SCREEN_MIGRATION_STATUS.md` (accurate incl. DocumentsPage exception), `REFERENCE_DATA_TABLES_UI.md` (TablesListPage name)
 - [x] groups (UI docs): all verified; `SIDEBAR_NAVIGATION.md` rewritten (createBrowserRouter routing, RootLayout, no placeholder), `GROUP_SELECTOR.md` header location (RootLayout.tsx)
-- [ ] monitoring (helm/PLG): `GRAFANA_HELM_CHART.md`, `LOKI_HELM_CHART.md`, `PROMETHEUS_HELM_CHART.md` *(partial)*, `PROMTAIL_SIDECARS.md`, `PLG_DEPLOYMENT_INTEGRATION.md`
-- [ ] monitoring (metrics/dashboards): `PROMETHEUS_METRICS.md` *(partial)*, `LOGS_EXPLORER_DASHBOARD.md`, `NODEJS_RUNTIME_DASHBOARD.md`, `ALERTING.md`
-- [ ] monitoring (local/logging): `LOCAL_MONITORING_STACK.md` *(partial)*, `LOGGING.md` *(partial — also decide whether stray `docs/LOGGING.md` should merge into it)*
+- [x] monitoring (helm/PLG): verified against chart; `PROMETHEUS_HELM_CHART.md` fixed stale "no Alertmanager" note
+- [x] monitoring (metrics/dashboards): verified (metric names match @ai-di/monitoring, dashboards JSON exist, alert-rules generation, CHES env)
+- [x] monitoring (local/logging): verified; stray `docs/LOGGING.md` archived as `docs-md/archive/LOGGING_CATEGORIES_2026-03.md`
 - [ ] operations (env/secrets): `ENVIRONMENT_CONFIGURATION.md`, `local-dev-secrets.md`, `prod-secrets-rotation.md`, `NPM_HARDENING.md` *(all partial)*
 - [ ] operations (infra): `MANUAL_LOAD_TEST_INSTANCE.md`, `BACKUP_TO_NETWORK_SHARE.md`, `AZURE_INFRASTRUCTURE.md`
 - [ ] workflows: `DAG_WORKFLOW_ENGINE.md` *(large — verify section-by-section against apps/temporal/src/graph-engine/ and packages/graph-workflow/)*

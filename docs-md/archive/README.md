@@ -25,6 +25,7 @@ Delete instead of archiving only when a doc has no historical value at all.
 | `benchmarking-temporal-history-bloat-fix.md` | May 2026 incident/fix note | [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) context; shipped behavior in code |
 | `TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md` + `TEMPORAL_FOOTPRINT_IMPLEMENTATION_STATUS.md` | Temporal history footprint reduction plan and status | Shipped behavior: [workflows/page-extract-blob-path.md](../workflows/page-extract-blob-path.md), [workflows/DAG_WORKFLOW_ENGINE.md](../workflows/DAG_WORKFLOW_ENGINE.md) |
 | `OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md` | Feature 008 requirements source | `feature-docs/008-ocr-correction-agentic-sdlc/`; shipped behavior in [extraction/OCR_IMPROVEMENT_PIPELINE.md](../extraction/OCR_IMPROVEMENT_PIPELINE.md) |
+| `LOGGING_CATEGORIES_2026-03.md` | March 2026 logging-system doc (categories/format), formerly `docs/LOGGING.md` | [monitoring/LOGGING.md](../monitoring/LOGGING.md); `feature-docs/007-logging-system/` |
 
 ## Historical locations outside this folder
 

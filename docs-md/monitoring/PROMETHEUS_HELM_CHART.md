@@ -101,5 +101,5 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 - Metrics data is persisted to a PVC using the Prometheus TSDB storage engine.
 - The existing Kustomize deployment for the application is not modified. PLG is a separate Helm release.
 - Prometheus is not exposed via an OpenShift Route; access is via in-cluster services or port-forwarding.
-- No Alertmanager configuration is included. Prometheus is used for metrics collection and querying only.
+- Alertmanager is included in the chart (`alertmanager-statefulset.yaml` / `alertmanager-service.yaml`) and wired into Prometheus's `alerting` config; alert rules are loaded from the rules ConfigMap. See [ALERTING.md](./ALERTING.md).
 - Config changes trigger automatic pod restarts via the `checksum/config` annotation on the StatefulSet pod template.
