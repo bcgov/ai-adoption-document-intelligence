@@ -82,7 +82,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-011** (end-of-month archival job + UsageEvent retention purge) — depends on US-010
 
 ### Phase 6 — Training Cost Recording
-- [ ] **US-012** (template model and classifier training events + pre-flight cap check) — depends on US-003 and US-005
+- [x] **US-012** (template model and classifier training events + pre-flight cap check) — depends on US-003 and US-005
 
 ### Phase 7 — Cap Administration
 - [ ] **US-013** (platform admin API to configure group spending caps) — depends on US-001

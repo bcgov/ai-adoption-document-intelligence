@@ -88,4 +88,35 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
       include: { activity_costs: true },
     });
   }
+
+  /**
+   * Returns the training costs for the active rate version at the given
+   * timestamp, paired with the rate version's id and unit_cost_dollars.
+   * Training costs are read from rate_versions.json (not stored in the DB).
+   *
+   * @returns null if no active rate version is found or the version is not in
+   * the JSON file.
+   */
+  async getActiveTrainingCosts(at: Date): Promise<{
+    rateVersionId: string;
+    unitCostDollars: number;
+    templateModelCost: number;
+    classifierCost: number;
+  } | null> {
+    const rateVersion = await this.getActiveRateVersion(at);
+    if (!rateVersion) {
+      return null;
+    }
+    const entries = this.loadRateVersionsFile();
+    const entry = entries.find((e) => e.version === rateVersion.version);
+    if (!entry) {
+      return null;
+    }
+    return {
+      rateVersionId: rateVersion.id,
+      unitCostDollars: Number(rateVersion.unit_cost_dollars),
+      templateModelCost: entry.training_costs.template_model,
+      classifierCost: entry.training_costs.classifier,
+    };
+  }
 }

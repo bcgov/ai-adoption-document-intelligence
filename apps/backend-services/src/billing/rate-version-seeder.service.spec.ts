@@ -171,4 +171,54 @@ describe("RateVersionSeederService", () => {
       });
     });
   });
+
+  describe("getActiveTrainingCosts", () => {
+    it("returns training costs from the JSON matched to the active rate version", async () => {
+      const { prisma } = createMockPrisma();
+      const service = new RateVersionSeederService(
+        { prisma } as never,
+        mockAppLogger,
+      );
+      jest
+        .spyOn(service, "loadRateVersionsFile")
+        .mockReturnValue([sampleEntry]);
+
+      const result = await service.getActiveTrainingCosts(
+        new Date("2026-08-01T00:00:00Z"),
+      );
+
+      expect(result).toEqual({
+        rateVersionId: "rv-1",
+        unitCostDollars: 0.001,
+        templateModelCost: 500,
+        classifierCost: 300,
+      });
+    });
+
+    it("returns null when no active rate version exists", async () => {
+      const { prisma } = createMockPrisma();
+      prisma.rateVersion.findFirst.mockResolvedValue(null);
+      const service = new RateVersionSeederService(
+        { prisma } as never,
+        mockAppLogger,
+      );
+
+      const result = await service.getActiveTrainingCosts(new Date());
+
+      expect(result).toBeNull();
+    });
+
+    it("returns null when the active rate version is not in the JSON file", async () => {
+      const { prisma } = createMockPrisma();
+      const service = new RateVersionSeederService(
+        { prisma } as never,
+        mockAppLogger,
+      );
+      jest.spyOn(service, "loadRateVersionsFile").mockReturnValue([]);
+
+      const result = await service.getActiveTrainingCosts(new Date());
+
+      expect(result).toBeNull();
+    });
+  });
 });
