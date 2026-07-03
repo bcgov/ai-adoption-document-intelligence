@@ -17,6 +17,7 @@ Delete instead of archiving only when a doc has no historical value at all.
 | Path | What it was | Canonical alternative |
 | --- | --- | --- |
 | `temp/` | Feb 2026 OAuth refactor plan and auth security audits | [auth/AUTHENTICATION.md](../auth/AUTHENTICATION.md), `apps/backend-services/src/auth/`, `apps/backend-services/src/actor/` |
+| `DATABASE_ROLES.md` | Removed Role/UserRole table schema (RolesGuard/@Roles) | [auth/AUTHENTICATION.md](../auth/AUTHENTICATION.md) — current model: `User.is_system_admin` + `GroupRole` on UserGroup via `@Identity()`/IdentityGuard; [auth/GROUP_RESOURCE_AUTHORIZATION.md](../auth/GROUP_RESOURCE_AUTHORIZATION.md) |
 | `rapid-assessment-2026-04-09/` | Rapid security/architecture assessment of backend-services | Current ops/security docs in topic folders |
 | `pr-88-review.md` | April 2026 deep review of PR #88 | Merged code |
 | `LOAD_TEST_REPORT_2026-05.md` | May 2026 load test results | [benchmarking/LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for the current runbook |

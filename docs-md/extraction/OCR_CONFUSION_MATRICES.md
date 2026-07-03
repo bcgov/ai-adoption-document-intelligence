@@ -85,5 +85,5 @@ There is **no** backend HTTP API or shared service for confusion-matrix derivati
 
 - Existing character confusion: `apps/temporal/src/activities/enrichment-rules.ts` (`fixCharacterConfusion`, `CONFUSION_MAP`)
 - HITL data model: `ReviewSession`, `FieldCorrection` in Prisma schema
-- Benchmarking guide: [docs-md/benchmarking/BENCHMARKING_GUIDE.md](./benchmarking/BENCHMARKING_GUIDE.md)
+- Benchmarking guide: the benchmarking guide on the docs site (`docs/benchmarking-guide.html`)
 - Ground truth from HITL: `apps/backend-services/src/benchmark/hitl-dataset.service.ts` (`buildGroundTruth`)

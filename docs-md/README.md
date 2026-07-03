@@ -6,7 +6,7 @@ Canonical markdown documentation for the Document Intelligence platform, organiz
 
 | Folder | Contents |
 | --- | --- |
-| [architecture/](architecture/) | System-level design: HITL architecture, database services and roles, blob storage, reference data tables, template models, shared packages, audit table, high availability, the workflow-node + configuration-UI extension pattern |
+| [architecture/](architecture/) | System-level design: HITL architecture, database services, blob storage, reference data tables, template models, shared packages, audit table, high availability, the workflow-node + configuration-UI extension pattern |
 | [auth/](auth/) | Authentication (OAuth/Keycloak, API keys) and group-based resource authorization |
 | [groups/](groups/) | Group management: APIs, membership requests, frontend pages and context |
 | [workflows/](workflows/) | DAG workflow engine, graph types, adding nodes/activities/OCR providers (incl. Mistral OCR), workflow builder guide and design brief, node catalog, lineage/versions, config overrides, Temporal worker concurrency, [templates/](workflows/templates/) example configs |

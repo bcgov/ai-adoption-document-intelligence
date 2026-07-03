@@ -23,3 +23,11 @@ Use this page for contradictions, drift candidates, and ownership gaps that shou
 - `docs-md/workflows/` and `docs-md/workflows/` intentionally overlap; the wiki should keep routing clear between engine behavior and UI authoring.
 - Operational docs under `docs-md/operations/`, `scripts/README.md`, and workflow files in `.github/workflows/` should stay aligned.
 - `docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md` describes target drag-and-drop authoring; current UI is read-only visualization — guide is marked as design reference.
+
+## Post-audit follow-ups (2026-07-03)
+
+- Branch AI-1296: `apps/backend-services/Dockerfile` and `apps/temporal/Dockerfile` do not COPY/build `packages/graph-workflow-config` and `packages/temporal-payload-codec` although both apps declare them as `file:` dependencies — image builds from this branch fail at `npm install`. Develop is unaffected (packages not merged there yet). Needs a code fix, not a docs fix.
+- `docs-md/extraction/` (11 OCR/extraction docs) has no dedicated wiki topic page; routing currently goes through folder browsing only. Create an extraction topic page if navigation demand appears.
+- Frontend `GroupRequest` interface (`apps/frontend/src/data/hooks/useGroups.ts`) declares an `actorId` field the backend never returns (dead field).
+- `scripts/lib/instance-name.test.sh` has 2 pre-existing failing expectations (1.4, 2.7) exceeding the 20-char truncation documented in `docs-md/operations/INSTANCE_NAME_DERIVATION.md`.
+- ~56 docs still need code-verified audit; checklist: `feature-docs/20260702-docs-sync-cleanup/remaining-audit-checklist.md`.

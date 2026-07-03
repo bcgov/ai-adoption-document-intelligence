@@ -56,3 +56,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Migrated labeling/training docs to the template-models API: README endpoints/tree, backend README, frontend README pages, `DATABASE_SERVICES.md`, and the `GROUP_RESOURCE_AUTHORIZATION.md` route tables.
 - Fixed broken `TEMPLATE_TRAINING.md` links to `TEMPLATE_MODELS.md`.
 - Noted workflow form editor (default) alongside JSON + read-only React Flow in wiki and READMEs.
+
+## [2026-07-03] maintenance | docs-md topic reorganization and code-verified audit
+
+- Reorganized docs-md from a flat dump into topic folders (architecture/ auth/ groups/ workflows/ extraction/ operations/ monitoring/ benchmarking/ frontend/ archive/); all repo references rewritten, taxonomy index at docs-md/README.md.
+- Archived point-in-time artifacts (temp/ audits, rapid-assessment-2026-04-09/, PR-88 review, May load-test report, completed Temporal footprint plan, DATABASE_ROLES.md describing the removed Role/UserRole schema) under docs-md/archive/ with a policy README.
+- Audited 32 docs against code and fixed drift (groups API endpoints, audit event catalog, database services map, classifier deletion flow, shared packages, ground-truth/HITL dataset flows); remaining docs tracked in feature-docs/20260702-docs-sync-cleanup/remaining-audit-checklist.md.
+- Added the docs-sync skill (.claude/skills/docs-sync/) encoding ingest/audit/add/archive workflows and a docs-md-wide link checker.
+- Untracked generated docs/wiki*.html (gitignored; built at deploy).
