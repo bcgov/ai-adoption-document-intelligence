@@ -31,7 +31,7 @@ The `role` field is populated from the `/api/auth/me` response and stored on the
 
 ## Pages
 
-### TableListPage (`/tables`)
+### TablesListPage (`/tables`)
 
 Lists all reference data tables for the active group. Allows navigating to table details. The **Create Table** button is only shown to group admins (and system admins).
 

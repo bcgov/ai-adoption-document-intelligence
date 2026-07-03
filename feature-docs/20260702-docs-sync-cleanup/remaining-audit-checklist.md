@@ -13,7 +13,7 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 - [x] benchmarking: `LOAD_TESTING.md` — verified accurate (all 14 load-test npm scripts, referenced files/manifests)
 - [x] extraction: `CONFUSION_PROFILES.md` (accurate), `OCR_CONFUSION_MATRICES.md` (stale "no API" status — profiles module implements derivation), `OCR_IMPROVEMENT_PIPELINE.md` (nonexistent confusion-matrix/derive endpoint, dead OCR-TASK.md ref)
 - [x] extraction: `ENRICHMENT.md` (removed legacy step-based config; graph node params), `FIELD_FORMAT_ENGINE.md` (benchmark mismatch data IS integrated; suggestFromRun), `DOCUMENT_IMAGE_NORMALIZATION.md` (group-scoped blob prefixes)
-- [ ] frontend: `BC_DESIGN_SYSTEM_MIGRATION.md` *(partial)*, `BC_DS_SCREEN_MIGRATION_STATUS.md` *(partial)*, `REFERENCE_DATA_TABLES_UI.md`
+- [x] frontend: `BC_DESIGN_SYSTEM_MIGRATION.md` (all referenced paths/components verified), `BC_DS_SCREEN_MIGRATION_STATUS.md` (accurate incl. DocumentsPage exception), `REFERENCE_DATA_TABLES_UI.md` (TablesListPage name)
 - [ ] groups (UI docs): `BOOTSTRAP_SETUP.md`, `CREATE_WORKFLOW_ACTIVE_GROUP.md`, `GROUPS_PAGE.md`, `GROUP_CONTEXT.md`, `GROUP_DETAIL_PAGE.md` *(all partial)*, `GROUP_SELECTOR.md`, `REQUEST_MEMBERSHIP_PAGE.md`, `SIDEBAR_NAVIGATION.md`
 - [ ] monitoring (helm/PLG): `GRAFANA_HELM_CHART.md`, `LOKI_HELM_CHART.md`, `PROMETHEUS_HELM_CHART.md` *(partial)*, `PROMTAIL_SIDECARS.md`, `PLG_DEPLOYMENT_INTEGRATION.md`
 - [ ] monitoring (metrics/dashboards): `PROMETHEUS_METRICS.md` *(partial)*, `LOGS_EXPLORER_DASHBOARD.md`, `NODEJS_RUNTIME_DASHBOARD.md`, `ALERTING.md`
