@@ -68,6 +68,7 @@ export class BenchmarkDefinitionService {
   async createDefinition(
     projectId: string,
     dto: CreateDefinitionDto,
+    actorId?: string,
   ): Promise<DefinitionDetailsDto> {
     this.logger.log(
       `Creating benchmark definition: ${dto.name} for project ${projectId}`,
@@ -175,6 +176,19 @@ export class BenchmarkDefinitionService {
       revision: 1,
     });
 
+    await this.auditService.recordEvent({
+      event_type: "benchmark_definition_created",
+      resource_type: "benchmark_definition",
+      resource_id: definition.id,
+      actor_id: actorId,
+      group_id: project.group_id,
+      payload: {
+        project_id: projectId,
+        name: definition.name,
+        revision: definition.revision,
+      },
+    });
+
     this.logger.log(
       `Created benchmark definition: ${definition.id} (workflowConfigHash: ${workflowConfigHash})`,
     );
@@ -236,6 +250,7 @@ export class BenchmarkDefinitionService {
     projectId: string,
     definitionId: string,
     dto: UpdateDefinitionDto,
+    actorId?: string,
   ): Promise<DefinitionDetailsDto> {
     this.logger.log(
       `Updating benchmark definition: ${definitionId} for project ${projectId}`,
@@ -359,26 +374,52 @@ export class BenchmarkDefinitionService {
     const hasRuns = existing._count.benchmarkRuns > 0;
 
     if (hasRuns) {
-      await this.definitionDb.setBenchmarkDefinitionImmutable(definitionId);
+      const newDefinition = await this.definitionDb.transaction(async (tx) => {
+        await this.definitionDb.setBenchmarkDefinitionImmutable(
+          definitionId,
+          tx,
+        );
 
-      // Create a new revision
-      const newDefinition = await this.definitionDb.createBenchmarkDefinition({
-        projectId,
-        name: dto.name ?? existing.name,
-        datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
-        splitId: dto.splitId ?? existing.splitId,
-        workflowVersionId: dto.workflowVersionId ?? existing.workflowVersionId,
-        workflowConfigHash,
-        evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
-        evaluatorConfig: (dto.evaluatorConfig ??
-          existing.evaluatorConfig) as Prisma.InputJsonValue,
-        runtimeSettings: (dto.runtimeSettings ??
-          existing.runtimeSettings) as Prisma.InputJsonValue,
-        workflowConfigOverrides: (dto.workflowConfigOverrides ??
-          existing.workflowConfigOverrides ??
-          {}) as Prisma.InputJsonValue,
-        immutable: false,
-        revision: existing.revision + 1,
+        const created = await this.definitionDb.createBenchmarkDefinition(
+          {
+            projectId,
+            name: dto.name ?? existing.name,
+            datasetVersionId: dto.datasetVersionId ?? existing.datasetVersionId,
+            splitId: dto.splitId ?? existing.splitId,
+            workflowVersionId:
+              dto.workflowVersionId ?? existing.workflowVersionId,
+            workflowConfigHash,
+            evaluatorType: dto.evaluatorType ?? existing.evaluatorType,
+            evaluatorConfig: (dto.evaluatorConfig ??
+              existing.evaluatorConfig) as Prisma.InputJsonValue,
+            runtimeSettings: (dto.runtimeSettings ??
+              existing.runtimeSettings) as Prisma.InputJsonValue,
+            workflowConfigOverrides: (dto.workflowConfigOverrides ??
+              existing.workflowConfigOverrides ??
+              {}) as Prisma.InputJsonValue,
+            immutable: false,
+            revision: existing.revision + 1,
+          },
+          tx,
+        );
+
+        await this.auditService.recordEvent(
+          {
+            event_type: "benchmark_definition_revised",
+            resource_type: "benchmark_definition",
+            resource_id: created.id,
+            actor_id: actorId,
+            group_id: project.group_id,
+            payload: {
+              project_id: projectId,
+              previous_definition_id: definitionId,
+              revision: created.revision,
+            },
+          },
+          tx,
+        );
+
+        return created;
       });
 
       this.logger.log(
@@ -386,39 +427,46 @@ export class BenchmarkDefinitionService {
       );
 
       return this.mapToDefinitionDetails(newDefinition);
-    } else {
-      // Update in place
-      const updateData: Prisma.BenchmarkDefinitionUpdateInput = {};
-      if (dto.name) updateData.name = dto.name;
-      if (dto.datasetVersionId)
-        updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
-      if (dto.splitId) updateData.split = { connect: { id: dto.splitId } };
-      if (dto.workflowVersionId) {
-        updateData.workflowVersion = {
-          connect: { id: dto.workflowVersionId },
-        };
-        updateData.workflowConfigHash = workflowConfigHash;
-      }
-      if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
-      if (dto.evaluatorConfig)
-        updateData.evaluatorConfig =
-          dto.evaluatorConfig as Prisma.InputJsonValue;
-      if (dto.runtimeSettings)
-        updateData.runtimeSettings =
-          dto.runtimeSettings as Prisma.InputJsonValue;
-      if (dto.workflowConfigOverrides !== undefined)
-        updateData.workflowConfigOverrides =
-          dto.workflowConfigOverrides as Prisma.InputJsonValue;
-
-      const updated = await this.definitionDb.updateBenchmarkDefinition(
-        definitionId,
-        updateData,
-      );
-
-      this.logger.log(`Updated definition ${definitionId} in place`);
-
-      return this.mapToDefinitionDetails(updated);
     }
+
+    // Update in place
+    const updateData: Prisma.BenchmarkDefinitionUpdateInput = {};
+    if (dto.name) updateData.name = dto.name;
+    if (dto.datasetVersionId)
+      updateData.datasetVersion = { connect: { id: dto.datasetVersionId } };
+    if (dto.splitId) updateData.split = { connect: { id: dto.splitId } };
+    if (dto.workflowVersionId) {
+      updateData.workflowVersion = {
+        connect: { id: dto.workflowVersionId },
+      };
+      updateData.workflowConfigHash = workflowConfigHash;
+    }
+    if (dto.evaluatorType) updateData.evaluatorType = dto.evaluatorType;
+    if (dto.evaluatorConfig)
+      updateData.evaluatorConfig = dto.evaluatorConfig as Prisma.InputJsonValue;
+    if (dto.runtimeSettings)
+      updateData.runtimeSettings = dto.runtimeSettings as Prisma.InputJsonValue;
+    if (dto.workflowConfigOverrides !== undefined)
+      updateData.workflowConfigOverrides =
+        dto.workflowConfigOverrides as Prisma.InputJsonValue;
+
+    const updated = await this.definitionDb.updateBenchmarkDefinition(
+      definitionId,
+      updateData,
+    );
+
+    await this.auditService.recordEvent({
+      event_type: "benchmark_definition_updated",
+      resource_type: "benchmark_definition",
+      resource_id: definitionId,
+      actor_id: actorId,
+      group_id: project.group_id,
+      payload: { project_id: projectId },
+    });
+
+    this.logger.log(`Updated definition ${definitionId} in place`);
+
+    return this.mapToDefinitionDetails(updated);
   }
 
   /**
@@ -434,6 +482,7 @@ export class BenchmarkDefinitionService {
   async deleteDefinition(
     projectId: string,
     definitionId: string,
+    actorId?: string,
   ): Promise<void> {
     const definition =
       await this.definitionDb.findBenchmarkDefinitionForDeletion(
@@ -458,7 +507,21 @@ export class BenchmarkDefinitionService {
       );
     }
 
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
+
     await this.definitionDb.deleteBenchmarkDefinition(definitionId);
+
+    await this.auditService.recordEvent({
+      event_type: "benchmark_definition_deleted",
+      resource_type: "benchmark_definition",
+      resource_id: definitionId,
+      actor_id: actorId,
+      group_id: project?.group_id,
+      payload: {
+        project_id: projectId,
+        name: definition.name,
+      },
+    });
 
     this.logger.log(
       `Deleted benchmark definition "${definition.name}" (${definitionId}) from project ${projectId}`,

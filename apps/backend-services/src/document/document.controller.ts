@@ -267,13 +267,18 @@ export class DocumentController {
     }
 
     await this.auditService.recordEvent({
-      event_type: "document_accessed",
+      event_type: "document_updated",
       resource_type: "document",
       resource_id: documentId,
       actor_id: req.resolvedIdentity.actorId,
       document_id: documentId,
       group_id: document.group_id ?? undefined,
-      payload: { action: "metadata" },
+      payload: {
+        fields_updated: [
+          ...(body.title !== undefined ? ["title"] : []),
+          ...(body.metadata !== undefined ? ["metadata"] : []),
+        ],
+      },
     });
 
     this.logger.debug("=== DocumentController.updateDocument completed ===");

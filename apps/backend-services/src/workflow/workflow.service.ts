@@ -813,6 +813,18 @@ export class WorkflowService {
       throw error;
     }
 
+    await this.auditService.recordEvent({
+      event_type: "workflow_deleted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: existing.group_id,
+      payload: {
+        slug: existing.slug,
+        name: existing.name,
+      },
+    });
+
     this.logger.log(
       `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
     );

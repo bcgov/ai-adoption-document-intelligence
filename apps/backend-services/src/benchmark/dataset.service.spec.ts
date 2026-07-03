@@ -12,6 +12,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -127,6 +128,10 @@ describe("DatasetService", () => {
         {
           provide: PrismaService,
           useValue: mockPrismaService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
       ],
@@ -271,7 +276,7 @@ describe("DatasetService", () => {
       );
       mockDatasetDbService.deleteDataset.mockResolvedValue(undefined);
 
-      await service.deleteDataset("dataset-1");
+      await service.deleteDataset("dataset-1", "actor-1");
 
       expect(mockDatasetDbService.deleteDataset).toHaveBeenCalledWith(
         "dataset-1",
@@ -298,7 +303,7 @@ describe("DatasetService", () => {
         documentIds: ["doc-1", "doc-2"],
       });
 
-      await service.deleteDataset("dataset-1");
+      await service.deleteDataset("dataset-1", "actor-1");
 
       expect(
         mockGroundTruthJobDbService.deleteJobsForVersions,
@@ -323,9 +328,9 @@ describe("DatasetService", () => {
     it("throws NotFoundException when dataset does not exist", async () => {
       mockDatasetDbService.findDatasetForDeletion.mockResolvedValue(null);
 
-      await expect(service.deleteDataset("nonexistent")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.deleteDataset("nonexistent", "actor-1"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -615,6 +620,7 @@ describe("DatasetService", () => {
         "version-1",
         "sample-1",
         "group-1",
+        "actor-1",
       );
 
       // Verify files were deleted from storage
@@ -680,6 +686,7 @@ describe("DatasetService", () => {
         "version-1",
         "sample-1",
         "group-1",
+        "actor-1",
       );
 
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
@@ -724,7 +731,13 @@ describe("DatasetService", () => {
       );
 
       await expect(
-        service.deleteSample("dataset-1", "version-1", "sample-1", "group-1"),
+        service.deleteSample(
+          "dataset-1",
+          "version-1",
+          "sample-1",
+          "group-1",
+          "actor-1",
+        ),
       ).resolves.toBeUndefined();
     });
 
@@ -741,7 +754,13 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.deleteSample("dataset-1", "version-1", "sample-1", "group-1"),
+        service.deleteSample(
+          "dataset-1",
+          "version-1",
+          "sample-1",
+          "group-1",
+          "actor-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -776,6 +795,7 @@ describe("DatasetService", () => {
           "version-1",
           "nonexistent",
           "group-1",
+          "actor-1",
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -801,7 +821,11 @@ describe("DatasetService", () => {
         frozen: true,
       });
 
-      const result = await service.freezeVersion("dataset-1", "version-1");
+      const result = await service.freezeVersion(
+        "dataset-1",
+        "version-1",
+        "actor-1",
+      );
 
       expect(result.frozen).toBe(true);
       expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
@@ -814,7 +838,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.freezeVersion("dataset-1", "nonexistent"),
+        service.freezeVersion("dataset-1", "nonexistent", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -835,7 +859,7 @@ describe("DatasetService", () => {
         undefined,
       );
 
-      await service.deleteVersion("dataset-1", "version-1");
+      await service.deleteVersion("dataset-1", "version-1", "actor-1");
 
       expect(blobStorage.deleteByPrefix).toHaveBeenCalledWith(
         "test-group/benchmark/datasets/dataset-1/version-1",
@@ -862,7 +886,7 @@ describe("DatasetService", () => {
         documentIds: ["doc-x", "doc-y"],
       });
 
-      await service.deleteVersion("dataset-1", "version-1");
+      await service.deleteVersion("dataset-1", "version-1", "actor-1");
 
       const cleanupOrder =
         mockGroundTruthJobDbService.deleteJobsForVersions.mock
@@ -885,7 +909,7 @@ describe("DatasetService", () => {
       );
 
       await expect(
-        service.deleteVersion("dataset-1", "nonexistent"),
+        service.deleteVersion("dataset-1", "nonexistent", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -926,6 +950,7 @@ describe("DatasetService", () => {
         "dataset-1",
         "version-1",
         "Q4 invoices",
+        "actor-1",
       );
 
       expect(mockDatasetDbService.updateDatasetVersion).toHaveBeenCalledWith(
@@ -939,7 +964,12 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.updateVersionName("dataset-1", "nonexistent", "test"),
+        service.updateVersionName(
+          "dataset-1",
+          "nonexistent",
+          "test",
+          "actor-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -951,7 +981,7 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.updateVersionName("dataset-1", "version-1", "test"),
+        service.updateVersionName("dataset-1", "version-1", "test", "actor-1"),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1459,11 +1489,16 @@ describe("DatasetService", () => {
         createdAt: new Date(),
       });
 
-      const result = await service.createSplit("dataset-1", "v1", {
-        name: "test-split",
-        type: "test",
-        sampleIds: ["s1", "s2"],
-      });
+      const result = await service.createSplit(
+        "dataset-1",
+        "v1",
+        {
+          name: "test-split",
+          type: "test",
+          sampleIds: ["s1", "s2"],
+        },
+        "actor-1",
+      );
 
       expect(result.id).toBe("split-1");
       expect(result.name).toBe("test-split");
@@ -1474,11 +1509,16 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.createSplit("dataset-1", "v1", {
-          name: "test",
-          type: "test",
-          sampleIds: [],
-        }),
+        service.createSplit(
+          "dataset-1",
+          "v1",
+          {
+            name: "test",
+            type: "test",
+            sampleIds: [],
+          },
+          "actor-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1493,11 +1533,16 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.createSplit("dataset-1", "v1", {
-          name: "test-split",
-          type: "test",
-          sampleIds: [],
-        }),
+        service.createSplit(
+          "dataset-1",
+          "v1",
+          {
+            name: "test-split",
+            type: "test",
+            sampleIds: [],
+          },
+          "actor-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1610,9 +1655,15 @@ describe("DatasetService", () => {
         createdAt: new Date(),
       });
 
-      const result = await service.updateSplit("dataset-1", "v1", "split-1", {
-        sampleIds: ["s1", "s2", "s3"],
-      });
+      const result = await service.updateSplit(
+        "dataset-1",
+        "v1",
+        "split-1",
+        {
+          sampleIds: ["s1", "s2", "s3"],
+        },
+        "actor-1",
+      );
 
       expect(result.sampleIds).toEqual(["s1", "s2", "s3"]);
     });
@@ -1621,9 +1672,15 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.updateSplit("dataset-1", "v1", "split-1", {
-          sampleIds: [],
-        }),
+        service.updateSplit(
+          "dataset-1",
+          "v1",
+          "split-1",
+          {
+            sampleIds: [],
+          },
+          "actor-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1635,9 +1692,15 @@ describe("DatasetService", () => {
       mockDatasetDbService.findSplit.mockResolvedValue(null);
 
       await expect(
-        service.updateSplit("dataset-1", "v1", "nonexistent", {
-          sampleIds: [],
-        }),
+        service.updateSplit(
+          "dataset-1",
+          "v1",
+          "nonexistent",
+          {
+            sampleIds: [],
+          },
+          "actor-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1653,9 +1716,15 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.updateSplit("dataset-1", "v1", "split-1", {
-          sampleIds: [],
-        }),
+        service.updateSplit(
+          "dataset-1",
+          "v1",
+          "split-1",
+          {
+            sampleIds: [],
+          },
+          "actor-1",
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -1682,7 +1751,12 @@ describe("DatasetService", () => {
         frozen: true,
       });
 
-      const result = await service.freezeSplit("dataset-1", "v1", "split-1");
+      const result = await service.freezeSplit(
+        "dataset-1",
+        "v1",
+        "split-1",
+        "actor-1",
+      );
 
       expect(result.frozen).toBe(true);
     });
@@ -1691,7 +1765,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.freezeSplit("dataset-1", "v1", "split-1"),
+        service.freezeSplit("dataset-1", "v1", "split-1", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1703,7 +1777,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findSplit.mockResolvedValue(null);
 
       await expect(
-        service.freezeSplit("dataset-1", "v1", "nonexistent"),
+        service.freezeSplit("dataset-1", "v1", "nonexistent", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1758,7 +1832,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDataset.mockResolvedValue(null);
 
       await expect(
-        service.deleteSample("nonexistent", "v1", "s1", "group-1"),
+        service.deleteSample("nonexistent", "v1", "s1", "group-1", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1767,7 +1841,13 @@ describe("DatasetService", () => {
       mockDatasetDbService.findDatasetVersion.mockResolvedValue(null);
 
       await expect(
-        service.deleteSample("dataset-1", "nonexistent", "s1", "group-1"),
+        service.deleteSample(
+          "dataset-1",
+          "nonexistent",
+          "s1",
+          "group-1",
+          "actor-1",
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -1780,7 +1860,7 @@ describe("DatasetService", () => {
       });
 
       await expect(
-        service.deleteSample("dataset-1", "v1", "s1", "group-1"),
+        service.deleteSample("dataset-1", "v1", "s1", "group-1", "actor-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -1812,7 +1892,7 @@ describe("DatasetService", () => {
       ]);
       mockDatasetDbService.updateSplit.mockResolvedValue({});
 
-      await service.deleteSample("dataset-1", "v1", "s1", "group-1");
+      await service.deleteSample("dataset-1", "v1", "s1", "group-1", "actor-1");
 
       expect(mockDatasetDbService.updateSplit).toHaveBeenCalledWith(
         "split-1",
@@ -1836,9 +1916,9 @@ describe("DatasetService", () => {
         benchmarkDefinitions: [{ id: "def-1", name: "Def 1" }],
       });
 
-      await expect(service.deleteVersion("dataset-1", "v1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.deleteVersion("dataset-1", "v1", "actor-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("handles version with no storagePrefix", async () => {
@@ -1851,7 +1931,7 @@ describe("DatasetService", () => {
       mockDatasetDbService.deleteManySplits.mockResolvedValue(undefined);
       mockDatasetDbService.deleteDatasetVersion.mockResolvedValue(undefined);
 
-      await service.deleteVersion("dataset-1", "v1");
+      await service.deleteVersion("dataset-1", "v1", "actor-1");
 
       // Should not try to delete storage
       expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();

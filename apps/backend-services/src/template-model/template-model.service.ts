@@ -9,8 +9,10 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { AnalysisResponse, Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
@@ -43,6 +45,8 @@ export class TemplateModelService {
     private readonly logger: AppLoggerService,
     private readonly suggestionService: SuggestionService,
     private readonly labelingDocumentDb: LabelingDocumentDbService,
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ========== MODEL ID GENERATION ==========
@@ -103,13 +107,22 @@ export class TemplateModelService {
   async createTemplateModel(dto: CreateTemplateModelDto, actorId: string) {
     this.logger.debug(`Creating template model: ${dto.name}`);
     const modelId = await this.generateUniqueModelId(dto.name);
-    return this.templateModelDb.createTemplateModel({
+    const created = await this.templateModelDb.createTemplateModel({
       name: dto.name,
       model_id: modelId,
       description: dto.description,
       created_by: actorId,
       group_id: dto.group_id,
     });
+    await this.auditService.recordEvent({
+      event_type: "template_model_created",
+      resource_type: "template_model",
+      resource_id: created.id,
+      actor_id: actorId,
+      group_id: created.group_id,
+      payload: { name: created.name, model_id: created.model_id },
+    });
+    return created;
   }
 
   async getTemplateModel(id: string) {
@@ -121,7 +134,11 @@ export class TemplateModelService {
     return templateModel;
   }
 
-  async updateTemplateModel(id: string, dto: UpdateTemplateModelDto) {
+  async updateTemplateModel(
+    id: string,
+    dto: UpdateTemplateModelDto,
+    actorId?: string,
+  ) {
     this.logger.debug(`Updating template model: ${id}`);
     const templateModel = await this.templateModelDb.updateTemplateModel(id, {
       ...dto,
@@ -129,15 +146,34 @@ export class TemplateModelService {
     if (!templateModel) {
       throw new NotFoundException(`Template model with id ${id} not found`);
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_updated",
+      resource_type: "template_model",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+    });
     return templateModel;
   }
 
-  async deleteTemplateModel(id: string) {
+  async deleteTemplateModel(id: string, actorId?: string) {
     this.logger.debug(`Deleting template model: ${id}`);
+    const existing = await this.templateModelDb.findTemplateModel(id);
+    if (!existing) {
+      throw new NotFoundException(`Template model with id ${id} not found`);
+    }
     const deleted = await this.templateModelDb.deleteTemplateModel(id);
     if (!deleted) {
       throw new NotFoundException(`Template model with id ${id} not found`);
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_deleted",
+      resource_type: "template_model",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: existing.group_id,
+      payload: { name: existing.name },
+    });
     return { success: true, id };
   }
 
@@ -157,7 +193,11 @@ export class TemplateModelService {
     return templateModel.field_schema;
   }
 
-  async addField(templateModelId: string, dto: CreateFieldDefinitionDto) {
+  async addField(
+    templateModelId: string,
+    dto: CreateFieldDefinitionDto,
+    actorId?: string,
+  ) {
     this.logger.debug(
       `Adding field ${dto.field_key} to template model: ${templateModelId}`,
     );
@@ -179,23 +219,38 @@ export class TemplateModelService {
       );
     }
 
-    return this.templateModelDb.createFieldDefinition(templateModelId, {
-      field_key: dto.field_key,
-      field_type: dto.field_type as unknown as FieldType,
-      field_format: dto.field_format,
-      format_spec: dto.format_spec,
-      display_order: dto.display_order,
+    const field = await this.templateModelDb.createFieldDefinition(
+      templateModelId,
+      {
+        field_key: dto.field_key,
+        field_type: dto.field_type as unknown as FieldType,
+        field_format: dto.field_format,
+        format_spec: dto.format_spec,
+        display_order: dto.display_order,
+      },
+    );
+    await this.auditService.recordEvent({
+      event_type: "template_model_field_created",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+      payload: { field_id: field.id, field_key: field.field_key },
     });
+    return field;
   }
 
   async updateField(
     templateModelId: string,
     fieldId: string,
     dto: UpdateFieldDefinitionDto,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Updating field ${fieldId} in template model: ${templateModelId}`,
     );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     const field = await this.templateModelDb.updateFieldDefinition(
       fieldId,
       templateModelId,
@@ -208,13 +263,27 @@ export class TemplateModelService {
     if (!field) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_field_updated",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel?.group_id,
+      payload: { field_id: fieldId },
+    });
     return field;
   }
 
-  async deleteField(templateModelId: string, fieldId: string) {
+  async deleteField(
+    templateModelId: string,
+    fieldId: string,
+    actorId?: string,
+  ) {
     this.logger.debug(
       `Deleting field ${fieldId} from template model: ${templateModelId}`,
     );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     const deleted = await this.templateModelDb.deleteFieldDefinition(
       fieldId,
       templateModelId,
@@ -222,6 +291,14 @@ export class TemplateModelService {
     if (!deleted) {
       throw new NotFoundException(`Field with id ${fieldId} not found`);
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_field_deleted",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel?.group_id,
+      payload: { field_id: fieldId },
+    });
     return { success: true, id: fieldId };
   }
 
@@ -244,6 +321,7 @@ export class TemplateModelService {
   async addDocumentToTemplateModel(
     templateModelId: string,
     dto: AddDocumentDto,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Adding document ${dto.labelingDocumentId} to template model: ${templateModelId}`,
@@ -266,10 +344,19 @@ export class TemplateModelService {
       );
     }
 
-    return this.templateModelDb.addDocumentToTemplateModel(
+    const labeledDoc = await this.templateModelDb.addDocumentToTemplateModel(
       templateModelId,
       dto.labelingDocumentId,
     );
+    await this.auditService.recordEvent({
+      event_type: "template_model_document_added",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+      payload: { labeling_document_id: dto.labelingDocumentId },
+    });
+    return labeledDoc;
   }
 
   async getTemplateModelDocument(templateModelId: string, documentId: string) {
@@ -291,10 +378,13 @@ export class TemplateModelService {
   async removeDocumentFromTemplateModel(
     templateModelId: string,
     documentId: string,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Removing document ${documentId} from template model: ${templateModelId}`,
     );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     const deleted = await this.templateModelDb.removeDocumentFromTemplateModel(
       templateModelId,
       documentId,
@@ -304,6 +394,14 @@ export class TemplateModelService {
         `Document ${documentId} not found in template model ${templateModelId}`,
       );
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_document_removed",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel?.group_id,
+      payload: { labeling_document_id: documentId },
+    });
     return { success: true, documentId };
   }
 
@@ -329,6 +427,7 @@ export class TemplateModelService {
     templateModelId: string,
     documentId: string,
     dto: SaveLabelsDto,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Saving labels for document ${documentId} in template model: ${templateModelId}`,
@@ -344,22 +443,46 @@ export class TemplateModelService {
       );
     }
 
-    await this.templateModelDb.upsertDocumentLabels(
-      labeledDoc.id,
-      dto.labels.map((label) => ({
-        field_key: label.field_key,
-        label_name: label.label_name,
-        value: label.value,
-        page_number: label.page_number,
-        bounding_box: label.bounding_box,
-      })),
-    );
-
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     const newStatus =
       dto.labels.length > 0
         ? LabelingStatus.labeled
         : LabelingStatus.in_progress;
-    await this.templateModelDb.updateLabeledDocument(labeledDoc.id, newStatus);
+    const labels = dto.labels.map((label) => ({
+      field_key: label.field_key,
+      label_name: label.label_name,
+      value: label.value,
+      page_number: label.page_number,
+      bounding_box: label.bounding_box,
+    }));
+
+    await this.prismaService.transaction(async (tx) => {
+      await this.templateModelDb.upsertDocumentLabels(
+        labeledDoc.id,
+        labels,
+        tx,
+      );
+      await this.templateModelDb.updateLabeledDocument(
+        labeledDoc.id,
+        newStatus,
+        tx,
+      );
+      await this.auditService.recordEvent(
+        {
+          event_type: "template_model_labels_saved",
+          resource_type: "template_model",
+          resource_id: templateModelId,
+          actor_id: actorId,
+          group_id: templateModel?.group_id,
+          payload: {
+            labeling_document_id: documentId,
+            label_count: labels.length,
+          },
+        },
+        tx,
+      );
+    });
 
     return this.templateModelDb.findLabeledDocument(
       templateModelId,
@@ -371,10 +494,13 @@ export class TemplateModelService {
     templateModelId: string,
     documentId: string,
     labelId: string,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Deleting label ${labelId} from document ${documentId} in template model: ${templateModelId}`,
     );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
     const deleted = await this.templateModelDb.deleteDocumentLabel(labelId, {
       templateModelId,
       labelingDocumentId: documentId,
@@ -382,6 +508,14 @@ export class TemplateModelService {
     if (!deleted) {
       throw new NotFoundException(`Label with id ${labelId} not found`);
     }
+    await this.auditService.recordEvent({
+      event_type: "template_model_label_deleted",
+      resource_type: "template_model",
+      resource_id: templateModelId,
+      actor_id: actorId,
+      group_id: templateModel?.group_id,
+      payload: { labeling_document_id: documentId, label_id: labelId },
+    });
     return { success: true, id: labelId };
   }
 
@@ -640,6 +774,7 @@ export class TemplateModelService {
   async uploadLabelingDocument(
     templateModelId: string,
     dto: LabelingUploadDto,
+    actorId?: string,
   ) {
     this.logger.debug(
       `Uploading labeling document for template model: ${templateModelId}`,
@@ -653,16 +788,40 @@ export class TemplateModelService {
       );
     }
 
-    const labelingResult =
-      await this.templateModelOcrService.createLabelingDocument(dto);
-    const labelingDocument = labelingResult.labelingDocument;
+    const prepared =
+      await this.templateModelOcrService.prepareLabelingDocument(dto);
 
-    const labeledDoc = await this.templateModelDb.addDocumentToTemplateModel(
-      templateModelId,
-      labelingDocument.id,
-    );
+    const { labeledDoc, labelingDocument } =
+      await this.prismaService.transaction(async (tx) => {
+        const labelingDocument =
+          await this.labelingDocumentDb.createLabelingDocument(
+            prepared.data,
+            tx,
+          );
+        const labeledDoc =
+          await this.templateModelDb.addDocumentToTemplateModel(
+            templateModelId,
+            labelingDocument.id,
+            tx,
+          );
+        await this.auditService.recordEvent(
+          {
+            event_type: "template_model_document_uploaded",
+            resource_type: "template_model",
+            resource_id: templateModelId,
+            actor_id: actorId,
+            group_id: templateModel.group_id,
+            payload: {
+              labeling_document_id: labelingDocument.id,
+              kind: prepared.kind,
+            },
+          },
+          tx,
+        );
+        return { labeledDoc, labelingDocument };
+      });
 
-    if (labelingResult.kind === "success") {
+    if (prepared.kind === "success") {
       void this.templateModelOcrService.processOcrForLabelingDocument(
         labelingDocument.id,
       );

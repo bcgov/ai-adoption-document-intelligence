@@ -22,6 +22,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   type BlobStorageInterface,
@@ -62,6 +63,7 @@ export class BenchmarkRunService {
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
     private readonly auditLogService: AuditLogService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly errorDetectionService: BenchmarkErrorDetectionService,
@@ -523,7 +525,11 @@ export class BenchmarkRunService {
   /**
    * Cancel a running benchmark
    */
-  async cancelRun(projectId: string, runId: string): Promise<RunDetailsDto> {
+  async cancelRun(
+    projectId: string,
+    runId: string,
+    actorId?: string,
+  ): Promise<RunDetailsDto> {
     this.logger.log(`Cancelling benchmark run ${runId}`);
 
     // Get the run
@@ -559,6 +565,17 @@ export class BenchmarkRunService {
       completedAt: new Date(),
     });
 
+    await this.auditService.recordEvent({
+      event_type: "benchmark_run_cancelled",
+      resource_type: "benchmark_run",
+      resource_id: runId,
+      actor_id: actorId,
+      payload: {
+        project_id: projectId,
+        definition_id: run.definitionId,
+      },
+    });
+
     this.logger.log(`Benchmark run ${runId} cancelled`);
 
     return this.getRunById(projectId, runId);
@@ -575,7 +592,11 @@ export class BenchmarkRunService {
    * @throws NotFoundException if the run does not exist
    * @throws BadRequestException if the run is still active
    */
-  async deleteRun(projectId: string, runId: string): Promise<void> {
+  async deleteRun(
+    projectId: string,
+    runId: string,
+    actorId?: string,
+  ): Promise<void> {
     const run = await this.runDb.findBenchmarkRun(runId, projectId);
 
     if (!run) {
@@ -590,43 +611,61 @@ export class BenchmarkRunService {
       );
     }
 
-    await this.runDb.deleteBenchmarkRun(runId);
+    await this.runDb.transaction(async (tx) => {
+      await this.runDb.deleteBenchmarkRun(runId, tx);
 
-    // If no runs remain for this definition, reset immutability
-    const remainingRuns = await this.runDb.countRunsByDefinition(
-      run.definitionId,
-    );
-
-    if (remainingRuns === 0) {
-      await this.runDb.resetDefinitionImmutability(run.definitionId);
-      this.logger.log(
-        `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
+      // If no runs remain for this definition, reset immutability and unfreeze
+      const remainingRuns = await this.runDb.countRunsByDefinition(
+        run.definitionId,
+        tx,
       );
 
-      // Unfreeze dataset version if no other definitions with runs reference it
-      const { datasetVersionId, splitId } = run.definition;
-      const otherDefsUsingVersion =
-        await this.runDb.countRunsByDatasetVersion(datasetVersionId);
-
-      if (otherDefsUsingVersion === 0) {
-        await this.runDb.unfreezeDatasetVersion(datasetVersionId);
+      if (remainingRuns === 0) {
+        await this.runDb.resetDefinitionImmutability(run.definitionId, tx);
         this.logger.log(
-          `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
+          `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
         );
-      }
 
-      // Unfreeze split if no other definitions with runs reference it
-      if (splitId) {
-        const otherDefsUsingSplit = await this.runDb.countRunsBySplit(splitId);
+        const { datasetVersionId, splitId } = run.definition;
+        const otherDefsUsingVersion =
+          await this.runDb.countRunsByDatasetVersion(datasetVersionId, tx);
 
-        if (otherDefsUsingSplit === 0) {
-          await this.runDb.unfreezeSplit(splitId);
+        if (otherDefsUsingVersion === 0) {
+          await this.runDb.unfreezeDatasetVersion(datasetVersionId, tx);
           this.logger.log(
-            `Unfroze split ${splitId} (no remaining runs reference it)`,
+            `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
           );
         }
+
+        if (splitId) {
+          const otherDefsUsingSplit = await this.runDb.countRunsBySplit(
+            splitId,
+            tx,
+          );
+
+          if (otherDefsUsingSplit === 0) {
+            await this.runDb.unfreezeSplit(splitId, tx);
+            this.logger.log(
+              `Unfroze split ${splitId} (no remaining runs reference it)`,
+            );
+          }
+        }
       }
-    }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "benchmark_run_deleted",
+          resource_type: "benchmark_run",
+          resource_id: runId,
+          actor_id: actorId,
+          payload: {
+            project_id: projectId,
+            definition_id: run.definitionId,
+          },
+        },
+        tx,
+      );
+    });
 
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }

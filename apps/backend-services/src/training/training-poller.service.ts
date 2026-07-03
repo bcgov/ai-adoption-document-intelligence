@@ -7,6 +7,7 @@ import { BuildMode, Prisma, TrainingStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { AuditService } from "@/audit/audit.service";
 import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
 import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -52,6 +53,7 @@ export class TrainingPollerService {
     private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {
     this.diMode = resolveDocumentIntelligenceMode(
       this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
@@ -293,37 +295,53 @@ export class TrainingPollerService {
           job.target_model_id ?? job.template_model.model_id;
 
         // Mark job succeeded and activate the new trained model atomically.
-        await this.prismaService.transaction(async (tx) => {
-          await this.trainingDb.updateTrainingJob(
-            jobId,
-            {
-              status: TrainingStatus.SUCCEEDED,
-              completed_at: new Date(),
-            },
-            tx,
-          );
+        const trainedModel = await this.prismaService.transaction(
+          async (tx) => {
+            await this.trainingDb.updateTrainingJob(
+              jobId,
+              {
+                status: TrainingStatus.SUCCEEDED,
+                completed_at: new Date(),
+              },
+              tx,
+            );
 
-          await this.trainingDb.replaceActiveTrainedModel(
-            job.template_model_id,
-            {
-              template_model_id: job.template_model_id,
-              training_job_id: jobId,
-              model_id: targetModelId,
-              version: targetVersion,
-              is_active: true,
-              description,
-              doc_types:
-                docTypes == null
-                  ? Prisma.DbNull
-                  : (docTypes as Prisma.InputJsonValue),
-              field_count: fieldCount,
-              dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
-              build_mode: job.build_mode,
-              max_training_hours: job.max_training_hours,
-              actual_training_hours: actualTrainingHours,
-            },
-            tx,
-          );
+            return this.trainingDb.replaceActiveTrainedModel(
+              job.template_model_id,
+              {
+                template_model_id: job.template_model_id,
+                training_job_id: jobId,
+                model_id: targetModelId,
+                version: targetVersion,
+                is_active: true,
+                description,
+                doc_types:
+                  docTypes == null
+                    ? Prisma.DbNull
+                    : (docTypes as Prisma.InputJsonValue),
+                field_count: fieldCount,
+                dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
+                build_mode: job.build_mode,
+                max_training_hours: job.max_training_hours,
+                actual_training_hours: actualTrainingHours,
+              },
+              tx,
+            );
+          },
+        );
+
+        await this.auditService.recordEvent({
+          event_type: "trained_model_activated",
+          resource_type: "trained_model",
+          resource_id: trainedModel.id,
+          group_id: job.template_model.group_id,
+          payload: {
+            template_model_id: job.template_model_id,
+            model_id: targetModelId,
+            version: targetVersion,
+            training_job_id: jobId,
+            source: "training_poller",
+          },
         });
 
         this.logger.log(

@@ -657,7 +657,11 @@ export class HitlService {
     return { ok: true, expiresAt: newExpiry };
   }
 
-  async deleteCorrection(sessionId: string, correctionId: string) {
+  async deleteCorrection(
+    sessionId: string,
+    correctionId: string,
+    actorId?: string,
+  ) {
     const session = await this.reviewDb.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
@@ -669,6 +673,19 @@ export class HitlService {
     if (!deleted) {
       throw new NotFoundException(`Correction ${correctionId} not found`);
     }
+    const doc = session.document as { group_id?: string };
+    await this.auditService.recordEvent({
+      event_type: "review_correction_deleted",
+      resource_type: "review_session",
+      resource_id: sessionId,
+      actor_id: actorId,
+      document_id: session.document_id,
+      group_id: doc.group_id,
+      payload: {
+        correction_id: correctionId,
+        document_id: session.document_id,
+      },
+    });
     return { deleted: true };
   }
 

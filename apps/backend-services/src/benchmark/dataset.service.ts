@@ -21,6 +21,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import Ajv from "ajv";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -62,6 +63,7 @@ export class DatasetService {
     private readonly auditLogDbService: AuditLogDbService,
     private readonly groundTruthJobDb: GroundTruthJobDbService,
     private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {}
 
@@ -205,7 +207,7 @@ export class DatasetService {
   /**
    * Delete a dataset by ID
    */
-  async deleteDataset(id: string): Promise<void> {
+  async deleteDataset(id: string, actorId: string): Promise<void> {
     this.logger.debug(`Deleting dataset with ID: ${id}`);
 
     const dataset = await this.datasetDbService.findDatasetForDeletion(id);
@@ -278,6 +280,18 @@ export class DatasetService {
       }
     }
 
+    await this.auditService.recordEvent({
+      event_type: "dataset_deleted",
+      resource_type: "dataset",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: dataset.group_id,
+      payload: {
+        name: dataset.name,
+        version_count: dataset.versions.length,
+      },
+    });
+
     this.logger.log(`Dataset deleted successfully: ${id}`);
   }
 
@@ -287,7 +301,8 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    _actorId: string, // TODO: Why isn't this used?
+    actorId: string,
+    options?: { id?: string; storagePrefix?: string | null },
   ): Promise<VersionResponseDto> {
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -306,15 +321,29 @@ export class DatasetService {
     const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
     const version = await this.datasetDbService.createDatasetVersion({
+      ...(options?.id ? { id: options.id } : {}),
       datasetId: datasetId,
       version: versionLabel,
       name: createDto.name || null,
-      storagePrefix: null,
+      storagePrefix: options?.storagePrefix ?? null,
       manifestPath: manifestPath,
       documentCount: 0,
       groundTruthSchema: createDto.groundTruthSchema
         ? (createDto.groundTruthSchema as Prisma.InputJsonValue)
         : undefined,
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_created",
+      resource_type: "dataset_version",
+      resource_id: version.id,
+      actor_id: actorId,
+      group_id: dataset.group_id,
+      payload: {
+        dataset_id: datasetId,
+        version: versionLabel,
+        name: version.name,
+      },
     });
 
     this.logger.log(
@@ -388,6 +417,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
     name: string,
+    actorId: string,
   ): Promise<VersionResponseDto> {
     const version = await this.datasetDbService.findDatasetVersion(
       versionId,
@@ -413,6 +443,19 @@ export class DatasetService {
       datasetId,
     );
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_updated",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        name: name || null,
+      },
+    });
+
     return this.mapToVersionResponseDto(updated!, updated!.splits);
   }
 
@@ -431,7 +474,7 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    _actorId: string, // TODO: Why isn't this used?
+    actorId: string,
     groupId: string,
   ): Promise<UploadResponseDto> {
     if (!Array.isArray(files)) {
@@ -613,6 +656,19 @@ export class DatasetService {
         `Upload complete: ${uploadedFiles.length} files added to version ${version.version} (${versionId})`,
       );
 
+      await this.auditService.recordEvent({
+        event_type: "dataset_files_uploaded",
+        resource_type: "dataset_version",
+        resource_id: versionId,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          dataset_id: datasetId,
+          file_count: uploadedFiles.length,
+          document_count: updatedVersion.documentCount,
+        },
+      });
+
       return {
         datasetId: datasetId,
         uploadedFiles: uploadedFiles,
@@ -658,6 +714,7 @@ export class DatasetService {
     versionId: string,
     sampleId: string,
     groupId: string,
+    actorId: string,
   ): Promise<void> {
     this.logger.log(
       `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
@@ -816,6 +873,18 @@ export class DatasetService {
         }
       }
 
+      await this.auditService.recordEvent({
+        event_type: "dataset_sample_deleted",
+        resource_type: "dataset_version",
+        resource_id: versionId,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          dataset_id: datasetId,
+          sample_id: sampleId,
+        },
+      });
+
       this.logger.log(`Sample ${sampleId} deleted from version ${versionId}`);
     } catch (error) {
       if (
@@ -836,7 +905,11 @@ export class DatasetService {
    * Delete a dataset version.
    * Blocked if any benchmark definitions reference this version.
    */
-  async deleteVersion(datasetId: string, versionId: string): Promise<void> {
+  async deleteVersion(
+    datasetId: string,
+    versionId: string,
+    actorId: string,
+  ): Promise<void> {
     this.logger.log(`Deleting version ${versionId} for dataset ${datasetId}`);
 
     const version = await this.datasetDbService.findDatasetVersionForDeletion(
@@ -915,6 +988,18 @@ export class DatasetService {
         }
       }
     }
+
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_deleted",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: groupId,
+      payload: {
+        dataset_id: datasetId,
+        version: version.version,
+      },
+    });
 
     this.logger.log(`Version ${versionId} deleted successfully`);
   }
@@ -1879,6 +1964,7 @@ export class DatasetService {
       sampleIds: string[];
       stratificationRules?: Record<string, unknown>;
     },
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -1924,6 +2010,22 @@ export class DatasetService {
         ? (createDto.stratificationRules as Prisma.InputJsonValue)
         : Prisma.DbNull,
       frozen: false,
+    });
+
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_created",
+      resource_type: "dataset_split",
+      resource_id: split.id,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        name: split.name,
+        type: split.type,
+        sample_count: createDto.sampleIds.length,
+      },
     });
 
     return {
@@ -2050,6 +2152,7 @@ export class DatasetService {
     versionId: string,
     splitId: string,
     updateDto: { sampleIds: string[] },
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -2088,6 +2191,20 @@ export class DatasetService {
       sampleIds: updateDto.sampleIds as Prisma.InputJsonValue,
     });
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_updated",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        sample_count: updateDto.sampleIds.length,
+      },
+    });
+
     return {
       id: updated.id,
       datasetVersionId: updated.datasetVersionId,
@@ -2105,6 +2222,7 @@ export class DatasetService {
   async freezeVersion(
     datasetId: string,
     versionId: string,
+    actorId: string,
   ): Promise<{
     id: string;
     datasetId: string;
@@ -2127,6 +2245,19 @@ export class DatasetService {
       frozen: true,
     });
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_frozen",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        version: frozen.version,
+      },
+    });
+
     return {
       id: frozen.id,
       datasetId: frozen.datasetId,
@@ -2143,6 +2274,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
     splitId: string,
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -2171,6 +2303,20 @@ export class DatasetService {
 
     const frozen = await this.datasetDbService.updateSplit(splitId, {
       frozen: true,
+    });
+
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_frozen",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        name: frozen.name,
+      },
     });
 
     return {

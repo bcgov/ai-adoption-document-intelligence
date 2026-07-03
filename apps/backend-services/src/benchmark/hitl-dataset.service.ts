@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
@@ -221,7 +222,10 @@ export class HitlDatasetService {
 
     const documentMap = new Map(allDocuments.map((d) => [d.id, d]));
 
-    // Create the version
+    // Pre-assign version id and storage prefix so the row is consistent even if
+    // a later documentCount update fails after blob packaging.
+    const versionId = randomUUID();
+    const storagePrefix = `datasets/${datasetId}/${versionId}`;
     const version = await this.datasetService.createVersion(
       datasetId,
       {
@@ -229,9 +233,8 @@ export class HitlDatasetService {
         name: versionName,
       },
       actorId,
+      { id: versionId, storagePrefix },
     );
-
-    const storagePrefix = `datasets/${datasetId}/${version.id}`;
     const skipped: SkippedDocument[] = [];
     const manifestSamples: Array<{
       id: string;

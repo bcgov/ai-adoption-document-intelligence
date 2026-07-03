@@ -1,6 +1,6 @@
 # Transaction and Audit Compliance Audit
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02 (original); **rescan:** 2026-07-03  
 **Scope:** `apps/backend-services`, `apps/temporal`, shared packages  
 **Related docs:** [DATABASE_SERVICES.md](./DATABASE_SERVICES.md), [AUDIT.md](./AUDIT.md)
 
@@ -13,15 +13,13 @@ This document records a full codebase review of database write patterns against 
 
 ## Summary
 
-| Category | Count (approx.) | Severity |
-|----------|-----------------|----------|
-| Multi-step mutations without a transaction | 15+ call sites | High |
-| Service-layer transactions without audit | 8 call sites | Medium |
-| Audit called inside a transaction without passing `tx` | 1 call site | Medium |
-| Read-only `$transaction` usage (compliant) | 1 | OK |
-| Correctly transactional + audited | Several (group approve/cancel, tables, benchmark run start/promote) | OK |
-
-Infrastructure gap: `AuditDbService.createAuditEvent(data, tx?)` and `AuditLogDbService.createAuditLog(data, tx?)` accept an optional transaction client, but **`AuditService.recordEvent()` and `AuditLogService.logAuditEvent()` do not expose `tx`** — so audit cannot participate in transactions today even when callers try.
+| Category | Status |
+|----------|--------|
+| Original audit list (HITL, group request, dataset cascade tx, training poller, bootstrap, workflow create/update/candidate, API keys, promote/apply, OCR) | **Fixed** |
+| Infrastructure: `recordEvent` / `logAuditEvent` accept optional `tx` | **Fixed** |
+| Rescan transaction gaps (definition revision, run delete, GT start/processJob, template-model labels/upload) | **Fixed** |
+| Rescan mutation audit gaps (training, template-model, project/definition/run/dataset, GT, classifier, confusion-profile, upload, HITL `deleteCorrection`, workflow delete, document update event type) | **Fixed** |
+| Compliant domains | Group, tables, API keys, HITL (including `deleteCorrection`), workflow, training, dataset, benchmark project/definition/run, GT, classifier, confusion-profile, template-model, document upload/update |
 
 ---
 
@@ -190,17 +188,64 @@ The following items from this audit have been **implemented**:
 | Dataset `deleteSample` / `deleteVersion` DB transactions | Done |
 | OCR document update + audit in one transaction | Done |
 
-**Still open:** None from the original audit list. Future mutations should follow the patterns in [DATABASE_SERVICES.md](./DATABASE_SERVICES.md) and [AUDIT.md](./AUDIT.md).
+**Original audit list:** all items implemented (see table above).
 
-## Recommended remediation priority (remaining)
+**Rescan (2026-07-03):** additional gaps remain outside the original list. See [Remaining gaps](#remaining-gaps-2026-07-03-rescan).
 
-1. **HITL session lifecycle** — wrap session + lock (+ document status on approve) in `prismaService.transaction`; pass `tx` through `HitlService` → `ReviewDbService` / `DocumentService`.
-2. **`dataset.service.ts` delete paths** — single transaction for DB cascade; audit `dataset_deleted` / `version_deleted` after commit.
-3. **Extend `AuditService.recordEvent(events, tx?)`** — delegate `tx` to `AuditDbService`; same for `AuditLogService`.
-4. **Workflow / benchmark definition mutations** — add benchmark or global audit events for create/update/promote.
-5. **Training poller** — single transaction for job SUCCEEDED + `replaceActiveTrainedModel`; audit model activation.
-6. **API key lifecycle** — audit create/revoke events.
-7. **`bootstrap.service.ts`** — pass `tx` into `recordEvent` once (1) is done.
+## Remaining gaps (2026-07-03 rescan) — **Done**
+
+Original remediation covered HITL lifecycle, group membership request, dataset create/delete *transactions*, training poller atomicity, bootstrap `tx`, workflow create/update/candidate, API keys, promote/apply, and OCR `processDocument`. A full rescan of user-facing mutations found further gaps; those are now remediated (2026-07-03 follow-up).
+
+### Transaction gaps (multi-write without a shared transaction) — **Done**
+
+| Location | Method | Status |
+|----------|--------|--------|
+| `benchmark-definition.service.ts` | `updateDefinition` (has-runs revision path) | **Done** |
+| `benchmark-run.service.ts` | `deleteRun` | **Done** |
+| `ground-truth-generation.service.ts` | `startGeneration` | **Done** |
+| `template-model.service.ts` | `saveDocumentLabels` | **Done** |
+| `template-model.service.ts` | `uploadLabelingDocument` | **Done** |
+| `hitl-dataset.service.ts` | `packageDocumentsIntoVersion` | **Done** (pre-assign version id + storagePrefix at create) |
+| `ground-truth-generation.service.ts` | `processJob` (background) | **Done** (document + job tx) |
+
+### Audit gaps (user-initiated mutation with no mutation audit) — **Done**
+
+| Domain | Methods | Status |
+|--------|---------|--------|
+| **Training** | `startTraining`, `cancelTrainingJob`, `setActiveTrainedVersion`, `deleteTrainedVersion`; poller activation | **Done** |
+| **Template model** | create/update/delete, field CRUD, documents, labels, upload | **Done** |
+| **Benchmark project** | `createProject`, `deleteProject` | **Done** |
+| **Benchmark definition** | `createDefinition`, `updateDefinition`, `deleteDefinition` | **Done** |
+| **Benchmark run** | `cancelRun`, `deleteRun` | **Done** |
+| **Dataset** | deletes, version/split/freeze/upload mutations | **Done** (via global `AuditService`) |
+| **Ground truth** | `startGeneration` | **Done** |
+| **Classifier** | create/update/train/delete | **Done** |
+| **Confusion profile** | create/update/delete | **Done** |
+| **Document / upload** | `document_uploaded`; `updateDocument` → `document_updated` | **Done** |
+| **HITL** | `deleteCorrection` | **Done** |
+| **Workflow** | `deleteWorkflow` | **Done** |
+
+Benchmark lifecycle events not covered by the limited `AuditAction` enum use global `AuditService` event types (see [AUDIT.md](./AUDIT.md)).
+
+### Compliant domains (rescan)
+
+- **Group** — mutations audited; membership request/approve/cancel transactional where needed
+- **Tables** — mutations audited; multi-write paths use db-service transactions
+- **API keys** — create/delete/regenerate audited
+- **HITL** — session lifecycle transactional + in-tx audit; `deleteCorrection` audited after delete
+- **Workflow** create/update/candidate/delete, **OCR processDocument**, **bootstrap**, **promote/apply**
+- **Training**, **dataset**, **benchmark project/definition/run**, **ground truth**, **classifier**, **confusion profile**, **template model**, **document upload/update**
+
+### Intentional exceptions (not gaps)
+
+| Area | Notes |
+|------|--------|
+| HITL `heartbeat`, API key `last_used` | Housekeeping |
+| `EphemeralDocumentCleanupService`, `ClassifierOrphanCleanupService` | Background janitors |
+| Benchmark `startRun` | Create → Temporal → `postTemporalStartTransaction` with failure compensation |
+| Classifier / training delete | DB-first then best-effort external cleanup (audit still required) |
+| Blob-then-DB uploads | External storage before DB is not a multi-DB-write atomicity issue |
+| HITL package `documentCount` update after blobs | Version id + storagePrefix set at create; count update is a single post-blob write |
 
 ---
 
