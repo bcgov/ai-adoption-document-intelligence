@@ -55,23 +55,25 @@ Default: `minio`
 
 ### Primary container: `document-blobs`
 
-A single bucket (MinIO) or container (Azure) holds most platform data, organized by key prefix:
+A single bucket (MinIO) or container (Azure) holds most platform data. All keys are built and validated by the shared `@ai-di/blob-storage-paths` package (re-exported as `storage-path-builder.ts` in both apps) and follow the shape `{groupId}/{category}/{...}/{fileName}`, where `category` is one of `ocr`, `training`, `classification`, `benchmark`. Group-independent resources use the `_shared/{category}/...` prefix.
 
 ```
 document-blobs/
-├── documents/{documentId}/
+├── {groupId}/ocr/{documentId}/
 │   ├── original.{ext}                        # Uploaded file as provided (any supported ext.)
-│   └── normalized.pdf                        # Canonical PDF for OCR, workflows, in-app view
+│   ├── normalized.pdf                        # Canonical PDF for OCR, workflows, in-app view
+│   └── thumbnail.webp                        # List-view thumbnail
 │
-├── labeling-documents/{documentId}/
+├── {groupId}/training/labeling-documents/{documentId}/
 │   ├── original.{ext}                        # Labeling upload as provided
 │   └── normalized.pdf                        # Canonical PDF for OCR and in-app view
 │
-├── classifier/{groupId}/{classifierName}/{label}/
-│   └── {filename}                             # Classifier training documents (staged here
-│                                              #   before being copied to Azure for training)
+├── {groupId}/classification/{classifierName}/{label}/
+│   └── {filename}                             # Classifier training documents (staged here,
+│                                              #   then mirrored to Azure for training)
+├── _shared/classification/...                 # Shared "other" classifier training data
 │
-└── datasets/{datasetId}/{datasetVersionId}/
+└── {groupId}/benchmark/datasets/{datasetId}/{datasetVersionId}/
     ├── dataset-manifest.json                  # Version manifest (schema, sample list)
     ├── inputs/
     │   └── {sampleId}.{ext}                   # Input documents (pdf, jpg, etc.)
@@ -83,12 +85,12 @@ document-blobs/
 
 Created by the MinIO init script alongside `document-blobs`. Used for benchmark run artifacts.
 
-### Training containers: `training-{projectId}` (Azure only)
+### Training containers: `training-{templateModelId}-v{version}` (Azure only)
 
-Dynamically created per training job via `AzureStorageService`. Azure Document Intelligence requires SAS URLs pointing to Azure containers, so these are always on Azure regardless of `BLOB_STORAGE_PROVIDER`.
+Dynamically created per training run by `TrainingService` via `AzureStorageService`. Azure Document Intelligence requires SAS URLs pointing to Azure containers, so these are always on Azure regardless of `BLOB_STORAGE_PROVIDER`.
 
 ```
-training-{projectId}/
+training-{templateModelId}-v{version}/
 ├── fields.json                                # Field schema definition
 ├── {filename}                                 # Original document file
 ├── {filename}.ocr.json                        # OCR results
@@ -97,39 +99,34 @@ training-{projectId}/
 
 Container lifecycle: created fresh per training run, cleared before re-use, can be deleted after completion.
 
-### Classification container: `classification` (Azure only)
+### Classifier training on Azure
 
-Hardcoded in `ClassifierService`. Used for Azure Document Intelligence classifier training — always Azure. Files are first uploaded to `document-blobs` under the `classifier/` prefix, then copied here (with the `classifier/` prefix stripped) when training is triggered.
-
-```
-classification/
-└── {groupId}/{classifierName}/{label}/
-    └── {filename}                             # Training document (copied from document-blobs)
-```
+There is no separate `classification` container. Classifier training documents live in the primary container under `{groupId}/classification/...`. When training runs, `ClassifierService.uploadDocumentsForTraining` mirrors those keys from the primary blob store to an Azure container with the **same name and same keys** (via `AzureStorageService`), and the classifier build request passes a container-root SAS URL with a per-label `prefix`. Layout OCR results (`{filename}.ocr.json`) are generated beside the images.
 
 ### Summary table
 
-| Container / Bucket          | Provider           | Created By                  | Lifecycle        |
-|-----------------------------|--------------------|-----------------------------|------------------|
-| `document-blobs`            | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
-| `benchmark-outputs`         | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
-| `training-{projectId}`      | Azure only         | TrainingService              | Per training job |
-| `classification`            | Azure only         | ClassifierService            | Permanent        |
+| Container / Bucket                     | Provider           | Created By                  | Lifecycle        |
+|----------------------------------------|--------------------|-----------------------------|------------------|
+| `document-blobs`                       | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
+| `benchmark-outputs`                    | MinIO or Azure     | init-minio.sh / app startup | Permanent        |
+| `training-{templateModelId}-v{ver}`    | Azure only         | TrainingService             | Per training run |
+| `document-blobs` (Azure mirror for classifier training) | Azure only | ClassifierService | Permanent        |
 
 ### Key patterns by feature
 
 | Feature                  | Container            | Key Pattern                                                     | Operations       |
 |--------------------------|----------------------|-----------------------------------------------------------------|------------------|
-| Document upload          | `document-blobs`     | `documents/{documentId}/original.{ext}`, `.../normalized.pdf` | W, R, D prefix   |
-| Labeling documents       | `document-blobs`     | `labeling-documents/{documentId}/original.{ext}`, `.../normalized.pdf` | W, R, D prefix   |
-| Classifier staging       | `document-blobs`     | `classifier/{groupId}/{classifierName}/{label}/{filename}`      | W, R, LIST, DEL prefix |
-| Benchmark datasets       | `document-blobs`     | `datasets/{datasetId}/{versionId}/dataset-manifest.json`        | W, R             |
-| Dataset inputs           | `document-blobs`     | `datasets/{datasetId}/{versionId}/inputs/{sampleId}.{ext}`      | W, R, D          |
-| Dataset ground truth     | `document-blobs`     | `datasets/{datasetId}/{versionId}/ground-truth/{sampleId}.json` | W, R, D          |
-| HITL-derived datasets    | `document-blobs`     | `datasets/{datasetId}/{versionId}/...` (same as above)          | W, R             |
-| Dataset cleanup          | `document-blobs`     | `datasets/{datasetId}/` (deleteByPrefix)                        | DEL prefix       |
-| DI model training        | `training-{projId}`  | `fields.json`, `{name}`, `{name}.ocr.json`, `{name}.labels.json` | W, R, DEL      |
-| DI classifier training   | `classification`     | `{groupId}/{classifierName}/{label}/{filename}`                 | W, R, DEL prefix |
+| Document upload          | `document-blobs`     | `{groupId}/ocr/{documentId}/original.{ext}`, `.../normalized.pdf`, `.../thumbnail.webp` | W, R, D prefix   |
+| Labeling documents       | `document-blobs`     | `{groupId}/training/labeling-documents/{documentId}/original.{ext}`, `.../normalized.pdf` | W, R, D prefix   |
+| Classifier staging       | `document-blobs`     | `{groupId}/classification/{classifierName}/{label}/{filename}`  | W, R, LIST, DEL prefix |
+| Shared classifier data   | `document-blobs`     | `_shared/classification/...`                                    | R                |
+| Benchmark datasets       | `document-blobs`     | `{groupId}/benchmark/datasets/{datasetId}/{versionId}/dataset-manifest.json` | W, R |
+| Dataset inputs           | `document-blobs`     | `{groupId}/benchmark/datasets/{datasetId}/{versionId}/inputs/{sampleId}.{ext}` | W, R, D |
+| Dataset ground truth     | `document-blobs`     | `{groupId}/benchmark/datasets/{datasetId}/{versionId}/ground-truth/{sampleId}.json` | W, R, D |
+| HITL-derived datasets    | `document-blobs`     | same dataset patterns as above                                  | W, R             |
+| Dataset cleanup          | `document-blobs`     | `{groupId}/benchmark/datasets/{datasetId}/` (deleteByPrefix)    | DEL prefix       |
+| DI model training        | `training-{id}-v{n}` | `fields.json`, `{name}`, `{name}.ocr.json`, `{name}.labels.json` | W, R, DEL      |
+| DI classifier training   | Azure `document-blobs` mirror | `{groupId}/classification/{classifierName}/{label}/{filename}` | W, R, DEL prefix |
 
 *Operations: W = write, R = read, D = delete, DEL prefix = deleteByPrefix, LIST = list*
 
@@ -252,7 +249,8 @@ The client reads the same `BLOB_STORAGE_PROVIDER` environment variable and suppo
 | `minio-blob-storage.service.ts`   | MinIO/S3 implementation                          |
 | `azure-blob-provider.service.ts`  | Azure blob provider (`BlobStorageInterface`)                |
 | `azure-storage.service.ts`| Azure training storage (always Azure)           |
-| `blob-storage.module.ts`          | Dynamic NestJS module with provider factory      |
+| `blob-storage.module.ts`          | Dynamic NestJS module with provider factory; also provides the `BLOB_STORAGE_CONTAINER_NAME` token |
+| `storage-path-builder.ts`         | Re-export of `@ai-di/blob-storage-paths` (key building/validation shared with the worker) |
 
 ### Temporal Workers (`apps/temporal/src/blob-storage/`)
 

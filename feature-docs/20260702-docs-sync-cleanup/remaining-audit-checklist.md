@@ -6,7 +6,7 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 
 ## Audit batches (same-folder docs share code context — do each batch in one pass)
 
-- [ ] architecture: `BLOB_STORAGE.md`, `TABLES.md`, `TEMPLATE_MODELS.md` *(partial)*
+- [x] architecture: `BLOB_STORAGE.md` (major fixes: group-scoped key scheme `{groupId}/{category}/...`, no `classification` container, training container naming), `TABLES.md` (year-month column type), `TEMPLATE_MODELS.md` (TRAINING_MIN_DOCUMENTS)
 - [ ] architecture: `HITL_ARCHITECTURE.md` *(partial; large)*
 - [ ] auth: `AUTHENTICATION.md` *(partial; 2000+ lines — verify against apps/backend-services/src/auth/ and src/actor/)*
 - [ ] auth: `GROUP_RESOURCE_AUTHORIZATION.md` *(partial)*
