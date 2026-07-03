@@ -258,22 +258,38 @@ export function DatasetDetailPage() {
   return (
     <>
       <Stack gap="lg">
-        <Stack gap={2}>
-          <Group justify="space-between">
-            <Group gap="sm" align="center">
-              <Button
-                variant="subtle"
-                leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate("/benchmarking/datasets")}
-                data-testid="back-to-datasets-btn"
-              >
-                Back
-              </Button>
-              <Title order={2} data-testid="dataset-name-title">
+        <Stack gap="xs">
+          <Group>
+            <Button
+              variant="subtle"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={() => navigate("/benchmarking/datasets")}
+              data-testid="back-to-datasets-btn"
+            >
+              Back
+            </Button>
+          </Group>
+
+          <Group justify="space-between" align="flex-start" wrap="wrap">
+            <Stack
+              className="bcds-page-header__title-block"
+              style={{ gap: "var(--layout-margin-xsmall)" }}
+            >
+              <Title order={2} data-testid="dataset-name-title" mt={0} mb={0}>
                 {dataset.name}
               </Title>
-            </Group>
-            <Group gap="sm">
+              <Text
+                c="dimmed"
+                size="sm"
+                data-testid="dataset-description"
+                mt={0}
+                mb={0}
+              >
+                {dataset.description || "No description"}
+              </Text>
+            </Stack>
+
+            <Group gap="sm" className="bcds-page-header__meta">
               <Button
                 variant="light"
                 leftSection={<IconFileCheck size={16} />}
@@ -292,9 +308,15 @@ export function DatasetDetailPage() {
               </Button>
             </Group>
           </Group>
-          <Text c="dimmed" size="sm" data-testid="dataset-description">
-            {dataset.description || "No description"}
-          </Text>
+
+          <Group gap="xs" wrap="wrap">
+            <Text size="sm" c="dimmed" fw={500}>
+              Dataset ID
+            </Text>
+            <Text size="sm" c="dimmed" data-testid="dataset-id-text">
+              {dataset.id}
+            </Text>
+          </Group>
         </Stack>
 
         <Tabs

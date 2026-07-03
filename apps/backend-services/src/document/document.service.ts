@@ -47,7 +47,14 @@ export interface UploadedDocument {
 
 export type UploadDocumentResult =
   | { kind: "success"; document: UploadedDocument }
-  | { kind: "conversion_failed"; document: UploadedDocument };
+  | {
+      kind: "conversion_failed";
+      document: UploadedDocument;
+      /** Machine-readable failure reason, e.g. `password_protected`. */
+      code: string;
+      /** Human-readable reason surfaced to the upload caller. */
+      reason: string;
+    };
 
 @Injectable()
 export class DocumentService {
@@ -88,7 +95,7 @@ export class DocumentService {
    * @returns The created document record.
    */
   async createDocument(
-    data: Omit<DocumentData, "created_at" | "updated_at">,
+    data: Omit<DocumentData, "created_at" | "updated_at" | "purged_at">,
     tx?: Prisma.TransactionClient,
   ): Promise<DocumentData> {
     this.logger.debug(`DocumentService.createDocument: ${data.id}`);
@@ -189,13 +196,27 @@ export class DocumentService {
         if (e instanceof BadRequestException) {
           throw e;
         }
-        if (!(e instanceof PdfNormalizationError)) {
+
+        // Surface the specific reason only for our controlled normalization
+        // errors. Unexpected errors fall back to the generic message/code so
+        // internal details are never leaked to the caller.
+        let code = "conversion_failed";
+        let reason = "Document could not be converted to PDF";
+        if (e instanceof PdfNormalizationError) {
+          reason = e.message;
+          if (e.code) {
+            code = e.code;
+          }
+        } else {
           this.logger.error(
             `Unexpected normalization error: ${e instanceof Error ? e.message : String(e)}`,
           );
         }
 
-        const failedDoc: Omit<DocumentData, "created_at" | "updated_at"> = {
+        const failedDoc: Omit<
+          DocumentData,
+          "created_at" | "updated_at" | "purged_at"
+        > = {
           id: documentId,
           title,
           original_filename: originalFilename,
@@ -221,10 +242,15 @@ export class DocumentService {
         return {
           kind: "conversion_failed",
           document: this.toUploadedDocument(saved),
+          code,
+          reason,
         };
       }
 
-      const documentData: Omit<DocumentData, "created_at" | "updated_at"> = {
+      const documentData: Omit<
+        DocumentData,
+        "created_at" | "updated_at" | "purged_at"
+      > = {
         id: documentId,
         title,
         original_filename: originalFilename,

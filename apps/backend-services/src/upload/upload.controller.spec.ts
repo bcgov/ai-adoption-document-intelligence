@@ -240,6 +240,12 @@ describe("UploadController", () => {
         workflow_slug: "ocr-only-minimal",
       };
       await controller.uploadDocument(dto, reqWithKey);
+      // The workflow default-model lookup must be scoped to the authorized
+      // group so another group's workflow default cannot be disclosed.
+      expect(workflowService.getModelIdDefault).toHaveBeenCalledWith(
+        "wv-2",
+        "group-from-key",
+      );
       expect(documentService.uploadDocument).toHaveBeenLastCalledWith(
         dto.title,
         dto.file,
@@ -261,6 +267,8 @@ describe("UploadController", () => {
       documentService.uploadDocument.mockResolvedValue({
         kind: "conversion_failed",
         document: failedDoc,
+        code: "conversion_failed",
+        reason: "Document could not be converted to PDF",
       });
 
       let caught: unknown;
@@ -283,6 +291,38 @@ describe("UploadController", () => {
       expect(body.document?.id).toBe("1");
 
       expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the specific code and message for a password-protected PDF", async () => {
+      const failedDoc = {
+        ...uploadedDoc,
+        normalized_file_path: null,
+        status: DocumentStatus.conversion_failed,
+      };
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "conversion_failed",
+        document: failedDoc,
+        code: "password_protected",
+        reason:
+          "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+      });
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+      const body = (caught as HttpException).getResponse() as {
+        code?: string;
+        message?: string;
+      };
+      expect(body.code).toBe("password_protected");
+      expect(body.message).toMatch(/password protected/i);
     });
   });
 });

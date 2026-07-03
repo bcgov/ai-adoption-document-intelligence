@@ -1,3 +1,4 @@
+import { IconTrash } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -342,6 +343,7 @@ export function GroupDetailPage(): JSX.Element {
           </Button>
           <Button
             color="red"
+            leftSection={<IconTrash size={16} />}
             loading={deleteMutation.isPending}
             onClick={handleDeleteConfirm}
             data-testid="delete-group-confirm-btn"

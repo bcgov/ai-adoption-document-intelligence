@@ -1,3 +1,4 @@
+import { IconDeviceFloppy, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
@@ -153,6 +154,7 @@ export function TableDetailPage() {
                 )}
                 <Group>
                   <Button
+                    leftSection={<IconDeviceFloppy size={16} />}
                     loading={updateMeta.isPending}
                     onClick={() => {
                       const label = currentLabel.trim();
@@ -171,7 +173,11 @@ export function TableDetailPage() {
                   >
                     Save Settings
                   </Button>
-                  <Button color="red" onClick={() => setConfirmDelete(true)}>
+                  <Button
+                    color="red"
+                    leftSection={<IconTrash size={16} />}
+                    onClick={() => setConfirmDelete(true)}
+                  >
                     Delete Table
                   </Button>
                 </Group>
@@ -204,6 +210,7 @@ export function TableDetailPage() {
                     </Button>
                     <Button
                       color="red"
+                      leftSection={<IconTrash size={16} />}
                       disabled={tableDeleteConfirm !== "delete"}
                       loading={deleteTable.isPending}
                       onClick={() => deleteTable.mutate()}

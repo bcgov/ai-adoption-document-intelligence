@@ -2,6 +2,7 @@ import { GroupRole } from "@generated/client";
 import {
   BadRequestException,
   ForbiddenException,
+  GoneException,
   NotFoundException,
 } from "@nestjs/common";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -538,6 +539,111 @@ describe("DocumentController", () => {
       const res: any = {};
       await expect(
         controller.downloadDocument("1", res, mockReq as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw GoneException when the document has been purged", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "cuid/ocr/file.pdf",
+        original_filename: "file.pdf",
+        group_id: mockGroupId,
+        purged_at: new Date(),
+      } as any);
+      const res: any = {};
+      await expect(
+        controller.downloadDocument("1", res, mockReq as any),
+      ).rejects.toThrow(GoneException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("viewDocument", () => {
+    const mockReq = createMockReq();
+
+    it("should stream the normalized PDF when present", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+        purged_at: null,
+      } as any);
+      blobStorage.read.mockResolvedValue(Buffer.from("pdf"));
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await controller.viewDocument("1", res, mockReq as any);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        "Content-Type",
+        "application/pdf",
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("pdf"));
+    });
+
+    it("should throw GoneException when the document has been purged", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+        purged_at: new Date(),
+      } as any);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await expect(
+        controller.viewDocument("1", res, mockReq as any),
+      ).rejects.toThrow(GoneException);
+      expect(blobStorage.read).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException when normalized PDF path is missing", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: null,
+        group_id: mockGroupId,
+        purged_at: null,
+      } as any);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await expect(
+        controller.viewDocument("1", res, mockReq as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw NotFoundException (not 500) when the blob read fails", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+        purged_at: null,
+      } as any);
+      blobStorage.read.mockRejectedValue(new Error("NoSuchKey"));
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await expect(
+        controller.viewDocument("1", res, mockReq as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ForbiddenException if user is not a group member", async () => {
+      const notMemberReq = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      };
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+      } as any);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await expect(
+        controller.viewDocument("1", res, notMemberReq as any),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it("should throw NotFoundException if document not found", async () => {
+      documentService.findDocument.mockResolvedValue(null);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      await expect(
+        controller.viewDocument("1", res, mockReq as any),
       ).rejects.toThrow(NotFoundException);
     });
   });

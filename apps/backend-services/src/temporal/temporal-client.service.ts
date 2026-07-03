@@ -1,7 +1,7 @@
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { Client, Connection } from "@temporalio/client";
+import { Client, Connection, WorkflowNotFoundError } from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
 import { computeConfigHashWithOverrides } from "../workflow/config-hash";
@@ -293,6 +293,30 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Reports whether a workflow execution is currently Running.
+   *
+   * Returns false when no execution exists for the given ID (never started, or
+   * the record was reclaimed), so callers can safely treat a missing execution
+   * as "not running" — e.g. an orphaned document whose prior run already closed.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async isWorkflowRunning(workflowId: string): Promise<boolean> {
+    this.ensureClientInitialized();
+
+    try {
+      const handle = this.client!.workflow.getHandle(workflowId);
+      const description = await handle.describe();
+      return description.status.name === "RUNNING";
+    } catch (error) {
+      if (error instanceof WorkflowNotFoundError) {
+        return false;
+      }
+      throw this.handleError(error, `check running state for ${workflowId}`);
+    }
+  }
+
+  /**
    * Get workflow result (waits if not ready)
    * @param workflowId Workflow execution ID
    * @returns Workflow result
@@ -390,6 +414,39 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       );
     } catch (error) {
       throw this.handleError(error, `cancel workflow ${workflowId}`);
+    }
+  }
+
+  /**
+   * Permanently deletes a workflow execution's history and visibility record
+   * from Temporal. Used by the ephemeral-document cleanup janitor to drop the
+   * Temporal footprint of completed documents ahead of the namespace retention
+   * window. Only valid for closed (completed/failed/terminated) executions.
+   *
+   * Idempotent: a NOT_FOUND response (already deleted or already expired by
+   * retention) is treated as success so callers can safely mark the work done.
+   *
+   * @param workflowId Workflow execution ID
+   */
+  async deleteWorkflowExecution(workflowId: string): Promise<void> {
+    if (!this.connection) {
+      throw new Error("Temporal client not initialized");
+    }
+
+    try {
+      await this.connection.workflowService.deleteWorkflowExecution({
+        namespace: this.namespace,
+        workflowExecution: { workflowId },
+      });
+      this.logger.log(`Deleted Temporal execution record for ${workflowId}`);
+    } catch (error) {
+      if (getErrorMessage(error).toLowerCase().includes("not found")) {
+        this.logger.debug(
+          `Temporal execution ${workflowId} already absent; nothing to delete`,
+        );
+        return;
+      }
+      throw this.handleError(error, `delete Temporal execution ${workflowId}`);
     }
   }
 

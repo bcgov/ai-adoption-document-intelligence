@@ -27,6 +27,13 @@ spec:
       global:
         repo1-retention-full: '30' # Retain backups for 30 days. All full and incremental after this will be removed.
         repo1-retention-full-type: time
+        # Block incremental: back up only the changed blocks within a file rather
+        # than re-copying the whole changed file segment. Prevents backup/WAL
+        # bloat from high-churn tables (e.g. ocr_results), which previously filled
+        # the repo, stalled WAL archiving, and crashed the DB. Requires bundling.
+        # (pgBackRest 2.46+)
+        repo1-block: 'y'
+        repo1-bundle: 'y'
       repos:
         - name: repo1
           schedules:

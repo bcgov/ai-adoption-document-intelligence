@@ -3,7 +3,7 @@ import { PageHeader, Stack } from "../ui";
 
 export function UploadPage() {
   return (
-    <Stack gap="lg">
+    <Stack style={{ gap: "var(--layout-margin-large)" }}>
       <PageHeader
         title="Upload documents"
         description="Add new images and track their ingestion progress."

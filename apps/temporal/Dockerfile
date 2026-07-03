@@ -26,6 +26,9 @@ RUN cd /packages/blob-storage-paths && npm install --ignore-scripts && npm run b
 COPY packages/graph-workflow /packages/graph-workflow
 RUN cd /packages/graph-workflow && npm install --ignore-scripts && npm run build
 
+COPY packages/temporal-payload-codec /packages/temporal-payload-codec
+RUN cd /packages/temporal-payload-codec && npm install --ignore-scripts && npm run build
+
 COPY packages/monitoring /packages/monitoring
 # @ai-di/shared-logging is a peerDependency of monitoring (not needed at build time).
 # Link the already-built logging package so npm doesn't fetch it from the registry.
@@ -78,6 +81,7 @@ COPY --from=builder /packages/logging /packages/logging
 COPY --from=builder /packages/graph-insertion-slots /packages/graph-insertion-slots
 COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 COPY --from=builder /packages/graph-workflow /packages/graph-workflow
+COPY --from=builder /packages/temporal-payload-codec /packages/temporal-payload-codec
 COPY --from=builder /packages/monitoring /packages/monitoring
 
 # Package files and production deps

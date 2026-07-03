@@ -39,7 +39,9 @@ data:
       ingestion_burst_size_mb: 8
 
     ingester:
-      chunk_idle_period: 30m
+      # Flush idle log streams to disk after 5m instead of 30m to cap the
+      # ingester's in-memory chunk footprint (mitigates Loki high-memory alerts).
+      chunk_idle_period: 5m
       chunk_target_size: 1536000
 
     compactor:
@@ -47,7 +49,7 @@ data:
       compaction_interval: 10m
       retention_enabled: true
       retention_delete_delay: 2h
-      retention_delete_worker_count: 150
+      retention_delete_worker_count: 20
       delete_request_store: filesystem
 
     analytics:

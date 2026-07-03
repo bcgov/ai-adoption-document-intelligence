@@ -1,4 +1,9 @@
-import { IconInfoCircle, IconPencil, IconTrash } from "@tabler/icons-react";
+import {
+  IconInfoCircle,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -96,6 +101,7 @@ export function LookupsTab({
       {isAdmin && (
         <Group justify="flex-end">
           <Button
+            leftSection={<IconPlus size={16} />}
             onClick={() => setEditing("new")}
             disabled={columns.length === 0}
           >
@@ -225,6 +231,7 @@ export function LookupsTab({
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               loading={remove.isPending}
               onClick={() => {
                 if (confirmDeleteName) remove.mutate(confirmDeleteName);

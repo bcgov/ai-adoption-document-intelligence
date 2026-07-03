@@ -44,6 +44,19 @@ export class DocumentDataDto {
   @ApiProperty()
   updated_at!: Date;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    type: "string",
+    format: "date-time",
+    description:
+      "Set once the ephemeral-cleanup janitor has purged the document's " +
+      "blobs (original and/or normalized PDF) per its workflow's retention " +
+      "policy. When set, the OCR result is retained but /view and /download " +
+      "return 410 Gone. Null = not purged.",
+  })
+  purged_at?: Date | null;
+
   @ApiProperty({ required: false, nullable: true, type: "string" })
   apim_request_id?: string | null;
 

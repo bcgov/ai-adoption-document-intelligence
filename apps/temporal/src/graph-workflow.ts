@@ -280,6 +280,55 @@ export async function graphWorkflow(
     if (error instanceof Error) {
       workflowError = error.message;
     }
+
+    // Failure-path status transition: a failed workflow must move the document
+    // out of `ongoing_ocr` ("Processing") into a terminal `failed` status.
+    // Without this, OCR failures (e.g. Azure rejecting a password-protected or
+    // unsupported PDF) leave the document orphaned in "Processing" forever — it
+    // never completes, and `deleteDocument` refuses to remove in-flight docs.
+    // Guarded to only transition from an in-flight status so a doc that already
+    // progressed (extracted/awaiting_review) is never clobbered. Skipped on
+    // cancellation (the doc is being torn down, and an activity call in a
+    // cancelled scope would itself fail). A status-update failure here is
+    // swallowed so it can never mask the original workflow error.
+    if (
+      !cancelled &&
+      input.initialCtx.documentId &&
+      typeof input.initialCtx.documentId === "string"
+    ) {
+      const documentId = input.initialCtx.documentId;
+      try {
+        const failureProxy = proxyActivities<PreExecutionActivities>({
+          startToCloseTimeout: "30s",
+          retry: { maximumAttempts: 5 },
+        });
+        const { status: currentStatus } = await failureProxy[
+          "document.getStatus"
+        ]({ documentId });
+        if (currentStatus === "ongoing_ocr" || currentStatus === "pre_ocr") {
+          await failureProxy["document.updateStatus"]({
+            documentId,
+            status: "failed",
+          });
+          console.log(
+            `[GraphWorkflow] Failure hook: set document ${documentId} to failed`,
+          );
+        } else {
+          console.log(
+            `[GraphWorkflow] Failure hook: document ${documentId} at status ${currentStatus}, leaving unchanged`,
+          );
+        }
+      } catch (statusError) {
+        console.warn(
+          `[GraphWorkflow] Failure hook: could not set document ${documentId} to failed: ${
+            statusError instanceof Error
+              ? statusError.message
+              : String(statusError)
+          }`,
+        );
+      }
+    }
+
     throw error;
   }
 }

@@ -530,21 +530,34 @@ export function RunDetailPage() {
 
   return (
     <Stack gap="lg">
-      <Stack gap={2}>
-        <Group justify="space-between">
-          <div>
-            <Group gap="sm" align="center">
-              <Button
-                variant="subtle"
-                leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
-                data-testid="back-to-project-btn"
-              >
-                Back
-              </Button>
-              <Title order={2} data-testid="run-definition-name">
+      <Stack gap="xs">
+        <Group>
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
+            data-testid="back-to-project-btn"
+          >
+            Back
+          </Button>
+        </Group>
+
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack
+            className="bcds-page-header__title-block"
+            style={{ gap: "var(--layout-margin-xsmall)" }}
+          >
+            <Group gap="sm" align="center" wrap="wrap">
+              <Title order={2} data-testid="run-definition-name" mt={0} mb={0}>
                 {run.definitionName}
               </Title>
+              <Badge
+                variant="light"
+                color={getStatusColor(run.status)}
+                data-testid="run-status-badge"
+              >
+                {run.status}
+              </Badge>
               {run.isBaseline && (
                 <Tooltip label="This run is the baseline for comparison">
                   <Badge
@@ -559,27 +572,9 @@ export function RunDetailPage() {
                 </Tooltip>
               )}
             </Group>
-            <Text c="dimmed" size="sm" data-testid="run-id-text">
-              Run ID: {run.id}
-            </Text>
-            {Boolean(
-              (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
-            ) && (
-              <Badge
-                color="cyan"
-                variant="light"
-                size="lg"
-                data-testid="ocr-cache-source-badge"
-              >
-                OCR cached from run{" "}
-                {String(
-                  (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
-                ).slice(0, 8)}
-                ...
-              </Badge>
-            )}
-          </div>
-          <Group>
+          </Stack>
+
+          <Group className="bcds-page-header__meta">
             {canCancel && (
               <Button
                 color="red"
@@ -791,6 +786,28 @@ export function RunDetailPage() {
               </Button>
             )}
           </Group>
+        </Group>
+
+        <Group gap="xs" wrap="wrap">
+          <Text c="dimmed" size="sm" data-testid="run-id-text">
+            Run ID: {run.id}
+          </Text>
+          {Boolean(
+            (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
+          ) && (
+            <Badge
+              color="cyan"
+              variant="light"
+              size="lg"
+              data-testid="ocr-cache-source-badge"
+            >
+              OCR cached from run{" "}
+              {String(
+                (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
+              ).slice(0, 8)}
+              ...
+            </Badge>
+          )}
         </Group>
       </Stack>
 
