@@ -40,6 +40,6 @@ For each confirmed gap: write the doc per `.claude/skills/docs-sync/Workflows/Ad
 
 ## Code findings to hand off (not docs work)
 
-- [ ] **AI-1296 Dockerfiles**: `apps/backend-services/Dockerfile` and `apps/temporal/Dockerfile` missing COPY/build for `packages/graph-workflow-config` and `packages/temporal-payload-codec` (declared as `file:` deps) — image builds from this branch fail at `npm install`.
-- [ ] Frontend `GroupRequest.actorId` dead field (`apps/frontend/src/data/hooks/useGroups.ts`) — backend never returns it.
-- [ ] `scripts/lib/instance-name.test.sh` tests 1.4 and 2.7 expect values longer than the 20-char truncation.
+- [x] **AI-1296 Dockerfiles**: fixed — added COPY/build for `packages/graph-workflow-config` and `packages/temporal-payload-codec` in both Dockerfiles (builder + production stages).
+- [x] Frontend `GroupRequest.actorId` dead field removed (`apps/frontend/src/data/hooks/useGroups.ts`); frontend type-checks clean.
+- [x] `scripts/lib/instance-name.test.sh` — aligned tests 1.4/2.7 and mislabeled 2.8/2.9 with the deliberate 20-char truncation; fixed stale docstring. Suite 31/31.
