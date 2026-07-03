@@ -11,7 +11,8 @@
       "azureOcr.extract": { "cost_type": "per_page", "units": 40 },
       "enrichment.run": { "cost_type": "flat", "units": 200 },
       "classifyDocument": { "cost_type": "flat", "units": 30 },
-      "runFieldFormatEngine": { "cost_type": "flat", "units": 0 }
+      "runFieldFormatEngine": { "cost_type": "flat", "units": 0 },
+      "blob.read": { "cost_type": "flat", "units": 1 }
     },
     "training_costs": {
       "template_model": 500,

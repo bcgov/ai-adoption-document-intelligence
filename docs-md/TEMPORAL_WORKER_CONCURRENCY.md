@@ -13,6 +13,14 @@ Add these to `apps/temporal/.env.sample`:
 # maxConcurrentWorkflowTaskExecutions: Max parallel workflow decision tasks per worker (default: 100)
 MAX_CONCURRENT_ACTIVITY_TASK_EXECUTIONS=10
 MAX_CONCURRENT_WORKFLOW_TASK_EXECUTIONS=100
+
+# Billing maintenance task queue — nightly storage charge and month-end archival workflows.
+# Override only if running multiple isolated billing workers.
+BILLING_TASK_QUEUE=billing-maintenance
+
+# Retention period (in days) for UsageEvent rows purged during month-end archival.
+# Defaults to 730 days (2 years) when unset.
+USAGE_EVENT_RETENTION_DAYS=730
 ```
 
 ## What Changed

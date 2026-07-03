@@ -77,9 +77,9 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-008** (per-page billing via _metered_quantity on azureOcr.extract) — depends on US-007
 
 ### Phase 5 — Storage Tracking
-- [ ] **US-009** (BlobStorageClient instrumentation — both backend and Temporal worker) — depends on US-001
-- [ ] **US-010** (nightly storage charge Temporal workflow) — depends on US-009 and US-003
-- [ ] **US-011** (end-of-month archival job + UsageEvent retention purge) — depends on US-010
+- [x] **US-009** (BlobStorageClient instrumentation — both backend and Temporal worker) — depends on US-001
+- [x] **US-010** (nightly storage charge Temporal workflow) — depends on US-009 and US-003
+- [x] **US-011** (end-of-month archival job + UsageEvent retention purge) — depends on US-010
 
 ### Phase 6 — Training Cost Recording
 - [ ] **US-012** (template model and classifier training events + pre-flight cap check) — depends on US-003 and US-005

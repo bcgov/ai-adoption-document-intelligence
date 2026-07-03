@@ -13,6 +13,7 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { MinioBlobStorageService } from "./minio-blob-storage.service";
+import { StorageLedgerService } from "./storage-ledger.service";
 
 const mockConfigService = {
   get: jest.fn((key: string, defaultValue?: string) => {
@@ -28,6 +29,7 @@ const mockS3Send = jest.fn();
 
 describe("MinioBlobStorageService", () => {
   let service: MinioBlobStorageService;
+  let module: TestingModule;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -39,11 +41,20 @@ describe("MinioBlobStorageService", () => {
         }) as unknown as S3Client,
     );
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         MinioBlobStorageService,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: AppLoggerService, useValue: mockAppLogger },
+        {
+          provide: StorageLedgerService,
+          useValue: {
+            recordWrite: jest.fn().mockResolvedValue(undefined),
+            recordDelete: jest.fn().mockResolvedValue(undefined),
+            recordDeleteByPrefix: jest.fn().mockResolvedValue(undefined),
+            recordRead: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -102,6 +113,19 @@ describe("MinioBlobStorageService", () => {
       expect(result.toString()).toBe(content);
       expect(mockS3Send).toHaveBeenCalledTimes(1);
       expect(mockS3Send).toHaveBeenCalledWith(expect.any(GetObjectCommand));
+    });
+
+    it("calls storageLedger.recordRead after a successful read", async () => {
+      const content = "file content";
+      const stream = Readable.from([Buffer.from(content)]);
+      mockS3Send.mockResolvedValue({ Body: stream });
+
+      const ledger = module.get<StorageLedgerService>(StorageLedgerService);
+      await service.read("group-abc/doc-123/original.pdf");
+
+      expect(ledger.recordRead).toHaveBeenCalledWith(
+        "group-abc/doc-123/original.pdf",
+      );
     });
 
     it("throws descriptive error for missing blob", async () => {

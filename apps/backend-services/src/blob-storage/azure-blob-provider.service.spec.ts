@@ -70,6 +70,15 @@ function makeLoggerService() {
   };
 }
 
+function makeStorageLedger() {
+  return {
+    recordWrite: jest.fn().mockResolvedValue(undefined),
+    recordDelete: jest.fn().mockResolvedValue(undefined),
+    recordDeleteByPrefix: jest.fn().mockResolvedValue(undefined),
+    recordRead: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe("createAzureContainerClient (factory function)", () => {
   it("creates a ContainerClient from connection string and container name", () => {
     const cfg = {
@@ -112,6 +121,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
       expect(service).toBeDefined();
     });
@@ -120,6 +130,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService({}),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
       expect(service).toBeDefined();
     });
@@ -130,6 +141,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
       await service.onModuleInit();
       expect(mockContainerClient.createIfNotExists).toHaveBeenCalled();
@@ -139,6 +151,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService({}),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
       await service.onModuleInit();
       expect(mockContainerClient.createIfNotExists).not.toHaveBeenCalled();
@@ -151,6 +164,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
       await expect(service.onModuleInit()).resolves.toBeUndefined();
     });
@@ -161,6 +175,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
@@ -191,6 +206,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
@@ -206,6 +222,25 @@ describe("AzureBlobProviderService", () => {
       mockContainerClient.getBlockBlobClient.mockReturnValue(blobClient);
       const result = await service.read("key");
       expect(result.toString()).toBe("hello world");
+    });
+
+    it("calls storageLedger.recordRead after a successful read", async () => {
+      const ledger = makeStorageLedger();
+      const svc = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+        ledger as never,
+      );
+      const blobClient = makeBlockBlobClient({
+        download: jest.fn().mockResolvedValue({
+          readableStreamBody: (async function* () {
+            yield Buffer.from("data");
+          })(),
+        }),
+      });
+      mockContainerClient.getBlockBlobClient.mockReturnValue(blobClient);
+      await svc.read("group-abc/file.pdf");
+      expect(ledger.recordRead).toHaveBeenCalledWith("group-abc/file.pdf");
     });
 
     it("throws a not-found error when blob does not exist (404)", async () => {
@@ -235,6 +270,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
@@ -270,6 +306,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
@@ -296,6 +333,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
@@ -335,6 +373,7 @@ describe("AzureBlobProviderService", () => {
       service = new AzureBlobProviderService(
         makeConfigService(validConfig),
         makeLoggerService() as never,
+        makeStorageLedger() as never,
       );
     });
 
