@@ -7,6 +7,9 @@
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
 - Changes to files must pass any linting and formatting checks. If there are any errors, fix them before submitting the code for review.
 
+## Blob Storage Cost Discipline
+- Blob reads are billed per operation and result in direct costs to the user. Minimize unnecessary blob reads: cache results rather than re-reading, avoid reading blobs to inspect metadata (use the database instead), and never read a blob speculatively or in a polling loop.
+
 ## Frontend Implementation Guidelines
 - Use React functional components and hooks for state management and side effects.
 - Use Mantine components for UI elements and styling consistency.

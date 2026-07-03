@@ -9,3 +9,4 @@
 - All backend controllers must have full Swagger/OpenAPI documentation: use specific decorators (`@ApiOkResponse`, `@ApiForbiddenResponse`, `@ApiUnauthorizedResponse`, `@ApiConflictResponse`, etc.) instead of generic `@ApiResponse`, create dedicated DTO classes with `@ApiProperty` decorators for all request/response shapes, and reference those DTOs via the `type` field in response decorators.
 - To test API directly, use: `curl -H "x-api-key: 69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY" http://localhost:3002/api/...`
 - NEVER read secrets from .env files directly, they should not be leaked into chat, terminal, etc., do not operate with secret values directly, only indirectly through variables.
+- Blob reads are billed per operation and result in direct costs to the user. Minimize unnecessary blob reads: cache results rather than re-reading, avoid reading blobs to inspect metadata (use the database instead), and never read a blob speculatively or in a polling loop.
