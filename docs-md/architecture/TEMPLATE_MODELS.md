@@ -12,7 +12,7 @@ The system follows a **model-first** architecture: the Template Model is the pri
 - **Field Schema**: User-defined fields the model should extract (e.g., `invoice_number`, `total_amount`, `date`).
 - **Labeled Documents**: Example documents with manually annotated field values and bounding boxes.
 - **Training Job**: An async process that uploads labeled data to Azure and trains the custom model.
-- **Trained Model Record**: Metadata stored after successful training, making the model available for document processing.
+- **Trained Model Version**: Metadata stored after each successful training. Versions accumulate per Template Model (v1, v2, ...); exactly one version is active at a time and is what document processing resolves to.
 
 ## Model ID Generation
 

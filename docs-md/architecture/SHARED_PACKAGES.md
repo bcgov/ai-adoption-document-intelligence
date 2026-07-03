@@ -14,6 +14,9 @@ Existing packages and what they contain:
 | `packages/blob-storage-paths` | `@ai-di/blob-storage-paths` | Blob key path helpers |
 | `packages/graph-insertion-slots` | `@ai-di/graph-insertion-slots` | Graph workflow insertion slot types |
 | `packages/graph-workflow` | `@ai-di/graph-workflow` | Graph workflow types and validator |
+| `packages/graph-workflow-config` | `@ai-di/graph-workflow-config` | Workflow config types, config hash, and override helpers |
+| `packages/monitoring` | `@ai-di/monitoring` | Alert threshold config, static alert rules, Prometheus app-metrics factory |
+| `packages/temporal-payload-codec` | `@ai-di/temporal-payload-codec` | Gzip Temporal `PayloadCodec` shared by worker and clients |
 
 ---
 
@@ -39,7 +42,8 @@ packages/my-package/
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "typescript": "5.9.3"
@@ -98,9 +102,9 @@ Packages must be compiled before any app that depends on them is started, built,
 npm run build:packages
 ```
 
-This script (defined in the root `package.json`) runs `npm run build -w packages`, which compiles every package under `packages/`. If a package has no inter-package dependencies (which is the norm), ordering does not matter.
+This script (defined in the root `package.json`) runs `npm run build -w packages`, which compiles every package under `packages/`. Most packages have no inter-package dependencies; the one exception is `@ai-di/monitoring`, which peer-depends on `@ai-di/shared-logging` (which npm's alphabetical workspace ordering happens to build first).
 
-App scripts (`start:dev`, `build`, `test`) do **not** include package build steps. This is intentional — it keeps those scripts clean and makes the prerequisite explicit.
+App dev/watch scripts (`start:dev`, `dev`) do **not** include package build steps. The `build` scripts of `backend-services` and `temporal` chain the graph-related package builds (`build:graph-insertion-slots`, `build:graph-workflow-config`, `build:graph-workflow`) before compiling the app, and the temporal `pretest` script builds those plus `logging`. For anything not covered by those chains, run `npm run build:packages` first.
 
 ---
 
@@ -123,6 +127,15 @@ COPY --from=builder /packages/my-package /packages/my-package
 
 The production stage copy is needed because `node_modules` contains a symlink to `/packages/my-package` and the symlink target must exist in the final image.
 
+If the package depends on another workspace package (as `@ai-di/monitoring` does on `@ai-di/shared-logging`), symlink the dependency into the package's `node_modules` before installing, since `file:`/workspace resolution is not available inside the image:
+
+```dockerfile
+COPY packages/monitoring /packages/monitoring
+RUN mkdir -p /packages/monitoring/node_modules/@ai-di && \
+    ln -s /packages/logging /packages/monitoring/node_modules/@ai-di/shared-logging && \
+    cd /packages/monitoring && npm install --ignore-scripts && npm run build
+```
+
 ---
 
 ## Checklist for adding a new package
@@ -132,4 +145,5 @@ The production stage copy is needed because `node_modules` contains a symlink to
 - [ ] Run `npm install` from repo root
 - [ ] Update `apps/backend-services/Dockerfile` (if backend uses it)
 - [ ] Update `apps/temporal/Dockerfile` (if temporal uses it)
+- [ ] Update `apps/frontend/Dockerfile` (if frontend uses it)
 - [ ] Run `npm run build:packages` before starting or testing

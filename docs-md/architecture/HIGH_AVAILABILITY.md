@@ -105,7 +105,7 @@ All pods have resource requests and limits defined, which are required for HPA t
 |---------|-------------|----------------|-----------|--------------|
 | backend-services | 100m | 256Mi | 500m | 512Mi |
 | temporal-worker | 100m | 256Mi | 500m | 512Mi |
-| frontend | 50m | 64Mi | 200m | 128Mi |
+| frontend | 50m | 128Mi | 200m | 256Mi |
 
 These values may need adjustment based on actual workload metrics.
 

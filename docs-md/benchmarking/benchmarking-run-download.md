@@ -28,6 +28,25 @@ Returns `application/json` as a file attachment named `benchmark-run-{runId}.jso
   exportFormatVersion:  number   // currently 1
   run:                  RunDetailsDto         // full run metadata, including `error` for failed runs
   metrics:              object                // raw metrics including `_aggregate` and the per-sample snapshots
+  perFieldResults: [                          // per-field aggregation built from the resolved evaluation details
+    {
+      name:                     string
+      evaluatedCount:           number
+      correctCount:             number
+      errorCount:               number
+      errorRate:                number
+      accuracy:                 number
+      averageConfidence:        number | null
+      averageConfidenceCorrect: number | null
+      averageConfidenceErrors:  number | null
+      suggestedCatch90?:        number | null   // merged from the error-detection analysis
+      suggestedBestBalance:     number
+      suggestedMinimizeReview?: number | null
+      errors: [                                 // every error instance for this field across all samples
+        { sampleId, sampleMetadata, expected, predicted, confidence, matched }
+      ]
+    }
+  ]
   perSampleResults: [
     {
       sampleId:           string
@@ -47,7 +66,7 @@ Returns `application/json` as a file attachment named `benchmark-run-{runId}.jso
       blobReadError?:      string               // set when this sample's blob could not be loaded
     }
   ]
-  errorDetectionAnalysis?: ErrorDetectionAnalysisResponseDto
+  errorDetectionAnalysis?: ErrorDetectionAnalysisResponseDto  // per-field `curve` arrays stripped (returned empty)
 }
 ```
 
@@ -57,7 +76,9 @@ Returns `application/json` as a file attachment named `benchmark-run-{runId}.jso
 - **Heavy fields are inlined.** When a sample uses the blob-storage scheme (post-fix), `groundTruth`, `prediction`, and `evaluationDetails` are pulled from `{groupId}/benchmark/runs/{runId}/{sampleId}.json` and merged into the response. Older runs that still have inline values are returned as-is.
 - **Per-sample blob failures are isolated.** If a single sample's blob can't be read, the export still returns; `blobReadError` is populated on that sample so the consumer can tell what's missing.
 - **Confidence + error info per field.** Each entry in `evaluationDetails` carries the field name, the matched flag, and the confidence score that the schema-aware evaluator attached. Anything else the evaluator emitted (mismatch reasons, similarity, parsed value) is passed through unchanged.
-- **Audit logged** as a `document_list_accessed` event on `benchmark_run`, with `payload.action = "download"` and the sample count.
+- **Per-field aggregation is computed at export time.** `perFieldResults` is built from the resolved evaluation details and lists, per field, the counts, error rate, accuracy, average confidences (overall / correct / errors), and every individual error instance with expected/predicted values. Suggested thresholds (`suggestedCatch90`, `suggestedBestBalance`, `suggestedMinimizeReview`) are merged in from the error-detection analysis when it is available.
+- **Error-detection analysis is best-effort.** The precomputed analysis is embedded with the heavy per-field `curve` arrays emptied; if computing the analysis throws, the export still succeeds without it (a warning is logged) — consumers can recompute curves from the raw data.
+- **Audit logged** as a `benchmark_run_downloaded` event on `benchmark_run`, with `payload.action = "download"`, the project ID, the sample count, and the field count.
 
 ---
 

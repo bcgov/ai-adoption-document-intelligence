@@ -1,7 +1,7 @@
 # Load Test Stress Run Sheet
 
-This run sheet extends the baseline load tests with a repeatable stress matrix.
-Run only in a disposable environment.
+This run sheet extends the baseline load tests ([LOAD_TESTING.md](./LOAD_TESTING.md))
+with a repeatable stress matrix. Run only in a disposable environment.
 
 ## Scope
 
@@ -26,7 +26,10 @@ Run only in a disposable environment.
    - `LOAD_TEST_WORKFLOW_VERSION_ID`
    - `LOAD_TEST_BLOB_CLASSIFIER_NAME`
    - `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_TASK_QUEUE`
-5. Backend **`THROTTLE_GLOBAL_LIMIT`** is raised for sustained or multi-VU runs (default **100/min** per IP causes ~90 % k6 failures above smoke). Local: `export THROTTLE_GLOBAL_LIMIT=1000000` before starting backend-services. OpenShift: see [MANUAL_LOAD_TEST_INSTANCE.md](../operations/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load). Default k6 scripts (1 VU, 1 s sleep) pass without this override.
+5. Fixtures are seeded where scenarios depend on them:
+   - Documents-list pressure needs seeded rows: `npm run load-test:seed -- --count=<N> --group-id="$LOAD_TEST_GROUP_ID"`
+   - Review/HITL (any `LOAD_TEST_HITL_SESSION_MODE` other than `off`) aborts at setup without HITL-eligible fixtures: `npm run load-test:hitl-fixtures -- --delete-by-prefix --count=<N> --group-id="$LOAD_TEST_GROUP_ID"`
+6. Backend **`THROTTLE_GLOBAL_LIMIT`** is raised for sustained or multi-VU runs (default **100/min** per IP causes ~90 % k6 failures above smoke). Local: `export THROTTLE_GLOBAL_LIMIT=1000000` before starting backend-services. OpenShift: see [MANUAL_LOAD_TEST_INSTANCE.md](../operations/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load). Default k6 scripts (1 VU, 1 s sleep) pass without this override.
 
 ## Common environment template
 
@@ -177,4 +180,10 @@ export LOAD_TEST_RUN_ID="stress-<scenario>-$(date +%Y%m%d%H%M%S)-vus<value>-tier
 
 ```bash
 npm run load-test:seed -- --delete-by-prefix --count=0 --group-id="$LOAD_TEST_GROUP_ID"
+```
+
+4. Remove HITL fixtures if any were seeded (cascades generated review sessions, locks, corrections, and OCR results):
+
+```bash
+npm run load-test:hitl-fixtures -- --delete-by-prefix --count=0 --group-id="$LOAD_TEST_GROUP_ID"
 ```

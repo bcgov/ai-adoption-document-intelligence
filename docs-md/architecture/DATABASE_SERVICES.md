@@ -4,7 +4,7 @@ Each feature module in `apps/backend-services/src/` owns its database access thr
 
 ## Core Database Layer
 
-`apps/backend-services/src/database/` contains only:
+`apps/backend-services/src/database/` contains only the module definition (`database.module.ts`) and one service:
 
 | File | Service | Responsibility |
 |------|---------|----------------|
@@ -21,7 +21,7 @@ Each db service injects `PrismaService` and is a private provider scoped to its 
 
 | File | Service | Responsibility |
 |------|---------|----------------|
-| `document-db.service.ts` | `DocumentDbService` | Document CRUD (`createDocument`, `findDocument`, `findAllDocuments`, `updateDocument`, `deleteDocument`), OcrResult upsert/fetch (`upsertOcrResult`, `findOcrResult`), field extraction updates |
+| `document-db.service.ts` | `DocumentDbService` | Document CRUD (`createDocument`, `findDocument`, `findAllDocuments`, `updateDocument`, `deleteDocument`), status aggregation (`getDocumentStatusCounts`), OcrResult upsert/fetch (`upsertOcrResult`, `findOcrResult`) including extracted field storage |
 
 Types are defined in `document/document-db.types.ts`. Callers outside the module inject `DocumentService`, which delegates to `DocumentDbService`.
 
@@ -40,7 +40,7 @@ Types are defined in `document/document-db.types.ts`. Callers outside the module
 
 | File | Service | Responsibility |
 |------|---------|----------------|
-| `review-db.service.ts` | `ReviewDbService` | Review sessions, field corrections, review queue, review analytics |
+| `review-db.service.ts` | `ReviewDbService` | Review sessions, field corrections, review queue, document locks (acquire/release/heartbeat), review analytics |
 
 `HitlService` injects `ReviewDbService` and also cross-injects `DocumentService` for document lookups.
 
@@ -53,8 +53,8 @@ Types are defined in `document/document-db.types.ts`. Callers outside the module
 
 `GroupDbService` methods:
 - **Group CRUD**: `findGroup`, `findActiveGroup`, `findGroupByName`, `findActiveGroupByNameExcluding`, `findAllGroups`, `createGroup`, `updateGroupData`, `softDeleteGroup`
-- **UserGroup**: `findUsersGroups`, `findUserAdminMemberships`, `findUserGroupsWithGroup`, `findUserGroupsInGroups`, `isUserInGroup`, `findUserGroupMembership`, `upsertUserGroup`, `deleteUserGroup`, `findGroupMembersWithUser`, `isUserSystemAdmin`
-- **GroupMembershipRequest**: `findMembershipRequest`, `findPendingMembershipRequest`, `createMembershipRequest`, `updateMembershipRequest`, `approveRequestTransaction`, `findGroupMembershipRequests`, `findUserMembershipRequests`
+- **UserGroup**: `findUsersGroups`, `findUserAdminMemberships`, `findUserGroupsWithGroup`, `findUserGroupsInGroups`, `isUserInGroup`, `findUserGroupMembership`, `upsertUserGroup`, `updateUserGroupRole`, `deleteUserGroup`, `findGroupMembersWithUser`
+- **GroupMembershipRequest**: `findMembershipRequest`, `findPendingMembershipRequest`, `deleteResolvedMembershipRequests`, `createMembershipRequest`, `updateMembershipRequest`, `cancelRequestTransaction`, `approveRequestTransaction`, `findGroupMembershipRequests`, `findUserMembershipRequests`
 
 `GroupService` is the public interface and does not reference Prisma directly.
 
@@ -90,21 +90,31 @@ Types are defined in `document/document-db.types.ts`. Callers outside the module
 
 Service wiring in the benchmark module:
 - `BenchmarkProjectService` → `BenchmarkProjectDbService`
-- `BenchmarkRunService` → `BenchmarkRunDbService`, `AuditLogDbService`
+- `BenchmarkRunService` → `BenchmarkRunDbService` (audit via `AuditLogService`)
 - `BenchmarkDefinitionService` → `BenchmarkDefinitionDbService`
-- `DatasetService` → `DatasetDbService`, `AuditLogDbService`
+- `DatasetService` → `DatasetDbService`, `AuditLogDbService`, `GroundTruthJobDbService`
 - `AuditLogService` → `AuditLogDbService`
-- `GroundTruthGenerationService` → `GroundTruthJobDbService`
+- `GroundTruthGenerationService` → `GroundTruthJobDbService`, `ReviewDbService` (cross-module, injected directly)
 - `HitlDatasetService` → `ReviewDbService` (cross-module, injected directly)
 
-### ApiKey Module
-`apps/backend-services/src/actor/` (persistence via `api-key-db.service.ts`; auth via `apps/backend-services/src/auth/api-key-auth.guard.ts`)
+### Actor Module
+`apps/backend-services/src/actor/` (persistence via `api-key-db.service.ts` and `user-db.service.ts`; auth via `apps/backend-services/src/auth/api-key-auth.guard.ts`)
 
 | File | Service | Responsibility |
 |------|---------|----------------|
-| `api-key-db.service.ts` | `ApiKeyDbService` | `ApiKey` CRUD: find by group/id/prefix, create, delete by group or id, update `last_used` |
+| `api-key-db.service.ts` | `ApiKeyDbService` | `ApiKey` CRUD: find by group/id/prefix, create, update, delete by group or id, update `last_used` |
+| `user-db.service.ts` | `UserDbService` | `User` operations: `upsertUser`, `findUser`, `isUserSystemAdmin` |
 
-`ApiKeyService` (in `actor/`) injects `ApiKeyDbService` and is the public interface for the module.
+`ApiKeyService` and `UserService` (both in `actor/`) inject their respective db services and are the public interfaces exported by `ActorModule`.
+
+### Tables Module
+`apps/backend-services/src/tables/`
+
+| File | Service | Responsibility |
+|------|---------|----------------|
+| `tables-db.service.ts` | `TablesDbService` | `ReferenceTable` and row management: table CRUD, column add/update/remove with backfill, lookup add/update/remove, row CRUD, duplicate/missing-column checks |
+
+`TablesService` injects `TablesDbService` and is the public interface for the module.
 
 ### Audit Module
 `apps/backend-services/src/audit/`
@@ -113,7 +123,7 @@ Service wiring in the benchmark module:
 |------|---------|----------------|
 | `audit-db.service.ts` | `AuditDbService` | `AuditEvent` creation: `createAuditEvent` |
 
-`AuditService` injects `AuditDbService`, handles context enrichment (actor/request IDs), and is decorated `@Global()` so it is available throughout the application.
+`AuditService` injects `AuditDbService` and handles context enrichment (actor/request IDs). `AuditModule` is decorated `@Global()` so `AuditService` is available throughout the application.
 
 ## Architecture Diagram
 
@@ -127,7 +137,7 @@ graph LR
 
 ## Transaction Support
 
-All db-service methods accept an optional `tx?: Prisma.TransactionClient` as their last parameter. When provided, the db-service uses the transaction client instead of `this.prisma`. This enables multi-step operations to participate in a single database transaction.
+Most db-service methods accept an optional `tx?: Prisma.TransactionClient` as their last parameter. When provided, the db-service uses the transaction client instead of `this.prisma`. This enables multi-step operations to participate in a single database transaction. (Exception: `TablesDbService` defines its own transaction boundaries internally via `this.prisma.$transaction` and does not take a `tx` parameter.)
 
 `PrismaService` exposes a `transaction<T>(fn)` helper that services use to define transaction boundaries:
 
@@ -157,16 +167,17 @@ Every other db service is a private provider within its own feature module. Feat
 # User Model
 
 ## Overview
-The `User` model tracks users separately in its own table. This enables referencing users via foreign keys in other tables, such as `created_by`, `updated_by`, and `user_id`.
+The `User` model tracks users separately in its own table. Each `User` has a one-to-one `Actor` row; other tables reference the `Actor` (not the `User` directly) for provenance foreign keys such as `created_by`/`updated_by` relations.
 
 ## Fields
-- `id`: Unique identifier for the user (UUID).
+- `id`: Unique identifier for the user.
 - `email`: Unique email address for the user.
-- `roles`: Array of roles assigned to the user.
 - `last_login_at`: Timestamp of the user's last login.
 - `created_at`: Timestamp when the user was created.
 - `updated_at`: Timestamp when the user was last updated.
+- `is_system_admin`: Whether the user is a system administrator.
+- `actor_id`: Unique foreign key to the user's `Actor` row.
 
 ## Usage
-- The `ApiKey` table references `User` via `user_id` foreign key.
-- Other tables can reference `User` for audit fields (e.g., `created_by`, `updated_by`).
+- The `ApiKey` table references `User` via `generating_user_id` (the user who most recently generated/regenerated the key; recorded for audit purposes only, not used for authentication identity resolution).
+- Both `User` and `ApiKey` link to an `Actor` row; audit/provenance fields on other tables (e.g., group created/updated by, classifier created/updated by) reference `Actor`.

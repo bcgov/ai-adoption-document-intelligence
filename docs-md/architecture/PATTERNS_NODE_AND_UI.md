@@ -34,15 +34,15 @@ Tables was built following five core principles. Each is described below alongsi
 
 **Implementation**: Two Prisma models cover the entire feature regardless of how many tables users create:
 
-- `Table` — stores `columns` (array of `ColumnDef`) and `lookups` (array of `LookupDef`) as JSONB.
-- `TableRow` — stores the row payload as a JSONB `data` field.
+- `ReferenceTable` — stores `columns` (array of `ColumnDef`) and `lookups` (array of `LookupDef`) as JSONB.
+- `ReferenceTableRow` — stores the row payload as a JSONB `data` field.
 
-A new user-defined table is a row in the `Table` model, not a new database table. Adding a column is a JSON array append, not `ALTER TABLE`. This means:
+A new user-defined table is a row in the `ReferenceTable` model, not a new database table. Adding a column is a JSON array append, not `ALTER TABLE`. This means:
 - Zero migrations when users add tables or columns.
 - The schema is queryable (the backend validates rows against `ColumnDef[]` at write time).
 - Old rows aren't broken by schema changes — the lookup engine evaluates against whatever data is present.
 
-**File locations**: `apps/backend-services/src/tables/` (service, DB layer, validation), `prisma/schema.prisma` (`Table` + `TableRow` models).
+**File locations**: `apps/backend-services/src/tables/` (service, DB layer, validation), `apps/shared/prisma/schema.prisma` (`ReferenceTable` + `ReferenceTableRow` models).
 
 ### 2. One Generic Activity
 

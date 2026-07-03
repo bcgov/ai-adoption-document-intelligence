@@ -16,13 +16,15 @@ For each field in the schema, the tool shows a slider from 0.00 to 1.00. Predict
 - **False alarms** (false positives) — correct predictions that would be unnecessarily sent for human review.
 - **Missed** (false negatives) — actual errors that would pass through the gate undetected.
 
+A roll-up summary above the table aggregates all fields at their current thresholds ("Catching X of Y errors (N%) — R of M samples flagged for review"). Rows are sorted by field error rate, highest first.
+
 Sliders reset to the "Best balance" threshold on each page load. There is no persistence.
 
 ---
 
 ## Evaluable fields
 
-A field instance is included in the analysis only when it has **both** a confidence score from Azure Document Intelligence and a ground-truth value. Fields with zero evaluable instances are excluded from the table and listed in a footnote below it.
+A field instance is included in the analysis only when it has **both** a confidence score from Azure Document Intelligence and a ground-truth value. Fields with zero evaluable instances are excluded from the table; a footnote below it shows how many fields were excluded.
 
 ---
 
@@ -42,11 +44,11 @@ Three suggested thresholds are precomputed per field and displayed as quick-sele
 
 ### 1. Confidence scores from the OCR workflow
 
-Azure Document Intelligence returns per-field confidence scores alongside extracted values in the workflow context. The benchmark workflow extracts those scores via `buildFlatConfidenceMapFromCtx` and passes them **in memory** on `EvaluationInput.predictionConfidences` when invoking `benchmark.evaluate`. The confidence map is not written to disk or stored in any database table.
+Azure Document Intelligence returns per-field confidence scores alongside extracted values in the OCR result. The per-sample child workflow calls the `benchmark.flattenPredictionFromRefs` activity, which reads the OCR result from its blob ref and builds a flat per-field confidence map via `buildFlatConfidenceMapFromCtx` (`null` for fields where Azure DI provided no score). The map is returned to the parent benchmark workflow as `confidenceData` and passed on `EvaluationInput.predictionConfidences` when invoking `benchmark.evaluate`. The flat confidence map itself is never stored in a database table — it only persists as part of the per-field evaluation details written in step 2.
 
 ### 2. Evaluation and storage
 
-`SchemaAwareEvaluator` attaches each field's confidence score to its `FieldComparisonResult`. The full set of comparison results ends up in the per-sample `evaluationDetails` recorded on the run's metrics in the database.
+`SchemaAwareEvaluator` attaches each field's confidence score to its `FieldComparisonResult`. The full set of comparison results becomes the sample's `evaluationDetails`. The benchmark workflow persists these heavy per-sample fields to blob storage via the `benchmark.persistEvaluationDetails` activity and records only the returned `evaluationBlobPath` on `perSampleResults` in the run's metrics; older runs (pre blob-storage) inlined `evaluationDetails` directly in the metrics JSON.
 
 ### 3. Precomputed analysis on request
 
@@ -76,13 +78,13 @@ Returns `ErrorDetectionAnalysisResponseDto`:
 ```
 {
   runId:          string
-  notReady:       boolean          // true if the run has not completed yet
+  notReady:       boolean          // true when the run has no per-sample results yet (not completed)
   fields:         ErrorDetectionFieldDto[]
   excludedFields: string[]         // fields with zero evaluable instances
 }
 ```
 
-Each `ErrorDetectionFieldDto` contains the field name, the precomputed curve, and the three suggested thresholds.
+Each `ErrorDetectionFieldDto` contains the field name, per-field counts (`evaluatedCount`, `errorCount`, `errorRate`), the precomputed curve, and the three suggested thresholds.
 
 ---
 
@@ -95,12 +97,14 @@ Each `ErrorDetectionFieldDto` contains the field name, the precomputed curve, an
 | `apps/backend-services/src/benchmark/benchmark-error-detection.service.ts` | Curve computation, blob-storage resolution of evaluation details, threshold selection, in-memory cache |
 | `apps/backend-services/src/benchmark/benchmark-run.controller.ts` | `GET …/error-detection-analysis` endpoint |
 | `apps/backend-services/src/benchmark/dto/error-detection-analysis.dto.ts` | `ErrorDetectionAnalysisResponseDto`, `ErrorDetectionFieldDto` |
-| `apps/temporal/src/azure-ocr-field-display-value.ts` | `buildFlatConfidenceMapFromCtx` — extracts confidence map from workflow ctx |
-| `apps/temporal/src/schema-aware-evaluator.ts` | `SchemaAwareEvaluator` — attaches confidence to `FieldComparisonResult` |
+| `apps/temporal/src/azure-ocr-field-display-value.ts` | `buildFlatConfidenceMapFromCtx` — builds the flat confidence map from the OCR result |
+| `apps/temporal/src/activities/benchmark-flatten-prediction.ts` | `benchmark.flattenPredictionFromRefs` activity — reads the OCR blob ref, builds prediction + confidence maps |
+| `apps/temporal/src/activities/benchmark-persist-evaluation-details.ts` | `benchmark.persistEvaluationDetails` activity — writes per-sample evaluation details to blob storage |
+| `apps/temporal/src/evaluators/schema-aware-evaluator.ts` | `SchemaAwareEvaluator` — attaches confidence to `FieldComparisonResult` |
 
 ### Frontend
 
 | File | Purpose |
 |---|---|
-| `apps/frontend/src/features/benchmarking/components/ErrorDetectionAnalysis.tsx` | Interactive slider table |
-| `apps/frontend/src/features/benchmarking/hooks/useErrorDetectionAnalysis.ts` | Data-fetching hook |
+| `apps/frontend/src/features/benchmarking/components/ErrorDetectionAnalysis.tsx` | Interactive slider table with roll-up summary |
+| `apps/frontend/src/features/benchmarking/api/errorDetectionAnalysis.ts` | `useErrorDetectionAnalysis` data-fetching hook and response types |

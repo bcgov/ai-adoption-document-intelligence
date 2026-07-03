@@ -1,6 +1,6 @@
 # Azure AI Models Availability
 
-Last updated: 2026-04-04
+Last updated: 2026-07-02 (Azure model catalog snapshot: 2026-04-04)
 
 ## Currently Deployed Models
 
@@ -34,8 +34,8 @@ All models below are available via both `OpenAI` and `AIServices` resource kinds
 
 | Model | Version | Region | Notes |
 |-------|---------|--------|-------|
-| gpt-4.1 | 2025-04-14 | Both | Commented out in terraform.tfvars |
-| gpt-4.1-mini | 2025-04-14 | Both | Commented out in terraform.tfvars |
+| gpt-4.1 | 2025-04-14 | Both | |
+| gpt-4.1-mini | 2025-04-14 | Both | |
 | gpt-4.1-nano | 2025-04-14 | Both | |
 
 ### GPT-4o Family
@@ -271,7 +271,7 @@ These are available via Azure AI Foundry (Model-as-a-Service). Both Canada East 
 - **Data residency**: Only Canadian regions (Canada East + Canada Central) are used. Model availability is limited to what Microsoft has deployed there.
 - **Network**: Public access is disabled on the AI Foundry account. All traffic routes through private endpoints via APIM.
 - **RAI policy**: `Microsoft.DefaultV2` content filtering is applied to all model deployments. Safety filters cannot be disabled.
-- **Authentication**: Managed identity only (local auth disabled). APIM acts as the gateway with subscription key authentication.
+- **Authentication**: Local auth remains enabled on the Foundry account (`disableLocalAuth = false` — some models require it). APIM acts as the gateway with subscription key authentication.
 - **Capacity**: Each model deployment is configured at 10K TPM (GlobalStandard SKU).
 
 ## Deploying Additional Models
@@ -282,11 +282,12 @@ Models are managed via Terraform in `infra/terraform.tfvars`. To add a model, ad
 model_deployments = [
   { name = "gpt-4o",                 version = "2024-11-20", capacity = 10 },
   { name = "text-embedding-3-small", version = "1",          capacity = 10 },
+  { name = "gpt-5.4-mini",           version = "2026-03-17", capacity = 10 },
   # Add new model here:
   { name = "gpt-4.1-mini",           version = "2025-04-14", capacity = 10 },
 ]
 ```
 
-The Foundry Terraform module auto-detects the model format based on name prefix (`gpt-` -> OpenAI, `Mistral`/`codestral` -> Mistral AI, `Cohere`/`cohere-` -> Cohere).
+The Foundry Terraform module (`infra/modules/foundry/main.tf`) auto-detects the model format from the first `-`-delimited token of the name: `mistral`/`Mistral`/`codestral` -> Mistral AI, `cohere`/`Cohere` -> Cohere, everything else defaults to OpenAI.
 
 Run `terraform apply` from the `infra/` directory to deploy.
