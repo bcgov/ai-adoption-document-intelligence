@@ -18,7 +18,6 @@ By submitting this pull request, I acknowledge that I have attempted to meet the
 
 > - a self-review of my code
 > - commented code particularly in hard-to-understand areas
-> - corresponding changes to the documentation where required
-> - if this changes system boundaries, doc routing, or where contributors should edit, the repo wiki (`docs-md/wiki/`) was updated or confirmed not needed
+> - documentation updated where required (`docs-md/`, READMEs, and/or public `docs/` site), including the repo wiki (`docs-md/wiki/`) when boundaries, routing, or contributor guidance changed — or confirmed not needed
 > - changes tested to the best of my ability
 > - no new errors or non-functional code

@@ -3,10 +3,11 @@
 - When creating or updating backend code also create and update related tests. If backend code was updated, run tests to ensure they still pass. Adjust tests if they fail and re-run.
 - Do not create "placeholders" or any other types of partial implementations or stubs for "future use", implement features requested only.
 - Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
-- When creating or modifying features, create/update documentation in /docs-md folder
+- When creating or modifying features, create/update documentation in /docs-md folder (use the documentation skill in `.claude/skills/documentation/`)
 - If you need to run `npx prisma generate`, run `npm run db:generate` from `apps/backend-services` - it's a special script that writes models into apps/temporal/src and apps/backend-services/src. Don't forget to run migrations as normal if necessary.
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
 - All backend controllers must have full Swagger/OpenAPI documentation: use specific decorators (`@ApiOkResponse`, `@ApiForbiddenResponse`, `@ApiUnauthorizedResponse`, `@ApiConflictResponse`, etc.) instead of generic `@ApiResponse`, create dedicated DTO classes with `@ApiProperty` decorators for all request/response shapes, and reference those DTOs via the `type` field in response decorators.
 - To test API directly, use: `curl -H "x-api-key: $API_KEY" http://localhost:3002/api/...` (read the key from your local env/config; never paste or log secret values).
 - NEVER read secrets from .env files directly, they should not be leaked into chat, terminal, etc., do not operate with secret values directly, only indirectly through variables.
 - Repo wiki rules: see `AGENTS.md` (Repo Wiki section).
+- Skills: see `AGENTS.md` (Skills section). Use `.claude/skills/documentation/` when updating docs or the wiki; use `.claude/skills/create-pr/` when opening a pull request.
