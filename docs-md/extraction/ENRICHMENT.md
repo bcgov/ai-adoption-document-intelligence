@@ -4,35 +4,30 @@ The OCR workflow supports an optional **enrichment** step that runs after post-O
 
 ## Overview
 
-- **When it runs**: After post-OCR cleanup and before confidence checking. In a graph workflow, add an `ocr.enrich` activity node between cleanup and the confidence-check node (the standard OCR template may not include it by default).
-- **Configuration**: The step is **disabled by default**. Enable it and set `documentType` (LabelingProject ID) in the workflow step parameters (e.g. `steps.enrichResults.parameters` in step-based config, or the enrich node’s parameters in a graph).
+- **When it runs**: After post-OCR cleanup and before confidence checking. Add an `ocr.enrich` activity node to the graph workflow between cleanup and the confidence-check node (the standard OCR templates do not include it by default).
+- **Configuration**: Enrichment runs only when the node is present in the graph; behavior is controlled by the node's `parameters`.
 - **Data used**: Field schema from the LabelingProject (`field_schema`: field_key, field_type, field_format) is used to apply rules per field type.
 
-## Step configuration
+## Node configuration
 
-Configure the step via workflow input `steps.enrichResults`:
+Configure via the `ocr.enrich` node's `parameters` in the graph workflow config:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `documentType` | string | Yes (when step enabled) | LabelingProject ID. Used to load field_schema for rule application. |
+| `documentType` | string | Yes | LabelingProject ID. Used to load field_schema for rule application. If missing or the schema is empty, the activity returns the input OCR unchanged. |
 | `confidenceThreshold` | number | No | Default `0.85`. Fields with confidence below this are candidates for LLM enrichment. |
 | `enableLlmEnrichment` | boolean | No | Default `false`. When true, low-confidence fields are sent to Azure OpenAI for correction. |
 
-Example workflow input with enrichment enabled:
+Example graph node:
 
 ```json
 {
-  "documentId": "...",
-  "binaryData": "...",
-  "steps": {
-    "enrichResults": {
-      "enabled": true,
-      "parameters": {
-        "documentType": "<LabelingProject-id>",
-        "confidenceThreshold": 0.85,
-        "enableLlmEnrichment": true
-      }
-    }
+  "type": "activity",
+  "activityType": "ocr.enrich",
+  "parameters": {
+    "documentType": "<LabelingProject-id>",
+    "confidenceThreshold": 0.85,
+    "enableLlmEnrichment": true
   }
 }
 ```

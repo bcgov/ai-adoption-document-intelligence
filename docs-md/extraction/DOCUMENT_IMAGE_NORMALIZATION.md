@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Intake stores **two** objects per document (main `documents/` and labeling `labeling-documents/`):
+Intake stores **two** objects per document (main documents under `{groupId}/ocr/{documentId}/`, labeling documents under `{groupId}/training/labeling-documents/{documentId}/` — see [BLOB_STORAGE.md](../architecture/BLOB_STORAGE.md)):
 
 | Blob | Role |
 |------|------|
@@ -124,11 +124,11 @@ The trained-data file `apps/temporal/osd.traineddata` is committed to the repo a
 
 ## Labeling
 
-Same two-blob layout under `labeling-documents/{id}/`. Same rules as main documents: no backfill of pre-existing rows, thumbnails out of scope.
+Same two-blob layout under `{groupId}/training/labeling-documents/{documentId}/`. Same rules as main documents: no backfill of pre-existing rows, thumbnails out of scope.
 
 ## Lifecycle
 
-Deleting a document removes the whole prefix `documents/{id}/` or `labeling-documents/{id}/` (both blobs).
+Deleting a document removes the whole document prefix (`{groupId}/ocr/{documentId}/` or `{groupId}/training/labeling-documents/{documentId}/`), covering both blobs.
 
 ## Related documents
 

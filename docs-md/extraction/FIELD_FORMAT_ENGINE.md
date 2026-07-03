@@ -111,7 +111,7 @@ The gathered data is sent to Azure OpenAI (same configuration as the OCR improve
 
 The **Template Model detail page** (`ModelDetailPage.tsx`) exposes a "Suggest Formats" button (with an `IconSparkles` icon) in the Field Schema tab's button group. Clicking it:
 
-1. Calls `POST /api/template-models/:id/suggest-formats` (empty body).
+1. Calls `POST /api/template-models/:id/suggest-formats` (optionally with a `benchmarkRunIds` array in the body; when the page is opened with a `?suggestFromRun=<runId>` query param, the call is triggered automatically on mount with that run included — see [TEMPLATE_MODELS.md](../architecture/TEMPLATE_MODELS.md)).
 2. Opens a "Format Suggestions" modal displaying each suggestion as a card with:
    - Field key (bold)
    - Suggested spec: `canonicalize`, `pattern` (if any), `displayTemplate` (if any)
@@ -126,5 +126,4 @@ The **Template Model detail page** (`ModelDetailPage.tsx`) exposes a "Suggest Fo
 
 ### Limitations
 
-- Currently only uses HITL correction data. Benchmark run mismatch data is not yet integrated (TODO).
-- Suggestions are recommendations; they are not automatically applied to field definitions.
+- Suggestions are recommendations; they are not automatically applied to field definitions. (Benchmark run mismatch data **is** integrated: pass `benchmarkRunIds` in the request body to merge mismatch pairs from those runs with the HITL corrections.)
