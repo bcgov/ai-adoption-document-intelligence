@@ -10,8 +10,8 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 - [x] architecture: `HITL_ARCHITECTURE.md` — verified accurate (models, all 14 endpoints, lock TTL/heartbeat/idle timings, reopen window, frontend paths)
 - [x] auth: `AUTHENTICATION.md` — fixed identity-resolution query description (single findUserWithGroups), API-key guard flow (request.apiKey), stale IDOR open issue (resolved via group scoping), test example
 - [x] auth: `GROUP_RESOURCE_AUTHORIZATION.md` — verified accurate (helpers, routes, DTOs, audit events spot-checked)
-- [ ] benchmarking: `LOAD_TESTING.md` *(partial)*
-- [ ] extraction: `CONFUSION_PROFILES.md` *(partial)*, `OCR_CONFUSION_MATRICES.md`, `OCR_IMPROVEMENT_PIPELINE.md`
+- [x] benchmarking: `LOAD_TESTING.md` — verified accurate (all 14 load-test npm scripts, referenced files/manifests)
+- [x] extraction: `CONFUSION_PROFILES.md` (accurate), `OCR_CONFUSION_MATRICES.md` (stale "no API" status — profiles module implements derivation), `OCR_IMPROVEMENT_PIPELINE.md` (nonexistent confusion-matrix/derive endpoint, dead OCR-TASK.md ref)
 - [ ] extraction: `ENRICHMENT.md`, `FIELD_FORMAT_ENGINE.md`, `DOCUMENT_IMAGE_NORMALIZATION.md`
 - [ ] frontend: `BC_DESIGN_SYSTEM_MIGRATION.md` *(partial)*, `BC_DS_SCREEN_MIGRATION_STATUS.md` *(partial)*, `REFERENCE_DATA_TABLES_UI.md`
 - [ ] groups (UI docs): `BOOTSTRAP_SETUP.md`, `CREATE_WORKFLOW_ACTIVE_GROUP.md`, `GROUPS_PAGE.md`, `GROUP_CONTEXT.md`, `GROUP_DETAIL_PAGE.md` *(all partial)*, `GROUP_SELECTOR.md`, `REQUEST_MEMBERSHIP_PAGE.md`, `SIDEBAR_NAVIGATION.md`

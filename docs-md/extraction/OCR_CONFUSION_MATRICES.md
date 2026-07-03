@@ -73,13 +73,13 @@ When a benchmark dataset has both ground truth (from HITL-reviewed data via `Hit
 
 ## Consumption
 
-- **Character confusion correction tool** (`ocr.characterConfusion`): Can accept an optional `confusionMapOverride` derived from the top confusion pairs in the matrix. The default `CONFUSION_MAP` in `enrichment-rules.ts` covers common OCR confusions (O↔0, l↔1, S↔5, etc.).
-- **AI recommendation pipeline**: The confusion matrix statistics can inform the AI when recommending which correction tools to add and with what parameters.
+- **Character confusion correction tool** (`ocr.characterConfusion`): accepts either an inline `confusionMapOverride`, or a `confusionProfileId` that loads a stored [ConfusionProfile](./CONFUSION_PROFILES.md) matrix from the database at execution time (replacing the built-in rules). The default `CONFUSION_MAP` in `enrichment-rules.ts` covers common OCR confusions (O↔0, l↔1, S↔5, etc.).
+- **AI recommendation pipeline**: references confusion profiles when recommending which correction tools to add and with what parameters (`apps/backend-services/src/benchmark/ai-recommendation.service.ts`, `apps/backend-services/src/hitl/tool-manifest.service.ts`).
 - **Benchmarking**: Confusion matrices computed from benchmark runs provide per-iteration quality metrics to track improvement over time.
 
 ## Implementation status
 
-There is **no** backend HTTP API or shared service for confusion-matrix derivation in this repository. Matrices can be produced **offline** (scripts, notebooks) using `FieldCorrection` rows and the alignment approach described above, then passed manually into correction tools (e.g. `confusionMapOverride` on `ocr.characterConfusion`) or used to tune workflows. The AI recommendation pipeline consumes raw HITL rows, not a pre-aggregated matrix, unless you extend it.
+Derivation is implemented by the **confusion-profile module**: `POST /api/groups/:groupId/confusion-profiles/derive` derives a matrix from HITL `FieldCorrection` rows and/or benchmark run mismatch pairs, stores it as a `ConfusionProfile` with provenance metadata, and profiles can be curated in the UI and consumed by `ocr.characterConfusion` via `confusionProfileId`. See [CONFUSION_PROFILES.md](./CONFUSION_PROFILES.md) for the API, data model, and UI.
 
 ## Related References
 

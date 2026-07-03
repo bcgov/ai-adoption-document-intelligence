@@ -34,7 +34,7 @@ To avoid repeat **Azure Document Intelligence** submit/poll when only **downstre
 - **Apply candidate to base:** `POST /api/benchmark/projects/:projectId/apply-candidate-to-base`
   - **Body:** `{ “candidateWorkflowVersionId”: “<uuid>”, “cleanupCandidateArtifacts”?: boolean }`
   - The backend creates a new `WorkflowVersion` on the base `WorkflowLineage` and updates the lineage head. When `cleanupCandidateArtifacts` is `true`, the candidate lineage, its versions, and any definitions/runs pointing to them are deleted.
-- **Confusion matrix (HITL-derived):** `POST /api/benchmark/projects/:projectId/confusion-matrix/derive` -- JSON body with optional `startDate`, `endDate`, `groupIds`, `fieldKeys` (defaults `groupIds` to the project’s group). Returns the `ConfusionMatrixService` result. See [OCR_CONFUSION_MATRICES.md](./OCR_CONFUSION_MATRICES.md).
+- **Confusion matrix (HITL-derived):** derivation lives in the confusion-profile module — `POST /api/groups/:groupId/confusion-profiles/derive` with optional `sources` filters (`templateModelIds`, `benchmarkRunIds`, `fieldKeys`, `startDate`, `endDate`). See [CONFUSION_PROFILES.md](./CONFUSION_PROFILES.md) and [OCR_CONFUSION_MATRICES.md](./OCR_CONFUSION_MATRICES.md).
 - **Candidate runs:** `POST /api/benchmark/projects/:projectId/definitions/:definitionId/runs` accepts optional `candidateWorkflowVersionId` (same definition; workflow must belong to the project’s group). Run `params` store `candidateWorkflowVersionId` and `workflowConfigHash` when set.
 - **Dependencies:** Azure OpenAI (`AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`) for the AI recommendation step. A completed baseline run with field mismatches must exist for the pipeline to produce recommendations.
 - **Auth and candidate workflow ownership:** The pipeline creates a new workflow lineage for the candidate; `actor_id` is taken directly from the caller’s **`Actor.id`** (`request.resolvedIdentity.actorId` from `IdentityGuard`). This works for both user-based and API-key-based actors. Requests with no resolved actor (e.g. some API-key-only shapes in tests) fall back to the **definition’s source workflow owner** as the acting actor.
@@ -73,7 +73,7 @@ For `ocr.characterConfusion`, the AI selects a **`confusionProfileId`** from the
 
 ## Evaluation Details vs aggregate metrics
 
-After a run completes, **baseline comparison** can show "no regression" while many fields still fail. Use **run drill-down** (`GET .../runs/:runId/drill-down`) or the UI **Evaluation Details** to inspect **`worstSamples`**, **`mismatchedFields`**, and **`missingFields`** before concluding work is done. Operational checklists for agents: `OCR-TASK.md` §3b and §6.
+After a run completes, **baseline comparison** can show "no regression" while many fields still fail. Use **run drill-down** (`GET .../runs/:runId/drill-down`) or the UI **Evaluation Details** to inspect **`worstSamples`**, **`mismatchedFields`**, and **`missingFields`** before concluding work is done.
 
 ## Pipeline Debug Log
 
