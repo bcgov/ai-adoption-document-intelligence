@@ -183,16 +183,16 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `@nestjs/common` | 11.1.12 | Core NestJS framework |
-| `@nestjs/config` | 4.0.2 | Configuration management |
+| `@nestjs/common` | 11.1.19 | Core NestJS framework |
+| `@nestjs/config` | 4.0.4 | Configuration management |
 | `@nestjs/passport` | 11.x | Passport integration for NestJS |
 | `passport-jwt` | 4.x | JWT extraction and validation strategy |
 | `openid-client` | 6.8.2 | OIDC discovery, PKCE, token exchange, refresh, and ID token validation |
-| `jwks-rsa` | 3.2.0 | Fetches and caches Keycloak's RS256 public signing keys from the JWKS endpoint for per-request JWT validation via Passport |
+| `jwks-rsa` | 3.2.2 | Fetches and caches Keycloak's RS256 public signing keys from the JWKS endpoint for per-request JWT validation via Passport |
 | `cookie-parser` | 1.4.7 | Parse HTTP cookies on incoming requests |
 | `@nestjs/throttler` | 6.5.0 | Global and per-route rate limiting to prevent brute-force and DoS |
 | `helmet` | 8.x | HTTP security headers (HSTS, CSP, X-Frame-Options, etc.) |
-| `class-validator` | 0.14.3 | DTO validation for all auth routes |
+| `class-validator` | 0.14.4 | DTO validation for all auth routes |
 | `class-transformer` | 0.5.1 | DTO transformation |
 
 **Key Backend Libraries Explained:**

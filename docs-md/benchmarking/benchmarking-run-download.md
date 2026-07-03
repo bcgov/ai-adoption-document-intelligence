@@ -72,6 +72,7 @@ Returns `application/json` as a file attachment named `benchmark-run-{runId}.jso
 
 ### Behaviour
 
+- **Requires group membership.** The endpoint asserts access to the project's group (`403` otherwise) and accepts API-key auth (`@Identity({ allowApiKey: true })`), so it can be called directly with `x-api-key`.
 - **Available for any run status.** Failed runs return whatever metadata exists plus `run.error`.
 - **Heavy fields are inlined.** When a sample uses the blob-storage scheme (post-fix), `groundTruth`, `prediction`, and `evaluationDetails` are pulled from `{groupId}/benchmark/runs/{runId}/{sampleId}.json` and merged into the response. Older runs that still have inline values are returned as-is.
 - **Per-sample blob failures are isolated.** If a single sample's blob can't be read, the export still returns; `blobReadError` is populated on that sample so the consumer can tell what's missing.

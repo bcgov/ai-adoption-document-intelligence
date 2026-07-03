@@ -86,6 +86,8 @@ Returns `ErrorDetectionAnalysisResponseDto`:
 
 Each `ErrorDetectionFieldDto` contains the field name, per-field counts (`evaluatedCount`, `errorCount`, `errorRate`), the precomputed curve, and the three suggested thresholds.
 
+The same precomputed analysis is also embedded (best-effort, with curve arrays emptied) in the full-run JSON export served by `GET …/runs/:runId/download` — see [benchmarking-run-download.md](benchmarking-run-download.md).
+
 ---
 
 ## Key files

@@ -48,20 +48,22 @@ TemplateModel (template_models)
   ├── FieldDefinition[]    (field schema)
   ├── LabeledDocument[]    (training data)
   ├── TrainingJob[]        (training history)
-  └── TrainedModel?        (one-to-one, successful training result)
+  └── TrainedModel[]       (trained versions; exactly one active)
 
 TrainingJob (training_jobs)
   └── TrainedModel?        (one-to-one)
 
 TrainedModel (trained_models)
-  └── model_id @unique     (mirrors parent TemplateModel.model_id)
+  └── model_id @unique     (v1 keeps the bare TemplateModel.model_id; v2+ append "-v<n>")
 ```
 
 Key constraints:
 - `TemplateModel.model_id` is globally unique
-- `TrainedModel.template_model_id` is unique (one-to-one with parent)
+- `TrainedModel` is unique on `(template_model_id, version)`; versions are sequential per template (`max(version) + 1`, counting tombstoned rows)
+- Exactly one `TrainedModel` per template has `is_active = true`; activation atomically demotes all sibling versions
 - `TrainedModel.training_job_id` is unique (one-to-one with job)
-- Retraining overwrites the previous TrainedModel record
+- Retraining creates a new TrainedModel version and marks it active; previous versions are kept
+- Deleting a version is a tombstone (`deleted_at` set, Azure artifact removed) so audit trails still resolve; the row is never physically deleted
 
 ## Backend Architecture
 
@@ -70,26 +72,34 @@ Key constraints:
 ```
 apps/backend-services/src/template-model/
   template-model.module.ts
-  template-model.controller.ts       # api/template-models
+  template-model.controller.ts        # api/template-models
   template-model.service.ts           # Business logic + model_id generation
+  template-model-db.service.ts        # Prisma access for template models
   template-model-ocr.service.ts       # Azure OCR for uploaded documents
+  labeling-document-db.service.ts     # Prisma access for labeling documents
   suggestion.service.ts               # Auto-suggestion for labeling
+  format-suggestion.service.ts        # AI format-spec suggestions
   dto/
     create-template-model.dto.ts      # Create/Update DTOs
     template-model-responses.dto.ts   # Response DTOs
     add-document.dto.ts
     export.dto.ts
     field-definition.dto.ts
+    format-suggestion.dto.ts
     label.dto.ts
+    labeling-conversion-failed-response.dto.ts
     labeling-upload.dto.ts
     suggestion.dto.ts
 
 apps/backend-services/src/training/
+  training.module.ts
   training.controller.ts              # Training endpoints under api/template-models
   training.service.ts                 # Training orchestration
+  training-db.service.ts              # Prisma access incl. version activation/tombstoning
   training-poller.service.ts          # Polls Azure for training status
   dto/
-    start-training.dto.ts             # Only optional description (no modelId)
+    start-training.dto.ts             # Optional description, buildMode, maxTrainingHours (no modelId)
+    training-info.dto.ts
     training-job.dto.ts
     trained-model.dto.ts
 ```
@@ -123,7 +133,8 @@ apps/backend-services/src/training/
 | POST | `/api/template-models/:id/documents` | Add document |
 | POST | `/api/template-models/:id/upload` | Upload and OCR |
 | GET | `/api/template-models/:id/documents/:docId` | Get document |
-| GET | `/api/template-models/:id/documents/:docId/download` | Download file |
+| GET | `/api/template-models/:id/documents/:docId/view` | Stream normalized PDF for in-app display |
+| GET | `/api/template-models/:id/documents/:docId/download` | Download original file |
 | DELETE | `/api/template-models/:id/documents/:docId` | Remove document |
 | GET | `/api/template-models/:id/documents/:docId/labels` | Get labels |
 | POST | `/api/template-models/:id/documents/:docId/labels` | Save labels |
@@ -143,6 +154,10 @@ apps/backend-services/src/training/
 | GET | `/api/template-models/:modelId/training/jobs` | List training jobs |
 | GET | `/api/template-models/training/jobs/:jobId` | Get job status |
 | DELETE | `/api/template-models/training/jobs/:jobId` | Cancel job |
+| GET | `/api/template-models/:modelId/training/versions` | List trained versions |
+| GET | `/api/template-models/:modelId/training/versions/:versionId/snapshot` | Get dataset snapshot for a version |
+| POST | `/api/template-models/:modelId/training/versions/:versionId/activate` | Set the active trained version |
+| DELETE | `/api/template-models/:modelId/training/versions/:versionId` | Delete (tombstone) a trained version |
 
 ## Frontend Architecture
 
@@ -162,16 +177,21 @@ apps/frontend/src/features/annotation/template-models/
   hooks/
     useTemplateModels.ts     # CRUD for template models and documents
     useTraining.ts           # Training validation, jobs, start/cancel
+    useTrainingInfo.ts       # Azure region + neural quota (training/info)
+    useTrainedVersions.ts    # Trained versions list, activate, delete, snapshot
     useLabels.ts             # Label management
     useFieldSchema.ts        # Field schema CRUD
     useSuggestions.ts        # Auto-suggestions
   pages/
     ModelListPage.tsx        # Grid of ModelCards with create modal
-    ModelDetailPage.tsx      # Tabbed detail view
+    ModelDetailPage.tsx      # Tabbed detail view (Documents, Field Schema, Export, Training, Versions)
     LabelingWorkspacePage.tsx
   components/
     ModelCard.tsx            # Card with name, model_id, status badge
     TrainingPanel.tsx        # Train button + job status (no model_id input)
+    TrainedVersionsPanel.tsx # Version list with activate/delete actions
+    TrainedVersionSnapshotDrawer.tsx
+    LabelingToolbar.tsx
     ExportPanel.tsx
     FieldSchemaEditor.tsx
 ```

@@ -164,6 +164,18 @@ Stop a tier when one or more of these is sustained:
 5. Temporal queue backlog and schedule-to-start latency (for workflow tests).
 6. Any saturation or failure onset point.
 
+To automate items 1–3 for k6 tiers, wrap the run with the matrix tracker,
+which executes the scenario and appends one CSV row per run to
+`tools/load-testing/test-matrix.csv`:
+
+```bash
+npm run load-test:matrix -- upload-ocr --vus 10 --duration 60s --notes "stress tier"
+```
+
+See [LOAD_TESTING.md](./LOAD_TESTING.md) and
+[tools/load-testing/README.md](../../tools/load-testing/README.md#test-matrix-tracker)
+for full options (including `--no-run` to record an existing summary).
+
 ## Suggested naming convention
 
 Use deterministic run IDs for traceability:

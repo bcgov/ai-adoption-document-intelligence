@@ -16,6 +16,8 @@ PodDisruptionBudgets ensure minimum availability during voluntary disruptions (n
 | frontend | 1 | At least 1 frontend must remain for user access |
 | ches-adapter | 1 | At least 1 adapter must remain (from 2 replicas) |
 
+The first four PDBs live in `deployments/openshift/kustomize/base/`. The ches-adapter PDB is part of the PLG monitoring Helm chart (`deployments/openshift/helm/plg`) and is only created when Alertmanager notifications are enabled with the `ches` notification channel.
+
 **Important:** PDBs only protect against *voluntary* disruptions. They do not prevent involuntary disruptions like node failures or out-of-memory kills.
 
 ## HorizontalPodAutoscaler (HPA)

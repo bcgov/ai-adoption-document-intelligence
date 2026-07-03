@@ -6,7 +6,7 @@
 
 Each uploaded file may be up to **100 MB**, matching the dataset version upload endpoint in `apps/backend-services/src/benchmark/dataset.controller.ts`.
 
-The route configures multer via `FilesInterceptor` with `limits.fileSize: 100 * 1024 * 1024`. Files larger than 100 MB receive **HTTP 413 Payload Too Large** (via `MulterExceptionFilter` for multer rejections and an explicit controller check as a safeguard).
+The route configures multer via `FilesInterceptor("files", 100, ...)` with `limits.fileSize: 100 * 1024 * 1024` — at most **100 files per request**, each up to 100 MB. Files larger than 100 MB receive **HTTP 413 Payload Too Large** (via `MulterExceptionFilter` for multer rejections and an explicit controller check as a safeguard). Other multer rejections (e.g. exceeding the file count) return **HTTP 400**.
 
 ## Load testing context
 

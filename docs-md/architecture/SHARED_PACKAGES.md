@@ -86,6 +86,8 @@ Run `npm install` from the repo root to create the workspace symlink.
 
 **No `tsconfig.json` path alias is needed.** The package resolves through the workspace symlink in `node_modules` to `dist/index.js` / `dist/index.d.ts`, the same as any other installed package. This is consistent with all other `@ai-di/*` packages in this repo.
 
+One exception: the frontend's `vite.config.ts` aliases `@ai-di/graph-workflow` to the package's `src/index.ts` (and lists it in `optimizeDeps.include`), because the compiled dist is CommonJS and Rollup cannot resolve its named exports. Vite consumers bundling a package should follow that pattern instead of relying on the dist build.
+
 Optionally add a helper script to the app's `package.json` for rebuilding the package in isolation:
 
 ```json

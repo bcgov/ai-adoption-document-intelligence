@@ -1,6 +1,6 @@
 # Database services (backend-services)
 
-Each feature module in `apps/backend-services/src/` owns its database access through a dedicated `*-db.service.ts`. There is no shared database facade — all modules inject `PrismaService` directly via the global `DatabaseModule`.
+Most feature modules in `apps/backend-services/src/` own their database access through a dedicated `*-db.service.ts`. There is no shared database facade — all modules inject `PrismaService` directly via the global `DatabaseModule`. A few modules with simple persistence needs skip the db-service layer and inject `PrismaService` straight into the feature service (e.g. `workflow/workflow.service.ts`, `confusion-profile/confusion-profile.service.ts`, and auxiliary services such as `hitl/hitl-aggregation.service.ts` and `template-model/format-suggestion.service.ts`).
 
 ## Core Database Layer
 
@@ -14,7 +14,7 @@ Each feature module in `apps/backend-services/src/` owns its database access thr
 
 ## DB Services by Module
 
-Each db service injects `PrismaService` and is a private provider scoped to its module. The public service for that module is what other modules inject.
+Each db service injects `PrismaService` and is a private provider scoped to its module (exception: `ReviewDbService` is exported by `HitlModule` for cross-module use in the benchmark module). The public service for that module is what other modules inject.
 
 ### Document Module
 `apps/backend-services/src/document/`
@@ -162,7 +162,7 @@ Service methods that may be called as part of a cross-module transaction accept 
 
 `DatabaseModule` (`@Global()`) provides and exports: `PrismaService` only.
 
-Every other db service is a private provider within its own feature module. Feature modules do not need to import `DatabaseModule` explicitly because it is global.
+Every other db service is a private provider within its own feature module (except `ReviewDbService`, exported by `HitlModule`). Feature modules do not need to import `DatabaseModule` explicitly because it is global.
 
 # User Model
 

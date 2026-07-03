@@ -85,7 +85,7 @@ DELETE /api/groups/:groupId/confusion-profiles/:id
 
 ## Frontend UI
 
-The confusion profiles UI is accessible from the Group Detail Page via a "Confusion Profiles" tab.
+The confusion profiles UI is a standalone page at `/confusion-profiles` (linked from the main navigation), rendered by `apps/frontend/src/pages/ConfusionProfilesPage.tsx`. It manages profiles for the active group selected via the group context.
 
 ### Components
 

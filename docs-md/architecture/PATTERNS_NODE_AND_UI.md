@@ -48,7 +48,7 @@ A new user-defined table is a row in the `ReferenceTable` model, not a new datab
 
 **Principle**: don't register a separate Temporal activity per user-defined table. One activity handles all tables.
 
-**Implementation**: `tables.lookup` (registered in `apps/temporal/src/activities/tables-lookup.ts`) accepts `{ groupId, tableId, lookupName, ...params }`, loads the table from the database at execution time, finds the named lookup definition, and runs the filter + sort + pick logic in `apps/temporal/src/tables/lookup-engine.ts`.
+**Implementation**: `tables.lookup` (implemented in `apps/temporal/src/activities/tables-lookup.ts`, registered in `apps/temporal/src/activity-registry.ts`) accepts `{ groupId, tableId, lookupName, ...params }`, loads the table from the database at execution time, finds the named lookup definition, and runs the filter + sort + pick logic in `apps/temporal/src/tables/lookup-engine.ts`.
 
 There is no per-table activity registration. Adding a new table, column, or lookup definition does not require any code change or service redeployment. The activity is the execution substrate; the configuration data (stored in Postgres) is what varies.
 
@@ -56,7 +56,7 @@ There is no per-table activity registration. Adding a new table, column, or look
 
 **Principle**: don't write per-table form code in the frontend.
 
-**Implementation**: the row create/edit form (`RowForm`) is built dynamically from the `ColumnDef[]` array fetched from the API. A Zod schema is constructed at render time from the column definitions — required fields get `.min(1)` rules, enum fields get `.enum(values)`, etc. The same component handles every table a user creates.
+**Implementation**: the row create/edit form (`RowForm`) is built dynamically from the `ColumnDef[]` array fetched from the API. A Zod schema is constructed at render time from the column definitions (`utils/build-row-zod-schema.ts`) — each column type maps to a Zod primitive (date/datetime/year-month columns get format regexes, enum columns get `z.enum(values)`), and optional columns get `.optional()`. The same component handles every table a user creates.
 
 The column management UI (`ColumnForm`) is also generic — it collects the column's `key`, `label`, `type`, and constraints, and POSTs to the column subresource endpoint. No feature-specific form code exists.
 
@@ -76,7 +76,7 @@ The template layer is entirely frontend-side. The backend and the Temporal activ
 
 **Principle**: workflow authors shouldn't have to hardcode group-scoping identifiers in every node that touches group-scoped configuration data.
 
-**Implementation**: the graph workflow runner injects `groupId` from the workflow's metadata into every activity input before dispatching. Activity node authors write only:
+**Implementation**: the graph workflow runner injects `groupId` from the workflow input (`state.groupId`, set by the workflow caller) into every activity input before dispatching (`executeActivityNode` in `apps/temporal/src/graph-engine/node-executors.ts`; system fields are spread last so a node's own inputs cannot override them). Activity node authors write only:
 
 ```json
 {
@@ -90,24 +90,30 @@ The runner adds `groupId` transparently. The `tables.lookup` activity receives i
 
 ```
 apps/backend-services/src/tables/
+  tables.module.ts         — NestJS module wiring
   tables.controller.ts     — 16 REST endpoints
   tables.service.ts        — orchestration, validation, audit
   tables-db.service.ts     — Prisma CRUD, optimistic locking
   column-validation.ts     — ColumnDef validation rules
   lookup-validation.ts     — LookupDef validation rules
+  dependency-check.ts      — finds lookups referencing a column (blocks unsafe column deletes)
   types.ts                 — ColumnDef, LookupDef, PickStrategy
   dto/                     — Swagger-annotated DTOs
+
+apps/temporal/src/activities/
+  tables-lookup.ts         — the tables.lookup activity
 
 apps/temporal/src/tables/
   lookup-engine.ts         — filter + sort + pick execution
   types.ts                 — shared types (re-exported)
 
 apps/frontend/src/features/tables/
-  TableListPage.tsx
-  TableDetailPage.tsx      — 4-tab view (Rows, Columns, Lookups, Settings)
-  ColumnsTab.tsx / ColumnForm.tsx
-  RowsTab.tsx / RowForm.tsx
-  LookupsTab.tsx / LookupForm.tsx / LookupSnippetPanel.tsx
+  pages/TablesListPage.tsx
+  pages/TableDetailPage.tsx — 4-tab view (Rows, Columns, Lookups, Settings — Settings admin-only)
+  components/              — ColumnsTab/ColumnForm, RowsTab/RowForm, LookupsTab/LookupForm,
+                             LookupSnippetPanel, CreateTableModal
+  hooks/                   — React Query hooks (useTables, useTable, useTableRows, ...)
+  utils/build-row-zod-schema.ts — Zod schema builder for RowForm
   lookup-templates/        — 6 template definitions
   types.ts                 — frontend mirror of backend types
 ```
