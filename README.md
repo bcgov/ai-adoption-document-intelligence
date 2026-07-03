@@ -256,11 +256,13 @@ docker compose --profile infra up -d
 
 cd apps/backend-services
 
-# Copy environment configuration
-cp .env.sample .env
-
-# Edit .env with your database connection string
+# Create the environment configuration (no sample file is committed).
+# Minimum for local dev — set your database connection string:
 # DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
+$EDITOR .env
+
+# Keep sensitive keys out of the repo .env — use the external override file
+# (~/.config/bcgov-di/backend-services.env); see docs-md/operations/local-dev-secrets.md
 
 # Run migrations, then generate the Prisma client
 npm run db:migrate
