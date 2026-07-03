@@ -372,39 +372,41 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    const savedCorrections = await this.prismaService.transaction(async (tx) => {
-      const corrections = [];
-      for (const correction of dto.corrections) {
-        corrections.push(
-          await this.reviewDb.createFieldCorrection(
-            sessionId,
-            {
-              field_key: correction.field_key,
-              original_value: correction.original_value,
-              corrected_value: correction.corrected_value,
-              original_conf: correction.original_conf,
-              action: correction.action,
-            },
-            tx,
-          ),
+    const savedCorrections = await this.prismaService.transaction(
+      async (tx) => {
+        const corrections = [];
+        for (const correction of dto.corrections) {
+          corrections.push(
+            await this.reviewDb.createFieldCorrection(
+              sessionId,
+              {
+                field_key: correction.field_key,
+                original_value: correction.original_value,
+                corrected_value: correction.corrected_value,
+                original_conf: correction.original_conf,
+                action: correction.action,
+              },
+              tx,
+            ),
+          );
+        }
+
+        await this.auditService.recordEvent(
+          {
+            event_type: "review_corrections_submitted",
+            resource_type: "review_session",
+            resource_id: sessionId,
+            document_id: session.document_id,
+            workflow_execution_id: doc.workflow_execution_id ?? undefined,
+            group_id: doc.group_id ?? undefined,
+            payload: { correction_count: corrections.length },
+          },
+          tx,
         );
-      }
 
-      await this.auditService.recordEvent(
-        {
-          event_type: "review_corrections_submitted",
-          resource_type: "review_session",
-          resource_id: sessionId,
-          document_id: session.document_id,
-          workflow_execution_id: doc.workflow_execution_id ?? undefined,
-          group_id: doc.group_id ?? undefined,
-          payload: { correction_count: corrections.length },
-        },
-        tx,
-      );
-
-      return corrections;
-    });
+        return corrections;
+      },
+    );
 
     return {
       sessionId,

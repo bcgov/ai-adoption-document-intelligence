@@ -1,6 +1,7 @@
 import {
   CorrectionAction as DbCorrectionAction,
   DocumentStatus,
+  Prisma,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -8,9 +9,8 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
-import { Test, TestingModule } from "@nestjs/testing";
 import { ModuleRef } from "@nestjs/core";
-import { Prisma } from "@generated/client";
+import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -57,7 +57,6 @@ describe("HitlService", () => {
     workflow_config_id: null,
     workflow_execution_id: null,
     group_id: "group-1",
-    content_hash: null,
   };
 
   const mockOcrResult = {

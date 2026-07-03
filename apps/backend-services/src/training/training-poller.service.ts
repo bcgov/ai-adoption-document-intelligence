@@ -8,8 +8,8 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
-import { AppLoggerService } from "../logging/app-logger.service";
 import { PrismaService } from "../database/prisma.service";
+import { AppLoggerService } from "../logging/app-logger.service";
 import { TrainingDbService } from "./training-db.service";
 
 interface AzureErrorResponse {

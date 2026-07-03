@@ -1,5 +1,5 @@
-import { Test, TestingModule } from "@nestjs/testing";
 import { Prisma } from "@generated/client";
+import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import * as requestContextModule from "@/logging/request-context";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -162,7 +162,9 @@ describe("AuditService", () => {
     });
 
     it("should propagate errors when tx is provided", async () => {
-      mockAuditDb.createAuditEvent.mockRejectedValue(new Error("DB write failed"));
+      mockAuditDb.createAuditEvent.mockRejectedValue(
+        new Error("DB write failed"),
+      );
       const tx = {} as Prisma.TransactionClient;
 
       await expect(

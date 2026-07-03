@@ -13,8 +13,8 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { PrismaService } from "@/database/prisma.service";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
+import { PrismaService } from "@/database/prisma.service";
 import {
   type DocumentData,
   DocumentService,

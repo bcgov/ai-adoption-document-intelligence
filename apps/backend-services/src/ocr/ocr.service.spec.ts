@@ -1,8 +1,7 @@
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { ConflictException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Prisma } from "@generated/client";
 import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";

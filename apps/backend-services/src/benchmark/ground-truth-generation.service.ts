@@ -399,7 +399,6 @@ export class GroundTruthGenerationService {
           workflow_execution_id: null,
           model_id: modelId,
           group_id: groupId,
-          content_hash: null,
         };
         await this.documentService.createDocument(failedDoc);
         await this.jobDb.updateJob(jobId, {
@@ -433,7 +432,6 @@ export class GroundTruthGenerationService {
         workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
-        content_hash: null,
       };
 
       await this.documentService.createDocument(documentData);

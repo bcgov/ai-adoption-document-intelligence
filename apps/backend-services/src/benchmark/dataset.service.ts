@@ -235,10 +235,8 @@ export class DatasetService {
           );
         }
 
-        const { documentIds } = await this.groundTruthJobDb.deleteJobsForVersions(
-          versionIds,
-          tx,
-        );
+        const { documentIds } =
+          await this.groundTruthJobDb.deleteJobsForVersions(versionIds, tx);
 
         await this.datasetDbService.deleteManyDatasetVersions(
           { datasetId: id },

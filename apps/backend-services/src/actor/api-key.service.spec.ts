@@ -1,8 +1,8 @@
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import * as bcrypt from "bcrypt";
-import { AppLoggerService } from "@/logging/app-logger.service";
 import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { ApiKeyService } from "./api-key.service";
 import { ApiKeyDbService } from "./api-key-db.service";

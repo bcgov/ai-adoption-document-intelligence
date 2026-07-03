@@ -5,8 +5,8 @@ import {
   ApiKeyInfoDto,
   GeneratedApiKeyDto,
 } from "@/actor/dto/api-key-info.dto";
-import type { ValidatedApiKey } from "@/auth/types";
 import { AuditService } from "@/audit/audit.service";
+import type { ValidatedApiKey } from "@/auth/types";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { ApiKeyDbService } from "./api-key-db.service";
 
