@@ -19,7 +19,8 @@ This document records a full codebase review of database write patterns against 
 | Infrastructure: `recordEvent` / `logAuditEvent` accept optional `tx` | **Fixed** |
 | Rescan transaction gaps (definition revision, run delete, GT start/processJob, template-model labels/upload) | **Fixed** |
 | Rescan mutation audit gaps (training, template-model, project/definition/run/dataset, GT, classifier, confusion-profile, upload, HITL `deleteCorrection`, workflow delete, document update event type) | **Fixed** |
-| Compliant domains | Group, tables, API keys, HITL (including `deleteCorrection`), workflow, training, dataset, benchmark project/definition/run, GT, classifier, confusion-profile, template-model, document upload/update |
+| Follow-up pass: `configureSchedule`, `revertHeadToVersion`, temporal `upsert-ocr-result` transaction | **Fixed** |
+| Compliant domains | Group, tables, API keys, HITL, workflow (incl. revert head), training, dataset, benchmark project/definition/run/schedule, GT, classifier, confusion-profile, template-model, document upload/update, temporal OCR upsert |
 
 ---
 

@@ -71,6 +71,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 | `workflow_version_appended` | New config version appended to lineage | workflow_lineage | lineage.id | workflow_version_id, version_number |
 | `workflow_candidate_created` | Benchmark candidate lineage created | workflow_lineage | candidate lineage.id | source_workflow_version_id, source_lineage_id |
 | `workflow_deleted` | Workflow lineage deleted | workflow_lineage | lineage.id | slug, name |
+| `workflow_head_reverted` | Lineage head set to an existing version | workflow_lineage | lineage.id | workflow_version_id, version_number |
 | `benchmark_workflow_promoted` | Candidate promoted into definition's base lineage | benchmark_definition | definition.id | project_id, candidate_workflow_version_id, base_lineage_id |
 | `benchmark_workflow_applied_to_base` | Candidate applied directly to base lineage | workflow_version | new version.id | project_id, candidate_workflow_version_id, base_lineage_id, new_version_number |
 
@@ -134,6 +135,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 | `benchmark_definition_updated` | In-place update (no runs) | benchmark_definition | definition.id | project_id |
 | `benchmark_definition_revised` | New revision created (has runs; prior marked immutable) | benchmark_definition | new definition.id | project_id, previous_definition_id, revision |
 | `benchmark_definition_deleted` | Definition deleted | benchmark_definition | definition.id | project_id, name |
+| `benchmark_schedule_configured` | Schedule enabled/disabled or cron updated | benchmark_definition | definition.id | project_id, schedule_enabled, schedule_cron, schedule_id |
 
 ### Benchmark run
 

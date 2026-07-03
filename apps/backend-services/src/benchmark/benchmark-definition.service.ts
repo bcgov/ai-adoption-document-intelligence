@@ -1115,6 +1115,7 @@ export class BenchmarkDefinitionService {
     projectId: string,
     definitionId: string,
     dto: ScheduleConfigDto,
+    actorId?: string,
   ): Promise<DefinitionDetailsDto> {
     this.logger.log(
       `Configuring schedule for definition ${definitionId}: enabled=${dto.enabled}, cron=${dto.cron}`,
@@ -1185,6 +1186,21 @@ export class BenchmarkDefinitionService {
           scheduleId,
         },
       );
+
+    const project = await this.definitionDb.findBenchmarkProject(projectId);
+    await this.auditService.recordEvent({
+      event_type: "benchmark_schedule_configured",
+      resource_type: "benchmark_definition",
+      resource_id: definitionId,
+      actor_id: actorId,
+      group_id: project?.group_id,
+      payload: {
+        project_id: projectId,
+        schedule_enabled: dto.enabled,
+        schedule_cron: dto.cron ?? null,
+        schedule_id: scheduleId,
+      },
+    });
 
     return this.mapToDefinitionDetails(updated);
   }

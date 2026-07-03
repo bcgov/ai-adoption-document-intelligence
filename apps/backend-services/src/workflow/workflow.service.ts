@@ -885,6 +885,19 @@ export class WorkflowService {
     if (!updated.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_head_reverted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: lineage.group_id,
+      payload: {
+        workflow_version_id: workflowVersionId,
+        version_number: version.version_number,
+      },
+    });
+
     return this.mapLineageAndVersion(updated, updated.headVersion);
   }
 }

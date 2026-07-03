@@ -215,6 +215,7 @@ export class BenchmarkDefinitionController {
       projectId,
       definitionId,
       scheduleConfigDto,
+      req.resolvedIdentity.actorId,
     );
   }
 
