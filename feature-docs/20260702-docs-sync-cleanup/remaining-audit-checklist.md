@@ -18,8 +18,8 @@ Continuation of the 2026-07 docs sync (see [design.md](design.md)). 32 of 88 act
 - [x] monitoring (helm/PLG): verified against chart; `PROMETHEUS_HELM_CHART.md` fixed stale "no Alertmanager" note
 - [x] monitoring (metrics/dashboards): verified (metric names match @ai-di/monitoring, dashboards JSON exist, alert-rules generation, CHES env)
 - [x] monitoring (local/logging): verified; stray `docs/LOGGING.md` archived as `docs-md/archive/LOGGING_CATEGORIES_2026-03.md`
-- [ ] operations (env/secrets): `ENVIRONMENT_CONFIGURATION.md`, `local-dev-secrets.md`, `prod-secrets-rotation.md`, `NPM_HARDENING.md` *(all partial)*
-- [ ] operations (infra): `MANUAL_LOAD_TEST_INSTANCE.md`, `BACKUP_TO_NETWORK_SHARE.md`, `AZURE_INFRASTRUCTURE.md`
+- [x] operations (env/secrets): verified — all 58 documented env vars exist in code/manifests/deploy scripts; npm hardening and rotation script claims check out
+- [x] operations (infra): verified — scripts/manifests/terraform paths resolve (oc-deploy.sh mention is explicitly historical)
 - [ ] workflows: `DAG_WORKFLOW_ENGINE.md` *(large — verify section-by-section against apps/temporal/src/graph-engine/ and packages/graph-workflow/)*
 - [ ] workflows: `WORKFLOW_NODE_CATALOG.md` *(large — verify against activity registries)*
 - [ ] workflows: `WORKFLOW_BUILDER_GUIDE.md`, `WORKFLOW_DESIGN_BRIEF.md` *(design references — verify status disclaimers, not the target UX)*
