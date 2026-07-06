@@ -53,9 +53,10 @@ jobs:
           NAMESPACE="${{ inputs.namespace }}"
 
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "develop" ]]; then
-            # push to develop → shared test instance, single floating tag
+            # push to develop → shared test instance; floating tag + immutable SHA tag
             INSTANCE="bcgov-di-test"
             IMAGE_TAG="bcgov-di-test"
+            SHA_TAG="bcgov-di-test-${GITHUB_SHA::12}"
             ENV="test"
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "main" ]]; then
             # push to main → prod instance; floating tag + immutable SHA tag for rollback
@@ -83,6 +84,7 @@ jobs:
                 | sed 's/-$//')
             fi
             ENV="${{ inputs.environment || 'dev' }}"
+            SHA_TAG="${IMAGE_TAG}-${GITHUB_SHA::12}"
           fi
 
           CHECKOUT_REF="${{ github.sha }}"
@@ -133,11 +135,14 @@ jobs:
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Login to Artifactory
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
-        with:
-          registry: ${{ secrets.ARTIFACTORY_URL }}
-          username: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
-          password: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/artifactory-login.sh
+          artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
 
       - name: Cache Docker layers
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -153,10 +158,7 @@ jobs:
           BASE="${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/${{ matrix.service }}"
           {
             echo "tags<<EOF"
-            echo "${BASE}:${{ needs.metadata.outputs.image-tag }}"
-            if [[ -n "${{ needs.metadata.outputs.sha-tag }}" ]]; then
-              echo "${BASE}:${{ needs.metadata.outputs.sha-tag }}"
-            fi
+            echo "${BASE}:${{ needs.metadata.outputs.sha-tag }}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -217,10 +219,37 @@ jobs:
             --token="${{ secrets.OPENSHIFT_TOKEN }}" \
             --insecure-skip-tls-verify=true
 
+      - name: Verify staged images in Artifactory
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          SHA_TAG: ${{ needs.metadata.outputs.sha-tag }}
+        run: |
+          set -euo pipefail
+          AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
+          DOCKER_API="https://${ARTIFACTORY_URL}/artifactory/api/docker/kfd3-fd34fb-local/v2"
+          SERVICES=(backend-services frontend temporal ches-adapter)
+          for svc in "${SERVICES[@]}"; do
+            echo "Checking ${svc}:${SHA_TAG}..."
+            code=$(curl --connect-timeout 30 --max-time 120 -s -o /dev/null -w "%{http_code}" \
+              -u "${AUTH}" -I \
+              -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+              -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+              -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+              -H "Accept: application/vnd.oci.image.index.v1+json" \
+              "${DOCKER_API}/${svc}/manifests/${SHA_TAG}" || echo "000")
+            if [[ "${code}" != "200" ]]; then
+              echo "::error::Missing staged image ${svc}:${SHA_TAG} (HTTP ${code})"
+              exit 1
+            fi
+          done
+
       - name: Generate overlay and deploy
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
-          IMAGE_TAG: ${{ needs.metadata.outputs.image-tag }}
+          IMAGE_TAG: ${{ needs.metadata.outputs.sha-tag }}
+          FLOATING_TAG: ${{ needs.metadata.outputs.image-tag }}
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
           CLUSTER_DOMAIN: ${{ secrets.CLUSTER_DOMAIN }}
@@ -450,17 +479,8 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
-          PLG_RELEASE="${INSTANCE_NAME}-plg"
-          # StatefulSet volumeClaimTemplates are immutable in Kubernetes.
-          # Delete the StatefulSets so Helm can recreate them with the correct
-          # spec. PVCs are not deleted and data is preserved.
-          for ss in loki prometheus; do
-            SS_NAME="${PLG_RELEASE}-${ss}"
-            if oc get statefulset "${SS_NAME}" -n "${OC_NAMESPACE}" &>/dev/null; then
-              echo "Deleting StatefulSet ${SS_NAME} for clean upgrade..."
-              oc delete statefulset "${SS_NAME}" -n "${OC_NAMESPACE}" --cascade=orphan
-            fi
-          done
+          source scripts/lib/plg-pre-delete.sh
+          delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
 
       - name: Deploy PLG monitoring stack
         if: env.DEPLOY_PLG == 'true'
@@ -496,7 +516,7 @@ jobs:
             --set "alertmanager.notificationsEnabled=${ALERTMANAGER_NOTIFICATIONS_ENABLED:-false}" \
             --set "alertmanager.minNotificationSeverity=${ALERTMANAGER_MIN_SEVERITY:-warning}" \
             --set "chesAdapter.image.repository=${{ secrets.ARTIFACTORY_URL }}/kfd3-fd34fb-local/ches-adapter" \
-            --set "chesAdapter.image.tag=${{ needs.metadata.outputs.image-tag }}" \
+            --set "chesAdapter.image.tag=${{ needs.metadata.outputs.sha-tag }}" \
             --set "chesAdapter.imagePullSecret=${INSTANCE_NAME}-artifactory-pull" \
             --set "alertmanager.ches.adapterUrl=http://${PLG_RELEASE}-ches-adapter:3003/" \
             --set "chesAdapter.secretName=${INSTANCE_NAME}-ches-adapter-secrets" \
@@ -509,23 +529,32 @@ jobs:
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
         run: |
           set -euo pipefail
+          source scripts/lib/wait-for-rollouts.sh
+          SERVICES=(backend-services frontend temporal temporal-ui temporal-worker)
+          wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"
 
-          SERVICES=("backend-services" "frontend" "temporal" "temporal-ui" "temporal-worker")
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
+      - name: Promote staged images to floating tag
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          FLOATING_TAG: ${{ needs.metadata.outputs.image-tag }}
+          SHA_TAG: ${{ needs.metadata.outputs.sha-tag }}
+        run: |
+          set -euo pipefail
+          source scripts/lib/artifactory-login.sh
+          artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
+
+          REGISTRY="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
+          SERVICES=(backend-services frontend temporal ches-adapter)
           for svc in "${SERVICES[@]}"; do
-            DEPLOY="${INSTANCE_NAME}-${svc}"
-            if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
-              oc rollout restart "deployment/$DEPLOY" -n "$OC_NAMESPACE" || true
-            fi
-          done
-
-          for svc in "${SERVICES[@]}"; do
-            DEPLOY="${INSTANCE_NAME}-${svc}"
-            if oc get deployment "$DEPLOY" -n "$OC_NAMESPACE" &>/dev/null; then
-              echo "Waiting for $DEPLOY..."
-              oc rollout status "deployment/$DEPLOY" -n "$OC_NAMESPACE" --timeout=300s || \
-                echo "::warning::Rollout timed out for $DEPLOY"
-            fi
+            echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
+            docker buildx imagetools create \
+              "${REGISTRY}/${svc}:${FLOATING_TAG}" \
+              "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
       - name: Artifactory cleanup (reclaim storage)
@@ -541,12 +570,34 @@ jobs:
           set -euo pipefail
           # For prod, rotate the SHA-tagged rollback handles: keep the 3 most
           # recent `<instance>-<12hex>` named tags per image, delete the rest.
-          # The 12-`?` glob matches only the commit-SHA-suffixed tags, so
-          # `<instance>` and `<instance>-test` are never rotated. Orphan cleanup
-          # then reclaims underlying layers.
-          # For test/dev, just orphan cleanup — no SHA tags accumulate.
+          # For test/dev, rotate SHA tags matching `<instance>-????????????`.
           if [[ "${ENVIRONMENT}" == "prod" ]]; then
             bash ./scripts/artifactory-cleanup.sh --delete --keep 3 --match "${INSTANCE}-????????????"
           else
-            bash ./scripts/artifactory-cleanup.sh --delete
+            bash ./scripts/artifactory-cleanup.sh --delete --keep 10 --match "${INSTANCE}-????????????"
           fi
+
+  cleanup-on-failure:
+    name: Cleanup Artifactory on failure
+    needs: [metadata, build, deploy]
+    if: always() && (needs.build.result == 'failure' || needs.deploy.result == 'failure')
+    runs-on: ubuntu-latest
+    environment: ${{ needs.metadata.outputs.environment }}
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Delete staged run tags and reclaim orphans
+        env:
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_SA_USERNAME: ${{ secrets.ARTIFACTORY_SA_USERNAME }}
+          ARTIFACTORY_SA_PASSWORD: ${{ secrets.ARTIFACTORY_SA_PASSWORD }}
+          SHA_TAG: ${{ needs.metadata.outputs.sha-tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SHA_TAG}" ]]; then
+            echo "No SHA tag to clean up."
+            exit 0
+          fi
+          bash ./scripts/artifactory-delete-run-tags.sh --tag "${SHA_TAG}" --delete

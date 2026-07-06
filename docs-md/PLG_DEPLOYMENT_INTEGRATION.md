@@ -28,13 +28,14 @@ The job runs regardless of whether application images were built (it depends on 
 
 ### CI Deployment (`deploy-instance.yml`)
 
-The `Deploy Instance` GitHub workflow deploys the PLG stack as part of the `Deploy to OpenShift` job, between applying the Kustomize overlay and creating instance secrets. The step:
+The `Deploy Instance` GitHub workflow deploys the PLG stack as part of the `Deploy to OpenShift` job, after applying the Kustomize overlay and creating instance secrets. The step:
 
-1. Reads PLG-specific configuration from the `test` or `prod` GitHub environment secrets (populated from `dev.env`/`prod.env`)
-2. Derives instance-specific Prometheus scrape targets from the instance name
-3. Runs `helm upgrade --install` with environment-specific values passed via `--set` flags
+1. Deletes immutable PLG StatefulSets (Loki, Prometheus, Alertmanager) with `--cascade=orphan` when they already exist — see [Upgrade impact on logging](#upgrade-impact-on-logging).
+2. Reads PLG-specific configuration from the `test` or `prod` GitHub environment secrets (populated from `dev.env`/`prod.env`)
+3. Derives instance-specific Prometheus scrape targets from the instance name
+4. Runs `helm upgrade --install` with environment-specific values passed via `--set` flags
 
-PLG deployment failures are logged as warnings and do not fail the workflow — application deployment continues normally.
+PLG Helm failures fail the deploy step (`--wait --timeout 300s`).
 
 #### Instance-Specific Helm Release
 
@@ -90,6 +91,21 @@ Similarly, the `ches-notifications` and `teams-notifications` receivers in the A
 
 Grafana stores its SQLite database and alert history on a `ReadWriteOnce` PersistentVolumeClaim. The Deployment uses `strategy: Recreate` rather than the default `RollingUpdate`, so the old pod is terminated before the new one starts. This prevents `Multi-Attach` errors caused by two pods competing for the same RWO volume during an upgrade.
 
+## Upgrade impact on logging
+
+Before each PLG Helm upgrade, the deploy pipeline deletes existing Loki, Prometheus, and Alertmanager StatefulSets with `oc delete statefulset ... --cascade=orphan`. This preserves PVCs and running pods while allowing Helm to recreate StatefulSets when immutable fields (such as `volumeClaimTemplates`) change.
+
+| Layer | Disruption during upgrade? |
+|-------|---------------------------|
+| Application stdout / PVC logs | **No** — apps and log tee sidecars keep writing |
+| Promtail → Loki ingest | **Brief yes** — Loki may restart during `helm upgrade --wait`; Promtail buffers or backs off |
+| Grafana log viewing | **Brief yes** — Grafana `Recreate` strategy terminates the old pod before the new one is ready |
+| Historical Loki data | **No** — PVCs are preserved |
+
+The delete step itself is low-disruption (`--cascade=orphan` keeps pods running). Disruption is most likely during Helm reconciliation (bounded by `--timeout 300s` in CI). Application logging to stdout is unaffected regardless of Loki health.
+
+The same pre-delete logic is available locally via `scripts/lib/plg-pre-delete.sh`, invoked from `scripts/oc-deploy-instance.sh` before Helm upgrade.
+
 ## Accessing Grafana
 
 Grafana is not exposed via an OpenShift Route. Access it via port-forwarding:
@@ -111,3 +127,5 @@ Then open `http://localhost:3001` and log in with `admin` / `<GRAFANA_ADMIN_PASS
 | `deployments/openshift/config/prod.env.example` | Prod environment config template (includes PLG variables) |
 | `.github/workflows/deploy-instance.yml` | CI workflow that deploys app + PLG |
 | `scripts/oc-teardown.sh` | Teardown script (uninstalls PLG release for the instance) |
+| `scripts/lib/plg-pre-delete.sh` | Deletes immutable PLG StatefulSets before Helm upgrade |
+| `scripts/lib/wait-for-rollouts.sh` | Rollout restart/wait with quota checks and failure diagnostics |
