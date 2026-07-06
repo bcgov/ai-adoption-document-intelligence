@@ -290,6 +290,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -304,6 +305,7 @@ describe("TemplateModelController", () => {
       expect(templateModelService.updateTemplateModel).toHaveBeenCalledWith(
         "tm-1",
         dto,
+        "user-1",
       );
     });
 
@@ -345,6 +347,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -359,6 +362,7 @@ describe("TemplateModelController", () => {
       expect(result).toEqual({ success: true, id: "tm-1" });
       expect(templateModelService.deleteTemplateModel).toHaveBeenCalledWith(
         "tm-1",
+        "user-1",
       );
     });
 
@@ -409,6 +413,7 @@ describe("TemplateModelController", () => {
         user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -420,6 +425,7 @@ describe("TemplateModelController", () => {
       expect(templateModelService.uploadLabelingDocument).toHaveBeenCalledWith(
         "tm-1",
         dto,
+        "user-1",
       );
     });
 
@@ -463,6 +469,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -477,7 +484,7 @@ describe("TemplateModelController", () => {
       expect(result).toEqual(mockLabeledDocument);
       expect(
         templateModelService.addDocumentToTemplateModel,
-      ).toHaveBeenCalledWith("tm-1", dto);
+      ).toHaveBeenCalledWith("tm-1", dto, "user-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -589,6 +596,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -607,7 +615,7 @@ describe("TemplateModelController", () => {
       expect(result).toEqual({ success: true, documentId: "labeled-doc-1" });
       expect(
         templateModelService.removeDocumentFromTemplateModel,
-      ).toHaveBeenCalledWith("tm-1", "labeled-doc-1");
+      ).toHaveBeenCalledWith("tm-1", "labeled-doc-1", "user-1");
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -729,6 +737,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -749,6 +758,7 @@ describe("TemplateModelController", () => {
         "tm-1",
         "labeled-doc-1",
         dto,
+        "user-1",
       );
     });
 
@@ -777,6 +787,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "user-1",
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
       } as unknown as Request;
@@ -798,6 +809,7 @@ describe("TemplateModelController", () => {
         "tm-1",
         "labeled-doc-1",
         "label-1",
+        "user-1",
       );
     });
 

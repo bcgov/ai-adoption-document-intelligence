@@ -30,8 +30,8 @@ describe("upsertOcrResult activity", () => {
         update: jest.fn(),
         findUnique: jest.fn().mockResolvedValue({ id: "doc-1" }),
       },
-      $transaction: jest.fn(
-        async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock),
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prismaMock),
       ),
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
