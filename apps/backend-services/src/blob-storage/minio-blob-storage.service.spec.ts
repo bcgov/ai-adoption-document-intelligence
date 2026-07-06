@@ -87,6 +87,19 @@ describe("MinioBlobStorageService", () => {
       expect(mockS3Send).toHaveBeenCalledWith(expect.any(PutObjectCommand));
     });
 
+    it("calls storageLedger.recordWrite after a successful upload", async () => {
+      mockS3Send.mockResolvedValue({});
+
+      const ledger = module.get<StorageLedgerService>(StorageLedgerService);
+      const data = Buffer.from("test content");
+      await service.write("group-abc/file.pdf", data);
+
+      expect(ledger.recordWrite).toHaveBeenCalledWith(
+        "group-abc/file.pdf",
+        data.byteLength,
+      );
+    });
+
     it("throws error when upload fails", async () => {
       mockS3Send.mockRejectedValue(new Error("Network error"));
 

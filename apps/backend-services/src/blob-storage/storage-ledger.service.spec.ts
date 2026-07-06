@@ -16,6 +16,12 @@ function makeMockDbService() {
       units: 1,
     } satisfies BlobReadRateInfo),
     createBlobReadEvent: jest.fn().mockResolvedValue(undefined),
+    findActiveRateVersionWithBlobWriteCost: jest.fn().mockResolvedValue({
+      rateVersionId: "rate-v1",
+      unitCostDollars: 0.001,
+      units: 5,
+    } satisfies BlobReadRateInfo),
+    createBlobWriteEvent: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -70,6 +76,58 @@ describe("StorageLedgerService", () => {
 
     it("logs error and does not throw when createLedgerEntry fails", async () => {
       mockDb.createLedgerEntry.mockRejectedValueOnce(new Error("DB error"));
+
+      await expect(
+        service.recordWrite("group-abc/file.pdf", 100),
+      ).resolves.not.toThrow();
+
+      expect(mockAppLogger.error).toHaveBeenCalled();
+    });
+
+    it("creates a blob_write usage event for a non-shared key", async () => {
+      await service.recordWrite("group-abc/documents/doc-1/original.pdf", 1024);
+
+      expect(mockDb.findActiveRateVersionWithBlobWriteCost).toHaveBeenCalled();
+      expect(mockDb.createBlobWriteEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "blob_write",
+          group_id: "group-abc",
+          rate_version_id: "rate-v1",
+        }),
+      );
+    });
+
+    it("does not create blob_write event for _shared/ prefix keys", async () => {
+      await service.recordWrite("_shared/template.pdf", 512);
+
+      expect(
+        mockDb.findActiveRateVersionWithBlobWriteCost,
+      ).not.toHaveBeenCalled();
+      expect(mockDb.createBlobWriteEvent).not.toHaveBeenCalled();
+    });
+
+    it("does not create blob_write event when rateInfo is null", async () => {
+      mockDb.findActiveRateVersionWithBlobWriteCost.mockResolvedValueOnce(null);
+
+      await service.recordWrite("group-abc/file.pdf", 100);
+
+      expect(mockDb.createBlobWriteEvent).not.toHaveBeenCalled();
+    });
+
+    it("does not create blob_write event when blob.write units is zero", async () => {
+      mockDb.findActiveRateVersionWithBlobWriteCost.mockResolvedValueOnce({
+        rateVersionId: "rate-v1",
+        unitCostDollars: 0.001,
+        units: 0,
+      } satisfies BlobReadRateInfo);
+
+      await service.recordWrite("group-abc/file.pdf", 100);
+
+      expect(mockDb.createBlobWriteEvent).not.toHaveBeenCalled();
+    });
+
+    it("logs error and does not throw when createBlobWriteEvent fails", async () => {
+      mockDb.createBlobWriteEvent.mockRejectedValueOnce(new Error("DB error"));
 
       await expect(
         service.recordWrite("group-abc/file.pdf", 100),

@@ -233,4 +233,95 @@ describe("StorageLedgerDbService", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // findActiveRateVersionWithBlobWriteCost
+  // ---------------------------------------------------------------------------
+  describe("findActiveRateVersionWithBlobWriteCost", () => {
+    it("returns rateVersionId, unitCostDollars, and units when a match exists", async () => {
+      mockPrisma.rateVersion.findFirst.mockResolvedValueOnce({
+        id: "rate-v1",
+        unit_cost_dollars: "0.001",
+        effective_from: new Date("2024-01-01"),
+        activity_costs: [
+          { activity_name: "blob.write", cost_type: "flat", units: "5" },
+        ],
+      });
+
+      const result = await service.findActiveRateVersionWithBlobWriteCost();
+
+      expect(result).toEqual({
+        rateVersionId: "rate-v1",
+        unitCostDollars: 0.001,
+        units: 5,
+      });
+    });
+
+    it("returns null when no rate version is found", async () => {
+      mockPrisma.rateVersion.findFirst.mockResolvedValueOnce(null);
+
+      const result = await service.findActiveRateVersionWithBlobWriteCost();
+
+      expect(result).toBeNull();
+    });
+
+    it("returns null when the rate version has no blob.write activity cost", async () => {
+      mockPrisma.rateVersion.findFirst.mockResolvedValueOnce({
+        id: "rate-v1",
+        unit_cost_dollars: "0.001",
+        effective_from: new Date("2024-01-01"),
+        activity_costs: [],
+      });
+
+      const result = await service.findActiveRateVersionWithBlobWriteCost();
+
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // createBlobWriteEvent
+  // ---------------------------------------------------------------------------
+  describe("createBlobWriteEvent", () => {
+    const input = {
+      event_type: "blob_write" as const,
+      group_id: "group-abc",
+      rate_version_id: "rate-v1",
+      unit_cost_dollars: 0.001,
+      units_consumed: 5,
+      resource_id: "group-abc/file.pdf",
+      resource_type: "blob",
+    };
+
+    it("calls buildUsageEventWriteOps and runs a transaction", async () => {
+      await service.createBlobWriteEvent(input);
+
+      expect(buildUsageEventWriteOps).toHaveBeenCalledWith(input);
+      expect(mockPrisma.transaction).toHaveBeenCalled();
+      expect(mockPrisma.usageEvent.create).toHaveBeenCalled();
+      expect(mockPrisma.usagePeriodSummary.upsert).toHaveBeenCalled();
+    });
+
+    it("uses the provided tx client instead of starting a new transaction", async () => {
+      const txUsageEvent = { create: jest.fn().mockResolvedValue({}) };
+      const txUsagePeriodSummary = { upsert: jest.fn().mockResolvedValue({}) };
+      const tx = {
+        usageEvent: txUsageEvent,
+        usagePeriodSummary: txUsagePeriodSummary,
+      } as unknown as Prisma.TransactionClient;
+
+      await service.createBlobWriteEvent(input, tx);
+
+      expect(mockPrisma.transaction).not.toHaveBeenCalled();
+      expect(txUsageEvent.create).toHaveBeenCalled();
+    });
+
+    it("throws when the transaction fails", async () => {
+      mockPrisma.transaction.mockRejectedValueOnce(new Error("DB error"));
+
+      await expect(service.createBlobWriteEvent(input)).rejects.toThrow(
+        "DB error",
+      );
+    });
+  });
 });

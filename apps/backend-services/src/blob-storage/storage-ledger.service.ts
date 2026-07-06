@@ -23,7 +23,8 @@ export class StorageLedgerService {
   ) {}
 
   /**
-   * Inserts a GroupStorageLedger row after a successful blob write.
+   * Inserts a GroupStorageLedger row after a successful blob write and records
+   * a blob_write UsageEvent for billing.
    * No-op for keys beginning with `_shared/`.
    *
    * @param key - The blob key (e.g. "group-123/documents/doc-1/original.pdf")
@@ -40,6 +41,29 @@ export class StorageLedgerService {
       this.logger.error(
         `Failed to record storage ledger write for key "${key}": ${err.message}`,
         { alertType: "storage_ledger_write" },
+      );
+    }
+
+    try {
+      const rateInfo =
+        await this.storageLedgerDb.findActiveRateVersionWithBlobWriteCost();
+
+      if (!rateInfo || rateInfo.units === 0) return;
+
+      await this.storageLedgerDb.createBlobWriteEvent({
+        event_type: "blob_write",
+        group_id: groupId,
+        rate_version_id: rateInfo.rateVersionId,
+        unit_cost_dollars: rateInfo.unitCostDollars,
+        units_consumed: rateInfo.units,
+        resource_id: key,
+        resource_type: "blob",
+      });
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.logger.error(
+        `Failed to record blob write billing for key "${key}": ${err.message}`,
+        { alertType: "blob_write_billing" },
       );
     }
   }

@@ -92,6 +92,27 @@ export class StorageLedgerDbService {
   }
 
   /**
+   * Returns the most recently effective RateVersion that includes a "blob.write"
+   * ActivityCost entry, or null if none exists.
+   */
+  async findActiveRateVersionWithBlobWriteCost(): Promise<BlobReadRateInfo | null> {
+    const rateVersion = await this.prisma.rateVersion.findFirst({
+      where: { effective_from: { lte: new Date() } },
+      orderBy: { effective_from: "desc" },
+      include: { activity_costs: { where: { activity_name: "blob.write" } } },
+    });
+
+    if (!rateVersion || rateVersion.activity_costs.length === 0) return null;
+
+    const writeCost = rateVersion.activity_costs[0];
+    return {
+      rateVersionId: rateVersion.id,
+      unitCostDollars: Number(rateVersion.unit_cost_dollars),
+      units: Number(writeCost.units),
+    };
+  }
+
+  /**
    * Creates a UsageEvent and atomically upserts the matching UsagePeriodSummary
    * row within a single transaction.
    *
@@ -99,6 +120,32 @@ export class StorageLedgerDbService {
    * @param tx - Optional transaction client for participation in a larger transaction
    */
   async createBlobReadEvent(
+    input: RecordUsageEventInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const { createData, upsertArgs } = buildUsageEventWriteOps(input);
+    const run = async (client: Prisma.TransactionClient) => {
+      await client.usageEvent.create({ data: createData });
+      if (upsertArgs) {
+        await client.usagePeriodSummary.upsert(upsertArgs);
+      }
+    };
+
+    if (tx) {
+      await run(tx);
+    } else {
+      await this.prismaService.transaction(run);
+    }
+  }
+
+  /**
+   * Creates a UsageEvent for a blob write operation and atomically upserts the
+   * matching UsagePeriodSummary row within a single transaction.
+   *
+   * @param input - Event data including rate version context for dollar conversion
+   * @param tx - Optional transaction client for participation in a larger transaction
+   */
+  async createBlobWriteEvent(
     input: RecordUsageEventInput,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {

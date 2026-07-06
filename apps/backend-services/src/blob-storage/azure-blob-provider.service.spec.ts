@@ -190,6 +190,23 @@ describe("AzureBlobProviderService", () => {
       expect(blobClient.uploadData).toHaveBeenCalledWith(data);
     });
 
+    it("calls storageLedger.recordWrite after a successful upload", async () => {
+      const blobClient = makeBlockBlobClient();
+      mockContainerClient.getBlockBlobClient.mockReturnValue(blobClient);
+      const ledger = makeStorageLedger();
+      const svc = new AzureBlobProviderService(
+        makeConfigService(validConfig),
+        makeLoggerService() as never,
+        ledger as never,
+      );
+      const data = Buffer.from("content");
+      await svc.write("group-abc/file.pdf", data);
+      expect(ledger.recordWrite).toHaveBeenCalledWith(
+        "group-abc/file.pdf",
+        data.byteLength,
+      );
+    });
+
     it("throws a wrapped error when upload fails", async () => {
       const blobClient = makeBlockBlobClient({
         uploadData: jest.fn().mockRejectedValue(new Error("upload failed")),

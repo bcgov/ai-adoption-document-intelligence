@@ -10,7 +10,8 @@ export type BillingEventType =
   | "workflow_cancelled"
   | "model_training_started"
   | "storage_daily_charge"
-  | "blob_read";
+  | "blob_read"
+  | "blob_write";
 
 /** Input data for recording a single UsageEvent and updating the period summary. */
 export interface RecordUsageEventInput {

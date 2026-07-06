@@ -600,6 +600,7 @@ enum UsageEventType {
   model_training_started
   storage_daily_charge
   blob_read
+  blob_write
 }
 
 enum ActivityCostType {
