@@ -57,8 +57,15 @@ spec:
       ports:
         - protocol: TCP
           port: 3002
-# NEEDS CLUSTER VALIDATION: the DNS rule is scoped to the openshift-dns
-# namespace via the standard `kubernetes.io/metadata.name: openshift-dns` label;
-# confirm your cluster's DNS pods live in that namespace and that the namespace
-# carries that label. The backend-services pod label + port 3002 must also match
-# the deployed Service.
+# DNS scoping rationale (verified by reasoning; confirm once per new cluster):
+#   - Kubernetes auto-applies `kubernetes.io/metadata.name=<ns>` to every
+#     namespace (NamespaceDefaultLabelName, GA since k8s 1.21 / OpenShift 4.8+),
+#     so the `openshift-dns` namespace is guaranteed to carry the label the
+#     selector matches — no manual labelling step is required.
+#   - Standard OpenShift 4.x runs the CoreDNS pods in the `openshift-dns`
+#     namespace, which is the deployment target (BC Gov Silver/Gold).
+# One-time operator check on any NON-standard cluster (custom DNS topology):
+#     oc get pods -n openshift-dns -l dns.operator.openshift.io/daemonset-dns
+#     oc get ns openshift-dns -o jsonpath='{.metadata.labels}'
+# If CoreDNS lives elsewhere, point the namespaceSelector at that namespace.
+# The backend-services pod label + port 3002 must also match the deployed Service.

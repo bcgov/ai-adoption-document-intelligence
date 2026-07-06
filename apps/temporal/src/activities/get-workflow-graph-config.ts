@@ -58,10 +58,27 @@ export async function getWorkflowGraphConfig(
   };
 
   if (input.version !== undefined) {
+    // §3.5: a childWorkflow ref is free-text and may be a lineage id OR a
+    // lineage NAME (the head-resolution fallbacks below accept both). The
+    // pinned path previously used the raw ref directly as `lineage_id`, so a
+    // name-referenced child resolved fine until a version pin was added, then
+    // threw `has no version N`. Resolve the ref to a lineage id first.
+    const lineage =
+      (await prisma.workflowLineage.findUnique({
+        where: { id: input.workflowId },
+        select: { id: true },
+      })) ??
+      (await prisma.workflowLineage.findFirst({
+        where: { name: input.workflowId },
+        select: { id: true },
+      }));
+    if (lineage === null) {
+      throw new Error(`Library lineage not found: ${input.workflowId}`);
+    }
     const pinned = await prisma.workflowVersion.findUnique({
       where: {
         lineage_id_version_number: {
-          lineage_id: input.workflowId,
+          lineage_id: lineage.id,
           version_number: input.version,
         },
       },

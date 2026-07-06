@@ -45,4 +45,10 @@ export interface ResolveLineageActivityInput {
 
 export interface ResolveLineageActivityResult {
   versionId: string;
+  /**
+   * The resolved version's `@deterministic` flag. §3.3: the executor uses
+   * this to bypass the Phase 4 cache for non-deterministic dynamic nodes
+   * (the static catalog has no `dyn.*` entry for the decorator to consult).
+   */
+  deterministic: boolean;
 }

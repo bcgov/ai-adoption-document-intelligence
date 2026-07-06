@@ -38,6 +38,7 @@ import type {
   HumanGateNode,
 } from "../../../../types/workflow";
 import { EdgePicker } from "../../graph-widgets";
+import { replaceNode } from "../../replace-node";
 import {
   isValidTemporalDuration,
   TEMPORAL_DURATION_HELP_TEXT,
@@ -87,10 +88,7 @@ export function HumanGateNodeSettings({
   onConfigChange,
 }: HumanGateNodeSettingsProps) {
   const updateNode = (next: HumanGateNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   // ── signal.name (required TextInput) ───────────────────────────────────

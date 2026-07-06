@@ -123,6 +123,18 @@ export interface ActivityCatalogEntry {
    */
   nonCacheable?: boolean;
   /**
+   * Benchmark OCR replay hook. When set, a benchmark run's replay cache
+   * (`ctx.__benchmarkOcrCache`) is injected into this activity's params so the
+   * activity can short-circuit live OCR:
+   *   - `"passthrough"` — inject the cache object (submit / poll);
+   *   - `"extract"` — also inject the cached `ocrResponse` (extract).
+   *
+   * This lives on the catalog entry (activity-specific metadata) rather than a
+   * hard-coded activity-type list in the generic graph engine, which must stay
+   * workload-agnostic (see CLAUDE.md). Only the Azure OCR entries set it.
+   */
+  benchmarkOcrCacheRole?: "passthrough" | "extract";
+  /**
    * Phase 6 dynamic-node lineage slug. Set on entries produced by
    * `parseDynamicNodeSignature` (US-159); absent on static catalog entries.
    *

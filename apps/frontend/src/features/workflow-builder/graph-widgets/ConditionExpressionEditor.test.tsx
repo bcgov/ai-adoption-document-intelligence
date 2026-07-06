@@ -301,6 +301,72 @@ describe("ConditionExpressionEditor — Scenario 2: ValueRef Ref/Literal toggle"
 });
 
 // ---------------------------------------------------------------------------
+// §4.13: literal input is typeable — text isn't reformatted mid-typing
+// ---------------------------------------------------------------------------
+
+describe("ConditionExpressionEditor — §4.13 literal input stability", () => {
+  function LiteralWrapper({
+    onChange,
+  }: {
+    onChange: (next: ConditionExpression | undefined) => void;
+  }) {
+    const config = makeConfig([], { someKey: { type: "string" } });
+    const [value, setValue] = useState<ConditionExpression | undefined>({
+      operator: "equals",
+      left: { ref: "" },
+      // Start the RIGHT side in Literal mode.
+      right: { literal: "" },
+    });
+    return (
+      <ConditionExpressionEditor
+        value={value}
+        onChange={(next) => {
+          onChange(next);
+          setValue(next);
+        }}
+        config={config}
+      />
+    );
+  }
+
+  it("keeps a quoted string in the input and emits the string (not a number)", () => {
+    const onChange = vi.fn<(next: ConditionExpression | undefined) => void>();
+    renderEditor(<LiteralWrapper onChange={onChange} />);
+
+    const input = screen.getByTestId(
+      "condition-expression-editor-right-literal-input",
+    ) as HTMLInputElement;
+
+    // Author the STRING "10" via JSON quotes.
+    fireEvent.change(input, { target: { value: '"10"' } });
+
+    // The input keeps exactly what was typed (no reformat that strips quotes).
+    expect(input.value).toBe('"10"');
+    const last = onChange.mock.lastCall?.[0] as ComparisonExpression;
+    expect(last.right).toEqual({ literal: "10" });
+  });
+
+  it("does not reformat the visible text while typing an interim value", () => {
+    const onChange = vi.fn<(next: ConditionExpression | undefined) => void>();
+    renderEditor(<LiteralWrapper onChange={onChange} />);
+
+    const input = screen.getByTestId(
+      "condition-expression-editor-right-literal-input",
+    ) as HTMLInputElement;
+
+    // Interim text that is valid JSON but should not snap/reformat.
+    fireEvent.change(input, { target: { value: "10 " } });
+    expect(input.value).toBe("10 ");
+
+    // A plain number still parses to a number.
+    fireEvent.change(input, { target: { value: "42" } });
+    expect(input.value).toBe("42");
+    const last = onChange.mock.lastCall?.[0] as ComparisonExpression;
+    expect(last.right).toEqual({ literal: 42 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 3: Switching operator-type preserves what fits
 // ---------------------------------------------------------------------------
 

@@ -7,28 +7,11 @@
  * editor wiring lands in Milestone E US-176).
  */
 
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 import { ApiError } from "../sources/useSourceUpload";
 
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-function buildAuthHeaders(contentType?: string): HeadersInit {
-  const headers: Record<string, string> = {};
-  if (contentType !== undefined) headers["Content-Type"] = contentType;
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
-  return headers;
-}
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
 
 interface ErrorResponseBody {
   message?: string | string[];
@@ -169,10 +152,9 @@ async function parseErrorResponse(response: Response): Promise<never> {
 export async function publishDynamicNode(
   script: string,
 ): Promise<DynamicNodePublishResult> {
-  const response = await fetch(`${API_BASE_URL}/dynamic-nodes`, {
+  const response = await builderFetch(`${API_BASE_URL}/dynamic-nodes`, {
     method: "POST",
-    credentials: "include",
-    headers: buildAuthHeaders("application/json"),
+    headers: JSON_HEADERS,
     body: JSON.stringify({ script }),
   });
   if (!response.ok) await parseErrorResponse(response);
@@ -183,12 +165,11 @@ export async function updateDynamicNode(
   slug: string,
   script: string,
 ): Promise<DynamicNodePublishResult> {
-  const response = await fetch(
+  const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "PUT",
-      credentials: "include",
-      headers: buildAuthHeaders("application/json"),
+      headers: JSON_HEADERS,
       body: JSON.stringify({ script }),
     },
   );
@@ -199,12 +180,10 @@ export async function updateDynamicNode(
 export async function deleteDynamicNode(
   slug: string,
 ): Promise<DynamicNodeDeletedResult> {
-  const response = await fetch(
+  const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "DELETE",
-      credentials: "include",
-      headers: buildAuthHeaders(),
     },
   );
   if (!response.ok) await parseErrorResponse(response);
@@ -218,12 +197,10 @@ export async function deleteDynamicNode(
 export async function fetchDynamicNode(
   slug: string,
 ): Promise<DynamicNodeDetail> {
-  const response = await fetch(
+  const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "GET",
-      credentials: "include",
-      headers: buildAuthHeaders(),
     },
   );
   if (!response.ok) await parseErrorResponse(response);
@@ -235,10 +212,8 @@ export async function fetchDynamicNode(
  * lineages. Backs the `useDynamicNodeList` hook (Phase 6 US-176).
  */
 export async function fetchDynamicNodeList(): Promise<DynamicNodeListResponse> {
-  const response = await fetch(`${API_BASE_URL}/dynamic-nodes`, {
+  const response = await builderFetch(`${API_BASE_URL}/dynamic-nodes`, {
     method: "GET",
-    credentials: "include",
-    headers: buildAuthHeaders(),
   });
   if (!response.ok) await parseErrorResponse(response);
   return (await response.json()) as DynamicNodeListResponse;

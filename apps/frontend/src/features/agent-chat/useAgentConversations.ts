@@ -1,4 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import {
+  builderAuthHeaders,
+  builderFetch,
+} from "../../data/services/builder-fetch";
 
 export interface AgentConversationListItem {
   id: string;
@@ -31,24 +35,16 @@ export interface AgentConversationMessage {
   createdAt: string;
 }
 
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
+/**
+ * Agent-chat auth headers: the shared builder auth headers (test key + CSRF)
+ * plus the optional `x-group-id`. Exported because the assistant-ui streaming
+ * runtime + the manual DELETE fetches in the drawer build their own requests
+ * and need the header set directly.
+ */
 export function getAgentAuthHeaders(
   activeGroupId?: string | null,
 ): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY as string | undefined;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrf = readCsrfToken();
-  if (csrf !== undefined) headers["X-CSRF-Token"] = csrf;
+  const headers = builderAuthHeaders();
   if (activeGroupId !== undefined && activeGroupId !== null) {
     headers["x-group-id"] = activeGroupId;
   }
@@ -71,7 +67,9 @@ export function useAgentConversations(opts?: {
         qs.toString().length > 0
           ? `/api/agent/conversations?${qs}`
           : "/api/agent/conversations";
-      const res = await fetch(url, { headers: getAgentAuthHeaders(groupId) });
+      const res = await builderFetch(url, {
+        headers: groupId !== null ? { "x-group-id": groupId } : undefined,
+      });
       if (!res.ok)
         throw new Error(`Failed to list conversations: ${res.status}`);
       const body = (await res.json()) as ListResponse;
@@ -93,8 +91,11 @@ export function useAgentConversation(
         activeGroupId !== undefined && activeGroupId !== null
           ? `${path}?groupId=${encodeURIComponent(activeGroupId)}`
           : path;
-      const res = await fetch(url, {
-        headers: getAgentAuthHeaders(activeGroupId),
+      const res = await builderFetch(url, {
+        headers:
+          activeGroupId !== undefined && activeGroupId !== null
+            ? { "x-group-id": activeGroupId }
+            : undefined,
       });
       if (!res.ok)
         throw new Error(`Failed to load conversation: ${res.status}`);

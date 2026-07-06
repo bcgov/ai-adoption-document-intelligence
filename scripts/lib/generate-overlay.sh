@@ -53,6 +53,10 @@ generate_instance_overlay() {
   local backend_image=""
   local frontend_image=""
   local worker_image=""
+  # Phase 6 deno-runner sidecar. Optional — defaults to the shared base image
+  # name so existing callers keep working; the tag is always pinned to
+  # --image-tag alongside the other services.
+  local deno_runner_image="artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner"
   local image_tag=""
   local sso_auth_server_url=""
   local sso_realm=""
@@ -111,6 +115,10 @@ generate_instance_overlay() {
         ;;
       --worker-image)
         worker_image="$2"
+        shift 2
+        ;;
+      --deno-runner-image)
+        deno_runner_image="$2"
         shift 2
         ;;
       --image-tag)
@@ -349,6 +357,7 @@ generate_instance_overlay() {
     -e "s|__BACKEND_IMAGE__|$(_sed_escape_replacement "${backend_image}")|g"
     -e "s|__FRONTEND_IMAGE__|$(_sed_escape_replacement "${frontend_image}")|g"
     -e "s|__WORKER_IMAGE__|$(_sed_escape_replacement "${worker_image}")|g"
+    -e "s|__DENO_RUNNER_IMAGE__|$(_sed_escape_replacement "${deno_runner_image}")|g"
     -e "s|__IMAGE_TAG__|$(_sed_escape_replacement "${image_tag}")|g"
     -e "s|__SSO_AUTH_SERVER_URL__|$(_sed_escape_replacement "${sso_auth_server_url}")|g"
     -e "s|__SSO_REALM__|$(_sed_escape_replacement "${sso_realm}")|g"

@@ -100,14 +100,26 @@ export async function writeSourceNodeCache(
   const inputHash = sha256Hex(stableJson(initialCtx));
   const outputKind = resolveSourceOutputKind(node.sourceType);
 
-  await deps.upsert({
-    workflowLineageId,
-    nodeId: node.id,
-    configHash,
-    inputHash,
-    outputCtx: initialCtx,
-    outputKind,
-  });
+  // Best-effort, as the doc contract above promises: a failed cache write
+  // MUST NOT abort the workflow. `deps.upsert` is a Temporal activity proxy,
+  // so a terminal failure (e.g. a transient DB blip that exhausts the
+  // activity's retries) surfaces here as an ActivityFailure. Without this
+  // guard the caller (`graph-workflow.ts`, which awaits this at workflow
+  // start) would fail the entire run before any real node executes. The
+  // source's ctx-merge already happened before this runs, so swallowing the
+  // write only forfeits a cache row — the run's result is unaffected.
+  try {
+    await deps.upsert({
+      workflowLineageId,
+      nodeId: node.id,
+      configHash,
+      inputHash,
+      outputCtx: initialCtx,
+      outputKind,
+    });
+  } catch {
+    // Silently dropped — see the contract above.
+  }
 
   return { configHash, inputHash };
 }

@@ -25,6 +25,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useGroup } from "../../../auth/GroupContext";
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 import { ApiError } from "../sources/useSourceUpload";
 import {
@@ -45,34 +46,12 @@ interface ErrorResponseBody {
   message?: string | string[];
 }
 
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-function buildAuthHeaders(activeGroupId?: string | null): HeadersInit {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-  if (activeGroupId !== undefined && activeGroupId !== null) {
-    headers["x-group-id"] = activeGroupId;
-  }
-  return headers;
-}
-
 /**
  * Performs the GET and maps non-2xx responses to typed `ApiError`s.
  * Exported so the mutation hooks' tests can stub it via
  * `vi.mock`/`jest.mock` without standing up a `fetch` polyfill.
+ * Auth headers, cookies, and 401 refresh are handled by `builderFetch`;
+ * the `x-group-id` header is request-specific.
  */
 export async function fetchActivityCatalog(
   activeGroupId?: string | null,
@@ -81,10 +60,12 @@ export async function fetchActivityCatalog(
     activeGroupId !== undefined && activeGroupId !== null
       ? `${API_BASE_URL}/activity-catalog?groupId=${encodeURIComponent(activeGroupId)}`
       : `${API_BASE_URL}/activity-catalog`;
-  const response = await fetch(url, {
+  const response = await builderFetch(url, {
     method: "GET",
-    credentials: "include",
-    headers: buildAuthHeaders(activeGroupId),
+    headers:
+      activeGroupId !== undefined && activeGroupId !== null
+        ? { "x-group-id": activeGroupId }
+        : undefined,
   });
 
   if (!response.ok) {

@@ -291,3 +291,71 @@ describe("NodePicker — Scenario 5: missing-reference warning", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// §4.1: Autocomplete (large graphs) must stay typeable
+// ---------------------------------------------------------------------------
+
+describe("NodePicker — §4.1: Autocomplete typing does not clobber the value", () => {
+  // Build >20 nodes so the picker renders the Autocomplete variant.
+  function bigConfig(): GraphWorkflowConfig {
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 25; i++) {
+      nodes.push(activity(`n${i}`, `Node ${i}`));
+    }
+    return makeConfig(nodes);
+  }
+
+  it("keeps the bound value while typing a partial (non-exact) string", () => {
+    const config = bigConfig();
+    const onChange = vi.fn<(nodeId: string | null) => void>();
+
+    function Wrapper() {
+      const [value, setValue] = useState<string | null>("n1");
+      return (
+        <NodePicker
+          config={config}
+          value={value}
+          onChange={(next) => {
+            onChange(next);
+            setValue(next);
+          }}
+          data-testid="picker"
+        />
+      );
+    }
+
+    renderPicker(<Wrapper />);
+    const input = screen.getByTestId("picker") as HTMLInputElement;
+    // Starts showing the bound node's label.
+    expect(input.value).toBe("Node 1");
+
+    // Type a partial that isn't an exact label. Previously this emitted
+    // null and snapped the field back to empty.
+    fireEvent.change(input, { target: { value: "Node 2" } });
+
+    // No `null` (or any) commit for a partial/interim string.
+    expect(onChange).not.toHaveBeenCalledWith(null);
+    // The input reflects what the user typed (still typeable).
+    expect(input.value).toBe("Node 2");
+  });
+
+  it("commits the id only on an exact label match", () => {
+    const config = bigConfig();
+    const onChange = vi.fn<(nodeId: string | null) => void>();
+
+    renderPicker(
+      <NodePicker
+        config={config}
+        value={null}
+        onChange={onChange}
+        data-testid="picker"
+      />,
+    );
+    const input = screen.getByTestId("picker") as HTMLInputElement;
+
+    // Exact label → commit the matching id.
+    fireEvent.change(input, { target: { value: "Node 7" } });
+    expect(onChange).toHaveBeenCalledWith("n7");
+  });
+});

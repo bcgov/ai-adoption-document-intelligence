@@ -2054,6 +2054,44 @@ describe("WorkflowController", () => {
     const makeTemporalNotFound = (message: string): Error =>
       new WorkflowNotFoundError(message, "graph-adhoc-xyz", undefined);
 
+    beforeEach(() => {
+      // The controller scopes the runId to the lineage via getRunInput before
+      // returning statuses. Default it to a run owned by "wf-1" so the
+      // existing scenarios pass the ownership guard; individual tests override.
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: {},
+        workflowLineageId: "wf-1",
+      });
+    });
+
+    // Ownership: runId belongs to a different lineage → 403 (cannot read
+    // another tenant's per-node status map by pairing an accessible workflow
+    // id with a victim runId).
+    it("Ownership: throws ForbiddenException when the runId belongs to a different lineage", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.getRunInput as jest.Mock).mockResolvedValue({
+        initialCtx: {},
+        workflowLineageId: "wf-OTHER",
+      });
+
+      let caught: unknown;
+      try {
+        await controller.getNodeStatuses(
+          "wf-1",
+          "graph-adhoc-victim",
+          mockReq(),
+        );
+      } catch (err) {
+        caught = err;
+      }
+      const { ForbiddenException } = await import("@nestjs/common");
+      expect(caught).toBeInstanceOf(ForbiddenException);
+      // The victim's status map is never queried.
+      expect(temporalClient.queryNodeStatuses).not.toHaveBeenCalled();
+    });
+
     // Scenario 2: Query Temporal + return the map (happy path)
     it("Scenario 2: returns the per-node status map from Temporal", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -2728,9 +2766,10 @@ describe("WorkflowController", () => {
     });
 
     // ---------------------------------------------------------------------
-    // Scenario 2 (lineageId missing from start args): still returns input
+    // Scenario 2 (lineageId missing from start args): §3.9 fail-closed
     // ---------------------------------------------------------------------
-    it("Scenario 2 (no lineage in args): returns initialCtx when start args carry no workflowLineageId", async () => {
+    it("§3.9 (no lineage in args): rejects with 403 when start args carry no workflowLineageId (can't prove ownership)", async () => {
+      const { ForbiddenException } = await import("@nestjs/common");
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         workflowWithSource,
       );
@@ -2739,13 +2778,9 @@ describe("WorkflowController", () => {
         workflowLineageId: null,
       });
 
-      const result = await controller.getInputCtx(
-        "wf-1",
-        "graph-adhoc-legacy",
-        mockReq(),
-      );
-
-      expect(result).toEqual({ initialCtx: { hello: "world" } });
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-legacy", mockReq()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     // ---------------------------------------------------------------------
@@ -2796,42 +2831,23 @@ describe("WorkflowController", () => {
     // ---------------------------------------------------------------------
     // Scenario 3 (history retention-cleaned): fallback uses findMostRecentFresh
     // ---------------------------------------------------------------------
-    it("Scenario 3 (history evicted): retention-cleaned history falls back to findMostRecentFresh", async () => {
-      const cacheRow = {
-        id: "row-2",
-        workflowLineageId: "wf-1",
-        nodeId: "src",
-        configHash: "cfg-hash",
-        inputHash: "in-hash",
-        outputCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
-        outputKind: "Document",
-        createdAt: new Date("2026-05-24T12:00:30Z"),
-        expiresAt: new Date("2026-05-25T12:00:30Z"),
-      };
-
+    it("§3.8 (history evicted): retention-cleaned history returns 404 (never replays a different run's input)", async () => {
+      const { NotFoundException } = await import("@nestjs/common");
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         workflowWithSource,
       );
       (temporalClient.getRunInput as jest.Mock).mockRejectedValue(
         makeTemporalNotFound("workflow history reached retention period"),
       );
-      activityOutputCache.findMostRecentFresh.mockResolvedValue(cacheRow);
 
-      const result = await controller.getInputCtx(
-        "wf-1",
-        "graph-adhoc-old",
-        mockReq(),
-      );
+      await expect(
+        controller.getInputCtx("wf-1", "graph-adhoc-old", mockReq()),
+      ).rejects.toBeInstanceOf(NotFoundException);
 
-      expect(result).toEqual({
-        initialCtx: { documentUrl: "blob://group-1/doc-1.pdf" },
-      });
-      expect(activityOutputCache.findMostRecentFresh).toHaveBeenCalledWith({
-        workflowLineageId: "wf-1",
-        nodeId: "src",
-      });
-      // We never call getRunWindow when the history is gone — there's no
-      // window to scope to.
+      // The unscoped most-recent-fresh fallback is gone — we never risk
+      // returning a newer run's document.
+      expect(activityOutputCache.findMostRecentFresh).not.toHaveBeenCalled();
+      // No window to scope to; getRunWindow is never called.
       expect(temporalClient.getRunWindow).not.toHaveBeenCalled();
     });
 

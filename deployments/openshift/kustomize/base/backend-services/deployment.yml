@@ -284,6 +284,20 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: DB_POOL_MAX
+        # Phase 6 dynamic nodes — the publish-time /check call POSTs to the
+        # deno-runner. Without these the client defaults to localhost:9099 and
+        # DYNAMIC_NODE_ALLOW_NET (enforced at publish time) is empty, so
+        # publishing any dynamic node fails.
+        - name: DENO_RUNNER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DENO_RUNNER_URL
+        - name: DYNAMIC_NODE_ALLOW_NET
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DYNAMIC_NODE_ALLOW_NET
         volumeMounts:
         - name: logs
           mountPath: /var/log/app

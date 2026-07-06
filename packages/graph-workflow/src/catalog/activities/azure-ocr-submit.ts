@@ -24,14 +24,11 @@ const AZURE_LOCALES = [
 ] as const;
 
 export const azureOcrSubmitParametersSchema = z.object({
-  locale: z
-    .enum(AZURE_LOCALES)
-    .optional()
-    .meta({
-      title: "Locale",
-      description: "Language hint for OCR. Defaults to en-US if unset.",
-      "x-default": "en-US",
-    }),
+  locale: z.enum(AZURE_LOCALES).optional().meta({
+    title: "Locale",
+    description: "Language hint for OCR. Defaults to en-US if unset.",
+    "x-default": "en-US",
+  }),
 });
 
 export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
@@ -47,6 +44,8 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
   // Skipping the cache decorator avoids polluting the cache with values
   // that can never be replayed safely. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
   nonCacheable: true,
+  // Benchmark runs inject the OCR replay cache so submit can short-circuit.
+  benchmarkOcrCacheRole: "passthrough",
   inputs: [
     {
       name: "fileData",

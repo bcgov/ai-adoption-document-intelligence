@@ -138,7 +138,6 @@ export function WorkflowListPage() {
           body: "Create your first workflow to customize OCR processing steps and parameters.",
         };
 
-
   let main: ReactNode;
   if (isLoading) {
     main = (

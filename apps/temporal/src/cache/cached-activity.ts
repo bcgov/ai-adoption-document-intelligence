@@ -44,14 +44,18 @@
  *     we default to "cacheable" — caller is responsible for not wrapping
  *     truly non-deterministic dispatches.
  *
- * ## Race handling (Scenario 4)
+ * ## Race handling (Scenario 4) — best-effort
  *
  * Two concurrent workers can both miss and both attempt to upsert. The
- * Prisma `@@unique` constraint causes one to throw a P2002 error. The
- * decorator catches that error, re-runs `findFresh`, assigns the now-
- * existing row's `outputCtx` into ctx, and returns `{ cacheHit: true }`.
- * The losing worker's freshly-computed delta is discarded — the cache
- * is best-effort and the user-visible result remains correct.
+ * Prisma `@@unique` constraint causes one to fail. Because `upsert` is a
+ * Temporal activity proxy, that failure reaches the workflow as an
+ * ActivityFailure with Prisma's `.code` stripped, so a lost race is
+ * indistinguishable from any other terminal write failure (§3.4). The cache
+ * is best-effort, so the decorator treats ANY upsert failure the same way:
+ * re-run `findFresh` (guarded), overlay the winner's `outputCtx` if a row now
+ * exists (returning `{ cacheHit: true }`), otherwise keep the already-applied
+ * delta and continue uncached (`{ cacheHit: false }`). A failed cache write
+ * never fails the node — the user-visible result stays correct.
  *
  * ## Failure (Scenario 5)
  *
@@ -150,21 +154,39 @@ function resolveOutputKind(node: GraphNode): string | null {
   return firstOutputKind ?? null;
 }
 
+/** Plain (non-array) object — the only shape we recurse into when merging. */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
- * Detects a Prisma `@@unique`-constraint-violation error (P2002).
+ * Deep-merge a cache delta / a cache row's `outputCtx` into `ctx`.
  *
- * Tested via the documented error-shape contract — Prisma throws an
- * instance of `PrismaClientKnownRequestError` whose `code` property is
- * the string `"P2002"`. We probe the shape duck-typed so the decorator
- * doesn't depend on the Prisma runtime module (keeps the helper
- * importable from environments that don't pin Prisma).
+ * §3.1: the delta (see `snapshotCtxDelta`) mirrors ctx's shape but contains
+ * ONLY the leaf paths a node produced. A plain `Object.assign` would replace
+ * whole top-level subtrees, so a cache-hit node would clobber a concurrent
+ * sibling that wrote a different leaf of the same subtree (parallel ready-set
+ * over shared ctx). Recursing into nested plain objects writes only the
+ * delta's leaves and leaves sibling leaves intact. Arrays and primitives
+ * replace wholesale; a node's own leaf is single-writer and deterministic
+ * under input-hash equality, so overlaying it is a no-op in practice.
  */
-function isUniqueConstraintViolation(error: unknown): boolean {
-  if (error === null || typeof error !== "object") {
-    return false;
+function deepMergeCtx(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(source)) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      continue;
+    }
+    const incoming = source[key];
+    const existing = target[key];
+    if (isPlainRecord(existing) && isPlainRecord(incoming)) {
+      deepMergeCtx(existing, incoming);
+    } else {
+      target[key] = incoming;
+    }
   }
-  const code = (error as { code?: unknown }).code;
-  return code === "P2002";
 }
 
 /**
@@ -178,9 +200,13 @@ function isUniqueConstraintViolation(error: unknown): boolean {
  *   - On hit: assigns `row.outputCtx` into ctx, skips `rawExecute`,
  *     returns `{ cacheHit: true }`.
  *   - On miss: calls `rawExecute`, assigns delta into ctx, attempts
- *     `upsert`, returns `{ cacheHit: false }`. If `upsert` raises a
- *     P2002 (someone else won the race), re-runs `findFresh`, assigns
- *     that row's `outputCtx`, returns `{ cacheHit: true }`.
+ *     `upsert`, returns `{ cacheHit: false }`. If `upsert` fails for ANY
+ *     reason (a lost race is indistinguishable from a transient write
+ *     failure across the activity boundary — §3.4), it re-runs `findFresh`
+ *     best-effort: overlays the winner's `outputCtx` and returns
+ *     `{ cacheHit: true }` when a row now exists, otherwise keeps the
+ *     already-applied delta and returns `{ cacheHit: false }`. A failed
+ *     cache write never fails the node.
  *   - On rawExecute failure: propagates the error without calling
  *     `upsert`.
  */
@@ -201,7 +227,7 @@ export async function executeCachedActivity(
   if (isNonCacheable(node)) {
     const inputHash = computeInputHash(node, ctx);
     const delta = await rawExecute();
-    Object.assign(ctx, delta);
+    deepMergeCtx(ctx, delta);
     return { cacheHit: false, configHash, inputHash };
   }
 
@@ -216,15 +242,28 @@ export async function executeCachedActivity(
   });
 
   if (cached !== null) {
-    Object.assign(ctx, cached.outputCtx);
+    deepMergeCtx(ctx, cached.outputCtx as Record<string, unknown>);
     return { cacheHit: true, configHash, inputHash };
   }
 
   // Scenario 1 (miss) + Scenario 5 (failure propagation).
   const delta = await rawExecute();
-  Object.assign(ctx, delta);
+  deepMergeCtx(ctx, delta);
 
-  // Scenario 4 — concurrent-write race resolution.
+  // Scenario 4 — concurrent-write race resolution, best-effort.
+  //
+  // §3.4: `deps.upsert` is a Temporal activity proxy, so a P2002 unique-
+  // constraint violation reaches the workflow as an ActivityFailure /
+  // ApplicationFailure with Prisma's `.code` stripped — a lost race is
+  // therefore INDISTINGUISHABLE from a transient write failure across the
+  // activity boundary. A `code === "P2002"` probe never matched in
+  // production, so any terminal upsert failure used to rethrow and fail the
+  // node even though the activity had already produced its output. The cache
+  // is best-effort (see the module contract), so on ANY upsert failure we
+  // must NOT fail the node: the `delta` is already applied to ctx. Re-check
+  // for a row another worker may have committed (the race case) and overlay
+  // its canonical outputCtx for downstream determinism; if none exists, keep
+  // our just-applied delta and continue uncached.
   try {
     await deps.upsert({
       workflowLineageId,
@@ -234,26 +273,25 @@ export async function executeCachedActivity(
       outputCtx: delta,
       outputKind: resolveOutputKind(node),
     });
-  } catch (error) {
-    if (!isUniqueConstraintViolation(error)) {
-      throw error;
+  } catch {
+    let winner: ActivityOutputCacheFindFreshResult | null = null;
+    try {
+      winner = await deps.findFresh({
+        workflowLineageId,
+        nodeId: node.id,
+        configHash,
+        inputHash,
+      });
+    } catch {
+      // The cache read also failed — nothing more we can do; the node's
+      // output is already in ctx from the delta merge above.
+      winner = null;
     }
-    // Lost the race. The other worker's row is already committed; pull
-    // it and overlay its outputCtx onto ctx so downstream nodes see the
-    // canonical-but-equivalent delta. Our just-applied `delta` is
-    // overwritten by the canonical one (acceptable per the design — the
-    // values are equivalent up to non-determinism we tolerate when the
-    // catalog says we can cache the activity at all).
-    const winner = await deps.findFresh({
-      workflowLineageId,
-      nodeId: node.id,
-      configHash,
-      inputHash,
-    });
     if (winner !== null) {
-      Object.assign(ctx, winner.outputCtx);
+      deepMergeCtx(ctx, winner.outputCtx as Record<string, unknown>);
+      return { cacheHit: true, configHash, inputHash };
     }
-    return { cacheHit: true, configHash, inputHash };
+    return { cacheHit: false, configHash, inputHash };
   }
 
   return { cacheHit: false, configHash, inputHash };

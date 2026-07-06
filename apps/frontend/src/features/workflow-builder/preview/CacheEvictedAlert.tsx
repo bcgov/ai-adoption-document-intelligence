@@ -36,6 +36,7 @@ import {
 import { IconAlertCircle } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
 
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 import { useRunState } from "../run/RunStateContext";
 import { ApiError } from "../sources/useSourceUpload";
@@ -76,37 +77,6 @@ export interface StartRunResponseBody {
  * Pulls the CSRF token from the `csrf_token` cookie. Mirrors the helper
  * in `api.service.ts` so this component stays decoupled from axios.
  */
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-/**
- * Builds the headers shared by both the GET `input-ctx` request and the
- * POST `/runs` request. The CSRF token is included unconditionally; the
- * backend's CSRF guard ignores it on GET but requires it on POST.
- */
-function buildAuthHeaders(method: "GET" | "POST"): HeadersInit {
-  const headers: Record<string, string> = {};
-  if (method === "POST") {
-    headers["Content-Type"] = "application/json";
-  }
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-  return headers;
-}
-
 /**
  * Extracts the human-friendly `message` field from an error response
  * body. Falls back to `response.statusText` when the body isn't JSON or
@@ -145,11 +115,7 @@ export async function fetchInputCtx(
   runId: string,
 ): Promise<InputCtxResponse> {
   const url = `${API_BASE_URL}/workflows/${workflowId}/runs/${runId}/input-ctx`;
-  const response = await fetch(url, {
-    method: "GET",
-    credentials: "include",
-    headers: buildAuthHeaders("GET"),
-  });
+  const response = await builderFetch(url, { method: "GET" });
 
   if (!response.ok) {
     const message = await readErrorMessage(
@@ -171,10 +137,9 @@ export async function startRunWithCtx(
   initialCtx: Record<string, unknown>,
 ): Promise<StartRunResponseBody> {
   const url = `${API_BASE_URL}/workflows/${workflowId}/runs`;
-  const response = await fetch(url, {
+  const response = await builderFetch(url, {
     method: "POST",
-    credentials: "include",
-    headers: buildAuthHeaders("POST"),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ initialCtx }),
   });
 

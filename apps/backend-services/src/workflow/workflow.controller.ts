@@ -48,6 +48,7 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
+import { LruTtlCache } from "@/cache/lru-ttl-cache";
 import { GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
@@ -189,11 +190,6 @@ export const WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB = (() => {
 const WORKFLOW_UPLOAD_MAX_FILE_SIZE_BYTES =
   WORKFLOW_UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024;
 
-interface VersionRunCountCacheEntry {
-  count: number;
-  cachedAt: number;
-}
-
 function buildVersionRunCountCacheKey(
   workflowId: string,
   versionId: string,
@@ -221,70 +217,15 @@ function parseWorkflowKindFilter(
 export class WorkflowController {
   /**
    * US-152 — in-process bounded LRU-with-TTL cache backing the per-version
-   * run-count endpoint. Lives on the controller instance (NestJS makes
-   * the controller a singleton in our app), keyed by
-   * `"<workflowId>::<versionId>"`. Entries past
-   * `VERSION_RUN_COUNT_CACHE_TTL_MS` are recomputed on next read; the map
-   * is capped at `VERSION_RUN_COUNT_CACHE_MAX_ENTRIES` with LRU eviction
-   * (a `Map` preserves insertion order, so the first key is the oldest).
-   * Access via `readVersionRunCountCache` / `writeVersionRunCountCache`,
-   * which maintain the recency ordering and size cap.
+   * run-count endpoint. Lives on the controller instance (NestJS makes the
+   * controller a singleton in our app), keyed by `"<workflowId>::<versionId>"`.
+   * §6.2: backed by the shared `LruTtlCache` instead of a hand-rolled Map so
+   * the recency + TTL + eviction logic isn't duplicated per call site.
    */
-  private readonly versionRunCountCache = new Map<
-    string,
-    VersionRunCountCacheEntry
-  >();
-
-  /**
-   * Read a fresh (within-TTL) cached run-count, refreshing the entry's LRU
-   * recency on hit. Returns `undefined` on miss or when the entry has
-   * expired (the stale entry is dropped so it can't pin LRU capacity).
-   */
-  private readVersionRunCountCache(
-    cacheKey: string,
-    now: number,
-  ): number | undefined {
-    const cached = this.versionRunCountCache.get(cacheKey);
-    if (cached === undefined) return undefined;
-    if (now - cached.cachedAt >= VERSION_RUN_COUNT_CACHE_TTL_MS) {
-      this.versionRunCountCache.delete(cacheKey);
-      return undefined;
-    }
-    // Refresh recency: re-insert moves the key to the end (most-recent).
-    this.versionRunCountCache.delete(cacheKey);
-    this.versionRunCountCache.set(cacheKey, cached);
-    return cached.count;
-  }
-
-  /**
-   * Write a run-count entry, pruning TTL-expired entries first and then
-   * evicting least-recently-used entries until the map is within the size
-   * cap. Keeps the cache bounded in both time and space.
-   */
-  private writeVersionRunCountCache(
-    cacheKey: string,
-    count: number,
-    now: number,
-  ): void {
-    // Prune expired entries on write so the LRU cap reflects live data.
-    for (const [key, entry] of this.versionRunCountCache) {
-      if (now - entry.cachedAt >= VERSION_RUN_COUNT_CACHE_TTL_MS) {
-        this.versionRunCountCache.delete(key);
-      }
-    }
-    // Re-insert at the end (most-recent position).
-    this.versionRunCountCache.delete(cacheKey);
-    this.versionRunCountCache.set(cacheKey, { count, cachedAt: now });
-    // Evict oldest until within cap. `Map` iteration is insertion-order,
-    // so the first key is the least-recently-used.
-    while (
-      this.versionRunCountCache.size > VERSION_RUN_COUNT_CACHE_MAX_ENTRIES
-    ) {
-      const oldestKey = this.versionRunCountCache.keys().next().value;
-      if (oldestKey === undefined) break;
-      this.versionRunCountCache.delete(oldestKey);
-    }
-  }
+  private readonly versionRunCountCache = new LruTtlCache<number>(
+    VERSION_RUN_COUNT_CACHE_TTL_MS,
+    VERSION_RUN_COUNT_CACHE_MAX_ENTRIES,
+  );
 
   constructor(
     private readonly workflowService: WorkflowService,
@@ -471,8 +412,7 @@ export class WorkflowController {
     );
 
     const cacheKey = buildVersionRunCountCacheKey(lineageId, versionId);
-    const now = Date.now();
-    const cached = this.readVersionRunCountCache(cacheKey, now);
+    const cached = this.versionRunCountCache.get(cacheKey);
     if (cached !== undefined) {
       return { runCount: cached };
     }
@@ -481,7 +421,7 @@ export class WorkflowController {
       lineageId,
       versionId,
     );
-    this.writeVersionRunCountCache(cacheKey, runCount, now);
+    this.versionRunCountCache.set(cacheKey, runCount);
     return { runCount };
   }
 
@@ -838,7 +778,10 @@ export class WorkflowController {
       "The run's history has been retention-cleaned by Temporal. The canvas should fall back to the cached preview endpoint.",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiForbiddenResponse({
+    description:
+      "Access denied: not a group member, OR the `runId` exists but belongs to a different workflow lineage.",
+  })
   async getNodeStatuses(
     @Param("id") id: string,
     @Param("runId") runId: string,
@@ -848,9 +791,35 @@ export class WorkflowController {
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
 
     try {
+      // Ownership scoping: authorizing the *workflow* is not enough — the
+      // model-/URL-supplied `runId` is unbounded, so a group member could
+      // pair their own workflow id with a victim `runId` (leaked via
+      // logs/URLs) and read another tenant's per-node status map (node ids,
+      // error strings, cache hashes). Confirm the run actually belongs to
+      // THIS lineage before returning its statuses. Mirrors the getInputCtx
+      // cross-lineage guard.
+      const runInput = await this.temporalClient.getRunInput(runId);
+      if (runInput === null) {
+        // The run's start args can't be decoded, so ownership can't be
+        // confirmed — fail closed rather than leak another tenant's statuses.
+        throw new NotFoundException({ message: "Run not found" });
+      }
+      // Fail closed (§3.9): the run must positively prove it belongs to this
+      // lineage. A null `workflowLineageId` (pre-Phase-4 / foreign run) can't
+      // be attributed here, so reject rather than return its status map.
+      if (runInput.workflowLineageId !== id) {
+        throw new ForbiddenException({
+          message: "Run does not belong to this workflow",
+        });
+      }
+
       const statuses = await this.temporalClient.queryNodeStatuses(runId);
       return statuses as NodeStatusesResponseDto;
     } catch (error) {
+      // Ownership rejections propagate unchanged — never remap to 404/410.
+      if (error instanceof ForbiddenException) {
+        throw error;
+      }
       // Temporal's SDK throws a single `WorkflowNotFoundError` for both
       // "no such run" and "history past retention" — the cases are
       // distinguished only by the gRPC `details` text the server attaches.
@@ -996,14 +965,16 @@ export class WorkflowController {
   })
   @ApiNotFoundResponse({
     description:
-      "Workflow not found, OR neither Temporal nor the cache row carry " +
-      "the run's `initialCtx` (body: `{ message: \"Input not " +
-      'available — run too old or never captured" }`).',
+      "Workflow not found, OR the run's input can't be reconstructed — the " +
+      "run is unknown, its history is retention-cleaned, or no source-node " +
+      "cache row falls inside the run's window (body: `{ message: \"Input " +
+      'not available — run too old or never captured" }`).',
   })
   @ApiForbiddenResponse({
     description:
       "Caller is not a member of the workflow's group, OR the `runId` " +
-      "exists but belongs to a different workflow lineage.",
+      "exists but its start args don't prove it belongs to this workflow " +
+      "lineage (a different lineage, or no `workflowLineageId` recorded).",
   })
   @ApiUnauthorizedResponse({ description: "Authentication required" })
   async getInputCtx(
@@ -1019,39 +990,33 @@ export class WorkflowController {
     // -------------------------------------------------------------------
     let runInput: Awaited<ReturnType<TemporalClientService["getRunInput"]>> =
       null;
-    let historyMissing = false;
     try {
       runInput = await this.temporalClient.getRunInput(runId);
     } catch (error) {
-      // `WorkflowNotFoundError` covers both "no such run" and
-      // "history past retention" — for the unknown case we surface 404
-      // immediately (the cache-row fallback also requires the run window
-      // from Temporal to scope correctly, which we won't have).
-      // Retention-cleaned histories still warrant the cache fallback, so
-      // they're funneled through the same path as a `null` result below.
+      // `WorkflowNotFoundError` covers both "no such run" and "history past
+      // retention". §3.8: in EITHER case we can't reconstruct THIS run's
+      // input — the cache-row fallback below needs the run's execution window
+      // from Temporal, which is gone. Falling back to the lineage's
+      // most-recent cache row could replay a DIFFERENT (newer) run's document
+      // on "Re-run", so we fail safe with 404 ("input not available") rather
+      // than return the wrong input.
       if (error instanceof WorkflowNotFoundError) {
-        const messageLower = (error.message ?? "").toLowerCase();
-        const retentionCleaned =
-          /history|retention|deleted|reached.*retention/i.test(messageLower);
-        if (!retentionCleaned) {
-          throw new NotFoundException({
-            message: "Input not available — run too old or never captured",
-          });
-        }
-        historyMissing = true;
-      } else {
-        throw error;
+        throw new NotFoundException({
+          message: "Input not available — run too old or never captured",
+        });
       }
+      throw error;
     }
 
     if (runInput !== null) {
-      // Cross-lineage check — the runId resolved but the start args
-      // recorded a different lineage. Mirrors the `WorkflowLineageId`
-      // search-attribute contract set by `startGraphWorkflow`.
-      if (
-        runInput.workflowLineageId !== null &&
-        runInput.workflowLineageId !== id
-      ) {
+      // Cross-lineage check — the runId resolved but the start args must
+      // positively prove they belong to THIS lineage. §3.9: fail closed —
+      // a run whose start args carry no `workflowLineageId` (pre-Phase-4
+      // runs, or a foreign writer to the namespace) can't be attributed to
+      // this lineage, so we must not return its `initialCtx`.
+      // `startGraphWorkflow` always records the attribute today, so current
+      // runs pass; only unverifiable/foreign runs are rejected.
+      if (runInput.workflowLineageId !== id) {
         throw new ForbiddenException({
           message: "Run does not belong to this workflow",
         });
@@ -1076,36 +1041,27 @@ export class WorkflowController {
     > = null;
 
     if (sourceNode !== undefined) {
-      if (historyMissing) {
-        // Without the run's execution window we can't scope the cache
-        // lookup. Fall back to the most-recent fresh row for the source
-        // node — TTL filtering still bounds blast radius and the cache
-        // is per-lineage, so a stale row would have to come from the
-        // same lineage.
-        row = await this.activityOutputCache.findMostRecentFresh({
-          workflowLineageId: id,
-          nodeId: sourceNode.id,
-        });
-      } else {
-        let window: { startedAt: Date; endedAt: Date | null };
-        try {
-          window = await this.temporalClient.getRunWindow(runId);
-        } catch (error) {
-          if (error instanceof WorkflowNotFoundError) {
-            throw new NotFoundException({
-              message: "Input not available — run too old or never captured",
-            });
-          }
-          throw error;
+      // Reached only when Temporal HAS the run but its start args weren't
+      // decodable (getRunInput returned null) — the run's execution window is
+      // still available, so we can scope the cache lookup to exactly this run.
+      let window: { startedAt: Date; endedAt: Date | null };
+      try {
+        window = await this.temporalClient.getRunWindow(runId);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          throw new NotFoundException({
+            message: "Input not available — run too old or never captured",
+          });
         }
-
-        row = await this.activityOutputCache.findInRunWindow({
-          workflowLineageId: id,
-          nodeId: sourceNode.id,
-          startedAt: window.startedAt,
-          endedAt: window.endedAt ?? new Date(),
-        });
+        throw error;
       }
+
+      row = await this.activityOutputCache.findInRunWindow({
+        workflowLineageId: id,
+        nodeId: sourceNode.id,
+        startedAt: window.startedAt,
+        endedAt: window.endedAt ?? new Date(),
+      });
     }
 
     if (row === null) {

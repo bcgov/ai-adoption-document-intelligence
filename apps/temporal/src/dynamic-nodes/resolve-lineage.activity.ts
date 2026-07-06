@@ -35,6 +35,13 @@ export interface ResolveLineageInput {
 
 export interface ResolveLineageOutput {
   versionId: string;
+  /**
+   * The resolved version's `@deterministic` flag. §3.3: the Phase 4 cache
+   * decorator has no `dyn.*` catalog entry, so the executor consults this to
+   * decide whether a dynamic node may be cached. A `@deterministic:false`
+   * script (external API / randomness) must re-execute every run.
+   */
+  deterministic: boolean;
 }
 
 /**
@@ -70,17 +77,25 @@ export async function dynamicNodeResolveLineage(
           versionNumber: args.version,
         },
       },
-      select: { id: true },
+      select: { id: true, deterministic: true },
     });
     if (pinned === null) {
       throw new DynamicNodeVersionNotFoundError(args.slug, args.version);
     }
-    return { versionId: pinned.id };
+    return { versionId: pinned.id, deterministic: pinned.deterministic };
   }
 
-  // (3) Head version: take from the lineage row.
+  // (3) Head version: resolve the head row so we can surface its
+  // `deterministic` flag alongside the id.
   if (lineage.headVersionId === null) {
     throw new DynamicNodeHeadMissingError(args.slug);
   }
-  return { versionId: lineage.headVersionId };
+  const head = await prisma.dynamicNodeVersion.findUnique({
+    where: { id: lineage.headVersionId },
+    select: { id: true, deterministic: true },
+  });
+  if (head === null) {
+    throw new DynamicNodeHeadMissingError(args.slug);
+  }
+  return { versionId: head.id, deterministic: head.deterministic };
 }

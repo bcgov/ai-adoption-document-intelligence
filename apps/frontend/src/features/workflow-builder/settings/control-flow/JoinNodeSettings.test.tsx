@@ -8,7 +8,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -169,11 +169,12 @@ describe("JoinNodeSettings — Scenario 1: sourceMapNodeId picker filters to map
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 2: strategy renders as a SegmentedControl with all / any.
+// §5.1: the unimplemented "any" strategy was removed — only "all" exists, so
+// there is no strategy control to render.
 // ---------------------------------------------------------------------------
 
-describe("JoinNodeSettings — Scenario 2: strategy is a SegmentedControl", () => {
-  it("clicking the 'any' segment fires onConfigChange with strategy: 'any'", () => {
+describe("JoinNodeSettings — §5.1: no strategy control (only 'all')", () => {
+  it("does not render a strategy SegmentedControl", () => {
     const initial = joinNode("j1", "Join", {
       sourceMapNodeId: "m1",
       strategy: "all",
@@ -183,24 +184,11 @@ describe("JoinNodeSettings — Scenario 2: strategy is a SegmentedControl", () =
       results: { type: "array" },
     });
 
-    const { spy } = mountWithSpy(config, "j1");
+    mountWithSpy(config, "j1");
 
-    const segmented = screen.getByTestId("join-node-settings-strategy");
-    // SegmentedControl renders one radio input per option; pick the one
-    // whose value is "any" and click it.
-    const anyInput = within(segmented).getByDisplayValue(
-      "any",
-    ) as HTMLInputElement;
-    expect(anyInput).toBeInTheDocument();
-    fireEvent.click(anyInput);
-
-    expect(spy).toHaveBeenCalled();
-    const latest = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
-    const updated = latest.nodes.j1 as JoinNode;
-    expect(updated.strategy).toBe("any");
-    // Other fields are preserved.
-    expect(updated.sourceMapNodeId).toBe("m1");
-    expect(updated.resultsCtxKey).toBe("results");
+    expect(
+      screen.queryByTestId("join-node-settings-strategy"),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -306,30 +294,6 @@ describe("JoinNodeSettings — Scenario 4: edits propagate a typed update", () =
     const updated = next.nodes.j1 as JoinNode;
     expect(updated.sourceMapNodeId).toBe("m2");
     expect(updated.strategy).toBe("all");
-    expect(updated.resultsCtxKey).toBe("results");
-  });
-
-  it("editing strategy fires onConfigChange with the full JoinNode carrying the new value", () => {
-    const initial = joinNode("j1", "Join", {
-      sourceMapNodeId: "m1",
-      strategy: "all",
-      resultsCtxKey: "results",
-    });
-    const config = makeConfig([initial, mapNode("m1", "Per-Doc Map")]);
-
-    const { spy } = mountWithSpy(config, "j1");
-
-    const segmented = screen.getByTestId("join-node-settings-strategy");
-    const anyInput = within(segmented).getByDisplayValue(
-      "any",
-    ) as HTMLInputElement;
-    fireEvent.click(anyInput);
-
-    expect(spy).toHaveBeenCalled();
-    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
-    const updated = next.nodes.j1 as JoinNode;
-    expect(updated.strategy).toBe("any");
-    expect(updated.sourceMapNodeId).toBe("m1");
     expect(updated.resultsCtxKey).toBe("results");
   });
 });

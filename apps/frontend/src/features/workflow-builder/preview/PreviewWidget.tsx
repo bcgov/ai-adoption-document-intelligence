@@ -55,6 +55,13 @@ export interface PreviewWidgetProps {
    * mode); when omitted, returns the most-recent fresh row.
    */
   runId?: string;
+  /**
+   * True only when the run is being REPLAYED (not a live Try). §4.7: the
+   * "cache evicted" recovery alert must only appear in replay mode — during
+   * a live Try, `runId` is set but nodes the run hasn't reached yet 404 on
+   * the preview-cache, which is normal, not an eviction.
+   */
+  isReplay?: boolean;
 }
 
 /**
@@ -69,6 +76,7 @@ export function PreviewWidget({
   workflowId,
   nodeId,
   runId,
+  isReplay = false,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -95,10 +103,14 @@ export function PreviewWidget({
   }
 
   if (data === null) {
-    // Cache row gone (404). When a `runId` was supplied the consumer
-    // is in replay mode and the missing row means the TTL evicted it —
-    // surface the dedicated cache-evicted Alert + Re-run button (US-155).
-    if (runId !== undefined && runId !== "") {
+    // Cache row gone (404). §4.7: only surface the cache-evicted recovery
+    // Alert + Re-run button (US-155) in REPLAY mode, where a missing row
+    // genuinely means the TTL evicted it. During a live Try, `runId` is also
+    // set but nodes the run hasn't reached yet 404 on the preview-cache — that
+    // is normal, so stay silent instead of flooding the canvas with false
+    // "cache evicted" alerts (clicking Re-run there would duplicate/cancel the
+    // in-flight Try).
+    if (isReplay && runId !== undefined && runId !== "") {
       return (
         <Box data-testid={`preview-widget-${nodeId}`} data-state="evicted">
           <CacheEvictedAlert
@@ -109,8 +121,8 @@ export function PreviewWidget({
         </Box>
       );
     }
-    // No `runId` — node simply hasn't been run yet. Stay silent so the
-    // canvas isn't cluttered with empty panes (§4.1 design doc).
+    // Live Try (not-yet-run node) or no `runId` — stay silent so the canvas
+    // isn't cluttered with empty/false panes.
     return null;
   }
 
@@ -196,6 +208,7 @@ export function NodePreviewOverlay({
       workflowId={ctx.workflowId}
       nodeId={nodeId}
       runId={ctx.activeRunId ?? undefined}
+      isReplay={ctx.isReplay}
     />
   );
 }

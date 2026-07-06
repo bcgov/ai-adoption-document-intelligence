@@ -162,6 +162,24 @@ spec:
                 secretKeyRef:
                   name: temporal-worker-secrets
                   key: PLATFORM_API_KEY
+            # Phase 6 dynamic nodes — deno-runner sidecar wiring. Without these
+            # the runner client / dyn.run activity fall back to localhost and
+            # every dynamic-node run fails on a real deploy.
+            - name: DENO_RUNNER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: DENO_RUNNER_URL
+            - name: AI_DI_API_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: AI_DI_API_BASE_URL
+            - name: DYNAMIC_NODE_ALLOW_NET
+              valueFrom:
+                configMapKeyRef:
+                  name: temporal-worker-config
+                  key: DYNAMIC_NODE_ALLOW_NET
             # Database Connection Pool
             - name: DB_POOL_MAX
               valueFrom:

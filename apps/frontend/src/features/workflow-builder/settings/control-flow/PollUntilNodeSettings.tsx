@@ -49,6 +49,7 @@ import {
   JsonSchemaForm,
   type JsonSchemaProperty,
 } from "../../json-schema-form";
+import { replaceNode } from "../../replace-node";
 import {
   isValidTemporalDuration,
   TEMPORAL_DURATION_HELP_TEXT,
@@ -133,10 +134,7 @@ export function PollUntilNodeSettings({
   onConfigChange,
 }: PollUntilNodeSettingsProps) {
   const updateNode = (next: PollUntilNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   // ── Activity-type Select (grouped by CatalogCategory) ──────────────────

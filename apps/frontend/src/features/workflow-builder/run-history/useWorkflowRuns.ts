@@ -26,6 +26,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 import { ApiError } from "../sources/useSourceUpload";
 
@@ -78,40 +79,6 @@ interface ErrorResponseBody {
 }
 
 /**
- * Pulls the CSRF token from the `csrf_token` cookie. Mirrors the helper
- * in sibling fetch-based hooks (`useNodeStatuses`, `useVersionRunCount`).
- * GET requests don't strictly need it per the backend's CSRF guard, but
- * we keep the helper for symmetry.
- */
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-/**
- * Builds the auth headers. Mirrors the auth shape used by sibling
- * fetch-based hooks so the `ApiKeyAuthGuard` accepts the request in
- * `NODE_ENV=test` / dev mode.
- */
-function buildAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-  return headers;
-}
-
-/**
  * Builds the run-history endpoint URL with the page cursor + filter
  * query parameters appended. Empty / undefined filter entries are
  * omitted (the backend treats their absence as "no filter").
@@ -158,11 +125,7 @@ export async function fetchWorkflowRuns(
   cursor: string | undefined,
 ): Promise<ListRunsResponse> {
   const url = buildRunsUrl(workflowId, filters, cursor);
-  const response = await fetch(url, {
-    method: "GET",
-    credentials: "include",
-    headers: buildAuthHeaders(),
-  });
+  const response = await builderFetch(url, { method: "GET" });
 
   if (!response.ok) {
     let message = response.statusText || "Failed to fetch workflow runs";

@@ -9,7 +9,6 @@
  */
 
 import "@testing-library/jest-dom";
-import { mockNotificationsShow } from "../../../test/mockNotifications";
 
 import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
@@ -25,6 +24,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Group } from "../../../auth/AuthContext";
 import { API_BASE_URL } from "../../../shared/constants";
+import { mockNotificationsShow } from "../../../test/mockNotifications";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { DynamicNodeEditor } from "./DynamicNodeEditor";
 

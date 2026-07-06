@@ -242,7 +242,14 @@ export interface MapNode extends GraphNodeBase {
 export interface JoinNode extends GraphNodeBase {
   type: "join";
   sourceMapNodeId: string;
-  strategy: "all" | "any";
+  /**
+   * Fan-in strategy. Only `"all"` is supported: the source map eagerly
+   * collects every branch result before the join runs, so there is nothing
+   * to "race" — a `"any"` (first-to-complete) semantic would require the map
+   * NOT to await all branches, a separate feature. (§5.1: the previously
+   * declared-but-unimplemented `"any"` option was removed.)
+   */
+  strategy: "all";
   resultsCtxKey: string;
 }
 

@@ -12,9 +12,11 @@ const HARNESS_SUFFIX = `
 {
   const __input = await new Response(Deno.stdin.readable).text();
   const { inputCtx, parameters } = JSON.parse(__input);
-  // deno-lint-ignore no-explicit-any
-  const __fn: any = (typeof __script !== "undefined" && __script)
-    || (await import("./__SCRIPT_DEFAULT__")).default;
+  const __fn = ((typeof __script !== "undefined" && __script)
+    || (await import("./__SCRIPT_DEFAULT__")).default) as (
+      inputCtx: unknown,
+      parameters: unknown,
+    ) => unknown;
   const __out = await __fn(inputCtx, parameters);
   await Deno.stdout.write(new TextEncoder().encode(JSON.stringify(__out ?? null)));
 }

@@ -108,7 +108,9 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
 
   async function runWith(
     input: TestDynInput,
-    resolveFn: (args: ResolveCall) => Promise<{ versionId: string }>,
+    resolveFn: (
+      args: ResolveCall,
+    ) => Promise<{ versionId: string; deterministic: boolean }>,
     dynRunFn: (args: DynRunCall) => Promise<Record<string, unknown>>,
     workflowId: string,
   ): Promise<DynRunOutcome> {
@@ -153,7 +155,7 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
 
     const resolveFn = async (args: ResolveCall) => {
       resolveCalls.push(args);
-      return { versionId: "v-head-1" };
+      return { versionId: "v-head-1", deterministic: true };
     };
     const dynRunFn = async (args: DynRunCall) => {
       dynRunCalls.push(args);
@@ -185,7 +187,7 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
     const resolveCalls: ResolveCall[] = [];
     const resolveFn = async (args: ResolveCall) => {
       resolveCalls.push(args);
-      return { versionId: "v-pinned-3" };
+      return { versionId: "v-pinned-3", deterministic: true };
     };
     const dynRunFn = async () => ({ uppercased: {} });
 
@@ -234,7 +236,10 @@ describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
 
   it("Scenario 5: head pointer change is picked up by the NEXT execution (no restart)", async () => {
     let currentHead = "v-head-1";
-    const resolveFn = async () => ({ versionId: currentHead });
+    const resolveFn = async () => ({
+      versionId: currentHead,
+      deterministic: true,
+    });
     const dynRunSeen: string[] = [];
     const dynRunFn = async (args: DynRunCall) => {
       dynRunSeen.push(args.versionId);

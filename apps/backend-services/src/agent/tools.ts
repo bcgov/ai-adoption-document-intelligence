@@ -8,6 +8,7 @@ import {
 // bridge instantiates pathologically (TS2589, ~15M instantiations/tool, OOM on
 // a full type-check) against Zod's v3 API; the v4 API resolves in ~23k
 // instantiations. The runtime API used here is identical across v3/v4.
+import { NotFoundException } from "@nestjs/common";
 import { type ToolSet, tool } from "ai";
 import { z } from "zod/v4";
 import type { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
@@ -16,7 +17,10 @@ import type {
   GraphNode,
   GraphWorkflowConfig,
 } from "@/workflow/graph-workflow-types";
-import type { WorkflowService } from "@/workflow/workflow.service";
+import type {
+  WorkflowInfo,
+  WorkflowService,
+} from "@/workflow/workflow.service";
 
 /**
  * Default cap on the number of characters of a single tool result that
@@ -26,6 +30,17 @@ import type { WorkflowService } from "@/workflow/workflow.service";
  * value via {@link AgentToolContext.maxToolResultChars}.
  */
 export const DEFAULT_MAX_TOOL_RESULT_CHARS = 20000;
+
+/**
+ * Canonical dynamic-node slug grammar: a lowercase letter followed by
+ * lowercase alphanumerics/hyphens. Matches the `@name` capture the publish
+ * path is bounded by. Used to reject model-supplied slugs BEFORE they are
+ * interpolated into a self-call path — an unbounded slug like
+ * `../workflows/<id>` would path-normalise into `DELETE /api/workflows/<id>`,
+ * converting a soft-delete tool into an arbitrary same-privilege DELETE
+ * (reachable via prompt injection).
+ */
+const DYNAMIC_NODE_SLUG_RE = /^[a-z][a-z0-9-]*$/;
 
 /**
  * Visible marker bracketing tool-result content returned to the model.
@@ -151,11 +166,40 @@ function ensureNonNullWorkflowId(
   return resolved;
 }
 
+/**
+ * Fetch a workflow and enforce that it belongs to the agent's bound group.
+ *
+ * The REST `WorkflowController` guards every endpoint with
+ * `identityCanAccessGroup`; the agent tools call `WorkflowService` directly,
+ * so tenancy MUST be re-asserted here. `getWorkflow` does a bare
+ * `findUnique({ where: { id } })` with no group filter (by design — the
+ * controller checks the returned `groupId` against the caller's possibly-many
+ * groups). The agent, by contrast, operates in exactly one group
+ * (`ctx.groupId`), so any workflow it reads or writes must live in that group.
+ *
+ * The tool schema accepts a model-supplied `workflowId`, reachable via prompt
+ * injection from untrusted document/OCR text surfaced through the read tools —
+ * so this is the security boundary, not a convenience. On mismatch we throw
+ * `NotFoundException` (not Forbidden) so a cross-group id is indistinguishable
+ * from a missing one and can't be used to probe existence, matching the
+ * service's own 404-vs-403 convention.
+ */
+async function fetchWorkflowInGroup(
+  ctx: AgentToolContext,
+  workflowId: string,
+): Promise<WorkflowInfo> {
+  const wf = await ctx.workflowService.getWorkflow(workflowId, ctx.actorId);
+  if (wf.groupId !== ctx.groupId) {
+    throw new NotFoundException(`Workflow not found: ${workflowId}`);
+  }
+  return wf;
+}
+
 async function readWorkflow(
   ctx: AgentToolContext,
   workflowId: string,
 ): Promise<GraphWorkflowConfig> {
-  const wf = await ctx.workflowService.getWorkflow(workflowId, ctx.actorId);
+  const wf = await fetchWorkflowInGroup(ctx, workflowId);
   return wf.config;
 }
 
@@ -180,6 +224,12 @@ async function writeWorkflow(
   workflowId: string,
   config: GraphWorkflowConfig,
 ): Promise<void> {
+  // Assert group ownership BEFORE writing: updateWorkflow re-validates the
+  // config against the *target* row's group_id, so without this a cross-group
+  // write would validate and succeed. Callers that first read via
+  // readWorkflow are already guarded, but the assertion is cheap and keeps
+  // writeWorkflow safe on its own.
+  await fetchWorkflowInGroup(ctx, workflowId);
   const resolved = resolveConfigForPersist(config);
   await ctx.workflowService.updateWorkflow(workflowId, ctx.actorId, {
     config: resolved,
@@ -274,7 +324,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
       }),
       execute: async ({ workflowId }) => {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
-        const wf = await ctx.workflowService.getWorkflow(id, ctx.actorId);
+        const wf = await fetchWorkflowInGroup(ctx, id);
         // Workflow name/description/node params are user-controlled; wrap
         // as DATA + size-cap before it enters the model context.
         return {
@@ -359,6 +409,9 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
       }),
       execute: async ({ workflowId, name, description }) => {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
+        // Assert group ownership before the metadata write (same tenancy
+        // boundary as the graph-edit tools).
+        await fetchWorkflowInGroup(ctx, id);
         const patch: { name?: string; description?: string } = {};
         if (name !== undefined) patch.name = name;
         if (description !== undefined) patch.description = description;
@@ -711,7 +764,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
             const slug = parsed[1];
             const putResult = await internalFetch(
               ctx,
-              `/api/dynamic-nodes/${slug}`,
+              `/api/dynamic-nodes/${encodeURIComponent(slug)}`,
               { method: "PUT", body: JSON.stringify({ script }) },
             );
             return putResult.ok
@@ -727,9 +780,24 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
       description: "Soft-delete a published dynamic node by slug.",
       inputSchema: z.object({ slug: z.string() }),
       execute: async ({ slug }) => {
-        const result = await internalFetch(ctx, `/api/dynamic-nodes/${slug}`, {
-          method: "DELETE",
-        });
+        // Reject anything that isn't a bare dynamic-node slug before it reaches
+        // the self-call path — otherwise `slug='../workflows/<id>'` normalises
+        // to a DELETE against an arbitrary endpoint.
+        if (!DYNAMIC_NODE_SLUG_RE.test(slug)) {
+          return {
+            ok: false,
+            error: {
+              code: "invalid-slug",
+              message:
+                "slug must match /^[a-z][a-z0-9-]*$/ (a bare dynamic-node slug).",
+            },
+          };
+        }
+        const result = await internalFetch(
+          ctx,
+          `/api/dynamic-nodes/${encodeURIComponent(slug)}`,
+          { method: "DELETE" },
+        );
         return result.ok
           ? { ok: true, ...(result.body as object) }
           : { ok: false, error: result.body };

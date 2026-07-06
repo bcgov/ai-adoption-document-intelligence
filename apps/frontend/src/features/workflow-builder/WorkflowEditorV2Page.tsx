@@ -283,8 +283,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     reactFlowRef.current = instance;
   }, []);
 
+  // Bumped by "Auto-arrange" so the canvas re-applies config positions that
+  // the structural fingerprint would otherwise ignore (§4.2).
+  const [layoutNonce, setLayoutNonce] = useState(0);
+
   const handleAutoArrange = useCallback(() => {
     setConfig((prev) => layoutGraph(prev));
+    // §4.2: the canvas's structural fingerprint excludes metadata.position,
+    // so this config-only position change won't re-project on its own. Bump
+    // the layout nonce so the canvas re-applies the new positions to its
+    // internal xyflow nodes (otherwise the rendered nodes never move even
+    // though the new layout persists to config).
+    setLayoutNonce((n) => n + 1);
     // Defer the fit so the canvas's structural projection effect has run.
     // 0ms is enough — xyflow updates its internal node store
     // synchronously inside its sibling effect on the same tick.
@@ -340,6 +350,16 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Always-current snapshot of `config`, read by the hydration guard below
+  // without putting `config` in that effect's deps (which would loop, since
+  // the hydration path itself calls `setConfig`). Assigning a ref during
+  // render is the standard "latest value" pattern.
+  const configRef = useRef(config);
+  configRef.current = config;
+  // The config we last hydrated from the server. `null` until the first
+  // hydration (or after a save, which re-baselines). §4.4.
+  const lastHydratedConfigRef = useRef<GraphWorkflowConfig | null>(null);
+
   // Hydrate state when the workflow loads in edit mode.
   // Run auto-layout when the loaded config carries no node positions — e.g.
   // seeded workflows (docs-md/graph-workflows/templates/*.json) and any
@@ -348,15 +368,30 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // positions pass through unchanged (layoutGraphIfMissingPositions is a no-op
   // when any position exists), so editor-saved workflows are untouched. This
   // mirrors the create-from-template hydration above.
+  //
+  // §4.4: the agent chat drawer invalidates `['workflow']` after every write
+  // tool + stream finish, so `useWorkflow` refetches frequently. Hydrating
+  // unconditionally would stomp the user's unsaved canvas edits with the
+  // server copy. We therefore hydrate only when the local config has NOT
+  // diverged from the last hydrated snapshot (no unsaved edits) — a local
+  // edit replaces `config` with a new object, so a reference compare detects
+  // it cheaply. When there are no local edits it's safe to adopt the new
+  // server state (e.g. the agent's write). `handleSave` re-baselines.
   useEffect(() => {
     if (!isEditMode || !existingWorkflow) return;
+    if (
+      lastHydratedConfigRef.current !== null &&
+      configRef.current !== lastHydratedConfigRef.current
+    ) {
+      return;
+    }
+    const incoming = resolveBindings(
+      normaliseLocks(layoutGraphIfMissingPositions(existingWorkflow.config)),
+    );
+    lastHydratedConfigRef.current = incoming;
     setName(existingWorkflow.name);
     setDescription(existingWorkflow.description ?? "");
-    setConfig(
-      resolveBindings(
-        normaliseLocks(layoutGraphIfMissingPositions(existingWorkflow.config)),
-      ),
-    );
+    setConfig(incoming);
   }, [existingWorkflow, isEditMode]);
 
   // Both add handlers compute the new id from the current `config`
@@ -614,6 +649,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     try {
       if (isEditMode && workflowId) {
         await updateWorkflow.mutateAsync({ id: workflowId, dto });
+        // §4.4: the save invalidates ['workflow'] → refetch. Re-baseline so
+        // the post-save hydration re-adopts the (now-saved) server config and
+        // future agent writes can hydrate again.
+        lastHydratedConfigRef.current = null;
         notifications.show({
           color: "green",
           title: "Saved",
@@ -1222,6 +1261,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               onReactFlowReady={handleReactFlowReady}
               simplifiedView={simplifiedView}
               onGroupChipClick={setActiveGroupId}
+              layoutNonce={layoutNonce}
             />
           </Box>
           <NodeSettingsPanel

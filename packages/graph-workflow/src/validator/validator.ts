@@ -14,6 +14,7 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
  */
 
+import { isAutoCtxKey } from "../auto-wire";
 import { getActivityCatalogEntry as defaultGetActivityCatalogEntry } from "../catalog";
 import { getSourceCatalogEntry as defaultGetSourceCatalogEntry } from "../catalog/source-catalog";
 import type {
@@ -37,7 +38,6 @@ import type {
   ValueRef,
 } from "../types";
 import type { KindRef } from "../types/artifacts";
-import { isAutoCtxKey } from "../auto-wire";
 import { isAssignable } from "../types/subtype-check";
 import { getCtxRootKey, getRefCtxRootKey } from "./context-utils";
 import { isValidTemporalDuration } from "./duration";
@@ -616,6 +616,45 @@ function validateMapJoinNodes(
   }
 }
 
+/**
+ * §3.6: Source nodes have no `outputs[]` bindings and are never mirrored into
+ * `config.ctx`, but they DO produce ctx keys (`walkCtxKeyBindings` +
+ * `enumerateSourceProducers` treat them as valid producers). Collect those
+ * keys so the port-binding / expression validators don't reject a downstream
+ * consumer of a source-produced key as "undeclared". Mirrors the key
+ * derivation in `enumerateSourceProducers` (kinds aren't needed here).
+ */
+function collectSourceProducedCtxKeys(
+  config: GraphWorkflowConfig,
+): Set<string> {
+  const keys = new Set<string>();
+  for (const node of Object.values(config.nodes)) {
+    if (node.type !== "source") continue;
+    const sourceNode = node as SourceNode;
+    if (sourceNode.sourceType === "source.api") {
+      const rawFields = (
+        sourceNode.parameters as { fields?: unknown } | undefined
+      )?.fields;
+      if (Array.isArray(rawFields)) {
+        for (const raw of rawFields) {
+          const field = raw as FieldDescriptor;
+          if (field && typeof field.name === "string") {
+            keys.add(field.name);
+          }
+        }
+      }
+    } else if (sourceNode.sourceType === "source.upload") {
+      const params = sourceNode.parameters as { ctxKey?: unknown } | undefined;
+      const ctxKey =
+        typeof params?.ctxKey === "string" && params.ctxKey.length > 0
+          ? params.ctxKey
+          : "documentUrl";
+      keys.add(ctxKey);
+    }
+  }
+  return keys;
+}
+
 function validatePortBindings(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
@@ -623,6 +662,9 @@ function validatePortBindings(
   if (!config.ctx) return;
 
   const declaredCtxKeys = new Set(Object.keys(config.ctx));
+  for (const key of collectSourceProducedCtxKeys(config)) {
+    declaredCtxKeys.add(key);
+  }
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.inputs) {
@@ -668,6 +710,12 @@ function validateExpressions(
   const declaredCtxKeys = config.ctx
     ? new Set(Object.keys(config.ctx))
     : new Set<string>();
+  // §3.6: source-produced keys are valid producers too (see
+  // collectSourceProducedCtxKeys) — a switch/pollUntil condition may
+  // reference one, so don't flag it as undeclared.
+  for (const key of collectSourceProducedCtxKeys(config)) {
+    declaredCtxKeys.add(key);
+  }
 
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type === "switch") {

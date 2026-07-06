@@ -18,6 +18,7 @@
 import { Box, NumberInput, Stack, Title } from "@mantine/core";
 import type { GraphWorkflowConfig, MapNode } from "../../../../types/workflow";
 import { NodePicker, VariablePicker } from "../../graph-widgets";
+import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -46,10 +47,7 @@ export function MapNodeSettings({
   onConfigChange,
 }: MapNodeSettingsProps) {
   const updateNode = (next: MapNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   const setCollectionCtxKey = (next: string) =>

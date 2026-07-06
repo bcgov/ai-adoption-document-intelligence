@@ -143,8 +143,10 @@ describe("getWorkflowGraphConfig activity", () => {
 
   // US-080: version-pinned resolution
   describe("with `version` param", () => {
-    it("loads graph by (lineage_id, version_number) compound unique key when version is provided", async () => {
+    it("resolves a lineage-id ref then loads by (lineage_id, version_number) compound key", async () => {
       const cfg = sampleConfig();
+      // The ref "lin-1" resolves as a lineage id.
+      prismaMock.workflowLineage.findUnique.mockResolvedValue({ id: "lin-1" });
       prismaMock.workflowVersion.findUnique.mockResolvedValue({
         id: "wv-pinned",
         config: cfg,
@@ -157,6 +159,10 @@ describe("getWorkflowGraphConfig activity", () => {
 
       expect(result.graph).toEqual(cfg);
       expect(result.workflowVersionId).toBe("wv-pinned");
+      expect(prismaMock.workflowLineage.findUnique).toHaveBeenCalledWith({
+        where: { id: "lin-1" },
+        select: { id: true },
+      });
       // Item 34: the (lineage_id, version_number) pair is `@@unique`, so the
       // pinned lookup uses `findUnique` on the compound key — not `findFirst`.
       expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
@@ -169,12 +175,44 @@ describe("getWorkflowGraphConfig activity", () => {
         select: { id: true, config: true },
       });
       expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
-      // Pinned lookup short-circuits the legacy 3-step resolution.
-      expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
+      // Resolved by id, so the name fallback isn't consulted.
       expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
     });
 
+    it("§3.5 — resolves a NAME-referenced child before pinning (no longer throws once a version pin is added)", async () => {
+      const cfg = sampleConfig();
+      // The ref is a lineage NAME: id lookup misses, name lookup resolves.
+      prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
+      prismaMock.workflowLineage.findFirst.mockResolvedValue({ id: "lin-x" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue({
+        id: "wv-pinned-2",
+        config: cfg,
+      });
+
+      const result = await getWorkflowGraphConfig({
+        workflowId: "standard-ocr-workflow",
+        version: 2,
+      });
+
+      expect(result.workflowVersionId).toBe("wv-pinned-2");
+      expect(prismaMock.workflowLineage.findFirst).toHaveBeenCalledWith({
+        where: { name: "standard-ocr-workflow" },
+        select: { id: true },
+      });
+      // Pins against the RESOLVED lineage id, not the raw name ref.
+      expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: {
+          lineage_id_version_number: {
+            lineage_id: "lin-x",
+            version_number: 2,
+          },
+        },
+        select: { id: true, config: true },
+      });
+    });
+
     it("throws a clear error mentioning lineage + version when the pinned version does not exist", async () => {
+      prismaMock.workflowLineage.findUnique.mockResolvedValue({ id: "lin-1" });
       prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -182,8 +220,15 @@ describe("getWorkflowGraphConfig activity", () => {
       ).rejects.toThrow("Library lineage lin-1 has no version 99");
       // Does NOT fall through to the head/name resolution paths.
       expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
-      expect(prismaMock.workflowLineage.findUnique).not.toHaveBeenCalled();
-      expect(prismaMock.workflowLineage.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("throws when the pinned ref resolves to no lineage at all", async () => {
+      prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      await expect(
+        getWorkflowGraphConfig({ workflowId: "ghost", version: 1 }),
+      ).rejects.toThrow("Library lineage not found: ghost");
     });
   });
 });

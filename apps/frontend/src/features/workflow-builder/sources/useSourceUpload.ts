@@ -36,6 +36,7 @@
  */
 
 import { type UseMutationResult, useMutation } from "@tanstack/react-query";
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 
 /**
@@ -79,39 +80,6 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Pulls the CSRF token from the `csrf_token` cookie. Mirrors the helper
- * in `api.service.ts` rather than importing it so this hook stays
- * decoupled from axios.
- */
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-/**
- * Returns the headers to attach to the upload request. `Content-Type`
- * is intentionally omitted so the browser fills it in with the
- * multipart boundary.
- */
-function buildAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-  return headers;
-}
-
 interface ErrorResponseBody {
   message?: string | string[];
 }
@@ -137,11 +105,11 @@ export function useSourceUpload(
       formData.append("file", file);
 
       const url = `${API_BASE_URL}/workflows/${workflowId}/sources/${sourceNodeId}/upload`;
-      const response = await fetch(url, {
+      // No explicit Content-Type — the browser sets the multipart boundary
+      // for FormData. builderFetch adds auth headers + cookies + 401 refresh.
+      const response = await builderFetch(url, {
         method: "POST",
         body: formData,
-        credentials: "include",
-        headers: buildAuthHeaders(),
       });
 
       if (!response.ok) {

@@ -183,6 +183,45 @@ describe("runGraphExecution — Phase 4 cache decorator integration (US-133)", (
     expect(state.ctx.documentMetadata).toEqual({ category: "invoice" });
   });
 
+  // §3.1 — the snapshot must record only the LEAF this node wrote
+  // (`documentMetadata.category`), not the whole `documentMetadata` subtree.
+  // Otherwise the cache row would carry a concurrent sibling's leaf
+  // (`pageCount`) and a later cache hit would restore a stale subtree that
+  // reverts the sibling's fresh write.
+  it("§3.1 — snapshots only the written leaf, not a sibling already in the subtree", async () => {
+    const { deps, findFresh, upsert } = makeCacheDeps();
+    findFresh.mockResolvedValue(null); // miss
+    upsert.mockResolvedValue(undefined);
+    mockActivityFn.mockResolvedValue({ category: "invoice" });
+
+    const state = makeFreshState(deps);
+    await runGraphExecution(
+      {
+        graph: namespacedOutputGraph,
+        workflowVersionId: "wv",
+        // A concurrent sibling's write is already present in the subtree.
+        initialCtx: { documentMetadata: { pageCount: 7 } },
+        configHash: "h",
+        runnerVersion: "1.0.0",
+        workflowLineageId: LINEAGE_ID,
+      },
+      state,
+    );
+
+    const upsertCall = upsert.mock.calls[0][0] as {
+      outputCtx: Record<string, unknown>;
+    };
+    // Only the leaf THIS node produced is snapshotted — `pageCount` is absent.
+    expect(upsertCall.outputCtx).toEqual({
+      documentMetadata: { category: "invoice" },
+    });
+    // ctx keeps both the sibling's `pageCount` and this node's `category`.
+    expect(state.ctx.documentMetadata).toEqual({
+      pageCount: 7,
+      category: "invoice",
+    });
+  });
+
   it("Item 13 — restores the remapped subtree for a `doc.*` output (cache-hit replay)", async () => {
     const { deps, findFresh, upsert } = makeCacheDeps();
     // The cache row holds the REMAPPED subtree (what the fixed snapshot

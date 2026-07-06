@@ -32,6 +32,9 @@ images:
   - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
     newName: "__FRONTEND_IMAGE__"
     newTag: "__IMAGE_TAG__"
+  - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner
+    newName: "__DENO_RUNNER_IMAGE__"
+    newTag: "__IMAGE_TAG__"
 
 # Patches for resources that contain hardcoded service references or hostnames.
 # Kustomize namePrefix updates metadata.name and cross-references (secretKeyRef,

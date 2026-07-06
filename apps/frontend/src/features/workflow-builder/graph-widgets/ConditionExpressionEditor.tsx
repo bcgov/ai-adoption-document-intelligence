@@ -26,6 +26,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ComparisonExpression,
   ConditionExpression,
@@ -764,6 +765,33 @@ function ValueRefEditor({
 }: ValueRefEditorProps) {
   const mode = getValueRefMode(value);
 
+  // §4.13: hold the literal input as local text so typing is STABLE. The
+  // input's displayed value used to be re-derived from the parsed literal on
+  // every keystroke (`literalToString(parseLiteral(text))`), so the stored
+  // type flipped mid-typing (string→number→bool→null) and quoted strings like
+  // `"10"` were reformatted away (making `status == "10"` impossible to
+  // author). Local text is the source of truth for display; we still emit the
+  // parsed value on change. We re-sync from an EXTERNAL value change (mode
+  // switch, loading a different condition) but ignore the echo of our own
+  // edits by comparing the canonical string of what we last emitted.
+  const incomingLiteral = "literal" in value ? value.literal : undefined;
+  const incomingCanonical = literalToString(incomingLiteral);
+  const [literalText, setLiteralText] = useState<string>(incomingCanonical);
+  const lastEmittedCanonicalRef = useRef<string>(incomingCanonical);
+  useEffect(() => {
+    if (incomingCanonical !== lastEmittedCanonicalRef.current) {
+      setLiteralText(incomingCanonical);
+      lastEmittedCanonicalRef.current = incomingCanonical;
+    }
+  }, [incomingCanonical]);
+
+  const handleLiteralChange = (text: string) => {
+    setLiteralText(text);
+    const parsed = parseLiteral(text);
+    lastEmittedCanonicalRef.current = literalToString(parsed);
+    onChange({ literal: parsed });
+  };
+
   const setMode = (nextMode: string) => {
     const m = nextMode as ValueRefMode;
     if (m === mode) return;
@@ -804,13 +832,9 @@ function ValueRefEditor({
         <TextInput
           size="xs"
           placeholder="Literal value (JSON or plain string)"
-          value={literalToString(
-            "literal" in value ? value.literal : undefined,
-          )}
+          value={literalText}
           data-testid={`${testId}-literal-input`}
-          onChange={(e) =>
-            onChange({ literal: parseLiteral(e.currentTarget.value) })
-          }
+          onChange={(e) => handleLiteralChange(e.currentTarget.value)}
         />
       )}
     </Stack>

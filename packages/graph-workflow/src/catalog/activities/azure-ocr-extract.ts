@@ -11,6 +11,9 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
     "Parses the raw Azure response into a structured OCR result with fields, key-value pairs, and confidence scores.",
   iconHint: "document",
   colorHint: "blue",
+  // Benchmark runs inject the OCR replay cache AND the cached `ocrResponse` so
+  // extract parses the replayed response instead of a live Azure call.
+  benchmarkOcrCacheRole: "extract",
   inputs: [
     {
       name: "apimRequestId",

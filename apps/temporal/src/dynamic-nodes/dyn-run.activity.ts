@@ -25,6 +25,7 @@
 
 import type { DynamicNodeSignature } from "@ai-di/graph-workflow";
 import type { PrismaClient } from "@generated/client";
+import { ApplicationFailure } from "@temporalio/activity";
 import { getPrismaClient } from "../activities/database-client";
 import {
   type DenoExecuteRequest,
@@ -113,7 +114,19 @@ export async function dynRun(
   // history, so threading the caller's `x-api-key` through the input chain
   // would leak it in cleartext. Reading it here keeps it out of history while
   // still giving dynamic-node scripts a key to call back into the platform.
-  const platformApiKey = readEnv("PLATFORM_API_KEY") ?? "";
+  // Fail fast on a misconfigured deployment: injecting an empty AI_DI_API_KEY
+  // would surface as opaque 401s deep inside the user script's platform
+  // callbacks. A worker without a real PLATFORM_API_KEY secret is a config
+  // error, not a script error — non-retryable so it doesn't spin.
+  const platformApiKey = readEnv("PLATFORM_API_KEY");
+  if (!platformApiKey) {
+    throw ApplicationFailure.create({
+      message:
+        "PLATFORM_API_KEY is not configured on the worker; dynamic-node scripts cannot authenticate their platform callbacks. Set the temporal-worker-secrets PLATFORM_API_KEY.",
+      type: "DynamicNodeConfigError",
+      nonRetryable: true,
+    });
+  }
   const timeoutMs = signature.timeoutMs ?? 60_000;
   const maxMemoryMB = signature.maxMemoryMB ?? 256;
   const ambientEnv: Record<string, string> = {

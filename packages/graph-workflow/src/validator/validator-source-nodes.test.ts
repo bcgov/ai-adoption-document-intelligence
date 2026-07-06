@@ -15,7 +15,7 @@
  * pattern without needing `jest.doMock` on the frozen registry.
  */
 import { z } from "zod/v4";
-
+import type { SourceCatalogEntry } from "../catalog/source-types";
 import type {
   ActivityNode,
   GraphValidationError,
@@ -24,7 +24,6 @@ import type {
   ValidateGraphConfigOptions,
 } from "../index";
 import { validateGraphConfig } from "../index";
-import type { SourceCatalogEntry } from "../catalog/source-types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -135,10 +134,7 @@ describe("US-109 Scenario 1: SourceNode.inputs[] must be empty/absent", () => {
       sourceType: "source.fake",
       inputs: [{ port: "anything", ctxKey: "foo" }],
     };
-    const config = configWith(
-      [sourceNode],
-      { foo: { type: "string" } },
-    );
+    const config = configWith([sourceNode], { foo: { type: "string" } });
     const result = validateGraphConfig(
       config,
       makeOptions([fakeEntry("source.fake", z.object({}).passthrough())]),
@@ -151,7 +147,8 @@ describe("US-109 Scenario 1: SourceNode.inputs[] must be empty/absent", () => {
     expect(inputsErrors[0]).toEqual({
       path: "nodes.src.inputs",
       severity: "error",
-      message: "Source node `src` cannot have inputs[]; sources have no upstream",
+      message:
+        "Source node `src` cannot have inputs[]; sources have no upstream",
     });
     expect(result.valid).toBe(false);
   });
@@ -312,10 +309,7 @@ describe("US-109 Scenario 3: parameters validated against entry parametersSchema
     const result = validateGraphConfig(
       config,
       makeOptions([
-        fakeEntry(
-          "source.fake",
-          z.object({ requiredField: z.string() }),
-        ),
+        fakeEntry("source.fake", z.object({ requiredField: z.string() })),
       ]),
     );
 
@@ -439,9 +433,7 @@ describe("US-109 Scenario 5: source.api + isInput → warning (non-blocking)", (
 
   it("emits a single warning (not error) when source.api coexists with isInput ctx", () => {
     const config = configWith(
-      [
-        { id: "src", type: "source", label: "API", sourceType: "source.api" },
-      ],
+      [{ id: "src", type: "source", label: "API", sourceType: "source.api" }],
       {
         callerInput: { type: "string", isInput: true },
       },
@@ -464,9 +456,7 @@ describe("US-109 Scenario 5: source.api + isInput → warning (non-blocking)", (
 
   it("warnings do not block save: result.valid is true when only warnings present", () => {
     const config = configWith(
-      [
-        { id: "src", type: "source", label: "API", sourceType: "source.api" },
-      ],
+      [{ id: "src", type: "source", label: "API", sourceType: "source.api" }],
       {
         callerInput: { type: "string", isInput: true },
       },
@@ -480,9 +470,7 @@ describe("US-109 Scenario 5: source.api + isInput → warning (non-blocking)", (
 
   it("does not emit the warning when isInput is absent", () => {
     const config = configWith(
-      [
-        { id: "src", type: "source", label: "API", sourceType: "source.api" },
-      ],
+      [{ id: "src", type: "source", label: "API", sourceType: "source.api" }],
       {
         someKey: { type: "string" },
       },
@@ -513,9 +501,7 @@ describe("US-109 Scenario 5: source.api + isInput → warning (non-blocking)", (
     );
     const result = validateGraphConfig(
       config,
-      makeOptions([
-        fakeEntry("source.upload", z.object({}).passthrough()),
-      ]),
+      makeOptions([fakeEntry("source.upload", z.object({}).passthrough())]),
     );
 
     const ctxWarnings = result.errors.filter(
@@ -597,9 +583,7 @@ describe("US-110 Scenario 1: source.api fields[] enumerated as ctx producers", (
             inputs: [{ port: "pages", ctxKey: "pages" }],
           } as ActivityNode,
         },
-        edges: [
-          { id: "e", source: "src", target: "consumer", type: "normal" },
-        ],
+        edges: [{ id: "e", source: "src", target: "consumer", type: "normal" }],
       };
 
       const result = validateGraphConfig(
@@ -659,9 +643,7 @@ describe("US-110 Scenario 1: source.api fields[] enumerated as ctx producers", (
             inputs: [{ port: "priority", ctxKey: "priority" }],
           } as ActivityNode,
         },
-        edges: [
-          { id: "e", source: "src", target: "consumer", type: "normal" },
-        ],
+        edges: [{ id: "e", source: "src", target: "consumer", type: "normal" }],
       };
 
       const result = validateGraphConfig(
@@ -718,9 +700,7 @@ describe("US-110 Scenario 2: source.upload ctxKey enumerated as a Document produ
             inputs: [{ port: "doc", ctxKey: "myFile" }],
           } as ActivityNode,
         },
-        edges: [
-          { id: "e", source: "src", target: "consumer", type: "normal" },
-        ],
+        edges: [{ id: "e", source: "src", target: "consumer", type: "normal" }],
       };
 
       const result = validateGraphConfig(
@@ -781,16 +761,12 @@ describe("US-110 Scenario 2: source.upload ctxKey enumerated as a Document produ
             inputs: [{ port: "seg", ctxKey: "documentUrl" }],
           } as ActivityNode,
         },
-        edges: [
-          { id: "e", source: "src", target: "consumer", type: "normal" },
-        ],
+        edges: [{ id: "e", source: "src", target: "consumer", type: "normal" }],
       };
 
       const result = validateGraphConfig(
         config,
-        makeOptions([
-          fakeEntry("source.upload", z.object({}).passthrough()),
-        ]),
+        makeOptions([fakeEntry("source.upload", z.object({}).passthrough())]),
       );
 
       // Document (producer) is NOT assignable to Segment (consumer) — proves
@@ -894,7 +870,12 @@ describe("US-110 Scenario 4: synthetic catalog entries drive the producer enumer
       sourceType: "source.bogus",
       parameters: {
         fields: [
-          { name: "anything", type: "string", kind: "Segment", required: false },
+          {
+            name: "anything",
+            type: "string",
+            kind: "Segment",
+            required: false,
+          },
         ],
       },
     };
@@ -953,9 +934,7 @@ describe("US-110 Scenario 4: synthetic catalog entries drive the producer enumer
             inputs: [{ port: "seg", ctxKey: "myFile" }],
           } as ActivityNode,
         },
-        edges: [
-          { id: "e", source: "src", target: "consumer", type: "normal" },
-        ],
+        edges: [{ id: "e", source: "src", target: "consumer", type: "normal" }],
       };
 
       const result = validateGraphConfig(
@@ -976,5 +955,94 @@ describe("US-110 Scenario 4: synthetic catalog entries drive the producer enumer
     } finally {
       delete ACTIVITY_CATALOG[consumerEntry.activityType];
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// §3.6: source-produced ctx keys are valid producers — a downstream consumer
+// bound to a source key must NOT be flagged as referencing an undeclared key,
+// even when the key is absent from config.ctx.
+// ---------------------------------------------------------------------------
+
+describe("§3.6: port bindings to source-produced ctx keys are not 'undeclared'", () => {
+  it("accepts an activity input bound to a source.upload ctxKey absent from config.ctx", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "src",
+      ctx: {}, // deliberately empty — the key is produced by the source node
+      nodes: {
+        src: {
+          id: "src",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+          parameters: { ctxKey: "documentUrl" },
+        } as SourceNode,
+        act: {
+          id: "act",
+          type: "activity",
+          label: "Consumer",
+          activityType: "noop.activity",
+          inputs: [{ port: "in", ctxKey: "documentUrl" }],
+        } as ActivityNode,
+      },
+      edges: [{ id: "e0", source: "src", target: "act", type: "normal" }],
+    };
+
+    const result = validateGraphConfig(
+      config,
+      makeOptions([fakeEntry("source.upload", z.object({}).passthrough())]),
+    );
+
+    const undeclared = result.errors.filter((e) =>
+      e.message.includes("undeclared ctx key"),
+    );
+    expect(undeclared).toEqual([]);
+  });
+
+  it("accepts a switch condition referencing a source.api field key absent from config.ctx", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "src",
+      ctx: {},
+      nodes: {
+        src: {
+          id: "src",
+          type: "source",
+          label: "API",
+          sourceType: "source.api",
+          parameters: { fields: [{ name: "status", kind: "string" }] },
+        } as SourceNode,
+        sw: {
+          id: "sw",
+          type: "switch",
+          label: "Branch",
+          cases: [
+            {
+              condition: {
+                kind: "comparison",
+                operator: "==",
+                left: { kind: "ctxRef", ctxKey: "status" },
+                right: { kind: "literal", value: "ready" },
+              },
+            },
+          ],
+        } as unknown as GraphWorkflowConfig["nodes"][string],
+      },
+      edges: [{ id: "e0", source: "src", target: "sw", type: "normal" }],
+    };
+
+    const result = validateGraphConfig(
+      config,
+      makeOptions([fakeEntry("source.api", z.object({}).passthrough())]),
+    );
+
+    const undeclared = result.errors.filter(
+      (e) =>
+        e.message.includes("undeclared") || e.message.includes("unknown ctx"),
+    );
+    expect(undeclared).toEqual([]);
   });
 });

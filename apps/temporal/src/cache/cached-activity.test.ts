@@ -273,12 +273,16 @@ describe("executeCachedActivity (US-132)", () => {
     expect(upsertCall.outputKind).toBeNull();
   });
 
-  it("Scenario 4 — concurrent-write race: upsert P2002, re-findFresh, assign winner's outputCtx, return cacheHit=true", async () => {
+  it("Scenario 4 — concurrent-write race: upsert P2002, re-findFresh, overlay winner's outputCtx, return cacheHit=true", async () => {
     const { deps, findFresh, upsert } = makeDeps();
+    // Under a matched (configHash, inputHash) the loser and winner compute
+    // the SAME deterministic output — the race resolution overlays the
+    // winner's canonical cache row onto ctx.
+    const canonical = { ocrResult: { value: "canonical" } };
     findFresh
       .mockResolvedValueOnce(null) // initial miss
       .mockResolvedValueOnce({
-        outputCtx: { ocrResult: { fromWinner: true } },
+        outputCtx: { ocrResult: { value: "canonical" } },
         outputKind: "Document",
       });
     const prismaConflict = Object.assign(
@@ -291,7 +295,7 @@ describe("executeCachedActivity (US-132)", () => {
     const ctx: Record<string, unknown> = {};
     const rawExecute = jest
       .fn()
-      .mockResolvedValue({ ocrResult: { fromLoser: true } });
+      .mockResolvedValue({ ocrResult: { value: "canonical" } });
 
     const result = await executeCachedActivity(
       deps,
@@ -307,8 +311,39 @@ describe("executeCachedActivity (US-132)", () => {
     expect(rawExecute).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(findFresh).toHaveBeenCalledTimes(2);
-    // Winner's outputCtx overlays the loser's delta.
-    expect(ctx).toEqual({ ocrResult: { fromWinner: true } });
+    // Winner's canonical outputCtx is applied to ctx.
+    expect(ctx).toEqual(canonical);
+  });
+
+  it("§3.1 — a cache-hit delta merges into ctx and does NOT clobber a concurrent sibling's write to the same subtree", async () => {
+    const { deps, findFresh } = makeDeps();
+    // The cached row for THIS node wrote only `documentMetadata.category`.
+    findFresh.mockResolvedValueOnce({
+      outputCtx: { documentMetadata: { category: "invoice" } },
+      outputKind: "Document",
+    });
+
+    const node = makeCacheableNode();
+    // A concurrent sibling already wrote a DIFFERENT leaf of the same subtree.
+    const ctx: Record<string, unknown> = {
+      documentMetadata: { pageCount: 7 },
+    };
+    const rawExecute = jest.fn();
+
+    const result = await executeCachedActivity(
+      deps,
+      node,
+      ctx,
+      WORKFLOW_LINEAGE_ID,
+      rawExecute,
+    );
+
+    expect(result.cacheHit).toBe(true);
+    expect(rawExecute).not.toHaveBeenCalled();
+    // The sibling's `pageCount` survives; the cached `category` is added.
+    expect(ctx).toEqual({
+      documentMetadata: { pageCount: 7, category: "invoice" },
+    });
   });
 
   it("Scenario 5 — activity failure: error propagates, upsert is never called, no partial cache row", async () => {
@@ -331,24 +366,62 @@ describe("executeCachedActivity (US-132)", () => {
     expect(ctx).toEqual({ existing: "kept" });
   });
 
-  it("Scenario 4b — non-P2002 errors from upsert propagate (race handling does NOT mask real failures)", async () => {
+  it("§3.4 — a terminal upsert failure with no committed row does NOT fail the node (best-effort, keeps delta)", async () => {
     const { deps, findFresh, upsert } = makeDeps();
-    findFresh.mockResolvedValue(null);
+    // Initial miss, and the post-failure re-check also finds no row (a
+    // genuine transient write failure, not a lost race).
+    findFresh.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    // Across the activity boundary a P2002 arrives with `.code` stripped, so
+    // this looks like any other error — the decorator must not rethrow it.
     upsert.mockRejectedValue(new Error("connection refused"));
 
     const node = makeCacheableNode();
     const ctx: Record<string, unknown> = {};
     const rawExecute = jest.fn().mockResolvedValue({ ok: true });
 
-    await expect(
-      executeCachedActivity(deps, node, ctx, WORKFLOW_LINEAGE_ID, rawExecute),
-    ).rejects.toThrow("connection refused");
+    const result = await executeCachedActivity(
+      deps,
+      node,
+      ctx,
+      WORKFLOW_LINEAGE_ID,
+      rawExecute,
+    );
 
+    // The node completes (uncached); the error never propagates.
+    expect(result.cacheHit).toBe(false);
     expect(rawExecute).toHaveBeenCalledTimes(1);
-    expect(findFresh).toHaveBeenCalledTimes(1);
     expect(upsert).toHaveBeenCalledTimes(1);
-    // Delta was applied before upsert threw — decorator does NOT unwind ctx.
+    // Re-checked for a racing row (found none), kept the already-applied delta.
+    expect(findFresh).toHaveBeenCalledTimes(2);
     expect(ctx).toEqual({ ok: true });
+  });
+
+  it("§3.4 — a terminal upsert failure that IS a lost race overlays the winner's row (cacheHit=true)", async () => {
+    const { deps, findFresh, upsert } = makeDeps();
+    // Initial miss, then the post-failure re-check finds the winner's row.
+    findFresh.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      outputCtx: { ok: true, canonical: true },
+      outputKind: "Document",
+    });
+    // The P2002 arrives with `.code` stripped — indistinguishable from any
+    // other failure, but re-findFresh reveals a committed row.
+    upsert.mockRejectedValue(new Error("stripped-code failure"));
+
+    const node = makeCacheableNode();
+    const ctx: Record<string, unknown> = {};
+    const rawExecute = jest.fn().mockResolvedValue({ ok: true });
+
+    const result = await executeCachedActivity(
+      deps,
+      node,
+      ctx,
+      WORKFLOW_LINEAGE_ID,
+      rawExecute,
+    );
+
+    expect(result.cacheHit).toBe(true);
+    expect(findFresh).toHaveBeenCalledTimes(2);
+    expect(ctx).toEqual({ ok: true, canonical: true });
   });
 
   it("configHash is stable across identical parameter objects (key-order independent)", async () => {

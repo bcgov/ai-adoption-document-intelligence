@@ -48,6 +48,7 @@ import type {
 import { getActivityVisualHints } from "../catalog-utils";
 import { resolveProducerKindFor, VariablePicker } from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { replaceNode } from "../replace-node";
 import { useOptionalRunState } from "../run/RunStateContext";
 import { SourceNodeSettings } from "../sources/SourceNodeSettings";
 import { getSourceVisualHints } from "../sources/source-catalog-utils";
@@ -152,10 +153,7 @@ function NodeSettings({
   workflowId,
 }: NodeSettingsProps) {
   const updateNode = (next: GraphNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   const setLabel = (label: string) => {
@@ -582,10 +580,7 @@ function ActivityNodeBody({
   }, [entry, node.parameters]);
 
   const setParameters = (parameters: Record<string, unknown>) =>
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: { ...node, parameters } },
-    });
+    onConfigChange(replaceNode(config, node.id, { ...node, parameters }));
 
   return (
     <Box>

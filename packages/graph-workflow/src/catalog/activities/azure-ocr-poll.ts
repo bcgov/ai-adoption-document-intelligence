@@ -11,6 +11,8 @@ export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
     "Polls Azure Document Intelligence for OCR results, returning status and the raw response.",
   iconHint: "hourglass",
   colorHint: "teal",
+  // Benchmark runs inject the OCR replay cache so poll can short-circuit.
+  benchmarkOcrCacheRole: "passthrough",
   inputs: [
     {
       name: "apimRequestId",

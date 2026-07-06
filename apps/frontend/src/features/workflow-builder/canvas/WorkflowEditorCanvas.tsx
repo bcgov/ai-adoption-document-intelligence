@@ -149,6 +149,15 @@ interface WorkflowEditorCanvasProps {
    * host can mount `GroupNodeSettings` in the right rail.
    */
   onGroupChipClick?: (groupId: string) => void;
+  /**
+   * Monotonic counter the host bumps when it stamps new `metadata.position`
+   * values without any structural change — e.g. "Auto-arrange" (§4.2). The
+   * structural fingerprint deliberately excludes positions (so per-node
+   * drags don't trigger a full re-projection), so a config-only position
+   * change would otherwise never move the rendered nodes. Bumping this makes
+   * the canvas re-apply the config's positions to its internal xyflow nodes.
+   */
+  layoutNonce?: number;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -1294,9 +1303,13 @@ function buildStructuralFingerprint(
     labelsAndTypes: Object.fromEntries(
       Object.entries(config.nodes).map(([id, n]) => [
         id,
+        // §4.12: fold `errorPolicy` into the per-node signature so toggling
+        // `onError: 'fallback'` re-projects and the bottom "error" source
+        // handle appears/disappears immediately (the handle's presence is
+        // derived from the error policy at projection time).
         n.type === "activity"
-          ? `${n.label}::${n.activityType}`
-          : `${n.label}::${n.type}`,
+          ? `${n.label}::${n.activityType}::${n.errorPolicy?.onError ?? ""}`
+          : `${n.label}::${n.type}::${n.errorPolicy?.onError ?? ""}`,
       ]),
     ),
     simplifiedView,
@@ -1327,6 +1340,7 @@ function WorkflowEditorCanvasInner({
   onSelectionChangeMany,
   simplifiedView = false,
   onGroupChipClick,
+  layoutNonce = 0,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -1462,6 +1476,29 @@ function WorkflowEditorCanvasInner({
     onGroupChipClick,
   ]);
 
+  // Auto-arrange position sync (§4.2). The structural fingerprint above
+  // excludes `metadata.position`, so a config-only position change (e.g.
+  // "Auto-arrange" stamping a fresh layout) doesn't re-project and the
+  // rendered nodes never move — even though the new positions are persisted.
+  // The host bumps `layoutNonce` after such a change; re-apply the config's
+  // positions to the internal xyflow nodes here, bypassing the fingerprint
+  // gate. Skips the initial mount (no diff on first render).
+  const prevLayoutNonceRef = useRef(layoutNonce);
+  useEffect(() => {
+    if (prevLayoutNonceRef.current === layoutNonce) return;
+    prevLayoutNonceRef.current = layoutNonce;
+    setInternalNodes((prev) =>
+      prev.map((n): FlowNode => {
+        const pos = (
+          config.nodes[n.id]?.metadata as
+            | { position?: { x: number; y: number } }
+            | undefined
+        )?.position;
+        return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
+      }),
+    );
+  }, [layoutNonce, config.nodes, setInternalNodes]);
+
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
   // Kept separate from the structural projection above so that the
@@ -1524,9 +1561,25 @@ function WorkflowEditorCanvasInner({
   const edgesFingerprint = useMemo(
     () =>
       JSON.stringify(
-        visibleEdges.map((e) => `${e.id}|${e.source}|${e.target}|${e.type}`),
+        visibleEdges.map((e) => {
+          const src = config.nodes[e.source];
+          // §4.9: conditional-edge labels are read from the source switch
+          // node's cases (condition text, order, default) at projection time
+          // and snapshotted into the edge's `sourceSwitch` data. Editing a
+          // case must re-project the edges, so fold the switch's case
+          // structure into the fingerprint — otherwise the label stays stale
+          // until an edge is added/removed.
+          const switchSig =
+            src?.type === "switch"
+              ? JSON.stringify({
+                  cases: src.cases,
+                  defaultEdge: src.defaultEdge,
+                })
+              : "";
+          return `${e.id}|${e.source}|${e.target}|${e.type}|${switchSig}`;
+        }),
       ),
-    [visibleEdges],
+    [visibleEdges, config.nodes],
   );
   const lastEdgesFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1829,13 +1882,6 @@ function WorkflowEditorCanvasInner({
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
       if (connection.source === connection.target) return;
-      const duplicate = config.edges.some(
-        (e) => e.source === connection.source && e.target === connection.target,
-      );
-      if (duplicate) return;
-      const id = `edge-${Date.now().toString(36)}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`;
       // Edge type resolution (US-025):
       //   1. Default to `conditional` if the source node is a switch,
       //      otherwise `normal`.
@@ -1850,6 +1896,21 @@ function WorkflowEditorCanvasInner({
       if (connection.sourceHandle === "error") {
         edgeType = "error";
       }
+      // §4.10: dedup on the edge TYPE too. Comparing only source+target
+      // dropped an error-fallback edge (or a conditional edge) to a node that
+      // already had a normal edge, since they share endpoints but come from
+      // different source handles. An edge of the SAME type between the same
+      // endpoints is still a genuine duplicate.
+      const duplicate = config.edges.some(
+        (e) =>
+          e.source === connection.source &&
+          e.target === connection.target &&
+          e.type === edgeType,
+      );
+      if (duplicate) return;
+      const id = `edge-${Date.now().toString(36)}-${Math.random()
+        .toString(36)
+        .slice(2, 6)}`;
       const newEdge: GraphEdge = {
         id,
         source: connection.source,

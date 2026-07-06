@@ -32,6 +32,7 @@ import type {
   SwitchNode,
 } from "../../../../types/workflow";
 import { ConditionExpressionEditor, EdgePicker } from "../../graph-widgets";
+import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -77,10 +78,7 @@ export function SwitchNodeSettings({
   onConfigChange,
 }: SwitchNodeSettingsProps) {
   const updateNode = (next: SwitchNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   const setCases = (cases: SwitchCase[]) => updateNode({ ...node, cases });

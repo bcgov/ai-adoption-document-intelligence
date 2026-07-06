@@ -1,4 +1,4 @@
-import { ForbiddenException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { OnFinishEvent, StreamTextResult, ToolSet } from "ai";
 
 // Mock the AI SDK boundary so startChat's orchestration is unit-testable
@@ -75,6 +75,9 @@ function makeHarness(opts: {
           id: "conv-1",
           workflowId: null,
           title: "existing",
+          // Must match baseInput.groupId — startChat rejects a resume whose
+          // stored group differs from the request's group.
+          groupId: "g1",
         }
       : opts.conversation;
 
@@ -157,6 +160,30 @@ describe("AgentService.startChat — per-conversation budget (ITEM 26)", () => {
     } as never);
     expect(result.conversationId).toBe("conv-1");
     expect(capturedStreamTextOptions).not.toBeNull();
+  });
+});
+
+describe("AgentService.startChat — resume group scoping (SECURITY §2.4)", () => {
+  it("rejects resuming a conversation whose stored group differs from the request group", async () => {
+    const { service, chatRepository } = makeHarness({
+      conversation: {
+        id: "conv-1",
+        workflowId: "wf-in-group-B",
+        title: "existing",
+        groupId: "group-B",
+      },
+    });
+
+    await expect(
+      service.startChat({
+        ...baseInput,
+        // Request presents group A ("g1") but the conversation belongs to B.
+        messages: [userMsg("hi")],
+      } as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    // The mismatch is caught before any message is persisted.
+    expect(chatRepository.createMessage).not.toHaveBeenCalled();
   });
 });
 
@@ -251,7 +278,12 @@ describe("AgentService.startChat — abort cleanup (ITEM 24/25)", () => {
 describe("AgentService.startChat — ctx binding via onWorkflowCreated (ITEM 25)", () => {
   it("binds the conversation workflowId when the agent's onWorkflowCreated hook fires", async () => {
     const { service, setWorkflowId } = makeHarness({
-      conversation: { id: "conv-1", workflowId: null, title: "t" },
+      conversation: {
+        id: "conv-1",
+        workflowId: null,
+        title: "t",
+        groupId: "g1",
+      },
     });
     await service.startChat({
       ...baseInput,
@@ -269,7 +301,12 @@ describe("AgentService.startChat — ctx binding via onWorkflowCreated (ITEM 25)
 
   it("does not rebind when the conversation already has a workflowId", async () => {
     const { service, setWorkflowId } = makeHarness({
-      conversation: { id: "conv-1", workflowId: "wf-existing", title: "t" },
+      conversation: {
+        id: "conv-1",
+        workflowId: "wf-existing",
+        title: "t",
+        groupId: "g1",
+      },
     });
     await service.startChat({
       ...baseInput,

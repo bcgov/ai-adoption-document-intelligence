@@ -23,7 +23,7 @@ import {
   Text,
 } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type {
   GraphNode,
   GraphWorkflowConfig,
@@ -182,28 +182,19 @@ export function NodePicker({
     })();
 
     return (
-      <Stack gap={0}>
-        <Autocomplete
-          label={label}
-          description={description}
-          placeholder={placeholder}
-          withAsterisk={required}
-          size="xs"
-          value={currentLabel}
-          data={options.map((o) => o.label)}
-          data-testid={testId}
-          renderOption={renderAutocompleteOption}
-          onChange={(displayValue) => {
-            if (displayValue === "") {
-              onChange(null);
-              return;
-            }
-            const matchedId = labelToId.get(displayValue);
-            onChange(matchedId ?? null);
-          }}
-        />
-        {warning}
-      </Stack>
+      <NodePickerAutocomplete
+        options={options}
+        currentLabel={currentLabel}
+        labelToId={labelToId}
+        onChange={onChange}
+        renderOption={renderAutocompleteOption}
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        required={required}
+        testId={testId}
+        warning={warning}
+      />
     );
   }
 
@@ -223,6 +214,87 @@ export function NodePicker({
         renderOption={renderSelectOption}
         clearButtonProps={{ "aria-label": "Clear node selection" }}
         onChange={(next) => onChange(next ?? null)}
+      />
+      {warning}
+    </Stack>
+  );
+}
+
+interface NodePickerAutocompleteProps {
+  options: NodeOption[];
+  /** Display label for the currently-bound id (empty string when unset). */
+  currentLabel: string;
+  labelToId: Map<string, string>;
+  onChange: (nodeId: string | null) => void;
+  renderOption: (
+    input: ComboboxLikeRenderOptionInput<ComboboxStringItem>,
+  ) => ReactNode;
+  label?: string;
+  description?: string;
+  placeholder?: string;
+  required?: boolean;
+  testId?: string;
+  warning: ReactNode;
+}
+
+/**
+ * Autocomplete variant used on large graphs (> AUTOCOMPLETE_THRESHOLD nodes).
+ *
+ * Keeps its own `search` string so the field is TYPEABLE: Mantine's
+ * Autocomplete fires `onChange` on every keystroke with the partial text.
+ * The previous controlled implementation mapped that partial to an id and
+ * emitted `null` when it wasn't an exact label, which cleared the parent's
+ * value and snapped the input back to empty on every character. Instead we
+ * only commit an id when the typed text EXACTLY matches a known label (or
+ * `null` on a full clear); partial strings just update local state so the
+ * user can keep typing. External value changes re-sync via `currentLabel`.
+ */
+function NodePickerAutocomplete({
+  options,
+  currentLabel,
+  labelToId,
+  onChange,
+  renderOption,
+  label,
+  description,
+  placeholder,
+  required,
+  testId,
+  warning,
+}: NodePickerAutocompleteProps) {
+  const [search, setSearch] = useState(currentLabel);
+
+  // Re-sync the visible text when the bound value changes from outside
+  // (programmatic set, or the referenced node's label changed).
+  useEffect(() => {
+    setSearch(currentLabel);
+  }, [currentLabel]);
+
+  return (
+    <Stack gap={0}>
+      <Autocomplete
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        withAsterisk={required}
+        size="xs"
+        value={search}
+        data={options.map((o) => o.label)}
+        data-testid={testId}
+        renderOption={renderOption}
+        onChange={(displayValue) => {
+          setSearch(displayValue);
+          if (displayValue === "") {
+            onChange(null);
+            return;
+          }
+          const matchedId = labelToId.get(displayValue);
+          // Only commit on an exact-label match; keep the current binding
+          // for partial strings so the field stays typeable.
+          if (matchedId !== undefined) {
+            onChange(matchedId);
+          }
+        }}
       />
       {warning}
     </Stack>

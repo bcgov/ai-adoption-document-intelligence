@@ -23,6 +23,7 @@ interface LineageRow {
 
 interface VersionRow {
   id: string;
+  deterministic: boolean;
 }
 
 function mkPrisma(
@@ -64,17 +65,20 @@ describe("dynamicNodeResolveLineage — Scenario 2: lineage lookup + deletion ch
 });
 
 describe("dynamicNodeResolveLineage — Scenario 3: version resolution", () => {
-  it("head version: returns headVersionId from lineage", async () => {
-    const prisma = mkPrisma({
-      id: "ck1",
-      deletedAt: null,
-      headVersionId: "v-head",
-    });
+  it("head version: resolves the head row and returns id + deterministic", async () => {
+    const prisma = mkPrisma(
+      {
+        id: "ck1",
+        deletedAt: null,
+        headVersionId: "v-head",
+      },
+      { id: "v-head", deterministic: true },
+    );
     const result = await dynamicNodeResolveLineage(
       { groupId: "g1", slug: "x" },
       { prisma },
     );
-    expect(result).toEqual({ versionId: "v-head" });
+    expect(result).toEqual({ versionId: "v-head", deterministic: true });
   });
 
   it("head missing → DynamicNodeHeadMissingError", async () => {
@@ -88,16 +92,18 @@ describe("dynamicNodeResolveLineage — Scenario 3: version resolution", () => {
     ).rejects.toBeInstanceOf(DynamicNodeHeadMissingError);
   });
 
-  it("pinned version: SELECTs (dynamicNodeId, versionNumber) and returns id", async () => {
+  it("pinned version: SELECTs (dynamicNodeId, versionNumber) and returns id + deterministic", async () => {
     const prisma = mkPrisma(
       { id: "ck1", deletedAt: null, headVersionId: "v-head" },
-      { id: "v3" },
+      { id: "v3", deterministic: false },
     );
     const result = await dynamicNodeResolveLineage(
       { groupId: "g1", slug: "x", version: 3 },
       { prisma },
     );
-    expect(result).toEqual({ versionId: "v3" });
+    // A pinned @deterministic:false version surfaces the flag so the executor
+    // can bypass the cache (§3.3).
+    expect(result).toEqual({ versionId: "v3", deterministic: false });
     expect(prisma.dynamicNodeVersion.findUnique).toHaveBeenCalledWith({
       where: {
         dynamicNodeId_versionNumber: {
@@ -105,7 +111,7 @@ describe("dynamicNodeResolveLineage — Scenario 3: version resolution", () => {
           versionNumber: 3,
         },
       },
-      select: { id: true },
+      select: { id: true, deterministic: true },
     });
   });
 

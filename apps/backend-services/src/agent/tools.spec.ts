@@ -67,6 +67,11 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): {
     description: null,
     slug: "wf",
     version: 3,
+    // Tenancy: the agent tools assert the fetched workflow belongs to
+    // ctx.groupId. Default the mock to the same group so the happy-path
+    // tests pass; the cross-group test overrides getWorkflow to return a
+    // foreign group.
+    groupId: "group-1",
     config: state.config,
   }));
   const updateWorkflow = jest.fn(
@@ -299,6 +304,74 @@ describe("wrapToolData (ITEM 27 delimiting + ITEM 26 truncation)", () => {
   });
 });
 
+// ── Tenancy: agent tools must not read/write cross-group workflows ───
+describe("agent tools enforce group ownership (SECURITY §2.1)", () => {
+  function makeForeignCtx() {
+    // getWorkflow resolves a workflow in a DIFFERENT group than ctx.groupId —
+    // simulating a model-supplied workflowId (reachable via prompt injection)
+    // that points at another tenant's row.
+    const foreignConfig = emptyConfig();
+    const getWorkflow = jest.fn(async () => ({
+      id: "victim-wf",
+      name: "Victim",
+      description: null,
+      slug: "victim",
+      version: 1,
+      groupId: "group-OTHER",
+      config: foreignConfig,
+    }));
+    const updateWorkflow = jest.fn(async () => ({
+      id: "victim-wf",
+      name: "Victim",
+    }));
+    const ctx = {
+      actorId: "actor-1",
+      groupId: "group-1",
+      workflowId: null,
+      apiKey: "key-1",
+      backendBaseUrl: "http://backend",
+      workflowService: { getWorkflow, updateWorkflow } as unknown,
+      dynamicNodesService: {
+        getMergedCatalogForGroup: jest.fn(async () => []),
+      } as unknown,
+    } as unknown as AgentToolContext;
+    return { ctx, getWorkflow, updateWorkflow };
+  }
+
+  it("getWorkflow throws NotFound for a cross-group workflow id", async () => {
+    const { ctx, getWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "getWorkflow", { workflowId: "victim-wf" }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(getWorkflow).toHaveBeenCalledWith("victim-wf", "actor-1");
+  });
+
+  it("a write tool refuses a cross-group workflow and never calls updateWorkflow", async () => {
+    const { ctx, updateWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "updateWorkflowMetadata", {
+        workflowId: "victim-wf",
+        name: "hijacked",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(updateWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("addNode (read+write path) refuses a cross-group workflow", async () => {
+    const { ctx, updateWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "addNode", {
+        workflowId: "victim-wf",
+        node: { id: "n1", type: "file.prepare" },
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(updateWorkflow).not.toHaveBeenCalled();
+  });
+});
+
 // ── ITEM 25 — tools.ts write / validation / retry logic ─────────────
 
 describe("connectNodes validation (ITEM 25)", () => {
@@ -496,6 +569,35 @@ describe("publishDynamicNode 409 → PUT republish (ITEM 25)", () => {
     expect(result.ok).toBe(false);
     // Only the POST was attempted — no slug to PUT to.
     expect(internalFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deleteDynamicNode slug bounding (SECURITY §2.3)", () => {
+  it("rejects a path-traversal slug without issuing any self-call", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "deleteDynamicNode",
+      { slug: "../workflows/victim-wf-id" },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("invalid-slug");
+    expect(internalFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("issues a DELETE to the slug-scoped endpoint for a valid slug", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(fetchResponse(200, { ok: true }));
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean }>(tools, "deleteDynamicNode", {
+      slug: "my-node",
+    });
+    expect(result.ok).toBe(true);
+    const url = internalFetchMock.mock.calls[0][0] as string;
+    const init = internalFetchMock.mock.calls[0][1] as RequestInit;
+    expect(url).toContain("/api/dynamic-nodes/my-node");
+    expect(init.method).toBe("DELETE");
   });
 });
 

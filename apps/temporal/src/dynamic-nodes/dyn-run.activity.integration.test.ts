@@ -79,6 +79,9 @@ const stubPrisma = {} as unknown as PrismaClient;
 let runnerUp = false;
 
 beforeAll(async () => {
+  // `dynRun` fails fast when PLATFORM_API_KEY is unset; the tests here that
+  // don't override readEnv fall back to process.env, so provide a dummy key.
+  process.env.PLATFORM_API_KEY ??= "integration-test-platform-key";
   runnerUp = await runnerIsReachable();
   if (!runnerUp) {
     console.warn(

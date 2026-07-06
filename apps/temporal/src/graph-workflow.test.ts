@@ -1124,6 +1124,17 @@ describe("Graph Workflow", () => {
     });
   });
 
+  // §5.3: the three "continue" paths below (approval-continue, timeout-
+  // continue, timeout-fallback) are skipped because they HANG in the
+  // TestWorkflowEnvironment — the workflow blocks in the humanGate
+  // `condition(() => payload !== null, timeout)` and neither the buffered
+  // signal nor the timer reliably resolves it under this harness (the local
+  // env doesn't time-skip, and the signal ordering deadlocks `runUntil`).
+  // The handler itself (`executeHumanGateNode`) IS exercised: the rejection
+  // path below passes, covering signal delivery + payload→ctx write + the
+  // HUMAN_GATE_REJECTED throw. Re-enabling these requires a time-skipping
+  // TestWorkflowEnvironment + a signal-after-gate-reached barrier — tracked
+  // as follow-up rather than left as a silently-green false positive.
   describe("US-011: HumanGate Node Handler", () => {
     it.skip("continues on approval and writes payload to ctx", async () => {
       const graph: GraphWorkflowConfig = {

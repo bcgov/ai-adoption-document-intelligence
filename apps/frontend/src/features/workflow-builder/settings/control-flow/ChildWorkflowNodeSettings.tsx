@@ -53,6 +53,7 @@ import type {
 import { KindDot, VariablePicker } from "../../graph-widgets";
 import { formatLibraryPortSummary } from "../../library/format-library-port-summary";
 import { LibraryPickerModal } from "../../library/LibraryPickerModal";
+import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -115,10 +116,7 @@ export function ChildWorkflowNodeSettings({
   onConfigChange,
 }: ChildWorkflowNodeSettingsProps) {
   const updateNode = (next: ChildWorkflowNode) => {
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: next },
-    });
+    onConfigChange(replaceNode(config, node.id, next));
   };
 
   const setRefType = (value: string) => {

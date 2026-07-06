@@ -80,6 +80,16 @@ export class AgentService {
       throw new NotFoundException("Conversation not found");
     }
 
+    // A conversation is bound to the group it was created in. Resuming it
+    // under a different group (a multi-group user presenting group A while the
+    // stored conversation — and its bound workflowId — belong to group B)
+    // would build the tool context against a mismatched group. Reject rather
+    // than operate cross-group; NotFound (not Forbidden) matches the id-probing
+    // convention used elsewhere.
+    if (conversation !== null && conversation.groupId !== input.groupId) {
+      throw new NotFoundException("Conversation not found");
+    }
+
     if (conversation === null) {
       conversation = await this.chatRepository.createConversation({
         workflowId: input.workflowId,

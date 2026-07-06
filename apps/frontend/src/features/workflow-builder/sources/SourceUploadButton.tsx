@@ -124,6 +124,10 @@ export function SourceUploadButton({
       setResult({ data });
       // US-147 Scenario 2: feed the new run id into canvas state so
       // `useNodeStatuses` (US-137) starts polling on it.
+      // §4.11: a fresh upload+Try is a LIVE run — clear replay mode first, or
+      // polling stays disabled (`active: !isReplay`) if the user had just
+      // replayed a historical run.
+      runState?.setIsReplay(false);
       runState?.setActiveRunId(data.runId);
       notifications.show({
         title: "Upload & Try succeeded",

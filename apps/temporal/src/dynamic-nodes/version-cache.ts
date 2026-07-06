@@ -28,8 +28,11 @@ const CACHE_CAP = 256;
  * declaration parsed at publish time (US-158) and persisted as
  * `dynamic_node_version.signature` JSON. `allowNet` is the
  * post-intersection host list (US-164). `deterministic` mirrors the
- * `@deterministic` tag (used by the cache decorator's `nonCacheable`
- * check — `deterministic === true` means cacheable).
+ * `@deterministic` tag. §3.3: the executor reads it via
+ * `dynamicNode.resolveLineage` (which surfaces the resolved version's
+ * `deterministic`) and bypasses the Phase 4 cache path for
+ * `@deterministic:false` nodes — the static `ACTIVITY_CATALOG` has no
+ * `dyn.*` entry for the decorator's own `isNonCacheable` check to consult.
  */
 export interface ScriptCacheEntry {
   script: string;

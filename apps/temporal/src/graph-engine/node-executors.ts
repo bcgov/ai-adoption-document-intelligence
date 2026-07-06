@@ -4,6 +4,7 @@
  * Execution handlers for all node types and branch subgraph execution.
  */
 
+import { ACTIVITY_CATALOG } from "@ai-di/graph-workflow";
 import type { Duration, RetryPolicy } from "@temporalio/common";
 import {
   ApplicationFailure,
@@ -41,7 +42,7 @@ import type {
   SwitchNode,
 } from "../graph-workflow-types";
 import {
-  getCtxRootKey,
+  applyCtxNamespace,
   resolvePortBinding,
   writeToCtx,
 } from "./context-utils";
@@ -73,15 +74,15 @@ type DynRunActivities = {
   "dyn.run": (input: DynRunActivityInput) => Promise<DynRunActivityResult>;
 };
 
-const AZURE_OCR_CACHE_ACTIVITY_TYPES = new Set([
-  "azureOcr.submit",
-  "azureOcr.poll",
-  "azureOcr.extract",
-]);
-
 /**
- * Inject benchmark OCR replay payload from ctx.__benchmarkOcrCache into Azure OCR
- * activities so submit/poll/extract can short-circuit without graph definition changes.
+ * Inject a benchmark run's OCR replay payload (`ctx.__benchmarkOcrCache`) into
+ * an activity's params so it can short-circuit live OCR without graph-definition
+ * changes.
+ *
+ * Which activities participate — and whether they also receive the cached
+ * `ocrResponse` — is declared on each activity's `benchmarkOcrCacheRole`
+ * catalog-entry field, NOT hard-coded here: the graph engine stays
+ * workload-generic (CLAUDE.md) and never names specific OCR activity types.
  */
 function isOcrCachePayload(value: unknown): value is { ocrResponse?: unknown } {
   return (
@@ -92,25 +93,22 @@ function isOcrCachePayload(value: unknown): value is { ocrResponse?: unknown } {
   );
 }
 
-function mergeBenchmarkOcrCacheParams(
+export function mergeBenchmarkOcrCacheParams(
   activityType: string,
   activityParams: Record<string, unknown>,
   ctx: Record<string, unknown>,
 ): Record<string, unknown> {
+  const role = ACTIVITY_CATALOG[activityType]?.benchmarkOcrCacheRole;
   const raw: unknown = ctx.__benchmarkOcrCache;
-  if (
-    !isOcrCachePayload(raw) ||
-    !AZURE_OCR_CACHE_ACTIVITY_TYPES.has(activityType)
-  ) {
+  if (role === undefined || !isOcrCachePayload(raw)) {
     return activityParams;
   }
-  const cache = raw;
   const merged: Record<string, unknown> = {
     ...activityParams,
     __benchmarkOcrCache: raw,
   };
-  if (activityType === "azureOcr.extract" && cache.ocrResponse !== undefined) {
-    merged.ocrResponse = cache.ocrResponse;
+  if (role === "extract" && raw.ocrResponse !== undefined) {
+    merged.ocrResponse = raw.ocrResponse;
   }
   return merged;
 }
@@ -211,48 +209,76 @@ export async function executeNode(
 // ---------------------------------------------------------------------------
 
 /**
- * Compute the set of top-level ctx keys this node's `outputs[]` will write
- * to. Used to construct the ctx delta that the Phase 4 cache decorator
- * stores in `outputCtx` (US-133 — Scenario 1 / Scenario 3).
+ * Resolve the full dotted ctx paths this node's `outputs[]` write to — the
+ * exact paths `writeToCtx` targets. `applyCtxNamespace` remaps the namespace
+ * prefixes (`doc.* → documentMetadata.*`, `segment.* → currentSegment.*`), so
+ * `doc.field` resolves to `documentMetadata.field`.
  *
- * `writeToCtx` resolves namespaced + dotted ctxKey paths; the cache layer
- * stores top-level subtrees so a cache-hit `Object.assign(ctx, delta)`
- * replays the same surface area regardless of nesting depth.
+ * §3.1: earlier this recorded only the top-level *root* (`documentMetadata`),
+ * so the cache snapshot captured the ENTIRE subtree — including whatever a
+ * concurrent sibling had written into it — and a later cache hit restored the
+ * whole subtree, reverting the sibling's fresh output. Recording the precise
+ * leaf paths lets the snapshot capture only what THIS node produced.
  */
-function collectOutputTopLevelKeys(node: ActivityNode): string[] {
+function collectOutputLeafPaths(node: ActivityNode): string[] {
   if (!node.outputs || node.outputs.length === 0) {
     return [];
   }
   const seen = new Set<string>();
   for (const binding of node.outputs) {
-    // Item 13: the cache snapshots/restores top-level ctx SUBTREES, so the
-    // root we record must match where `writeToCtx` actually writes. A raw
-    // `split(".")[0]` would record `"doc"` / `"segment"`, but writeToCtx
-    // remaps those namespace prefixes (`doc.* → documentMetadata.*`,
-    // `segment.* → currentSegment.*`). Use the namespace-aware root helper
-    // (single source of truth in the graph-workflow package) so a `doc.*`
-    // output snapshots `documentMetadata` — the subtree that was actually
-    // mutated — and a cache hit restores it.
-    const head = getCtxRootKey(binding.ctxKey);
-    if (head.length > 0) {
-      seen.add(head);
+    const path = applyCtxNamespace(binding.ctxKey);
+    if (path.length > 0) {
+      seen.add(path);
     }
   }
   return Array.from(seen);
 }
 
 /**
- * Snapshot the top-level ctx subtrees this node wrote, so the worker
- * cache decorator can persist them as `outputCtx`. A cache-hit replay
- * does `Object.assign(ctx, outputCtx)` which restores the same subtrees.
+ * Snapshot ONLY the leaf paths this node wrote into a nested delta object
+ * that mirrors ctx's shape (e.g. `{ documentMetadata: { field: <value> } }`
+ * for a `doc.field` output). The Phase 4 cache decorator persists this as
+ * `outputCtx`; a cache-hit replay deep-merges it back into ctx
+ * (`cached-activity.ts`), setting only these leaves and leaving concurrent
+ * siblings' writes into the same subtree intact. Missing leaves (the node
+ * produced no value for a declared output) are skipped.
  */
 function snapshotCtxDelta(
   ctx: Record<string, unknown>,
-  topLevelKeys: string[],
+  leafPaths: string[],
 ): Record<string, unknown> {
   const delta: Record<string, unknown> = {};
-  for (const key of topLevelKeys) {
-    delta[key] = ctx[key];
+  for (const path of leafPaths) {
+    const segments = path.split(".");
+    // Deep-get the value this node wrote at `path`.
+    let src: unknown = ctx;
+    let found = true;
+    for (const seg of segments) {
+      if (
+        src === null ||
+        typeof src !== "object" ||
+        !(seg in (src as Record<string, unknown>))
+      ) {
+        found = false;
+        break;
+      }
+      src = (src as Record<string, unknown>)[seg];
+    }
+    if (!found) {
+      continue;
+    }
+    // Deep-set the value into the delta, creating intermediate objects so
+    // the delta mirrors ctx's nesting for exactly this leaf path.
+    let cursor = delta;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i];
+      const next = cursor[seg];
+      if (typeof next !== "object" || next === null) {
+        cursor[seg] = {};
+      }
+      cursor = cursor[seg] as Record<string, unknown>;
+    }
+    cursor[segments[segments.length - 1]] = src;
   }
   return delta;
 }
@@ -295,7 +321,7 @@ async function executeActivityNode(
   // Step 3: Invoke activity. Param-resolution + port-write happen inside
   // the rawExecute closure so the cache decorator can short-circuit
   // without doing any of that work on a hit.
-  const outputTopLevelKeys = collectOutputTopLevelKeys(node);
+  const outputLeafPaths = collectOutputLeafPaths(node);
 
   // Phase 6 Milestone C (US-171) — `dyn.<slug>` nodes take a different
   // path: resolve the lineage → versionId via a nonCacheable Temporal
@@ -318,6 +344,12 @@ async function executeActivityNode(
   // makes Phase 4 caching meaningful for dynamic nodes.
   let nodeForCache = node;
   let resolvedVersionId: string | undefined;
+  // §3.3: a `@deterministic:false` dynamic node (external API / randomness)
+  // must NOT be cached — re-running it with the same versionId + inputs has
+  // to re-execute the script. The static `ACTIVITY_CATALOG` has no `dyn.*`
+  // entries, so the cache decorator's `isNonCacheable` can't know this; the
+  // executor reads the resolved version's flag and bypasses the cache path.
+  let dynamicNodeCacheable = true;
   if (isDynamicNode) {
     const slug = node.activityType.slice("dyn.".length);
     if (slug.length > 0 && state.groupId != null) {
@@ -330,6 +362,7 @@ async function executeActivityNode(
         version: node.dynamicNodeVersion,
       });
       resolvedVersionId = resolved.versionId;
+      dynamicNodeCacheable = resolved.deterministic;
       nodeForCache = {
         ...node,
         parameters: {
@@ -384,16 +417,19 @@ async function executeActivityNode(
       }
     }
 
-    // Return the ctx delta — the top-level subtrees this node touched —
+    // Return the ctx delta — the exact leaf paths this node wrote —
     // so the cache decorator can persist them as `outputCtx`.
-    return snapshotCtxDelta(state.ctx, outputTopLevelKeys);
+    return snapshotCtxDelta(state.ctx, outputLeafPaths);
   };
 
-  if (state.cacheDeps && state.workflowLineageId) {
+  if (state.cacheDeps && state.workflowLineageId && dynamicNodeCacheable) {
     // Phase 4 cache path (US-133 + US-135). The decorator's `cacheHit`
     // return drives the per-node status map: a hit flips `"running"` →
     // `"skipped"` with the cache row's `(configHash, inputHash)` so the
     // canvas can surface which inputs produced the cached output.
+    //
+    // Non-deterministic dynamic nodes (`dynamicNodeCacheable === false`) skip
+    // this and fall through to the uncached path below so they re-execute.
     const result = await executeCachedActivity(
       state.cacheDeps,
       nodeForCache,
@@ -585,6 +621,12 @@ async function executeMapNode(
               parentWorkflowId: workflowInfo().workflowId,
               groupId: state.groupId ?? null,
               requestId: state.requestId,
+              // §3.7: propagate the lineage so each child builds its cacheDeps
+              // and participates in Phase 4 try-in-place caching. Without it,
+              // the map's cache/replay semantics flipped on collection size —
+              // ≤20 items (executeBranchSubgraph, which inherits the parent's
+              // lineage + cacheDeps) cached, >20 (child workflows) did not.
+              workflowLineageId: state.workflowLineageId ?? null,
               ...(state.workflowConfigOverrides &&
               Object.keys(state.workflowConfigOverrides).length > 0
                 ? { workflowConfigOverrides: state.workflowConfigOverrides }
@@ -630,18 +672,9 @@ async function executeJoinNode(
     });
   }
 
-  // Step 2: Apply strategy
-  // Note: For "all" strategy, we already collected all results in executeMapNode
-  // For "any" strategy, we would have used Promise.race (not implemented yet)
-  if (node.strategy === "any") {
-    throw ApplicationFailure.create({
-      type: "GRAPH_EXECUTION_ERROR",
-      message: 'Join strategy "any" not yet implemented',
-      nonRetryable: true,
-    });
-  }
-
-  // Step 3: Write results to context
+  // Step 2: Write results to context. Only the "all" strategy exists (§5.1):
+  // executeMapNode already collected every branch result eagerly, so the join
+  // simply surfaces them under resultsCtxKey.
   writeToCtx(node.resultsCtxKey, results, state.ctx);
 }
 

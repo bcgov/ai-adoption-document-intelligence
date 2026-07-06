@@ -72,11 +72,17 @@ const router = createBrowserRouter([
         path: "workflows/:workflowId/edit",
         element: <WorkflowEditorV2Page mode="edit" />,
       },
-      // Dev-only tracer for the schema-driven form renderer
-      {
-        path: "workflows/dev-form-preview",
-        element: <WorkflowFormPreviewPage />,
-      },
+      // Dev-only tracer for the schema-driven form renderer. §5.2: gated
+      // behind import.meta.env.DEV so it never ships to production (it
+      // exposes raw JSON-Schema/Zod internals to any authenticated user).
+      ...(import.meta.env.DEV
+        ? [
+            {
+              path: "workflows/dev-form-preview",
+              element: <WorkflowFormPreviewPage />,
+            },
+          ]
+        : []),
 
       // Dynamic nodes (Phase 6 Milestone F — US-180 + US-181)
       { path: "dynamic-nodes", element: <DynamicNodesListPage /> },

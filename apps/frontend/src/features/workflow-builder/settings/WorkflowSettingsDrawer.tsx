@@ -34,6 +34,7 @@ import type {
   KindRef,
 } from "../../../types/workflow";
 import { KindSelect } from "./KindSelect";
+import { renameCtxKeyInConfig } from "./rename-ctx-key";
 
 const CTX_TYPES: CtxDeclaration["type"][] = [
   "string",
@@ -70,23 +71,10 @@ export function WorkflowSettingsDrawer({
 
   const renameCtxKey = (oldKey: string, newKey: string) => {
     if (oldKey === newKey || newKey === "" || config.ctx[newKey]) return;
-    // Rebuild ctx preserving insertion order
-    const nextCtx: Record<string, CtxDeclaration> = {};
-    for (const [k, v] of Object.entries(config.ctx)) {
-      nextCtx[k === oldKey ? newKey : k] = v;
-    }
-    // Rewrite any binding pointing at oldKey
-    const nextNodes = { ...config.nodes };
-    for (const [id, node] of Object.entries(config.nodes)) {
-      const inputs = node.inputs?.map((b) =>
-        b.ctxKey === oldKey ? { ...b, ctxKey: newKey } : b,
-      );
-      const outputs = node.outputs?.map((b) =>
-        b.ctxKey === oldKey ? { ...b, ctxKey: newKey } : b,
-      );
-      nextNodes[id] = { ...node, inputs, outputs };
-    }
-    onConfigChange({ ...config, ctx: nextCtx, nodes: nextNodes });
+    // §4.8: rewrite EVERY reference to the key — not just node inputs/outputs
+    // but also map/join ctx keys, childWorkflow mappings, and ValueRef refs
+    // inside switch/pollUntil conditions. See rename-ctx-key.ts.
+    onConfigChange(renameCtxKeyInConfig(config, oldKey, newKey));
   };
 
   const nodeOptions = Object.entries(config.nodes).map(([id, n]) => ({

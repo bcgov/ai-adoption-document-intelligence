@@ -276,7 +276,7 @@ describe("Scenario 5 — loading + error states", () => {
     expect(wrapper).toHaveTextContent("Preview unavailable");
   });
 
-  it("renders the cache-evicted Alert when data === null AND runId is set", async () => {
+  it("renders the cache-evicted Alert when data === null AND runId is set in REPLAY mode", async () => {
     fetchSpy.mockResolvedValue(jsonResponse({}, { status: 404 }));
 
     renderWithProviders(
@@ -284,6 +284,7 @@ describe("Scenario 5 — loading + error states", () => {
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
         runId={RUN_ID}
+        isReplay
       />,
     );
 
@@ -292,6 +293,25 @@ describe("Scenario 5 — loading + error states", () => {
       expect(wrapper.getAttribute("data-state")).toBe("evicted");
     });
     expect(wrapper).toHaveTextContent("Preview unavailable");
+  });
+
+  it("§4.7: stays silent for a not-yet-run node during a LIVE Try (runId set, isReplay false)", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({}, { status: 404 }));
+
+    renderWithProviders(
+      // Live Try: runId is set but isReplay is false — a 404 means the run
+      // hasn't reached this node yet, NOT an eviction.
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+      />,
+    );
+
+    // No cache-evicted alert; the wrapper stays unmounted (silent).
+    await waitFor(() => {
+      expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
+    });
   });
 
   it("renders null silently when data === null AND no runId", async () => {

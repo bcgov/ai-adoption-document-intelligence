@@ -18,6 +18,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 import { ApiError } from "../sources/useSourceUpload";
 
@@ -40,52 +41,16 @@ export interface VersionRunCount {
 }
 
 /**
- * Pulls the CSRF token from the `csrf_token` cookie. Mirrors the
- * helper in `api.service.ts` (GET requests don't need the CSRF token
- * per the backend's CSRF guard, but we keep the helper for symmetry
- * with sibling fetch-based hooks).
- */
-function readCsrfToken(): string | undefined {
-  if (typeof document === "undefined") {
-    return undefined;
-  }
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith("csrf_token="));
-  return match?.split("=")[1];
-}
-
-/**
- * Builds the headers for the run-count request. Mirrors the auth shape
- * used by other fetch-based hooks (`useNodeStatuses`, `useSourceUpload`).
- */
-function buildAuthHeaders(): HeadersInit {
-  const headers: Record<string, string> = {};
-  const testApiKey = import.meta.env.VITE_TEST_API_KEY;
-  if (typeof testApiKey === "string" && testApiKey.length > 0) {
-    headers["x-api-key"] = testApiKey;
-  }
-  const csrfToken = readCsrfToken();
-  if (csrfToken) {
-    headers["X-CSRF-Token"] = csrfToken;
-  }
-  return headers;
-}
-
-/**
  * Performs the GET and maps non-2xx responses to typed `ApiError`s.
  * Exported so tests can drive it directly without spinning up TanStack.
+ * Auth headers, cookies, and 401 refresh are handled by `builderFetch`.
  */
 export async function fetchVersionRunCount(
   workflowId: string,
   versionId: string,
 ): Promise<VersionRunCount> {
   const url = `${API_BASE_URL}/workflows/${workflowId}/versions/${versionId}/run-count`;
-  const response = await fetch(url, {
-    method: "GET",
-    credentials: "include",
-    headers: buildAuthHeaders(),
-  });
+  const response = await builderFetch(url, { method: "GET" });
 
   if (!response.ok) {
     let message = response.statusText || "Failed to fetch version run count";

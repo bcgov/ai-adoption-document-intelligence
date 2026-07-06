@@ -455,7 +455,6 @@ function UploadSourceSection({
   isHeadSelected,
 }: UploadSourceSectionProps) {
   const upload = useSourceUpload(workflowId, uploadSpec.sourceNodeId);
-  const startRun = useStartWorkflowRun();
   const [file, setFile] = useState<File | null>(null);
   const [lastWorkflowId, setLastWorkflowId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -486,27 +485,41 @@ function UploadSourceSection({
     if (!file) return;
     setRunError(null);
     try {
+      // §4.6: the upload endpoint itself cancels in-flight Tries and STARTS
+      // the run (US-146), returning its `runId` + `workflowVersionId`. The
+      // previous code chained a SECOND `startRun` and fed the upload response
+      // (which now carries literal `runId`/`workflowVersionId` keys) back in
+      // as `initialCtx`, so every click produced two executions and polluted
+      // ctx. Use the run the upload already started.
       const uploadResult = await upload.mutateAsync(file);
-      const body: StartRunRequest =
-        isHeadSelected || !selectedVersionId
-          ? { initialCtx: uploadResult }
-          : { initialCtx: uploadResult, workflowVersionId: selectedVersionId };
-      const result = await startRun.mutateAsync({
-        workflowId,
-        body,
-      });
-      setLastWorkflowId(result.workflowId);
-      notifications.show({
-        title: "Workflow run started",
-        message: result.workflowId,
-        color: "green",
-      });
+      setLastWorkflowId(uploadResult.runId);
+      // The upload endpoint always runs the head version; a non-head
+      // selection can't be honored here, so tell the user rather than
+      // silently running head.
+      if (
+        !isHeadSelected &&
+        selectedVersionId &&
+        uploadResult.workflowVersionId !== selectedVersionId
+      ) {
+        notifications.show({
+          title: "Ran the current (head) version",
+          message:
+            "File uploads always run the head version; the selected version was not used.",
+          color: "yellow",
+        });
+      } else {
+        notifications.show({
+          title: "Workflow run started",
+          message: uploadResult.runId,
+          color: "green",
+        });
+      }
     } catch (e) {
       setRunError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const isPending = upload.isPending || startRun.isPending;
+  const isPending = upload.isPending;
 
   return (
     <Stack gap="lg" data-testid="run-drawer-upload-section">
@@ -690,6 +703,12 @@ function TrySourceSection({
       // Set `activeRunId` BEFORE closing the drawer so the canvas's
       // polling loops (US-138 hookup) start before the drawer unmounts
       // — keeps the "canvas is the result surface" handoff visible.
+      // §4.11: clear replay mode — a fresh Try is a LIVE run. Without this,
+      // if the user had just replayed a historical run, `isReplay` stays
+      // true, `useNodeStatuses` is built with `active: !isReplay` (polling
+      // off), so the new run fetches once and the badges freeze under a
+      // stale "Replay mode" banner.
+      runState?.setIsReplay(false);
       runState?.setActiveRunId(result.workflowId);
       notifications.show({
         title: "Try started",

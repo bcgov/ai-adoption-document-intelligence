@@ -13,7 +13,12 @@ import {
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 
-export { CTX_NAMESPACE_PREFIXES, getCtxRootKey, getRefCtxRootKey };
+export {
+  applyCtxNamespace,
+  CTX_NAMESPACE_PREFIXES,
+  getCtxRootKey,
+  getRefCtxRootKey,
+};
 
 /** Rejects path segments that would be unsafe as plain object property names. */
 export function isSafeContextKeySegment(key: string): boolean {

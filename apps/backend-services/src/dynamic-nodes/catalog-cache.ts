@@ -1,4 +1,5 @@
 import type { ActivityCatalogEntry } from "@ai-di/graph-workflow";
+import { LruTtlCache } from "@/cache/lru-ttl-cache";
 
 /**
  * Per-group server-side cache of the merged activity catalog.
@@ -9,11 +10,10 @@ import type { ActivityCatalogEntry } from "@ai-di/graph-workflow";
  * `/api/dynamic-nodes`) invalidate the calling group's cached entry so
  * the next read sees the latest snapshot.
  *
- * Implementation notes:
- *  - Bounded LRU (eviction on insert when over `maxEntries`).
- *  - TTL is checked at read time; expired rows resolve as "miss".
- *  - Singleton-friendly — `DynamicNodesService` holds one instance and
- *    every controller call funnels through it.
+ * §6.2: a thin domain wrapper around the shared `LruTtlCache` (bounded LRU +
+ * read-time TTL) so the eviction/TTL logic isn't hand-rolled here.
+ * Singleton-friendly — `DynamicNodesService` holds one instance and every
+ * controller call funnels through it.
  *
  * Not exported from the module's index — this class lives in the
  * dynamic-nodes feature folder and is consumed exclusively by
@@ -21,30 +21,22 @@ import type { ActivityCatalogEntry } from "@ai-di/graph-workflow";
  * `DynamicNodesService.invalidateGroupCatalogCache`.
  */
 export class CatalogCache {
-  private readonly map = new Map<string, CachedCatalogEntry>();
+  private readonly cache: LruTtlCache<ActivityCatalogEntry[]>;
 
-  constructor(
-    private readonly ttlMs: number,
-    private readonly maxEntries: number,
-    private readonly now: () => number = () => Date.now(),
-  ) {}
+  constructor(ttlMs: number, maxEntries: number, now?: () => number) {
+    this.cache = new LruTtlCache<ActivityCatalogEntry[]>(
+      ttlMs,
+      maxEntries,
+      now,
+    );
+  }
 
   /**
    * Returns the cached dynamic-entry list for the group, or `undefined`
-   * when the entry is absent OR expired. On a hit, refreshes the LRU
-   * recency for the key (delete + re-insert moves it to the end).
+   * when the entry is absent OR expired (expired rows are dropped on read).
    */
   get(groupId: string): ActivityCatalogEntry[] | undefined {
-    const entry = this.map.get(groupId);
-    if (entry === undefined) return undefined;
-    if (this.now() - entry.cachedAt > this.ttlMs) {
-      this.map.delete(groupId);
-      return undefined;
-    }
-    // Refresh recency.
-    this.map.delete(groupId);
-    this.map.set(groupId, entry);
-    return entry.entries;
+    return this.cache.get(groupId);
   }
 
   /**
@@ -52,15 +44,7 @@ export class CatalogCache {
    * entry when the cache would exceed `maxEntries`.
    */
   set(groupId: string, entries: ActivityCatalogEntry[]): void {
-    if (this.map.has(groupId)) {
-      this.map.delete(groupId);
-    } else if (this.map.size >= this.maxEntries) {
-      const firstKey = this.map.keys().next().value;
-      if (firstKey !== undefined) {
-        this.map.delete(firstKey);
-      }
-    }
-    this.map.set(groupId, { entries, cachedAt: this.now() });
+    this.cache.set(groupId, entries);
   }
 
   /**
@@ -69,18 +53,13 @@ export class CatalogCache {
    * from the POST/PUT/DELETE handlers after a successful DB write.
    */
   invalidate(groupId: string): void {
-    this.map.delete(groupId);
+    this.cache.delete(groupId);
   }
 
   /** Test-only inspection of the current cache size. */
   size(): number {
-    return this.map.size;
+    return this.cache.size();
   }
-}
-
-interface CachedCatalogEntry {
-  entries: ActivityCatalogEntry[];
-  cachedAt: number;
 }
 
 /** Per-group cache TTL — US-173 Scenario 4 (30 s). */

@@ -49,6 +49,7 @@
 
 import type { GraphNode } from "../types";
 import { resolveCtxBinding } from "../validator/context-utils";
+import { isDocumentShape, isSegmentShape } from "./artifact-shapes";
 import { hashArtifact } from "./hash-artifact";
 import { sha256Hex } from "./sha256-hex";
 import { stableJson } from "./stable-json";
@@ -67,30 +68,6 @@ import { stableJson } from "./stable-json";
  * what Scenario 4 wants. So we only re-route values that pass strict
  * artifact detection here.
  */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isDocumentShape(value: unknown): boolean {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  if (typeof value.blobKey !== "string") {
-    return false;
-  }
-  return typeof value.url === "string" || typeof value.mimeType === "string";
-}
-
-function isSegmentShape(value: unknown): boolean {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  if (typeof value.parentDocId !== "string") {
-    return false;
-  }
-  return Array.isArray(value.polygon);
-}
-
 function isArtifactValue(value: unknown): boolean {
   if (isDocumentShape(value) || isSegmentShape(value)) {
     return true;
@@ -99,7 +76,9 @@ function isArtifactValue(value: unknown): boolean {
     // Treat arrays as artifact arrays only when every element is an
     // artifact shape. Mixed/primitive arrays go through stableJson so
     // the consumed map keeps them as readable JSON.
-    return value.every((element) => isDocumentShape(element) || isSegmentShape(element));
+    return value.every(
+      (element) => isDocumentShape(element) || isSegmentShape(element),
+    );
   }
   return false;
 }

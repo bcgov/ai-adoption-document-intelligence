@@ -33,47 +33,13 @@
  * workflow code in addition to the worker and backend.
  */
 
+import {
+  isDocumentShape,
+  isSegmentShape,
+  type SegmentShape,
+} from "./artifact-shapes";
 import { sha256Hex } from "./sha256-hex";
 import { stableJson } from "./stable-json";
-
-interface DocumentShape {
-  blobKey: string;
-}
-
-interface SegmentShape {
-  parentDocId: string;
-  polygon: unknown[];
-  pageRange?: { start: number; end: number };
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isDocumentShape(value: unknown): value is DocumentShape {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  if (typeof value.blobKey !== "string") {
-    return false;
-  }
-  const hasUrl = typeof value.url === "string";
-  const hasMimeType = typeof value.mimeType === "string";
-  return hasUrl || hasMimeType;
-}
-
-function isSegmentShape(value: unknown): value is SegmentShape {
-  if (!isPlainObject(value)) {
-    return false;
-  }
-  if (typeof value.parentDocId !== "string") {
-    return false;
-  }
-  if (!Array.isArray(value.polygon)) {
-    return false;
-  }
-  return true;
-}
 
 function pageRangeStartEnd(value: SegmentShape): string {
   const range = value.pageRange;

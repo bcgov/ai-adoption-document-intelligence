@@ -241,6 +241,12 @@ echo "Test 3.4: Image overrides are set for worker"
 assert_contains "Worker image override" "${WORKER_IMAGE}" "${kustomization_content}"
 echo ""
 
+echo "Test 3.4b: deno-runner image override defaults to the base image name"
+assert_contains "deno-runner image override" \
+  "artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/deno-runner" \
+  "${kustomization_content}"
+echo ""
+
 echo "Test 3.5: Image tag is set"
 assert_contains "Image tag" "${IMAGE_TAG}" "${kustomization_content}"
 echo ""

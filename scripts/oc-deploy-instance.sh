@@ -314,6 +314,7 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --backend-image "${IMAGE_BASE}/backend-services" \
   --frontend-image "${IMAGE_BASE}/frontend" \
   --worker-image "${IMAGE_BASE}/temporal" \
+  --deno-runner-image "${IMAGE_BASE}/deno-runner" \
   --image-tag "${IMAGE_TAG}" \
   --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
   --sso-realm "${SSO_REALM}" \

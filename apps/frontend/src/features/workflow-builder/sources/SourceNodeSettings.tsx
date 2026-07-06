@@ -28,6 +28,7 @@ import { useMemo } from "react";
 
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { replaceNode } from "../replace-node";
 import { SourceUploadButton } from "./SourceUploadButton";
 import { resolveSourceColor, resolveSourceIcon } from "./source-catalog-utils";
 
@@ -118,10 +119,7 @@ export function SourceNodeSettings({
 
   const setParameters = (parameters: Record<string, unknown>) => {
     const updated: SourceNode = { ...node, parameters };
-    onConfigChange({
-      ...config,
-      nodes: { ...config.nodes, [node.id]: updated },
-    });
+    onConfigChange(replaceNode(config, node.id, updated));
   };
 
   if (!entry) {

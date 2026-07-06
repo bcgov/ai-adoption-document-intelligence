@@ -10,7 +10,14 @@
 
 import type { DynamicNodeSignature } from "@ai-di/graph-workflow";
 import type { PrismaClient } from "@generated/client";
-import { beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from "@jest/globals";
 import {
   type DenoExecuteRequest,
   type DenoExecuteResponse,
@@ -25,6 +32,18 @@ import { versionCache } from "./version-cache";
 // We still inject a stub so the lazy `getPrismaClient()` fallback never runs
 // (avoiding the DATABASE_URL env-var requirement during unit tests).
 const stubPrisma = {} as unknown as PrismaClient;
+
+// `dynRun` now fails fast when PLATFORM_API_KEY is unset (config guard). Tests
+// that don't override `readEnv` fall back to process.env, so provide a dummy
+// key here — the runner-failure / output-shape paths under test need the guard
+// to pass first. Tests that specifically exercise the unset case override
+// `readEnv` to return undefined for PLATFORM_API_KEY.
+beforeEach(() => {
+  process.env.PLATFORM_API_KEY = "test-platform-key";
+});
+afterEach(() => {
+  delete process.env.PLATFORM_API_KEY;
+});
 
 function makeSignature(
   overrides: Partial<DynamicNodeSignature> = {},
@@ -101,6 +120,7 @@ describe("dynRun — Scenario 2: permission flags computed", () => {
           if (name === "DYNAMIC_NODE_ALLOW_NET")
             return "api.example.com,api.mistral.ai";
           if (name === "AI_DI_API_BASE_URL") return "http://localhost:3002";
+          if (name === "PLATFORM_API_KEY") return "test-platform-key";
           return undefined;
         },
       },
@@ -158,7 +178,7 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
     expect(req.ambientEnv.AI_DI_WORKFLOW_RUN_ID).toBe("run-42");
   });
 
-  it("Item 4: AI_DI_API_KEY is empty string when PLATFORM_API_KEY is unset (no caller key leaks via input)", async () => {
+  it("fails fast (non-retryable) when PLATFORM_API_KEY is unset — never injects an empty key", async () => {
     setupCachedVersion("v1", makeSignature());
     const { client, execute } = makeClientStub({
       stdout: '{"url":"FOO"}',
@@ -168,25 +188,30 @@ describe("dynRun — Scenario 3: ambient env composition", () => {
       timedOut: false,
     });
 
-    await dynRun(
-      {
-        slug: "my-node",
-        versionId: "v1",
-        parameters: {},
-        inputCtx: {},
-        groupId: "g42",
-        workflowRunId: "run-42",
-      },
-      {
-        client,
-        prisma: stubPrisma,
-        readEnv: (name) =>
-          name === "AI_DI_API_BASE_URL" ? "http://localhost:3002" : undefined,
-      },
-    );
+    await expect(
+      dynRun(
+        {
+          slug: "my-node",
+          versionId: "v1",
+          parameters: {},
+          inputCtx: {},
+          groupId: "g42",
+          workflowRunId: "run-42",
+        },
+        {
+          client,
+          prisma: stubPrisma,
+          readEnv: (name) =>
+            name === "AI_DI_API_BASE_URL" ? "http://localhost:3002" : undefined,
+        },
+      ),
+    ).rejects.toMatchObject({
+      type: "DynamicNodeConfigError",
+      nonRetryable: true,
+    });
 
-    const req = execute.mock.calls[0][0];
-    expect(req.ambientEnv.AI_DI_API_KEY).toBe("");
+    // The runner is never invoked when the key is missing.
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 

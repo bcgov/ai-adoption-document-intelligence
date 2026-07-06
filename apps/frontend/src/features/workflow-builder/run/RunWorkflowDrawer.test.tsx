@@ -493,13 +493,17 @@ describe("RunWorkflowDrawer", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("US-123 Scenario 2: source.upload only (empty inputSchema + uploadSpec) → Upload section renders, JsonInput absent + upload-then-run chain fires", async () => {
+  it("US-123 Scenario 2: source.upload only (empty inputSchema + uploadSpec) → Upload section renders, JsonInput absent; the upload endpoint starts the run (§4.6, no second POST /runs)", async () => {
     mockRunSpec(apiMock, {
       ...sampleSpec,
       inputSchema: { type: "object", properties: {}, required: [] },
       uploadSpec,
     });
+    // §4.6: the upload endpoint itself starts the run and returns its runId +
+    // the version it ran.
     sourceUploadMutateAsync.mockResolvedValue({
+      runId: "graph-upload-only-001",
+      workflowVersionId: HEAD_VERSION_ID,
       documentUrl: "https://blob.example/abc-123",
     });
     apiMock.post.mockResolvedValue({
@@ -554,15 +558,13 @@ describe("RunWorkflowDrawer", () => {
     });
     expect(sourceUploadMutateAsync).toHaveBeenCalledWith(file);
 
-    await waitFor(() => {
-      expect(apiMock.post).toHaveBeenCalledWith(
-        "/workflows/wf-1/runs",
-        expect.objectContaining({
-          initialCtx: { documentUrl: "https://blob.example/abc-123" },
-        }),
-      );
-    });
+    // §4.6: no chained second run — the upload already started it.
+    expect(apiMock.post).not.toHaveBeenCalledWith(
+      "/workflows/wf-1/runs",
+      expect.anything(),
+    );
 
+    // The success alert surfaces the run the upload started.
     expect(
       await screen.findByTestId("run-drawer-upload-success"),
     ).toBeInTheDocument();

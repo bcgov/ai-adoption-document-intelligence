@@ -783,11 +783,14 @@ function ToolCallNavigator() {
           const id = (result as { workflow: { id: string } }).workflow.id;
           if (
             navigatedRef.current !== id &&
-            !window.location.search.includes(`id=${id}`) &&
             !window.location.pathname.includes(`/workflows/${id}`)
           ) {
             navigatedRef.current = id;
-            navigate(`/workflows/create?id=${id}`);
+            // §4.3: navigate to the edit route (which reads the id from the
+            // path via useParams().workflowId), NOT `/workflows/create?id=`.
+            // The create route ignores the query param, so it mounted a blank
+            // "New workflow" and a Save there created a duplicate.
+            navigate(`/workflows/${id}/edit`);
           }
           queryClient.invalidateQueries({ queryKey: ["workflow", id] });
         }
@@ -818,13 +821,21 @@ function ToolCallNavigator() {
           result !== null &&
           "node" in (result as Record<string, unknown>)
         ) {
-          const node = (result as { node?: { id?: string; type?: string } })
-            .node;
+          const node = (
+            result as {
+              node?: { id?: string; type?: string; sourceType?: string };
+            }
+          ).node;
           const toolCallId =
             (part as { toolCallId?: string }).toolCallId ??
             JSON.stringify(part);
           if (
-            node?.type === "source.upload" &&
+            // §4.5: the backend addNode tool returns
+            // `{ type: "source", sourceType: "source.upload" }` — the old
+            // `node.type === "source.upload"` check never matched, so files
+            // queued before the node existed stayed "uploading…" forever.
+            node?.type === "source" &&
+            node.sourceType === "source.upload" &&
             node.id &&
             !drainedRef.current.has(toolCallId)
           ) {
