@@ -54,6 +54,7 @@ jest.mock("@temporalio/client", () => {
       connect: jest.fn(() => Promise.resolve(mockConnection)),
     },
     Client: jest.fn(() => mockClient),
+    WorkflowNotFoundError: class WorkflowNotFoundError extends Error {},
   };
 });
 
@@ -93,6 +94,7 @@ describe("TemporalClientService", () => {
       workflowService: {
         describeNamespace: jest.fn().mockResolvedValue(undefined),
         registerNamespace: jest.fn().mockResolvedValue(undefined),
+        deleteWorkflowExecution: jest.fn().mockResolvedValue(undefined),
       },
       operatorService: {
         addSearchAttributes: jest.fn().mockResolvedValue(undefined),
@@ -394,6 +396,30 @@ describe("TemporalClientService", () => {
     });
   });
 
+  describe("isWorkflowRunning", () => {
+    it("returns true when the execution is Running", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "RUNNING" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(true);
+    });
+
+    it("returns false when the execution is closed", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "FAILED" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
+    });
+
+    it("returns false when no execution exists", async () => {
+      const { WorkflowNotFoundError } = jest.requireMock("@temporalio/client");
+      mockWorkflowHandle.describe.mockRejectedValue(
+        new WorkflowNotFoundError("not found"),
+      );
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
+    });
+  });
+
   describe("getWorkflowResult", () => {
     it("should get workflow result", async () => {
       mockWorkflowHandle.result.mockResolvedValue({ success: true });
@@ -506,6 +532,51 @@ describe("TemporalClientService", () => {
       await expect(newService.cancelWorkflow("workflow-123")).rejects.toThrow(
         "Temporal client not initialized",
       );
+    });
+  });
+
+  describe("deleteWorkflowExecution", () => {
+    it("deletes the execution record via the workflow service", async () => {
+      await service.deleteWorkflowExecution("workflow-123");
+
+      expect(
+        mockConnection.workflowService.deleteWorkflowExecution,
+      ).toHaveBeenCalledWith({
+        namespace: "default",
+        workflowExecution: { workflowId: "workflow-123" },
+      });
+    });
+
+    it("treats a NOT_FOUND response as success (idempotent)", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws on other errors", async () => {
+      mockConnection.workflowService.deleteWorkflowExecution.mockRejectedValueOnce(
+        new Error("permission denied"),
+      );
+
+      await expect(
+        service.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("delete Temporal execution workflow-123");
+    });
+
+    it("throws if the connection is not initialized", async () => {
+      const newService = new TemporalClientService(
+        configService,
+        mockWorkflowService,
+        mockAppLogger,
+      );
+
+      await expect(
+        newService.deleteWorkflowExecution("workflow-123"),
+      ).rejects.toThrow("Temporal client not initialized");
     });
   });
 

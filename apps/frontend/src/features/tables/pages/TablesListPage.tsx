@@ -1,3 +1,4 @@
+import { IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
@@ -35,7 +36,11 @@ export function TablesListPage() {
         description="Manage reference data tables for your group."
         actions={
           isAdmin ? (
-            <Button onClick={() => setModalOpen(true)} disabled={!activeGroup}>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setModalOpen(true)}
+              disabled={!activeGroup}
+            >
               Create Table
             </Button>
           ) : undefined

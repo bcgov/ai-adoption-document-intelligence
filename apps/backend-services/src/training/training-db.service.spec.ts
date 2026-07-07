@@ -614,17 +614,50 @@ describe("TrainingDbService", () => {
   // ---------------------------------------------------------------------------
 
   describe("findAllTrainedModelIds", () => {
-    it("excludes tombstoned versions from the OCR picker list", async () => {
+    it("scopes the picker list to the caller's groups and excludes tombstoned versions", async () => {
       mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
         { model_id: "km-invoice" },
         { model_id: "km-invoice-v2" },
       ]);
 
-      const result = await service.findAllTrainedModelIds();
+      const result = await service.findAllTrainedModelIds(["group-1"]);
 
       expect(result).toEqual(["km-invoice", "km-invoice-v2"]);
       expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          template_model: { group_id: { in: ["group-1"] } },
+        },
+        select: { model_id: true },
+        distinct: ["model_id"],
+      });
+    });
+
+    it("applies no group filter for an unrestricted (system-admin) caller", async () => {
+      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([
+        { model_id: "km-invoice" },
+      ]);
+
+      await service.findAllTrainedModelIds(undefined);
+
+      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
         where: { deleted_at: null },
+        select: { model_id: true },
+        distinct: ["model_id"],
+      });
+    });
+
+    it("fails closed for a caller with no groups (empty array matches nothing)", async () => {
+      mockPrisma.trainedModel.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.findAllTrainedModelIds([]);
+
+      expect(result).toEqual([]);
+      expect(mockPrisma.trainedModel.findMany).toHaveBeenCalledWith({
+        where: {
+          deleted_at: null,
+          template_model: { group_id: { in: [] } },
+        },
         select: { model_id: true },
         distinct: ["model_id"],
       });

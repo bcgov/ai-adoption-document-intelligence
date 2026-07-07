@@ -3,7 +3,7 @@
 - Avoid using "any" types in both back end and front end code, use proper typing.
 - Do not create "placeholders" or any other types of partial implementations or stubs for "future use", implement features requested only.
 - Do not create features that are not explicitly described in specifications, if there is a gap, include it summary notes after implementing the task. If there is a question regarding the implementation, do not make assumptions, stop and clarify from the user.
-- When creating or modifying features, create/update documentation in /docs-md folder
+- When creating or modifying features, create/update documentation in /docs-md folder (see `AGENTS.md` Skills section and `.claude/skills/documentation/`)
 - Do not include any document-specific implementation, the system is generic and must support arbitrary workloads
 - Changes to files must pass any linting and formatting checks. If there are any errors, fix them before submitting the code for review.
 - To test the API directly, use `curl -H "x-api-key: $API_KEY" http://localhost:3002/api/...` (read the key from local env/config; never paste or log secrets).
@@ -31,6 +31,10 @@
 ## Repo Wiki
 
 See `AGENTS.md` (Repo Wiki section) for canonical wiki maintenance rules.
+
+## Skills
+
+See `AGENTS.md` (Skills section). Use `.claude/skills/documentation/` when updating docs or the wiki; use `.claude/skills/create-pr/` when opening a pull request.
 
 ## Requirements and User Stories
 - When finished implementing a user story, check it off in the related user stories README under the relevant `feature-docs/` directory and update acceptance checkboxes in the story file.

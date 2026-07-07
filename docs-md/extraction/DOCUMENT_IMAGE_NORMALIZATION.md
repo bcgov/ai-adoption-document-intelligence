@@ -22,9 +22,13 @@ Database: `file_path` → original blob; `normalized_file_path` → normalized P
 
 Upload may return **422** with `code: conversion_failed` when the original was stored but PDF normalization failed; status `conversion_failed` is set and OCR is not started. The original blob is **not** deleted on normalization failure: `file_path` remains valid so clients can still download the upload; only `normalized_file_path` and downstream OCR/view are absent until a future retry path exists.
 
+The documents list groups both failure states under a single **"Failed"** bucket in the UI. The `status=failed` list filter (`DocumentDbService.findAllDocuments`) therefore expands to match both `failed` (extraction failures) and `conversion_failed` (normalization failures); all other status filters match exactly.
+
 Labeling document upload (`POST .../template-models/:id/upload`) requires `group_id` in the body to **match** the template model’s group; the caller must also be allowed to access that group (same as other template-model routes).
 
 **Invalid or unsupported files** are rejected with **400** when validation fails before storage (bad PDF signature, corrupt image, etc.). PDFs with a valid `%PDF` header but an unreadable body fail during normalization (400) after the original blob write has started.
+
+**Password-protected PDFs** are rejected during normalization as a **422 `conversion_failed`** (not a 400). A PDF that requires a password to open cannot be read by Azure Document Intelligence — it returns `400 UnsupportedContent` ("File may be password protected") — so the document must never reach OCR. Normalization probes the PDF with **mupdf `needsPassword()`** before the pdf-lib pass and throws `PdfNormalizationError` when a password is required, landing the document in `conversion_failed` (a terminal, purgeable status). Only **open-password** encryption is rejected; **permission-only** encrypted PDFs (which open without a password and OCR can read) are still allowed through, which is why the pdf-lib pass keeps `ignoreEncryption: true`.
 
 ## Client
 
@@ -34,7 +38,7 @@ Labeling document upload (`POST .../template-models/:id/upload`) requires `group
 
 ## Dependencies
 
-Backend normalization uses **sharp** (images, including multi-page TIFF) and **pdf-lib** (PDF assembly). PDF uploads must pass a **magic-byte check** (`%PDF`) before the original blob is written; full **`pdf-lib` parsing** happens once during normalization (with `ignoreEncryption: true`). Images are validated with **sharp** metadata before storage.
+Backend normalization uses **sharp** (images, including multi-page TIFF), **pdf-lib** (PDF assembly), and **mupdf** (thumbnail rasterization and the `needsPassword()` open-password probe). PDF uploads must pass a **magic-byte check** (`%PDF`) before the original blob is written; the **mupdf password probe** and full **`pdf-lib` parsing** happen once during normalization (the pdf-lib pass keeps `ignoreEncryption: true` for permission-only encrypted PDFs). Images are validated with **sharp** metadata before storage.
 
 ## Upload memory and concurrency (`POST /api/upload`)
 

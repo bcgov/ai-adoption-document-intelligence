@@ -10,3 +10,4 @@
 - To test API directly, use: `curl -H "x-api-key: $API_KEY" http://localhost:3002/api/...` (read the key from your local env/config; never paste or log secret values).
 - NEVER read secrets from .env files directly, they should not be leaked into chat, terminal, etc., do not operate with secret values directly, only indirectly through variables.
 - Repo wiki rules: see `AGENTS.md` (Repo Wiki section).
+- Skills: see `AGENTS.md` (Skills section). Use `.claude/skills/documentation/` when updating docs or the wiki; use `.claude/skills/create-pr/` when opening a pull request.

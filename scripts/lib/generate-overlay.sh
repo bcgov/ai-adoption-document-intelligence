@@ -22,6 +22,7 @@ _GENERATE_OVERLAY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PROJECT_ROOT="$(cd "${_GENERATE_OVERLAY_DIR}/../.." && pwd)"
 _TEMPLATE_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/overlays/instance-template"
 _MINIO_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/minio"
+_PROD_RESOURCES_COMPONENT_DIR="${_PROJECT_ROOT}/deployments/openshift/kustomize/components/prod-resources"
 
 # Escape a string for use as a sed replacement value.
 # Handles the delimiter (|), backslash, and ampersand.
@@ -81,6 +82,7 @@ generate_instance_overlay() {
   local minio_endpoint=""
   local minio_document_bucket="document-blobs"
   local with_minio="false"
+  local with_prod_resources="false"
   local minio_pvc_size="5Gi"
   local minio_root_user=""
   local minio_root_password=""
@@ -269,6 +271,18 @@ generate_instance_overlay() {
     return 1
   fi
 
+  # Production namespaces get the prod-resources component, which raises the
+  # memory limits of the main application containers above the conservative
+  # base defaults used by ephemeral/test instances.
+  if [[ "${namespace}" == *-prod ]]; then
+    with_prod_resources="true"
+  fi
+
+  if [[ "${with_prod_resources}" == "true" && ! -d "${_PROD_RESOURCES_COMPONENT_DIR}" ]]; then
+    echo "[ERROR] prod-resources component directory not found: ${_PROD_RESOURCES_COMPONENT_DIR}" >&2
+    return 1
+  fi
+
   if [[ "${with_minio}" == "true" ]]; then
     if [[ ! -d "${_MINIO_COMPONENT_DIR}" ]]; then
       echo "[ERROR] MinIO component directory not found: ${_MINIO_COMPONENT_DIR}" >&2
@@ -302,16 +316,28 @@ generate_instance_overlay() {
   local real_base="${_PROJECT_ROOT}/deployments/openshift/kustomize/base"
   ln -s "${real_base}" "${tmp_root}/base"
 
-  # When --with-minio is requested, copy the component into the overlay so
-  # the kustomization can reference it via a relative path, and append the
-  # `components:` reference. Placeholders inside the component will be
-  # substituted alongside the rest of the overlay below.
+  # Copy any optional Kustomize components into the overlay so the
+  # kustomization can reference them via relative paths. Placeholders inside
+  # the components are substituted alongside the rest of the overlay below.
+  local component_refs=()
+
   if [[ "${with_minio}" == "true" ]]; then
     cp -r "${_MINIO_COMPONENT_DIR}" "${generated_dir}/minio"
+    component_refs+=("./minio")
+  fi
+
+  if [[ "${with_prod_resources}" == "true" ]]; then
+    cp -r "${_PROD_RESOURCES_COMPONENT_DIR}" "${generated_dir}/prod-resources"
+    component_refs+=("./prod-resources")
+  fi
+
+  if [[ ${#component_refs[@]} -gt 0 ]]; then
     {
       echo ""
       echo "components:"
-      echo "  - ./minio"
+      for ref in "${component_refs[@]}"; do
+        echo "  - ${ref}"
+      done
     } >>"${generated_dir}/kustomization.yml"
   fi
 

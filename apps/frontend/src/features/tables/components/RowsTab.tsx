@@ -1,4 +1,9 @@
-import { IconColumns, IconPencil, IconTrash } from "@tabler/icons-react";
+import {
+  IconColumns,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { apiService } from "@/data/services/api.service";
@@ -180,6 +185,7 @@ export function RowsTab({
             <Button
               color="red"
               variant="light"
+              leftSection={<IconTrash size={16} />}
               onClick={() => {
                 deleteRows.reset();
                 setConfirmBulkDelete(true);
@@ -212,7 +218,9 @@ export function RowsTab({
               </Stack>
             </Popover.Dropdown>
           </Popover>
-          <Button onClick={onCreate}>Create Row</Button>
+          <Button leftSection={<IconPlus size={16} />} onClick={onCreate}>
+            Create Row
+          </Button>
         </Group>
       </Group>
       {rows.data.rows.length === 0 ? (
@@ -222,7 +230,12 @@ export function RowsTab({
       ) : (
         <>
           <div style={{ overflowX: "auto" }}>
-            <Table striped highlightOnHover style={{ tableLayout: "auto" }}>
+            <Table
+              className="bcds-mantine-table rows-tab-table"
+              striped
+              highlightOnHover
+              style={{ tableLayout: "auto" }}
+            >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th
@@ -230,7 +243,7 @@ export function RowsTab({
                     style={{
                       position: "sticky",
                       left: 0,
-                      background: "var(--mantine-color-body)",
+                      background: "var(--surface-color-background-light-gray)",
                       zIndex: 1,
                     }}
                   >
@@ -249,37 +262,29 @@ export function RowsTab({
                     style={{
                       position: "sticky",
                       right: 0,
-                      background: "var(--mantine-color-body)",
+                      background: "var(--surface-color-background-light-gray)",
                       zIndex: 1,
                     }}
                   />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {rows.data.rows.map((row, idx) => {
+                {rows.data.rows.map((row) => {
                   const isSelected = selectedIds.has(row.id);
-                  // Match Mantine's striped="odd" pattern (1-indexed odd = 0-indexed even)
-                  const stripeBg =
-                    idx % 2 === 0
-                      ? "var(--table-striped-color)"
-                      : "var(--mantine-color-body)";
-                  const stickyBg = isSelected
-                    ? "var(--mantine-color-blue-1)"
-                    : stripeBg;
-                  const selBg = isSelected
-                    ? "var(--mantine-color-blue-1)"
-                    : undefined;
-                  const selColor = isSelected
-                    ? "var(--mantine-color-dark-9)"
-                    : undefined;
                   return (
-                    <Table.Tr key={row.id}>
+                    <Table.Tr
+                      key={row.id}
+                      className={
+                        isSelected
+                          ? "rows-tab-row rows-tab-row--selected"
+                          : "rows-tab-row"
+                      }
+                    >
                       <Table.Td
+                        className="rows-tab-sticky-cell rows-tab-sticky-cell--left"
                         style={{
                           position: "sticky",
                           left: 0,
-                          background: stickyBg,
-                          color: selColor,
                           zIndex: 1,
                         }}
                       >
@@ -290,23 +295,15 @@ export function RowsTab({
                         />
                       </Table.Td>
                       {visibleColumns.map((c) => (
-                        <Table.Td
-                          key={c.key}
-                          style={
-                            selBg
-                              ? { backgroundColor: selBg, color: selColor }
-                              : undefined
-                          }
-                        >
+                        <Table.Td key={c.key}>
                           {renderCell(row.data[c.key], c.type)}
                         </Table.Td>
                       ))}
                       <Table.Td
+                        className="rows-tab-sticky-cell rows-tab-sticky-cell--right"
                         style={{
                           position: "sticky",
                           right: 0,
-                          background: stickyBg,
-                          color: selColor,
                           zIndex: 1,
                         }}
                       >
@@ -366,6 +363,7 @@ export function RowsTab({
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               loading={deleteRows.isPending}
               onClick={() => {
                 if (rowToDelete) deleteRows.mutate([rowToDelete.id]);
@@ -400,6 +398,7 @@ export function RowsTab({
             </Button>
             <Button
               color="red"
+              leftSection={<IconTrash size={16} />}
               loading={deleteRows.isPending}
               onClick={() => deleteRows.mutate([...selectedIds])}
             >

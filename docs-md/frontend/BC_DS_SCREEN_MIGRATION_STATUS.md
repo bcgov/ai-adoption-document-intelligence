@@ -38,3 +38,10 @@ Track queue-pattern rollout per route. Reference: [BC_DESIGN_SYSTEM_MIGRATION.md
 **Not routed:** `WorkflowPage.tsx`, `WorkflowEditPage.tsx` — unchanged unless routes re-enabled.
 
 **Non-adapter exceptions:** `DocumentsPage.tsx` (above) and `RouterErrorPage.tsx` (router `errorElement`) import `@mantine/core` directly.
+
+## Recent UI consistency update
+
+- 2026-06-26: Updated detail-page header hierarchy on `/template-models/:modelId`, `/benchmarking/datasets/:id`, `/benchmarking/projects/:id`, and `/benchmarking/.../runs/:runId` to use:
+	- Back action on its own row.
+	- Primary title row with adjacent status/baseline badge when applicable.
+	- Secondary metadata row (for example, Model ID / Dataset ID / Project ID / Run ID) for improved scanability.

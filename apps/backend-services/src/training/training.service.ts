@@ -683,13 +683,18 @@ export class TrainingService {
   }
 
   /**
-   * Returns all distinct trained model IDs across all projects.
+   * Returns distinct trained model IDs visible to the caller.
    * Used by the OCR module to list available models.
    *
+   * @param groupIds - The caller's accessible group IDs, or `undefined` for an
+   *   unrestricted (system-admin) caller. Results are constrained to models
+   *   owned by these groups so one group cannot enumerate another's models.
    * @returns An array of distinct model ID strings from the database.
    */
-  async findAllTrainedModelIds(): Promise<string[]> {
-    return this.trainingDb.findAllTrainedModelIds();
+  async findAllTrainedModelIds(
+    groupIds: string[] | undefined,
+  ): Promise<string[]> {
+    return this.trainingDb.findAllTrainedModelIds(groupIds);
   }
 
   /**

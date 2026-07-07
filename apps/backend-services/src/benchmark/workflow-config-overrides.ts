@@ -1,4 +1,4 @@
-import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow-config";
+import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 
 export { applyWorkflowConfigOverrides };

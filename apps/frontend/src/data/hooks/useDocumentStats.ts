@@ -10,7 +10,6 @@ export interface DocumentStatusCounts {
   awaiting_review: number;
   complete: number;
   failed: number;
-  rejected_by_human: number;
   conversion_failed: number;
 }
 

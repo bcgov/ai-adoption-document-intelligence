@@ -47,6 +47,8 @@ spec:
               mountPath: /etc/loki
             - name: data
               mountPath: /loki
+            - name: tmp
+              mountPath: /tmp
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -55,6 +57,8 @@ spec:
         - name: config
           configMap:
             name: {{ include "plg.loki.fullname" . }}-config
+        - name: tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: data

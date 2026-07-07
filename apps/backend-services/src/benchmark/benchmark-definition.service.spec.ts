@@ -86,6 +86,7 @@ describe("BenchmarkDefinitionService", () => {
     createdAt: new Date(),
     dataset: {
       name: "Test Dataset",
+      group_id: "test-group",
     },
   };
 
@@ -114,6 +115,7 @@ describe("BenchmarkDefinitionService", () => {
     lineage: {
       id: "workflow-1",
       name: "Test Workflow",
+      group_id: "test-group",
     },
   };
 
@@ -502,6 +504,44 @@ describe("BenchmarkDefinitionService", () => {
       );
     });
 
+    it("rejects a dataset version owned by another group (cross-group reference blocked)", async () => {
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject); // group "test-group"
+      // Dataset version exists but its dataset belongs to a different group.
+      jest.spyOn(prisma.datasetVersion, "findUnique").mockResolvedValue({
+        ...mockDatasetVersion,
+        dataset: { name: "Other", group_id: "other-group" },
+      });
+
+      await expect(
+        service.createDefinition("project-1", createDto),
+      ).rejects.toThrow(
+        'Dataset version with ID "ds-version-1" does not exist',
+      );
+    });
+
+    it("rejects a workflow version owned by another group (cross-group reference blocked)", async () => {
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject); // group "test-group"
+      jest
+        .spyOn(prisma.datasetVersion, "findUnique")
+        .mockResolvedValue(mockDatasetVersion);
+      jest.spyOn(prisma.split, "findUnique").mockResolvedValue(mockSplit);
+      // Workflow version exists but its lineage belongs to a different group.
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
+        ...mockWorkflowVersion,
+        lineage: { ...mockWorkflowVersion.lineage, group_id: "other-group" },
+      });
+
+      await expect(
+        service.createDefinition("project-1", createDto),
+      ).rejects.toThrow(
+        'Workflow version with ID "wv-workflow-1" does not exist',
+      );
+    });
+
     it("returns 400 when evaluator type is not registered", async () => {
       jest
         .spyOn(prisma.benchmarkProject, "findUnique")
@@ -701,6 +741,9 @@ describe("BenchmarkDefinitionService", () => {
       jest
         .spyOn(prisma.benchmarkDefinition, "findFirst")
         .mockResolvedValue(existingDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
       jest.spyOn(prisma.benchmarkDefinition, "update").mockResolvedValue({
         ...existingDefinition,
         immutable: true,
@@ -770,6 +813,9 @@ describe("BenchmarkDefinitionService", () => {
       jest
         .spyOn(prisma.benchmarkDefinition, "findFirst")
         .mockResolvedValue(existingDefinition as never);
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
 
       const updatedDefinition = {
         ...existingDefinition,
@@ -1043,14 +1089,25 @@ describe("BenchmarkDefinitionService", () => {
       const baseLineageId = "base-lineage";
       const newBaseVersionId = "wv-new-base";
 
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+
       jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
         id: candidateWorkflowVersionId,
         config: candidateConfig,
         lineage: {
           id: "cand-lineage",
+          group_id: "test-group",
           workflow_kind: "benchmark_candidate",
           source_workflow_id: baseLineageId,
         },
+      } as never);
+
+      jest.spyOn(prisma.workflowLineage, "findUnique").mockResolvedValue({
+        id: baseLineageId,
+        group_id: "test-group",
+        head_version_id: "wv-old-head",
       } as never);
 
       jest.spyOn(prisma.workflowVersion, "findFirst").mockResolvedValue({
@@ -1107,14 +1164,25 @@ describe("BenchmarkDefinitionService", () => {
       const baseLineageId = "base-lineage";
       const candidateLineageId = "cand-lineage";
 
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+
       jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
         id: candidateWorkflowVersionId,
         config: candidateConfig,
         lineage: {
           id: candidateLineageId,
+          group_id: "test-group",
           workflow_kind: "benchmark_candidate",
           source_workflow_id: baseLineageId,
         },
+      } as never);
+
+      jest.spyOn(prisma.workflowLineage, "findUnique").mockResolvedValue({
+        id: baseLineageId,
+        group_id: "test-group",
+        head_version_id: "wv-old-head",
       } as never);
 
       jest.spyOn(prisma.workflowVersion, "findFirst").mockResolvedValue({
@@ -1195,11 +1263,15 @@ describe("BenchmarkDefinitionService", () => {
     });
 
     it("rejects non-candidate workflows", async () => {
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
       jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
         id: "wv-primary",
         config: candidateConfig,
         lineage: {
           id: "primary-lineage",
+          group_id: "test-group",
           workflow_kind: "primary",
           source_workflow_id: null,
         },
@@ -1208,6 +1280,37 @@ describe("BenchmarkDefinitionService", () => {
       await expect(
         service.applyToBaseWorkflow("project-1", "wv-primary", false),
       ).rejects.toThrow(/not a benchmark candidate/i);
+    });
+
+    it("rejects a candidate whose source points at another group's base lineage (cross-group write blocked)", async () => {
+      // Candidate is in the caller's group, but its source_workflow_id points at
+      // a lineage owned by a different group. The base-lineage group check must
+      // reject this before any version is written.
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue(mockProject);
+      jest.spyOn(prisma.workflowVersion, "findUnique").mockResolvedValue({
+        id: "candidate-v1",
+        config: candidateConfig,
+        lineage: {
+          id: "cand-lineage",
+          group_id: "test-group",
+          workflow_kind: "benchmark_candidate",
+          source_workflow_id: "foreign-base-lineage",
+        },
+      } as never);
+      // Base lineage belongs to another group.
+      jest.spyOn(prisma.workflowLineage, "findUnique").mockResolvedValue({
+        id: "foreign-base-lineage",
+        group_id: "other-group",
+        head_version_id: "wv-foreign-head",
+      } as never);
+      const createSpy = jest.spyOn(prisma.workflowVersion, "create");
+
+      await expect(
+        service.applyToBaseWorkflow("project-1", "candidate-v1", false),
+      ).rejects.toThrow(NotFoundException);
+      expect(createSpy).not.toHaveBeenCalled();
     });
 
     it("throws ConflictException when definition pin does not match lineage head inside transaction", async () => {
@@ -1234,6 +1337,10 @@ describe("BenchmarkDefinitionService", () => {
         },
         edges: [],
       };
+
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue({ ...mockProject, group_id: baseLineageGroupId });
 
       let findFirstCalls = 0;
       jest
@@ -1314,6 +1421,10 @@ describe("BenchmarkDefinitionService", () => {
       jest
         .spyOn(service, "getDefinitionById")
         .mockResolvedValue({ id: definitionId } as never);
+
+      jest
+        .spyOn(prisma.benchmarkProject, "findUnique")
+        .mockResolvedValue({ ...mockProject, group_id: baseLineageGroupId });
 
       jest.spyOn(prisma.benchmarkDefinition, "findFirst").mockResolvedValue({
         id: definitionId,

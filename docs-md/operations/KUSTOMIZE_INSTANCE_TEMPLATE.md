@@ -35,7 +35,7 @@ The template also carries app-configuration tokens beyond the core set above: `_
 
 ### Route IP restrictions
 
-Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_whitelist` (space-separated entries) so the OpenShift router (HAProxy) only allows traffic from the BC Gov VPN range `142.16.0.0/11` plus the Silver (`142.34.194.121-124`), Gold (`142.34.229.6-9`), and Gold DR (`142.34.64.6-9`) NAT-pool egress IPs. Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see [PROMETHEUS_METRICS.md](../monitoring/PROMETHEUS_METRICS.md)).
+Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_allowlist` (space-separated entries) so the OpenShift router (HAProxy) only allows traffic from the BC Gov VPN range `142.16.0.0/11` plus the Silver (`142.34.194.121-124`), Gold (`142.34.229.6-9`), and Gold DR (`142.34.64.6-9`) NAT-pool egress IPs. Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see [PROMETHEUS_METRICS.md](../monitoring/PROMETHEUS_METRICS.md)).
 
 ### What Gets Patched
 

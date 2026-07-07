@@ -20,11 +20,32 @@ export interface GraphWorkflowConfig {
   nodeGroups?: Record<string, NodeGroup>;
 }
 
+/**
+ * Per-workflow ephemeral-cleanup policy. Controls what the cleanup janitor
+ * deletes once a document reaches a terminal status (the OCR result in Postgres
+ * is always kept). Configured per workflow — there is no global or per-group
+ * setting.
+ *
+ * - `true` — delete both blob files and the Temporal execution record.
+ * - object — delete each target independently. Omitted/`false` targets are kept.
+ * - `false`/absent — not ephemeral; nothing is deleted.
+ */
+export type EphemeralConfig =
+  | boolean
+  | {
+      /** Delete the document's blob-storage files. */
+      files?: boolean;
+      /** Delete the document's Temporal execution record. */
+      temporalRecord?: boolean;
+    };
+
 export interface GraphMetadata {
   name?: string;
   description?: string;
   version?: string;
   tags?: string[];
+  /** Ephemeral-cleanup policy for documents processed by this workflow. */
+  ephemeral?: EphemeralConfig;
   /** SHA-256 of normalized config; set on save, excluded from hash input. */
   configHash?: string;
 }

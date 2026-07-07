@@ -1,4 +1,4 @@
-import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow-config";
+import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
 import { computeConfigHashWithOverrides } from "../config-hash";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 import { getPrismaClient } from "./database-client";

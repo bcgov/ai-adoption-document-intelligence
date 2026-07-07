@@ -18,7 +18,7 @@ By submitting this pull request, I acknowledge that I have attempted to meet the
 
 > - a self-review of my code
 > - commented code particularly in hard-to-understand areas
-> - affected docs in the matching `docs-md/` topic folder were updated (see `docs-md/README.md`; the `docs-sync` skill automates this)
+> - affected docs in the matching `docs-md/` topic folder were updated (see `docs-md/README.md`; the `docs-sync` skill automates this), along with any affected READMEs or the public `docs/` site
 > - if this changes system boundaries, doc routing, or where contributors should edit, the repo wiki (`docs-md/wiki/`) was updated or confirmed not needed
 > - changes tested to the best of my ability
 > - no new errors or non-functional code

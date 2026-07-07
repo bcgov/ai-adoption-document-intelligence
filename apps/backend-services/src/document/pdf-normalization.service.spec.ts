@@ -190,6 +190,57 @@ describe("PdfNormalizationService", () => {
     });
   });
 
+  describe("normalizeToPdf – password-protected PDFs", () => {
+    function mockNeedsPassword(needsPassword: boolean): void {
+      jest.mocked(loadMupdf).mockResolvedValue({
+        Document: {
+          openDocument: jest.fn(() => ({
+            needsPassword: () => needsPassword,
+          })),
+        },
+      } as unknown as Awaited<ReturnType<typeof loadMupdf>>);
+    }
+
+    afterEach(() => {
+      jest.mocked(loadMupdf).mockReset();
+    });
+
+    it("rejects a password-protected PDF as conversion failure (not OCR)", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      await expect(service.normalizeToPdf(buf, "pdf")).rejects.toThrow(
+        PdfNormalizationError,
+      );
+    });
+
+    it("includes a clear password-protected message", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      await expect(service.normalizeToPdf(buf, "pdf")).rejects.toThrow(
+        /password protected/i,
+      );
+    });
+
+    it("tags the error with a `password_protected` code", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(true);
+
+      const error = await service.normalizeToPdf(buf, "pdf").catch((e) => e);
+      expect(error).toBeInstanceOf(PdfNormalizationError);
+      expect((error as PdfNormalizationError).code).toBe("password_protected");
+    });
+
+    it("allows a PDF that does not require a password", async () => {
+      const buf = await minimalValidPdfBuffer();
+      mockNeedsPassword(false);
+
+      const out = await service.normalizeToPdf(buf, "pdf");
+      expect(out.equals(buf)).toBe(true);
+    });
+  });
+
   describe("normalizeToPdf – PDF rotation baking", () => {
     async function pdfWithRotation(angle: number): Promise<Buffer> {
       const doc = await PDFDocument.create();

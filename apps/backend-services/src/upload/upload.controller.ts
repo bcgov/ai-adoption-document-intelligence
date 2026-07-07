@@ -112,8 +112,10 @@ export class UploadController {
       let modelId: string | undefined = uploadDto.model_id;
       if (!modelId && workflowConfigId) {
         modelId =
-          (await this.workflowService.getModelIdDefault(workflowConfigId)) ??
-          undefined;
+          (await this.workflowService.getModelIdDefault(
+            workflowConfigId,
+            groupId,
+          )) ?? undefined;
       }
       if (!modelId) {
         throw new BadRequestException(
@@ -139,13 +141,13 @@ export class UploadController {
       if (uploadResult.kind === "conversion_failed") {
         const doc = uploadResult.document;
         this.logger.warn(
-          `Document ${doc.id} stored but PDF normalization failed`,
+          `Document ${doc.id} stored but PDF normalization failed (${uploadResult.code})`,
         );
         throw new HttpException(
           {
             success: false,
-            code: "conversion_failed",
-            message: "Document could not be converted to PDF",
+            code: uploadResult.code,
+            message: uploadResult.reason,
             document: {
               id: doc.id,
               title: doc.title,

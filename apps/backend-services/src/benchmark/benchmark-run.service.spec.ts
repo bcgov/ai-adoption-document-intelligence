@@ -538,6 +538,7 @@ describe("BenchmarkRunService", () => {
       (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
         id: "wv-cand-1",
         config: candidateConfig,
+        lineage: { group_id: "test-group" },
       });
       (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
         ...mockRun,
@@ -572,7 +573,7 @@ describe("BenchmarkRunService", () => {
 
       expect(prisma.workflowVersion.findUnique).toHaveBeenCalledWith({
         where: { id: "wv-cand-1" },
-        select: { config: true },
+        select: { config: true, lineage: { select: { group_id: true } } },
       });
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.any(String),
@@ -597,6 +598,30 @@ describe("BenchmarkRunService", () => {
           "def-1",
           {
             candidateWorkflowVersionId: "missing-wv",
+          },
+          ACTOR_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects a candidate workflow version owned by another group (cross-group reference blocked)", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      // Candidate exists but its lineage belongs to a different group than the
+      // run's project (mockProject is "test-group").
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: {},
+        lineage: { group_id: "other-group" },
+      });
+
+      await expect(
+        service.startRun(
+          "project-1",
+          "def-1",
+          {
+            candidateWorkflowVersionId: "wv-cand-1",
           },
           ACTOR_ID,
         ),
