@@ -58,18 +58,18 @@ const WORKFLOW_EDGES: Edge[] = [
 
 // Step labels for display
 const STEP_LABELS: Record<string, string> = {
-  updateStatus: "Update Status",
-  prepareFileData: "Prepare File",
+  updateStatus: "Update status",
+  prepareFileData: "Prepare file",
   submitToAzureOCR: "Submit OCR",
-  updateApimRequestId: "Update Request ID",
+  updateApimRequestId: "Update request ID",
   waitBeforePoll: "Wait",
-  pollOCRResults: "Poll Results",
-  extractOCRResults: "Extract Results",
+  pollOCRResults: "Poll results",
+  extractOCRResults: "Extract results",
   postOcrCleanup: "Cleanup",
   enrichResults: "Enrich",
-  checkOcrConfidence: "Check Confidence",
-  humanReview: "Human Review",
-  storeResults: "Store Results",
+  checkOcrConfidence: "Check confidence",
+  humanReview: "Human review",
+  storeResults: "Store results",
 };
 
 export function WorkflowVisualization({ config }: WorkflowVisualizationProps) {
@@ -130,7 +130,7 @@ export function WorkflowVisualization({ config }: WorkflowVisualizationProps) {
   return (
     <Paper shadow="sm" radius="md" p="md" withBorder>
       <Stack gap="xs">
-        <Title order={4}>Workflow Visualization</Title>
+        <Title order={4}>Workflow visualization</Title>
         <div ref={containerRef} style={{ width: "100%", padding: "20px" }}>
           <svg
             style={{

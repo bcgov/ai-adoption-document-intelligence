@@ -204,7 +204,7 @@ export function DefinitionDetailView({
         notifications.show({
           title: "Candidate workflow created",
           message:
-            "Review it in the workflow editor if you want, then use “Start benchmark with this candidate” below.",
+            "Review it in the workflow editor if you want, then use “start benchmark with this candidate” below.",
           color: "green",
           autoClose: 8000,
         });
@@ -251,15 +251,15 @@ export function DefinitionDetailView({
   /** Map step identifiers to human-readable labels for the accordion headers */
   const stepLabel = (step: string): string => {
     const labels: Record<string, string> = {
-      baseline_mismatch_extraction: "Baseline Mismatch Extraction",
-      tool_manifest: "Tool Manifest",
-      workflow_load: "Workflow Load",
-      prompt_build: "LLM Prompt",
-      llm_request: "LLM Request Metadata",
-      llm_response: "LLM Response",
-      recommendation_parse: "Recommendation Parsing",
-      apply_recommendations: "Apply Recommendations",
-      candidate_creation: "Candidate Creation",
+      baseline_mismatch_extraction: "Baseline mismatch extraction",
+      tool_manifest: "Tool manifest",
+      workflow_load: "Workflow load",
+      prompt_build: "LLM prompt",
+      llm_request: "LLM request metadata",
+      llm_response: "LLM response",
+      recommendation_parse: "Recommendation parsing",
+      apply_recommendations: "Apply recommendations",
+      candidate_creation: "Candidate creation",
       error: "Error",
     };
     return labels[step] ?? step;
@@ -288,7 +288,7 @@ export function DefinitionDetailView({
                 checked={persistOcrCache}
                 onChange={(e) => setPersistOcrCache(e.currentTarget.checked)}
                 label="Persist OCR cache"
-                description="Store Azure OCR per sample for replay (recommended for improvement pipeline)"
+                description="Store azure OCR per sample for replay (recommended for improvement pipeline)"
                 size="sm"
                 data-testid="persist-ocr-cache-switch"
               />
@@ -314,7 +314,7 @@ export function DefinitionDetailView({
                 loading={isStarting}
                 data-testid="start-run-btn"
               >
-                Start Run
+                Start run
               </Button>
               {definition.immutable && (
                 <Badge color="gray" data-testid="immutable-badge">
@@ -330,7 +330,7 @@ export function DefinitionDetailView({
           <DataTable data-testid="definition-info-table">
             <DataTable.Tbody>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Dataset Version</DataTable.Td>
+                <DataTable.Td fw={500}>Dataset version</DataTable.Td>
                 <DataTable.Td>
                   {definition.datasetVersion.datasetName}{" "}
                   {definition.datasetVersion.version}
@@ -355,13 +355,13 @@ export function DefinitionDetailView({
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Workflow Config Hash</DataTable.Td>
+                <DataTable.Td fw={500}>Workflow config hash</DataTable.Td>
                 <DataTable.Td>
                   <Code>{definition.workflowConfigHash.substring(0, 12)}</Code>
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Evaluator Type</DataTable.Td>
+                <DataTable.Td fw={500}>Evaluator type</DataTable.Td>
                 <DataTable.Td>{definition.evaluatorType}</DataTable.Td>
               </DataTable.Tr>
             </DataTable.Tbody>
@@ -543,7 +543,7 @@ export function DefinitionDetailView({
               onClick={() => setShowDebugLog((prev) => !prev)}
               data-testid="toggle-debug-log-btn"
             >
-              {showDebugLog ? "Hide debug log" : "View debug log"}
+              {showDebugLog ? "hide debug log" : "view debug log"}
             </Button>
           )}
 
@@ -590,7 +590,7 @@ export function DefinitionDetailView({
                               <Accordion.Item value="system">
                                 <Accordion.Control>
                                   <Text size="sm" fw={500}>
-                                    System Message
+                                    System message
                                   </Text>
                                 </Accordion.Control>
                                 <Accordion.Panel>
@@ -617,7 +617,7 @@ export function DefinitionDetailView({
                               <Accordion.Item value="user">
                                 <Accordion.Control>
                                   <Text size="sm" fw={500}>
-                                    User Message
+                                    User message
                                   </Text>
                                 </Accordion.Control>
                                 <Accordion.Panel>
@@ -683,7 +683,7 @@ export function DefinitionDetailView({
             Object.keys(definition.workflowConfigOverrides).length > 0 && (
               <Stack gap={4}>
                 <Text size="sm" fw={500}>
-                  Workflow Config Overrides
+                  Workflow config overrides
                 </Text>
                 <Code block style={{ fontSize: 13 }}>
                   {JSON.stringify(definition.workflowConfigOverrides, null, 2)}
@@ -699,7 +699,7 @@ export function DefinitionDetailView({
             <Stack gap="xs">
               <Group justify="space-between">
                 <Title order={4} data-testid="baseline-info-heading">
-                  Current Baseline
+                  Current baseline
                 </Title>
                 <Button
                   variant="light"
@@ -711,7 +711,7 @@ export function DefinitionDetailView({
                   }
                   data-testid="view-baseline-run-btn"
                 >
-                  View Baseline Run
+                  View baseline run
                 </Button>
               </Group>
               <Text size="sm" c="dimmed" data-testid="baseline-promoted-info">
@@ -748,7 +748,7 @@ export function DefinitionDetailView({
                   </DataTable.Td>
                 </DataTable.Tr>
                 <DataTable.Tr>
-                  <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                  <DataTable.Td fw={500}>Completed at</DataTable.Td>
                   <DataTable.Td data-testid="baseline-completed-at">
                     {definition.baselineRun.completedAt
                       ? new Date(
@@ -762,7 +762,7 @@ export function DefinitionDetailView({
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-metrics-heading">
-                Key Metrics
+                Key metrics
               </Title>
               <DataTable striped data-testid="baseline-metrics-table">
                 <DataTable.Thead>
@@ -793,7 +793,7 @@ export function DefinitionDetailView({
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-thresholds-heading">
-                Regression Thresholds
+                Regression thresholds
               </Title>
               <DataTable striped data-testid="baseline-thresholds-table">
                 <DataTable.Thead>
@@ -838,7 +838,7 @@ export function DefinitionDetailView({
               <Group gap="xs">
                 <IconHistory size={16} />
                 <Title order={5} data-testid="baseline-history-heading">
-                  Baseline Change History
+                  Baseline change history
                 </Title>
               </Group>
               {isLoadingHistory ? (
@@ -851,7 +851,7 @@ export function DefinitionDetailView({
                 <DataTable striped data-testid="baseline-history-table">
                   <DataTable.Thead>
                     <DataTable.Tr>
-                      <DataTable.Th>Promoted At</DataTable.Th>
+                      <DataTable.Th>Promoted at</DataTable.Th>
                       <DataTable.Th>Run ID</DataTable.Th>
                       <DataTable.Th>User</DataTable.Th>
                     </DataTable.Tr>
@@ -899,7 +899,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="evaluator-config-heading">
-            Evaluator Configuration
+            Evaluator configuration
           </Title>
           <Code block data-testid="evaluator-config-json">
             {JSON.stringify(definition.evaluatorConfig, null, 2)}
@@ -910,7 +910,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="runtime-settings-heading">
-            Runtime Settings
+            Runtime settings
           </Title>
           <Code block data-testid="runtime-settings-json">
             {JSON.stringify(definition.runtimeSettings, null, 2)}
@@ -921,7 +921,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="schedule-config-heading">
-            Schedule Configuration
+            Schedule configuration
           </Title>
           <ScheduleConfig
             projectId={definition.projectId}
@@ -936,7 +936,7 @@ export function DefinitionDetailView({
         <Card>
           <Stack gap="md">
             <Title order={4} data-testid="run-history-heading">
-              Run History
+              Run history
             </Title>
             <DataTable striped highlightOnHover data-testid="run-history-table">
               <DataTable.Thead>

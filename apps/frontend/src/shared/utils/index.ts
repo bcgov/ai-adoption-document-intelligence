@@ -9,7 +9,7 @@ export const formatDate = (date: Date): string => {
 };
 
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return "0 Bytes";
+  if (bytes === 0) return "0 bytes";
 
   const k = 1024;
   const sizes = ["Bytes", "KB", "MB", "GB"];

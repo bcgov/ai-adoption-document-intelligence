@@ -34,7 +34,7 @@ const TYPE_OPTIONS: { value: ColumnType; label: string }[] = [
   { value: "number", label: "Number" },
   { value: "boolean", label: "Boolean" },
   { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & Time" },
+  { value: "datetime", label: "Date & time" },
   { value: "year-month", label: "Year-Month" },
   { value: "enum", label: "Enum" },
 ];
@@ -200,7 +200,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
     <Modal
       opened={opened}
       onClose={onClose}
-      title={initial ? "Edit Column" : "Add Column"}
+      title={initial ? "Edit column" : "Add column"}
     >
       <form
         onSubmit={form.onSubmit(async (v) => {
@@ -279,7 +279,7 @@ export function ColumnForm({ opened, onClose, initial, onSubmit }: Props) {
           {form.values.type === "enum" && (
             <TagsInput
               label="Enum values"
-              description="Press Enter to add"
+              description="Press enter to add"
               {...form.getInputProps("enumValues")}
             />
           )}
