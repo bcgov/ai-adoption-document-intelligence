@@ -170,7 +170,7 @@ export function ConfusionMatrixEditor({
     <Modal
       opened
       onClose={onClose}
-      title={`Confusion Matrix: ${profile.name}`}
+      title={`Confusion matrix: ${profile.name}`}
       size="xl"
     >
       <Stack gap="md">

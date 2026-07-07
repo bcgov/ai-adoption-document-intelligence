@@ -73,10 +73,10 @@ const bcdsSpacing = {
 
 export const appTheme = createTheme({
   fontFamily:
-    '"BC Sans", "Noto Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    '"BC sans", "noto sans", "segoe UI", roboto, helvetica, arial, sans-serif',
   headings: {
     fontFamily:
-      '"BC Sans", "Noto Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      '"BC sans", "noto sans", "segoe UI", roboto, helvetica, arial, sans-serif',
   },
   defaultRadius: "sm",
   primaryColor: "blue",

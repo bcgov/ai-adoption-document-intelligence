@@ -163,7 +163,7 @@ export function MembersTab({ groupId, isAdmin }: MembersTabProps): JSX.Element {
       <Modal
         opened={confirmMember !== null}
         onClose={() => setConfirmMember(null)}
-        title="Remove Member"
+        title="Remove member"
         data-testid="remove-confirm-modal"
       >
         <Text>

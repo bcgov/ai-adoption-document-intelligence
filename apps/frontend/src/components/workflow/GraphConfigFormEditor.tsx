@@ -664,7 +664,7 @@ function TransformNodeForm({ node, onChange }: TransformNodeFormProps) {
       {outputFormat === "xml" && (
         <>
           <Textarea
-            label="XML Envelope (optional)"
+            label="XML envelope (optional)"
             description="Wrap the rendered XML payload in a caller-defined envelope. Use {{payload}} where the rendered XML should be injected."
             placeholder="<envelope>{{payload}}</envelope>"
             value={xmlEnvelope ?? ""}
@@ -818,7 +818,7 @@ function ActivityNodeForm({ node, onChange }: ActivityNodeFormProps) {
             />
             <Switch
               label="Enable LLM enrichment"
-              description="Use Azure OpenAI for low-confidence fields"
+              description="Use azure OpenAI for low-confidence fields"
               checked={params.enableLlmEnrichment === true}
               onChange={(e) =>
                 setParam("enableLlmEnrichment", e.currentTarget.checked)
