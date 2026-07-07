@@ -22,6 +22,7 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { PrismaService } from "@/database/prisma.service";
+import { computeContentHash } from "@/document/content-hash.util";
 import { DocumentService } from "@/document/document.service";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
@@ -376,6 +377,8 @@ export class GroundTruthGenerationService {
 
       await this.pdfNormalization.validateForUpload(fileBuffer, fileType);
 
+      const contentHash = computeContentHash(fileBuffer);
+
       await this.blobStorage.write(docBlobKey, fileBuffer);
 
       const normalizedKey = buildBlobFilePath(
@@ -413,6 +416,7 @@ export class GroundTruthGenerationService {
           normalized_file_path: null as string | null,
           file_type: fileType,
           file_size: fileBuffer.length,
+          content_hash: contentHash,
           metadata: {
             source: "ground-truth-generation",
             datasetId,
@@ -452,6 +456,7 @@ export class GroundTruthGenerationService {
         normalized_file_path: normalizedKey,
         file_type: fileType,
         file_size: fileBuffer.length,
+        content_hash: contentHash,
         metadata: {
           source: "ground-truth-generation",
           datasetId,

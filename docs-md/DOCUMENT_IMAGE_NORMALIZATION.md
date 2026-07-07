@@ -9,7 +9,7 @@ Intake stores **two** objects per document (main `documents/` and labeling `labe
 | `original.{ext}` | Exact upload; used for **download** only. |
 | `normalized.pdf` | Canonical **PDF** for OCR, Temporal workflows, and **in-app viewing**. |
 
-Database: `file_path` → original blob; `normalized_file_path` → normalized PDF (null if conversion failed).
+Database: `file_path` → original blob; `normalized_file_path` → normalized PDF (null if conversion failed). `content_hash` → SHA-256 hex of original upload bytes (see [`DOCUMENT_CONTENT_HASH.md`](DOCUMENT_CONTENT_HASH.md)).
 
 ## API
 
