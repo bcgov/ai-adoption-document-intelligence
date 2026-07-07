@@ -37,7 +37,7 @@ export const DocumentsList: React.FC = () => {
       <Alert
         variant="light"
         color="red"
-        title="Error Loading Documents"
+        title="Error loading documents"
         icon="❌"
       >
         {error.message}

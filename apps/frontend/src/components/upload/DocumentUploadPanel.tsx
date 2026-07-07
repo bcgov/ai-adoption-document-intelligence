@@ -312,7 +312,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         </div>
         <Select
           mt="md"
-          label="Processing Model"
+          label="Processing model"
           placeholder="Select a model"
           data={models?.map((m) => ({ value: m, label: m })) || []}
           value={selectedModel}
@@ -323,7 +323,7 @@ export const DocumentUploadPanel: React.FC<DocumentUploadPanelProps> = ({
         />
         <Select
           mt="md"
-          label="Workflow (Optional)"
+          label="Workflow (optional)"
           placeholder="Select a workflow"
           description="Choose a custom workflow configuration for processing"
           data={

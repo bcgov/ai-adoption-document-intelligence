@@ -41,7 +41,7 @@ export function TablesListPage() {
               onClick={() => setModalOpen(true)}
               disabled={!activeGroup}
             >
-              Create Table
+              Create table
             </Button>
           ) : undefined
         }
@@ -64,7 +64,7 @@ export function TablesListPage() {
             <Text c="dimmed">
               {search
                 ? "No tables match the search."
-                : "No tables yet — click Create Table to add one."}
+                : "No tables yet — click create table to add one."}
             </Text>
           )}
           {filtered.length > 0 && (

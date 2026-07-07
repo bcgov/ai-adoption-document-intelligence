@@ -251,7 +251,7 @@ describe("GroupDetailPage", () => {
       fireEvent.click(screen.getByTestId("group-actions-menu-btn"));
       await waitFor(() => {
         const item = screen.getByTestId("join-group-menu-item");
-        expect(item).toHaveTextContent("Request Pending");
+        expect(item).toHaveTextContent("Request pending");
       });
     });
 
@@ -838,7 +838,7 @@ describe("GroupDetailPage", () => {
       renderPage();
 
       expect(
-        screen.queryByRole("tab", { name: "Membership Requests" }),
+        screen.queryByRole("tab", { name: "Membership requests" }),
       ).not.toBeInTheDocument();
     });
 
@@ -848,7 +848,7 @@ describe("GroupDetailPage", () => {
       renderPage();
 
       expect(
-        screen.getByRole("tab", { name: "Membership Requests" }),
+        screen.getByRole("tab", { name: "Membership requests" }),
       ).toBeInTheDocument();
     });
 
@@ -858,7 +858,7 @@ describe("GroupDetailPage", () => {
       renderPage();
 
       expect(
-        screen.getByRole("tab", { name: "Membership Requests" }),
+        screen.getByRole("tab", { name: "Membership requests" }),
       ).toBeInTheDocument();
     });
 
@@ -867,7 +867,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         const table = screen.getByTestId("requests-table");
@@ -900,7 +900,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -923,7 +923,7 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-loading")).toBeInTheDocument();
@@ -941,7 +941,7 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-error")).toBeInTheDocument();
@@ -959,7 +959,7 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-empty")).toBeInTheDocument();
@@ -988,7 +988,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         // req-1 is PENDING — should have Approve button
@@ -1017,7 +1017,7 @@ describe("GroupDetailPage", () => {
 
       // Regular member does not see the Requests tab, but check just in case
       expect(
-        screen.queryByRole("tab", { name: "Membership Requests" }),
+        screen.queryByRole("tab", { name: "Membership requests" }),
       ).not.toBeInTheDocument();
     });
 
@@ -1026,7 +1026,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1048,7 +1048,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1068,7 +1068,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1105,7 +1105,7 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1131,7 +1131,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1160,7 +1160,7 @@ describe("GroupDetailPage", () => {
       adminSetup();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(
@@ -1195,7 +1195,7 @@ describe("GroupDetailPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "Membership Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Membership requests" }));
 
       await waitFor(() => {
         expect(

@@ -37,7 +37,7 @@ export function ProjectListPage() {
   return (
     <Stack gap="lg">
       <PageHeader
-        title="Benchmark Projects"
+        title="Benchmark projects"
         description="Organize benchmarks by project"
         actions={
           <Button
@@ -45,7 +45,7 @@ export function ProjectListPage() {
             onClick={() => setCreateDialogOpened(true)}
             data-testid="create-project-btn"
           >
-            Create Project
+            Create project
           </Button>
         }
       />
@@ -67,7 +67,7 @@ export function ProjectListPage() {
                   onClick={() => setCreateDialogOpened(true)}
                   data-testid="create-project-empty-btn"
                 >
-                  Create Project
+                  Create project
                 </Button>
               </Stack>
             </Center>
@@ -87,7 +87,7 @@ export function ProjectListPage() {
                 <DataTable.Th>Description</DataTable.Th>
                 <DataTable.Th>Definitions</DataTable.Th>
                 <DataTable.Th>Runs</DataTable.Th>
-                <DataTable.Th>Created Date</DataTable.Th>
+                <DataTable.Th>Created date</DataTable.Th>
               </DataTable.Tr>
             </DataTable.Thead>
             <DataTable.Tbody>
