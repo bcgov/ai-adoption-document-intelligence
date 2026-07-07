@@ -1,6 +1,7 @@
 import {
   CorrectionAction as DbCorrectionAction,
   DocumentStatus,
+  Prisma,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -8,8 +9,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
@@ -140,6 +143,13 @@ describe("HitlService", () => {
       getAnalytics: jest.fn(),
     };
 
+    const mockPrismaService = {
+      transaction: jest.fn(
+        async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+          fn({} as Prisma.TransactionClient),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HitlService,
@@ -159,6 +169,14 @@ describe("HitlService", () => {
         {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: ModuleRef,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -416,13 +434,17 @@ describe("HitlService", () => {
       expect(mockReviewDbService.createReviewSession).toHaveBeenCalledWith(
         "doc-1",
         "reviewer-1",
+        expect.anything(),
       );
-      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
-        document_id: "doc-1",
-        reviewer_id: "reviewer-1",
-        session_id: "session-1",
-        expires_at: expect.any(Date),
-      });
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
 
       expect(result).toEqual({
         id: "session-1",
@@ -722,9 +744,11 @@ describe("HitlService", () => {
           status: ReviewStatus.approved,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -784,6 +808,7 @@ describe("HitlService", () => {
           original_value: dto.reason,
           action: DbCorrectionAction.flagged,
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -791,9 +816,11 @@ describe("HitlService", () => {
           status: ReviewStatus.escalated,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -847,9 +874,11 @@ describe("HitlService", () => {
           status: ReviewStatus.skipped,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -1066,13 +1095,17 @@ describe("HitlService", () => {
           status: ReviewStatus.in_progress,
           completed_at: null,
         },
+        expect.anything(),
       );
-      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
-        document_id: "doc-1",
-        reviewer_id: "reviewer-1",
-        session_id: "session-1",
-        expires_at: expect.any(Date),
-      });
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
       expect(result).toEqual({
         id: "session-1",
         status: ReviewStatus.in_progress,

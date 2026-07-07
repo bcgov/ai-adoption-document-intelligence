@@ -14,6 +14,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import {
   BenchmarkProjectDbService,
   BenchmarkProjectWithDetails,
@@ -30,7 +31,10 @@ import {
 export class BenchmarkProjectService {
   private readonly logger = new Logger(BenchmarkProjectService.name);
 
-  constructor(private readonly projectDbService: BenchmarkProjectDbService) {}
+  constructor(
+    private readonly projectDbService: BenchmarkProjectDbService,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Create a benchmark project
@@ -50,6 +54,17 @@ export class BenchmarkProjectService {
       });
 
       this.logger.log(`Created benchmark project: ${project.id}`);
+
+      await this.auditService.recordEvent({
+        event_type: "benchmark_project_created",
+        resource_type: "benchmark_project",
+        resource_id: project.id,
+        actor_id: actorId,
+        group_id: project.group_id,
+        payload: {
+          name: project.name,
+        },
+      });
 
       return this.mapToProjectDetails(project);
     } catch (error) {
@@ -107,7 +122,7 @@ export class BenchmarkProjectService {
    * Checks for active/running benchmark runs before allowing deletion.
    * Cascade-deletes all definitions and runs in Postgres.
    */
-  async deleteProject(id: string): Promise<void> {
+  async deleteProject(id: string, actorId: string): Promise<void> {
     const project =
       await this.projectDbService.findBenchmarkProjectForDeletion(id);
 
@@ -125,6 +140,17 @@ export class BenchmarkProjectService {
 
     // Cascade-delete project (definitions + runs are cascade-deleted by Prisma)
     await this.projectDbService.deleteBenchmarkProject(id);
+
+    await this.auditService.recordEvent({
+      event_type: "benchmark_project_deleted",
+      resource_type: "benchmark_project",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: project.group_id,
+      payload: {
+        name: project.name,
+      },
+    });
 
     this.logger.log(`Deleted benchmark project: ${id} (${project.name})`);
   }

@@ -12,6 +12,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -20,6 +21,7 @@ import {
   buildBlobFilePath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
+import { PrismaService } from "@/database/prisma.service";
 import { computeContentHash } from "@/document/content-hash.util";
 import { DocumentService } from "@/document/document.service";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
@@ -74,6 +76,8 @@ export class GroundTruthGenerationService {
     private readonly hitlDatasetService: HitlDatasetService,
     private readonly temporalClient: TemporalClientService,
     private readonly pdfNormalization: PdfNormalizationService,
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE) private readonly blobStorage: BlobStorageInterface,
   ) {}
 
@@ -181,10 +185,8 @@ export class GroundTruthGenerationService {
           }),
       );
 
-      await this.jobDb.deleteJobsByIds(staleJobs.map((j) => j.id));
-
       this.logger.log(
-        `Cleaned up ${staleJobs.length} stale ground truth jobs for version ${versionId}`,
+        `Will remove ${staleJobs.length} stale ground truth jobs for version ${versionId}`,
       );
     }
 
@@ -201,18 +203,44 @@ export class GroundTruthGenerationService {
       );
     }
 
-    // Create job records
-    const jobs = await this.jobDb.createManyJobs(
-      samplesToProcess.map((sample) => ({
-        datasetVersionId: versionId,
-        sampleId: sample.id,
-        workflowVersionId,
-        status: GroundTruthJobStatus.pending,
-        workflowConfigOverrides: normalizedOverrides
-          ? (normalizedOverrides as Prisma.InputJsonValue)
-          : Prisma.DbNull,
-      })),
-    );
+    const staleJobIds = staleJobs.map((j) => j.id);
+    const jobs = await this.prismaService.transaction(async (tx) => {
+      if (staleJobIds.length > 0) {
+        await this.jobDb.deleteJobsByIds(staleJobIds, tx);
+      }
+
+      const created = await this.jobDb.createManyJobs(
+        samplesToProcess.map((sample) => ({
+          datasetVersionId: versionId,
+          sampleId: sample.id,
+          workflowVersionId,
+          status: GroundTruthJobStatus.pending,
+          workflowConfigOverrides: normalizedOverrides
+            ? (normalizedOverrides as Prisma.InputJsonValue)
+            : Prisma.DbNull,
+        })),
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "ground_truth_generation_started",
+          resource_type: "dataset_version",
+          resource_id: versionId,
+          actor_id: _userId !== "anonymous" ? _userId : undefined,
+          group_id: workflowVersion.lineage.group_id,
+          payload: {
+            dataset_id: datasetId,
+            workflow_version_id: workflowVersionId,
+            job_count: created.length,
+            stale_jobs_removed: staleJobIds.length,
+          },
+        },
+        tx,
+      );
+
+      return created;
+    });
 
     this.logger.log(
       `Created ${jobs.length} ground truth generation jobs for version ${versionId}`,
@@ -404,16 +432,22 @@ export class GroundTruthGenerationService {
           model_id: modelId,
           group_id: groupId,
         };
-        await this.documentService.createDocument(failedDoc);
-        await this.jobDb.updateJob(jobId, {
-          documentId,
-          status: GroundTruthJobStatus.failed,
-          error: errorMessage,
+        await this.prismaService.transaction(async (tx) => {
+          await this.documentService.createDocument(failedDoc, tx);
+          await this.jobDb.updateJob(
+            jobId,
+            {
+              documentId,
+              status: GroundTruthJobStatus.failed,
+              error: errorMessage,
+            },
+            tx,
+          );
         });
         return;
       }
 
-      // Create document in DB
+      // Create document in DB and mark job processing atomically
       const documentData = {
         id: documentId,
         title: job.sampleId,
@@ -439,12 +473,16 @@ export class GroundTruthGenerationService {
         group_id: groupId,
       };
 
-      await this.documentService.createDocument(documentData);
-
-      // Update job with document ID and set to processing
-      await this.jobDb.updateJob(jobId, {
-        documentId,
-        status: GroundTruthJobStatus.processing,
+      await this.prismaService.transaction(async (tx) => {
+        await this.documentService.createDocument(documentData, tx);
+        await this.jobDb.updateJob(
+          jobId,
+          {
+            documentId,
+            status: GroundTruthJobStatus.processing,
+          },
+          tx,
+        );
       });
 
       // Start OCR workflow with confidenceThreshold=0 to skip humanGate.

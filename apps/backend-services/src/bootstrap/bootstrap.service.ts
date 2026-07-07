@@ -114,17 +114,20 @@ export class BootstrapService {
         },
       });
 
-      await this.auditService.recordEvent({
-        event_type: "system_bootstrap",
-        resource_type: "system",
-        resource_id: "bootstrap",
-        actor_id: user.actor_id,
-        group_id: group.id,
-        payload: {
-          user_email: userEmail,
-          group_name: group.name,
+      await this.auditService.recordEvent(
+        {
+          event_type: "system_bootstrap",
+          resource_type: "system",
+          resource_id: "bootstrap",
+          actor_id: user.actor_id,
+          group_id: group.id,
+          payload: {
+            user_email: userEmail,
+            group_name: group.name,
+          },
         },
-      });
+        tx,
+      );
       return { user, group };
     });
 
