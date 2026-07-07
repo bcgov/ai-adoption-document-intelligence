@@ -617,6 +617,7 @@ describe("GroundTruthGenerationService", () => {
         expect.objectContaining({
           content_hash: computeContentHash(Buffer.from("%PDF-1.4")),
         }),
+        expect.anything(),
       );
     });
 
