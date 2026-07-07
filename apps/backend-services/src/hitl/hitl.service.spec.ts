@@ -42,6 +42,8 @@ describe("HitlService", () => {
     normalized_file_path: "/path/to/normalized.pdf",
     file_type: "pdf",
     file_size: 1000,
+    content_hash:
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
     metadata: {},
     source: "upload",
     status: DocumentStatus.extracted,
