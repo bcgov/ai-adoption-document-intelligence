@@ -2,11 +2,11 @@
 status: active
 updated: 2026-06-17
 canonical_sources:
-  - docs-md/openshift-deployment/
+  - docs-md/operations/
   - scripts/README.md
-  - docs-md/LOAD_TESTING.md
-  - docs-md/LOCAL_MONITORING_STACK.md
-  - docs-md/ALERTING.md
+  - docs-md/benchmarking/LOAD_TESTING.md
+  - docs-md/monitoring/LOCAL_MONITORING_STACK.md
+  - docs-md/monitoring/ALERTING.md
   - .github/workflows/
   - deployments/
 do_not_duplicate:
@@ -22,10 +22,10 @@ Deployment and operations guidance spans OpenShift docs, scripts, GitHub Actions
 
 ## Source Map
 
-- OpenShift deployment docs live under `docs-md/openshift-deployment/`.
+- OpenShift deployment docs live under `docs-md/operations/`.
 - Script usage and maintenance operations live in `scripts/README.md`.
-- Load testing guidance lives in `docs-md/LOAD_TESTING.md`.
-- Monitoring and alerting guidance lives in `docs-md/LOCAL_MONITORING_STACK.md` and `docs-md/ALERTING.md`.
+- Load testing guidance lives in `docs-md/benchmarking/LOAD_TESTING.md`.
+- Monitoring and alerting guidance lives in `docs-md/monitoring/LOCAL_MONITORING_STACK.md` and `docs-md/monitoring/ALERTING.md`.
 - CI/CD behavior lives in `.github/workflows/`.
 - Kubernetes, Helm, and local deployment assets live under `deployments/`.
 

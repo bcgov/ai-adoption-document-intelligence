@@ -2,9 +2,9 @@
 
 CLI scripts for managing, backing up, and tearing down instances of the application stack on OpenShift.
 
-**Default deployments use the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/openshift-deployment/AUTO_DEPLOY.md](../docs-md/openshift-deployment/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); pushes to `main` deploy to `bcgov-di` (namespace `fd34fb-prod`).
+**Default deployments use the `Deploy Instance` GitHub Actions workflow** — see [../docs-md/operations/AUTO_DEPLOY.md](../docs-md/operations/AUTO_DEPLOY.md). Pushes to `develop` deploy to `bcgov-di-test` (namespace `fd34fb-test`); pushes to `main` deploy to `bcgov-di` (namespace `fd34fb-prod`).
 
-For a **second stack** in `fd34fb-test` with images from your branch (load testing), use **[`oc-build-push.sh`](#oc-build-pushsh--build-and-push-images)** and **[`oc-deploy-instance.sh`](#oc-deploy-instancesh--manual-openshift-deploy)** with **[manual deploy docs](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md)**.
+For a **second stack** in `fd34fb-test` with images from your branch (load testing), use **[`oc-build-push.sh`](#oc-build-pushsh--build-and-push-images)** and **[`oc-deploy-instance.sh`](#oc-deploy-instancesh--manual-openshift-deploy)** with **[manual deploy docs](../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md)**.
 
 Other scripts here handle listing, backup/restore, and teardown.
 
@@ -90,7 +90,7 @@ Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl app
 | `--blob-storage-provider <azure\|minio>` | Use `minio` to deploy a per-instance MinIO Deployment + PVC + bucket-init Job (load-test only) |
 | `--minio-pvc-size <size>` | PVC size for the per-instance MinIO data volume (default `5Gi`) |
 
-See [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md).
+See [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md).
 
 ---
 
@@ -229,7 +229,7 @@ Notes:
 - WSL-only — requires Windows interop with `powershell.exe` reachable
 - Verifies the destination is writable before starting the dump
 - Pipes `oc exec ... pg_dump` stdout through `powershell.exe` to a `[System.IO.File]::Create` stream — no intermediate file on either Linux or Windows local disk
-- See [docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md](../docs-md/openshift-deployment/BACKUP_TO_NETWORK_SHARE.md) for the longer write-up
+- See [docs-md/operations/BACKUP_TO_NETWORK_SHARE.md](../docs-md/operations/BACKUP_TO_NETWORK_SHARE.md) for the longer write-up
 
 ---
 
@@ -317,4 +317,4 @@ The `Deploy Instance` GitHub workflow uses the same keys from these env files (v
 
 Secret values are created as per-instance OpenShift Secrets during deployment. Each instance gets its own copy, so instances can be independently configured.
 
-See [docs-md/openshift-deployment/](../docs-md/openshift-deployment/) for the full variable reference and technical details.
+See [docs-md/operations/](../docs-md/operations/) for the full variable reference and technical details.

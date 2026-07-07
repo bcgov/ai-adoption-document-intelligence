@@ -39,9 +39,9 @@ See [backend-services/README.md](./backend-services/README.md) for module-level 
 
 ## Documentation
 
-- [Graph workflows](../docs-md/graph-workflows/)
-- [Workflow builder (design reference)](../docs-md/workflow-builder/)
-- [HITL architecture](../docs-md/HITL_ARCHITECTURE.md)
-- [Authentication](../docs-md/AUTHENTICATION.md)
+- [Graph workflows](../docs-md/workflows/)
+- [Workflow builder (design reference)](../docs-md/workflows/)
+- [HITL architecture](../docs-md/architecture/HITL_ARCHITECTURE.md)
+- [Authentication](../docs-md/auth/AUTHENTICATION.md)
 
 Contributor rules: [CLAUDE.md](../CLAUDE.md), [AGENTS.md](../AGENTS.md)

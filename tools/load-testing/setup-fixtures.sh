@@ -22,7 +22,7 @@
 #   --classifier-name NAME     Classifier name to look up / create
 #                              (default: loadtest-blob-classifier)
 #   --workflow-template PATH   Graph workflow JSON used when creating
-#                              (default: docs-md/graph-workflows/templates/standard-ocr-workflow.json)
+#                              (default: docs-md/workflows/templates/standard-ocr-workflow.json)
 #   --workflows-only           Skip classifier provisioning
 #   --classifier-only          Skip workflow provisioning
 #   --quiet                    Suppress info messages on stderr
@@ -46,7 +46,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 DEFAULT_WORKFLOW_NAME="loadtest-standard-ocr"
 DEFAULT_CLASSIFIER_NAME="loadtest-blob-classifier"
-DEFAULT_TEMPLATE="${REPO_ROOT}/docs-md/graph-workflows/templates/standard-ocr-workflow.json"
+DEFAULT_TEMPLATE="${REPO_ROOT}/docs-md/workflows/templates/standard-ocr-workflow.json"
 
 workflow_name="${LOAD_TEST_FIXTURE_WORKFLOW_NAME:-${DEFAULT_WORKFLOW_NAME}}"
 classifier_name="${LOAD_TEST_FIXTURE_CLASSIFIER_NAME:-${DEFAULT_CLASSIFIER_NAME}}"

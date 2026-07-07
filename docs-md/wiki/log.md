@@ -46,7 +46,7 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 - Phase 1: fixed dev script scope, Prisma order, monitoring compose paths, docs site stats, TESTING.md scripts.
 - Phase 2: aligned workflow builder claims, wiki auth sources (`actor/`), docs build description.
-- Phase 3: trimmed `apps/README.md`, aligned copilot with CLAUDE Swagger/API rules, added `docs-md/ARCHIVE.md`.
+- Phase 3: trimmed `apps/README.md`, aligned copilot with CLAUDE Swagger/API rules, added `docs-md/archive/README.md`.
 
 ## [2026-06-20] lint | Holistic docs-vs-code alignment
 
@@ -56,3 +56,21 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Migrated labeling/training docs to the template-models API: README endpoints/tree, backend README, frontend README pages, `DATABASE_SERVICES.md`, and the `GROUP_RESOURCE_AUTHORIZATION.md` route tables.
 - Fixed broken `TEMPLATE_TRAINING.md` links to `TEMPLATE_MODELS.md`.
 - Noted workflow form editor (default) alongside JSON + read-only React Flow in wiki and READMEs.
+
+## [2026-07-03] maintenance | docs-md topic reorganization and code-verified audit
+
+- Reorganized docs-md from a flat dump into topic folders (architecture/ auth/ groups/ workflows/ extraction/ operations/ monitoring/ benchmarking/ frontend/ archive/); all repo references rewritten, taxonomy index at docs-md/README.md.
+- Archived point-in-time artifacts (temp/ audits, rapid-assessment-2026-04-09/, PR-88 review, May load-test report, completed Temporal footprint plan, DATABASE_ROLES.md describing the removed Role/UserRole schema) under docs-md/archive/ with a policy README.
+- Audited 32 docs against code and fixed drift (groups API endpoints, audit event catalog, database services map, classifier deletion flow, shared packages, ground-truth/HITL dataset flows); remaining docs tracked in feature-docs/20260702-docs-sync-cleanup/remaining-audit-checklist.md.
+- Added the docs-sync skill (.claude/skills/docs-sync/) encoding ingest/audit/add/archive workflows and a docs-md-wide link checker.
+- Untracked generated docs/wiki*.html (gitignored; built at deploy).
+
+## [2026-07-03] lint | Completed code-verified audit of all 88 active docs
+
+- Finished the remaining 56 doc audits inline (architecture, auth, benchmarking, extraction, frontend, groups UI, monitoring, operations, workflows batches); notable fixes: blob key scheme is group-scoped `{groupId}/{category}/...`, confusion-matrix derivation is the confusion-profiles module, legacy step-based enrichment config removed, node catalog now covers all registry activities, DAG engine historical migration appendix replaced.
+- Gap scan across backend/temporal/frontend/packages/ops/CI found one substantive gap: added docs-md/operations/CI_WORKFLOWS.md (GitHub Actions map). Thin modules (queue, health, ocr) are covered indirectly by upload/HA/template-model docs.
+- Archived stray docs/LOGGING.md as docs-md/archive/LOGGING_CATEGORIES_2026-03.md.
+
+## [2026-07-03] ingest | Add Extraction wiki topic page
+
+- Added `extraction.md` topic page routing the 11 OCR/extraction docs (previously reachable only by folder browsing); linked from `index.md` and registered in `sources.md`. Resolves the extraction-topic open question.
