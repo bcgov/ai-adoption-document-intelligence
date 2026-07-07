@@ -29,6 +29,9 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { requireUserId } from "@/auth/identity.helpers";
+import { BillingConfigService } from "@/billing/billing-config.service";
+import { GroupBillingConfigDto } from "@/billing/dto/group-billing-config.dto";
+import { SetBillingCapDto } from "@/billing/dto/set-billing-cap.dto";
 import { User } from "../auth/types";
 import { CreateGroupDto } from "./dto/create-group.dto";
 import { GroupDto } from "./dto/group.dto";
@@ -49,7 +52,10 @@ import { GroupService } from "./group.service";
 @ApiTags("Group")
 @Controller("api/groups")
 export class GroupController {
-  constructor(private readonly groupService: GroupService) {}
+  constructor(
+    private readonly groupService: GroupService,
+    private readonly billingConfigService: BillingConfigService,
+  ) {}
 
   /**
    * Soft-delete an existing group (system admin only)
@@ -543,5 +549,63 @@ export class GroupController {
     requireUserId(req.resolvedIdentity);
     await this.groupService.leaveGroup(req.resolvedIdentity, groupId);
     return { success: true };
+  }
+
+  /**
+   * Get the billing configuration for a group (platform admin only)
+   * GET /api/groups/:groupId/billing-config
+   */
+  @ApiOperation({
+    summary: "Get billing configuration for a group (platform admin only)",
+  })
+  @ApiOkResponse({
+    description:
+      "Billing configuration retrieved successfully. Returns null if no config exists.",
+    type: GroupBillingConfigDto,
+  })
+  @ApiForbiddenResponse({ description: "Caller is not a platform admin" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiNotFoundResponse({ description: "Group not found" })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @Identity({ requireSystemAdmin: true })
+  @Get(":groupId/billing-config")
+  async getGroupBillingConfig(
+    @Param("groupId") groupId: string,
+  ): Promise<GroupBillingConfigDto | null> {
+    return this.billingConfigService.getBillingConfig(groupId);
+  }
+
+  /**
+   * Set or remove the monthly spending cap for a group (platform admin only)
+   * PATCH /api/groups/:groupId/billing-config
+   */
+  @ApiOperation({
+    summary:
+      "Set or remove a group's monthly spending cap (platform admin only)",
+  })
+  @ApiOkResponse({
+    description: "Billing configuration updated successfully",
+    type: GroupBillingConfigDto,
+  })
+  @ApiForbiddenResponse({ description: "Caller is not a platform admin" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiNotFoundResponse({ description: "Group not found" })
+  @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @Identity({ requireSystemAdmin: true })
+  @Patch(":groupId/billing-config")
+  async setGroupBillingCap(
+    @Param("groupId") groupId: string,
+    @Body() dto: SetBillingCapDto,
+    @Req() req: Request,
+  ): Promise<GroupBillingConfigDto> {
+    const actorId =
+      req.resolvedIdentity?.actorId ??
+      req.resolvedIdentity?.userId ??
+      "unknown";
+    return this.billingConfigService.upsertBillingCap(
+      groupId,
+      dto.monthly_cap_dollars,
+      actorId,
+    );
   }
 }

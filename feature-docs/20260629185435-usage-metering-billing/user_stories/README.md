@@ -85,7 +85,7 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-012** (template model and classifier training events + pre-flight cap check) — depends on US-003 and US-005
 
 ### Phase 7 — Cap Administration
-- [ ] **US-013** (platform admin API to configure group spending caps) — depends on US-001
+- [x] **US-013** (platform admin API to configure group spending caps) — depends on US-001
 
 ### Phase 8 — Usage Visibility
 - [ ] **US-014** (group admin usage summary and history API) — depends on US-003, US-013

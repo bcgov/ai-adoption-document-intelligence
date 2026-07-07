@@ -2,6 +2,7 @@ import { IconTrash } from "@tabler/icons-react";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { BillingTab } from "../components/group/BillingTab";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -265,6 +266,11 @@ export function GroupDetailPage(): JSX.Element {
               {isAdmin && (
                 <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
               )}
+              {isAdmin && (
+                <Tabs.Tab value="billing" data-testid="billing-tab">
+                  Billing
+                </Tabs.Tab>
+              )}
             </Tabs.List>
 
             <Tabs.Panel value="members" pt="md">
@@ -273,6 +279,11 @@ export function GroupDetailPage(): JSX.Element {
             {isAdmin && (
               <Tabs.Panel value="requests" pt="md">
                 <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+              </Tabs.Panel>
+            )}
+            {isAdmin && (
+              <Tabs.Panel value="billing" pt="md">
+                <BillingTab groupId={groupId} readOnly={!isSystemAdmin} />
               </Tabs.Panel>
             )}
           </Tabs>
