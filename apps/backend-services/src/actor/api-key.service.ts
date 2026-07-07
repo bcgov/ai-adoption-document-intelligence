@@ -99,10 +99,7 @@ export class ApiKeyService {
       throw new NotFoundException("No API key found with this ID");
     }
 
-    const deleted = await this.apiKeyDb.deleteApiKeyById(keyId);
-    if (!deleted) {
-      throw new NotFoundException("No API key found with this ID");
-    }
+    await this.apiKeyDb.deleteApiKeyById(keyId);
 
     await this.auditService.recordEvent({
       event_type: "api_key_deleted",

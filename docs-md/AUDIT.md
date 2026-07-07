@@ -28,7 +28,7 @@ In addition to the event types listed below, **every user-initiated create, upda
 When adding or changing backend mutations, verify:
 
 - [ ] Two or more related writes use a single transaction (see [DATABASE_SERVICES.md](./DATABASE_SERVICES.md)).
-- [ ] An audit event is recorded with the correct `event_type` / `AuditAction`, `resource_type`, `resource_id`, and `actor_id`.
+- [ ] An audit event is recorded with the correct `event_type` / `AuditAction`, `resource_type`, `resource_id`, and `actor_id` (or `null` only for system-initiated actions with no HTTP identity).
 - [ ] Audit uses the same `tx` when the mutation is transactional.
 
 Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSACTION_AND_AUDIT_AUDIT.md).
@@ -43,7 +43,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 | `id`                     | String   | Primary key (cuid).                              |
 | `occurred_at`            | DateTime | When the event occurred (default: now).          |
 | `event_type`             | String   | Event kind (see below).                           |
-| `actor_id`               | String?  | User/reviewer ID when the action is user-initiated. |
+| `actor_id`               | String?  | User/reviewer ID when the action is user-initiated. Omitted/`null` only for system-initiated actions (e.g. training poller) with no HTTP identity in request context. |
 | `resource_type`          | String   | e.g. `workflow_run`, `review_session`.           |
 | `resource_id`            | String   | ID of the resource (e.g. workflow id, session id). |
 | `document_id`            | String?  | Related document ID.                             |
@@ -79,9 +79,9 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 
 | event_type | When | resource_type | resource_id | Payload / notes |
 |------------|------|---------------|-------------|-----------------|
-| `api_key_created` | New API key generated for a group | api_key | key.id | key_prefix, generating_user_id |
-| `api_key_deleted` | API key revoked | api_key | key.id | key_prefix |
-| `api_key_regenerated` | API key rotated in place | api_key | key.id | key_prefix, generating_user_id |
+| `api_key_created` | New API key generated for a group | api_key | key.id | key_prefix, generating_user_id; `actor_id` from request context |
+| `api_key_deleted` | API key revoked | api_key | key.id | key_prefix; `actor_id` from request context |
+| `api_key_regenerated` | API key rotated in place | api_key | key.id | key_prefix, generating_user_id; `actor_id` from request context |
 
 ### HITL events
 

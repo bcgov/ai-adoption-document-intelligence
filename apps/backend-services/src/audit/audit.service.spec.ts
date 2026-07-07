@@ -80,10 +80,10 @@ describe("AuditService", () => {
       );
     });
 
-    it("should use userId from request context when actor_id is omitted", async () => {
+    it("should use actorId from request context when actor_id is omitted", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
-        .mockReturnValue({ requestId: "req-ctx-1", actorId: undefined });
+        .mockReturnValue({ requestId: "req-ctx-1", actorId: "actor-ctx-1" });
       mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
 
       await service.recordEvent({
@@ -93,7 +93,7 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: null }),
+        expect.objectContaining({ actor_id: "actor-ctx-1" }),
         undefined,
       );
     });
@@ -111,12 +111,34 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ request_id: "ctx-req-1" }),
+        expect.objectContaining({
+          request_id: "ctx-req-1",
+          actor_id: "u",
+        }),
         undefined,
       );
     });
 
-    it("should set optional fields to null when omitted and context has no userId", async () => {
+    it("should prefer explicit actor_id over request context", async () => {
+      jest
+        .spyOn(requestContextModule, "getRequestContext")
+        .mockReturnValue({ requestId: "ctx-req-1", actorId: "ctx-actor" });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "TEST",
+        resource_type: "document",
+        resource_id: "res-1",
+        actor_id: "explicit-actor",
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ actor_id: "explicit-actor" }),
+        undefined,
+      );
+    });
+
+    it("should set optional fields to null when omitted and context has no actorId", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
         .mockReturnValue({ requestId: "ctx-req-1" });
