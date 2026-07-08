@@ -6,6 +6,12 @@ import {
   recordLedgerWrite,
 } from "./storage-ledger";
 
+jest.mock("@temporalio/activity", () => ({
+  activityInfo: jest.fn().mockReturnValue({
+    workflowExecution: { workflowId: "test-workflow-id" },
+  }),
+}));
+
 function makeMockPrisma() {
   const groupStorageLedger = {
     create: jest.fn().mockResolvedValue({}),

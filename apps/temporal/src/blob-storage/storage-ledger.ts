@@ -12,6 +12,7 @@
 
 import { buildUsageEventWriteOps } from "@ai-di/billing";
 import type { PrismaClient } from "@generated/client";
+import { activityInfo } from "@temporalio/activity";
 import { createActivityLogger } from "../logger";
 
 const SHARED_PREFIX = "_shared/";
@@ -43,6 +44,40 @@ export async function recordLedgerWrite(
         written_at: new Date(),
         deleted_at: null,
       },
+    });
+
+    const rateVersion = await prisma.rateVersion.findFirst({
+      where: { effective_from: { lte: new Date() } },
+      orderBy: { effective_from: "desc" },
+      include: { activity_costs: { where: { activity_name: "blob.write" } } },
+    });
+
+    if (!rateVersion || rateVersion.activity_costs.length === 0) return;
+
+    const readCost = rateVersion.activity_costs[0];
+    const unitsConsumed = Number(readCost.units);
+    if (unitsConsumed === 0) return;
+
+    const info = activityInfo();
+    const workflowId = info.workflowExecution.workflowId;
+
+    const { createData, upsertArgs } = buildUsageEventWriteOps({
+      event_type: "blob_storage",
+      activity_name: "blob.write",
+      group_id: groupId,
+      rate_version_id: rateVersion.id,
+      unit_cost_dollars: Number(rateVersion.unit_cost_dollars),
+      units_consumed: unitsConsumed,
+      resource_id: key,
+      resource_type: "blob",
+      workflow_execution_id: workflowId,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.usageEvent.create({ data: createData });
+      if (upsertArgs) {
+        await tx.usagePeriodSummary.upsert(upsertArgs);
+      }
     });
   } catch (error: unknown) {
     const err = error as Error;
@@ -102,6 +137,9 @@ export async function recordLedgerRead(
     const unitsConsumed = Number(readCost.units);
     if (unitsConsumed === 0) return;
 
+    const info = activityInfo();
+    const workflowId = info.workflowExecution.workflowId;
+
     const { createData, upsertArgs } = buildUsageEventWriteOps({
       event_type: "blob_storage",
       activity_name: "blob.read",
@@ -111,6 +149,7 @@ export async function recordLedgerRead(
       units_consumed: unitsConsumed,
       resource_id: key,
       resource_type: "blob",
+      workflow_execution_id: workflowId,
     });
 
     await prisma.$transaction(async (tx) => {
