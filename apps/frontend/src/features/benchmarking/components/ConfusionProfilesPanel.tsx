@@ -4,6 +4,7 @@ import { useTemplateModels } from "@/features/annotation/template-models/hooks/u
 import {
   ActionIcon,
   Button,
+  ConfirmActionModal,
   DataTable,
   Group,
   Loader,
@@ -58,6 +59,8 @@ export function ConfusionProfilesPanel({
   const [editorProfile, setEditorProfile] = useState<ConfusionProfile | null>(
     null,
   );
+  const [pendingDeleteProfile, setPendingDeleteProfile] =
+    useState<ConfusionProfile | null>(null);
 
   const handleDeriveOpen = () => {
     setDeriveName("");
@@ -97,7 +100,7 @@ export function ConfusionProfilesPanel({
         onSuccess: () => {
           setDeriveOpen(false);
           notifications.show({
-            title: "Profile Derived",
+            title: "Profile derived",
             message: "Confusion profile has been derived successfully.",
             color: "green",
           });
@@ -117,7 +120,7 @@ export function ConfusionProfilesPanel({
     deleteMutation.mutate(profileId, {
       onSuccess: () => {
         notifications.show({
-          title: "Profile Deleted",
+          title: "Profile deleted",
           message: "Confusion profile has been deleted.",
           color: "green",
         });
@@ -140,7 +143,7 @@ export function ConfusionProfilesPanel({
         onSuccess: () => {
           setEditorProfile(null);
           notifications.show({
-            title: "Profile Updated",
+            title: "Profile updated",
             message: "Confusion matrix has been saved.",
             color: "green",
           });
@@ -163,13 +166,13 @@ export function ConfusionProfilesPanel({
   return (
     <Stack gap="md">
       <Group justify="space-between">
-        <Text fw={500}>Confusion Profiles</Text>
+        <Text fw={500}>Confusion profiles</Text>
         <Button onClick={handleDeriveOpen}>Derive new profile</Button>
       </Group>
 
       {profiles.length === 0 ? (
         <Text c="dimmed">
-          No confusion profiles yet. Derive one from HITL correction data.
+          No confusion profiles yet. derive one from HITL correction data.
         </Text>
       ) : (
         <DataTable striped highlightOnHover>
@@ -201,7 +204,7 @@ export function ConfusionProfilesPanel({
                     <ActionIcon
                       variant="subtle"
                       color="red"
-                      onClick={() => handleDelete(p.id)}
+                      onClick={() => setPendingDeleteProfile(p)}
                       loading={deleteMutation.isPending}
                       aria-label="Delete profile"
                     >
@@ -218,7 +221,7 @@ export function ConfusionProfilesPanel({
       <Modal
         opened={deriveOpen}
         onClose={() => setDeriveOpen(false)}
-        title="Derive Confusion Profile"
+        title="Derive confusion profile"
       >
         <Stack gap="sm">
           <TextInput
@@ -237,7 +240,7 @@ export function ConfusionProfilesPanel({
             corrections in the group are used.
           </Text>
           <MultiSelect
-            label="Template Models"
+            label="Template models"
             placeholder="All template models"
             data={templateModels.map((m) => ({ value: m.id, label: m.name }))}
             value={selectedTemplateModelIds}
@@ -246,7 +249,7 @@ export function ConfusionProfilesPanel({
             searchable
           />
           <TextInput
-            label="Benchmark Run IDs"
+            label="Benchmark run IDs"
             placeholder="e.g. id1, id2, id3"
             value={benchmarkRunIdsText}
             onChange={(e) => setBenchmarkRunIdsText(e.currentTarget.value)}
@@ -269,6 +272,20 @@ export function ConfusionProfilesPanel({
           </Group>
         </Stack>
       </Modal>
+
+      <ConfirmActionModal
+        opened={pendingDeleteProfile !== null}
+        onClose={() => setPendingDeleteProfile(null)}
+        onConfirm={() => {
+          if (!pendingDeleteProfile) return;
+          handleDelete(pendingDeleteProfile.id);
+          setPendingDeleteProfile(null);
+        }}
+        title="Delete confusion profile"
+        message={`Are you sure you want to delete${pendingDeleteProfile ? ` ${pendingDeleteProfile.name}` : " this profile"}?`}
+        confirmLabel="Delete"
+        confirmLoading={deleteMutation.isPending}
+      />
 
       {editorProfile && (
         <ConfusionMatrixEditor

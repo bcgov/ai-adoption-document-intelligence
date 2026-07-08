@@ -106,7 +106,7 @@ export function RegressionReportPage() {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Regression Report - ${run.definitionName}</title>
+  <title>Regression report - ${run.definitionName}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
     h1 { color: #228be6; }
@@ -124,14 +124,14 @@ export function RegressionReportPage() {
   </style>
 </head>
 <body>
-  <h1>Regression Report</h1>
+  <h1>Regression report</h1>
 
   <div class="summary">
     <strong>Run:</strong> ${run.definitionName}<br>
     <strong>Run ID:</strong> <code>${run.id}</code><br>
-    <strong>Baseline Run ID:</strong> <code>${run.baselineComparison.baselineRunId}</code><br>
-    <strong>Completed At:</strong> ${run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}<br>
-    <strong>Overall Status:</strong> <span class="status ${run.baselineComparison.overallPassed ? "passed" : "failed"}">
+    <strong>Baseline run ID:</strong> <code>${run.baselineComparison.baselineRunId}</code><br>
+    <strong>Completed at:</strong> ${run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}<br>
+    <strong>Overall status:</strong> <span class="status ${run.baselineComparison.overallPassed ? "passed" : "failed"}">
       ${run.baselineComparison.overallPassed ? "PASSED" : "REGRESSION DETECTED"}
     </span>
   </div>
@@ -139,7 +139,7 @@ export function RegressionReportPage() {
   ${
     run.baselineComparison.regressedMetrics.length > 0
       ? `
-  <h2>Regressed Metrics</h2>
+  <h2>Regressed metrics</h2>
   <p style="color: #ff6b6b;">The following metrics regressed below their baseline thresholds:</p>
   <ul>
     ${run.baselineComparison.regressedMetrics.map((m) => `<li><code>${m}</code></li>`).join("")}
@@ -148,7 +148,7 @@ export function RegressionReportPage() {
       : ""
   }
 
-  <h2>Detailed Metric Comparison</h2>
+  <h2>Detailed metric comparison</h2>
   <table>
     <thead>
       <tr>
@@ -241,7 +241,7 @@ export function RegressionReportPage() {
                 navigate(`/benchmarking/projects/${projectId}/runs`);
               }}
             >
-              Baseline Management
+              Baseline management
             </Button>
           </Stack>
           <Button
@@ -249,7 +249,7 @@ export function RegressionReportPage() {
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
           >
-            Back to Run Details
+            Back to run details
           </Button>
         </Stack>
       </Center>
@@ -265,7 +265,7 @@ export function RegressionReportPage() {
     <Stack gap="lg">
       <Group justify="space-between">
         <div>
-          <Title order={2}>Regression Report</Title>
+          <Title order={2}>Regression report</Title>
           <Text c="dimmed" size="sm">
             {run.definitionName}
           </Text>
@@ -293,7 +293,7 @@ export function RegressionReportPage() {
             variant="default"
             onClick={handleExportHTML}
           >
-            Export HTML
+            Export html
           </Button>
           <Button
             data-testid="back-to-run-btn"
@@ -301,7 +301,7 @@ export function RegressionReportPage() {
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
           >
-            Back to Run
+            Back to run
           </Button>
         </Group>
       </Group>
@@ -318,8 +318,8 @@ export function RegressionReportPage() {
         color={run.baselineComparison.overallPassed ? "green" : "red"}
         title={
           run.baselineComparison.overallPassed
-            ? "✓ All Metrics Passed"
-            : "⚠ Regression Detected"
+            ? "✓ All metrics passed"
+            : "⚠ Regression detected"
         }
       >
         {run.baselineComparison.overallPassed ? (
@@ -355,7 +355,7 @@ export function RegressionReportPage() {
 
       <PanelCard>
         <Stack gap="md">
-          <Title order={3}>Run Information</Title>
+          <Title order={3}>Run information</Title>
           <DataTable data-testid="run-info-table">
             <DataTable.Tbody>
               <DataTable.Tr>
@@ -365,13 +365,13 @@ export function RegressionReportPage() {
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Baseline Run ID</DataTable.Td>
+                <DataTable.Td fw={500}>Baseline run ID</DataTable.Td>
                 <DataTable.Td>
                   <Code>{run.baselineComparison.baselineRunId}</Code>
                 </DataTable.Td>
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Completed At</DataTable.Td>
+                <DataTable.Td fw={500}>Completed at</DataTable.Td>
                 <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
@@ -386,7 +386,7 @@ export function RegressionReportPage() {
       <PanelCard>
         <Stack gap="md">
           <Group justify="space-between" align="center">
-            <Title order={3}>Metric-by-Metric Analysis</Title>
+            <Title order={3}>Metric-by-Metric analysis</Title>
             <Checkbox
               data-testid="show-regressions-only-toggle"
               label="Show only regressions"
@@ -490,7 +490,7 @@ export function RegressionReportPage() {
                     <DataTable.Td>
                       {!comparison.passed && (
                         <Badge color={severityColor}>
-                          {severityColor === "red" ? "Critical" : "Warning"}
+                          {severityColor === "red" ? "critical" : "warning"}
                         </Badge>
                       )}
                     </DataTable.Td>
@@ -509,7 +509,7 @@ export function RegressionReportPage() {
 
       <PanelCard data-testid="historical-trend-section">
         <Stack gap="md">
-          <Title order={3}>Historical Trend</Title>
+          <Title order={3}>Historical trend</Title>
           <TrendChart
             historicalRuns={historicalRuns}
             currentRunId={run.id}
@@ -519,13 +519,13 @@ export function RegressionReportPage() {
         </Stack>
       </PanelCard>
 
-      {/* Drill-down Panel */}
+      {/* Drill-down panel */}
       <Drawer
         opened={drillDownMetric !== null}
         onClose={() => setDrillDownMetric(null)}
         position="right"
         size="lg"
-        title="Metric Details"
+        title="Metric details"
       >
         {drillDownMetric && (
           <Stack gap="md" data-testid="metric-drill-down-panel">
@@ -541,13 +541,13 @@ export function RegressionReportPage() {
                   <DataTable>
                     <DataTable.Tbody>
                       <DataTable.Tr>
-                        <DataTable.Td fw={500}>Current Value</DataTable.Td>
+                        <DataTable.Td fw={500}>Current value</DataTable.Td>
                         <DataTable.Td>
                           <Code>{comparison.currentValue.toFixed(4)}</Code>
                         </DataTable.Td>
                       </DataTable.Tr>
                       <DataTable.Tr>
-                        <DataTable.Td fw={500}>Baseline Value</DataTable.Td>
+                        <DataTable.Td fw={500}>Baseline value</DataTable.Td>
                         <DataTable.Td>
                           <Code>{comparison.baselineValue.toFixed(4)}</Code>
                         </DataTable.Td>
@@ -624,7 +624,7 @@ export function RegressionReportPage() {
                 );
               }}
             >
-              View Affected Samples
+              View affected samples
             </Button>
 
             <Button
@@ -639,11 +639,11 @@ export function RegressionReportPage() {
         )}
       </Drawer>
 
-      {/* Share Dialog */}
+      {/* Share dialog */}
       <Modal
         opened={shareDialogOpen}
         onClose={() => setShareDialogOpen(false)}
-        title="Share Regression Report"
+        title="Share regression report"
       >
         <Stack gap="md" data-testid="share-dialog">
           <Text size="sm">
@@ -656,7 +656,7 @@ export function RegressionReportPage() {
           />
           <Group justify="flex-end">
             <Button data-testid="copy-url-btn" onClick={handleCopyShareUrl}>
-              Copy URL
+              Copy url
             </Button>
           </Group>
         </Stack>

@@ -149,7 +149,7 @@ export function RunComparisonPage() {
           <Button
             onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
           >
-            Back to Project
+            Back to project
           </Button>
         </Stack>
       </Center>
@@ -172,7 +172,7 @@ export function RunComparisonPage() {
           <Button
             onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
           >
-            Back to Project
+            Back to project
           </Button>
         </Stack>
       </Center>
@@ -184,7 +184,7 @@ export function RunComparisonPage() {
       <Group justify="space-between">
         <div>
           <Title order={2} data-testid="comparison-title">
-            Run Comparison
+            Run comparison
           </Title>
           <Text c="dimmed" size="sm">
             Comparing {runs.length} run{runs.length !== 1 ? "s" : ""}
@@ -197,7 +197,7 @@ export function RunComparisonPage() {
             variant="default"
             onClick={handleExportCSV}
           >
-            Export CSV
+            Export csv
           </Button>
           <Button
             data-testid="export-json-btn"
@@ -211,14 +211,14 @@ export function RunComparisonPage() {
             data-testid="back-to-project-btn"
             onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
           >
-            Back to Project
+            Back to project
           </Button>
         </Group>
       </Group>
 
       <Card data-testid="run-info-card">
         <Stack gap="md">
-          <Title order={3}>Run Information</Title>
+          <Title order={3}>Run information</Title>
           <DataTable data-testid="run-info-table" striped highlightOnHover>
             <DataTable.Thead>
               <DataTable.Tr>
@@ -270,7 +270,7 @@ export function RunComparisonPage() {
                 ))}
               </DataTable.Tr>
               <DataTable.Tr>
-                <DataTable.Td fw={500}>Started At</DataTable.Td>
+                <DataTable.Td fw={500}>Started at</DataTable.Td>
                 {comparisonData.runs.map((run) => (
                   <DataTable.Td key={run.id}>
                     {run.startedAt
@@ -287,7 +287,7 @@ export function RunComparisonPage() {
       {comparisonData.metricNames.length > 0 && (
         <Card data-testid="metrics-comparison-card">
           <Stack gap="md">
-            <Title order={3}>Metrics Comparison</Title>
+            <Title order={3}>Metrics comparison</Title>
             <DataTable
               data-testid="metrics-comparison-table"
               striped
@@ -295,7 +295,7 @@ export function RunComparisonPage() {
             >
               <DataTable.Thead>
                 <DataTable.Tr>
-                  <DataTable.Th>Metric Name</DataTable.Th>
+                  <DataTable.Th>Metric name</DataTable.Th>
                   {comparisonData.runs.map((run, idx) => (
                     <DataTable.Th key={run.id}>
                       <Group gap="xs">
@@ -309,7 +309,7 @@ export function RunComparisonPage() {
                           style={{ cursor: "pointer" }}
                           data-testid={`metrics-run-header-link-${run.id}`}
                         >
-                          {idx === 0 ? "Baseline" : `Run ${idx + 1}`}
+                          {idx === 0 ? "baseline" : `run ${idx + 1}`}
                         </Text>
                         {run.isBaseline && (
                           <Badge
@@ -404,7 +404,7 @@ export function RunComparisonPage() {
       {comparisonData.paramNames.length > 0 && (
         <Card data-testid="parameters-comparison-card">
           <Stack gap="md">
-            <Title order={3}>Parameters Comparison</Title>
+            <Title order={3}>Parameters comparison</Title>
             <DataTable data-testid="parameters-comparison-table" striped>
               <DataTable.Thead>
                 <DataTable.Tr>
@@ -454,7 +454,7 @@ export function RunComparisonPage() {
       {comparisonData.tagNames.length > 0 && (
         <Card data-testid="tags-comparison-card">
           <Stack gap="md">
-            <Title order={3}>Tags Comparison</Title>
+            <Title order={3}>Tags comparison</Title>
             <DataTable data-testid="tags-comparison-table" striped>
               <DataTable.Thead>
                 <DataTable.Tr>

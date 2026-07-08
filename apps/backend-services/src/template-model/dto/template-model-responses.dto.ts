@@ -35,6 +35,12 @@ export class LabelingDocumentResponseDto {
   normalized_file_path?: string | null;
   @ApiProperty() file_type!: string;
   @ApiProperty() file_size!: number;
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      "SHA-256 hex digest of the original upload bytes; identifies file content.",
+  })
+  content_hash?: string | null;
   @ApiProperty() source!: string;
   @ApiProperty() status!: string;
   @ApiProperty() created_at!: Date;

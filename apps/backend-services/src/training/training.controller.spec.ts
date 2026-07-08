@@ -143,6 +143,7 @@ describe("TrainingController", () => {
         user: { sub: "user-1" },
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
           adminId: "admin-1",
@@ -154,7 +155,11 @@ describe("TrainingController", () => {
       trainingService.startTraining.mockResolvedValue(mockTrainingJob as never);
       const result = await controller.startTraining("tm-1", dto, req);
       expect(result).toEqual(mockTrainingJob);
-      expect(trainingService.startTraining).toHaveBeenCalledWith("tm-1", dto);
+      expect(trainingService.startTraining).toHaveBeenCalledWith(
+        "tm-1",
+        dto,
+        "actor-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {
@@ -319,6 +324,7 @@ describe("TrainingController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -335,7 +341,10 @@ describe("TrainingController", () => {
         success: true,
         message: "Training job cancelled",
       });
-      expect(trainingService.cancelTrainingJob).toHaveBeenCalledWith("job-1");
+      expect(trainingService.cancelTrainingJob).toHaveBeenCalledWith(
+        "job-1",
+        "actor-1",
+      );
     });
 
     it("throws ForbiddenException when user is not a group member", async () => {

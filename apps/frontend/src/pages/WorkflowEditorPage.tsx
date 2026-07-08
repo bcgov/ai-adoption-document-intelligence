@@ -54,7 +54,7 @@ const DEFAULT_GRAPH_CONFIG: GraphWorkflowConfig = {
     start: {
       id: "start",
       type: "activity",
-      label: "Prepare File",
+      label: "Prepare file",
       activityType: "file.prepare",
       inputs: [
         { port: "blobKey", ctxKey: "blobKey" },
@@ -414,7 +414,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
         Reset
       </Button>
       <Button onClick={handleSave} disabled={!canSave}>
-        {mode === "create" ? "Create" : "Save"}
+        {mode === "create" ? "create" : "save"}
       </Button>
     </Group>
   );
@@ -523,7 +523,7 @@ export function WorkflowEditorPage({ mode }: WorkflowEditorPageProps) {
                       size="xs"
                       onClick={() => setShowErrors((prev) => !prev)}
                     >
-                      {showErrors ? "Hide errors" : "Show errors"}
+                      {showErrors ? "hide errors" : "show errors"}
                     </Button>
                   )}
                 </Group>

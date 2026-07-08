@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -15,6 +16,8 @@ import { ClassifierDbService } from "./classifier-db.service";
 const mockClassifierDbService = {
   findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
+  createClassifierModel: jest.fn(),
+  deleteClassifierModel: jest.fn(),
 };
 const mockAzureService = {
   getClient: jest.fn().mockReturnValue({
@@ -69,6 +72,10 @@ describe("ClassifierService", () => {
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
