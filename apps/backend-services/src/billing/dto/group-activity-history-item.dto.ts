@@ -1,5 +1,19 @@
 import { ApiProperty } from "@nestjs/swagger";
 
+export class ActivityItemDto {
+  @ApiProperty({
+    description: "Total billing units consumed for this activity type",
+    type: Number,
+  })
+  units_consumed!: number;
+
+  @ApiProperty({
+    description: "Total dollars spent for this activity type",
+    type: Number,
+  })
+  dollars_spent!: number;
+}
+
 /**
  * A single activity-level spend record for one billing period.
  * Used to build the stacked bar chart on the billing dashboard.
@@ -14,8 +28,7 @@ export class GroupActivityHistoryItemDto {
   @ApiProperty({
     description:
       "A map of activity names/types for cost breakdowns (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
-    type: "object",
-    additionalProperties: { $ref: "#/components/schemas/ActivityItemDto" },
+    type: ActivityItemDto,
   })
   activities!: Record<string, ActivityItemDto>;
 
@@ -35,18 +48,4 @@ export class GroupActivityHistoryItemDto {
     description: "The category of event the usage record falls under.",
   })
   event_type!: string;
-}
-
-export class ActivityItemDto {
-  @ApiProperty({
-    description: "Total billing units consumed for this activity type",
-    type: Number,
-  })
-  units_consumed!: number;
-
-  @ApiProperty({
-    description: "Total dollars spent for this activity type",
-    type: Number,
-  })
-  dollars_spent!: number;
 }
