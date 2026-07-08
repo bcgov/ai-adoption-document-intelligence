@@ -5,19 +5,25 @@ document in **"Processing"** (`ongoing_ocr`) forever.
 
 ## Status lifecycle
 
-| Status | UI label | Meaning | Terminal? |
-|--------|----------|---------|-----------|
-| `pre_ocr` | Waiting | Uploaded, OCR not started | no |
+| Status | UI badge label | Meaning | Terminal? |
+|--------|----------------|---------|-----------|
+| `pre_ocr` | Queued (filter dropdown: "Waiting") | Uploaded, OCR not started | no |
 | `ongoing_ocr` | Processing | OCR workflow running | no |
-| `extracted` | — | OCR finished, before final transition | no |
-| `awaiting_review` | — | In HITL | no |
+| `extracted` | Extracted | OCR finished, before final transition | no |
+| `awaiting_review` | Awaiting review | In HITL | no |
 | `complete` | Complete | Finished (OCR + optional HITL) | yes |
 | `failed` | Failed | OCR/extraction failed | yes (purgeable) |
-| `conversion_failed` | Failed | PDF normalization failed (e.g. password-protected) | yes (purgeable) |
+| `conversion_failed` | Conversion failed (stats/filter bucket it under "Failed") | PDF normalization failed (e.g. password-protected) | yes (purgeable) |
 
-The pre-execution hook in `graphWorkflow` sets `ongoing_ocr` at the start of a
-run. The success path transitions `extracted → complete` (HITL docs are left at
-`awaiting_review` for the HITL flow to finish).
+UI labels are from `statusStyles` in `apps/frontend/src/pages/DocumentsPage.tsx`.
+
+A successful `POST /api/upload` persists the document as `ongoing_ocr`
+immediately (it does not pass through `pre_ocr`); `pre_ocr` is used by other
+flows such as ground-truth generation. The pre-execution hook in `graphWorkflow`
+also sets `ongoing_ocr` at the start of a run. The success path transitions
+`extracted → complete` (HITL docs are left at `awaiting_review` for the HITL flow
+to finish). A HumanGate rejection ends the run without moving the document to
+`failed` — it stays at `awaiting_review`.
 
 ## Failure paths (why a document never gets stuck in "Processing")
 
@@ -57,4 +63,4 @@ whose workflow config is marked `ephemeral`, the cleanup janitor then deletes
 the document's blob-storage prefix (`{groupId}/ocr/{documentId}/` — original,
 `normalized.pdf`, thumbnail, and OCR artifacts) and its Temporal record. So a
 failed OCR run is cleaned up the same way a completed one is — no manual blob
-deletion. See [ephemeral-document-cleanup.md](ephemeral-document-cleanup.md).
+deletion. See [EPHEMERAL_DOCUMENT_CLEANUP.md](../architecture/EPHEMERAL_DOCUMENT_CLEANUP.md).

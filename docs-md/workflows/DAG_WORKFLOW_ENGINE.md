@@ -688,7 +688,7 @@ Large Azure OCR JSON must not flow through Temporal event history. The footprint
 | `ocrResult` | `ocrResultRef` | `ocrResult` |
 | `cleanedResult` | `cleanedResultRef` | `cleanedResult` |
 
-Each ref is a small object: `{ documentId, blobPath, storage: "blob", status?, byteLength? }`. Activities read/write blobs under `{groupId}/ocr/{documentId}/` (e.g. `azure-response.json`, `ocr-result.json`, `cleaned-result.json`). Structured fields for the UI still land in `ocr_results` via `ocr.storeResults`.
+Each ref is a small object: `{ documentId, blobPath, storage: "blob", byteLength?, pageCount?, status? }` (`apps/temporal/src/ocr-payload-ref-types.ts`). Activities read/write blobs under `{groupId}/ocr/{documentId}/` (e.g. `azure-response.json`, `ocr-result.json`, `cleaned-result.json`). Structured fields for the UI still land in `ocr_results` via `ocr.storeResults`. See [TEMPORAL_PAYLOAD_FOOTPRINT.md](./TEMPORAL_PAYLOAD_FOOTPRINT.md) for the full ref/codec implementation map.
 
 **Poll conditions** reference ref status, e.g. `ctx.ocrResponseRef.status` (not `ctx.ocrResponse.status`).
 
@@ -1075,7 +1075,7 @@ When a `map` node creates parallel branches:
 
 The ctx object must be JSON-serializable at all times (it flows through Temporal's event history). **OCR pipeline graphs must use `*Ref` ctx keys** (`ocrResponseRef`, `ocrResultRef`, `cleanedResultRef`) holding `OcrPayloadRef` metadata; activities load full JSON from blob storage. Activity **port names** remain `ocrResponse`, `ocrResult`, `cleanedResult` — bindings map ports to `*Ref` ctx keys (see §5.0).
 
-Other large payloads (binary data, page PDFs) use blob paths (`pageBlobPath`, `blobKey`) rather than inline base64 in ctx. Temporal clients and the worker use a gzip `PayloadCodec` for remaining payloads (see [TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md](../archive/TEMPORAL_DATA_FOOTPRINT_REDUCTION_PLAN.md) §3.10).
+Other large payloads (binary data, page PDFs) use blob paths (`pageBlobPath`, `blobKey`) rather than inline base64 in ctx. Temporal clients and the worker use a gzip `PayloadCodec` (`@ai-di/temporal-payload-codec`) for remaining payloads — see [TEMPORAL_PAYLOAD_FOOTPRINT.md](./TEMPORAL_PAYLOAD_FOOTPRINT.md).
 
 ---
 
@@ -1509,7 +1509,7 @@ function computeConfigHash(config: GraphWorkflowConfig): string {
 }
 ```
 
-**Implementation note**: `computeConfigHash` is implemented in both backend and temporal codepaths (duplicated for now) so that the same canonicalization and hashing logic is available before execution and for validation/replay checks.
+**Implementation note**: `computeConfigHash` has a single implementation in `packages/graph-workflow/src/config-hash.ts` (`@ai-di/graph-workflow`); `apps/backend-services/src/workflow/config-hash.ts` and `apps/temporal/src/config-hash.ts` are thin re-export shims so the same canonicalization and hashing logic is available before execution and for validation/replay checks. The package also exports `computeConfigHashWithOverrides` (hash of the config after applying `workflowConfigOverrides`) and `stampConfigWithPersistedHash` / `stripPersistedConfigHash`.
 
 This hash is included in `GraphWorkflowInput.configHash`. It serves two purposes:
 

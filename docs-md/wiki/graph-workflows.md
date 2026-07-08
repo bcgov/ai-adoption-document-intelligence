@@ -1,14 +1,15 @@
 ---
 status: active
-updated: 2026-06-17
+updated: 2026-07-08
 canonical_sources:
-  - docs-md/workflows/
   - docs-md/workflows/
   - docs-md/architecture/PATTERNS_NODE_AND_UI.md
   - packages/graph-workflow/
+  - packages/temporal-payload-codec/
   - apps/backend-services/src/workflow/
   - apps/backend-services/src/ocr/
   - apps/temporal/src/graph-engine/
+  - apps/temporal/src/ocr-payload-ref.ts
   - apps/temporal/src/activity-registry.ts
 do_not_duplicate:
   - Full graph schema
@@ -29,6 +30,7 @@ Graph workflows are the durable execution substrate for document processing. The
 - Backend save-time validation and workflow APIs live in `apps/backend-services/src/workflow/`.
 - OCR starts workflow execution through `apps/backend-services/src/ocr/`.
 - Temporal runtime execution lives in `apps/temporal/src/graph-engine/` and activity registration files.
+- Temporal payload footprint (OCR payload refs + gzip codec) is documented in `docs-md/workflows/TEMPORAL_PAYLOAD_FOOTPRINT.md` (`packages/temporal-payload-codec/`, `apps/temporal/src/ocr-payload-ref.ts`).
 
 ## Design Notes
 

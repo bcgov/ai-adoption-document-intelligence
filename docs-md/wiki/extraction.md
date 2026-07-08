@@ -1,10 +1,11 @@
 ---
 status: active
-updated: 2026-07-03
+updated: 2026-07-08
 canonical_sources:
   - docs-md/extraction/
   - apps/temporal/src/activities/
   - apps/backend-services/src/azure/
+  - apps/backend-services/src/document/
   - apps/backend-services/src/template-model/
   - apps/backend-services/src/confusion-profile/
 do_not_duplicate:
@@ -23,6 +24,7 @@ OCR and field extraction: how document bytes become structured, corrected field 
 - OCR, correction, and enrichment run as Temporal activities in `apps/temporal/src/activities/` (registered in `apps/temporal/src/activity-registry.ts`).
 - Azure model/classifier integration lives in `apps/backend-services/src/azure/` and `apps/backend-services/src/template-model/`.
 - Confusion-profile derivation and storage live in `apps/backend-services/src/confusion-profile/`.
+- OCR result views (stored `ocr_results.content`, `GET /api/documents/:id/ocr`, Extracted/Text/JSON UI) are in `docs-md/extraction/OCR_RESULT_VIEWS.md`; OCR failure/status lifecycle is in `docs-md/extraction/OCR_FAILURE_HANDLING.md`.
 
 ## Design Notes
 

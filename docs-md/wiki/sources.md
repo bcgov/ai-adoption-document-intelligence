@@ -54,7 +54,8 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 
 ## Code-Adjacent Sources
 
-- Graph workflow package: `packages/graph-workflow/`
+- Graph workflow package: `packages/graph-workflow/` (graph types/validator + config hashing and override helpers)
+- Temporal payload codec: `packages/temporal-payload-codec/` (gzip payload codec for worker and clients)
 - Graph workflow backend validation: `apps/backend-services/src/workflow/`
 - OCR workflow start path: `apps/backend-services/src/ocr/`
 - Temporal graph runner: `apps/temporal/src/graph-engine/`

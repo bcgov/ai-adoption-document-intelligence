@@ -85,14 +85,14 @@ Types are defined in `document/document-db.types.ts`. Callers outside the module
 | `benchmark-run-db.service.ts` | `BenchmarkRunDbService` | Benchmark run creation, status updates, result storage |
 | `benchmark-definition-db.service.ts` | `BenchmarkDefinitionDbService` | Benchmark definition CRUD with dataset version, split, workflow joins |
 | `dataset-db.service.ts` | `DatasetDbService` | Dataset, `DatasetVersion`, and `Split` management including freeze/delete |
-| `audit-log-db.service.ts` | `AuditLogDbService` | `BenchmarkAuditLog` entries: create and paginated query |
+| `audit-log-db.service.ts` | `AuditLogDbService` | `BenchmarkAuditLog` entries: create (`createAuditLog(..., tx?)`) and paginated query (`findAllAuditLogs(..., tx?)`) |
 | `ground-truth-job-db.service.ts` | `GroundTruthJobDbService` | `DatasetGroundTruthJob` lifecycle: create, status updates, batch queries with document/review joins |
 
 Service wiring in the benchmark module:
 - `BenchmarkProjectService` → `BenchmarkProjectDbService`
-- `BenchmarkRunService` → `BenchmarkRunDbService` (audit via `AuditLogService`)
-- `BenchmarkDefinitionService` → `BenchmarkDefinitionDbService`
-- `DatasetService` → `DatasetDbService`, `AuditLogDbService`, `GroundTruthJobDbService`
+- `BenchmarkRunService` → `BenchmarkRunDbService` (`benchmark_audit_log` via `AuditLogService` for `run_started`/`baseline_promoted`; global `AuditService.recordEvent` for `benchmark_run_cancelled`/`benchmark_run_deleted`)
+- `BenchmarkDefinitionService` → `BenchmarkDefinitionDbService` (lifecycle audit via global `AuditService`)
+- `DatasetService` → `DatasetDbService`, `AuditLogDbService` (only `dataset_created` → `benchmark_audit_log`), `GroundTruthJobDbService`, global `AuditService` (most dataset/version/split mutations)
 - `AuditLogService` → `AuditLogDbService`
 - `GroundTruthGenerationService` → `GroundTruthJobDbService`, `ReviewDbService` (cross-module, injected directly)
 - `HitlDatasetService` → `ReviewDbService` (cross-module, injected directly)

@@ -19,7 +19,7 @@ Legacy rows created before this field existed have `content_hash = null`.
 createHash("sha256").update(originalUploadBuffer).digest("hex")
 ```
 
-Implementation: [`content-hash.util.ts`](../apps/backend-services/src/document/content-hash.util.ts).
+Implementation: [`content-hash.util.ts`](../../apps/backend-services/src/document/content-hash.util.ts).
 
 The hash is computed **before** PDF normalization so it reflects the caller’s file, not the canonical normalized PDF.
 
@@ -29,8 +29,8 @@ The hash is computed **before** PDF normalization so it reflects the caller’s 
 |---------|----------------|
 | Document list `GET /api/documents` | Response: `content_hash`. Filter: `?content_hash=<hex>` (exact match, scoped to accessible groups). Search: `?search=` matches title, filename, or Content ID (partial). |
 | Documents UI (`/documents`) | **Content ID** column: truncated by default (`abcdef12…9f2a`), click to expand full value and copy. Legacy rows show `—`. The documents search box matches title, filename, or Content ID (partial match). |
-| Document detail / upload responses | `content_hash` on `DocumentDataDto` |
-| Labeling upload | `content_hash` on `LabelingDocumentResponseDto` |
+| Document detail | `content_hash` on `DocumentDataDto` (the `POST /api/upload` response DTOs do **not** include `content_hash`, though it is stored at upload time) |
+| Labeling upload `POST /api/template-models/:id/upload` | `content_hash` on `LabelingDocumentResponseDto` |
 
 ## Database
 
@@ -40,4 +40,4 @@ The hash is computed **before** PDF normalization so it reflects the caller’s 
 ## Related
 
 - Blob layout: [`BLOB_STORAGE.md`](BLOB_STORAGE.md)
-- Upload / normalization: [`DOCUMENT_IMAGE_NORMALIZATION.md`](DOCUMENT_IMAGE_NORMALIZATION.md)
+- Upload / normalization: [`DOCUMENT_IMAGE_NORMALIZATION.md`](../extraction/DOCUMENT_IMAGE_NORMALIZATION.md)

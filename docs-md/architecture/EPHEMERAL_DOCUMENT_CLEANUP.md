@@ -17,7 +17,7 @@ policy controls **which targets** are deleted.
 | Azure Blob (`{group}/ocr/{docId}/`) | original file, normalized PDF, thumbnail, `azure-response.json`, `ocr-result.json`, `cleaned-result.json` | **Deleted** via `deleteByPrefix` |
 | Temporal | workflow execution history (~refs only) | **Deleted** via `DeleteWorkflowExecution` (also auto-expires in 24h) |
 | Postgres `documents` | row incl. blob paths, status | **Kept** (stamped `purged_at`; `file_path` now dangles) |
-| Postgres `ocr_results` | extracted text / markdown / pages JSON | **Kept** — clients poll `GET /documents/:id/ocr` from here |
+| Postgres `ocr_results` | extracted text / markdown / pages JSON | **Kept** — clients poll `GET /api/documents/:id/ocr` from here |
 
 > Because `ocr_results.content` is retained, the extracted **text** is not
 > transient — only the source/intermediate **files** and the Temporal record
@@ -31,9 +31,12 @@ state. The content endpoints reflect that the blobs are gone:
 
 | Endpoint | Purged behavior |
 |----------|-----------------|
-| `GET /documents/:id/view` | **410 Gone** — checked before reading the blob, so it never 500s on a dangling `normalized_file_path` |
-| `GET /documents/:id/download` | **410 Gone** |
-| `GET /documents/:id/ocr` | **200** — retained extracted data |
+| `GET /api/documents/:id/view` | **410 Gone** — checked before reading the blob, so it never 500s on a dangling `normalized_file_path` |
+| `GET /api/documents/:id/download` | **410 Gone** |
+| `GET /api/documents/:id/ocr` | **200** — retained extracted data |
+
+(`GET /api/documents/:id/thumbnail` does not check `purged_at` and may 404 on a
+missing blob after purge.)
 
 The frontend document viewer (`DocumentViewerModal`) checks `purged_at` and skips
 the blob fetch entirely: it opens on the retained OCR/extracted-data tab and
@@ -71,8 +74,9 @@ to **at least one** target. The OCR result in Postgres is always kept.
 
 ## How it works
 
-A NestJS `@Cron` service ([`EphemeralDocumentCleanupService`](../apps/backend-services/src/document/ephemeral-document-cleanup.service.ts))
-runs every minute. Each run:
+A NestJS `@Cron` service ([`EphemeralDocumentCleanupService`](../../apps/backend-services/src/document/ephemeral-document-cleanup.service.ts))
+runs every minute and processes up to `BATCH_SIZE` (100) purgeable documents per
+run. Each run:
 
 1. Queries `documents` that are in a terminal status (`complete`, `failed`,
    `conversion_failed`), not yet purged, **and** whose workflow version config

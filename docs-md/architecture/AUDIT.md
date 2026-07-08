@@ -14,8 +14,10 @@ In addition to the event types listed below, **every user-initiated create, upda
 
 | Domain | Service | Audit helper |
 |--------|---------|--------------|
-| Global (HITL, groups, tables, documents, workflows) | Feature service or controller | `AuditService.recordEvent` |
-| Benchmark (datasets, runs, definitions) | Feature service | `AuditLogService` or `AuditLogDbService` |
+| Global (HITL, groups, tables, documents, workflows, bootstrap, most benchmark lifecycle) | Feature service or controller | `AuditService.recordEvent` |
+| Benchmark `benchmark_audit_log` table (a small subset) | Feature service | `AuditLogService` or `AuditLogDbService` |
+
+> **Hybrid benchmark audit.** Most benchmark/dataset lifecycle mutations record to the global `audit_events` table via `AuditService.recordEvent` (see the benchmark event-type tables below). Only a few actions still write the separate `benchmark_audit_log` table via `AuditLogService` / `AuditLogDbService` (`AuditAction`): `dataset_created` (`DatasetService.createDataset`), `version_published` (`HitlDatasetService.packageDocumentsIntoVersion`), `run_started` (`BenchmarkRunService.startRun`), and `baseline_promoted` (`BenchmarkRunService.promoteRunToBaseline`). The `run_completed` helper (`AuditLogService.logRunCompleted`) exists but is currently unused in production.
 
 ### Placement rules
 
@@ -82,6 +84,41 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 | `api_key_created` | New API key generated for a group | api_key | key.id | key_prefix, generating_user_id; `actor_id` from request context |
 | `api_key_deleted` | API key revoked | api_key | key.id | key_prefix; `actor_id` from request context |
 | `api_key_regenerated` | API key rotated in place | api_key | key.id | key_prefix, generating_user_id; `actor_id` from request context |
+
+### Group and membership
+
+Recorded by `GroupService` (`resource_id` for membership actions is the request id; for member actions it is `{userId}:{groupId}`).
+
+| event_type | When | resource_type | resource_id | Payload / notes |
+|------------|------|---------------|-------------|-----------------|
+| `group_created` | Group created | group | group.id | name (+ metadata) |
+| `group_updated` | Group metadata updated | group | group.id | name (+ changed fields) |
+| `group_deleted` | Group deleted | group | group.id | group_name |
+| `membership_request_created` | User requests to join a group | group_membership_request | request.id | user_id, group_id |
+| `membership_request_cancelled` | Requester cancels their request | group_membership_request | request.id | reason |
+| `membership_request_approved` | Admin approves a request | group_membership_request | request.id | user_id, ... |
+| `membership_request_denied` | Admin denies a request | group_membership_request | request.id | user_id, reason |
+| `member_added` | User added to a group (direct or via approval) | user_group | `{userId}:{groupId}` | user_id (+ membership_request_id on approval) |
+| `member_removed` | User removed from a group | user_group | `{userId}:{groupId}` | removed_user_id |
+| `member_role_updated` | Member role changed | user_group | `{userId}:{groupId}` | user_id, new_role |
+| `user_left_group` | User leaves a group themselves | user_group | `{userId}:{groupId}` | — |
+
+### Reference data tables
+
+Recorded by `TablesService`. Row-level events use `resource_type: "table_row"`; all others use `resource_type: "table"`.
+
+| event_type | When | resource_type | resource_id |
+|------------|------|---------------|-------------|
+| `tables.created` / `tables.updated` / `tables.deleted` | Table create/update/delete | table | table.id |
+| `tables.column.added` / `tables.column.updated` / `tables.column.removed` | Column schema change | table | table.id |
+| `tables.lookup.added` / `tables.lookup.updated` / `tables.lookup.removed` | Lookup config change | table | table.id |
+| `tables.row.created` / `tables.row.updated` / `tables.row.deleted` | Row data change | table_row | row.id |
+
+### System
+
+| event_type | When | resource_type | resource_id | Payload / notes |
+|------------|------|---------------|-------------|-----------------|
+| `system_bootstrap` | First-run bootstrap creates the initial user + group | system | `bootstrap` | user_email, group_name; recorded inside the bootstrap transaction (`tx`) |
 
 ### HITL events
 
@@ -189,6 +226,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 |------------|------|---------------|-------------|-----------------|
 | `document_uploaded` | Document uploaded via upload API | document | document.id | title, file_type, status |
 | `document_updated` | Document title/metadata updated | document | document.id | fields_updated |
+| `document_deleted` | Document deleted via `DELETE /api/documents/:id` | document | document.id | title, status (+ context) |
 
 ### Document access
 
@@ -220,8 +258,11 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 
 ## Implementation
 
-- **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events)`. When `request_id` or `actor_id` are omitted in the input, they are filled from the current request context (AsyncLocalStorage) when available; `group_id` must be passed by the caller. It is called from:
+- **Backend:** `AuditService` (in `apps/backend-services/src/audit/`) provides `recordEvent(events, tx?: Prisma.TransactionClient)`. When `request_id` or `actor_id` are omitted in the input, they are filled from the current request context (AsyncLocalStorage) when available; `group_id` must be passed by the caller. When a `tx` is passed the audit insert participates in that transaction (and a failure rolls back with it); without `tx` it is best-effort and non-fatal. It is called from:
   - **OcrService:** after starting a graph workflow and updating the document (document update + audit in one transaction).
+  - **GroupService:** after group create/update/delete, membership request create/cancel/approve/deny, and member add/remove/role-update/leave.
+  - **TablesService:** after table, column, lookup, and row mutations.
+  - **BootstrapService:** after first-run bootstrap creates the initial user + group (in the bootstrap transaction).
   - **WorkflowService:** after creating, updating, or appending workflow versions; after creating benchmark candidate lineages.
   - **BenchmarkDefinitionService:** after promoting or applying candidate workflows to the base lineage.
   - **ApiKeyService:** after creating, deleting, or regenerating group API keys.
@@ -229,10 +270,11 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
   - **TrainingService / TrainingPollerService:** after starting/cancelling training jobs and activating/deleting trained models (poller activation is system-initiated, no actor).
   - **DatasetService:** after dataset/version/sample/split mutations and freezes.
   - **BenchmarkProjectService:** after creating or deleting a project.
+  - **BenchmarkRunService:** after cancelling or deleting a run (`benchmark_run_cancelled` / `benchmark_run_deleted`).
   - **ClassifierService / AzureController:** after classifier create/update/delete and training request.
   - **ConfusionProfileService:** after create/update/delete (including derive-and-save create path).
   - **UploadController:** after successful document upload (`document_uploaded`).
-  - **DocumentController:** after successfully sending the human approval signal to a workflow; after document update (`document_updated`); and after authorized delivery of document metadata, file bytes, or OCR to a user (see "Document access" above for the full list of controllers and endpoints).
+  - **DocumentController:** after successfully sending the human approval signal to a workflow; after document update (`document_updated`) and delete (`document_deleted`); and after authorized delivery of document metadata, file bytes, or OCR to a user (see "Document access" above for the full list of controllers and endpoints).
 - **Migration:** the `audit_events` table is created in the squashed init migration `apps/shared/prisma/migrations/20260328205045_init/`.
 - **Failure behavior:** If an audit insert fails, the service logs a warning and continues; the main operation is not failed.
 

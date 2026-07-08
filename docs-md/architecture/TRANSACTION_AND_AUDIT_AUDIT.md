@@ -65,7 +65,15 @@ Audit failures must never fail the main operation (except when audit is in the s
 
 ## Findings: Multi-Step Mutations Without Transactions
 
-### HITL (`hitl.service.ts`) — **High**
+> **Historical.** The findings in this section describe the state at the time of
+> the 2026-07-02/03 audit. Every item below has since been **remediated** — see
+> [Remediation status](#remediation-status-2026-07-02) and
+> [Remaining gaps (rescan) — Done](#remaining-gaps-2026-07-03-rescan--done). The
+> severity labels reflect the original risk assessment, not current risk. The
+> [Compliant domains (rescan)](#compliant-domains-rescan) section is the
+> authoritative current-state summary.
+
+### HITL (`hitl.service.ts`) — **High** *(remediated)*
 
 All of the following perform multiple DB writes without a shared transaction:
 
@@ -122,7 +130,7 @@ Transactional where needed (`createWorkflow`, version append, `promoteCandidateW
 
 ### Compliant examples (reference)
 
-- `group-db.service.ts`: `approveRequestTransaction`, `cancelRequestTransaction`, `resolveRequestTransaction`
+- `group-db.service.ts`: `approveRequestTransaction`, `cancelRequestTransaction`
 - `tables-db.service.ts`: `addColumnAndBackfill`, row upsert batch
 - `benchmark-run-db.service.ts`: `postTemporalStartTransaction`, `promoteRunToBaseline`, `deleteBenchmarkRun`
 - `actor/api-key-db.service.ts`: `createApiKey`, `deleteApiKeyById`
@@ -134,7 +142,11 @@ Transactional where needed (`createWorkflow`, version append, `promoteCandidateW
 
 ## Findings: Transactions Without Audit
 
-These service/db transaction boundaries perform **mutations** but do not record audit (or record it non-atomically):
+> **Historical.** As with the section above, these were the audit gaps found in
+> the 2026-07-02/03 review. All are now remediated (the listed mutations emit
+> audit events); this is retained as the record of what was fixed.
+
+These service/db transaction boundaries performed **mutations** but did not record audit (or recorded it non-atomically) at the time of the audit:
 
 | Location | Transaction | Audit |
 |----------|-------------|-------|
@@ -254,8 +266,8 @@ Benchmark lifecycle events not covered by the limited `AuditAction` enum use glo
 
 Agent and contributor rules are defined in:
 
-- [CLAUDE.md](../CLAUDE.md) — workspace agent rules
-- [.github/copilot-instructions.md](../.github/copilot-instructions.md) — Copilot rules
+- [CLAUDE.md](../../CLAUDE.md) — workspace agent rules
+- [.github/copilot-instructions.md](../../.github/copilot-instructions.md) — Copilot rules
 - [DATABASE_SERVICES.md](./DATABASE_SERVICES.md) — transaction layer rules
 - [AUDIT.md](./AUDIT.md) — audit event catalog and placement rules
 

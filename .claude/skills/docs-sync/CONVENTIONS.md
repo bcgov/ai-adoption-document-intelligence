@@ -4,15 +4,15 @@
 
 | Folder | Scope |
 | --- | --- |
-| `architecture/` | System-level design: HITL architecture, database services/roles, blob storage, reference data tables, template models, shared packages, audit table, HA |
+| `architecture/` | System-level design: HITL architecture, database services/roles, transaction/audit compliance, blob storage, document content hash, ephemeral document cleanup, reference data tables, template models, shared packages, audit table, HA |
 | `auth/` | Authentication (OAuth/Keycloak, API keys) and group resource authorization |
 | `groups/` | Group management APIs, membership requests, group frontend pages/context |
-| `workflows/` | DAG workflow engine, graph types, node/activity/OCR-provider guides, workflow builder, node catalog, lineage, config overrides, Temporal worker concurrency, `templates/` example configs |
-| `extraction/` | OCR/extraction: Azure AI models, classifiers, enrichment, field formatting, image normalization, confusion profiles/matrices, OCR improvement pipeline, ground truth, HITL datasets |
+| `workflows/` | DAG workflow engine, graph types, node/activity/OCR-provider guides, workflow builder, node catalog, lineage, config overrides, Temporal worker concurrency, Temporal payload footprint (gzip codec + OCR payload refs), `templates/` example configs |
+| `extraction/` | OCR/extraction: Azure AI models, classifiers, enrichment, field formatting, image normalization, confusion profiles/matrices, OCR improvement pipeline, OCR failure handling, OCR result views, ground truth, HITL datasets |
 | `operations/` | OpenShift deployment, environment configuration, backups, Azure infrastructure, secrets, npm hardening |
 | `monitoring/` | PLG stack, Helm charts, Promtail, dashboards, metrics, alerting, logging |
 | `benchmarking/` | Benchmarking system, load testing runbooks |
-| `frontend/` | Frontend-wide concerns: BC Design System migration, UI patterns not tied to one feature |
+| `frontend/` | Frontend-wide concerns: BC Design System migration, confirmation-modal and sentence-case standardization, header/upload UI, UI patterns not tied to one feature |
 | `archive/` | Historical/point-in-time artifacts only — see `archive/README.md` |
 | `wiki/` | Routing layer — rules in `wiki/README.md`, canonical agent rules in `AGENTS.md` (Repo Wiki section) |
 

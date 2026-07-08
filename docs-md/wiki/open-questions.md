@@ -26,8 +26,8 @@ Use this page for contradictions, drift candidates, and ownership gaps that shou
 
 ## Post-audit follow-ups (2026-07-03)
 
-- Branch AI-1296: `apps/backend-services/Dockerfile` and `apps/temporal/Dockerfile` do not COPY/build `packages/graph-workflow-config` and `packages/temporal-payload-codec` although both apps declare them as `file:` dependencies — image builds from this branch fail at `npm install`. Develop is unaffected (packages not merged there yet). Needs a code fix, not a docs fix.
+- ~~Branch AI-1296: Dockerfiles do not COPY/build `packages/graph-workflow-config` and `packages/temporal-payload-codec`~~ Resolved 2026-07-08: `graph-workflow-config` was consolidated into `@ai-di/graph-workflow` (package removed); both Dockerfiles now COPY/build `temporal-payload-codec` and `graph-workflow`.
 - ~~`docs-md/extraction/` (11 OCR/extraction docs) has no dedicated wiki topic page~~ Resolved 2026-07-03: added [Extraction](extraction.md) topic page.
-- Frontend `GroupRequest` interface (`apps/frontend/src/data/hooks/useGroups.ts`) declares an `actorId` field the backend never returns (dead field).
+- ~~Frontend `GroupRequest` interface declares an `actorId` field the backend never returns~~ Resolved: `actorId` removed from `apps/frontend/src/data/hooks/useGroups.ts`.
 - `scripts/lib/instance-name.test.sh` has 2 pre-existing failing expectations (1.4, 2.7) exceeding the 20-char truncation documented in `docs-md/operations/INSTANCE_NAME_DERIVATION.md`.
 - ~56 docs still need code-verified audit; checklist: `feature-docs/20260702-docs-sync-cleanup/remaining-audit-checklist.md`.

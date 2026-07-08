@@ -28,7 +28,7 @@
 - Tables should be designed with a `created_at` timestamp (default to now) and an `updated_at` timestamp (auto-updated on change) for auditing purposes.
 - Table names should be singular (e.g., `User`, not `Users`) to align with Prisma conventions.
 - **Transactions:** Two or more database writes that must succeed or fail together MUST use a single Prisma transaction. Db-services take optional `tx?: Prisma.TransactionClient` as the last parameter (`const client = tx ?? this.prisma`). Services start cross-module transactions with `prismaService.transaction()` and pass `tx` through — services must not query `tx` directly. Controllers never use transactions. See `docs-md/DATABASE_SERVICES.md`.
-- **Audit on mutations:** Every user-initiated mutation and every service-layer mutation transaction MUST emit an audit event (`AuditService.recordEvent` or benchmark `AuditLogService`). Pass `tx` to audit when inside a transaction; otherwise audit after commit (best-effort, non-fatal). See `docs-md/AUDIT.md` and the compliance audit in `docs-md/TRANSACTION_AND_AUDIT_AUDIT.md`.
+- **Audit on mutations:** Every user-initiated mutation and every service-layer mutation transaction MUST emit an audit event (`AuditService.recordEvent` or benchmark `AuditLogService`). Pass `tx` to audit when inside a transaction; otherwise audit after commit (best-effort, non-fatal). See `docs-md/architecture/AUDIT.md` and the compliance audit in `docs-md/architecture/TRANSACTION_AND_AUDIT_AUDIT.md`.
 
 ## Repo Wiki
 
