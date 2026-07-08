@@ -92,7 +92,7 @@ services:
       temporal-postgresql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "127.0.0.1:7233", "--namespace", "default"]
       interval: 10s
       timeout: 5s
       retries: 10
