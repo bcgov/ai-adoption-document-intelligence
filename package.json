@@ -93,9 +93,11 @@
 		"@swc/core-linux-x64-musl": "1.15.3"
 	},
 	"overridesNotes": {
+		"zustand": "Force zustand v5 everywhere. @assistant-ui/* require v5 (they import useShallow from zustand/shallow, which is v5-only), but @xyflow/react pins v4 and npm would otherwise hoist v4 to the top where @assistant-ui/react-ai-sdk's transitive @assistant-ui/core resolves it and breaks. The paired @xyflow/react override below keeps v4 scoped to React Flow only.",
 		"@xyflow/react.zustand": "Pinned to zustand v4 because React Flow (@xyflow/react) only supports zustand ^4.4; our top-level zustand is v5 for @assistant-ui. REMOVE this override when React Flow ships zustand v5 support (as of @xyflow/react 12.11.0 it still requires ^4.4.0)."
 	},
 	"overrides": {
+		"zustand": "5.0.14",
 		"@xyflow/react": {
 			"zustand": "4.5.7"
 		},
@@ -106,7 +108,7 @@
 		},
 		"defu": "6.1.5",
 		"effect": "3.20.0",
-    "fast-uri": "3.1.1",
+		"fast-uri": "3.1.1",
 		"handlebars": "4.7.9",
 		"hono": "4.12.14",
 		"lodash": "4.18.1",
