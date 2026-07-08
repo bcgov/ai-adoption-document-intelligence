@@ -5,11 +5,6 @@ export interface ActivityCostEntry {
   units: number;
 }
 
-export interface TrainingCosts {
-  template_model: number;
-  classifier: number;
-}
-
 export interface RateVersionEntry {
   version: string;
   effective_from: string;
@@ -26,5 +21,4 @@ export interface RateVersionEntry {
   /** Upper-bound item count used when estimating cost for map (fan-out) node bodies pre-flight. */
   max_array_items_assumption: number;
   activity_costs: Record<string, ActivityCostEntry>;
-  training_costs: TrainingCosts;
 }

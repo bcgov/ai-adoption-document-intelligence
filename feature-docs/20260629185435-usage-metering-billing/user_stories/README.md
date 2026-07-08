@@ -88,11 +88,11 @@ After implementing a user story, check it off at the bottom of this file.
 - [x] **US-013** (platform admin API to configure group spending caps) — depends on US-001
 
 ### Phase 8 — Usage Visibility
-- [ ] **US-014** (group admin usage summary and history API) — depends on US-003, US-013
-- [ ] **US-015** (group admin per-run cost detail API) — depends on US-006, US-007, US-008
-- [ ] **US-016** (platform admin cross-group usage view) — depends on US-014
-- [ ] **US-017** (platform admin rate version management API) — depends on US-002
-- [ ] **US-018** (usage API authentication and authorization guards) — depends on US-014 through US-017
+- [x] **US-014** (group admin usage summary and history API) — depends on US-003, US-013
+- [x] **US-015** (group admin per-run cost detail API) — depends on US-006, US-007, US-008
+- [x] **US-016** (platform admin cross-group usage view) — depends on US-014
+- [x] **US-017** (platform admin rate version management API) — depends on US-002
+- [x] **US-018** (usage API authentication and authorization guards) — depends on US-014 through US-017
 
 > Stories are ordered by dependency chain for automated implementation.
 > Each story should be implementable after all stories in previous phases are complete.

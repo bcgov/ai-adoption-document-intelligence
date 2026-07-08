@@ -56,6 +56,7 @@ export class StorageLedgerService {
         rate_version_id: rateInfo.rateVersionId,
         unit_cost_dollars: rateInfo.unitCostDollars,
         units_consumed: rateInfo.units,
+        activity_name: "blob.write",
         resource_id: key,
         resource_type: "blob",
       });
@@ -126,6 +127,7 @@ export class StorageLedgerService {
         rate_version_id: rateInfo.rateVersionId,
         unit_cost_dollars: rateInfo.unitCostDollars,
         units_consumed: rateInfo.units,
+        activity_name: "blob.read",
         resource_id: key,
         resource_type: "blob",
       });

@@ -13,11 +13,9 @@
       "classifyDocument": { "cost_type": "flat", "units": 30 },
       "runFieldFormatEngine": { "cost_type": "flat", "units": 0 },
       "blob.read": { "cost_type": "flat", "units": 1 },
-      "blob.write": { "cost_type": "flat", "units": 5 }
-    },
-    "training_costs": {
-      "template_model": 500,
-      "classifier": 300
+      "blob.write": { "cost_type": "flat", "units": 5 },
+      "training.template_model": { "cost_type": "flat", "units": 500 },
+      "training.classifier": { "cost_type": "flat", "units": 300 }
     }
   }
 ]

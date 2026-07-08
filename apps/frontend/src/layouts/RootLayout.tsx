@@ -5,6 +5,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
+  IconCurrencyDollar,
   IconDatabase,
   IconFileText,
   IconFlagQuestion,
@@ -110,6 +111,12 @@ export function RootLayout() {
         label: "Groups",
         description: "Manage groups",
         icon: IconUsers,
+      },
+      {
+        path: "/billing",
+        label: "Billing",
+        description: "Spending and rate information",
+        icon: IconCurrencyDollar,
       },
       {
         path: "/confusion-profiles",

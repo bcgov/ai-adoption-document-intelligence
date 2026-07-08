@@ -25,6 +25,24 @@ function createMockPrisma() {
     created_at: new Date(),
   };
 
+  const trainingTemplateCost: ActivityCost = {
+    id: "ac-training-1",
+    rate_version_id: "rv-1",
+    activity_name: "training.template_model",
+    cost_type: "flat",
+    units: 500 as unknown as ActivityCost["units"],
+    created_at: new Date(),
+  };
+
+  const trainingClassifierCost: ActivityCost = {
+    id: "ac-training-2",
+    rate_version_id: "rv-1",
+    activity_name: "training.classifier",
+    cost_type: "flat",
+    units: 300 as unknown as ActivityCost["units"],
+    created_at: new Date(),
+  };
+
   const tx = {
     rateVersion: {
       create: jest.fn().mockResolvedValue(rateVersion),
@@ -39,13 +57,27 @@ function createMockPrisma() {
       findUnique: jest.fn(),
       findFirst: jest.fn().mockResolvedValue({
         ...rateVersion,
-        activity_costs: [activityCost],
+        activity_costs: [
+          activityCost,
+          trainingTemplateCost,
+          trainingClassifierCost,
+        ],
       }),
+    },
+    activityCost: {
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     $transaction: jest.fn(async (cb: (tx: unknown) => Promise<void>) => cb(tx)),
   };
 
-  return { prisma, tx, rateVersion, activityCost };
+  return {
+    prisma,
+    tx,
+    rateVersion,
+    activityCost,
+    trainingTemplateCost,
+    trainingClassifierCost,
+  };
 }
 
 const sampleEntry: RateVersionEntry = {
@@ -58,10 +90,8 @@ const sampleEntry: RateVersionEntry = {
   activity_costs: {
     "azureOcr.submit": { cost_type: "flat", units: 10 },
     "azureOcr.extract": { cost_type: "per_page", units: 40 },
-  },
-  training_costs: {
-    template_model: 500,
-    classifier: 300,
+    "training.template_model": { cost_type: "flat", units: 500 },
+    "training.classifier": { cost_type: "flat", units: 300 },
   },
 };
 
@@ -83,6 +113,7 @@ describe("RateVersionSeederService", () => {
 
       expect(prisma.rateVersion.findUnique).toHaveBeenCalledWith({
         where: { version: "1.0.0" },
+        include: { activity_costs: true },
       });
       expect(tx.rateVersion.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -99,6 +130,14 @@ describe("RateVersionSeederService", () => {
             activity_name: "azureOcr.extract",
             cost_type: "per_page",
           }),
+          expect.objectContaining({
+            activity_name: "training.template_model",
+            cost_type: "flat",
+          }),
+          expect.objectContaining({
+            activity_name: "training.classifier",
+            cost_type: "flat",
+          }),
         ]),
       });
       expect(mockAppLogger.log).toHaveBeenCalledWith(
@@ -107,9 +146,17 @@ describe("RateVersionSeederService", () => {
       );
     });
 
-    it("is idempotent — skips insertion when version already exists", async () => {
+    it("is idempotent — skips insertion when version already exists and has all activity costs", async () => {
       const { prisma, tx, rateVersion } = createMockPrisma();
-      prisma.rateVersion.findUnique.mockResolvedValue(rateVersion);
+      prisma.rateVersion.findUnique.mockResolvedValue({
+        ...rateVersion,
+        activity_costs: [
+          { activity_name: "azureOcr.submit" },
+          { activity_name: "azureOcr.extract" },
+          { activity_name: "training.template_model" },
+          { activity_name: "training.classifier" },
+        ],
+      });
       const service = new RateVersionSeederService(
         { prisma } as never,
         mockAppLogger,
@@ -121,6 +168,36 @@ describe("RateVersionSeederService", () => {
       expect(tx.activityCost.createMany).not.toHaveBeenCalled();
       expect(mockAppLogger.debug).toHaveBeenCalledWith(
         "Rate version already exists, skipping",
+        expect.objectContaining({ version: "1.0.0" }),
+      );
+    });
+
+    it("backfills missing activity costs when version exists but is missing entries", async () => {
+      const { prisma, tx, rateVersion } = createMockPrisma();
+      prisma.rateVersion.findUnique.mockResolvedValue({
+        ...rateVersion,
+        activity_costs: [
+          { activity_name: "azureOcr.submit" },
+          { activity_name: "azureOcr.extract" },
+          // training costs missing
+        ],
+      });
+      const service = new RateVersionSeederService(
+        { prisma } as never,
+        mockAppLogger,
+      );
+
+      await service.seedRateVersion(sampleEntry);
+
+      expect(tx.rateVersion.create).not.toHaveBeenCalled();
+      expect(prisma.activityCost.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ activity_name: "training.template_model" }),
+          expect.objectContaining({ activity_name: "training.classifier" }),
+        ]),
+      });
+      expect(mockAppLogger.log).toHaveBeenCalledWith(
+        "Backfilled missing activity costs",
         expect.objectContaining({ version: "1.0.0" }),
       );
     });
@@ -167,21 +244,20 @@ describe("RateVersionSeederService", () => {
       });
       expect(result).toMatchObject({
         version: rateVersion.version,
-        activity_costs: [expect.objectContaining({ id: activityCost.id })],
+        activity_costs: expect.arrayContaining([
+          expect.objectContaining({ id: activityCost.id }),
+        ]),
       });
     });
   });
 
   describe("getActiveTrainingCosts", () => {
-    it("returns training costs from the JSON matched to the active rate version", async () => {
+    it("returns training costs from activity_costs in the active rate version", async () => {
       const { prisma } = createMockPrisma();
       const service = new RateVersionSeederService(
         { prisma } as never,
         mockAppLogger,
       );
-      jest
-        .spyOn(service, "loadRateVersionsFile")
-        .mockReturnValue([sampleEntry]);
 
       const result = await service.getActiveTrainingCosts(
         new Date("2026-08-01T00:00:00Z"),
@@ -208,13 +284,16 @@ describe("RateVersionSeederService", () => {
       expect(result).toBeNull();
     });
 
-    it("returns null when the active rate version is not in the JSON file", async () => {
-      const { prisma } = createMockPrisma();
+    it("returns null when the active rate version is missing training activity cost rows", async () => {
+      const { prisma, rateVersion, activityCost } = createMockPrisma();
+      prisma.rateVersion.findFirst.mockResolvedValue({
+        ...rateVersion,
+        activity_costs: [activityCost], // no training costs
+      });
       const service = new RateVersionSeederService(
         { prisma } as never,
         mockAppLogger,
       );
-      jest.spyOn(service, "loadRateVersionsFile").mockReturnValue([]);
 
       const result = await service.getActiveTrainingCosts(new Date());
 

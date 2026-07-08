@@ -573,6 +573,7 @@ export class TrainingService {
           units_consumed: trainingCosts.templateModelCost,
           rate_version_id: trainingCosts.rateVersionId,
           unit_cost_dollars: trainingCosts.unitCostDollars,
+          activity_name: "training.template_model",
         });
       }
 

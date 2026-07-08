@@ -426,6 +426,7 @@ export class ClassifierService {
           units_consumed: trainingCosts.classifierCost,
           rate_version_id: trainingCosts.rateVersionId,
           unit_cost_dollars: trainingCosts.unitCostDollars,
+          activity_name: "training.classifier",
         });
       }
 

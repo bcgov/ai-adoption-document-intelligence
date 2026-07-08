@@ -34,17 +34,43 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
 
   /**
    * Inserts a single RateVersion and its ActivityCost rows in a transaction
-   * if the version does not already exist.
+   * if the version does not already exist. If the version exists, any activity
+   * cost entries present in the JSON but missing from the database are inserted
+   * (handles additions to existing versions such as training costs).
    */
   async seedRateVersion(entry: RateVersionEntry): Promise<void> {
     const existing = await this.prismaService.prisma.rateVersion.findUnique({
       where: { version: entry.version },
+      include: { activity_costs: true },
     });
 
     if (existing) {
-      this.logger.debug("Rate version already exists, skipping", {
-        version: entry.version,
-      });
+      // Backfill any activity costs that are in the JSON but not in the DB
+      const existingNames = new Set(
+        existing.activity_costs.map((ac) => ac.activity_name),
+      );
+      const missing = Object.entries(entry.activity_costs).filter(
+        ([name]) => !existingNames.has(name),
+      );
+
+      if (missing.length > 0) {
+        await this.prismaService.prisma.activityCost.createMany({
+          data: missing.map(([activity_name, cost]) => ({
+            rate_version_id: existing.id,
+            activity_name,
+            cost_type: cost.cost_type,
+            units: cost.units,
+          })),
+        });
+        this.logger.log("Backfilled missing activity costs", {
+          version: entry.version,
+          added: missing.map(([name]) => name),
+        });
+      } else {
+        this.logger.debug("Rate version already exists, skipping", {
+          version: entry.version,
+        });
+      }
       return;
     }
 
@@ -97,6 +123,13 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
    * @returns null if no active rate version is found or the version is not in
    * the JSON file.
    */
+  /**
+   * Returns the training costs for the active rate version at the given
+   * timestamp. Training costs are stored as ActivityCost rows with names
+   * `training.template_model` and `training.classifier`.
+   *
+   * @returns null if no active rate version is found or training cost rows are missing.
+   */
   async getActiveTrainingCosts(at: Date): Promise<{
     rateVersionId: string;
     unitCostDollars: number;
@@ -107,16 +140,23 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
     if (!rateVersion) {
       return null;
     }
-    const entries = this.loadRateVersionsFile();
-    const entry = entries.find((e) => e.version === rateVersion.version);
-    if (!entry) {
+
+    const templateCost = rateVersion.activity_costs.find(
+      (ac) => ac.activity_name === "training.template_model",
+    );
+    const classifierCost = rateVersion.activity_costs.find(
+      (ac) => ac.activity_name === "training.classifier",
+    );
+
+    if (!templateCost || !classifierCost) {
       return null;
     }
+
     return {
       rateVersionId: rateVersion.id,
       unitCostDollars: Number(rateVersion.unit_cost_dollars),
-      templateModelCost: entry.training_costs.template_model,
-      classifierCost: entry.training_costs.classifier,
+      templateModelCost: Number(templateCost.units),
+      classifierCost: Number(classifierCost.units),
     };
   }
 }
