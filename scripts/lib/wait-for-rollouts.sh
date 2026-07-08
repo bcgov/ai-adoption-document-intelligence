@@ -67,7 +67,27 @@ check_namespace_quota() {
 
   local at_limit
   at_limit=$(echo "${quotas}" | python3 -c "
-import json, sys
+import json, sys, re
+
+# Kubernetes resource.Quantity suffixes. 'hard' and 'used' are NOT guaranteed to
+# share a suffix (e.g. cpu hard='4' used='3230m', memory hard='16Gi' used='5736Mi'),
+# so both sides must be normalized to a common base before comparing.
+BINARY = {'Ki': 2**10, 'Mi': 2**20, 'Gi': 2**30, 'Ti': 2**40, 'Pi': 2**50, 'Ei': 2**60}
+DECIMAL = {'n': 1e-9, 'u': 1e-6, 'm': 1e-3, '': 1.0,
+           'k': 1e3, 'M': 1e6, 'G': 1e9, 'T': 1e12, 'P': 1e15, 'E': 1e18}
+
+def parse_quantity(s):
+    s = str(s).strip()
+    m = re.fullmatch(r'([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([a-zA-Z]*)', s)
+    if not m:
+        raise ValueError(f'unparseable quantity: {s!r}')
+    num, suffix = float(m.group(1)), m.group(2)
+    if suffix in BINARY:
+        return num * BINARY[suffix]
+    if suffix in DECIMAL:
+        return num * DECIMAL[suffix]
+    raise ValueError(f'unknown quantity suffix: {suffix!r}')
+
 data = json.load(sys.stdin)
 threshold = ${threshold}
 issues = []
@@ -78,12 +98,12 @@ for item in data.get('items', []):
     for key, hard_val in hard.items():
         used_val = used.get(key, '0')
         try:
-            h = float(str(hard_val).rstrip('m'))
-            u = float(str(used_val).rstrip('m'))
-            if h > 0 and (u / h) * 100 >= threshold:
-                issues.append(f'{name}:{key}={used_val}/{hard_val}')
+            h = parse_quantity(hard_val)
+            u = parse_quantity(used_val)
         except ValueError:
-            pass
+            continue
+        if h > 0 and (u / h) * 100 >= threshold:
+            issues.append(f'{name}:{key}={used_val}/{hard_val}')
 for line in issues:
     print(line)
 " 2>/dev/null) || true
