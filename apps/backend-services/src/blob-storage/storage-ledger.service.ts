@@ -51,7 +51,7 @@ export class StorageLedgerService {
       if (!rateInfo || rateInfo.units === 0) return;
 
       await this.storageLedgerDb.createBlobWriteEvent({
-        event_type: "blob_write",
+        event_type: "blob_storage",
         group_id: groupId,
         rate_version_id: rateInfo.rateVersionId,
         unit_cost_dollars: rateInfo.unitCostDollars,
@@ -122,7 +122,7 @@ export class StorageLedgerService {
       if (!rateInfo || rateInfo.units === 0) return;
 
       await this.storageLedgerDb.createBlobReadEvent({
-        event_type: "blob_read",
+        event_type: "blob_storage",
         group_id: groupId,
         rate_version_id: rateInfo.rateVersionId,
         unit_cost_dollars: rateInfo.unitCostDollars,

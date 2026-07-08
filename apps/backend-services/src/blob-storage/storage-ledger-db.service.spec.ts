@@ -193,7 +193,7 @@ describe("StorageLedgerDbService", () => {
   // ---------------------------------------------------------------------------
   describe("createBlobReadEvent", () => {
     const input = {
-      event_type: "blob_read" as const,
+      event_type: "blob_storage" as const,
       group_id: "group-abc",
       rate_version_id: "rate-v1",
       unit_cost_dollars: 0.001,
@@ -284,7 +284,7 @@ describe("StorageLedgerDbService", () => {
   // ---------------------------------------------------------------------------
   describe("createBlobWriteEvent", () => {
     const input = {
-      event_type: "blob_write" as const,
+      event_type: "blob_storage" as const,
       group_id: "group-abc",
       rate_version_id: "rate-v1",
       unit_cost_dollars: 0.001,

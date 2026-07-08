@@ -125,12 +125,13 @@ export async function runNightlyStorageCharge(
     const unitsConsumed = gbHours * costPerGbHour;
 
     await writer.recordUsageEvent({
-      event_type: "storage_daily_charge",
+      event_type: "blob_storage",
       group_id: groupId,
       rate_version_id: rateVersion.id,
       unit_cost_dollars: Number(rateVersion.unit_cost_dollars),
       units_consumed: unitsConsumed,
       storage_gb_hours: gbHours,
+      activity_name: "storage_daily_charge",
     });
 
     groupsCharged += 1;

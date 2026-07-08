@@ -103,7 +103,8 @@ export async function recordLedgerRead(
     if (unitsConsumed === 0) return;
 
     const { createData, upsertArgs } = buildUsageEventWriteOps({
-      event_type: "blob_read",
+      event_type: "blob_storage",
+      activity_name: "blob.read",
       group_id: groupId,
       rate_version_id: rateVersion.id,
       unit_cost_dollars: Number(rateVersion.unit_cost_dollars),

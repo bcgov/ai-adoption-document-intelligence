@@ -598,9 +598,7 @@ enum UsageEventType {
   workflow_failed
   workflow_cancelled
   model_training_started
-  storage_daily_charge
-  blob_read
-  blob_write
+  blob_storage
 }
 
 enum ActivityCostType {
