@@ -277,7 +277,7 @@ export function ProjectDetailPage() {
               onClick={() => setDeleteProjectDialogOpen(true)}
               data-testid="delete-project-btn"
             >
-              Delete Project
+              Delete project
             </Button>
           </Group>
         </Group>
@@ -296,14 +296,14 @@ export function ProjectDetailPage() {
         <Stack gap="md">
           <Group justify="space-between">
             <Title order={3} data-testid="definitions-heading">
-              Benchmark Definitions
+              Benchmark definitions
             </Title>
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={() => setCreateDialogOpened(true)}
               data-testid="create-definition-btn"
             >
-              Create Definition
+              Create definition
             </Button>
           </Group>
 
@@ -331,7 +331,7 @@ export function ProjectDetailPage() {
               <DataTable.Thead>
                 <DataTable.Tr>
                   <DataTable.Th>Name</DataTable.Th>
-                  <DataTable.Th>Dataset Version</DataTable.Th>
+                  <DataTable.Th>Dataset version</DataTable.Th>
                   <DataTable.Th>Workflow</DataTable.Th>
                   <DataTable.Th>Evaluator</DataTable.Th>
                   <DataTable.Th>Status</DataTable.Th>
@@ -391,7 +391,7 @@ export function ProjectDetailPage() {
         <Stack gap="md">
           <Group justify="space-between">
             <Title order={3} data-testid="runs-heading">
-              Recent Runs
+              Recent runs
             </Title>
             <Group gap="sm">
               {selectedRunIds.length > 0 && selectedRunIds.length < 2 && (
@@ -433,7 +433,7 @@ export function ProjectDetailPage() {
                 <DataTable.Tr>
                   <DataTable.Th>Select</DataTable.Th>
                   <DataTable.Th>Status</DataTable.Th>
-                  <DataTable.Th>Run ID / Version</DataTable.Th>
+                  <DataTable.Th>Run ID / version</DataTable.Th>
                   <DataTable.Th>Definition</DataTable.Th>
                   <DataTable.Th>Started</DataTable.Th>
                   <DataTable.Th>Duration</DataTable.Th>
@@ -609,7 +609,7 @@ export function ProjectDetailPage() {
       <Modal
         opened={detailDialogOpened}
         onClose={handleCloseDetail}
-        title="Definition Details"
+        title="Definition details"
         size="xl"
       >
         {isLoadingDefinition ? (
@@ -629,7 +629,7 @@ export function ProjectDetailPage() {
       <Modal
         opened={deleteDefDialogOpen}
         onClose={handleDeleteDefinitionCancel}
-        title="Delete Benchmark Definition"
+        title="Delete benchmark definition"
         centered
         data-testid="delete-definition-confirm-dialog"
       >
@@ -662,7 +662,7 @@ export function ProjectDetailPage() {
       <Modal
         opened={deleteRunDialogOpen}
         onClose={handleDeleteRunCancel}
-        title="Delete Benchmark Run"
+        title="Delete benchmark run"
         centered
         data-testid="delete-run-confirm-dialog"
       >
@@ -695,7 +695,7 @@ export function ProjectDetailPage() {
       <Modal
         opened={deleteProjectDialogOpen}
         onClose={() => setDeleteProjectDialogOpen(false)}
-        title="Delete Benchmark Project"
+        title="Delete benchmark project"
         centered
         data-testid="delete-project-confirm-dialog"
       >

@@ -8,6 +8,7 @@
 import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
 import { computeConfigHash } from "../workflow/config-hash";
@@ -184,6 +185,10 @@ describe("BenchmarkRunService", () => {
             logRunStarted: jest.fn().mockResolvedValue({}),
             logBaselinePromoted: jest.fn().mockResolvedValue({}),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
         {
           provide: BLOB_STORAGE,
@@ -1988,6 +1993,10 @@ describe("BenchmarkRunService", () => {
             },
           },
           {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
+          {
             provide: BLOB_STORAGE,
             useValue: {
               read: jest.fn().mockResolvedValue(
@@ -2078,6 +2087,10 @@ describe("BenchmarkRunService", () => {
               logRunStarted: jest.fn(),
               logBaselinePromoted: jest.fn(),
             },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
           },
           {
             provide: BLOB_STORAGE,
@@ -2179,6 +2192,10 @@ describe("BenchmarkRunService", () => {
               logRunStarted: jest.fn(),
               logBaselinePromoted: jest.fn(),
             },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
           },
           {
             provide: BLOB_STORAGE,

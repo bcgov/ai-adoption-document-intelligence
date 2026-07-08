@@ -30,7 +30,7 @@ vi.mock("./Badge", () => ({
 import { PageHeader } from "./PageHeader";
 
 describe("PageHeader", () => {
-  it("renders title, description, actions, and date badge", () => {
+  it("renders title, description, actions, and no date badge by default", () => {
     render(
       <PageHeader
         title="Processing Queue"
@@ -42,6 +42,11 @@ describe("PageHeader", () => {
     expect(screen.getByText("Processing Queue")).toBeInTheDocument();
     expect(screen.getByText("Track documents")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+    expect(screen.queryByTestId("badge")).not.toBeInTheDocument();
+  });
+
+  it("can show the date badge when requested", () => {
+    render(<PageHeader title="Processing Queue" showDateBadge />);
     expect(screen.getByTestId("badge")).toBeInTheDocument();
   });
 

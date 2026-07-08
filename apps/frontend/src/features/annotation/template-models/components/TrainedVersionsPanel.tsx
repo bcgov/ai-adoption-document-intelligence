@@ -117,7 +117,7 @@ export const TrainedVersionsPanel: FC<TrainedVersionsPanelProps> = ({
       await deleteVersion(version.id);
       notifications.show({
         title: "Version deleted",
-        message: `v${version.version} has been tombstoned and the Azure model removed.`,
+        message: `v${version.version} has been tombstoned and the azure model removed.`,
         color: "green",
         icon: <IconCheck size={16} />,
       });

@@ -740,6 +740,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
+          actorId: "actor-1",
           isSystemAdmin: false,
           groupRoles: { "group-1": GroupRole.MEMBER },
         },
@@ -755,6 +756,7 @@ describe("HitlController", () => {
       expect(hitlService.deleteCorrection).toHaveBeenCalledWith(
         "session-1",
         "correction-1",
+        "actor-1",
       );
     });
 

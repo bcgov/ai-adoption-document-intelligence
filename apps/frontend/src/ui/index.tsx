@@ -79,6 +79,7 @@ import { Alert } from "./Alert";
 import { Badge } from "./Badge";
 import { Button } from "./Button";
 import { Checkbox } from "./Checkbox";
+import { ConfirmActionModal } from "./ConfirmActionModal";
 import { DataTable } from "./DataTable";
 import { DateInput } from "./DateInput";
 import { Divider } from "./Divider";
@@ -222,6 +223,7 @@ export type { AppAlertProps } from "./Alert";
 export type { AppBadgeProps } from "./Badge";
 export type { AppButtonProps } from "./Button";
 export type { AppCheckboxProps } from "./Checkbox";
+export type { ConfirmActionModalProps } from "./ConfirmActionModal";
 export type { AppDataTableProps } from "./DataTable";
 export type { AppDateInputProps } from "./DateInput";
 export type { AppDividerProps } from "./Divider";
@@ -262,6 +264,7 @@ export {
   Checkbox,
   Code,
   Collapse,
+  ConfirmActionModal,
   Container,
   CopyButton,
   createTheme,
