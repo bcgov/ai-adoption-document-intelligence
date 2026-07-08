@@ -579,8 +579,15 @@ jobs:
 
   cleanup-on-failure:
     name: Cleanup Artifactory on failure
-    needs: [metadata, build, deploy]
-    if: always() && (needs.build.result == 'failure' || needs.deploy.result == 'failure')
+    # Only clean up when the BUILD failed. A build failure means `deploy` was
+    # skipped, so `oc apply` never ran and the SHA tag is referenced by nothing
+    # in the cluster — safe to delete. A deploy failure is deliberately excluded:
+    # once `oc apply` has run, the Deployments are pinned to the SHA tag, and
+    # deleting it would leave them unable to pull on restart (ImagePullBackOff).
+    # Staged tags from a pre-apply deploy failure are reclaimed by the routine
+    # rotation (--keep) on the next successful run.
+    needs: [metadata, build]
+    if: always() && needs.build.result == 'failure'
     runs-on: ubuntu-latest
     environment: ${{ needs.metadata.outputs.environment }}
     continue-on-error: true
