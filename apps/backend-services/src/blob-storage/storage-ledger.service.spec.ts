@@ -90,9 +90,14 @@ describe("StorageLedgerService", () => {
       expect(mockDb.findActiveRateVersionWithBlobWriteCost).toHaveBeenCalled();
       expect(mockDb.createBlobWriteEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          event_type: "blob_write",
+          activity_name: "blob.write",
+          event_type: "blob_storage",
           group_id: "group-abc",
           rate_version_id: "rate-v1",
+          resource_id: "group-abc/documents/doc-1/original.pdf",
+          resource_type: "blob",
+          unit_cost_dollars: 0.001,
+          units_consumed: 5,
         }),
       );
     });
@@ -202,9 +207,14 @@ describe("StorageLedgerService", () => {
       expect(mockDb.findActiveRateVersionWithBlobReadCost).toHaveBeenCalled();
       expect(mockDb.createBlobReadEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          event_type: "blob_read",
+          activity_name: "blob.read",
+          event_type: "blob_storage",
           group_id: "group-abc",
           rate_version_id: "rate-v1",
+          resource_id: "group-abc/documents/doc-1/original.pdf",
+          resource_type: "blob",
+          unit_cost_dollars: 0.001,
+          units_consumed: 1,
         }),
       );
     });

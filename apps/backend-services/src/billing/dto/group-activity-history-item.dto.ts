@@ -13,18 +13,40 @@ export class GroupActivityHistoryItemDto {
 
   @ApiProperty({
     description:
-      "Activity name (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
+      "A map of activity names/types for cost breakdowns (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
+    type: "object",
+    additionalProperties: { $ref: "#/components/schemas/ActivityItemDto" },
   })
-  activity_name!: string;
+  activities!: Record<string, ActivityItemDto>;
 
-  @ApiProperty({ description: "Total billing units consumed", type: Number })
+  @ApiProperty({
+    description: "Total billing units consumed for this event type",
+    type: Number,
+  })
   units_consumed!: number;
 
-  @ApiProperty({ description: "Total dollars spent", type: Number })
+  @ApiProperty({
+    description: "Total dollars spent for this event type",
+    type: Number,
+  })
   dollars_spent!: number;
 
   @ApiProperty({
     description: "The category of event the usage record falls under.",
   })
   event_type!: string;
+}
+
+export class ActivityItemDto {
+  @ApiProperty({
+    description: "Total billing units consumed for this activity type",
+    type: Number,
+  })
+  units_consumed!: number;
+
+  @ApiProperty({
+    description: "Total dollars spent for this activity type",
+    type: Number,
+  })
+  dollars_spent!: number;
 }

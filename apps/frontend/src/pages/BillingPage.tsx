@@ -51,14 +51,14 @@ import {
 } from "../ui";
 
 const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
+  "January",
+  "February",
+  "March",
+  "April",
   "May",
-  "Jun",
-  "Jul",
-  "Aug",
+  "June",
+  "July",
+  "August",
   "Sep",
   "Oct",
   "Nov",
@@ -71,7 +71,7 @@ function periodKey(row: GroupUsageHistoryItem): string {
 
 function formatPeriod(key: string): string {
   const [year, month] = key.split("-");
-  return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
+  return `${year} ${MONTH_NAMES[Number(month) - 1]}`;
 }
 
 function PeriodSummary({
@@ -132,12 +132,12 @@ function ActivitySpendChart({
 }: {
   activityHistory: GroupActivityHistoryItem[];
 }) {
-  const { data, activities } = useMemo(() => {
-    if (activityHistory.length === 0) return { data: [], activities: [] };
+  const { data, eventTypes } = useMemo(() => {
+    if (activityHistory.length === 0) return { data: [], eventTypes: [] };
 
     // Collect unique activity names (sorted)
-    const activitySet = new Set(activityHistory.map((r) => r.event_type));
-    const sortedActivities = [...activitySet].sort();
+    const eventSet = new Set(activityHistory.map((r) => r.event_type));
+    const sortedEventTypes = [...eventSet].sort();
 
     // Build one row per period
     const periodMap = new Map<
@@ -146,7 +146,7 @@ function ActivitySpendChart({
     >();
     for (const row of activityHistory) {
       const key = `${row.period_year}-${String(row.period_month).padStart(2, "0")}`;
-      const label = `${MONTH_NAMES[row.period_month - 1]} ${row.period_year}`;
+      const label = `${row.period_year} ${MONTH_NAMES[row.period_month - 1]}`;
       if (!periodMap.has(key)) {
         periodMap.set(key, { label });
       }
@@ -158,7 +158,7 @@ function ActivitySpendChart({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, v]) => v);
 
-    return { data: sortedData, activities: sortedActivities };
+    return { data: sortedData, eventTypes: sortedEventTypes };
   }, [activityHistory]);
 
   if (data.length === 0) {
@@ -196,17 +196,18 @@ function ActivitySpendChart({
           labelStyle={{ fontWeight: 600 }}
         />
         <Legend iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 6 }} />
-        {activities.map((activity, idx) => (
+        {eventTypes.map((eventType, idx) => (
           <Bar
-            key={activity}
+            key={eventType}
             dataKey={(entry: {
               label: string;
               [key: string]: number | string;
-            }) => (entry[activity] as number) ?? 0}
-            name={activity}
+            }) => (entry[eventType] as number) ?? 0}
+            name={eventType}
             stackId="spend"
             fill={activityColor(idx)}
-            radius={idx === activities.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+            radius={idx === eventTypes.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+            maxBarSize={100} // Misleading, because this is actually the width
           />
         ))}
       </BarChart>
@@ -270,6 +271,15 @@ function GroupSpendingView() {
         <Loader size="sm" />
       ) : (
         <>
+          <Select
+            label="Period"
+            data={periodOptions}
+            value={selectedPeriod}
+            onChange={(v) => setSelectedPeriod(v ?? "all")}
+            maw={200}
+            data-testid="billing-period-select"
+          />
+
           {summary && (
             <PeriodSummary
               label={summary.label}
@@ -282,42 +292,88 @@ function GroupSpendingView() {
             <ActivitySpendChart activityHistory={activityHistory} />
           )}
 
-          <Select
-            label="Period"
-            data={periodOptions}
-            value={selectedPeriod}
-            onChange={(v) => setSelectedPeriod(v ?? "all")}
-            maw={200}
-            data-testid="billing-period-select"
-          />
-
           {visibleHistory.length === 0 ? (
             <Text size="sm" c="dimmed">
               No billing history available yet.
             </Text>
           ) : (
-            <Table striped highlightOnHover withTableBorder maw={520}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Period</Table.Th>
-                  <Table.Th>Units consumed</Table.Th>
-                  <Table.Th>Amount spent</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {visibleHistory.map((row) => (
-                  <Table.Tr key={`${row.period_year}-${row.period_month}`}>
-                    <Table.Td>
-                      {MONTH_NAMES[row.period_month - 1]} {row.period_year}
-                    </Table.Td>
-                    <Table.Td>
-                      {row.total_units_consumed.toLocaleString()}
-                    </Table.Td>
-                    <Table.Td>${row.total_dollars_spent.toFixed(4)}</Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <Group align="flex-start">
+              <Stack w={520}>
+                <h3>Monthly Summary</h3>
+
+                <Table striped highlightOnHover withTableBorder>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Period</Table.Th>
+                      <Table.Th>Units consumed</Table.Th>
+                      <Table.Th>Amount spent</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {visibleHistory.map((row) => {
+                      return (
+                        <Table.Tr
+                          key={`${row.period_year}-${row.period_month}`}
+                        >
+                          <Table.Td>
+                            {row.period_year}{" "}
+                            {MONTH_NAMES[row.period_month - 1]}
+                          </Table.Td>
+                          <Table.Td>
+                            {row.total_units_consumed.toLocaleString()}
+                          </Table.Td>
+                          <Table.Td>
+                            ${row.total_dollars_spent.toFixed(4)}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+
+              {/* Breakdown Table */}
+              <Stack>
+                <h3>Breakdown</h3>
+                <Table striped highlightOnHover withTableBorder w={1000}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Event Type</Table.Th>
+                      <Table.Th>Activity Name</Table.Th>
+                      <Table.Th>Units consumed</Table.Th>
+                      <Table.Th>Amount spent</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {activityHistory
+                      ?.filter(
+                        (event) =>
+                          selectedPeriod === "all" ||
+                          selectedPeriod ===
+                            `${event.period_year}-${event.period_month}`,
+                      )
+                      .map((event) => {
+                        return Object.entries(event.activities).map(
+                          (activity) => (
+                            <Table.Tr
+                              key={`${event.period_year}-${event.period_month}`}
+                            >
+                              <Table.Td>{event.event_type}</Table.Td>
+                              <Table.Td>{activity[0]}</Table.Td>
+                              <Table.Td>
+                                {activity[1].units_consumed.toLocaleString()}
+                              </Table.Td>
+                              <Table.Td>
+                                ${activity[1].dollars_spent.toFixed(4)}
+                              </Table.Td>
+                            </Table.Tr>
+                          ),
+                        );
+                      })}
+                  </Table.Tbody>
+                </Table>
+              </Stack>
+            </Group>
           )}
         </>
       )}

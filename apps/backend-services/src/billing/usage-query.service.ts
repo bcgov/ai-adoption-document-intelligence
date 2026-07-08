@@ -119,38 +119,60 @@ export class UsageQueryService {
     });
 
     // Aggregate into a map keyed by "year-month-activity"
-    const map = new Map<
-      string,
-      {
-        period_year: number;
-        period_month: number;
-        activity_name: string;
-        units: number;
-        dollars: number;
-        event_type: string;
-      }
-    >();
+    interface ActivityBucket {
+      units_consumed: number;
+      dollars_spent: number;
+    }
+    interface EventBucket {
+      event_type: string;
+      units_consumed: number;
+      dollars_spent: number;
+      period_year: number;
+      period_month: number;
+      activities: Map<string, ActivityBucket>;
+    }
+    const map = new Map<string, EventBucket>();
 
     for (const e of events) {
+      if (e.units_consumed.equals(0)) continue;
       const year = e.created_at.getUTCFullYear();
       const month = e.created_at.getUTCMonth() + 1;
       const activity = e.activity_name ?? "other";
       const event = e.event_type;
       const key = `${year}-${month}-${event}`;
-      const existing = map.get(key);
       const units = e.units_consumed.toNumber();
       const dollars = units * e.rate_version.unit_cost_dollars.toNumber();
-      if (existing) {
-        existing.units += units;
-        existing.dollars += dollars;
+      // Does this event entry exist?
+      const eventEntry = map.get(key);
+
+      if (eventEntry) {
+        eventEntry.units_consumed += units;
+        eventEntry.dollars_spent += dollars;
+        // Then does the activity entry exist?
+        const activityEntry = eventEntry.activities.get(activity);
+        if (activityEntry) {
+          activityEntry.units_consumed += units;
+          activityEntry.dollars_spent += dollars;
+        } else {
+          // Add a new activity to the activities map for this entry
+          eventEntry.activities.set(activity, {
+            units_consumed: units,
+            dollars_spent: dollars,
+          });
+        }
       } else {
+        const activitiesMap = new Map();
+        activitiesMap.set(activity, {
+          units_consumed: units,
+          dollars_spent: dollars,
+        });
         map.set(key, {
           period_year: year,
           period_month: month,
-          activity_name: activity,
+          activities: activitiesMap,
           event_type: event,
-          units,
-          dollars,
+          units_consumed: units,
+          dollars_spent: dollars,
         });
       }
     }
@@ -161,14 +183,14 @@ export class UsageQueryService {
           ? a.period_year - b.period_year
           : a.period_month !== b.period_month
             ? a.period_month - b.period_month
-            : a.activity_name.localeCompare(b.activity_name),
+            : a.event_type.localeCompare(b.event_type),
       )
       .map((v) => ({
         period_year: v.period_year,
         period_month: v.period_month,
-        activity_name: v.activity_name,
-        units_consumed: v.units,
-        dollars_spent: v.dollars,
+        activities: Object.fromEntries(v.activities),
+        units_consumed: v.units_consumed,
+        dollars_spent: v.dollars_spent,
         event_type: v.event_type,
       }));
   }

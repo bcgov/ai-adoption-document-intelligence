@@ -160,7 +160,13 @@ export function useGroupHistoryForAdmin(groupId: string | null) {
 export interface GroupActivityHistoryItem {
   period_year: number;
   period_month: number;
-  activity_name: string;
+  activities: Record<
+    string,
+    {
+      dollars_spent: number;
+      units_consumed: number;
+    }
+  >;
   units_consumed: number;
   dollars_spent: number;
   event_type: string;
