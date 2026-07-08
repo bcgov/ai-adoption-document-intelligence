@@ -39,10 +39,16 @@ data:
       ingestion_burst_size_mb: 8
 
     ingester:
-      # Flush idle log streams to disk after 5m instead of 30m to cap the
-      # ingester's in-memory chunk footprint (mitigates Loki high-memory alerts).
-      chunk_idle_period: 5m
-      chunk_target_size: 1536000
+      # Hold idle streams in memory longer and flush larger chunks so Loki
+      # creates far fewer chunk files. Fewer file create/delete cycles means
+      # less kernel dentry/inode slab churn, which is the real driver of the
+      # cgroup-v1 working-set growth behind past high-memory alerts. Loki's
+      # heap has ample headroom (~100Mi used of a 2Gi limit), so a longer
+      # idle period is safe. (An earlier 5m idle period reduced heap the wrong
+      # way and increased file churn.)
+      chunk_idle_period: 1h
+      max_chunk_age: 2h
+      chunk_target_size: 2097152
 
     compactor:
       working_directory: /loki/compactor
