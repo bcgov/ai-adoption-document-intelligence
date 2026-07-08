@@ -24,12 +24,20 @@ spec:
             summary: High CPU usage detected on a pod
             description: A pod in namespace {{ .Release.Namespace }} is using more than 80% of its CPU limit. Check the pod labels in this alert for the affected pod name.
 
+        # The Loki pod is deliberately excluded from this alert. On cgroup v1
+        # nodes, container_memory_working_set_bytes includes reclaimable kernel
+        # slab (dentry/inode caches). Loki's chunk create/delete churn inflates
+        # that slab until it approaches the pod's memory limit, even though
+        # Loki's actual heap stays around ~100Mi and the kernel reclaims the
+        # slab before any OOM. Working-set therefore false-fires at >90% for
+        # Loki with no real memory pressure. A genuine Loki OOM is still caught
+        # by the PodInErrorState alert below (reason=OOMKilled).
         - alert: HighPodMemoryUsage
           expr: >-
             (
-              sum(container_memory_working_set_bytes{namespace="{{ .Release.Namespace }}", container!=""}) by (pod)
+              sum(container_memory_working_set_bytes{namespace="{{ .Release.Namespace }}", container!="", pod!~"{{ include "plg.loki.fullname" . }}-.*"}) by (pod)
               /
-              sum(kube_pod_container_resource_limits{namespace="{{ .Release.Namespace }}", resource="memory"}) by (pod)
+              sum(kube_pod_container_resource_limits{namespace="{{ .Release.Namespace }}", resource="memory", pod!~"{{ include "plg.loki.fullname" . }}-.*"}) by (pod)
             ) > 0.9
           for: 2m
           labels:

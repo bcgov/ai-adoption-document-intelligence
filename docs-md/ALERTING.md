@@ -97,6 +97,22 @@ Static rules that don't use the shared logger counters (e.g. HTTP error rate, sl
 
 ---
 
+## Infrastructure Alert Rules
+
+Infrastructure alerts (pod CPU/memory, PVC capacity, crash/OOM state, Temporal queue depth) are **not** generated from `alert-thresholds.ts`. They are hand-maintained in the Helm template `deployments/openshift/helm/plg/templates/prometheus-rule-crd.yaml`, which renders a `PrometheusRule` CRD carrying the `role: alert-rules` label so OpenShift User Workload Monitoring picks it up. Edit that template directly; the `npm run generate:alert-rules` generator does not touch it.
+
+### Loki is excluded from `HighPodMemoryUsage`
+
+The `HighPodMemoryUsage` rule fires on `container_memory_working_set_bytes / limit > 0.9`. The Loki pod (`<release>-loki-*`) is deliberately excluded via a `pod!~` matcher.
+
+**Why:** the Silver cluster nodes run **cgroup v1**, where `container_memory_working_set_bytes` includes reclaimable kernel slab (dentry/inode caches). Loki continuously creates and deletes chunk files on its filesystem volume (ingester flushes + compaction + retention deletes), which inflates that slab until it approaches the pod's memory limit — even though Loki's actual Go heap stays around ~100 Mi of its 2 Gi limit. The kernel reclaims the slab before any OOM, so working-set sits near 90% indefinitely with no real memory pressure and no restarts. Left in, the rule pages `critical` on a non-problem.
+
+A genuine Loki OOM is still caught by the `PodInErrorState` rule (`reason=OOMKilled`), so no real failure mode is lost by the exclusion. The companion change in `loki-configmap.yaml` (longer `chunk_idle_period`, explicit `max_chunk_age`, larger `chunk_target_size`) reduces the file churn that drives the slab in the first place.
+
+This is a cgroup-v1 accounting artifact; migrating the nodes to cgroup v2 would resolve it structurally and let the exclusion be removed. See Red Hat solution 7126558 for the underlying `xfs_inode`/dentry slab behavior.
+
+---
+
 ## In-App Alerting
 
 Any backend-services or Temporal worker code can raise an alert condition by logging at `warn` or `error` level with an `alertType` in the log context.
