@@ -160,6 +160,9 @@ export class BenchmarkProjectController {
 
     identityCanAccessGroup(req.resolvedIdentity, project.groupId);
 
-    return this.benchmarkProjectService.deleteProject(id);
+    return this.benchmarkProjectService.deleteProject(
+      id,
+      req.resolvedIdentity.actorId,
+    );
   }
 }

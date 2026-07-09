@@ -17,7 +17,7 @@ metadata:
     # Gold DR:  142.34.64.6–9      (NAT pool egress IPs)
     # Emerald:  no fixed egress IPs — each namespace has a dedicated /26 private range;
     #           add your namespace's /26 CIDR here if cross-cluster access from Emerald is needed.
-    haproxy.router.openshift.io/ip_whitelist: >-
+    haproxy.router.openshift.io/ip_allowlist: >-
       142.16.0.0/11
       142.34.194.121 142.34.194.122 142.34.194.123 142.34.194.124
       142.34.229.6 142.34.229.7 142.34.229.8 142.34.229.9

@@ -7,9 +7,13 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
+import { computeContentHash } from "./content-hash.util";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
-import { PdfNormalizationService } from "./pdf-normalization.service";
+import {
+  PdfNormalizationError,
+  PdfNormalizationService,
+} from "./pdf-normalization.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
@@ -85,6 +89,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -109,7 +114,11 @@ describe("DocumentService", () => {
       expect(result.document.id).toBe("1");
       expect(result.document.original_filename).toBe("file.pdf");
       expect(result.document.title).toBe("Test");
-      expect(documentDbService.createDocument).toHaveBeenCalled();
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(pdfBytes),
+        }),
+      );
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringMatching(/^group-1\/ocr\/.+\/original\.pdf$/),
         expect.any(Buffer),
@@ -136,6 +145,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -185,6 +195,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -235,6 +246,72 @@ describe("DocumentService", () => {
       expect(documentDbService.createDocument).toHaveBeenCalled();
     });
 
+    it("returns conversion_failed with the specific code/reason for a password-protected PDF", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      pdfNormalization.normalizeToPdf.mockRejectedValue(
+        new PdfNormalizationError(
+          "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+          "password_protected",
+        ),
+      );
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: { id: string; status: string }) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      const result = await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "encrypted.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      expect(result.kind).toBe("conversion_failed");
+      if (result.kind !== "conversion_failed") throw new Error("unreachable");
+      expect(result.code).toBe("password_protected");
+      expect(result.reason).toMatch(/password protected/i);
+      expect(result.document.status).toBe(DocumentStatus.conversion_failed);
+      expect(result.document.normalized_file_path).toBeNull();
+    });
+
+    it("returns generic conversion_failed for an unexpected normalization error", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      pdfNormalization.normalizeToPdf.mockRejectedValue(
+        new Error("some internal boom"),
+      );
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: { id: string; status: string }) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      const result = await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      expect(result.kind).toBe("conversion_failed");
+      if (result.kind !== "conversion_failed") throw new Error("unreachable");
+      // Internal error details are not leaked; falls back to the generic shape.
+      expect(result.code).toBe("conversion_failed");
+      expect(result.reason).toBe("Document could not be converted to PDF");
+    });
+
     it("should throw on invalid base64", async () => {
       await expect(
         service.uploadDocument(
@@ -259,6 +336,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 512,
+        content_hash: "abc123",
         metadata: { source: "ground-truth-generation" },
         source: "ground-truth-generation",
         status: DocumentStatus.pre_ocr,
@@ -299,6 +377,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 256,
+        content_hash: "def456",
         metadata: {},
         source: "api",
         status: DocumentStatus.pre_ocr,

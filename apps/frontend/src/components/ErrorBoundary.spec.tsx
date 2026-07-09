@@ -93,7 +93,7 @@ describe("ErrorBoundary", () => {
     );
   });
 
-  it("resets and shows children again when Try again is clicked and error is resolved", () => {
+  it("resets and shows children again when try again is clicked and error is resolved", () => {
     const { ThrowingChild, setThrow } = createThrowingChild();
     setThrow(true);
 
@@ -111,7 +111,7 @@ describe("ErrorBoundary", () => {
     expect(screen.getByText("Safe content")).toBeInTheDocument();
   });
 
-  it("shows Go to home page button on the final retry attempt", () => {
+  it("shows go to home page button on the final retry attempt", () => {
     const { ThrowingChild, setThrow } = createThrowingChild();
     setThrow(true);
 
@@ -133,7 +133,7 @@ describe("ErrorBoundary", () => {
     ).toBeInTheDocument();
   });
 
-  it("redirects to home when Go to home page is clicked", () => {
+  it("redirects to home when go to home page is clicked", () => {
     const originalLocation = window.location;
     Object.defineProperty(window, "location", {
       value: { href: "" },

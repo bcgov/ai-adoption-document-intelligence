@@ -2,7 +2,7 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
-export const APP_NAME = "AI OCR Frontend";
+export const APP_NAME = "AI OCR frontend";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -13,7 +13,7 @@ export const SUPPORTED_FILE_TYPES = [
   "image/tiff",
 ] as const;
 
-// HITL Review Queue Configuration
+// HITL review queue Configuration
 export const HITL_MAX_CONFIDENCE =
   parseFloat(import.meta.env.VITE_HITL_MAX_CONFIDENCE) || 0.9;
 

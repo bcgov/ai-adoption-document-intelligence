@@ -73,7 +73,7 @@ const router = createBrowserRouter([
       { path: "tables", element: <TablesListPage /> },
       { path: "tables/:tableId", element: <TableDetailPage /> },
 
-      // Template Models with nested routes
+      // Template models with nested routes
       { path: "template-models", element: <ModelListPage /> },
       { path: "template-models/:modelId", element: <ModelDetailPage /> },
       {
@@ -93,6 +93,7 @@ const router = createBrowserRouter([
       { path: "billing", element: <BillingPage /> },
 
       // Confusion Profiles
+      // Confusion profiles
       { path: "confusion-profiles", element: <ConfusionProfilesPage /> },
 
       // Benchmarking routes

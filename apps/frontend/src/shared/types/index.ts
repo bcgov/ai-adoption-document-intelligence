@@ -26,6 +26,7 @@ export interface Document {
   normalized_file_path?: string | null;
   file_type: string;
   file_size: number;
+  content_hash?: string | null;
   source: string;
   status: DocumentStatus | string;
   created_at: string;

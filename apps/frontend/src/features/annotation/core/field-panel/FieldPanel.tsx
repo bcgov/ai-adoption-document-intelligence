@@ -34,7 +34,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          {emptyMessage ?? "No fields to display."}
+          {emptyMessage ?? "no fields to display."}
         </Text>
       </Stack>
     );

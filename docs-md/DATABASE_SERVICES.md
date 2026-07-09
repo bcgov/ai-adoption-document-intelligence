@@ -141,6 +141,31 @@ await this.prismaService.transaction(async (tx) => {
 
 Service methods that may be called as part of a cross-module transaction accept and pass `tx?` straight through without querying it directly. Controllers never initiate or receive transactions.
 
+### Layer rules
+
+| Layer | May call `prismaService.transaction()`? | May accept `tx?`? | May query via `tx` directly? |
+|-------|----------------------------------------|-------------------|------------------------------|
+| Controller | No | No | No |
+| Service | Yes | Yes (pass-through only) | No |
+| Db-service | Yes (single-module `$transaction` only) | Yes | Yes |
+
+### When a transaction is required
+
+Use a transaction when an operation performs **two or more writes that must stay consistent** (including cross-module writes such as updating a review session and a document in the same request). Single create/update/delete operations do not need a transaction. Read-only batch queries (e.g. count + page in one snapshot) may use `$transaction` but are not mutations.
+
+**Anti-pattern:** sequential `await db.write(...)` calls in a service method without `tx` when failure mid-way would leave inconsistent state.
+
+See [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSACTION_AND_AUDIT_AUDIT.md) for a full compliance review and known gaps.
+
+## Audit coupling
+
+Every user-initiated mutation (and every service-layer mutation transaction) must record an audit event. See [AUDIT.md](./AUDIT.md).
+
+- **Same transaction:** pass `tx` to both db-service writes and `AuditService.recordEvent(..., tx)` / `AuditLogDbService.createAuditLog(..., tx)` when strict atomicity is required.
+- **After commit:** call audit immediately after a successful non-transactional write or after `prismaService.transaction()` completes (best-effort; audit failure must not fail the main operation).
+
+Db-services `audit-db.service.ts` and `audit-log-db.service.ts` already accept optional `tx`; service-layer audit helpers should expose and forward `tx` when added or updated.
+
 ## Indexes backing the documents list endpoint
 
 `GET /api/documents` (`DocumentDbService.findAllDocuments`) filters by `group_id`, orders by `created_at DESC`, paginates with `limit`/`offset`, and supports an ILIKE search over `title` / `original_filename`. Three indexes on `documents` support this access pattern:

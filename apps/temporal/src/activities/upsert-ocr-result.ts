@@ -179,23 +179,24 @@ export async function upsertOcrResult(params: {
         enrichmentSummary != null ? enrichmentSummary : null;
     }
 
-    // Upsert OCR result
-    await prisma.ocrResult.upsert({
-      where: {
-        document_id: documentId,
-      },
-      update: updateObject,
-      create: {
-        document_id: documentId,
-        ...updateObject,
-      },
-    });
-
-    // Update document status to extracted
+    // Upsert OCR result and mark document extracted atomically.
     // Note: The workflow status "awaiting_review" is used by the frontend to determine if review is needed
-    await prisma.document.update({
-      where: { id: documentId },
-      data: { status: "extracted" as const },
+    await prisma.$transaction(async (tx) => {
+      await tx.ocrResult.upsert({
+        where: {
+          document_id: documentId,
+        },
+        update: updateObject,
+        create: {
+          document_id: documentId,
+          ...updateObject,
+        },
+      });
+
+      await tx.document.update({
+        where: { id: documentId },
+        data: { status: "extracted" as const },
+      });
     });
 
     log.info("Upsert OCR result complete", {

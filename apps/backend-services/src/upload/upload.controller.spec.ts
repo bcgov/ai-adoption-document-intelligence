@@ -9,6 +9,7 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import * as identityHelpers from "@/auth/identity.helpers";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
@@ -37,17 +38,22 @@ describe("UploadController", () => {
       resolveWorkflowVersionId: jest.fn().mockResolvedValue(null),
       getModelIdDefault: jest.fn().mockResolvedValue(null),
     } as any;
+    const mockAuditService = {
+      recordEvent: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService;
     controller = new UploadController(
       documentService,
       queueService,
       workflowService,
       mockAppLogger,
+      mockAuditService,
     );
   });
 
   describe("uploadDocument", () => {
     const mockIdentity = {
       userId: "user-1",
+      actorId: "actor-1",
       isSystemAdmin: false,
       groupRoles: { "group-1": GroupRole.MEMBER },
     };
@@ -67,6 +73,8 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
+      content_hash:
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
       status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),
@@ -267,6 +275,8 @@ describe("UploadController", () => {
       documentService.uploadDocument.mockResolvedValue({
         kind: "conversion_failed",
         document: failedDoc,
+        code: "conversion_failed",
+        reason: "Document could not be converted to PDF",
       });
 
       let caught: unknown;
@@ -289,6 +299,38 @@ describe("UploadController", () => {
       expect(body.document?.id).toBe("1");
 
       expect(queueService.processOcrForDocument).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the specific code and message for a password-protected PDF", async () => {
+      const failedDoc = {
+        ...uploadedDoc,
+        normalized_file_path: null,
+        status: DocumentStatus.conversion_failed,
+      };
+      documentService.uploadDocument.mockResolvedValue({
+        kind: "conversion_failed",
+        document: failedDoc,
+        code: "password_protected",
+        reason:
+          "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+      });
+
+      let caught: unknown;
+      try {
+        await controller.uploadDocument(baseDto, mockReq);
+      } catch (e) {
+        caught = e;
+      }
+
+      expect((caught as HttpException).getStatus()).toBe(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+      const body = (caught as HttpException).getResponse() as {
+        code?: string;
+        message?: string;
+      };
+      expect(body.code).toBe("password_protected");
+      expect(body.message).toMatch(/password protected/i);
     });
   });
 });

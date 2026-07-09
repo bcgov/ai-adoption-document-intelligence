@@ -5293,6 +5293,56 @@
         ]
       }
     },
+    "/api/documents/{documentId}/reprocess": {
+      "post": {
+        "description": "Starts the document's workflow again from the beginning using its existing normalized PDF. Allowed only for documents that are `failed` or stuck in `ongoing_ocr`; the run is rejected (409) for any other state, a missing/purged source file, an in-flight run, or a missing workflow configuration.",
+        "operationId": "OcrController_reprocessDocument",
+        "parameters": [
+          {
+            "name": "documentId",
+            "required": true,
+            "in": "path",
+            "description": "Document ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Re-run started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReprocessDocumentResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "409": {
+            "description": "Document is not in a re-runnable state, has no available source file, is already processing, or has no workflow configuration"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Re-run a document's workflow",
+        "tags": [
+          "OCR"
+        ]
+      }
+    },
     "/api/template-models/training/info": {
       "get": {
         "operationId": "TrainingController_getTrainingInfo",
@@ -14011,6 +14061,39 @@
           "groupId"
         ]
       },
+      "ReprocessDocumentResponseDto": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "workflowExecutionId": {
+            "type": "string",
+            "description": "Temporal workflow execution ID of the new run.",
+            "example": "graph-65fafe87-9fa7-46e6-9f1e-ba2ef326e3be"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pre_ocr",
+              "ongoing_ocr",
+              "extracted",
+              "awaiting_review",
+              "complete",
+              "failed",
+              "conversion_failed"
+            ],
+            "description": "Document status after the re-run was started.",
+            "example": "ongoing_ocr"
+          }
+        },
+        "required": [
+          "success",
+          "workflowExecutionId",
+          "status"
+        ]
+      },
       "CustomNeuralBuildsDto": {
         "type": "object",
         "properties": {
@@ -16058,10 +16141,13 @@
           },
           "code": {
             "type": "string",
-            "example": "conversion_failed"
+            "description": "Machine-readable failure reason. `conversion_failed` for a generic normalization failure, or a specific code such as `password_protected` when the cause is known.",
+            "example": "password_protected"
           },
           "message": {
-            "type": "string"
+            "type": "string",
+            "description": "Human-readable reason for the failure.",
+            "example": "The PDF is password protected and cannot be processed. Upload an unlocked copy."
           },
           "document": {
             "$ref": "#/components/schemas/UploadConversionFailedDocumentDto"

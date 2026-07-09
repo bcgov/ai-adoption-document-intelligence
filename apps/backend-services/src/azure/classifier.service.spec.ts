@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
 import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
 import { UsageEventService } from "@/billing/usage-event.service";
@@ -18,6 +19,8 @@ import { ClassifierDbService } from "./classifier-db.service";
 const mockClassifierDbService = {
   findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
+  createClassifierModel: jest.fn(),
+  deleteClassifierModel: jest.fn(),
 };
 const mockAzureService = {
   getClient: jest.fn().mockReturnValue({
@@ -106,6 +109,10 @@ describe("ClassifierService", () => {
         {
           provide: UsageEventService,
           useValue: mockUsageEventService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

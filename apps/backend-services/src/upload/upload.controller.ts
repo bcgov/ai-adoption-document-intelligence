@@ -20,6 +20,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
@@ -39,6 +40,7 @@ export class UploadController {
     private readonly queueService: QueueService,
     private readonly workflowService: WorkflowService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Post()
@@ -141,13 +143,13 @@ export class UploadController {
       if (uploadResult.kind === "conversion_failed") {
         const doc = uploadResult.document;
         this.logger.warn(
-          `Document ${doc.id} stored but PDF normalization failed`,
+          `Document ${doc.id} stored but PDF normalization failed (${uploadResult.code})`,
         );
         throw new HttpException(
           {
             success: false,
-            code: "conversion_failed",
-            message: "Document could not be converted to PDF",
+            code: uploadResult.code,
+            message: uploadResult.reason,
             document: {
               id: doc.id,
               title: doc.title,
@@ -168,6 +170,20 @@ export class UploadController {
       this.logger.debug(
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
+
+      await this.auditService.recordEvent({
+        event_type: "document_uploaded",
+        resource_type: "document",
+        resource_id: uploadedDocument.id,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: uploadedDocument.id,
+        group_id: groupId,
+        payload: {
+          title: uploadedDocument.title,
+          file_type: uploadedDocument.file_type,
+          status: uploadedDocument.status,
+        },
+      });
 
       void this.queueService
         .processOcrForDocument({

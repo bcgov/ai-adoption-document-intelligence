@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
 import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
 import { UsageEventService } from "@/billing/usage-event.service";
@@ -132,6 +133,7 @@ describe("TrainingService", () => {
   const mockTrainingJob = {
     id: "job-1",
     template_model_id: "tm-1",
+    template_model: { group_id: "group-1" },
     status: TrainingStatus.PENDING,
     container_name: "training-tm-1",
     sas_url: null,
@@ -257,6 +259,10 @@ describe("TrainingService", () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TrainingService,
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: AppLoggerService, useValue: mockAppLogger },
         {
           provide: TrainingDbService,
@@ -323,6 +329,10 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: TrainingDbService, useValue: mockTrainingDb },
           { provide: AzureStorageService, useValue: mockBlobStorage },
@@ -515,7 +525,7 @@ describe("TrainingService", () => {
 
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      const result = await service.startTraining("tm-1", dto);
+      const result = await service.startTraining("tm-1", dto, "actor-1");
 
       expect(result).toHaveProperty("id", "job-1");
       expect(result).toHaveProperty("status", TrainingStatus.PENDING);
@@ -538,9 +548,9 @@ describe("TrainingService", () => {
         mockLabeledDocument,
       ]);
 
-      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.startTraining("tm-1", dto, "actor-1"),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("does NOT delete the prior tracked TrainedModel when retraining", async () => {
@@ -576,7 +586,7 @@ describe("TrainingService", () => {
       mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
       mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("tm-1", dto);
+      await service.startTraining("tm-1", dto, "actor-1");
 
       // Job is created with the versioned target.
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
@@ -611,7 +621,7 @@ describe("TrainingService", () => {
       mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
       mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("tm-1", dto);
+      await service.startTraining("tm-1", dto, "actor-1");
 
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -654,11 +664,15 @@ describe("TrainingService", () => {
         max_training_hours: 2,
       } as never);
 
-      await service.startTraining("tm-1", {
-        description: "test",
-        buildMode: "neural" as never,
-        maxTrainingHours: 2,
-      });
+      await service.startTraining(
+        "tm-1",
+        {
+          description: "test",
+          buildMode: "neural" as never,
+          maxTrainingHours: 2,
+        },
+        "actor-1",
+      );
 
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -695,7 +709,7 @@ describe("TrainingService", () => {
         max_training_hours: null,
       } as never);
 
-      await service.startTraining("tm-1", { description: "test" });
+      await service.startTraining("tm-1", { description: "test" }, "actor-1");
 
       expect(mockTrainingDb.createTrainingJob).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -765,10 +779,14 @@ describe("TrainingService", () => {
         "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
       );
 
-      await service.startTraining("tm-1", {
-        buildMode: "neural" as never,
-        maxTrainingHours: 2,
-      });
+      await service.startTraining(
+        "tm-1",
+        {
+          buildMode: "neural" as never,
+          maxTrainingHours: 2,
+        },
+        "actor-1",
+      );
       await new Promise((r) => setImmediate(r));
 
       expect(mockPost).toHaveBeenCalledWith(
@@ -841,7 +859,7 @@ describe("TrainingService", () => {
         "https://blob/c?sp=rl&sr=c&se=2099-01-01" as never,
       );
 
-      await service.startTraining("tm-1", {});
+      await service.startTraining("tm-1", {}, "actor-1");
       await new Promise((r) => setImmediate(r));
 
       expect(mockPost).toHaveBeenCalledWith(
@@ -865,9 +883,9 @@ describe("TrainingService", () => {
         status: TrainingStatus.TRAINING,
       });
 
-      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.startTraining("tm-1", dto, "actor-1"),
+      ).rejects.toThrow(ConflictException);
       // Guard fires before version computation and job creation.
       expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
       expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
@@ -888,7 +906,7 @@ describe("TrainingService", () => {
       mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
       mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
 
-      await service.startTraining("tm-1", dto);
+      await service.startTraining("tm-1", dto, "actor-1");
 
       expect(mockPreflightCapCheck.checkCap).toHaveBeenCalledWith(
         "group-1",
@@ -918,9 +936,9 @@ describe("TrainingService", () => {
         ),
       );
 
-      await expect(service.startTraining("tm-1", dto)).rejects.toThrow(
-        HttpException,
-      );
+      await expect(
+        service.startTraining("tm-1", dto, "actor-1"),
+      ).rejects.toThrow(HttpException);
       // Job must NOT have been created when the cap check fails
       expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
     });
@@ -964,8 +982,15 @@ describe("TrainingService", () => {
         version: 2,
         is_active: true,
       });
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
 
-      const result = await service.setActiveTrainedVersion("tm-1", "v2");
+      const result = await service.setActiveTrainedVersion(
+        "tm-1",
+        "v2",
+        "actor-1",
+      );
 
       expect(result.isActive).toBe(true);
       expect(mockTrainingDb.findTrainedModelForTemplate).toHaveBeenCalledWith(
@@ -984,14 +1009,14 @@ describe("TrainingService", () => {
       });
 
       await expect(
-        service.setActiveTrainedVersion("tm-1", "v1"),
+        service.setActiveTrainedVersion("tm-1", "v1", "actor-1"),
       ).rejects.toThrow(BadRequestException);
     });
 
     it("throws NotFound when the version doesn't belong to the template", async () => {
       mockTrainingDb.findTrainedModelForTemplate.mockResolvedValueOnce(null);
       await expect(
-        service.setActiveTrainedVersion("tm-1", "missing"),
+        service.setActiveTrainedVersion("tm-1", "missing", "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -1004,9 +1029,9 @@ describe("TrainingService", () => {
         is_active: true,
       });
 
-      await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.deleteTrainedVersion("tm-1", "v1", "actor-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("blocks deletion when a benchmark definition references the version", async () => {
@@ -1019,9 +1044,9 @@ describe("TrainingService", () => {
         2,
       );
 
-      await expect(service.deleteTrainedVersion("tm-1", "v1")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.deleteTrainedVersion("tm-1", "v1", "actor-1"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("tombstones the version when guardrails pass", async () => {
@@ -1041,12 +1066,19 @@ describe("TrainingService", () => {
         0,
       );
       mockTrainingDb.tombstoneTrainedModel.mockResolvedValueOnce(tombstoned);
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
       mockAdminClient.path.mockImplementation(() => ({
         delete: jest.fn().mockResolvedValue({ status: 200 }),
       }));
       (isUnexpected as unknown as jest.Mock).mockReturnValue(false);
 
-      const result = await service.deleteTrainedVersion("tm-1", "v1");
+      const result = await service.deleteTrainedVersion(
+        "tm-1",
+        "v1",
+        "actor-1",
+      );
 
       expect(result.deletedAt).toBeInstanceOf(Date);
       expect(mockTrainingDb.tombstoneTrainedModel).toHaveBeenCalledWith("v1");
@@ -1063,7 +1095,11 @@ describe("TrainingService", () => {
         tombstoned,
       );
 
-      const result = await service.deleteTrainedVersion("tm-1", "v1");
+      const result = await service.deleteTrainedVersion(
+        "tm-1",
+        "v1",
+        "actor-1",
+      );
 
       expect(result.deletedAt).toEqual(tombstoned.deleted_at);
       expect(mockTrainingDb.tombstoneTrainedModel).not.toHaveBeenCalled();
@@ -1090,6 +1126,10 @@ describe("TrainingService", () => {
       const module: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: TrainingDbService, useValue: mockTrainingDb },
           { provide: AzureStorageService, useValue: mockBlobStorage },
@@ -1120,7 +1160,7 @@ describe("TrainingService", () => {
 
     it("startTraining throws ServiceUnavailableException", async () => {
       await expect(
-        mockDiService.startTraining("tm-1", { description: "Test" }),
+        mockDiService.startTraining("tm-1", { description: "Test" }, "actor-1"),
       ).rejects.toThrow(ServiceUnavailableException);
     });
   });
@@ -1164,7 +1204,7 @@ describe("TrainingService", () => {
         status: TrainingStatus.FAILED,
       });
 
-      await service.cancelTrainingJob("job-1");
+      await service.cancelTrainingJob("job-1", "actor-1");
 
       expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
         status: TrainingStatus.FAILED,
@@ -1176,9 +1216,9 @@ describe("TrainingService", () => {
     it("should throw NotFoundException when job not found", async () => {
       mockTrainingDb.findTrainingJob.mockResolvedValueOnce(null);
 
-      await expect(service.cancelTrainingJob("non-existent")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.cancelTrainingJob("non-existent", "actor-1"),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("should throw BadRequestException for completed job", async () => {
@@ -1188,18 +1228,18 @@ describe("TrainingService", () => {
       };
       mockTrainingDb.findTrainingJob.mockResolvedValueOnce(completedJob);
 
-      await expect(service.cancelTrainingJob("job-1")).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.cancelTrainingJob("job-1", "actor-1"),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it("should throw BadRequestException for failed job", async () => {
       const failedJob = { ...mockTrainingJob, status: TrainingStatus.FAILED };
       mockTrainingDb.findTrainingJob.mockResolvedValueOnce(failedJob);
 
-      await expect(service.cancelTrainingJob("job-1")).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.cancelTrainingJob("job-1", "actor-1"),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -1249,6 +1289,10 @@ describe("TrainingService", () => {
       const module = await Test.createTestingModule({
         providers: [
           TrainingService,
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: TrainingDbService, useValue: mockTrainingDb },
           { provide: AzureStorageService, useValue: mockBlobStorage },
@@ -1380,6 +1424,10 @@ describe("TrainingService", () => {
       const moduleNoCreds: TestingModule = await Test.createTestingModule({
         providers: [
           TrainingService,
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
           { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: TrainingDbService, useValue: mockTrainingDb },
           {

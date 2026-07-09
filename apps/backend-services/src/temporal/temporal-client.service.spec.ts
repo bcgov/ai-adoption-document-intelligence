@@ -54,6 +54,7 @@ jest.mock("@temporalio/client", () => {
       connect: jest.fn(() => Promise.resolve(mockConnection)),
     },
     Client: jest.fn(() => mockClient),
+    WorkflowNotFoundError: class WorkflowNotFoundError extends Error {},
   };
 });
 
@@ -392,6 +393,30 @@ describe("TemporalClientService", () => {
       await expect(
         newService.getWorkflowStatus("workflow-123"),
       ).rejects.toThrow("Temporal client not initialized");
+    });
+  });
+
+  describe("isWorkflowRunning", () => {
+    it("returns true when the execution is Running", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "RUNNING" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(true);
+    });
+
+    it("returns false when the execution is closed", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        status: { name: "FAILED" },
+      });
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
+    });
+
+    it("returns false when no execution exists", async () => {
+      const { WorkflowNotFoundError } = jest.requireMock("@temporalio/client");
+      mockWorkflowHandle.describe.mockRejectedValue(
+        new WorkflowNotFoundError("not found"),
+      );
+      await expect(service.isWorkflowRunning("graph-1")).resolves.toBe(false);
     });
   });
 

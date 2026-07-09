@@ -6,6 +6,7 @@
  */
 
 import { NotFoundException } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { ConfusionProfileService } from "./confusion-profile.service";
 
@@ -57,7 +58,10 @@ describe("ConfusionProfileService", () => {
 
   beforeEach(() => {
     prismaMock = makePrismaMock();
-    service = new ConfusionProfileService(prismaMock);
+    const mockAuditService = {
+      recordEvent: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService;
+    service = new ConfusionProfileService(prismaMock, mockAuditService);
   });
 
   // ── create ──────────────────────────────────────────────────────────
@@ -69,11 +73,14 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(profile);
 
-      const result = await service.create({
-        name: "Test Profile",
-        matrix: { "0": { O: 3 } },
-        groupId: "group-1",
-      });
+      const result = await service.create(
+        {
+          name: "Test Profile",
+          matrix: { "0": { O: 3 } },
+          groupId: "group-1",
+        },
+        "actor-1",
+      );
 
       expect(prismaMock.prisma.confusionProfile.create).toHaveBeenCalledTimes(
         1,
@@ -170,9 +177,14 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.update as jest.Mock
       ).mockResolvedValue(updated);
 
-      const result = await service.update("profile-1", "group-1", {
-        name: "Renamed",
-      });
+      const result = await service.update(
+        "profile-1",
+        "group-1",
+        {
+          name: "Renamed",
+        },
+        "actor-1",
+      );
       expect(result.name).toBe("Renamed");
       expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
         {
@@ -191,7 +203,7 @@ describe("ConfusionProfileService", () => {
       ).mockResolvedValue(null);
 
       await expect(
-        service.update("missing", "group-1", { name: "X" }),
+        service.update("missing", "group-1", { name: "X" }, "actor-1"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -203,7 +215,7 @@ describe("ConfusionProfileService", () => {
       ).mockResolvedValue(null);
 
       await expect(
-        service.update("profile-1", "group-1", { name: "X" }),
+        service.update("profile-1", "group-1", { name: "X" }, "actor-1"),
       ).rejects.toThrow(NotFoundException);
       expect(prismaMock.prisma.confusionProfile.update).not.toHaveBeenCalled();
     });
@@ -220,7 +232,7 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.delete as jest.Mock
       ).mockResolvedValue(buildProfile());
 
-      await service.delete("profile-1", "group-1");
+      await service.delete("profile-1", "group-1", "actor-1");
       expect(prismaMock.prisma.confusionProfile.findFirst).toHaveBeenCalledWith(
         {
           where: { id: "profile-1", group_id: "group-1" },
@@ -236,9 +248,9 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.delete("missing", "group-1")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.delete("missing", "group-1", "actor-1"),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("does not delete when the profile belongs to another group (cross-group isolation)", async () => {
@@ -246,9 +258,9 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.findFirst as jest.Mock
       ).mockResolvedValue(null);
 
-      await expect(service.delete("profile-1", "group-1")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.delete("profile-1", "group-1", "actor-1"),
+      ).rejects.toThrow(NotFoundException);
       expect(prismaMock.prisma.confusionProfile.delete).not.toHaveBeenCalled();
     });
   });
@@ -283,10 +295,13 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(createdProfile);
 
-      const result = await service.deriveAndSave({
-        name: "Derived Profile",
-        groupId: "group-1",
-      });
+      const result = await service.deriveAndSave(
+        {
+          name: "Derived Profile",
+          groupId: "group-1",
+        },
+        "actor-1",
+      );
 
       expect(result.id).toBe("profile-1");
       expect(prismaMock.prisma.fieldCorrection.findMany).toHaveBeenCalledTimes(
@@ -359,11 +374,14 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(createdProfile);
 
-      const result = await service.deriveAndSave({
-        name: "Benchmark Derived",
-        groupId: "group-1",
-        sources: { benchmarkRunIds: ["run-1"] },
-      });
+      const result = await service.deriveAndSave(
+        {
+          name: "Benchmark Derived",
+          groupId: "group-1",
+          sources: { benchmarkRunIds: ["run-1"] },
+        },
+        "actor-1",
+      );
 
       expect(result.id).toBe("profile-1");
       expect(prismaMock.prisma.benchmarkRun.findMany).toHaveBeenCalledWith({
@@ -420,14 +438,17 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(createdProfile);
 
-      await service.deriveAndSave({
-        name: "Filtered",
-        groupId: "group-1",
-        sources: {
-          benchmarkRunIds: ["run-1"],
-          fieldKeys: ["amount"],
+      await service.deriveAndSave(
+        {
+          name: "Filtered",
+          groupId: "group-1",
+          sources: {
+            benchmarkRunIds: ["run-1"],
+            fieldKeys: ["amount"],
+          },
         },
-      });
+        "actor-1",
+      );
 
       // alignAndDiff should only be called once (for "amount", not "date")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -501,14 +522,17 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(createdProfile);
 
-      await service.deriveAndSave({
-        name: "TM Scoped",
-        groupId: "group-1",
-        sources: {
-          templateModelIds: ["tm-1"],
-          benchmarkRunIds: ["run-1"],
+      await service.deriveAndSave(
+        {
+          name: "TM Scoped",
+          groupId: "group-1",
+          sources: {
+            templateModelIds: ["tm-1"],
+            benchmarkRunIds: ["run-1"],
+          },
         },
-      });
+        "actor-1",
+      );
 
       // Template models should be queried
       expect(prismaMock.prisma.templateModel.findMany).toHaveBeenCalledWith({
@@ -563,10 +587,13 @@ describe("ConfusionProfileService", () => {
         prismaMock.prisma.confusionProfile.create as jest.Mock
       ).mockResolvedValue(createdProfile);
 
-      await service.deriveAndSave({
-        name: "Many Examples",
-        groupId: "group-1",
-      });
+      await service.deriveAndSave(
+        {
+          name: "Many Examples",
+          groupId: "group-1",
+        },
+        "actor-1",
+      );
 
       const createCall = (
         prismaMock.prisma.confusionProfile.create as jest.Mock

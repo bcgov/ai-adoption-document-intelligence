@@ -18,6 +18,7 @@ import {
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
+import { computeContentHash } from "./content-hash.util";
 import { DocumentDbService } from "./document-db.service";
 import type { DocumentData } from "./document-db.types";
 import { extensionForOriginalBlob } from "./original-blob-key.util";
@@ -36,6 +37,7 @@ export interface UploadedDocument {
   normalized_file_path: string | null;
   file_type: string;
   file_size: number;
+  content_hash: string;
   metadata?: Record<string, unknown>;
   source: string;
   status: DocumentStatus;
@@ -47,7 +49,14 @@ export interface UploadedDocument {
 
 export type UploadDocumentResult =
   | { kind: "success"; document: UploadedDocument }
-  | { kind: "conversion_failed"; document: UploadedDocument };
+  | {
+      kind: "conversion_failed";
+      document: UploadedDocument;
+      /** Machine-readable failure reason, e.g. `password_protected`. */
+      code: string;
+      /** Human-readable reason surfaced to the upload caller. */
+      reason: string;
+    };
 
 @Injectable()
 export class DocumentService {
@@ -69,6 +78,7 @@ export class DocumentService {
       normalized_file_path: saved.normalized_file_path ?? null,
       file_type: saved.file_type,
       file_size: saved.file_size,
+      content_hash: saved.content_hash!,
       metadata: saved.metadata as Record<string, unknown>,
       source: saved.source,
       status: saved.status,
@@ -126,6 +136,8 @@ export class DocumentService {
 
       const fileSize = fileBuffer.length;
       this.logger.debug(`Decoded file size: ${fileSize} bytes`);
+
+      const contentHash = computeContentHash(fileBuffer);
 
       await this.pdfNormalization.validateForUpload(fileBuffer, fileType);
 
@@ -189,7 +201,18 @@ export class DocumentService {
         if (e instanceof BadRequestException) {
           throw e;
         }
-        if (!(e instanceof PdfNormalizationError)) {
+
+        // Surface the specific reason only for our controlled normalization
+        // errors. Unexpected errors fall back to the generic message/code so
+        // internal details are never leaked to the caller.
+        let code = "conversion_failed";
+        let reason = "Document could not be converted to PDF";
+        if (e instanceof PdfNormalizationError) {
+          reason = e.message;
+          if (e.code) {
+            code = e.code;
+          }
+        } else {
           this.logger.error(
             `Unexpected normalization error: ${e instanceof Error ? e.message : String(e)}`,
           );
@@ -206,6 +229,7 @@ export class DocumentService {
           normalized_file_path: null,
           file_type: fileType,
           file_size: fileSize,
+          content_hash: contentHash,
           metadata: (metadata || {}) as Prisma.JsonValue,
           source: "api",
           status: DocumentStatus.conversion_failed,
@@ -224,6 +248,8 @@ export class DocumentService {
         return {
           kind: "conversion_failed",
           document: this.toUploadedDocument(saved),
+          code,
+          reason,
         };
       }
 
@@ -238,6 +264,7 @@ export class DocumentService {
         normalized_file_path: normalizedKey,
         file_type: fileType,
         file_size: fileSize,
+        content_hash: contentHash,
         metadata: (metadata || {}) as Prisma.JsonValue,
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -362,6 +389,7 @@ export class DocumentService {
       sortBy?: string;
       sortDir?: "asc" | "desc";
       source?: string;
+      contentHash?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{

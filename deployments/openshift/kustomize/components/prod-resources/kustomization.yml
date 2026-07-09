@@ -27,3 +27,17 @@ patches:
       - op: replace
         path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
         value: 5Gi
+  # Prod's app Postgres data volume was expanded in-place to 5Gi after pg_wal
+  # accumulation filled the original 1.5Gi volume and crashed the database. The
+  # base manifest keeps 1.5Gi for ephemeral/test instances; match the live prod
+  # size here so the Crunchy operator stops trying to reconcile it down to 1.5Gi
+  # (PVCs cannot shrink) and stops emitting recurring
+  # "spec.resources.requests.storage: field can not be less than previous value"
+  # errors.
+  - target:
+      kind: PostgresCluster
+      name: app-pg
+    patch: |
+      - op: replace
+        path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
+        value: 5Gi

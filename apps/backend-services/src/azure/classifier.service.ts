@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import "multer";
 import * as path from "node:path";
+import { AuditService } from "@/audit/audit.service";
 import { AzureService } from "@/azure/azure.service";
 import {
   ClassifierDbService,
@@ -56,6 +57,7 @@ export class ClassifierService {
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
     private readonly rateVersionSeeder: RateVersionSeederService,
@@ -588,11 +590,23 @@ export class ClassifierService {
     properties: ClassifierEditableProperties,
     actorId: string,
   ): Promise<ClassifierModel> {
-    return this.classifierDb.createClassifierModel(
+    const created = await this.classifierDb.createClassifierModel(
       classifierName,
       properties,
       actorId,
     );
+    await this.auditService.recordEvent({
+      event_type: "classifier_created",
+      resource_type: "classifier",
+      resource_id: created.name,
+      actor_id: actorId,
+      group_id: created.group_id,
+      payload: {
+        classifier_name: created.name,
+        status: created.status,
+      },
+    });
+    return created;
   }
 
   /**
@@ -609,12 +623,28 @@ export class ClassifierService {
     properties: Partial<ClassifierEditableProperties>,
     actorId: string,
   ): Promise<ClassifierModel> {
-    return this.classifierDb.updateClassifierModel(
+    const updated = await this.classifierDb.updateClassifierModel(
       classifierName,
       groupId,
       properties,
       actorId,
     );
+    const isUserFacingUpdate =
+      properties.description !== undefined || properties.source !== undefined;
+    if (isUserFacingUpdate) {
+      await this.auditService.recordEvent({
+        event_type: "classifier_updated",
+        resource_type: "classifier",
+        resource_id: updated.name,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          classifier_name: updated.name,
+          fields_updated: Object.keys(properties),
+        },
+      });
+    }
+    return updated;
   }
 
   /**
@@ -708,6 +738,18 @@ export class ClassifierService {
       groupId,
       classifierName,
       actorId,
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "classifier_deleted",
+      resource_type: "classifier",
+      resource_id: classifierName,
+      actor_id: actorId,
+      group_id: groupId,
+      payload: {
+        classifier_name: classifierName,
+        previous_status: classifier.status,
+      },
     });
 
     // Cancel training if in progress

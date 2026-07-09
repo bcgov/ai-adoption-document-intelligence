@@ -6,6 +6,7 @@
 
 import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
 import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
+import { ApplicationFailure } from "@temporalio/common";
 import { TestWorkflowEnvironment } from "@temporalio/testing";
 import { Worker } from "@temporalio/worker";
 import {
@@ -523,6 +524,87 @@ describe("Graph Workflow", () => {
       await expect(
         runWorkflow(testEnv, input, "test-unknown-activity"),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("Failure-path document status hook", () => {
+    function makeFailingGraph(): GraphWorkflowConfig {
+      return {
+        schemaVersion: "1.0",
+        metadata: {
+          name: "Failing Graph",
+          description: "Single node that always fails",
+          version: "1.0.0",
+        },
+        nodes: {
+          boom: {
+            id: "boom",
+            type: "activity",
+            label: "Boom",
+            activityType: "test.boom",
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
+          },
+        },
+        edges: [],
+        entryNodeId: "boom",
+        ctx: {
+          documentId: { type: "string", defaultValue: "doc-fail-1" },
+        },
+      };
+    }
+
+    it("transitions an in-flight document to `failed` when the workflow fails", async () => {
+      const updateStatusCalls: Array<Record<string, unknown>> = [];
+      const input = makeMockInput(makeFailingGraph(), {
+        documentId: "doc-fail-1",
+      });
+
+      await expect(
+        runWorkflow(testEnv, input, "test-failure-status-hook", {
+          "test.boom": async () => {
+            throw ApplicationFailure.create({
+              message: "activity exploded",
+              nonRetryable: true,
+            });
+          },
+          "document.getStatus": async () => ({ status: "ongoing_ocr" }),
+          "document.updateStatus": async (params: Record<string, unknown>) => {
+            updateStatusCalls.push(params);
+            return { success: true };
+          },
+        }),
+      ).rejects.toThrow();
+
+      expect(
+        updateStatusCalls.some(
+          (c) => c.documentId === "doc-fail-1" && c.status === "failed",
+        ),
+      ).toBe(true);
+    });
+
+    it("does not clobber a document that already progressed past OCR", async () => {
+      const updateStatusCalls: Array<Record<string, unknown>> = [];
+      const input = makeMockInput(makeFailingGraph(), {
+        documentId: "doc-fail-2",
+      });
+
+      await expect(
+        runWorkflow(testEnv, input, "test-failure-status-hook-progressed", {
+          "test.boom": async () => {
+            throw ApplicationFailure.create({
+              message: "activity exploded",
+              nonRetryable: true,
+            });
+          },
+          "document.getStatus": async () => ({ status: "awaiting_review" }),
+          "document.updateStatus": async (params: Record<string, unknown>) => {
+            updateStatusCalls.push(params);
+            return { success: true };
+          },
+        }),
+      ).rejects.toThrow();
+
+      expect(updateStatusCalls.some((c) => c.status === "failed")).toBe(false);
     });
   });
 
