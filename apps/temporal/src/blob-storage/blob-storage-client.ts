@@ -38,6 +38,8 @@ import {
 
 /** Prisma client used for storage ledger writes, set via initStorageLedger(). */
 let _ledgerPrisma: PrismaClient | undefined;
+const CHARGE_FOR_BLOB_TRANSACTION =
+  process.env.CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY === "true";
 
 /**
  * Configures the blob storage client module to record ledger entries using
@@ -46,7 +48,7 @@ let _ledgerPrisma: PrismaClient | undefined;
  * @param prisma - Prisma client instance from the Temporal worker
  */
 export function initStorageLedger(prisma: PrismaClient): void {
-  _ledgerPrisma = prisma;
+  _ledgerPrisma = CHARGE_FOR_BLOB_TRANSACTION ? prisma : undefined;
 }
 
 /** Minimal blob-storage interface used by Temporal activities. */
