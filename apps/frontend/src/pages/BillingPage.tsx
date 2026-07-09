@@ -274,11 +274,15 @@ function GroupSpendingView() {
       .filter((h) => {
         switch (selectedBreakdownType) {
           case "workflow":
-            return ["workflow_cost", "blob_storage"].includes(h.event_type);
-          case "activity":
-            return ["activity_completed", "blob_storage"].includes(
+            return ["workflow_cost", "blob_storage", "model_training"].includes(
               h.event_type,
             );
+          case "activity":
+            return [
+              "activity_completed",
+              "blob_storage",
+              "model_training",
+            ].includes(h.event_type);
           default:
             return false;
         }
