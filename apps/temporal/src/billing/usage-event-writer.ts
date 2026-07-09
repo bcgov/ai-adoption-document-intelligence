@@ -1,8 +1,14 @@
-import type { RecordUsageEventInput } from "@ai-di/billing";
+import type {
+  RecordUsageEventInput,
+  UpdateWorkflowUsageInput,
+} from "@ai-di/billing";
 import { buildUsageEventWriteOps } from "@ai-di/billing";
 import type { PrismaClient, UsageEvent } from "@generated/client";
 
-export type { RecordUsageEventInput } from "@ai-di/billing";
+export type {
+  RecordUsageEventInput,
+  UpdateWorkflowUsageInput,
+} from "@ai-di/billing";
 
 /**
  * Single write path for all billing events in the Temporal worker context.
@@ -34,5 +40,22 @@ export class UsageEventWriter {
       }
       return event;
     });
+  }
+
+  async updateWorkflowUsageEvent(
+    input: UpdateWorkflowUsageInput,
+  ): Promise<UsageEvent> {
+    const updated = await this.prisma.usageEvent.updateManyAndReturn({
+      where: {
+        // This should give a unique record.
+        workflow_execution_id: input.workflow_execution_id,
+        event_type: "workflow_cost",
+      },
+      data: {
+        units_consumed: input.units_consumed,
+        activity_name: input.terminal_map_type, // Storing how the workflow ended here.
+      },
+    });
+    return updated[0];
   }
 }

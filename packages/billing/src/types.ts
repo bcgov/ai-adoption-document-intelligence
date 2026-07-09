@@ -3,12 +3,9 @@
  * Kept as a string union so this package has no Prisma dependency.
  */
 export type BillingEventType =
-  | "workflow_started"
   | "activity_completed"
-  | "workflow_completed"
-  | "workflow_failed"
-  | "workflow_cancelled"
-  | "model_training_started"
+  | "model_training"
+  | "workflow_cost"
   | "blob_storage";
 
 /** Input data for recording a single UsageEvent and updating the period summary. */
@@ -25,6 +22,7 @@ export interface RecordUsageEventInput {
   /** Number of billing units consumed by this event. */
   units_consumed: number;
   workflow_execution_id?: string;
+  workflow_version_id?: string;
   activity_name?: string;
   /** Raw metered quantity (e.g. page count) for per_page activities. */
   metered_quantity?: number;
@@ -42,6 +40,12 @@ export interface RecordUsageEventInput {
   skipSummaryUpdate?: boolean;
 }
 
+export interface UpdateWorkflowUsageInput {
+  workflow_execution_id: string;
+  units_consumed: number;
+  terminal_map_type: string;
+}
+
 /** Minimal shape of the usageEvent.create data argument, Prisma-compatible. */
 export interface UsageEventCreateData {
   event_type: BillingEventType;
@@ -49,6 +53,7 @@ export interface UsageEventCreateData {
   rate_version_id: string;
   units_consumed: number;
   workflow_execution_id: string | null;
+  workflow_version_id: string | null;
   activity_name: string | null;
   metered_quantity: number | null;
   estimated_units: number | null;

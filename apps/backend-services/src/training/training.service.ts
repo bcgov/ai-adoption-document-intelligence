@@ -566,7 +566,7 @@ export class TrainingService {
       );
       if (trainingCosts) {
         await this.usageEventService.recordUsageEvent({
-          event_type: "model_training_started",
+          event_type: "model_training",
           group_id: groupId,
           resource_id: jobId,
           resource_type: "template_model",

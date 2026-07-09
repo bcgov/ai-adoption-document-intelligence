@@ -7,6 +7,7 @@ function createMockPrisma() {
     event_type: "activity_completed",
     group_id: "grp-1",
     workflow_execution_id: "wf-exec-1",
+    workflow_version_id: "123",
     activity_name: "azureOcr.extract",
     metered_quantity: 5,
     units_consumed: 500 as unknown as UsageEvent["units_consumed"],
@@ -184,7 +185,7 @@ describe("UsageEventService", () => {
       const service = new UsageEventService({ prisma } as never);
 
       await service.recordUsageEvent({
-        event_type: "workflow_started",
+        event_type: "model_training",
         group_id: "grp-1",
         rate_version_id: "rv-1",
         unit_cost_dollars: 0.001,
@@ -199,7 +200,7 @@ describe("UsageEventService", () => {
       const service = new UsageEventService({ prisma } as never);
 
       await service.recordUsageEvent({
-        event_type: "workflow_started",
+        event_type: "model_training",
         group_id: "grp-1",
         rate_version_id: "rv-1",
         unit_cost_dollars: 0.001,

@@ -58,20 +58,16 @@ export async function recordWorkflowLifecycle(
 
   const totalUnits = Number(aggregate._sum.units_consumed ?? 0);
 
-  const eventTypeMap = {
+  const terminalTypeMap = {
     completed: "workflow_completed",
     failed: "workflow_failed",
     cancelled: "workflow_cancelled",
   } as const;
 
   const writer = new UsageEventWriter(prisma);
-  return writer.recordUsageEvent({
-    event_type: eventTypeMap[status],
-    group_id: groupId,
-    rate_version_id: rateVersion.id,
-    unit_cost_dollars: Number(rateVersion.unit_cost_dollars),
-    units_consumed: totalUnits,
+  return writer.updateWorkflowUsageEvent({
     workflow_execution_id: workflowExecutionId,
-    skipSummaryUpdate: true,
+    units_consumed: totalUnits,
+    terminal_map_type: terminalTypeMap[status],
   });
 }

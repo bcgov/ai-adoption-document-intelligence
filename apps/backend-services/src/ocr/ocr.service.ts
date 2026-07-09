@@ -176,11 +176,12 @@ export class OcrService {
       if (costEstimation.rateVersionId && document.group_id) {
         try {
           await this.usageEventService.recordUsageEvent({
-            event_type: "workflow_started",
+            event_type: "workflow_cost",
             group_id: document.group_id,
             rate_version_id: costEstimation.rateVersionId,
             unit_cost_dollars: costEstimation.unitCostDollars,
             units_consumed: 0,
+            workflow_version_id: workflowConfigId,
             workflow_execution_id: workflowExecutionId,
             estimated_units: costEstimation.estimatedUnits,
             skipSummaryUpdate: true,

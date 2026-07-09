@@ -231,10 +231,13 @@ describe("ClassifierService", () => {
 
       expect(mockUsageEventService.recordUsageEvent).toHaveBeenCalledWith(
         expect.objectContaining({
-          event_type: "model_training_started",
+          activity_name: "training.classifier",
+          event_type: "model_training",
           group_id: "group-1",
+          rate_version_id: "rate-v1",
           resource_id: "my-classifier",
           resource_type: "classifier",
+          unit_cost_dollars: 0.001,
           units_consumed: 300,
         }),
       );

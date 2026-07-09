@@ -419,7 +419,7 @@ export class ClassifierService {
       // Record usage event after successful Azure 202 acceptance
       if (trainingCosts) {
         await this.usageEventService.recordUsageEvent({
-          event_type: "model_training_started",
+          event_type: "model_training",
           group_id: groupId,
           resource_id: classifierName,
           resource_type: "classifier",

@@ -14,12 +14,6 @@ import type {
 } from "./dto/rate-version.dto";
 import type { RunDetailDto } from "./dto/run-detail.dto";
 
-const TERMINAL_EVENT_TYPES = new Set([
-  "workflow_completed",
-  "workflow_failed",
-  "workflow_cancelled",
-]);
-
 /**
  * Read-only queries for usage data: current summaries, historical periods,
  * per-run cost breakdowns, cross-group admin views, and rate version data.
@@ -207,49 +201,42 @@ export class UsageQueryService {
     groupId: string,
     workflowExecutionId: string,
   ): Promise<RunDetailDto> {
-    const events = await this.prismaService.prisma.usageEvent.findMany({
-      where: { workflow_execution_id: workflowExecutionId },
+    const event = await this.prismaService.prisma.usageEvent.findFirst({
+      where: {
+        workflow_execution_id: workflowExecutionId,
+        event_type: "workflow_cost",
+      },
       include: { rate_version: true },
-      orderBy: { created_at: "asc" },
     });
 
-    if (events.length === 0) {
+    if (!event) {
       throw new NotFoundException(
         `No usage events found for execution ${workflowExecutionId}`,
       );
     }
 
-    const ownerGroupId = events[0].group_id;
+    const ownerGroupId = event.group_id;
     if (ownerGroupId !== groupId) {
       throw new ForbiddenException(
         "This workflow execution does not belong to the specified group.",
       );
     }
 
-    const startedEvent = events.find(
-      (e) => e.event_type === "workflow_started",
-    );
-    const terminalEvent = events.find((e) =>
-      TERMINAL_EVENT_TYPES.has(e.event_type),
-    );
-
     return {
       workflow_execution_id: workflowExecutionId,
       group_id: groupId,
-      estimated_units: startedEvent?.estimated_units?.toNumber() ?? null,
-      total_units_consumed: terminalEvent?.units_consumed.toNumber() ?? null,
-      events: events.map((e) => ({
-        id: e.id,
-        event_type: e.event_type,
-        activity_name: e.activity_name,
-        units_consumed: e.units_consumed.toNumber(),
-        dollar_value:
-          e.units_consumed.toNumber() *
-          e.rate_version.unit_cost_dollars.toNumber(),
-        metered_quantity: e.metered_quantity,
-        estimated_units: e.estimated_units?.toNumber() ?? null,
-        created_at: e.created_at,
-      })),
+      estimated_units: event.estimated_units?.toNumber() ?? null,
+      total_units_consumed: event.units_consumed.toNumber() ?? null,
+      id: event.id,
+      event_type: event.event_type,
+      activity_name: event.activity_name,
+      units_consumed: event.units_consumed.toNumber(),
+      dollar_value:
+        event.units_consumed.toNumber() *
+        event.rate_version.unit_cost_dollars.toNumber(),
+      metered_quantity: event.metered_quantity,
+      created_at: event.created_at,
+      workflow_version_id: event.workflow_version_id ?? "",
     };
   }
 

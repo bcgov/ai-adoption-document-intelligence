@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UsageEventType" AS ENUM ('workflow_started', 'activity_completed', 'workflow_completed', 'workflow_failed', 'workflow_cancelled', 'model_training_started', 'blob_storage');
+CREATE TYPE "UsageEventType" AS ENUM ('activity_completed', 'workflow_cost', 'model_training_started', 'blob_storage');
 
 -- CreateEnum
 CREATE TYPE "ActivityCostType" AS ENUM ('flat', 'per_page');
@@ -35,6 +35,7 @@ CREATE TABLE "usage_events" (
     "event_type" "UsageEventType" NOT NULL,
     "group_id" TEXT NOT NULL,
     "workflow_execution_id" TEXT,
+    "workflow_version_id" TEXT,
     "activity_name" TEXT,
     "metered_quantity" INTEGER,
     "units_consumed" DECIMAL(18,8) NOT NULL,

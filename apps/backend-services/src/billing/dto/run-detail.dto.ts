@@ -1,9 +1,33 @@
 import { ApiProperty } from "@nestjs/swagger";
 
 /**
- * A single usage event within a workflow run cost breakdown.
+ * Full cost breakdown for a single workflow execution, including all usage events.
  */
-export class RunDetailEventDto {
+export class RunDetailDto {
+  @ApiProperty({ description: "Temporal workflow execution ID" })
+  workflow_execution_id!: string;
+
+  @ApiProperty({ description: "Version ID of workflow ran" })
+  workflow_version_id!: string;
+
+  @ApiProperty({ description: "Group that owns this execution" })
+  group_id!: string;
+
+  @ApiProperty({
+    description: "Pre-flight estimated units from the workflow_started event",
+    nullable: true,
+    type: Number,
+  })
+  estimated_units!: number | null;
+
+  @ApiProperty({
+    description:
+      "Actual total units consumed from the terminal event (workflow_completed / workflow_failed / workflow_cancelled)",
+    nullable: true,
+    type: Number,
+  })
+  total_units_consumed!: number | null;
+
   @ApiProperty({ description: "Usage event ID" })
   id!: string;
 
@@ -38,48 +62,8 @@ export class RunDetailEventDto {
   metered_quantity!: number | null;
 
   @ApiProperty({
-    description:
-      "Pre-flight estimated units present on workflow_started events.",
-    nullable: true,
-    type: Number,
-  })
-  estimated_units!: number | null;
-
-  @ApiProperty({
     description: "Timestamp when this event was recorded",
     type: Date,
   })
   created_at!: Date;
-}
-
-/**
- * Full cost breakdown for a single workflow execution, including all usage events.
- */
-export class RunDetailDto {
-  @ApiProperty({ description: "Temporal workflow execution ID" })
-  workflow_execution_id!: string;
-
-  @ApiProperty({ description: "Group that owns this execution" })
-  group_id!: string;
-
-  @ApiProperty({
-    description: "Pre-flight estimated units from the workflow_started event",
-    nullable: true,
-    type: Number,
-  })
-  estimated_units!: number | null;
-
-  @ApiProperty({
-    description:
-      "Actual total units consumed from the terminal event (workflow_completed / workflow_failed / workflow_cancelled)",
-    nullable: true,
-    type: Number,
-  })
-  total_units_consumed!: number | null;
-
-  @ApiProperty({
-    description: "All usage events for this run in chronological order",
-    type: [RunDetailEventDto],
-  })
-  events!: RunDetailEventDto[];
 }

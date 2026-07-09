@@ -47,6 +47,7 @@ export function buildUsageEventWriteOps(
     rate_version_id: input.rate_version_id,
     units_consumed: input.units_consumed,
     workflow_execution_id: input.workflow_execution_id ?? null,
+    workflow_version_id: input.workflow_version_id ?? null,
     activity_name: input.activity_name ?? null,
     metered_quantity: input.metered_quantity ?? null,
     estimated_units: input.estimated_units ?? null,

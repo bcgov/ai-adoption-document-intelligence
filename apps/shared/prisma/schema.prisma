@@ -592,13 +592,10 @@ enum ClassifierStatus {
 // ========== BILLING / USAGE METERING MODELS ==========
 
 enum UsageEventType {
-  workflow_started
   activity_completed
-  workflow_completed
-  workflow_failed
-  workflow_cancelled
-  model_training_started
+  model_training
   blob_storage
+  workflow_cost
 }
 
 enum ActivityCostType {
@@ -639,6 +636,7 @@ model UsageEvent {
   event_type            UsageEventType
   group_id              String
   workflow_execution_id String?
+  workflow_version_id   String?
   activity_name         String?
   metered_quantity      Int?
   units_consumed        Decimal        @db.Decimal(18, 8)
