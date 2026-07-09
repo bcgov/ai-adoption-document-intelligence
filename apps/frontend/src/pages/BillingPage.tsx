@@ -220,6 +220,8 @@ function GroupSpendingView() {
   const { activeGroup } = useGroup();
   const groupId = activeGroup?.id ?? "";
   const [selectedPeriod, setSelectedPeriod] = useState<string>("all");
+  const [selectedBreakdownType, setSelectedBreakdownType] =
+    useState<string>("workflow");
 
   const { data: history, isLoading } = useGroupUsageHistory(groupId);
   const { data: activityHistory } = useGroupActivityHistory(groupId);
@@ -261,6 +263,28 @@ function GroupSpendingView() {
     return history.filter((r) => periodKey(r) === selectedPeriod);
   }, [history, selectedPeriod]);
 
+  const visibleActivityHistory = useMemo(() => {
+    if (!activityHistory) return [];
+    return activityHistory
+      .filter(
+        (h) =>
+          selectedPeriod === "all" ||
+          selectedPeriod === `${h.period_year}-${h.period_month}`,
+      )
+      .filter((h) => {
+        switch (selectedBreakdownType) {
+          case "workflow":
+            return ["workflow_cost", "blob_storage"].includes(h.event_type);
+          case "activity":
+            return ["activity_completed", "blob_storage"].includes(
+              h.event_type,
+            );
+          default:
+            return false;
+        }
+      });
+  }, [selectedPeriod, selectedBreakdownType, activityHistory]);
+
   return (
     <Stack gap="md">
       {!groupId ? (
@@ -271,15 +295,28 @@ function GroupSpendingView() {
         <Loader size="sm" />
       ) : (
         <>
-          <Select
-            label="Period"
-            data={periodOptions}
-            value={selectedPeriod}
-            onChange={(v) => setSelectedPeriod(v ?? "all")}
-            maw={200}
-            data-testid="billing-period-select"
-          />
-
+          <Group>
+            <Select
+              label="Period"
+              data={periodOptions}
+              value={selectedPeriod}
+              onChange={(v) => setSelectedPeriod(v ?? "all")}
+              defaultValue={"workflow"}
+              maw={200}
+              data-testid="billing-period-select"
+            />
+            <Select
+              label="View"
+              data={[
+                { value: "workflow", label: "By Workflow" },
+                { value: "activity", label: "By Activity" },
+              ]}
+              value={selectedBreakdownType}
+              onChange={(v) => setSelectedBreakdownType(v ?? "all")}
+              maw={200}
+              data-testid="billing-view-select"
+            />
+          </Group>
           {summary && (
             <PeriodSummary
               label={summary.label}
@@ -288,8 +325,8 @@ function GroupSpendingView() {
             />
           )}
 
-          {activityHistory && activityHistory.length > 0 && (
-            <ActivitySpendChart activityHistory={activityHistory} />
+          {visibleActivityHistory && visibleActivityHistory.length > 0 && (
+            <ActivitySpendChart activityHistory={visibleActivityHistory} />
           )}
 
           {visibleHistory.length === 0 ? (
@@ -313,7 +350,7 @@ function GroupSpendingView() {
                     {visibleHistory.map((row) => {
                       return (
                         <Table.Tr
-                          key={`${row.period_year}-${row.period_month}`}
+                          key={`${row.period_year}-${row.period_month}-monthly`}
                         >
                           <Table.Td>
                             {row.period_year}{" "}
@@ -334,29 +371,28 @@ function GroupSpendingView() {
 
               {/* Breakdown Table */}
               <Stack>
-                <h3>Breakdown</h3>
-                <Table striped highlightOnHover withTableBorder w={1000}>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Event Type</Table.Th>
-                      <Table.Th>Activity Name</Table.Th>
-                      <Table.Th>Units consumed</Table.Th>
-                      <Table.Th>Amount spent</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {activityHistory
-                      ?.filter(
-                        (event) =>
-                          selectedPeriod === "all" ||
-                          selectedPeriod ===
-                            `${event.period_year}-${event.period_month}`,
-                      )
-                      .map((event) => {
+                <Group justify="space-between">
+                  <h3>Breakdown</h3>
+                  <Table striped highlightOnHover withTableBorder w={"100%"}>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Event Type</Table.Th>
+                        <Table.Th>
+                          Activity Name
+                          {selectedBreakdownType === "workflow"
+                            ? " / Workflow Version ID"
+                            : ""}
+                        </Table.Th>
+                        <Table.Th>Units consumed</Table.Th>
+                        <Table.Th>Amount spent</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {visibleActivityHistory.map((event) => {
                         return Object.entries(event.activities).map(
                           (activity) => (
                             <Table.Tr
-                              key={`${event.period_year}-${event.period_month}`}
+                              key={`${event.period_year}-${event.period_month}-${activity[0]}`}
                             >
                               <Table.Td>{event.event_type}</Table.Td>
                               <Table.Td>{activity[0]}</Table.Td>
@@ -370,8 +406,9 @@ function GroupSpendingView() {
                           ),
                         );
                       })}
-                  </Table.Tbody>
-                </Table>
+                    </Table.Tbody>
+                  </Table>
+                </Group>
               </Stack>
             </Group>
           )}

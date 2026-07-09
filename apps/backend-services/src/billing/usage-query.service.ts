@@ -108,6 +108,7 @@ export class UsageQueryService {
         created_at: true,
         rate_version: { select: { unit_cost_dollars: true } },
         event_type: true,
+        workflow_version_id: true,
       },
       orderBy: { created_at: "asc" },
     });
@@ -131,9 +132,12 @@ export class UsageQueryService {
       if (e.units_consumed.equals(0)) continue;
       const year = e.created_at.getUTCFullYear();
       const month = e.created_at.getUTCMonth() + 1;
-      const activity = e.activity_name ?? "other";
+      const activity =
+        (e.event_type === "workflow_cost"
+          ? e.workflow_version_id
+          : e.activity_name) ?? "other";
       const event = e.event_type;
-      const key = `${year}-${month}-${event}`;
+      const key = `${year}-${month}-${event}-${e.workflow_version_id}`;
       const units = e.units_consumed.toNumber();
       const dollars = units * e.rate_version.unit_cost_dollars.toNumber();
       // Does this event entry exist?
