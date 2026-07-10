@@ -1,0 +1,19 @@
+# =============================================================================
+# PENDING / NOT WIRED IN — configmap patch consumed by the fixed test overlay
+# (overlays/test/kustomization.yml). Kept as a legible reference for the future
+# hybrid deploy model; nothing builds it today. Left commented out on purpose.
+#
+#   AI-1687 — https://citz-do.atlassian.net/browse/AI-1687
+# =============================================================================
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: backend-services-config
+# data:
+#   FRONTEND_URL: "https://frontend-fd34fb-test.apps.silver.devops.gov.bc.ca"
+#   BACKEND_URL: "https://backend-services-fd34fb-test.apps.silver.devops.gov.bc.ca"
+#   SSO_REDIRECT_URI: "https://frontend-fd34fb-test.apps.silver.devops.gov.bc.ca/api/auth/callback"
+#   SSO_AUTH_SERVER_URL: "https://test.loginproxy.gov.bc.ca/auth/realms/standard/protocol/openid-connect"
+#   SSO_REALM: "standard"
+#   SSO_CLIENT_ID: "ai-adoption-document-intelligence-6162"

@@ -1,0 +1,37 @@
+# =============================================================================
+# PENDING / NOT WIRED IN — fixed-overlay deploy path for prod.
+#
+# Kept as a legible reference for a possible future "hybrid" deploy model:
+# fixed, committed overlays for the stable test/prod environments alongside the
+# generate-overlay.sh + overlays/instance-template script that is required for
+# ephemeral branch instances. Nothing in the pipeline builds this file today —
+# the live deploy path renders EVERY environment (incl. test/prod) from
+# overlays/instance-template. Left fully commented out on purpose so it stays
+# inert until the decision is made.
+#
+#   AI-1687 — https://citz-do.atlassian.net/browse/AI-1687
+#
+# If adopting this for prod: seed it from the CURRENTLY RENDERED object
+# names/labels (a static namePrefix matching today's instance name + the same
+# commonLabels) so it lands as an in-place `oc apply`, NOT a rename/migration.
+# =============================================================================
+#
+# apiVersion: kustomize.config.k8s.io/v1beta1
+# kind: Kustomization
+# namespace: fd34fb-prod
+# resources:
+# - ../../base
+# patches:
+# - path: backend-services-configmap.yml
+#   target:
+#     kind: ConfigMap
+#     name: backend-services-config
+# images:
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+#   newTag: main-latest
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+#   newTag: main-latest
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+#   newTag: main-latest
+# commonLabels:
+#   env: prod

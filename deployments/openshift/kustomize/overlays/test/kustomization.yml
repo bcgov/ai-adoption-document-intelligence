@@ -1,0 +1,39 @@
+# =============================================================================
+# PENDING / NOT WIRED IN — fixed-overlay deploy path for test.
+#
+# Kept as a legible reference for a possible future "hybrid" deploy model:
+# fixed, committed overlays for the stable test/prod environments alongside the
+# generate-overlay.sh + overlays/instance-template script that is required for
+# ephemeral branch instances. Nothing in the pipeline builds this file today —
+# the live deploy path renders EVERY environment (incl. test/prod) from
+# overlays/instance-template. Left fully commented out on purpose so it stays
+# inert until the decision is made.
+#
+#   AI-1687 — https://citz-do.atlassian.net/browse/AI-1687
+#
+# If adopting this for test: seed it from the CURRENTLY RENDERED object
+# names/labels (a static namePrefix matching today's instance name + the same
+# commonLabels) so it lands as an in-place `oc apply`, NOT a rename/migration.
+# =============================================================================
+#
+# apiVersion: kustomize.config.k8s.io/v1beta1
+# kind: Kustomization
+# namespace: fd34fb-test
+# resources:
+# - ../../base
+# patches:
+# - path: backend-services-configmap.yml
+#   target:
+#     kind: ConfigMap
+#     name: backend-services-config
+# images:
+# # Pin digest so cluster pulls the image currently in Artifactory (avoids stale tag cache)
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+#   newTag: develop-latest1
+#   # digest: sha256:282be39343c2f570f21ee76f0a81e8af8f5726d59c0820a86228d39d4fa513b1
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+#   newTag: develop-latest
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+#   newTag: develop-latest
+# commonLabels:
+#   env: dev
