@@ -128,4 +128,4 @@ Then open `http://localhost:3001` and log in with `admin` / `<GRAFANA_ADMIN_PASS
 | `.github/workflows/deploy-instance.yml` | CI workflow that deploys app + PLG |
 | `scripts/oc-teardown.sh` | Teardown script (uninstalls PLG release for the instance) |
 | `scripts/lib/plg-pre-delete.sh` | Deletes immutable PLG StatefulSets before Helm upgrade |
-| `scripts/lib/wait-for-rollouts.sh` | Rollout restart/wait with quota checks and failure diagnostics |
+| `scripts/lib/wait-for-rollouts.sh` | Rollout restart/wait; fails on rollout timeout with failure diagnostics |

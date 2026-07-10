@@ -22,7 +22,7 @@ This replaces the prior manual flow (local `scripts/oc-deploy.sh` + ad-hoc tag p
    - `oc apply`s the rendered manifests.
    - Creates/updates instance secrets and the Artifactory pull secret.
    - Deletes immutable PLG StatefulSets (Loki, Prometheus, Alertmanager) with `--cascade=orphan` when needed, then Helm-installs the PLG stack.
-   - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out or namespace quota is exhausted.
+   - `oc rollout restart` on all app deployments and **fails the job** if any rollout times out (including when namespace resources are exhausted and the new pods cannot schedule).
    - **Promotes** staged SHA tags to the floating tag via `docker buildx imagetools create` (only after rollouts succeed).
    - Runs `scripts/artifactory-cleanup.sh --delete` to rotate old SHA tags and reclaim orphan manifests (non-blocking).
 5. **Cleanup on failure**: If build or deploy fails, a follow-up job deletes the run's SHA tags and reclaims orphans via `scripts/artifactory-delete-run-tags.sh`.
@@ -61,9 +61,10 @@ The build and promote steps retry `docker login` up to three times with a 15-sec
 
 The deploy job uses `scripts/lib/wait-for-rollouts.sh`, which:
 
-- Checks namespace resource quotas before restarting deployments (fails at ≥95% utilization).
-- Fails the workflow (not just a warning) when `oc rollout status` times out.
-- Emits pod status, `FailedScheduling` events, and quota details on failure.
+- Fails the workflow (not just a warning) when `oc rollout status` times out — including when the namespace lacks the resources to schedule the new pods, which surfaces as a rollout timeout rather than a silent success.
+- Emits pod status, `FailedScheduling` events, and resource-quota details on failure.
+
+Namespace capacity is not pre-checked before the restart: in a shared namespace a quota can be at its limit because of other instances, and a rollout-restart of already-sized deployments requests no new storage, so a pre-flight quota gate produced false blocks. Resource exhaustion is instead caught by the rollout-status timeout above. Right-sizing capacity (HPA tuning) is tracked separately.
 
 ## Pre-requisites
 
