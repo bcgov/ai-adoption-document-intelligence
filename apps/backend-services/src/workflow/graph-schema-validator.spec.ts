@@ -1260,7 +1260,7 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs-md",
-        "graph-workflows",
+        "workflows",
         "templates",
         "standard-ocr-workflow.json",
       );
@@ -1281,7 +1281,7 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs-md",
-        "graph-workflows",
+        "workflows",
         "templates",
         "multi-page-report-workflow.json",
       );
