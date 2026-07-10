@@ -3,7 +3,7 @@
  *
  * Defines the complete type system for the DAG workflow engine.
  * Single source of truth — all apps import from this package.
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
  */
 
 // ---------------------------------------------------------------------------
