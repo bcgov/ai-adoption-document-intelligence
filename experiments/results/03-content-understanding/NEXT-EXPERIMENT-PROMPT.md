@@ -7,7 +7,7 @@ to branch from, and which lessons from E03 to apply pre-emptively.
 ---
 
 ```
-Implement experiment E04 from experiments/briefs/04-vlm-direct.md.
+Implement experiment E04 from experiments/integration-checklists/04-vlm-direct.md.
 
 **SCOPE REDUCTION (user request, overrides the brief):** the brief
 defines a 3-variant × 2-model matrix (single-pass, chain-of-thought,
@@ -22,10 +22,10 @@ scope. The "3 workflow JSON variants" task in the brief is reduced to
 "1 workflow JSON variant".
 
 START BY READING (in this order):
-  1. experiments/briefs/_shared-rules.md  (canonical patterns; iteration
+  1. experiments/integration-checklists/_shared-rules.md  (canonical patterns; iteration
      kit + sync-provider cache emission + Foundry quota retry sections
      are E02/E03-derived — follow them, they save days)
-  2. experiments/briefs/04-vlm-direct.md  (3 variants: single-pass,
+  2. experiments/integration-checklists/04-vlm-direct.md  (3 variants: single-pass,
      chain-of-thought, self-consistency; 2 models: gpt-5 + gpt-4o;
      gpt-5.5 needs quota uplift before it can be added)
   3. experiments/results/03-content-understanding/SUMMARY.md  (the

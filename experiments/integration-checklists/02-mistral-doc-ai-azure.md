@@ -1,7 +1,7 @@
 # E02 — Mistral Document AI on Azure Foundry
 
 **Branch**: `experiment/02-mistral-doc-ai-azure` — branched from `experiment/01-neural-doc-intelligence` (chained stack)
-**Read first**: `experiments/briefs/_shared-rules.md` — establishes the canonical patterns from E01 (test layout, fixture-capture, benchmark-export deliverable, CI-gate for runtime tests, "fix forward" infra rule, no upstream backporting).
+**Read first**: `experiments/integration-checklists/_shared-rules.md` — establishes the canonical patterns from E01 (test layout, fixture-capture, benchmark-export deliverable, CI-gate for runtime tests, "fix forward" infra rule, no upstream backporting).
 
 ## Goal
 

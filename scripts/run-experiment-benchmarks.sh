@@ -7,7 +7,7 @@
 #   ./scripts/run-experiment-benchmarks.sh 02 04          # run only E02 and E04
 #
 # Each experiment must have seeded a BenchmarkDefinition with id
-# `seed-experiment-{slug}-definition` (see experiments/briefs/_shared-rules.md
+# `seed-experiment-{slug}-definition` (see experiments/integration-checklists/_shared-rules.md
 # checklist item 11).
 #
 # Environment:

@@ -2,7 +2,7 @@
 
 Hub doc for the extraction-experiments suite. Index of experiments + status + how to run + per-experiment engine-integration checklist.
 
-See `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` for the full spec, and `experiments/briefs/` for per-experiment briefs.
+See `docs/superpowers/specs/2026-05-08-extraction-experiments-design.md` for the full spec, and `experiments/integration-checklists/` for per-experiment briefs.
 
 ## Stacking — chained
 
@@ -37,7 +37,7 @@ develop
    - E03: `git checkout -b experiment/03-content-understanding experiment/02-mistral-doc-ai-azure`
    - E04: `git checkout -b experiment/04-vlm-direct experiment/03-content-understanding`
    - E05: `git checkout -b experiment/05-vlm-ocr-hybrid experiment/04-vlm-direct`
-2. **Read the brief** at `experiments/briefs/<slug>.md`. Read `_shared-rules.md` first.
+2. **Read the brief** at `experiments/integration-checklists/<slug>.md`. Read `_shared-rules.md` first.
 3. **Implement** following the brief's task list.
 4. **Run the workflow on a real document** end-to-end against the real engine API.
 5. **Run a benchmark** programmatically (via the runner script — only works once your branch seeds the definition):
@@ -93,7 +93,7 @@ Both scripts require `TEST_API_KEY` exported (from your override file). The comp
 
 ## Engine-integration checklists (filled per experiment)
 
-Each experiment fills in this 12-item checklist as part of its work. See `experiments/briefs/_shared-rules.md` for the full item descriptions and references to the codebase files involved.
+Each experiment fills in this 12-item checklist as part of its work. See `experiments/integration-checklists/_shared-rules.md` for the full item descriptions and references to the codebase files involved.
 
 ### E01 — Neural DI
 

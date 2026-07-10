@@ -33,9 +33,9 @@ PR strategy: each experiment opens its own draft PR targeting the previous exper
 
 ## Parent-branch deliverables
 
-### 1. Brief library at `experiments/briefs/`
+### 1. Integration-checklist library at `experiments/integration-checklists/`
 
-`_shared-rules.md` (engine-integration checklist + dev loop, below) plus `01-neural-doc-intelligence.md` … `05-vlm-ocr-hybrid.md`. Each brief is a checklist for that experiment.
+`_shared-rules.md` (engine-integration checklist + dev loop, below) plus `01-neural-doc-intelligence.md` … `05-vlm-ocr-hybrid.md`. Each file is the integration checklist for that experiment.
 
 #### Engine-integration checklist (codebase-derived)
 
@@ -47,7 +47,7 @@ Every engine integration confirms and documents these items, each tied to actual
 4. **Confidence values 0–1** — for interop with `apps/temporal/src/activities/check-ocr-confidence.ts` (default threshold 0.95) and HITL routing.
 5. **Bounding-box coordinate convention** — Azure DI returns inches from top-left at API `2024-11-30`; convert in the mapper if engine differs.
 6. **Page indexing** — match the convention used in `OCRResult` and `ocr-normalize-fields.ts`.
-7. **Auth & endpoint via env vars** — declare in `apps/{backend-services,temporal}/.env.sample`. Document APIM vs direct routing.
+7. **Auth & endpoint via env vars** — declare in the root `.env.sample`. Document APIM vs direct routing.
 8. **Workflow graph definition** — JSON wiring the engine + applicable post-processing nodes (`ocr.cleanup`, `ocr.spellcheck`, `ocr.characterConfusion`, `ocr.normalizeFields`, `ocr.enrich`, `ocr.checkConfidence`, `ocr.storeResults`).
 9. **Engine-internal preprocessing** — does the engine deskew/rotate/denoise internally? Document so we don't double-process. Upstream is `apps/backend-services/src/document/pdf-normalization.service.ts`.
 10. **Test coverage** — see dev loop.
@@ -72,11 +72,11 @@ Index of experiments + status + how to run each.
 
 ### 3. Provider architecture assessment at `docs-md/EXTRACTION_PROVIDER_ARCHITECTURE.md`
 
-Documents the deferred-formal-interface decision. **Audits the two existing providers** (Azure DI templates + Mistral public-API) against the engine-integration checklist. Gaps fixed on parent only if documentation-only or shared; engine-specific gaps captured as scoped TODOs in the affected experiment brief.
+Documents the deferred-formal-interface decision. **Audits the two existing providers** (Azure DI templates + Mistral public-API) against the engine-integration checklist. Gaps fixed on parent only if documentation-only or shared; engine-specific gaps captured as scoped TODOs in the affected experiment checklist.
 
 ### 4. `.env.sample` updates
 
-Add to `apps/backend-services/.env.sample` and `apps/temporal/.env.sample`:
+Add to the root `.env.sample`. (Env files were previously per-app — `apps/backend-services/.env` and `apps/temporal/.env` — and have since been consolidated into a single root `.env`.)
 
 ```
 # Azure Content Understanding (E03)

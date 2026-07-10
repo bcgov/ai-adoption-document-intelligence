@@ -1,7 +1,7 @@
 # E03 — Azure Content Understanding
 
 **Branch**: `experiment/03-content-understanding` — branched from `experiment/02-mistral-doc-ai-azure` (chained stack)
-**Read first**: `experiments/briefs/_shared-rules.md` — the lessons-learned subsections (production-grade prompts, iteration kit pattern, force-resync runbook entry, sync-provider cache emission, and Foundry quota retry tuning) all apply directly. **Read those before writing any code.**
+**Read first**: `experiments/integration-checklists/_shared-rules.md` — the lessons-learned subsections (production-grade prompts, iteration kit pattern, force-resync runbook entry, sync-provider cache emission, and Foundry quota retry tuning) all apply directly. **Read those before writing any code.**
 
 ## Goal
 
