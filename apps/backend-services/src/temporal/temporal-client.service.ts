@@ -7,6 +7,7 @@ import {
   defaultPayloadConverter,
   WorkflowNotFoundError,
 } from "@temporalio/client";
+import type { Payload } from "@temporalio/common";
 import type { temporal } from "@temporalio/proto";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
@@ -596,12 +597,21 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     if (!payloads || payloads.length === 0) {
       return null;
     }
+    // `fetchHistory()` returns payloads exactly as stored — still codec-encoded.
+    // `startGraphWorkflow` payloads are gzip-compressed by `GzipPayloadCodec`
+    // (the client's `payloadCodecs`), so they carry `encoding: binary/gzip` and
+    // MUST be run back through the codec(s) before the payload converter —
+    // otherwise `fromPayload` throws `ValueError: Unknown encoding: binary/gzip`,
+    // which surfaced as a 500 on `GET /:id/runs/:runId/node-statuses`.
+    const decodedPayloads = await this.decodeHistoryPayloads(payloads);
     // The graph workflow is started with a single positional argument
     // (see `startGraphWorkflow`); the first payload carries the start
     // args object. Narrow strictly: the decoded value must be a non-null
     // object containing an `initialCtx` key whose value is an object.
     // Anything else falls through to the fallback path.
-    const decoded = defaultPayloadConverter.fromPayload<unknown>(payloads[0]);
+    const decoded = defaultPayloadConverter.fromPayload<unknown>(
+      decodedPayloads[0],
+    );
     if (
       decoded === null ||
       typeof decoded !== "object" ||
@@ -625,6 +635,26 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       initialCtx: rawInitialCtx as Record<string, unknown>,
       workflowLineageId,
     };
+  }
+
+  /**
+   * Reverse the client's payload codecs over raw history payloads so a
+   * `PayloadConverter` can read them. `fetchHistory()` (unlike `query()` /
+   * activity results) does NOT apply the codecs, so payloads come back exactly
+   * as stored — gzip-compressed by {@link temporalDataConverter}'s
+   * `GzipPayloadCodec`. Codecs decode in the reverse of their encode order.
+   * A codec passes through payloads it did not encode, so this is safe for
+   * both gzip- and plain-encoded histories.
+   */
+  private async decodeHistoryPayloads(
+    payloads: temporal.api.common.v1.IPayload[],
+  ): Promise<Payload[]> {
+    let decoded = payloads as Payload[];
+    const { payloadCodecs } = temporalDataConverter;
+    for (let i = payloadCodecs.length - 1; i >= 0; i--) {
+      decoded = await payloadCodecs[i].decode(decoded);
+    }
+    return decoded;
   }
 
   /**

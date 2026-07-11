@@ -1,6 +1,10 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Client, Connection } from "@temporalio/client";
+import {
+  Client,
+  Connection,
+  defaultPayloadConverter,
+} from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -28,14 +32,18 @@ const graphConfig: GraphWorkflowConfig = {
   edges: [],
 };
 
-// Mock Temporal client
+// Mock Temporal client. Spread the real module so value exports the service
+// depends on — notably `defaultPayloadConverter` — stay real; only the
+// network-touching surfaces (Connection/Client) and the error class are stubbed.
 jest.mock("@temporalio/client", () => {
+  const actual = jest.requireActual("@temporalio/client");
   const mockWorkflowHandle = {
     workflowId: "workflow-123",
     describe: jest.fn(),
     result: jest.fn(),
     query: jest.fn(),
     signal: jest.fn(),
+    fetchHistory: jest.fn(),
   };
 
   const mockClient = {
@@ -50,6 +58,7 @@ jest.mock("@temporalio/client", () => {
   };
 
   return {
+    ...actual,
     Connection: {
       connect: jest.fn(() => Promise.resolve(mockConnection)),
     },
@@ -78,6 +87,7 @@ describe("TemporalClientService", () => {
       result: jest.fn(),
       query: jest.fn(),
       signal: jest.fn(),
+      fetchHistory: jest.fn(),
     };
 
     // Setup mock client
@@ -552,6 +562,58 @@ describe("TemporalClientService", () => {
       await expect(
         newService.queryWorkflowProgress("workflow-123"),
       ).rejects.toThrow("Temporal client not initialized");
+    });
+  });
+
+  describe("getRunInput (gzip payload decode — node-statuses 500 regression)", () => {
+    // Encode a start-args object exactly as the client does on the wire:
+    // PayloadConverter → GzipPayloadCodec. This is the shape `fetchHistory()`
+    // returns, and the shape that previously broke `fromPayload` with
+    // `ValueError: Unknown encoding: binary/gzip`.
+    async function gzipStartHistory(startArgs: Record<string, unknown>) {
+      const raw = defaultPayloadConverter.toPayload(startArgs);
+      const [gzipped] = await temporalDataConverter.payloadCodecs[0].encode([
+        raw,
+      ]);
+      return {
+        events: [
+          {
+            workflowExecutionStartedEventAttributes: {
+              input: { payloads: [gzipped] },
+            },
+          },
+        ],
+      };
+    }
+
+    it("decodes a gzip-encoded start payload into initialCtx + lineage id", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue(
+        await gzipStartHistory({
+          workflowVersionId: "wv-1",
+          initialCtx: { documentId: "doc-1" },
+          workflowLineageId: "lin-1",
+        }),
+      );
+
+      const result = await service.getRunInput("graph-adhoc-1");
+
+      expect(result).toEqual({
+        initialCtx: { documentId: "doc-1" },
+        workflowLineageId: "lin-1",
+      });
+    });
+
+    it("returns null when the decoded start payload carries no initialCtx", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue(
+        await gzipStartHistory({ workflowLineageId: "lin-1" }),
+      );
+
+      expect(await service.getRunInput("graph-adhoc-1")).toBeNull();
+    });
+
+    it("returns null when the run has no history events", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue({ events: [] });
+      expect(await service.getRunInput("graph-adhoc-1")).toBeNull();
     });
   });
 
