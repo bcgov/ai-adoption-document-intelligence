@@ -15,6 +15,16 @@ import { GraphWorkflowConfig } from "./graph-workflow-types";
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
 /** Max slug suffix probes (`-2`, `-3`, …) before giving up on auto-naming. */
 const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
+/**
+ * Retries of a create transaction when a concurrent create commits the same
+ * slug first. `resolveUniqueSlug` runs inside its own transaction and cannot
+ * see another in-flight transaction's uncommitted row, so two same-named
+ * creates can both resolve the same slug and race the `@@unique([group_id,
+ * slug])` index. On the loser's Postgres unique violation we re-run the whole
+ * transaction; the second pass sees the now-committed row and advances to the
+ * next free suffix.
+ */
+const WORKFLOW_SLUG_CREATE_MAX_RETRIES = 5;
 
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
@@ -249,6 +259,48 @@ export class WorkflowService {
       counter++;
     }
     return candidate;
+  }
+
+  /**
+   * True when {@link err} is a Postgres unique-constraint violation (P2002) on
+   * the workflow slug index. Distinguishes the recoverable slug race from any
+   * other unique violation, which should still surface as an error.
+   */
+  private isSlugUniqueViolation(err: unknown): boolean {
+    if (
+      !(err instanceof Prisma.PrismaClientKnownRequestError) ||
+      err.code !== "P2002"
+    ) {
+      return false;
+    }
+    const target = err.meta?.target;
+    const asText = Array.isArray(target)
+      ? target.join(",")
+      : String(target ?? "");
+    return asText.includes("slug");
+  }
+
+  /**
+   * Runs a create transaction, retrying when a concurrent create wins the slug
+   * race (see {@link WORKFLOW_SLUG_CREATE_MAX_RETRIES}). The transaction body
+   * must call {@link resolveUniqueSlug} so each retry re-derives a free slug.
+   */
+  private async runCreateWithSlugRetry<T>(
+    run: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.prisma.$transaction(run);
+      } catch (err) {
+        if (
+          attempt < WORKFLOW_SLUG_CREATE_MAX_RETRIES &&
+          this.isSlugUniqueViolation(err)
+        ) {
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   /**
@@ -539,7 +591,7 @@ export class WorkflowService {
     }
     const configToPersist = stampConfigWithPersistedHash(dto.config);
 
-    const full = await this.prisma.$transaction(async (tx) => {
+    const full = await this.runCreateWithSlugRetry(async (tx) => {
       const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
       const lineageRow = await tx.workflowLineage.create({
         data: {
@@ -791,7 +843,7 @@ export class WorkflowService {
       });
     }
 
-    const full = await this.prisma.$transaction(async (tx) => {
+    const full = await this.runCreateWithSlugRetry(async (tx) => {
       const candidateName = `${source.lineage.name} (candidate v${candidateNameSuffix})`;
       const slug = await this.resolveUniqueSlug(
         source.lineage.group_id,

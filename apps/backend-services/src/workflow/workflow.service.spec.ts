@@ -110,6 +110,12 @@ describe("WorkflowService", () => {
     mockLineage.delete.mockResolvedValue(undefined);
     mockTemporalClient.listRunningInLineage.mockResolvedValue([]);
     mockTemporalClient.cancelRun.mockResolvedValue(undefined);
+    // Restore the pass-through $transaction — individual tests may override it
+    // (e.g. to simulate a slug race), and clearAllMocks does not reset impls.
+    mockPrismaService.prisma.$transaction.mockImplementation(
+      (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({ workflowLineage: mockLineage, workflowVersion: mockVersion }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -506,6 +512,80 @@ describe("WorkflowService", () => {
       ).rejects.toThrow(ConflictException);
 
       expect(mockLineage.create).not.toHaveBeenCalled();
+    });
+
+    it("retries and succeeds when a concurrent create wins the slug race", async () => {
+      const slugRace = new Prisma.PrismaClientKnownRequestError("unique", {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["group_id", "slug"] },
+      });
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+      // First transaction loses the slug race; the retry re-derives a free slug
+      // and commits.
+      mockPrismaService.prisma.$transaction.mockImplementationOnce(async () => {
+        throw slugRace;
+      });
+
+      const result = await service.createWorkflow("actor-1", {
+        name: "My Workflow",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+      });
+
+      expect(result).toBeDefined();
+      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it("propagates the slug violation once retries are exhausted", async () => {
+      const slugRace = new Prisma.PrismaClientKnownRequestError("unique", {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["group_id", "slug"] },
+      });
+      mockPrismaService.prisma.$transaction.mockImplementation(async () => {
+        throw slugRace;
+      });
+
+      await expect(
+        service.createWorkflow("actor-1", {
+          name: "My Workflow",
+          groupId: "group-1",
+          config: makeGraphConfig(),
+        }),
+      ).rejects.toBe(slugRace);
+      // Initial attempt + WORKFLOW_SLUG_CREATE_MAX_RETRIES (5) retries.
+      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(6);
+    });
+
+    it("does not retry a unique violation unrelated to the slug", async () => {
+      const otherViolation = new Prisma.PrismaClientKnownRequestError(
+        "unique",
+        {
+          code: "P2002",
+          clientVersion: "test",
+          meta: { target: ["head_version_id"] },
+        },
+      );
+      mockPrismaService.prisma.$transaction.mockImplementation(async () => {
+        throw otherViolation;
+      });
+
+      await expect(
+        service.createWorkflow("actor-1", {
+          name: "My Workflow",
+          groupId: "group-1",
+          config: makeGraphConfig(),
+        }),
+      ).rejects.toBe(otherViolation);
+      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(1);
     });
   });
 

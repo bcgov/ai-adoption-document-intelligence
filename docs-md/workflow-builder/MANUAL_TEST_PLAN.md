@@ -111,7 +111,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 4. **Workflow-as-API happy path (11.3/11.4) + versioning revert & run-a-version (12.2/12.4).** Deterministic, no LLM; guards the run/versioning contract end-to-end.
 5. **Agent depth beyond the surface (15.6–15.10).** File-drop→source.upload resolution, conversation persistence/switcher, cost ceiling, and injection guard — extend `tier3-agent-stubbed` with recorded streams where possible; the guards themselves stay unit-tested.
 
-> **Backend robustness note (surfaced while writing these):** `POST /api/workflows` can return **500** when multiple creates with the *same name* race the unique-slug allocator (`resolveUniqueSlug`). Harmless for prod (distinct names) but it made same-name parallel specs flaky — worth making the allocator retry/return a clean 409 instead of 500.
+> **Backend robustness note (surfaced while writing these) — FIXED:** `POST /api/workflows` used to return **500** when multiple creates with the *same name* raced the unique-slug allocator (`resolveUniqueSlug`): each transaction resolved the same slug (READ COMMITTED hides the other's uncommitted row), then the loser hit the `@@unique([group_id, slug])` index (Postgres `P2002`). Now `createWorkflow`/`createCandidateVersion` wrap the create in `runCreateWithSlugRetry`, which retries the transaction on a slug-specific `P2002` (up to `WORKFLOW_SLUG_CREATE_MAX_RETRIES`); the retry re-runs `resolveUniqueSlug` against the now-committed row and advances to the next free suffix. Covered by `workflow.service.spec.ts` (retry-succeeds / retries-exhausted / non-slug-violation-not-retried).
 
 ---
 
