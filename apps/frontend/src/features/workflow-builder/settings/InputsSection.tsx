@@ -145,7 +145,7 @@ export function InputsSection({
   };
 
   return (
-    <Stack gap={4}>
+    <Stack gap={4} data-testid="inputs-section">
       <Text size="xs" fw={600}>
         Inputs
       </Text>

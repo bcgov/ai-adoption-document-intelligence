@@ -21,12 +21,15 @@ test.describe("node settings panel", () => {
   let pageErrors: string[] = [];
   let createdId: string | null = null;
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ page, request }, testInfo) => {
     pageErrors = [];
     page.on("pageerror", (e) => pageErrors.push(e.message));
     await setupWorkflowBuilderTest(page);
     const created = await createWorkflow(request, {
-      name: "e2e node-config",
+      // Unique per test — the 3 tests here run on parallel workers, and
+      // concurrent creates of an identical name race the backend's unique-slug
+      // allocation and can 500. A per-test name sidesteps that.
+      name: `e2e node-config ${testInfo.testId}`,
       config: buildLinearConfig({ withPositions: true }),
     });
     createdId = created.id;
