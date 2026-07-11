@@ -22,6 +22,8 @@
 		"build": "npm run build:backend-services && npm run build:frontend",
 		"install:all": "npm install",
 		"prepare": "lefthook install",
+		"test:unit": "npm test --workspaces --if-present",
+		"test:all": "RUN_INTEGRATION=1 npm test --workspaces --if-present && RUN_INFRA=1 npm run test:e2e",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
 		"test:file": "playwright test",

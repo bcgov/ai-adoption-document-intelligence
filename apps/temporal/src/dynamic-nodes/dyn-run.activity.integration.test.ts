@@ -12,8 +12,10 @@
  *     row layout; the prisma client is still injected so the lazy
  *     `getPrismaClient()` fallback never trips.
  *
- * If either prerequisite is unavailable the suite is SKIPPED (not failed)
- * so unrelated CI environments don't break.
+ * Opt-in: these run only when `RUN_INTEGRATION=1` (set by `npm run test:all`).
+ * Without it the suite reports as SKIPPED (visible) so unrelated environments
+ * don't break. WITH it, an unreachable deno-runner FAILS the suite loudly
+ * rather than passing silently — a missing dependency must surface.
  *
  * Covers:
  *   - Scenario 1 — uppercase-URL success path
@@ -76,36 +78,33 @@ function fixture(versionId: string, entry: ScriptCacheEntry): void {
 // satisfies the activity's lazy-getter so DATABASE_URL isn't required.
 const stubPrisma = {} as unknown as PrismaClient;
 
-let runnerUp = false;
+// These tests hit the LIVE deno-runner, so they are OPT-IN: set RUN_INTEGRATION=1
+// (the repo's `npm run test:all` does). When opted in they FAIL LOUDLY if the
+// runner is unreachable — a missing dependency must surface, never silently
+// pass. When not opted in the whole suite reports as SKIPPED (visible), never
+// as green. Gating on a synchronous env var (rather than an async runner probe)
+// is what lets us use `describe.skip` at parse time.
+const RUN_INTEGRATION = process.env.RUN_INTEGRATION === "1";
+const describeIntegration = RUN_INTEGRATION ? describe : describe.skip;
 
 beforeAll(async () => {
+  if (!RUN_INTEGRATION) return; // suite is skipped; nothing to set up
   // `dynRun` fails fast when PLATFORM_API_KEY is unset; the tests here that
   // don't override readEnv fall back to process.env, so provide a dummy key.
   process.env.PLATFORM_API_KEY ??= "integration-test-platform-key";
-  runnerUp = await runnerIsReachable();
-  if (!runnerUp) {
-    console.warn(
-      `[US-172] Skipping integration tests — deno-runner not reachable at ${RUNNER_URL}.\n` +
-        "Start it with: docker compose -f deployments/local/docker-compose.deno.yml up -d",
+  if (!(await runnerIsReachable())) {
+    throw new Error(
+      `[US-172] deno-runner required at ${RUNNER_URL} but unreachable — ` +
+        "start it (`docker compose -f deployments/local/docker-compose.deno.yml up -d`) " +
+        "or unset RUN_INTEGRATION to skip these live tests.",
     );
   }
 });
 
 afterAll(() => versionCache.clear());
 
-/**
- * Per-test guard. The `describe` block runs always; each `it` aborts early
- * if the runner isn't reachable. We use this pattern (rather than
- * `describe.skip`) because `runnerUp` is only known after `beforeAll`, and
- * jest evaluates the describe-block argument synchronously at parse time.
- */
-function requireRunner(): boolean {
-  return runnerUp;
-}
-
-describe("dyn.run integration — live deno-runner (US-172)", () => {
+describeIntegration("dyn.run integration — live deno-runner (US-172)", () => {
   it("Scenario 1 — happy path: uppercase URL script returns { uppercased: { url: 'FOO.PDF' } }", async () => {
-    if (!requireRunner()) return;
     const script = `
 export default async function (inputCtx) {
   return { uppercased: { url: String(inputCtx.url).toUpperCase() } };
@@ -137,7 +136,6 @@ export default async function (inputCtx) {
   }, 30_000);
 
   it("Scenario 2 — timeout: script sleeps 70s with timeoutMs: 1000 → DynamicNodeTimeoutError within ~1.5s", async () => {
-    if (!requireRunner()) return;
     const script = `
 export default async function () {
   await new Promise((resolve) => setTimeout(resolve, 70_000));
@@ -179,7 +177,6 @@ export default async function () {
   }, 30_000);
 
   it("Scenario 3 — stdout-too-large: 6MB stdout → DynamicNodeStdoutTooLargeError", async () => {
-    if (!requireRunner()) return;
     // Script returns an object that JSON-serialises to >5MB. Doing this in
     // the return value forces the runner's stdout cap to trigger.
     const script = `
@@ -222,7 +219,6 @@ export default async function () {
   }, 30_000);
 
   it("Scenario 4a — runtime error: script throws → DynamicNodeRuntimeError with stderrTail", async () => {
-    if (!requireRunner()) return;
     const script = `
 export default async function () {
   throw new Error("boom from user script");
@@ -261,7 +257,6 @@ export default async function () {
   }, 30_000);
 
   it("Scenario 4b — invalid JSON: stdout 'not json' → DynamicNodeOutputInvalidJsonError", async () => {
-    if (!requireRunner()) return;
     // The runner appends a harness that JSON.stringify's the return value, so
     // to actually produce non-JSON stdout we bypass it by writing directly
     // and exiting before the harness can run.
@@ -305,7 +300,6 @@ export default async function () { return {}; }
   }, 30_000);
 
   it("Scenario 5a — missing declared port: signature requires 'result', script returns {} → DynamicNodeOutputShapeError", async () => {
-    if (!requireRunner()) return;
     const script = `
 export default async function () {
   return {};
@@ -344,7 +338,6 @@ export default async function () {
   }, 30_000);
 
   it("Scenario 5b — runner unreachable: client points at closed port → 'deno runner unavailable'", async () => {
-    if (!requireRunner()) return;
     const script = `export default async function () { return { uppercased: "x" }; }`;
     fixture("v-unreach", {
       script,
@@ -373,7 +366,6 @@ export default async function () {
   }, 30_000);
 
   it("Scenario 6 — ambient env: script reads each AI_DI_* var → exactly the four are present; unknown vars are denied", async () => {
-    if (!requireRunner()) return;
     // `Deno.env.toObject()` requires a global `--allow-env` (no allow-list);
     // the runner intentionally restricts to a fixed allow-list, so we
     // enumerate each candidate name and prove (a) the four AI_DI_* vars
@@ -499,7 +491,6 @@ export default async function () {
   }
 
   it("Item 5 — denies file read (Deno.readTextFile)", async () => {
-    if (!requireRunner()) return;
     const err = await expectSandboxDenied(
       "v-deny-read",
       `
@@ -515,7 +506,6 @@ export default async function () {
   }, 30_000);
 
   it("Item 5 — denies file write (Deno.writeTextFile)", async () => {
-    if (!requireRunner()) return;
     const err = await expectSandboxDenied(
       "v-deny-write",
       `
@@ -530,7 +520,6 @@ export default async function () {
   }, 30_000);
 
   it("Item 5 — denies subprocess spawn (Deno.Command)", async () => {
-    if (!requireRunner()) return;
     const err = await expectSandboxDenied(
       "v-deny-run",
       `
@@ -546,7 +535,6 @@ export default async function () {
   }, 30_000);
 
   it("Item 5 — denies FFI (Deno.dlopen)", async () => {
-    if (!requireRunner()) return;
     const err = await expectSandboxDenied(
       "v-deny-ffi",
       `
@@ -561,7 +549,6 @@ export default async function () {
   }, 30_000);
 
   it("Item 5 — denies fetch to a non-allowlisted host", async () => {
-    if (!requireRunner()) return;
     // allowNet is [] for this fixture → the runner's computed allowlist
     // contains only the API host; example.com is not reachable.
     const err = await expectSandboxDenied(
@@ -578,7 +565,6 @@ export default async function () {
   }, 30_000);
 
   it("Item 5 (review #3) — denies remote import", async () => {
-    if (!requireRunner()) return;
     // `--no-remote` (review #3) blocks remote module specifiers at module-graph
     // build time, so evaluation fails before the default export ever runs.
     // Deno's message is "a remote specifier was requested ... but --no-remote

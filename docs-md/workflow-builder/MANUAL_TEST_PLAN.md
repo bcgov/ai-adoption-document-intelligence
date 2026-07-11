@@ -79,6 +79,8 @@ Eight workflow templates live in `docs-md/graph-workflows/templates/` and are lo
 
 ## Part 1.7 — Automated Coverage Map
 
+> **Running the automated tests:** see [../TESTING.md](../TESTING.md). TL;DR: `npm run test:all` runs everything against the local stack (incl. `@infra`) and fails loudly if a dependency is down; `@llm` (paid) stays behind `RUN_LLM=1`.
+
 Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 unit** (backstopped by a backend unit/integration spec but *not* driven through the browser), or **✍️ manual-only** (no automated guard — anything not listed here). Prioritise manual effort on ✍️ items; treat ✅ items as regression-guarded (still worth a spot-check).
 
 **✅ E2E-guarded** (suite: [tests/e2e/workflow-builder/](../../tests/e2e/workflow-builder/)):
