@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { APIRequestContext, expect } from "@playwright/test";
 import { BACKEND_URL, SEED_GROUP_ID, TEST_API_KEY } from "./wb-test";
 
@@ -169,6 +171,100 @@ export async function revertHead(
     { headers, data: { workflowVersionId } },
   );
   return res.status();
+}
+
+/** Terminal per-node run statuses (anything not still pending/running). */
+const TERMINAL_STATUSES = ["succeeded", "skipped", "failed", "cancelled"];
+
+export interface NodeRunStatus {
+  status: "pending" | "running" | "succeeded" | "skipped" | "failed";
+  startedAt?: string;
+  endedAt?: string;
+  errorMessage?: string;
+  cacheHit?: { configHash: string; inputHash: string };
+}
+
+/**
+ * POST a file to a `source.upload` node — uploads to blob storage AND kicks off
+ * a Temporal Try run (US-146). Returns the run id and the blob key the upload
+ * wrote to the source node's ctxKey (default `documentUrl`), so a follow-up run
+ * can be started with the SAME input.
+ */
+export async function uploadToSource(
+  request: APIRequestContext,
+  workflowId: string,
+  sourceNodeId: string,
+  filePath: string,
+  ctxKey = "documentUrl",
+): Promise<{ runId: string; blobKey: string }> {
+  const res = await request.post(
+    `${BACKEND_URL}/api/workflows/${workflowId}/sources/${sourceNodeId}/upload`,
+    {
+      headers: { "x-api-key": TEST_API_KEY },
+      multipart: {
+        file: {
+          name: basename(filePath),
+          mimeType: "application/pdf",
+          buffer: readFileSync(filePath),
+        },
+      },
+    },
+  );
+  expect(
+    res.ok(),
+    `upload to source failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
+  const body = (await res.json()) as Record<string, string>;
+  return { runId: body.runId, blobKey: body[ctxKey] };
+}
+
+/** POST /api/workflows/:id/runs — start a Temporal run with `initialCtx`. */
+export async function startRun(
+  request: APIRequestContext,
+  workflowId: string,
+  initialCtx: Record<string, unknown>,
+): Promise<string> {
+  const res = await request.post(
+    `${BACKEND_URL}/api/workflows/${workflowId}/runs`,
+    { headers, data: { initialCtx } },
+  );
+  expect(
+    res.ok(),
+    `start run failed: ${res.status()} ${await res.text()}`,
+  ).toBeTruthy();
+  return ((await res.json()) as { workflowId: string }).workflowId;
+}
+
+/**
+ * Poll `GET /:id/runs/:runId/node-statuses` until every node in `nodeIds`
+ * reaches a terminal status, then return the full status map.
+ */
+export async function pollNodeStatusesUntilDone(
+  request: APIRequestContext,
+  workflowId: string,
+  runId: string,
+  nodeIds: string[],
+  timeoutMs = 30_000,
+): Promise<Record<string, NodeRunStatus>> {
+  const deadline = Date.now() + timeoutMs;
+  let last: Record<string, NodeRunStatus> = {};
+  while (Date.now() < deadline) {
+    const res = await request.get(
+      `${BACKEND_URL}/api/workflows/${workflowId}/runs/${runId}/node-statuses`,
+      { headers },
+    );
+    if (res.ok()) {
+      last = (await res.json()) as Record<string, NodeRunStatus>;
+      const done = nodeIds.every(
+        (n) => last[n] && TERMINAL_STATUSES.includes(last[n].status),
+      );
+      if (done) return last;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  throw new Error(
+    `node-statuses did not reach terminal for [${nodeIds.join(", ")}] within ${timeoutMs}ms; last=${JSON.stringify(last)}`,
+  );
 }
 
 export async function listWorkflows(
