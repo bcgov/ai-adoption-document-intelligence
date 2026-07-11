@@ -120,6 +120,57 @@ export async function updateWorkflow(
   ).toBeTruthy();
 }
 
+/** Minimal shape of a run-spec response (see `RunSpecResponseDto`). */
+export interface RunSpec {
+  triggerUrl: string;
+  inputSchema: { type: string; properties: Record<string, unknown> };
+  authNotes: string;
+  sampleCurl: string;
+  uploadSpec?: unknown;
+}
+
+/** GET /api/workflows/:id/run-spec — returns the raw status + parsed body. */
+export async function getRunSpec(
+  request: APIRequestContext,
+  id: string,
+): Promise<{ status: number; body: RunSpec }> {
+  const res = await request.get(`${BACKEND_URL}/api/workflows/${id}/run-spec`, {
+    headers,
+  });
+  return { status: res.status(), body: (await res.json()) as RunSpec };
+}
+
+export interface WorkflowVersionSummary {
+  id: string;
+  versionNumber: number;
+}
+
+/** GET /api/workflows/:id/versions — newest-first version summaries. */
+export async function listWorkflowVersions(
+  request: APIRequestContext,
+  id: string,
+): Promise<WorkflowVersionSummary[]> {
+  const res = await request.get(`${BACKEND_URL}/api/workflows/${id}/versions`, {
+    headers,
+  });
+  expect(res.ok(), `list versions failed: ${res.status()}`).toBeTruthy();
+  const body = (await res.json()) as { versions: WorkflowVersionSummary[] };
+  return body.versions;
+}
+
+/** POST /api/workflows/:id/revert-head — returns the raw status. */
+export async function revertHead(
+  request: APIRequestContext,
+  id: string,
+  workflowVersionId: string,
+): Promise<number> {
+  const res = await request.post(
+    `${BACKEND_URL}/api/workflows/${id}/revert-head`,
+    { headers, data: { workflowVersionId } },
+  );
+  return res.status();
+}
+
 export async function listWorkflows(
   request: APIRequestContext,
   query = "",
