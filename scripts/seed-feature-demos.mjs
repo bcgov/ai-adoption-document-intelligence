@@ -44,7 +44,9 @@ try {
   // Older Node without loadEnvFile, or unreadable — rely on the other sources.
 }
 const CANDIDATE_KEYS = [
-  ...new Set([SHELL_KEY, process.env.TEST_API_KEY, DEFAULT_KEY].filter(Boolean)),
+  ...new Set(
+    [SHELL_KEY, process.env.TEST_API_KEY, DEFAULT_KEY].filter(Boolean),
+  ),
 ];
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3002";
@@ -293,6 +295,511 @@ function sourcePrepConfig(name) {
   };
 }
 
+/**
+ * One valid graph containing every control-flow node type (Part 4) plus a
+ * deeply-nested switch condition (4.7) so each hand-rolled settings form and
+ * the recursive condition editor can be inspected from a single workflow.
+ */
+function controlFlowConfig(name) {
+  const inlineChild = {
+    schemaVersion: "1.0",
+    metadata: { name: "Inline child" },
+    entryNodeId: "c1",
+    ctx: { blobKey: { type: "string" } },
+    nodes: {
+      c1: {
+        id: "c1",
+        type: "activity",
+        label: "Prepare (inline)",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+      },
+    },
+    edges: [],
+  };
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "eachDoc",
+    ctx: {
+      documents: { type: "array" },
+      currentDoc: { type: "object" },
+      ocrResult: { type: "object" },
+      results: { type: "array" },
+    },
+    nodes: {
+      eachDoc: {
+        id: "eachDoc",
+        type: "map",
+        label: "Run for each document",
+        collectionCtxKey: "documents",
+        itemCtxKey: "currentDoc",
+        indexCtxKey: "docIndex",
+        maxConcurrency: 5,
+        bodyEntryNodeId: "routeByType",
+        bodyExitNodeId: "pollOcr",
+        ...pos(120, 80),
+      },
+      routeByType: {
+        id: "routeByType",
+        type: "switch",
+        label: "Branch by condition",
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.currentDoc.type" },
+              right: { literal: "invoice" },
+            },
+            edgeId: "route-invoice",
+          },
+          {
+            // A 3-level nested expression to exercise the recursive editor:
+            // AND( OR( EQ, GTE ), NOT( IS-NULL ) ).
+            condition: {
+              operator: "and",
+              operands: [
+                {
+                  operator: "or",
+                  operands: [
+                    {
+                      operator: "equals",
+                      left: { ref: "ctx.currentDoc.type" },
+                      right: { literal: "receipt" },
+                    },
+                    {
+                      operator: "gte",
+                      left: { ref: "ctx.currentDoc.confidence" },
+                      right: { literal: 0.8 },
+                    },
+                  ],
+                },
+                {
+                  operator: "not",
+                  operand: {
+                    operator: "is-null",
+                    value: { ref: "ctx.currentDoc.blobKey" },
+                  },
+                },
+              ],
+            },
+            edgeId: "route-receipt",
+          },
+        ],
+        defaultEdge: "route-default",
+        ...pos(120, 320),
+      },
+      childOcr: {
+        id: "childOcr",
+        type: "childWorkflow",
+        label: "Sub-workflow (inline OCR)",
+        workflowRef: { type: "inline", graph: inlineChild },
+        inputMappings: [{ port: "blobKey", ctxKey: "currentDoc.blobKey" }],
+        outputMappings: [{ port: "preparedData", ctxKey: "ocrResult" }],
+        ...pos(460, 200),
+      },
+      pollOcr: {
+        id: "pollOcr",
+        type: "pollUntil",
+        label: "Wait until condition",
+        activityType: "azureOcr.poll",
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.ocrResult.status" },
+          right: { literal: "running" },
+        },
+        interval: "10s",
+        maxAttempts: 20,
+        initialDelay: "5s",
+        timeout: "10m",
+        ...pos(460, 360),
+      },
+      approve: {
+        id: "approve",
+        type: "humanGate",
+        label: "Wait for approval",
+        signal: {
+          name: "humanApproval",
+          payloadSchema: { approved: "boolean", reviewer: "string" },
+        },
+        timeout: "24h",
+        onTimeout: "fail",
+        ...pos(460, 520),
+      },
+      collect: {
+        id: "collect",
+        type: "join",
+        label: "Collect results",
+        sourceMapNodeId: "eachDoc",
+        strategy: "all",
+        resultsCtxKey: "results",
+        ...pos(820, 80),
+      },
+      store: {
+        id: "store",
+        type: "activity",
+        label: "Store Results",
+        activityType: "ocr.storeResults",
+        ...pos(1120, 80),
+      },
+    },
+    edges: [
+      { id: "map-join", source: "eachDoc", target: "collect", type: "normal" },
+      { id: "join-store", source: "collect", target: "store", type: "normal" },
+      {
+        id: "route-invoice",
+        source: "routeByType",
+        target: "childOcr",
+        type: "conditional",
+        condition: "invoice",
+      },
+      {
+        id: "route-receipt",
+        source: "routeByType",
+        target: "pollOcr",
+        type: "conditional",
+        condition: "receipt",
+      },
+      {
+        id: "route-default",
+        source: "routeByType",
+        target: "approve",
+        type: "conditional",
+        condition: "default",
+      },
+    ],
+  };
+}
+
+/**
+ * A switch (conditional edges) + a node with a red error edge (5.2) + a
+ * `document.validateFields` node carrying the three rich rule shapes (5.3).
+ */
+function edgesValidateConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "prep",
+    ctx: {
+      blobKey: { type: "string" },
+      fileName: { type: "string" },
+      processedSegments: { type: "array" },
+      validationResults: { type: "object" },
+      requiresReview: { type: "boolean" },
+    },
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare File Data",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "blobKey", ctxKey: "blobKey" },
+          { port: "fileName", ctxKey: "fileName" },
+        ],
+        // Opt into an error edge (5.2): fall back to a handler on failure.
+        errorPolicy: {
+          onError: "fallback",
+          fallbackEdgeId: "prep-fallback",
+          retryable: false,
+        },
+        ...pos(120, 120),
+      },
+      fallback: {
+        id: "fallback",
+        type: "activity",
+        label: "Fallback handler",
+        activityType: "ocr.cleanup",
+        ...pos(120, 360),
+      },
+      reviewSwitch: {
+        id: "reviewSwitch",
+        type: "switch",
+        label: "Route by review flag",
+        inputs: [{ port: "requiresReview", ctxKey: "requiresReview" }],
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.requiresReview" },
+              right: { literal: true },
+            },
+            edgeId: "to-validate",
+          },
+        ],
+        defaultEdge: "to-store",
+        ...pos(460, 120),
+      },
+      validateFields: {
+        id: "validateFields",
+        type: "activity",
+        label: "Validate Fields",
+        activityType: "document.validateFields",
+        inputs: [{ port: "processedSegments", ctxKey: "processedSegments" }],
+        outputs: [{ port: "validationResults", ctxKey: "validationResults" }],
+        parameters: {
+          rules: [
+            {
+              name: "pay-stub-arithmetic",
+              type: "arithmetic",
+              expression: {
+                operation: "difference",
+                fields: ["page2.grossPay", "page2.totalDeductions"],
+                equals: "page2.netPay",
+              },
+              operator: "approximately",
+              tolerance: { amount: 0.05 },
+              fieldType: "currency",
+            },
+            {
+              name: "gross-pay-match",
+              type: "field-match",
+              primaryField: "page1.grossPay",
+              attachmentField: "page2.grossPay",
+              operator: "approximately",
+              tolerance: { amount: 0.05 },
+              fieldType: "currency",
+            },
+            {
+              name: "deposits-match",
+              type: "array-match",
+              primaryFields: ["page1.netPay"],
+              attachmentFields: ["page3.amount"],
+              matchType: "all",
+              operator: "approximately",
+              tolerance: { amount: 0.05 },
+              fieldType: "currency",
+            },
+          ],
+        },
+        ...pos(820, 120),
+      },
+      store: {
+        id: "store",
+        type: "activity",
+        label: "Store Results",
+        activityType: "ocr.storeResults",
+        ...pos(820, 360),
+      },
+    },
+    edges: [
+      {
+        id: "prep-switch",
+        source: "prep",
+        target: "reviewSwitch",
+        type: "normal",
+      },
+      {
+        id: "prep-fallback",
+        source: "prep",
+        target: "fallback",
+        type: "error",
+      },
+      {
+        id: "to-validate",
+        source: "reviewSwitch",
+        target: "validateFields",
+        type: "conditional",
+        condition: "requiresReview",
+      },
+      {
+        id: "to-store",
+        source: "reviewSwitch",
+        target: "store",
+        type: "conditional",
+        condition: "default",
+      },
+    ],
+  };
+}
+
+/**
+ * A linear chain pre-organised into two groups with exposed parameters, so
+ * grouping (6.2), exposed params (6.4), simplified view (6.3), node-type swap
+ * (6.6) and auto-arrange (6.7) can all be exercised from one workflow.
+ */
+function groupingConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "prep",
+    ctx: {
+      blobKey: { type: "string" },
+      fileName: { type: "string" },
+      preparedFileData: { type: "object" },
+      apimRequestId: { type: "string" },
+      modelId: { type: "string", defaultValue: "prebuilt-layout" },
+      confidenceThreshold: { type: "number", defaultValue: 0.7 },
+    },
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare File Data",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "blobKey", ctxKey: "blobKey" },
+          { port: "fileName", ctxKey: "fileName" },
+        ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...pos(120, 80),
+      },
+      submit: {
+        id: "submit",
+        type: "activity",
+        label: "Submit to Azure OCR",
+        activityType: "azureOcr.submit",
+        inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+        outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        ...pos(420, 80),
+      },
+      store: {
+        id: "store",
+        type: "activity",
+        label: "Store Results",
+        activityType: "ocr.storeResults",
+        inputs: [{ port: "documentId", ctxKey: "apimRequestId" }],
+        ...pos(720, 80),
+      },
+      cleanup: {
+        id: "cleanup",
+        type: "activity",
+        label: "Cleanup",
+        activityType: "ocr.cleanup",
+        ...pos(1020, 80),
+      },
+    },
+    edges: [
+      { id: "e1", source: "prep", target: "submit", type: "normal" },
+      { id: "e2", source: "submit", target: "store", type: "normal" },
+      { id: "e3", source: "store", target: "cleanup", type: "normal" },
+    ],
+    nodeGroups: {
+      ocr: {
+        label: "OCR Extraction",
+        description: "Prepare the file and submit it to Azure OCR.",
+        icon: "scan",
+        color: "#3b82f6",
+        nodeIds: ["prep", "submit"],
+        exposedParams: [
+          {
+            label: "OCR Model",
+            path: "ctx.modelId.defaultValue",
+            type: "string",
+          },
+        ],
+      },
+      finalize: {
+        label: "Finalize",
+        nodeIds: ["store", "cleanup"],
+        exposedParams: [
+          {
+            label: "Confidence Threshold",
+            path: "ctx.confidenceThreshold.defaultValue",
+            type: "number",
+          },
+        ],
+      },
+    },
+  };
+}
+
+/**
+ * A `source.api` workflow whose declared fields drive the derived input schema,
+ * so the Run drawer surfaces a trigger URL, input schema and sample curl (Part
+ * 11 / workflow-as-API).
+ */
+function apiSourceConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "apiSource",
+    ctx: {
+      documentUrl: { type: "string" },
+      priority: { type: "number" },
+    },
+    nodes: {
+      apiSource: {
+        id: "apiSource",
+        type: "source",
+        sourceType: "source.api",
+        label: "API endpoint",
+        parameters: {
+          fields: [
+            {
+              name: "documentUrl",
+              type: "string",
+              required: true,
+              kind: "Document",
+              description: "Blob URL of the document to process",
+            },
+            {
+              name: "priority",
+              type: "number",
+              required: false,
+              defaultValue: 0,
+            },
+          ],
+          authNotes: "Send the group API key as the x-api-key header.",
+        },
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(120, 160),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare File Data",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        ...pos(460, 160),
+      },
+    },
+    edges: [
+      { id: "src-prep", source: "apiSource", target: "prep", type: "normal" },
+    ],
+  };
+}
+
+/**
+ * A `source.upload` workflow with explicit (non-default) parameters so the
+ * source settings panel shows the allowed MIME types, size cap and ctx key
+ * (Part 13 / document sources).
+ */
+function uploadSourceConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "upload1",
+    ctx: { documentUrl: { type: "string" } },
+    nodes: {
+      upload1: {
+        id: "upload1",
+        type: "source",
+        sourceType: "source.upload",
+        label: "File upload",
+        parameters: {
+          allowedMimeTypes: ["application/pdf", "image/*"],
+          maxFileSizeMB: 25,
+          ctxKey: "documentUrl",
+        },
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(120, 200),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare File Data",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        ...pos(460, 200),
+      },
+    },
+    edges: [
+      { id: "u-prep", source: "upload1", target: "prep", type: "normal" },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Demo definitions — each becomes one seeded workflow + one guide section.
 // ---------------------------------------------------------------------------
@@ -347,6 +854,62 @@ const DEMOS = [
       "Click **Submit to Azure OCR** → the settings panel shows the editable label + a type badge.",
       "Edit the label and blur — the node updates live.",
       "Toggle **Advanced** to reveal the raw port bindings.",
+    ],
+  },
+  {
+    key: "control-flow",
+    title: "Control-flow forms & condition editor (Part 4)",
+    config: controlFlowConfig,
+    steps: [
+      "This graph contains **all six** control-flow nodes. Click each to see its hand-rolled settings form:",
+      "**Run for each document** (map) → collection/item/index ctx keys, max-concurrency, and body entry/exit node pickers.",
+      "**Branch by condition** (switch, a yellow **diamond**) → its **cases** list + per-case **Edge** picker (only *conditional* edges are offered) + a **Default edge**.",
+      "In that switch's first case, expand the **condition** — the second case holds a 3-level nested expression `AND( OR(EQ, GTE), NOT(IS-NULL) )` so you can watch the **recursive condition editor** render and toggle a leaf between **Ref** and **Literal**.",
+      "**Collect results** (join) → the source-map picker lists **only map nodes**; **Wait until condition** (pollUntil) → activity picker + interval; **Wait for approval** (humanGate) → signal name, timeout, and the **On timeout** control (switch it to *Fallback* to reveal the fallback-edge picker).",
+      "**Sub-workflow** (childWorkflow) → toggle **Library / Inline**; this demo ships an inline child graph.",
+      "UX polish (Part 16): note the **three-zone top bar** and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.",
+    ],
+  },
+  {
+    key: "edges-validate",
+    title: "Switch/error edges & validateFields editor (Part 5)",
+    config: edgesValidateConfig,
+    steps: [
+      "The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.",
+      "**Route by review flag** (switch) draws **conditional** edges with `case[0]…` / `default` labels.",
+      "Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.",
+    ],
+  },
+  {
+    key: "grouping",
+    title: "Grouping, simplified view & node swap (Part 6)",
+    config: groupingConfig,
+    steps: [
+      "This chain ships pre-organised into two groups — **OCR Extraction** and **Finalize** — each with an **exposed parameter**.",
+      "Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type).",
+      "In the exposed-params editor, remove a member node from the group → any exposed param that referenced it is **pruned** with a toast.",
+      "Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.",
+      "**More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.",
+    ],
+  },
+  {
+    key: "workflow-as-api",
+    title: "Workflow-as-API — trigger URL & schema (Part 11)",
+    config: apiSourceConfig,
+    steps: [
+      "This workflow starts with a **source.api** node declaring two fields (`documentUrl` required, `priority` optional).",
+      "Click **Run this workflow** (top bar) → the Run drawer shows the **Trigger URL**, the derived **input schema** (only the declared fields), a copyable **sample curl**, and the **auth notes**.",
+      "Select the **API endpoint** node → SourceNodeSettings lets you edit the field list (name / type / kind / required).",
+    ],
+  },
+  {
+    key: "sources-upload",
+    title: "Document sources — file upload (Part 13)",
+    config: uploadSourceConfig,
+    steps: [
+      "Select the **File upload** source node → SourceNodeSettings exposes `allowedMimeTypes` (`application/pdf`, `image/*`), `maxFileSizeMB` (25 here) and `ctxKey` (`documentUrl`).",
+      "The source node has **no input handle** and a single blue **Document** output.",
+      "Adding a *second* source of the same subtype is rejected by the validator (single-source rule) — see `MANUAL_TEST_PLAN.md` 13.7.",
     ],
   },
   {
@@ -457,8 +1020,12 @@ function renderGuide(results) {
       " follow the steps, no set-up required.",
   );
   lines.push("");
-  lines.push("> **Generated by** `scripts/seed-feature-demos.mjs`. Re-run it to");
-  lines.push("> (re)create these workflows and refresh the links below — e.g. after");
+  lines.push(
+    "> **Generated by** `scripts/seed-feature-demos.mjs`. Re-run it to",
+  );
+  lines.push(
+    "> (re)create these workflows and refresh the links below — e.g. after",
+  );
   lines.push("> a database reset. Requires the backend running on :3002.");
   lines.push("");
   lines.push("```bash");
@@ -497,9 +1064,11 @@ function renderGuide(results) {
     lines.push("");
   }
   lines.push(
-    "_Not covered here (need external services or a published dynamic node):" +
-      " real OCR output previews, incremental cache-hit re-runs, dynamic-node" +
-      " authoring/security, and the agent chat. See `MANUAL_TEST_PLAN.md`._",
+    "_Not seeded here because they need a live worker, the deno-runner, a" +
+      " published dynamic node, or LLM credentials: real OCR output previews +" +
+      " incremental cache-hit re-runs (Part 9 run-time), dynamic-node" +
+      " authoring/execution/security (Part 14), and the AI agent (Part 15)." +
+      " Walk those from `MANUAL_TEST_PLAN.md` with the stack up._",
   );
   lines.push("");
   return lines.join("\n");
