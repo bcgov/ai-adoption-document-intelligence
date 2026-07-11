@@ -19,30 +19,54 @@
  * (default http://localhost:3000), TEST_API_KEY (defaults to the documented
  * local seed key, matching playwright.config.ts).
  */
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Load the backend .env so we authenticate with the SAME key the DB was seeded
+// with: `seed.ts` (`prisma db seed`) reads `TEST_API_KEY` from this file via
+// `dotenv/config`, and the backend validates `x-api-key` against that seeded
+// value. Without this the hardcoded fallback only works when the DB happened to
+// be seeded with the default key. Mirrors playwright.config.ts. (`loadEnvFile`
+// does not overwrite an already-set shell var, matching dotenv semantics.)
+// The backend validates `x-api-key` against the value the DB was seeded with,
+// which — depending on how `prisma db seed` ran — may be the shell env, the
+// backend .env's `TEST_API_KEY`, or the documented default. Rather than guess,
+// we gather all three and probe which one the running backend accepts.
+const DEFAULT_KEY = "69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY";
+const SHELL_KEY = process.env.TEST_API_KEY; // captured before loading .env
+const BACKEND_ENV = resolve(__dirname, "../apps/backend-services/.env");
+try {
+  if (existsSync(BACKEND_ENV)) process.loadEnvFile(BACKEND_ENV);
+} catch {
+  // Older Node without loadEnvFile, or unreadable — rely on the other sources.
+}
+const CANDIDATE_KEYS = [
+  ...new Set([SHELL_KEY, process.env.TEST_API_KEY, DEFAULT_KEY].filter(Boolean)),
+];
+
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3002";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
-const API_KEY =
-  process.env.TEST_API_KEY || "69OrdcwUk4qrB6Pl336PGsloa0L084HFp7X7aX7sSTY";
 const GROUP_ID = "seeddefaultgroup";
 const NAME_PREFIX = "🎯 Demo — ";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const GUIDE_PATH = resolve(
   __dirname,
   "../docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md",
 );
 
-const headers = { "x-api-key": API_KEY, "Content-Type": "application/json" };
+let apiKey = ""; // resolved by resolveApiKey() before any write
+const authHeaders = () => ({
+  "x-api-key": apiKey,
+  "Content-Type": "application/json",
+});
 const pos = (x, y) => ({ metadata: { position: { x, y } } });
 
 async function api(method, path, body) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method,
-    headers,
+    headers: authHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();
@@ -484,7 +508,28 @@ function slug(title) {
     .replace(/\s+/g, "-");
 }
 
+/**
+ * Return the first candidate key the backend accepts (a cheap authenticated
+ * GET that is 200 for a valid key, 401/403 for a bad one). Never logs a key.
+ */
+async function resolveApiKey() {
+  for (const candidate of CANDIDATE_KEYS) {
+    const res = await fetch(`${BACKEND_URL}/api/workflows?limit=1`, {
+      headers: { "x-api-key": candidate },
+    }).catch(() => null);
+    if (res && res.status !== 401 && res.status !== 403) return candidate;
+  }
+  return null;
+}
+
 async function main() {
+  apiKey = await resolveApiKey();
+  if (!apiKey) {
+    throw new Error(
+      `401 — none of the ${CANDIDATE_KEYS.length} candidate API key(s) were ` +
+        "accepted by the backend",
+    );
+  }
   const results = await seed();
   writeFileSync(GUIDE_PATH, renderGuide(results), "utf-8");
   console.log(`\nGuide written → ${GUIDE_PATH}`);
@@ -493,5 +538,20 @@ async function main() {
 
 main().catch((err) => {
   console.error("\nSeed failed:", err.message);
+  if (/\b401\b|Invalid API key|Unauthorized/i.test(err.message)) {
+    console.error(
+      "\nThe backend accepted none of the API keys it tried (shell" +
+        " TEST_API_KEY, apps/backend-services/.env TEST_API_KEY, and the" +
+        " documented default). The backend validates x-api-key against the" +
+        " value the DB was seeded with. Fix by re-seeding so they line up" +
+        " (`npm run test:db:reset`) or pass the seeded key explicitly:\n" +
+        "  TEST_API_KEY=<your-seeded-key> npm run seed:demos",
+    );
+  } else if (/fetch failed|ECONNREFUSED|connect/i.test(err.message)) {
+    console.error(
+      `\nCould not reach the backend at ${BACKEND_URL}. Start it (the` +
+        " `dev: all` task / `npm run dev:backend`) and retry.",
+    );
+  }
   process.exit(1);
 });
