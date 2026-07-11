@@ -5,6 +5,8 @@ End-to-end manual testing script for everything shipped in the `feature/visual-w
 > **How to use this doc.** Work top-to-bottom — later sections assume the environment from [Part 1](#part-1--environment--prerequisites) and skills built in earlier sections. Each test is a checklist item with concrete **steps** and a **Pass** criterion. Boxes: `[ ]` not run, `[x]` pass, `[!]` fail (file a bug with the test number).
 >
 > **Legend:** 🔑 = requires logged-in UI session · ☁️ = requires cloud credentials · ⚙️ = requires a specific service/migration · ⚠️ = known discrepancy or gotcha, not a bug.
+>
+> **Just want to see one feature quickly?** Run `npm run seed:demos` and open [FEATURE_DEMO_GUIDE.md](FEATURE_DEMO_GUIDE.md) — it seeds a pre-built workflow per feature and gives you a direct editor link + a few steps, so you can spot-check something without walking the whole plan.
 
 ---
 
