@@ -10,6 +10,8 @@ A fast, click-through companion to `MANUAL_TEST_PLAN.md`. Each entry is a pre-bu
 npm run seed:demos
 ```
 
+> How the seeder works (prereqs, env, extending it): see [FEATURE_DEMO_SEEDER.md](FEATURE_DEMO_SEEDER.md).
+
 ## Contents
 
 - [Typed I/O — coloured handles & type pills (Part 7)](#typed-io-coloured-handles-type-pills-part-7)
@@ -25,7 +27,7 @@ npm run seed:demos
 
 ## Typed I/O — coloured handles & type pills (Part 7)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blqt00gzcxgc35tvuvsu/edit](http://localhost:3000/workflows/cmrg3blqt00gzcxgc35tvuvsu/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xy8q00hgcxgcbqqy8flk/edit](http://localhost:3000/workflows/cmrg3xy8q00hgcxgcbqqy8flk/edit)
 
 1. Look at the node handles: single-typed ports are **coloured**; a node with multiple same-kind outputs (Submit OCR) shows a **grey wildcard** handle.
 1. Hover a handle to see its kind (e.g. `OcrResult`) or the multi-output prompt.
@@ -36,7 +38,7 @@ npm run seed:demos
 
 ## Auto-wire — typed input binding states (Part 8)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blsg00h1cxgctlgxpg7p/edit](http://localhost:3000/workflows/cmrg3blsg00h1cxgctlgxpg7p/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xyab00hicxgcg2o8doj4/edit](http://localhost:3000/workflows/cmrg3xyab00hicxgcg2o8doj4/edit)
 
 1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No status dot.
 1. Select **Lone Submit (unsatisfied)** → its input shows **Needs source** and the node carries a red **unsatisfied** status dot (no upstream producer).
@@ -46,7 +48,7 @@ npm run seed:demos
 
 ## Auto-wire — ambiguous source picker (Part 8)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blu100h3cxgcd8d8g3j1/edit](http://localhost:3000/workflows/cmrg3blu100h3cxgcd8d8g3j1/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xybu00hkcxgckjw3y4g5/edit](http://localhost:3000/workflows/cmrg3xybu00hkcxgckjw3y4g5/edit)
 
 1. Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.
 1. Select **Submit OCR (ambiguous)** → its `fileData` input shows **Choose source** and the node carries an amber **ambiguous** status dot.
@@ -56,7 +58,7 @@ npm run seed:demos
 
 ## Validation surfacing — warning badge & drawer (5.4)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blvo00h5cxgc69vuvji1/edit](http://localhost:3000/workflows/cmrg3blvo00h5cxgc69vuvji1/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xydf00hmcxgc4ma27jgs/edit](http://localhost:3000/workflows/cmrg3xydf00hmcxgc4ma27jgs/edit)
 
 1. The **Orphan (unreachable)** node has no incoming edge → a validation issue is computed on load (no Save needed).
 1. The top-bar summary reads **1 warning** (amber); the orphan node shows an amber count badge.
@@ -66,7 +68,7 @@ npm run seed:demos
 
 ## Node settings panel & canvas basics (Part 3)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blx900h7cxgcdkr1qnfw/edit](http://localhost:3000/workflows/cmrg3blx900h7cxgcdkr1qnfw/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xyey00hocxgce0oiror8/edit](http://localhost:3000/workflows/cmrg3xyey00hocxgce0oiror8/edit)
 
 1. Click **Submit to Azure OCR** → the settings panel shows the editable label + a type badge.
 1. Edit the label and blur — the node updates live.
@@ -76,7 +78,7 @@ npm run seed:demos
 
 ## Try-in-place — run a workflow & see previews (Part 9)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3blyt00h9cxgcx0tr2ocd/edit](http://localhost:3000/workflows/cmrg3blyt00h9cxgcx0tr2ocd/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xygk00hqcxgc9h7coc2r/edit](http://localhost:3000/workflows/cmrg3xygk00hqcxgc9h7coc2r/edit)
 
 > Needs the Temporal worker + deno-runner live (the `dev: all` task).
 
@@ -89,7 +91,7 @@ npm run seed:demos
 
 ## Versioning — history & revert (Part 12)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3bm0e00hbcxgcfz8sd9so/edit](http://localhost:3000/workflows/cmrg3bm0e00hbcxgcfz8sd9so/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xyi300hscxgczk0i694t/edit](http://localhost:3000/workflows/cmrg3xyi300hscxgczk0i694t/edit)
 
 1. This workflow has **two saved versions**. Open **More ▸ History**.
 1. You'll see `v2` (head) and `v1`, newest-first, each with a timestamp.
@@ -100,7 +102,7 @@ npm run seed:demos
 
 ## Library workflow (Part 10)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg3bm3o00hecxgc1xfohfx8/edit](http://localhost:3000/workflows/cmrg3bm3o00hecxgc1xfohfx8/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrg3xyle00hvcxgc63lsquhm/edit](http://localhost:3000/workflows/cmrg3xyle00hvcxgc63lsquhm/edit)
 
 1. This is a **library** workflow (a reusable building block, not a top-level runnable).
 1. Open the workflows list and switch to the **Library** view/kind — this entry appears there.

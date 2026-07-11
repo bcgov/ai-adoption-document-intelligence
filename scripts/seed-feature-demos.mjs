@@ -465,6 +465,11 @@ function renderGuide(results) {
   lines.push("npm run seed:demos");
   lines.push("```");
   lines.push("");
+  lines.push(
+    "> How the seeder works (prereqs, env, extending it): see" +
+      " [FEATURE_DEMO_SEEDER.md](FEATURE_DEMO_SEEDER.md).",
+  );
+  lines.push("");
   lines.push("## Contents");
   lines.push("");
   for (const r of results) {
