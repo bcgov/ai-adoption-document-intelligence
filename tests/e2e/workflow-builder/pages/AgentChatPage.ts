@@ -17,6 +17,7 @@ export class AgentChatPage {
   readonly modelPicker: Locator;
   readonly fileInput: Locator;
   readonly attachment: Locator;
+  readonly conversationSwitcher: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -31,6 +32,28 @@ export class AgentChatPage {
     this.modelPicker = page.getByTestId("agent-chat-model-picker");
     this.fileInput = page.getByTestId("agent-chat-file-input");
     this.attachment = page.getByTestId("agent-chat-attachment");
+    this.conversationSwitcher = page.getByTestId(
+      "agent-chat-conversation-switcher",
+    );
+  }
+
+  /** Attach a file through the composer's (hidden) file input. */
+  async attachFile(file: {
+    name: string;
+    mimeType: string;
+    buffer: Buffer;
+  }): Promise<void> {
+    await this.fileInput.setInputFiles(file);
+  }
+
+  /** The "Show/Hide past conversations" toggle inside the switcher. */
+  get conversationSwitcherToggle(): Locator {
+    return this.conversationSwitcher.getByText(/past conversations/i);
+  }
+
+  /** A past-conversation row in the switcher, by conversation id. */
+  conversation(id: string): Locator {
+    return this.page.getByTestId(`agent-chat-conversation-${id}`);
   }
 
   async open(): Promise<void> {

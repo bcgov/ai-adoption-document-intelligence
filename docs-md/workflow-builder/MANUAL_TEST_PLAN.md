@@ -100,7 +100,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 | 13.3 | `tier1-sources` | 1 (CI) |
 | 14.7 (list + editor render), 14.14 (delete→republish restores under same slug; live collision still 409s) | `tier1-dynamic-node` | 1 (CI); 14.14 `@infra` |
 | 14.11, 14.12, 14.13 (publish allowlist gate + runtime net/env denial) | `tier3-dynamic-node-security` | 3 `@infra` (opt-in) |
-| 15.1, 15.2, 15.3 (surface) | `tier3-agent-stubbed` | 3 (CI) |
+| 15.1, 15.2, 15.3 (chat surface: streamed text, tool-call chips, model picker + abort); 15.4 (file attach → composer chip, queued client-side); 15.5/15.6 (conversation switcher lists prior conversations + select-to-activate) | `tier3-agent-stubbed` | 3 (CI) |
 | 15.3 (real build) | `tier3-agent-live` | 3 `@llm` (opt-in) |
 | 9.3 (run starts) | `tier3-try-infra` | 3 `@infra` (opt-in) |
 | 9.4, 9.5 (run completes: status badges → succeeded + preview widget renders) | `tier3-try-preview` | 3 `@infra` (opt-in) |
@@ -117,7 +117,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 - **Interaction gestures that a stubbed browser can't reliably drive** — **6.1** rich widgets, **6.2** the "Group selected" creation gesture (creating a group re-emits the canvas selection, clearing `activeGroupId` before the panel settles — a create-time race; the prune path IS e2e via the chip), **6.5** hover-extend. High Playwright flake for low regression value.
 - **Live-stack runtime paths** (need a real Temporal worker / deno-runner; the *core* paths already have `@infra` e2e — `tier3-try-*`, `tier3-dynamic-node-*`): most of **Part 9** replay / run-history / cache-evicted UI, **14.8–14.10** in-canvas custom-node lifecycle + Try/runtime errors *via the UI*, and the *canvas surfacing* of **14.11–14.13** security (the gates themselves are `@infra` e2e).
-- **Agent reasoning quality** (**Part 15**): the chat *surface* is guarded by `tier3-agent-stubbed` (15.1–15.3, CI) and a real build by `tier3-agent-live` (15.3, `@llm`, paid). What stays manual is the deeper UI — **15.4–15.6/15.8** file-drop, conversation persistence, guardrail messaging *via the UI* — and the model's judgement, which can't be cheaply asserted. (The deterministic UI slices — file-drop, persistence — *could* be added to `tier3-agent-stubbed`; see the backlog.)
+- **Agent reasoning quality** (**Part 15**): the chat *surface* is now well-guarded by `tier3-agent-stubbed` (15.1–15.6, CI — streamed text, tool-call chips, model picker + abort, file-attach chip, conversation switcher) and a real build by `tier3-agent-live` (15.3, `@llm`, paid). What stays manual: **15.8** guardrail messaging *via the UI*, the actual file **upload** into a `source.upload` node (needs a live workflow + worker — the client-side queue path is covered), the **delete-conversation** action, and the model's judgement, which can't be cheaply asserted.
 - **Assorted design-time gaps** worth a manual eye but not yet worth a spec: **7.4–7.8** (draw-time mismatch, picker dimming, save-time binding-walk, ctx/library Kind columns), **8.7** (map-iteration auto-wire), **12.4/12.5** (run-a-version / library pinning — the run-start happy path is `@infra` `tier3-try-infra`), **13.1, 13.5** (source palette + remaining run-drawer sections).
 - **UX polish** — **all of Part 16**. Subjective; nothing crisp to assert.
 
