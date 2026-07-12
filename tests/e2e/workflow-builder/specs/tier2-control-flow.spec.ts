@@ -429,6 +429,95 @@ test.describe("control-flow authoring", () => {
 
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
+
+  test("4.4 — childWorkflow input/output mapping list editors show saved values and a port edit round-trips", async ({
+    page,
+    request,
+  }) => {
+    const editor = await openGraph(page, request);
+    await editor.selectNode("childOcr");
+
+    // The saved input/output mappings deserialize into their row editors
+    // (deeper than the render test, which only checks the inline body).
+    await expect(
+      page.getByTestId("child-workflow-node-settings-input-row-0-port"),
+    ).toHaveValue("blobKey");
+    await expect(
+      page.getByTestId("child-workflow-node-settings-output-row-0-port"),
+    ).toHaveValue("preparedData");
+
+    // Add-row then remove-row keeps the list editor honest without persisting
+    // an empty mapping.
+    await page.getByTestId("child-workflow-node-settings-input-add").click();
+    await expect(
+      page.getByTestId("child-workflow-node-settings-input-row-1-port"),
+    ).toBeVisible();
+    await page
+      .getByTestId("child-workflow-node-settings-input-row-1-remove")
+      .click();
+    await expect(
+      page.getByTestId("child-workflow-node-settings-input-row-1-port"),
+    ).toHaveCount(0);
+
+    // Edit an input mapping's port and round-trip it through Save + reload.
+    const port = page.getByTestId(
+      "child-workflow-node-settings-input-row-0-port",
+    );
+    await port.fill("documentBlob");
+    await page.keyboard.press("Tab");
+    await editor.saveButton.click();
+
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        return wf.config.nodes.childOcr.inputMappings?.[0]?.port;
+      })
+      .toBe("documentBlob");
+
+    await editor.openExisting(createdId as string, 9);
+    await editor.selectNode("childOcr");
+    await expect(
+      page.getByTestId("child-workflow-node-settings-input-row-0-port"),
+    ).toHaveValue("documentBlob");
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
+
+  test("4.5 — pollUntil interval round-trips through Save + reload and an invalid duration shows an inline error", async ({
+    page,
+    request,
+  }) => {
+    const editor = await openGraph(page, request);
+    await editor.selectNode("pollOcr");
+
+    const interval = page.getByTestId("poll-until-node-settings-interval");
+    await expect(interval).toHaveValue("10s");
+
+    // An invalid Temporal duration surfaces an inline error (and must not
+    // commit — the draft stays local until it parses).
+    await interval.fill("nonsense");
+    await expect(page.getByText(/Temporal duration like 30s/i)).toBeVisible();
+
+    // Correct it to a valid duration and round-trip through Save + reload.
+    await interval.fill("30s");
+    await page.keyboard.press("Tab");
+    await editor.saveButton.click();
+
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        return wf.config.nodes.pollOcr.interval;
+      })
+      .toBe("30s");
+
+    await editor.openExisting(createdId as string, 9);
+    await editor.selectNode("pollOcr");
+    await expect(
+      page.getByTestId("poll-until-node-settings-interval"),
+    ).toHaveValue("30s");
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
 });
 
 test.describe("control-flow authoring — map form round-trip", () => {
@@ -473,9 +562,9 @@ test.describe("control-flow authoring — map form round-trip", () => {
     await expect(
       page.getByTestId("map-node-settings-index-ctx-key"),
     ).toHaveValue("docIndex");
-    await expect(
-      page.getByTestId("map-node-settings-body-entry"),
-    ).toHaveValue(/Body In/);
+    await expect(page.getByTestId("map-node-settings-body-entry")).toHaveValue(
+      /Body In/,
+    );
     await expect(page.getByTestId("map-node-settings-body-exit")).toHaveValue(
       /Body Out/,
     );
