@@ -1,3 +1,4 @@
+import type { GraphValidationError } from "@ai-di/graph-workflow";
 import { Prisma } from "@generated/client";
 import {
   BadRequestException,
@@ -613,6 +614,22 @@ export class WorkflowService {
       throw new ConflictException(`Workflow has no published version yet`);
     }
     return this.mapLineageAndVersion(lineage, lineage.headVersion);
+  }
+
+  /**
+   * Static validation of a graph config against the group's catalog +
+   * dynamic nodes. Returns hard errors and warnings without running the
+   * workflow. Backs the agent's `validateWorkflow` tool.
+   */
+  async validateWorkflowConfig(
+    config: GraphWorkflowConfig,
+    groupId: string,
+  ): Promise<{ valid: boolean; errors: GraphValidationError[] }> {
+    return validateGraphConfigWithDynamicNodes(
+      config,
+      groupId,
+      this.dynamicNodeRepository,
+    );
   }
 
   async createWorkflow(

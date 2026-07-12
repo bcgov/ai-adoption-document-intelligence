@@ -409,6 +409,23 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
       },
     }),
 
+    validateWorkflow: tool({
+      description:
+        "Statically validate a workflow (no run). Returns `errors` (must be fixed) and `warnings` (should be addressed, e.g. unbound required inputs, missing entry node). Call this after building/editing and before finishing.",
+      inputSchema: z.object({ workflowId: z.string().optional() }),
+      execute: async ({ workflowId }) => {
+        const id = ensureNonNullWorkflowId(ctx, workflowId);
+        const wf = await fetchWorkflowInGroup(ctx, id);
+        const result = await ctx.workflowService.validateWorkflowConfig(
+          wf.config,
+          ctx.groupId,
+        );
+        const errors = result.errors.filter((e) => e.severity === "error");
+        const warnings = result.errors.filter((e) => e.severity === "warning");
+        return { ok: true as const, valid: result.valid, errors, warnings };
+      },
+    }),
+
     createWorkflow: tool({
       description:
         "Create a new workflow in the calling group, pre-seeded with a `source.upload` node as the entry point. The conversation auto-binds to the new workflow id so subsequent tool calls (addNode, connectNodes, etc.) target it.",

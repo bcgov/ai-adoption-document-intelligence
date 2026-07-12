@@ -718,3 +718,44 @@ describe("describeNode", () => {
     expect(res.error?.code).toBe("unknown-activity");
   });
 });
+
+describe("validateWorkflow", () => {
+  it("splits validator output into errors and warnings by severity", async () => {
+    const { ctx } = makeCtx({
+      workflowService: {
+        getWorkflow: jest.fn(async () => ({
+          id: "wf-1",
+          groupId: "group-1",
+          config: emptyConfig(),
+        })),
+        validateWorkflowConfig: jest.fn(async () => ({
+          valid: false,
+          errors: [
+            {
+              path: "nodes.a.label",
+              message: "must have a label",
+              severity: "error",
+            },
+            {
+              path: "nodes.b.inputs.x",
+              message: "unsatisfied input",
+              severity: "warning",
+            },
+          ],
+        })),
+      } as unknown as WorkflowService,
+    });
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      valid: boolean;
+      errors: Array<{ message: string }>;
+      warnings: Array<{ message: string }>;
+    }>(tools, "validateWorkflow", {});
+    expect(res.ok).toBe(true);
+    expect(res.valid).toBe(false);
+    expect(res.errors).toHaveLength(1);
+    expect(res.warnings).toHaveLength(1);
+    expect(res.warnings[0].message).toContain("unsatisfied");
+  });
+});
