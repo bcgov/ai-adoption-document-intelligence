@@ -84,6 +84,35 @@ slug `demo-uppercase`: `PUT` when the lineage is already live, `POST` otherwise
 (which restores a tombstone from a prior run). No `-N` suffix churn — deleting
 the demo node in the UI and re-seeding lands back on `demo-uppercase`.
 
+### AI agent chat-log demos
+
+Beyond the per-feature workflows, the seeder also seeds **agent chat logs** — real
+transcripts captured from live runs of the workflow agent (Azure gpt-5.4). Each
+one is defined by a fixture in [`scripts/agent-demo-fixtures/`](../../scripts/agent-demo-fixtures/)
+holding the captured `messages` (the user prompt + the assistant turn with every
+tool call embedded as parts) plus the final workflow `config`.
+
+For each fixture, `seedAgentDemos()`:
+
+1. Re-creates the built workflow via the API (name-prefixed `🎯 Demo — `, so
+   `deleteExistingDemos()` sweeps it too).
+2. Inserts a `ChatConversation` + its `ChatMessage` rows **directly via Prisma**
+   (there is no API to create an arbitrary transcript). The conversation id is
+   **fixed by the fixture** (e.g. `demo-agent-ocr-pipeline`) so the guide's
+   `?agentChat=<id>` deep link is stable across reseeds, and `createdBy` is the
+   actor the seeded `x-api-key` resolves to (`ApiKey.actor_id` for the group) so
+   the demo session — which sends that key — can open it.
+
+The guide then renders an **🤖 AI agent chat logs** section: each row has a
+**💬 Chat log** link (`?agentChat=<id>` — opens the drawer and replays the whole
+conversation) and a **▶ Workflow** link (the graph the agent produced).
+
+**To add a scenario:** capture a live run (drive the agent, then export the
+conversation via `GET /api/agent/conversations/:id` and the workflow via
+`GET /api/workflows/:id`), write a `scripts/agent-demo-fixtures/scenario-N.json`
+(`{ conversationId, title, provider, model, workflow: { name, description, config }, steps, messages }`),
+and add its filename to `AGENT_DEMO_FIXTURES` in `seed-feature-demos.mjs`.
+
 ## Why it's generated
 
 The guide's value is **deep links to specific workflows** (`/workflows/<id>/edit`),

@@ -57,6 +57,7 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): {
   ctx: AgentToolContext;
   state: FakeWorkflowState;
   updateWorkflow: jest.Mock;
+  createWorkflow: jest.Mock;
   internalFetchMock: jest.Mock;
 } {
   const state: FakeWorkflowState = { config: emptyConfig() };
@@ -85,9 +86,22 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): {
     },
   );
 
+  // Captures the config the createWorkflow tool builds so tests can assert
+  // it is valid (e.g. the seed node carries a non-empty label).
+  const createWorkflow = jest.fn(
+    async (
+      _actor: string,
+      dto: { name: string; config: GraphWorkflowConfig },
+    ) => {
+      state.config = dto.config;
+      return { id: "wf-1", name: dto.name, slug: "wf-1-slug" };
+    },
+  );
+
   const workflowService = {
     getWorkflow,
     updateWorkflow,
+    createWorkflow,
   } as unknown as WorkflowService;
 
   const dynamicNodesService = {
@@ -109,7 +123,7 @@ function makeCtx(overrides: Partial<AgentToolContext> = {}): {
     ...overrides,
   };
 
-  return { ctx, state, updateWorkflow, internalFetchMock };
+  return { ctx, state, updateWorkflow, createWorkflow, internalFetchMock };
 }
 
 function fetchResponse(status: number, body: unknown): Response {
@@ -143,6 +157,52 @@ describe("listSourceCatalog (ITEM 22)", () => {
     expect(types).toEqual(SOURCE_CATALOG.map((e) => e.type).sort());
     // source.upload is the seeded entry-point source — must be present.
     expect(types).toContain("source.upload");
+  });
+});
+
+// ── Node label: the graph validator requires every node to carry a
+//    non-empty `label`. The agent tools must set it, or createWorkflow /
+//    addNode produce configs the validator rejects ("must have a
+//    non-empty label"), breaking all agent-driven workflow building.
+
+describe("agent tools set a non-empty node label", () => {
+  it("createWorkflow seeds the upload node with a non-empty label", async () => {
+    const { ctx, createWorkflow } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; workflow: { entryNodeId: string } }>(
+      tools,
+      "createWorkflow",
+      { name: "Demo WF" },
+    );
+    expect(res.ok).toBe(true);
+    const dto = createWorkflow.mock.calls[0][1] as {
+      config: GraphWorkflowConfig;
+    };
+    const seed = dto.config.nodes[res.workflow.entryNodeId] as {
+      label?: string;
+    };
+    expect(typeof seed.label).toBe("string");
+    expect(seed.label?.trim().length ?? 0).toBeGreaterThan(0);
+  });
+
+  it("addNode sets label from the provided name", async () => {
+    const { ctx, state } = makeCtx();
+    const tools = createAgentTools(ctx);
+    await exec(tools, "addNode", {
+      node: { id: "prep", type: "file.prepare", name: "Prepare File" },
+    });
+    const node = state.config.nodes.prep as { label?: string };
+    expect(node.label).toBe("Prepare File");
+  });
+
+  it("addNode falls back to the node id when no name is given", async () => {
+    const { ctx, state } = makeCtx();
+    const tools = createAgentTools(ctx);
+    await exec(tools, "addNode", {
+      node: { id: "ocr1", type: "azureOcr.submit" },
+    });
+    const node = state.config.nodes.ocr1 as { label?: string };
+    expect(node.label).toBe("ocr1");
   });
 });
 

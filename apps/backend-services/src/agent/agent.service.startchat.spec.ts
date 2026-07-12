@@ -281,6 +281,26 @@ describe("AgentService.startChat — abort cleanup (ITEM 24/25)", () => {
     expect(capturedStreamTextOptions?.abortSignal).toBeInstanceOf(AbortSignal);
   });
 
+  // Batched (parallel) tool calls in one step race the agent tools'
+  // read-modify-write of the workflow config, silently dropping nodes.
+  // Disable parallel tool calls so the model emits graph edits one at a
+  // time. Set for both providers; each ignores the other's key.
+  it("disables parallel tool calls to avoid racing workflow writes", async () => {
+    const { service } = makeHarness({});
+    await service.startChat({
+      ...baseInput,
+      messages: [userMsg("hi")],
+    } as never);
+    const opts = capturedStreamTextOptions as unknown as {
+      providerOptions?: {
+        openai?: { parallelToolCalls?: boolean };
+        anthropic?: { disableParallelToolUse?: boolean };
+      };
+    };
+    expect(opts.providerOptions?.openai?.parallelToolCalls).toBe(false);
+    expect(opts.providerOptions?.anthropic?.disableParallelToolUse).toBe(true);
+  });
+
   // Regression: an errored turn rejects `result.finishReason` with
   // NoOutputGeneratedError. The abort-cleanup chain must swallow that
   // rejection — an unhandled rejection terminates the Node process

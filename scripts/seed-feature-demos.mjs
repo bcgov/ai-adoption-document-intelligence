@@ -19,7 +19,8 @@
  * (default http://localhost:3000), TEST_API_KEY (defaults to the documented
  * local seed key, matching playwright.config.ts).
  */
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,6 +54,11 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3002";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const GROUP_ID = "seeddefaultgroup";
 const NAME_PREFIX = "🎯 Demo — ";
+// Agent chat-log demos: transcripts captured from real live agent runs
+// (Azure gpt-5.4), seeded as ChatConversation + ChatMessage rows so the
+// FEATURE_DEMO_GUIDE `?agentChat=<id>` links replay them. Fixture workflow
+// names carry NAME_PREFIX so deleteExistingDemos() sweeps them too.
+const AGENT_DEMO_FIXTURES = ["scenario-1.json", "scenario-2.json"];
 const GUIDE_PATH = resolve(
   __dirname,
   "../docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md",
@@ -1171,7 +1177,7 @@ async function seed() {
   return results;
 }
 
-function renderGuide(results) {
+function renderGuide(results, agentResults = []) {
   // Slug-based links resolve through `/workflows/by-slug/<slug>/edit` — the
   // slug is derived from the (stable) demo name, so these links survive a
   // reseed even though each workflow's lineage id is regenerated. Fall back
@@ -1180,6 +1186,9 @@ function renderGuide(results) {
     r.slug
       ? `${FRONTEND_URL}/workflows/by-slug/${r.slug}/edit`
       : `${FRONTEND_URL}/workflows/${r.id}/edit`;
+  // Agent chat-log deep link: opens the drawer and replays the seeded
+  // conversation. The conversation id is fixed by the fixture, so stable.
+  const chatLink = (r) => `${FRONTEND_URL}/?agentChat=${r.convId}`;
   const lines = [];
   lines.push("# Workflow Builder — Feature Demo Guide");
   lines.push("");
@@ -1217,6 +1226,9 @@ function renderGuide(results) {
   for (const r of results) {
     lines.push(`- [${r.title}](#${slug(r.title)})`);
   }
+  if (agentResults.length > 0) {
+    lines.push("- [🤖 AI agent chat logs](#-ai-agent-chat-logs)");
+  }
   lines.push("");
   lines.push("---");
   lines.push("");
@@ -1238,6 +1250,32 @@ function renderGuide(results) {
     lines.push("---");
     lines.push("");
   }
+  if (agentResults.length > 0) {
+    lines.push("## 🤖 AI agent chat logs");
+    lines.push("");
+    lines.push(
+      "Transcripts captured from **real live runs** of the workflow agent" +
+        " (Azure gpt-5.4). Open a chat-log link — the agent drawer opens and" +
+        " **replays** the whole conversation (your prompt + every tool call" +
+        " the agent made) so you can watch how the workflow was built. The" +
+        " workflow link opens the graph the agent produced.",
+    );
+    lines.push("");
+    for (const r of agentResults) {
+      lines.push(`### ${r.title}`);
+      lines.push("");
+      lines.push(`**💬 Chat log:** [${chatLink(r)}](${chatLink(r)})`);
+      lines.push("");
+      lines.push(`**▶ Workflow:** [${link(r)}](${link(r)})`);
+      lines.push("");
+      for (const step of r.steps ?? []) {
+        lines.push(`1. ${step}`);
+      }
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+  }
   const dynSeeded = results.some((r) => r.dyn);
   lines.push(
     "_Not seeded here because they need a live worker" +
@@ -1247,8 +1285,10 @@ function renderGuide(results) {
       (dynSeeded
         ? "execution/security (Part 14 run-time — the editor surface is seeded above)"
         : "authoring/execution/security (Part 14)") +
-      ", and the AI agent (Part 15). Walk those from `MANUAL_TEST_PLAN.md`" +
-      " with the stack up._",
+      ". The AI agent (Part 15) chat-log replays are seeded above; driving" +
+      " the live agent to build a NEW workflow still needs the stack + a" +
+      " configured model. Walk those from `MANUAL_TEST_PLAN.md` with the" +
+      " stack up._",
   );
   lines.push("");
   return lines.join("\n");
@@ -1276,6 +1316,123 @@ async function resolveApiKey() {
   return null;
 }
 
+/**
+ * Seed the agent chat-log demos. For each fixture: (re)create the built
+ * workflow via the API, then insert its ChatConversation + ChatMessage rows
+ * directly (there is no API to create an arbitrary transcript). The
+ * conversation gets a FIXED id so the guide's `?agentChat=<id>` deep link is
+ * stable across reseeds, and `createdBy` is the actor the seeded x-api-key
+ * resolves to (so the demo session — which sends that key — can open it).
+ */
+async function seedAgentDemos() {
+  const require = createRequire(import.meta.url);
+  const {
+    PrismaClient,
+  } = require("../apps/backend-services/src/generated/client");
+  const { PrismaPg } = require("@prisma/adapter-pg");
+  // The generated client is configured for a driver adapter (matching
+  // seed.ts). Build the pg adapter from DATABASE_URL (loaded from the backend
+  // .env above); honour PGSSLMODE if set, otherwise a plain connection string.
+  let connectionString = process.env.DATABASE_URL ?? "";
+  const sslMode = process.env.PGSSLMODE;
+  if (sslMode && connectionString) {
+    try {
+      const parsed = new URL(connectionString);
+      parsed.searchParams.set("sslmode", sslMode);
+      parsed.searchParams.set("uselibpqcompat", "true");
+      connectionString = parsed.toString();
+    } catch {
+      // keep the raw connection string
+    }
+  }
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const results = [];
+  try {
+    // ApiKey.group_id is unique — one key per group. Its actor is what an
+    // x-api-key request for this group authenticates as.
+    const key = await prisma.apiKey.findUnique({
+      where: { group_id: GROUP_ID },
+      select: { actor_id: true },
+    });
+    if (!key) {
+      console.log(
+        `  ! skipped agent demos — no API key actor for group ${GROUP_ID}`,
+      );
+      return results;
+    }
+    const createdBy = key.actor_id;
+
+    for (const file of AGENT_DEMO_FIXTURES) {
+      const fx = JSON.parse(
+        readFileSync(resolve(__dirname, "agent-demo-fixtures", file), "utf-8"),
+      );
+      const created = unwrap(
+        await api("POST", "/api/workflows", {
+          name: fx.workflow.name,
+          description: fx.workflow.description,
+          config: fx.workflow.config,
+          groupId: GROUP_ID,
+        }),
+      );
+
+      await prisma.chatConversation.upsert({
+        where: { id: fx.conversationId },
+        update: {
+          workflowId: created.id,
+          groupId: GROUP_ID,
+          createdBy,
+          provider: fx.provider,
+          model: fx.model,
+          title: fx.title,
+        },
+        create: {
+          id: fx.conversationId,
+          workflowId: created.id,
+          groupId: GROUP_ID,
+          createdBy,
+          provider: fx.provider,
+          model: fx.model,
+          title: fx.title,
+        },
+      });
+
+      // Replace messages so a re-run is idempotent. Explicit increasing
+      // createdAt keeps replay order stable even within the same millisecond.
+      await prisma.chatMessage.deleteMany({
+        where: { conversationId: fx.conversationId },
+      });
+      const base = Date.now();
+      for (let i = 0; i < fx.messages.length; i++) {
+        const m = fx.messages[i];
+        await prisma.chatMessage.create({
+          data: {
+            conversationId: fx.conversationId,
+            role: m.role,
+            content: m.content,
+            inputTokens: m.inputTokens ?? null,
+            outputTokens: m.outputTokens ?? null,
+            createdAt: new Date(base + i * 1000),
+          },
+        });
+      }
+
+      results.push({
+        title: fx.title,
+        convId: fx.conversationId,
+        slug: created.slug,
+        steps: fx.steps,
+        agent: true,
+      });
+      console.log(
+        `  ✓ ${"agent-demo".padEnd(14)} ${created.id} (chat ${fx.conversationId})`,
+      );
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+  return results;
+}
+
 async function main() {
   apiKey = await resolveApiKey();
   if (!apiKey) {
@@ -1285,7 +1442,8 @@ async function main() {
     );
   }
   const results = await seed();
-  writeFileSync(GUIDE_PATH, renderGuide(results), "utf-8");
+  const agentResults = await seedAgentDemos();
+  writeFileSync(GUIDE_PATH, renderGuide(results, agentResults), "utf-8");
   console.log(`\nGuide written → ${GUIDE_PATH}`);
   console.log(`Open the workflows list: ${FRONTEND_URL}/workflows`);
 }

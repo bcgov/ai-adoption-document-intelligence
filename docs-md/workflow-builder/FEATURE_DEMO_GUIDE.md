@@ -30,6 +30,7 @@ npm run seed:demos
 - [Versioning — history & revert (Part 12)](#versioning-history-revert-part-12)
 - [Library workflow (Part 10)](#library-workflow-part-10)
 - [Dynamic (custom-code) node — DYN pill & script editor (Part 14)](#dynamic-customcode-node-dyn-pill-script-editor-part-14)
+- [🤖 AI agent chat logs](#-ai-agent-chat-logs)
 
 ---
 
@@ -190,4 +191,32 @@ npm run seed:demos
 
 ---
 
-_Not seeded here because they need a live worker or LLM credentials: real OCR output previews + incremental cache-hit re-runs (Part 9 run-time), dynamic-node execution/security (Part 14 run-time — the editor surface is seeded above), and the AI agent (Part 15). Walk those from `MANUAL_TEST_PLAN.md` with the stack up._
+## 🤖 AI agent chat logs
+
+Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.4). Open a chat-log link — the agent drawer opens and **replays** the whole conversation (your prompt + every tool call the agent made) so you can watch how the workflow was built. The workflow link opens the graph the agent produced.
+
+### Agent demo — Invoice OCR pipeline
+
+**💬 Chat log:** [http://localhost:3000/?agentChat=demo-agent-ocr-pipeline](http://localhost:3000/?agentChat=demo-agent-ocr-pipeline)
+
+**▶ Workflow:** [http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit)
+
+1. Open the chat-log link — the drawer replays the full agent conversation (prompt + every tool call).
+1. Watch the agent read the catalog, then create the workflow and add nodes in dependency order.
+1. Open the workflow link to inspect the built graph: upload → prepare → Azure OCR (submit/poll/extract) → cleanup → store.
+
+---
+
+### Agent demo — Classify & split
+
+**💬 Chat log:** [http://localhost:3000/?agentChat=demo-agent-classify-split](http://localhost:3000/?agentChat=demo-agent-classify-split)
+
+**▶ Workflow:** [http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit](http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit)
+
+1. Open the chat-log link — the drawer replays the agent building the classify/split graph.
+1. Note the agent flagging placeholder parameters (classifier name, target labels) for you to fill in.
+1. Open the workflow link: upload → prepare → normalize → Azure classify (submit/poll) → select classified pages → flatten.
+
+---
+
+_Not seeded here because they need a live worker or LLM credentials: real OCR output previews + incremental cache-hit re-runs (Part 9 run-time), dynamic-node execution/security (Part 14 run-time — the editor surface is seeded above). The AI agent (Part 15) chat-log replays are seeded above; driving the live agent to build a NEW workflow still needs the stack + a configured model. Walk those from `MANUAL_TEST_PLAN.md` with the stack up._

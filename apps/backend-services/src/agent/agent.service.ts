@@ -187,6 +187,14 @@ export class AgentService {
       stopWhen: stepCountIs(this.env.maxSteps),
       maxOutputTokens: this.env.maxOutputTokens,
       abortSignal: abortRegistration.controller.signal,
+      // Force one tool call per step. The graph-edit tools read-modify-write
+      // the workflow config; parallel tool calls in a single step race that
+      // sequence and silently drop nodes. Each provider ignores the other's
+      // key.
+      providerOptions: {
+        openai: { parallelToolCalls: false },
+        anthropic: { disableParallelToolUse: true },
+      },
       onFinish: async (event) => {
         try {
           await this.chatRepository.touchLastMessageAt(

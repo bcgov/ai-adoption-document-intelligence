@@ -365,7 +365,7 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
           id: uploadId,
           type: "source",
           sourceType: "source.upload",
-          name: "Upload",
+          label: "Upload",
           parameters: {},
           position: { x: 100, y: 100 },
           inputs: [],
@@ -487,7 +487,10 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const newNode: GraphNode = {
           id: partial.id,
           ...shapeFields,
-          name: partial.name ?? partial.id,
+          // The graph validator requires a non-empty `label` on every node.
+          // The agent supplies a human name via `node.name`; fall back to the
+          // id so a name-less add still produces a valid node.
+          label: partial.name ?? partial.id,
           parameters: partial.parameters ?? {},
           position: partial.position ?? autoPosition(nodeCount),
           inputs: partial.inputs ?? [],
