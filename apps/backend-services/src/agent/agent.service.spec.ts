@@ -15,6 +15,7 @@ function makeService(repo: Partial<ChatRepository>): AgentService {
     dep,
     dep,
     dep,
+    dep,
   );
 }
 

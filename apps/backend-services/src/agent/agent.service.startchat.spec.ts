@@ -49,6 +49,7 @@ import type { AgentEnv } from "./agent.env";
 import { AgentService } from "./agent.service";
 import type { ChatRepository } from "./chat.repository";
 import type { ProviderResolver } from "./provider-resolver";
+import { RunBudgetMap } from "./run-budget-map";
 
 function makeEnv(overrides: Partial<AgentEnv> = {}): AgentEnv {
   return {
@@ -117,6 +118,7 @@ function makeHarness(opts: {
     {} as never,
     {} as never,
     abortFlags,
+    new RunBudgetMap(),
     logger as never,
   );
 

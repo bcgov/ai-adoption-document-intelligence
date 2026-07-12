@@ -10,6 +10,7 @@ import { AgentEnv } from "./agent.env";
 import { AgentService } from "./agent.service";
 import { ChatRepository } from "./chat.repository";
 import { ProviderResolver } from "./provider-resolver";
+import { RunBudgetMap } from "./run-budget-map";
 
 /**
  * Phase 7 — AI workflow builder agent module.
@@ -39,6 +40,7 @@ import { ProviderResolver } from "./provider-resolver";
   controllers: [AgentController],
   providers: [
     AbortFlagMap,
+    RunBudgetMap,
     AgentEnv,
     ProviderResolver,
     ChatRepository,

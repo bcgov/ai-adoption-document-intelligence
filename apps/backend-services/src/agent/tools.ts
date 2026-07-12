@@ -21,6 +21,7 @@ import type {
   WorkflowInfo,
   WorkflowService,
 } from "@/workflow/workflow.service";
+import type { RunBudgetMap } from "./run-budget-map";
 
 /**
  * Default cap on the number of characters of a single tool result that
@@ -91,6 +92,12 @@ export interface AgentToolContext {
    * {@link DEFAULT_MAX_TOOL_RESULT_CHARS} when unset.
    */
   maxToolResultChars?: number;
+  /** Conversation this tool run belongs to — keys the run budget. */
+  conversationId?: string;
+  /** Per-conversation live-run cap; refuses runs past `maxRunsPerConversation`. */
+  runBudget?: RunBudgetMap;
+  /** Max runs allowed for this conversation (from AgentEnv). */
+  maxRunsPerConversation?: number;
   /**
    * Hook the agent service registers so it can rebind the conversation's
    * `workflowId` when the agent's first `createWorkflow` lands.

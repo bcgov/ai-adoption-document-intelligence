@@ -20,6 +20,7 @@ import { AbortFlagMap } from "./abort-flag-map";
 import { AgentEnv, type AgentProvider } from "./agent.env";
 import { ChatRepository } from "./chat.repository";
 import { ProviderResolver } from "./provider-resolver";
+import { RunBudgetMap } from "./run-budget-map";
 import { WORKFLOW_BUILDER_SYSTEM_PROMPT } from "./system-prompt";
 import { type AgentToolContext, createAgentTools } from "./tools";
 
@@ -58,6 +59,7 @@ export class AgentService {
     private readonly workflowService: WorkflowService,
     private readonly dynamicNodesService: DynamicNodesService,
     private readonly abortFlags: AbortFlagMap,
+    private readonly runBudget: RunBudgetMap,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -160,6 +162,9 @@ export class AgentService {
       workflowService: this.workflowService,
       dynamicNodesService: this.dynamicNodesService,
       maxToolResultChars: this.env.maxToolResultChars,
+      conversationId: conversation.id,
+      runBudget: this.runBudget,
+      maxRunsPerConversation: this.env.maxRunsPerConversation,
       onWorkflowCreated: async (workflowId) => {
         if (conversation !== null && conversation.workflowId === null) {
           await this.chatRepository.setWorkflowId(conversation.id, workflowId);
