@@ -229,9 +229,17 @@ export class AgentService {
     // registration's `clear()` is a compare-and-delete: it only evicts
     // this turn's controller if a later turn hasn't replaced it (avoids
     // the resent-turn abort race).
-    void Promise.resolve(result.finishReason).finally(() => {
-      abortRegistration.clear();
-    });
+    //
+    // An errored turn rejects `finishReason` (e.g. NoOutputGeneratedError
+    // when the model produced nothing). The error is already surfaced to
+    // the client through the stream (`onError`); swallow it here so the
+    // detached cleanup chain never becomes an unhandled rejection — which
+    // under Node ≥15 terminates the whole backend process mid-stream.
+    void Promise.resolve(result.finishReason)
+      .catch(() => undefined)
+      .finally(() => {
+        abortRegistration.clear();
+      });
 
     return { conversationId: conversation.id, streamResult: result };
   }

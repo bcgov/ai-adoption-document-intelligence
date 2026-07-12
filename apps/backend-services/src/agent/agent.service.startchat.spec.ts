@@ -10,6 +10,12 @@ let capturedStreamTextOptions: {
   abortSignal?: AbortSignal;
 } | null = null;
 
+// The `finishReason` promise the stubbed stream exposes. Defaults to a
+// resolved stream; individual tests override it (e.g. to a rejected
+// promise) to simulate an errored turn. `mock`-prefixed so the hoisted
+// jest.mock factory may reference it.
+let mockFinishReason: () => Promise<unknown> = () => Promise.resolve("stop");
+
 jest.mock("ai", () => {
   const actual = jest.requireActual("ai");
   return {
@@ -18,7 +24,7 @@ jest.mock("ai", () => {
     streamText: jest.fn((options: unknown) => {
       capturedStreamTextOptions = options as typeof capturedStreamTextOptions;
       return {
-        finishReason: Promise.resolve("stop"),
+        finishReason: mockFinishReason(),
       } as unknown as StreamTextResult<ToolSet, never>;
     }),
   };
@@ -68,6 +74,7 @@ function makeHarness(opts: {
 }): Harness {
   capturedStreamTextOptions = null;
   capturedToolCtx = null;
+  mockFinishReason = () => Promise.resolve("stop");
 
   const conversation =
     opts.conversation === undefined
@@ -272,6 +279,37 @@ describe("AgentService.startChat — abort cleanup (ITEM 24/25)", () => {
       messages: [userMsg("hi")],
     } as never);
     expect(capturedStreamTextOptions?.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  // Regression: an errored turn rejects `result.finishReason` with
+  // NoOutputGeneratedError. The abort-cleanup chain must swallow that
+  // rejection — an unhandled rejection terminates the Node process
+  // (Node ≥15), taking the whole backend down mid-stream.
+  it("does not emit an unhandled rejection when the stream's finishReason rejects", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const { service, abortFlags } = makeHarness({});
+      // Set AFTER makeHarness (which resets the override) so this turn's
+      // stubbed stream rejects its finishReason.
+      mockFinishReason = () =>
+        Promise.reject(new Error("No output generated. Check the stream."));
+      // startChat itself must resolve — the errored turn surfaces via the
+      // stream/onError, not by rejecting startChat.
+      await service.startChat({
+        ...baseInput,
+        messages: [userMsg("hi")],
+      } as never);
+      // Let the finishReason .finally chain settle and any unhandled
+      // rejection surface on the next macrotask ticks.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(unhandled).toHaveLength(0);
+      // Cleanup still ran despite the rejection.
+      expect(abortFlags.abort("conv-1")).toBe(false);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 });
 

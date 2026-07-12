@@ -501,6 +501,18 @@ The following fixes harden the agent module beyond the original Phase 7.0 scope.
 
 7. **Prompt-injection isolation.** `wrapToolData` also wraps tool-result content in `<<<TOOL_RESULT_DATA … TOOL_RESULT_DATA>>>` fences, and the system prompt instructs the model to treat fenced content strictly as data, never as instructions — mitigating injection from user-controlled document text, workflow names, and node params while the agent holds write + publish + run capability.
 
+## 12b. Multi-provider wiring + conversation replay (2026-07)
+
+Landed while wiring the agent to a live Azure subscription and preparing seeded chat-log demos.
+
+1. **Azure provider is live; gpt-5.4 is the default UI model.** `AgentEnv` reads `AGENT_DEFAULT_PROVIDER` (`anthropic` | `azure`), plus the shared `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_DEPLOYMENT` / `AZURE_OPENAI_API_VERSION`. `ProviderResolver.buildModel` constructs an Azure model via `createAzure(...).chat(deployment)` (legacy chat/completions, which APIM proxies forward; the Responses API is avoided). The per-request `{ provider, model }` from the frontend picker overrides the default — `model` is used verbatim as the Azure **deployment name**. The frontend picker (`AGENT_MODEL_OPTIONS` in `store.ts`) now defaults to **Azure gpt-5.4** (strongest for tool use + dynamic-node authoring), with gpt-5.2 / gpt-4o / Claude fallbacks. NB: `AZURE_OPENAI_*` is **shared** with `enrich-results`, `format-suggestion`, and `ai-recommendation` — repoint the endpoint only knowing all four move together.
+
+2. **An errored turn no longer crashes the backend.** When a turn produces no output the SDK **rejects** `result.finishReason` with `NoOutputGeneratedError`. The detached abort-cleanup chain (`Promise.resolve(result.finishReason).finally(clear)`) left that rejection unhandled, which under Node ≥15 terminates the process mid-stream. `startChat` now `.catch(() => undefined)`s before the `.finally`; the error still reaches the client through the stream's `onError`. Regression test: `agent.service.startchat.spec.ts` › "does not emit an unhandled rejection when the stream's finishReason rejects".
+
+3. **Conversation replay in the drawer.** Selecting a past conversation now visually replays it (previously it only set the active id). `conversation-replay.ts#storedMessagesToUIMessages` mirrors the server's `storedRowToUIMessage` to project persisted rows (`{ parts }` / legacy `{ text }`, including `dynamic-tool` parts) into `UIMessage[]`. The drawer's runtime lives in an inner `ChatThread` keyed by a reset counter; an explicit switch/reset remounts it and seeds `useChatRuntime({ messages })`, while a fresh send that only adopts the response's `x-conversation-id` does NOT remount, so the live thread survives. Text and tool-call transcripts both replay.
+
+4. **Chat-log deep link.** `?agentChat=<conversationId>` (`conversation-replay.ts#parseAgentChatDeepLink`) opens the drawer and replays that conversation on load — handled once per id. This is the link form FEATURE_DEMO_GUIDE uses to point at seeded agent chat logs.
+
 ## 13. Companion documents
 
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5 Phase 7 — the original plan entry; this doc is its detailed decision record.

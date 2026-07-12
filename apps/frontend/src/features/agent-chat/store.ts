@@ -10,7 +10,23 @@ export interface AgentModelOption {
 
 export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
   {
-    label: "Claude Haiku 4.5 (cheap, recommended for testing)",
+    label:
+      "Azure GPT-5.4 (recommended — strongest for tool use + dynamic nodes)",
+    provider: "azure",
+    model: "gpt-5.4",
+  },
+  {
+    label: "Azure GPT-5.2",
+    provider: "azure",
+    model: "gpt-5.2",
+  },
+  {
+    label: "Azure GPT-4o (reliable fallback)",
+    provider: "azure",
+    model: "gpt-4o",
+  },
+  {
+    label: "Claude Haiku 4.5 (cheap, for quick testing)",
     provider: "anthropic",
     model: "claude-haiku-4-5-20251001",
   },
@@ -23,11 +39,6 @@ export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
     label: "Claude Opus 4.7 (1M context)",
     provider: "anthropic",
     model: "claude-opus-4-7",
-  },
-  {
-    label: "Azure GPT-4o (multi-provider verification)",
-    provider: "azure",
-    model: "gpt-4o",
   },
 ];
 

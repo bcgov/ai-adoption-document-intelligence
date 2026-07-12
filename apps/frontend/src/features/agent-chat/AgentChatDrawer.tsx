@@ -28,18 +28,33 @@ import {
   IconSend2,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { DefaultChatTransport } from "ai";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "../../auth/GroupContext";
 import { ConversationSwitcher } from "./ConversationSwitcher";
+import {
+  parseAgentChatDeepLink,
+  storedMessagesToUIMessages,
+} from "./conversation-replay";
 import { ErrorBodyRenderer } from "./error-renderers";
 import {
   AGENT_MODEL_OPTIONS,
   type AgentModelOption,
   useAgentChatStore,
 } from "./store";
-import { getAgentAuthHeaders } from "./useAgentConversations";
+import {
+  fetchAgentConversation,
+  getAgentAuthHeaders,
+} from "./useAgentConversations";
 import "./agent-chat.css";
 
 const DRAWER_SIZE = 540;
@@ -60,6 +75,7 @@ function useCurrentWorkflowId(): string | null {
 
 export function AgentChatDrawer() {
   const isOpen = useAgentChatStore((s) => s.isOpen);
+  const open = useAgentChatStore((s) => s.open);
   const close = useAgentChatStore((s) => s.close);
   const conversationId = useAgentChatStore((s) => s.conversationId);
   const setConversationId = useAgentChatStore((s) => s.setConversationId);
@@ -67,15 +83,143 @@ export function AgentChatDrawer() {
   const setSelectedModel = useAgentChatStore((s) => s.setSelectedModel);
   const resetConversation = useAgentChatStore((s) => s.resetConversation);
   const [resetKey, bumpResetKey] = useResetKey();
+  // Messages the thread seeds from when it (re)mounts. Populated on an
+  // explicit conversation switch so a past chat visually replays.
+  const [seedMessages, setSeedMessages] = useState<UIMessage[]>([]);
 
   const currentWorkflowId = useCurrentWorkflowId();
   const { activeGroup } = useGroup();
   const activeGroupId = activeGroup?.id ?? null;
-  const queryClient = useQueryClient();
   const conversationIdRef = useRef<string | null>(conversationId);
   conversationIdRef.current = conversationId;
   const activeGroupIdRef = useRef<string | null>(activeGroupId);
   activeGroupIdRef.current = activeGroupId;
+
+  const handleReset = useCallback(() => {
+    setSeedMessages([]);
+    resetConversation();
+    bumpResetKey();
+  }, [resetConversation, bumpResetKey]);
+
+  // Switch to a past conversation: load its history, seed it, then remount
+  // the thread (resetKey). A fresh send that only sets conversationId from
+  // the response header does NOT bump resetKey, so the live thread survives.
+  // `null` (clicking the active row to deselect) starts a fresh conversation.
+  const handleSelect = useCallback(
+    (id: string | null): void => {
+      if (id === null) {
+        handleReset();
+        return;
+      }
+      setConversationId(id);
+      void (async () => {
+        try {
+          const detail = await fetchAgentConversation(
+            id,
+            activeGroupIdRef.current,
+          );
+          setSeedMessages(storedMessagesToUIMessages(detail.messages));
+        } catch {
+          setSeedMessages([]);
+        }
+        bumpResetKey();
+      })();
+    },
+    [setConversationId, bumpResetKey, handleReset],
+  );
+
+  // Deep link: `?agentChat=<id>` (used by FEATURE_DEMO_GUIDE links) opens the
+  // drawer and replays that conversation. Handled once per id so it doesn't
+  // re-fire on unrelated location changes or re-renders.
+  const location = useLocation();
+  const handledDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    const deepLinkId = parseAgentChatDeepLink(location.search);
+    if (deepLinkId === null || handledDeepLinkRef.current === deepLinkId) {
+      return;
+    }
+    handledDeepLinkRef.current = deepLinkId;
+    open();
+    handleSelect(deepLinkId);
+  }, [location.search, open, handleSelect]);
+
+  return (
+    <Drawer
+      opened={isOpen}
+      onClose={close}
+      position="right"
+      size={DRAWER_SIZE}
+      withCloseButton={false}
+      lockScroll={false}
+      withOverlay={false}
+      transitionProps={{ duration: 180 }}
+      styles={{
+        body: { padding: 0, height: "100%" },
+        content: { height: "100vh" },
+      }}
+      data-testid="agent-chat-drawer"
+    >
+      <Stack gap={0} h="100%">
+        <ChatHeader
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          onClose={close}
+          onReset={handleReset}
+          onAbort={async () => {
+            const cid = conversationIdRef.current;
+            if (cid === null) return;
+            await fetch(`/api/agent/conversations/${cid}/abort`, {
+              method: "POST",
+              headers: getAgentAuthHeaders(activeGroupIdRef.current),
+            }).catch(() => undefined);
+          }}
+          workflowId={currentWorkflowId}
+        />
+        <ConversationSwitcher
+          workflowId={currentWorkflowId}
+          activeConversationId={conversationId}
+          activeGroupId={activeGroupId}
+          onSelect={handleSelect}
+        />
+        <ChatThread
+          key={resetKey}
+          seedMessages={seedMessages}
+          selectedModel={selectedModel}
+          currentWorkflowId={currentWorkflowId}
+          activeGroupId={activeGroupId}
+          conversationIdRef={conversationIdRef}
+          activeGroupIdRef={activeGroupIdRef}
+          setConversationId={setConversationId}
+        />
+      </Stack>
+    </Drawer>
+  );
+}
+
+/**
+ * Owns the assistant-ui runtime + the thread-dependent surfaces (message
+ * list, composer, tool-call navigator). Keyed by `resetKey` in the parent
+ * so a "new conversation" or a conversation switch remounts it, seeding the
+ * thread from `seedMessages`.
+ */
+function ChatThread({
+  seedMessages,
+  selectedModel,
+  currentWorkflowId,
+  activeGroupId,
+  conversationIdRef,
+  activeGroupIdRef,
+  setConversationId,
+}: {
+  seedMessages: UIMessage[];
+  selectedModel: AgentModelOption;
+  currentWorkflowId: string | null;
+  activeGroupId: string | null;
+  conversationIdRef: MutableRefObject<string | null>;
+  activeGroupIdRef: MutableRefObject<string | null>;
+  setConversationId: (id: string | null) => void;
+}) {
+  const queryClient = useQueryClient();
 
   const transport = useMemo(
     () =>
@@ -100,13 +244,15 @@ export function AgentChatDrawer() {
           return res;
         },
       }),
-    // We rebuild the transport on resetKey changes (new conversation).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resetKey, selectedModel.provider, selectedModel.model, currentWorkflowId],
+    [selectedModel.provider, selectedModel.model, currentWorkflowId],
   );
 
   const runtime = useChatRuntime({
     transport,
+    // Seed the thread from a selected conversation's history (empty for a
+    // fresh chat). Read once at mount; the parent remounts on switch/reset.
+    messages: seedMessages,
     onFinish: () => {
       queryClient.invalidateQueries({ queryKey: ["activity-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-node-list"] });
@@ -116,59 +262,11 @@ export function AgentChatDrawer() {
   });
 
   return (
-    <Drawer
-      opened={isOpen}
-      onClose={close}
-      position="right"
-      size={DRAWER_SIZE}
-      withCloseButton={false}
-      lockScroll={false}
-      withOverlay={false}
-      transitionProps={{ duration: 180 }}
-      styles={{
-        body: { padding: 0, height: "100%" },
-        content: { height: "100vh" },
-      }}
-      data-testid="agent-chat-drawer"
-    >
-      <AssistantRuntimeProvider runtime={runtime}>
-        <Stack gap={0} h="100%">
-          <ChatHeader
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-            onClose={close}
-            onReset={() => {
-              resetConversation();
-              bumpResetKey();
-            }}
-            onAbort={async () => {
-              const cid = conversationIdRef.current;
-              if (cid === null) return;
-              await fetch(`/api/agent/conversations/${cid}/abort`, {
-                method: "POST",
-                headers: getAgentAuthHeaders(activeGroupIdRef.current),
-              }).catch(() => undefined);
-            }}
-            workflowId={currentWorkflowId}
-          />
-          <ConversationSwitcher
-            workflowId={currentWorkflowId}
-            activeConversationId={conversationId}
-            activeGroupId={activeGroupId}
-            onSelect={(id) => {
-              setConversationId(id);
-              bumpResetKey();
-            }}
-          />
-          <MessageList />
-          <Composer
-            workflowId={currentWorkflowId}
-            activeGroupId={activeGroupId}
-          />
-          <ToolCallNavigator />
-        </Stack>
-      </AssistantRuntimeProvider>
-    </Drawer>
+    <AssistantRuntimeProvider runtime={runtime}>
+      <MessageList />
+      <Composer workflowId={currentWorkflowId} activeGroupId={activeGroupId} />
+      <ToolCallNavigator />
+    </AssistantRuntimeProvider>
   );
 }
 

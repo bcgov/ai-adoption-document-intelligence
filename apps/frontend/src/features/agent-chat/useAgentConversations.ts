@@ -78,6 +78,30 @@ export function useAgentConversations(opts?: {
   });
 }
 
+/**
+ * Fetch one conversation and its messages imperatively. Shared by the
+ * `useAgentConversation` query hook and the drawer's replay path (which
+ * loads a selected conversation's history before remounting the thread).
+ */
+export async function fetchAgentConversation(
+  id: string,
+  activeGroupId?: string | null,
+): Promise<DetailResponse> {
+  const path = `/api/agent/conversations/${id}`;
+  const url =
+    activeGroupId !== undefined && activeGroupId !== null
+      ? `${path}?groupId=${encodeURIComponent(activeGroupId)}`
+      : path;
+  const res = await builderFetch(url, {
+    headers:
+      activeGroupId !== undefined && activeGroupId !== null
+        ? { "x-group-id": activeGroupId }
+        : undefined,
+  });
+  if (!res.ok) throw new Error(`Failed to load conversation: ${res.status}`);
+  return (await res.json()) as DetailResponse;
+}
+
 export function useAgentConversation(
   id: string | null,
   activeGroupId?: string | null,
@@ -86,20 +110,7 @@ export function useAgentConversation(
     queryKey: ["agent", "conversation", id ?? "none"],
     queryFn: async (): Promise<DetailResponse | null> => {
       if (id === null) return null;
-      const path = `/api/agent/conversations/${id}`;
-      const url =
-        activeGroupId !== undefined && activeGroupId !== null
-          ? `${path}?groupId=${encodeURIComponent(activeGroupId)}`
-          : path;
-      const res = await builderFetch(url, {
-        headers:
-          activeGroupId !== undefined && activeGroupId !== null
-            ? { "x-group-id": activeGroupId }
-            : undefined,
-      });
-      if (!res.ok)
-        throw new Error(`Failed to load conversation: ${res.status}`);
-      return (await res.json()) as DetailResponse;
+      return fetchAgentConversation(id, activeGroupId);
     },
     enabled: id !== null,
   });
