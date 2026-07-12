@@ -63,7 +63,10 @@ export class AgentEnv {
     ).toLowerCase() as AgentProvider;
     this.defaultProvider = this.resolveDefaultProvider(requestedDefault);
 
-    this.maxSteps = Number(config.get<string>("AGENT_MAX_STEPS") ?? "30");
+    // The functional-by-default loop (design → describeNode per node → build →
+    // connect → validate → startTestRun → poll → fix) legitimately needs more
+    // than the original 30 steps; 50 gives headroom for one or two fix cycles.
+    this.maxSteps = Number(config.get<string>("AGENT_MAX_STEPS") ?? "50");
     this.maxOutputTokens = Number(
       config.get<string>("AGENT_MAX_OUTPUT_TOKENS") ?? "4096",
     );

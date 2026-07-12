@@ -34,7 +34,7 @@ describe("AgentEnv — cost-ceiling config (ITEM 26)", () => {
 
   it("keeps the existing per-turn bounds", () => {
     const env = new AgentEnv(makeConfig({ ...PROVIDER }));
-    expect(env.maxSteps).toBe(30);
+    expect(env.maxSteps).toBe(50);
     expect(env.maxOutputTokens).toBe(4096);
   });
 
