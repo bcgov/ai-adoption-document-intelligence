@@ -37,4 +37,14 @@ describe("AgentEnv — cost-ceiling config (ITEM 26)", () => {
     expect(env.maxSteps).toBe(30);
     expect(env.maxOutputTokens).toBe(4096);
   });
+
+  it("defaults maxRunsPerConversation to 5 and reads the override", () => {
+    const env = new AgentEnv(makeConfig({ ...PROVIDER }));
+    expect(env.maxRunsPerConversation).toBe(5);
+
+    const overridden = new AgentEnv(
+      makeConfig({ ...PROVIDER, AGENT_MAX_RUNS_PER_CONVERSATION: "2" }),
+    );
+    expect(overridden.maxRunsPerConversation).toBe(2);
+  });
 });

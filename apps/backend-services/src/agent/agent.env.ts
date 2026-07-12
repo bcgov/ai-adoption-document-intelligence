@@ -38,6 +38,12 @@ export class AgentEnv {
    * with a clear marker so they don't blow up context or cost.
    */
   readonly maxToolResultChars: number;
+  /**
+   * Maximum live workflow runs (startRun + startTestRun) the agent may start
+   * within a single conversation. Guards the Azure/OCR bill from a runaway
+   * test-fix loop. Enforced by RunBudgetMap in the run tools.
+   */
+  readonly maxRunsPerConversation: number;
 
   constructor(config: ConfigService) {
     this.anthropicApiKey = config.get<string>("ANTHROPIC_API_KEY") ?? null;
@@ -66,6 +72,9 @@ export class AgentEnv {
     );
     this.maxToolResultChars = Number(
       config.get<string>("AGENT_MAX_TOOL_RESULT_CHARS") ?? "20000",
+    );
+    this.maxRunsPerConversation = Number(
+      config.get<string>("AGENT_MAX_RUNS_PER_CONVERSATION") ?? "5",
     );
   }
 
