@@ -8,7 +8,9 @@
     "tsConfigPath": "tsconfig.build.json",
     "watchAssets": true,
     "builder": "swc",
-    "assets": []
+    "assets": [
+      { "include": "agent/sample-document-assets/**/*", "outDir": "dist" }
+    ]
   },
   "watchOptions": {
     "watchAssets": true,
