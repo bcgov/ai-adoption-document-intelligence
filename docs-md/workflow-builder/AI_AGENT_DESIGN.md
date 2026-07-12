@@ -513,6 +513,37 @@ Landed while wiring the agent to a live Azure subscription and preparing seeded 
 
 4. **Chat-log deep link.** `?agentChat=<conversationId>` (`conversation-replay.ts#parseAgentChatDeepLink`) opens the drawer and replays that conversation on load — handled once per id. This is the link form FEATURE_DEMO_GUIDE uses to point at seeded agent chat logs.
 
+## 12c. Functional-by-default agent (2026-07)
+
+The agent now designs a workflow from a plain-language goal and, by default,
+makes it *functional* — configuring real parameters, validating, and self-testing
+against a bundled sample — rather than emitting a structurally-connected graph with
+placeholder parameters. Four new tools in `tools.ts` plus a rewritten
+`system-prompt.ts` (expert-operator brief) drive this.
+
+- **`describeNode(activityType)`** — on-demand full spec for one node: the parameter
+  JSON Schema (names, descriptions, defaults, allowed values) via
+  `getActivityParametersJsonSchema`, plus typed input/output port docs from
+  `getActivityCatalogEntry` (dynamic nodes resolve from the group's merged catalog).
+  `listActivityCatalog` stays lean; per-node detail is pulled here so the model
+  discovers what it needs as it builds instead of holding the whole catalog in context.
+- **`validateWorkflow(workflowId?)`** — static validation with no run, wrapping
+  `WorkflowService.validateWorkflowConfig` → `validateGraphConfigWithDynamicNodes`. Splits
+  the validator's `errors[]` by `severity` into `errors` (must fix) and `warnings`
+  (unbound required inputs, missing entry). The agent clears errors and addresses
+  warnings before finishing.
+- **`listSampleDocuments()` + `startTestRun({ sampleDocumentId })`** — a small set of
+  **bundled** sample documents (`src/agent/sample-document-assets/`, copied into `dist`
+  by nest-cli — no seed/DB dependency, present in prod). `startTestRun` uploads the
+  sample into the workflow's `source.upload` node (`POST /:id/sources/:nodeId/upload`)
+  and starts a run, so the agent can self-verify without a user upload. It asks the user
+  for a document only when the goal is about their specific file.
+- **Run budget:** `RunBudgetMap` (in-memory, keyed by conversationId) caps live runs per
+  conversation at `AGENT_MAX_RUNS_PER_CONVERSATION` (default 5). Both `startRun` and
+  `startTestRun` consume it and return `run-budget-exceeded` once hit, guarding the
+  Azure/OCR bill from a runaway test-fix loop. Composes with the `maxConversationTokens`
+  ceiling.
+
 ## 13. Companion documents
 
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) §5 Phase 7 — the original plan entry; this doc is its detailed decision record.
