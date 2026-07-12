@@ -11,6 +11,7 @@ import type {
   GraphWorkflowConfig,
 } from "@/workflow/graph-workflow-types";
 import type { WorkflowService } from "@/workflow/workflow.service";
+import { RunBudgetMap } from "./run-budget-map";
 import {
   type AgentToolContext,
   createAgentTools,
@@ -773,5 +774,63 @@ describe("listSampleDocuments", () => {
       "multi-page-sample",
       "sample-invoice",
     ]);
+  });
+});
+
+describe("startTestRun + run budget", () => {
+  function ctxWithUploadNode() {
+    const config = emptyConfig({
+      nodes: {
+        upload1: {
+          id: "upload1",
+          type: "source",
+          sourceType: "source.upload",
+          label: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+      entryNodeId: "upload1",
+    });
+    const { ctx, internalFetchMock } = makeCtx({
+      conversationId: "conv-1",
+      runBudget: new RunBudgetMap(),
+      maxRunsPerConversation: 2,
+      workflowService: {
+        getWorkflow: jest.fn(async () => ({
+          id: "wf-1",
+          groupId: "group-1",
+          config,
+        })),
+      } as unknown as WorkflowService,
+    });
+    return { ctx, internalFetchMock };
+  }
+
+  it("errors when the sample id is unknown", async () => {
+    const { ctx } = ctxWithUploadNode();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "startTestRun",
+      { sampleDocumentId: "nope" },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("unknown-sample");
+  });
+
+  it("refuses once the per-conversation run budget is exhausted", async () => {
+    const { ctx } = ctxWithUploadNode();
+    const tools = createAgentTools(ctx);
+    // Budget is 2. Drain it, then the next run is refused.
+    (ctx.runBudget as RunBudgetMap).tryConsume("conv-1", 2);
+    (ctx.runBudget as RunBudgetMap).tryConsume("conv-1", 2);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "startRun",
+      {},
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("run-budget-exceeded");
   });
 });

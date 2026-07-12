@@ -24,7 +24,10 @@ import type {
   WorkflowService,
 } from "@/workflow/workflow.service";
 import type { RunBudgetMap } from "./run-budget-map";
-import { listSampleDocuments as loadSampleDocuments } from "./sample-documents";
+import {
+  getSampleDocument,
+  listSampleDocuments as loadSampleDocuments,
+} from "./sample-documents";
 
 /**
  * Default cap on the number of characters of a single tool result that
@@ -174,6 +177,31 @@ function ensureNonNullWorkflowId(
     );
   }
   return resolved;
+}
+
+/**
+ * Consume one unit of the conversation's run budget. Returns an error result
+ * to return from the tool when exhausted, or null when the run may proceed.
+ * No budget configured (e.g. older callers/tests) → always allowed.
+ */
+function checkRunBudget(
+  ctx: AgentToolContext,
+): { ok: false; error: { code: string; message: string } } | null {
+  if (!ctx.runBudget || !ctx.conversationId || !ctx.maxRunsPerConversation) {
+    return null;
+  }
+  const allowed = ctx.runBudget.tryConsume(
+    ctx.conversationId,
+    ctx.maxRunsPerConversation,
+  );
+  if (allowed) return null;
+  return {
+    ok: false,
+    error: {
+      code: "run-budget-exceeded",
+      message: `Test-run budget reached (${ctx.maxRunsPerConversation}). Stop testing and report the current workflow state to the user.`,
+    },
+  };
 }
 
 /**
@@ -906,6 +934,8 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         initialCtx: z.record(z.string(), z.unknown()).optional(),
       }),
       execute: async ({ workflowId, initialCtx }) => {
+        const budgetError = checkRunBudget(ctx);
+        if (budgetError) return budgetError;
         const id = ensureNonNullWorkflowId(ctx, workflowId);
         const result = await internalFetch(ctx, `/api/workflows/${id}/runs`, {
           method: "POST",
@@ -914,6 +944,97 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         return result.ok
           ? { ok: true, ...(result.body as object) }
           : { ok: false, error: result.body };
+      },
+    }),
+
+    startTestRun: tool({
+      description:
+        "Test the workflow by running it against a built-in sample document (from listSampleDocuments) — use this to self-verify a workflow when the user hasn't uploaded a file. Uploads the sample into the workflow's source.upload node and starts a run; returns a runId to poll with getNodeStatuses + getPreviewCache. Counts against your run budget.",
+      inputSchema: z.object({
+        sampleDocumentId: z
+          .string()
+          .min(1)
+          .describe("An id from listSampleDocuments, e.g. `sample-invoice`."),
+        workflowId: z.string().optional(),
+      }),
+      execute: async ({ sampleDocumentId, workflowId }) => {
+        const budgetError = checkRunBudget(ctx);
+        if (budgetError) return budgetError;
+
+        const id = ensureNonNullWorkflowId(ctx, workflowId);
+        const wf = await fetchWorkflowInGroup(ctx, id);
+
+        // Find the source.upload intake node.
+        const nodes = wf.config.nodes ?? {};
+        const uploadEntry = Object.values(nodes).find(
+          (n) =>
+            (n as { type?: string; sourceType?: string }).type === "source" &&
+            (n as { sourceType?: string }).sourceType === "source.upload",
+        ) as { id: string } | undefined;
+        if (!uploadEntry) {
+          return {
+            ok: false as const,
+            error: {
+              code: "no-upload-node",
+              message:
+                "This workflow has no source.upload node to receive a document. Add one (it is the default entry node from createWorkflow) before test-running.",
+            },
+          };
+        }
+
+        const sample = getSampleDocument(sampleDocumentId);
+        if (!sample) {
+          return {
+            ok: false as const,
+            error: {
+              code: "unknown-sample",
+              message: `No sample document '${sampleDocumentId}'. Call listSampleDocuments for valid ids.`,
+            },
+          };
+        }
+
+        // Upload the sample bytes to the source node (multipart), then start
+        // the run with the returned ctx fragment as initialCtx.
+        const form = new FormData();
+        form.append(
+          "file",
+          new Blob([new Uint8Array(sample.bytes)], { type: sample.mimeType }),
+          sample.filename,
+        );
+        const headers: Record<string, string> = { "x-group-id": ctx.groupId };
+        if (ctx.apiKey) headers["x-api-key"] = ctx.apiKey;
+        const uploadUrl = `${ctx.backendBaseUrl.replace(/\/+$/, "")}/api/workflows/${id}/sources/${uploadEntry.id}/upload`;
+        const uploadRes = await fetch(uploadUrl, {
+          method: "POST",
+          headers,
+          body: form,
+        });
+        if (!uploadRes.ok) {
+          return {
+            ok: false as const,
+            error: {
+              code: "sample-upload-failed",
+              message: `Uploading the sample failed (HTTP ${uploadRes.status}).`,
+            },
+          };
+        }
+        const initialCtx = (await uploadRes.json()) as Record<string, unknown>;
+
+        const runResult = await internalFetch(
+          ctx,
+          `/api/workflows/${id}/runs`,
+          {
+            method: "POST",
+            body: JSON.stringify({ initialCtx }),
+          },
+        );
+        return runResult.ok
+          ? {
+              ok: true as const,
+              sampleDocumentId,
+              ...(runResult.body as object),
+            }
+          : { ok: false as const, error: runResult.body };
       },
     }),
 
