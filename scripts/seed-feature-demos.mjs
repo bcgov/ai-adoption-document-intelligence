@@ -1186,9 +1186,14 @@ function renderGuide(results, agentResults = []) {
     r.slug
       ? `${FRONTEND_URL}/workflows/by-slug/${r.slug}/edit`
       : `${FRONTEND_URL}/workflows/${r.id}/edit`;
-  // Agent chat-log deep link: opens the drawer and replays the seeded
-  // conversation. The conversation id is fixed by the fixture, so stable.
-  const chatLink = (r) => `${FRONTEND_URL}/?agentChat=${r.convId}`;
+  // Combined "one place" link: open the built workflow's editor (canvas shows
+  // the graph) AND pass ?agentChat=<id> so the drawer opens and replays the
+  // conversation beside it. The slug redirect preserves the query string.
+  // Falls back to the drawer-on-root form if the create lacked a slug.
+  const chatLink = (r) =>
+    r.slug
+      ? `${FRONTEND_URL}/workflows/by-slug/${r.slug}/edit?agentChat=${r.convId}`
+      : `${FRONTEND_URL}/?agentChat=${r.convId}`;
   const lines = [];
   lines.push("# Workflow Builder — Feature Demo Guide");
   lines.push("");
@@ -1255,18 +1260,28 @@ function renderGuide(results, agentResults = []) {
     lines.push("");
     lines.push(
       "Transcripts captured from **real live runs** of the workflow agent" +
-        " (Azure gpt-5.4). Open a chat-log link — the agent drawer opens and" +
-        " **replays** the whole conversation (your prompt + every tool call" +
-        " the agent made) so you can watch how the workflow was built. The" +
-        " workflow link opens the graph the agent produced.",
+        " (Azure gpt-5.4). Open the demo link — the workflow the agent built" +
+        " loads on the canvas **and** the agent drawer opens and **replays**" +
+        " the whole conversation (your prompt + every tool call it made)" +
+        " beside it, so you can see the result and how it was built in one" +
+        " place.",
+    );
+    lines.push("");
+    lines.push(
+      "> The chat log opens for the **signed-in user the demos were seeded" +
+        " for** (`SEED_USER_SUB`). Conversations are private per user, so if" +
+        " you're signed in as someone else, re-run `npm run seed:demos` as" +
+        " that identity. These demos build the graph only — they don't run" +
+        " it or test it with a document (that needs the worker + a sample" +
+        " file).",
     );
     lines.push("");
     for (const r of agentResults) {
       lines.push(`### ${r.title}`);
       lines.push("");
-      lines.push(`**💬 Chat log:** [${chatLink(r)}](${chatLink(r)})`);
+      lines.push(`**▶ Open (canvas + chat replay):** [${chatLink(r)}](${chatLink(r)})`);
       lines.push("");
-      lines.push(`**▶ Workflow:** [${link(r)}](${link(r)})`);
+      lines.push(`**Workflow only:** [${link(r)}](${link(r)})`);
       lines.push("");
       for (const step of r.steps ?? []) {
         lines.push(`1. ${step}`);
@@ -1348,19 +1363,45 @@ async function seedAgentDemos() {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   const results = [];
   try {
-    // ApiKey.group_id is unique — one key per group. Its actor is what an
-    // x-api-key request for this group authenticates as.
-    const key = await prisma.apiKey.findUnique({
-      where: { group_id: GROUP_ID },
-      select: { actor_id: true },
-    });
-    if (!key) {
+    // Own the demo conversations as the identity that will VIEW them.
+    // Conversations are private per `createdBy`, so this must match the
+    // caller the demo session resolves to:
+    //   • A human browsing via IDIR → the SEED_USER_SUB user's actor
+    //     (seed.ts upserts that user into the group). This is the primary
+    //     path — the FEATURE_DEMO_GUIDE links are opened in a real browser.
+    //   • CI / e2e (x-api-key) → the group's ApiKey actor (fallback).
+    let createdBy = null;
+    let ownerLabel = "";
+    const seedUserSub = process.env.SEED_USER_SUB;
+    if (seedUserSub) {
+      const user = await prisma.user.findUnique({
+        where: { id: seedUserSub },
+        select: { actor_id: true },
+      });
+      if (user) {
+        createdBy = user.actor_id;
+        ownerLabel = "SEED_USER_SUB";
+      }
+    }
+    if (!createdBy) {
+      // ApiKey.group_id is unique — one key per group. Its actor is what an
+      // x-api-key request for this group authenticates as.
+      const key = await prisma.apiKey.findUnique({
+        where: { group_id: GROUP_ID },
+        select: { actor_id: true },
+      });
+      if (key) {
+        createdBy = key.actor_id;
+        ownerLabel = "api-key actor";
+      }
+    }
+    if (!createdBy) {
       console.log(
-        `  ! skipped agent demos — no API key actor for group ${GROUP_ID}`,
+        `  ! skipped agent demos — could not resolve an owner actor (set SEED_USER_SUB or seed an API key for group ${GROUP_ID})`,
       );
       return results;
     }
-    const createdBy = key.actor_id;
+    console.log(`  agent chat logs owned by: ${ownerLabel}`);
 
     for (const file of AGENT_DEMO_FIXTURES) {
       const fx = JSON.parse(

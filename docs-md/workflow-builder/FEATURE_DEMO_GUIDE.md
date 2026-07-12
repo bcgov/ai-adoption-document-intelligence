@@ -193,13 +193,15 @@ npm run seed:demos
 
 ## 🤖 AI agent chat logs
 
-Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.4). Open a chat-log link — the agent drawer opens and **replays** the whole conversation (your prompt + every tool call the agent made) so you can watch how the workflow was built. The workflow link opens the graph the agent produced.
+Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.4). Open the demo link — the workflow the agent built loads on the canvas **and** the agent drawer opens and **replays** the whole conversation (your prompt + every tool call it made) beside it, so you can see the result and how it was built in one place.
+
+> The chat log opens for the **signed-in user the demos were seeded for** (`SEED_USER_SUB`). Conversations are private per user, so if you're signed in as someone else, re-run `npm run seed:demos` as that identity. These demos build the graph only — they don't run it or test it with a document (that needs the worker + a sample file).
 
 ### Agent demo — Invoice OCR pipeline
 
-**💬 Chat log:** [http://localhost:3000/?agentChat=demo-agent-ocr-pipeline](http://localhost:3000/?agentChat=demo-agent-ocr-pipeline)
+**▶ Open (canvas + chat replay):** [http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit?agentChat=demo-agent-ocr-pipeline](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit?agentChat=demo-agent-ocr-pipeline)
 
-**▶ Workflow:** [http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit)
+**Workflow only:** [http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit)
 
 1. Open the chat-log link — the drawer replays the full agent conversation (prompt + every tool call).
 1. Watch the agent read the catalog, then create the workflow and add nodes in dependency order.
@@ -209,9 +211,9 @@ Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.
 
 ### Agent demo — Classify & split
 
-**💬 Chat log:** [http://localhost:3000/?agentChat=demo-agent-classify-split](http://localhost:3000/?agentChat=demo-agent-classify-split)
+**▶ Open (canvas + chat replay):** [http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit?agentChat=demo-agent-classify-split](http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit?agentChat=demo-agent-classify-split)
 
-**▶ Workflow:** [http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit](http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit)
+**Workflow only:** [http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit](http://localhost:3000/workflows/by-slug/demo-agent-classify-split/edit)
 
 1. Open the chat-log link — the drawer replays the agent building the classify/split graph.
 1. Note the agent flagging placeholder parameters (classifier name, target labels) for you to fill in.

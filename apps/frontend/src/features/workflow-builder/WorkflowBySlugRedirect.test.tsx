@@ -1,7 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkflowInfo } from "../../data/hooks/useWorkflows";
@@ -15,19 +15,24 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   useWorkflowBySlug: (slug: string) => useWorkflowBySlug(slug),
 }));
 
-function renderAt(slug: string) {
+function EditorProbe() {
+  const { search } = useLocation();
+  return <div>EDITOR{search}</div>;
+}
+
+function renderAt(entry: string) {
+  const path = entry.startsWith("/")
+    ? entry
+    : `/workflows/by-slug/${entry}/edit`;
   return render(
     <MantineProvider>
-      <MemoryRouter initialEntries={[`/workflows/by-slug/${slug}/edit`]}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route
             path="/workflows/by-slug/:slug/edit"
             element={<WorkflowBySlugRedirect />}
           />
-          <Route
-            path="/workflows/:workflowId/edit"
-            element={<div>EDITOR</div>}
-          />
+          <Route path="/workflows/:workflowId/edit" element={<EditorProbe />} />
         </Routes>
       </MemoryRouter>
     </MantineProvider>,
@@ -68,6 +73,12 @@ describe("WorkflowBySlugRedirect", () => {
     useWorkflowBySlug.mockReturnValue(result({ isPending: true }));
     renderAt("invoice-flow");
     expect(useWorkflowBySlug).toHaveBeenCalledWith("invoice-flow");
+  });
+
+  it("preserves the query string across the redirect (e.g. ?agentChat)", () => {
+    useWorkflowBySlug.mockReturnValue(result({ data: { id: "lin-42" } }));
+    renderAt("/workflows/by-slug/my-demo/edit?agentChat=conv-9");
+    expect(screen.getByText("EDITOR?agentChat=conv-9")).toBeDefined();
   });
 
   it("shows an error when the slug does not resolve", () => {
