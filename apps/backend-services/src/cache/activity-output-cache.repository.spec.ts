@@ -8,6 +8,7 @@ const mockPrismaClient = {
   activityOutputCache: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
+    findMany: jest.fn(),
     upsert: jest.fn(),
     deleteMany: jest.fn(),
   },
@@ -280,6 +281,101 @@ describe("ActivityOutputCacheRepository", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("findManyMostRecentFresh", () => {
+    it("queries all fresh rows for the lineage (createdAt desc) and dedupes to the most recent per node", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-05-24T13:00:00Z"));
+      // Two nodes, node-a has two rows (the newer one must win).
+      const aNew = baseRow({
+        id: "a-new",
+        nodeId: "node-a",
+        createdAt: new Date("2026-05-24T12:30:00Z"),
+      });
+      const aOld = baseRow({
+        id: "a-old",
+        nodeId: "node-a",
+        createdAt: new Date("2026-05-24T12:00:00Z"),
+      });
+      const b = baseRow({
+        id: "b-1",
+        nodeId: "node-b",
+        createdAt: new Date("2026-05-24T12:15:00Z"),
+      });
+      // Repo asks Prisma for rows already ordered createdAt desc.
+      mockPrismaClient.activityOutputCache.findMany.mockResolvedValue([
+        aNew,
+        b,
+        aOld,
+      ]);
+
+      const result = await repository.findManyMostRecentFresh({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+      });
+
+      expect(
+        mockPrismaClient.activityOutputCache.findMany,
+      ).toHaveBeenCalledWith({
+        where: {
+          workflowLineageId: SAMPLE_KEY.workflowLineageId,
+          expiresAt: { gt: new Date("2026-05-24T13:00:00Z") },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      // One row per node, the newest for node-a.
+      expect(result).toEqual([aNew, b]);
+    });
+
+    it("returns an empty array when the lineage has no fresh rows", async () => {
+      mockPrismaClient.activityOutputCache.findMany.mockResolvedValue([]);
+      const result = await repository.findManyMostRecentFresh({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+      });
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("findManyInRunWindow", () => {
+    it("queries fresh rows within [startedAt, endedAt + 5s] and dedupes to the most recent per node", async () => {
+      jest.useFakeTimers().setSystemTime(new Date("2026-05-24T13:00:00Z"));
+      const startedAt = new Date("2026-05-24T12:00:00Z");
+      const endedAt = new Date("2026-05-24T12:00:30Z");
+      const aNew = baseRow({
+        id: "a-new",
+        nodeId: "node-a",
+        createdAt: new Date("2026-05-24T12:00:25Z"),
+      });
+      const aOld = baseRow({
+        id: "a-old",
+        nodeId: "node-a",
+        createdAt: new Date("2026-05-24T12:00:05Z"),
+      });
+      mockPrismaClient.activityOutputCache.findMany.mockResolvedValue([
+        aNew,
+        aOld,
+      ]);
+
+      const result = await repository.findManyInRunWindow({
+        workflowLineageId: SAMPLE_KEY.workflowLineageId,
+        startedAt,
+        endedAt,
+      });
+
+      expect(
+        mockPrismaClient.activityOutputCache.findMany,
+      ).toHaveBeenCalledWith({
+        where: {
+          workflowLineageId: SAMPLE_KEY.workflowLineageId,
+          expiresAt: { gt: new Date("2026-05-24T13:00:00Z") },
+          createdAt: {
+            gte: startedAt,
+            lte: new Date(endedAt.getTime() + 5_000),
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(result).toEqual([aNew]);
     });
   });
 

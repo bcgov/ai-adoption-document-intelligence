@@ -100,6 +100,21 @@ function buildRow(
   };
 }
 
+/**
+ * The preview hook now reads the batch endpoint, whose body is a
+ * `{ previews: { [nodeId]: row } }` map. Wrap a single row as this node's
+ * entry so the existing dispatch-shell assertions keep working.
+ */
+function rowResponse(row: ActivityOutputPreview): Response {
+  return jsonResponse({ previews: { [NODE_ID]: row } });
+}
+
+/** An empty batch map — the node has no fresh cache row (the batch
+ * endpoint's "no row" signal, replacing the old per-node 404). */
+function emptyBatchResponse(): Response {
+  return jsonResponse({ previews: {} });
+}
+
 function renderWithProviders(
   children: ReactNode,
   opts?: { workflowId?: string; activeRunId?: string | null },
@@ -146,7 +161,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
     it(`routes outputKind=${kind} to DocumentPreview with ctx.document`, async () => {
       const doc = { blob: { storage_key: "abc" }, pageCount: 1 };
       fetchSpy.mockResolvedValue(
-        jsonResponse(buildRow(kind, { document: doc })),
+        rowResponse(buildRow(kind, { document: doc })),
       );
 
       renderWithProviders(
@@ -162,7 +177,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=Segment[] to SegmentArrayPreview with ctx.segments", async () => {
     const segs = [{ parentDocId: "doc-1" }];
     fetchSpy.mockResolvedValue(
-      jsonResponse(buildRow("Segment[]", { segments: segs })),
+      rowResponse(buildRow("Segment[]", { segments: segs })),
     );
 
     renderWithProviders(
@@ -181,7 +196,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
     it(`routes outputKind=${kind} to OcrResultPreview with ctx.ocrResult`, async () => {
       const ocr = { fields: { foo: "bar" } };
       fetchSpy.mockResolvedValue(
-        jsonResponse(buildRow(kind, { ocrResult: ocr })),
+        rowResponse(buildRow(kind, { ocrResult: ocr })),
       );
 
       renderWithProviders(
@@ -195,7 +210,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=Classification to ClassificationPreview with ctx.classification", async () => {
     const cls = { label: "invoice", confidence: 0.92 };
     fetchSpy.mockResolvedValue(
-      jsonResponse(buildRow("Classification", { classification: cls })),
+      rowResponse(buildRow("Classification", { classification: cls })),
     );
 
     renderWithProviders(
@@ -216,7 +231,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
 
   for (const kind of UNKNOWN_KINDS) {
     it(`renders nothing for outputKind=${kind === null ? "null" : kind}`, async () => {
-      fetchSpy.mockResolvedValue(jsonResponse(buildRow(kind, {})));
+      fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, {})));
 
       renderWithProviders(
         <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
@@ -279,7 +294,7 @@ describe("Scenario 5 — loading + error states", () => {
   });
 
   it("renders the cache-evicted Alert when data === null AND runId is set in REPLAY mode", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({}, { status: 404 }));
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
       <PreviewWidget
@@ -298,7 +313,7 @@ describe("Scenario 5 — loading + error states", () => {
   });
 
   it("§4.7: stays silent for a not-yet-run node during a LIVE Try (runId set, isReplay false)", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({}, { status: 404 }));
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
       // Live Try: runId is set but isReplay is false — a 404 means the run
@@ -317,7 +332,7 @@ describe("Scenario 5 — loading + error states", () => {
   });
 
   it("renders null silently when data === null AND no runId", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse({}, { status: 404 }));
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
       <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
@@ -339,7 +354,7 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
   it("forwards workflowId + activeRunId to PreviewWidget", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
-      jsonResponse(buildRow("Document", { document: doc })),
+      rowResponse(buildRow("Document", { document: doc })),
     );
 
     renderWithProviders(<NodePreviewOverlay nodeId={NODE_ID} />, {
@@ -350,15 +365,16 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
     await screen.findByTestId("stub-document-preview");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const url = fetchSpy.mock.calls[0][0] as string;
-    expect(url).toContain(`/workflows/${WORKFLOW_ID}/preview-cache`);
-    expect(url).toContain(`nodeId=${NODE_ID}`);
+    expect(url).toContain(`/workflows/${WORKFLOW_ID}/preview-cache-batch`);
+    // Batch endpoint fetches all nodes at once — no per-node query param.
+    expect(url).not.toContain("nodeId=");
     expect(url).toContain(`runId=${RUN_ID}`);
   });
 
   it("omits runId when there is no activeRunId in context", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
-      jsonResponse(buildRow("Document", { document: doc })),
+      rowResponse(buildRow("Document", { document: doc })),
     );
 
     renderWithProviders(<NodePreviewOverlay nodeId={NODE_ID} />, {

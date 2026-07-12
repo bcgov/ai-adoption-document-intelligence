@@ -64,6 +64,7 @@ import {
 } from "./build-run-spec";
 import { deriveInputSchema } from "./derive-input-schema";
 import { ActivityOutputPreviewDto } from "./dto/activity-output-preview.dto";
+import { ActivityOutputPreviewBatchDto } from "./dto/activity-output-preview-batch.dto";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
 import { InputCtxResponseDto } from "./dto/input-ctx-response.dto";
 import {
@@ -934,6 +935,77 @@ export class WorkflowController {
     };
   }
 
+  @Get(":id/preview-cache-batch")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Batch-read every node's cached `ActivityOutputCache` row for a workflow lineage in one request.",
+    description:
+      "The batch twin of `GET /:id/preview-cache`. Returns a `nodeId → preview` map for **all** nodes with a fresh cache row, so the editor loads all node previews with one round-trip instead of one request per node (the O(nodes) request storm that tripped the rate limiter). Without `runId`, uses each node's most-recent fresh row; with `runId`, scopes to that run's execution window (5s upper-bound slack). Nodes with no fresh row are simply absent from the map — treated by the consumer like the per-node endpoint's 404. An unknown `runId` yields an empty map rather than a 404.",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiQuery({
+    name: "runId",
+    required: false,
+    description:
+      "Optional Temporal workflow execution id. When supplied, scopes the batch to rows written during that run's execution window.",
+  })
+  @ApiOkResponse({
+    description: "Map of nodeId → the node's cached preview row.",
+    type: ActivityOutputPreviewBatchDto,
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getPreviewCacheBatch(
+    @Param("id") id: string,
+    @Query("runId") runId: string | undefined,
+    @Req() req: Request,
+  ): Promise<ActivityOutputPreviewBatchDto> {
+    const wf = await this.workflowService.resolveLineageAndVersion(id);
+    identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    let rows: Awaited<
+      ReturnType<ActivityOutputCacheRepository["findManyMostRecentFresh"]>
+    >;
+
+    if (runId === undefined || runId === "") {
+      rows = await this.activityOutputCache.findManyMostRecentFresh({
+        workflowLineageId: id,
+      });
+    } else {
+      let window: { startedAt: Date; endedAt: Date | null };
+      try {
+        window = await this.temporalClient.getRunWindow(runId);
+      } catch (error) {
+        if (error instanceof WorkflowNotFoundError) {
+          // Unknown run — no previews to surface. Return an empty map
+          // rather than a 404 so the batch endpoint degrades gracefully
+          // (the per-node endpoint 404s a single node; the batch has
+          // nothing meaningful to 404 on).
+          return { previews: {} };
+        }
+        throw error;
+      }
+
+      rows = await this.activityOutputCache.findManyInRunWindow({
+        workflowLineageId: id,
+        startedAt: window.startedAt,
+        endedAt: window.endedAt ?? new Date(),
+      });
+    }
+
+    const previews: Record<string, ActivityOutputPreviewDto> = {};
+    for (const row of rows) {
+      previews[row.nodeId] = {
+        outputCtx: row.outputCtx as Record<string, unknown>,
+        outputKind: row.outputKind,
+        createdAt: row.createdAt.toISOString(),
+        expiresAt: row.expiresAt.toISOString(),
+      };
+    }
+    return { previews };
+  }
+
   @Get(":id/runs/:runId/input-ctx")
   @Identity({ allowApiKey: true })
   @ApiOperation({
@@ -1214,6 +1286,51 @@ export class WorkflowController {
       },
     );
     return new Map(results);
+  }
+
+  @Get("by-slug/:slug")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Resolve a workflow by its stable slug",
+    description:
+      "Resolves a workflow lineage by its URL-friendly `slug` (unique within a group) rather than its churn-prone `id`. Backs stable/shareable editor links: a slug is derived deterministically from the name, so a `/workflows/by-slug/<slug>/edit` link survives reseeds even though the lineage `id` changes. Scoped to the caller's accessible groups (or the `groupId` query param when provided).",
+  })
+  @ApiParam({ name: "slug", description: "Stable workflow slug" })
+  @ApiQuery({
+    name: "groupId",
+    required: false,
+    description:
+      "Optional group to disambiguate the slug (slugs are unique only within a group). Defaults to the caller's accessible groups.",
+  })
+  @ApiOkResponse({
+    description: "Returns the workflow the slug resolves to",
+    type: WorkflowResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: "No workflow with that slug in the accessible group(s)",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getWorkflowBySlug(
+    @Param("slug") slug: string,
+    @Query("groupId") groupId: string | undefined,
+    @Req() req: Request,
+  ): Promise<{ workflow: WorkflowInfo }> {
+    const actorId = req.resolvedIdentity.actorId;
+
+    let groupIds: string[] | undefined;
+    if (groupId) {
+      identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+      groupIds = [groupId];
+    } else {
+      groupIds = getIdentityGroupIds(req.resolvedIdentity);
+    }
+
+    const workflow = await this.workflowService.getWorkflowBySlug(
+      slug,
+      groupIds,
+      actorId,
+    );
+    return { workflow };
   }
 
   @Get(":id")

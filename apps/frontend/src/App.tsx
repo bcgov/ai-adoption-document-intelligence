@@ -22,6 +22,7 @@ import {
 } from "./features/benchmarking/pages";
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
+import { WorkflowBySlugRedirect } from "./features/workflow-builder/WorkflowBySlugRedirect";
 import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { RootLayout } from "./layouts/RootLayout";
 import ClassifierPage from "./pages/ClassifierPage";
@@ -71,6 +72,13 @@ const router = createBrowserRouter([
       {
         path: "workflows/:workflowId/edit",
         element: <WorkflowEditorV2Page mode="edit" />,
+      },
+      // Stable/shareable entry link — resolves a workflow slug to its
+      // current lineage id and redirects to the canonical edit route.
+      // Survives reseeds (slug is stable; id churns).
+      {
+        path: "workflows/by-slug/:slug/edit",
+        element: <WorkflowBySlugRedirect />,
       },
       // Dev-only tracer for the schema-driven form renderer. §5.2: gated
       // behind import.meta.env.DEV so it never ships to production (it

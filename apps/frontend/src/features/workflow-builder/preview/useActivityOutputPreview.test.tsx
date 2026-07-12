@@ -1,14 +1,15 @@
 /**
  * Unit tests for `useActivityOutputPreview` (US-141).
  *
- * Each `describe` block maps to one acceptance scenario from
- * feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-141-preview-hook-and-dispatch-shell.md.
+ * The hook reads from the SHARED batch endpoint
+ * (`GET /:id/preview-cache-batch`) and selects its node's row, so N node
+ * widgets cost one request. These tests assert that batching + per-node
+ * selection + the debounced-on-transition refetch all behave.
  *
  * MSW is not part of the frontend test toolkit (see
  * apps/frontend/package.json — only vitest + @testing-library/react),
- * so we follow the existing hook-test convention from the sibling
- * Phase 4 hook `useNodeStatuses.test.tsx` and stub the global `fetch`
- * via `vi.spyOn`.
+ * so we follow the existing hook-test convention and stub the global
+ * `fetch` via `vi.spyOn`.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -24,9 +25,10 @@ import {
 } from "../run/RunStateContext";
 import type { ActivityOutputPreview } from "./preview.types";
 import {
+  type ActivityOutputPreviewMap,
   ApiError,
   PREVIEW_REFETCH_DEBOUNCE_MS,
-  previewCacheQueryKey,
+  previewCacheBatchQueryKey,
   useActivityOutputPreview,
 } from "./useActivityOutputPreview";
 
@@ -38,12 +40,15 @@ const WORKFLOW_ID = "wf-abc";
 const NODE_ID = "node-1";
 const RUN_ID = "run-xyz";
 
-function previewUrl(opts: { nodeId: string; runId?: string }): string {
-  const params = new URLSearchParams({ nodeId: opts.nodeId });
+function batchUrl(opts: { runId?: string }): string {
+  const params = new URLSearchParams();
   if (opts.runId !== undefined) {
     params.set("runId", opts.runId);
   }
-  return `${API_BASE_URL}/workflows/${WORKFLOW_ID}/preview-cache?${params.toString()}`;
+  const qs = params.toString();
+  return `${API_BASE_URL}/workflows/${WORKFLOW_ID}/preview-cache-batch${
+    qs ? `?${qs}` : ""
+  }`;
 }
 
 const sampleRow: ActivityOutputPreview = {
@@ -52,6 +57,12 @@ const sampleRow: ActivityOutputPreview = {
   createdAt: "2026-05-24T12:00:00.000Z",
   expiresAt: "2026-05-25T12:00:00.000Z",
 };
+
+function batchBody(previews: ActivityOutputPreviewMap): {
+  previews: ActivityOutputPreviewMap;
+} {
+  return { previews };
+}
 
 function jsonResponse(
   body: unknown,
@@ -124,12 +135,14 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 1 — hook signature
+// Scenario 1 — hook signature + batch fetch
 // ---------------------------------------------------------------------------
 
 describe("Scenario 1 — hook signature + base behaviour", () => {
-  it("fires the query against the preview-cache endpoint with the runId", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse(sampleRow));
+  it("fires ONE batch request and selects the node's row", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow })),
+    );
     const queryClient = createQueryClient();
 
     const { result } = renderHook(
@@ -142,27 +155,69 @@ describe("Scenario 1 — hook signature + base behaviour", () => {
     });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(fetchSpy.mock.calls[0][0]).toBe(
-      previewUrl({ nodeId: NODE_ID, runId: RUN_ID }),
-    );
+    expect(fetchSpy.mock.calls[0][0]).toBe(batchUrl({ runId: RUN_ID }));
     expect(result.current.data).toEqual(sampleRow);
     expect(result.current.error).toBeNull();
   });
 
-  it("uses the canonical queryKey shape (`runId ?? 'latest'`)", () => {
-    const withRun = previewCacheQueryKey(WORKFLOW_ID, NODE_ID, RUN_ID);
-    expect(withRun).toEqual(["preview-cache", WORKFLOW_ID, NODE_ID, RUN_ID]);
-    const withoutRun = previewCacheQueryKey(WORKFLOW_ID, NODE_ID, undefined);
-    expect(withoutRun).toEqual([
-      "preview-cache",
-      WORKFLOW_ID,
-      NODE_ID,
-      "latest",
-    ]);
+  it("uses the canonical batch queryKey shape (`runId ?? 'latest'`, no nodeId)", () => {
+    const withRun = previewCacheBatchQueryKey(WORKFLOW_ID, RUN_ID);
+    expect(withRun).toEqual(["preview-cache-batch", WORKFLOW_ID, RUN_ID]);
+    const withoutRun = previewCacheBatchQueryKey(WORKFLOW_ID, undefined);
+    expect(withoutRun).toEqual(["preview-cache-batch", WORKFLOW_ID, "latest"]);
   });
 
-  it("does not re-fetch on re-render of the same (workflowId, nodeId, runId) triple", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse(sampleRow));
+  it("shares ONE request across two nodes and gives each its own row", async () => {
+    const other: ActivityOutputPreview = {
+      ...sampleRow,
+      outputKind: "Segment[]",
+    };
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow, "node-2": other })),
+    );
+    const queryClient = createQueryClient();
+    const wrapper = buildWrapper({ queryClient, nodeStatuses: {} });
+
+    const a = renderHook(
+      () => useActivityOutputPreview(WORKFLOW_ID, NODE_ID, RUN_ID),
+      { wrapper },
+    );
+    const b = renderHook(
+      () => useActivityOutputPreview(WORKFLOW_ID, "node-2", RUN_ID),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(a.result.current.isLoading).toBe(false);
+      expect(b.result.current.isLoading).toBe(false);
+    });
+
+    // The whole point of batching: two node widgets → one network call.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(a.result.current.data).toEqual(sampleRow);
+    expect(b.result.current.data).toEqual(other);
+  });
+
+  it("returns data === null when the node is absent from the map", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ "someone-else": sampleRow })),
+    );
+    const queryClient = createQueryClient();
+
+    const { result } = renderHook(
+      () => useActivityOutputPreview(WORKFLOW_ID, NODE_ID, RUN_ID),
+      { wrapper: buildWrapper({ queryClient, nodeStatuses: {} }) },
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.data).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("does not re-fetch on re-render of the same (workflowId, runId)", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow })),
+    );
     const queryClient = createQueryClient();
 
     const { result, rerender } = renderHook(
@@ -179,7 +234,9 @@ describe("Scenario 1 — hook signature + base behaviour", () => {
   });
 
   it("omits the runId query param when undefined", async () => {
-    fetchSpy.mockResolvedValue(jsonResponse(sampleRow));
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow })),
+    );
     const queryClient = createQueryClient();
 
     renderHook(() => useActivityOutputPreview(WORKFLOW_ID, NODE_ID), {
@@ -187,7 +244,7 @@ describe("Scenario 1 — hook signature + base behaviour", () => {
     });
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
-    expect(fetchSpy.mock.calls[0][0]).toBe(previewUrl({ nodeId: NODE_ID }));
+    expect(fetchSpy.mock.calls[0][0]).toBe(batchUrl({}));
   });
 });
 
@@ -196,9 +253,11 @@ describe("Scenario 1 — hook signature + base behaviour", () => {
 // ---------------------------------------------------------------------------
 
 describe("Scenario 2 — debounced re-fetch on status transition", () => {
-  it("invalidates the preview-cache query 250ms after the status leaves `pending`", async () => {
+  it("invalidates the shared batch query 250ms after the status leaves `pending`", async () => {
     vi.useFakeTimers();
-    fetchSpy.mockResolvedValue(jsonResponse(sampleRow));
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow })),
+    );
     const queryClient = createQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -210,36 +269,33 @@ describe("Scenario 2 — debounced re-fetch on status transition", () => {
       { wrapper: buildMutableWrapper({ queryClient, nodeStatusesRef }) },
     );
 
-    // Initial mount fired the query. Invalidate hasn't been called yet
-    // — the effect's first run snapshots the status without firing.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(invalidateSpy).not.toHaveBeenCalled();
 
-    // Transition the node from `running` → `succeeded` and re-render.
     nodeStatusesRef.current = { [NODE_ID]: { status: "succeeded" } };
     rerender();
 
-    // Before the debounce window elapses — no invalidate.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PREVIEW_REFETCH_DEBOUNCE_MS - 1);
     });
     expect(invalidateSpy).not.toHaveBeenCalled();
 
-    // After the window elapses — exactly one invalidate.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(invalidateSpy).toHaveBeenCalledTimes(1);
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: previewCacheQueryKey(WORKFLOW_ID, NODE_ID, RUN_ID),
+      queryKey: previewCacheBatchQueryKey(WORKFLOW_ID, RUN_ID),
     });
   });
 
   it("coalesces multiple rapid transitions into a single invalidation", async () => {
     vi.useFakeTimers();
-    fetchSpy.mockResolvedValue(jsonResponse(sampleRow));
+    fetchSpy.mockResolvedValue(
+      jsonResponse(batchBody({ [NODE_ID]: sampleRow })),
+    );
     const queryClient = createQueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -255,19 +311,14 @@ describe("Scenario 2 — debounced re-fetch on status transition", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    // running → succeeded — schedules invalidation
     nodeStatusesRef.current = { [NODE_ID]: { status: "succeeded" } };
     rerender();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(50);
     });
-    // succeeded → failed (hypothetical re-Try kicked in mid-debounce)
     nodeStatusesRef.current = { [NODE_ID]: { status: "failed" } };
     rerender();
 
-    // Advance well past the debounce window — only ONE invalidate
-    // should have fired (the latest transition's timer; the prior was
-    // cancelled by the effect's cleanup).
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PREVIEW_REFETCH_DEBOUNCE_MS + 50);
     });
@@ -276,30 +327,11 @@ describe("Scenario 2 — debounced re-fetch on status transition", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 3 — 404 maps to `data: null`, not error
+// Scenario 3 — error handling
 // ---------------------------------------------------------------------------
 
-describe("Scenario 3 — 404 maps to data: null", () => {
-  it("returns data === null AND error === null on 404", async () => {
-    fetchSpy.mockResolvedValue(
-      jsonResponse(
-        { message: "No cached output for this node" },
-        { status: 404 },
-      ),
-    );
-    const queryClient = createQueryClient();
-
-    const { result } = renderHook(
-      () => useActivityOutputPreview(WORKFLOW_ID, NODE_ID, RUN_ID),
-      { wrapper: buildWrapper({ queryClient, nodeStatuses: {} }) },
-    );
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.data).toBeNull();
-    expect(result.current.error).toBeNull();
-  });
-
-  it("surfaces non-404 ApiErrors via the `error` field", async () => {
+describe("Scenario 3 — error handling", () => {
+  it("surfaces non-transient ApiErrors via the `error` field without retrying", async () => {
     // 403 — a NON-transient status, so the hook must not retry it.
     fetchSpy.mockResolvedValue(
       jsonResponse({ message: "Boom" }, { status: 403 }),
@@ -316,19 +348,17 @@ describe("Scenario 3 — 404 maps to data: null", () => {
     expect(result.current.error).toBeInstanceOf(ApiError);
     expect(result.current.error?.status).toBe(403);
     expect(result.current.error?.message).toBe("Boom");
-    // No retry for non-transient statuses — exactly one fetch.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("retries transient errors (429) and settles on the eventual success", async () => {
-    // First call rate-limited, second succeeds — the retry predicate
-    // (429/5xx, up to 3 attempts) must recover instead of locking the
-    // widget into a permanent error state.
     fetchSpy
       .mockResolvedValueOnce(
         jsonResponse({ message: "Too Many Requests" }, { status: 429 }),
       )
-      .mockResolvedValue(jsonResponse(sampleRow, { status: 200 }));
+      .mockResolvedValue(
+        jsonResponse(batchBody({ [NODE_ID]: sampleRow }), { status: 200 }),
+      );
     const queryClient = createQueryClient();
 
     const { result } = renderHook(

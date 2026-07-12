@@ -1,0 +1,58 @@
+/**
+ * `WorkflowBySlugRedirect` — resolver route for stable, shareable editor
+ * links. Mounted at `/workflows/by-slug/:slug/edit`, it resolves the slug
+ * to the current lineage id via `useWorkflowBySlug` and redirects to the
+ * canonical `/workflows/:workflowId/edit` route.
+ *
+ * Why a slug entry-point? A slug is derived deterministically from the
+ * workflow name and is stable across reseeds, whereas the lineage `id`
+ * churns every time demo data is re-created. A `by-slug` link therefore
+ * keeps working after a reseed (and reads far better when shared) while
+ * all the editor's own machinery continues to run off the resolved id.
+ */
+
+import { Alert, Center, Loader, Stack, Text } from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
+import type { ReactNode } from "react";
+import { Navigate, useParams } from "react-router-dom";
+
+import { useWorkflowBySlug } from "../../data/hooks/useWorkflows";
+
+export function WorkflowBySlugRedirect(): ReactNode {
+  const { slug } = useParams<{ slug: string }>();
+  const { data, isPending, isError } = useWorkflowBySlug(slug ?? "");
+
+  if (isError) {
+    return (
+      <Center h="60vh" p="md">
+        <Alert
+          icon={<IconAlertTriangle size={18} />}
+          color="red"
+          title="Workflow not found"
+          maw={480}
+        >
+          We couldn't find a workflow with the handle{" "}
+          <Text span fw={600}>
+            {slug}
+          </Text>{" "}
+          in this group. It may have been renamed or deleted.
+        </Alert>
+      </Center>
+    );
+  }
+
+  if (isPending || !data) {
+    return (
+      <Center h="60vh">
+        <Stack align="center" gap="xs">
+          <Loader />
+          <Text c="dimmed" size="sm">
+            Resolving workflow…
+          </Text>
+        </Stack>
+      </Center>
+    );
+  }
+
+  return <Navigate to={`/workflows/${data.id}/edit`} replace />;
+}

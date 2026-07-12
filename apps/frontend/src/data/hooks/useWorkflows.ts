@@ -96,6 +96,34 @@ export function useWorkflow(id: string) {
   });
 }
 
+/**
+ * Resolve a workflow by its stable `slug` (unique within a group) rather
+ * than its churn-prone `id`. Backs the stable/shareable editor links: a
+ * slug survives reseeds (derived deterministically from the name) even
+ * though the lineage id changes, so a `/workflows/by-slug/<slug>/edit`
+ * link keeps working after demo data is re-created. Scopes the lookup to
+ * the active group.
+ */
+export function useWorkflowBySlug(slug: string) {
+  const { activeGroup } = useGroup();
+  return useQuery({
+    queryKey: ["workflow-by-slug", activeGroup?.id, slug],
+    queryFn: async (): Promise<WorkflowInfo> => {
+      const params = activeGroup?.id
+        ? `?groupId=${encodeURIComponent(activeGroup.id)}`
+        : "";
+      const response = await apiService.get<WorkflowResponse>(
+        `/workflows/by-slug/${encodeURIComponent(slug)}${params}`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to resolve workflow");
+      }
+      return response.data.workflow;
+    },
+    enabled: !!slug,
+  });
+}
+
 export function useCreateWorkflow() {
   const queryClient = useQueryClient();
   const { activeGroup } = useGroup();

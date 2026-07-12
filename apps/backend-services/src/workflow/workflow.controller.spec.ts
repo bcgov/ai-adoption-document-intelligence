@@ -108,6 +108,7 @@ describe("WorkflowController", () => {
       getGroupWorkflows: jest.fn(),
       getAllWorkflowLineages: jest.fn(),
       getWorkflow: jest.fn(),
+      getWorkflowBySlug: jest.fn(),
       getWorkflowVersionById: jest.fn(),
       resolveLineageAndVersion: jest.fn(),
       listVersions: jest.fn(),
@@ -141,6 +142,8 @@ describe("WorkflowController", () => {
       findFresh: jest.fn(),
       findMostRecentFresh: jest.fn(),
       findInRunWindow: jest.fn(),
+      findManyMostRecentFresh: jest.fn(),
+      findManyInRunWindow: jest.fn(),
       upsert: jest.fn(),
       deleteExpired: jest.fn(),
     } as unknown as jest.Mocked<ActivityOutputCacheRepository>;
@@ -369,6 +372,58 @@ describe("WorkflowController", () => {
       await expect(controller.getWorkflow("wf-1", req)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe("getWorkflowBySlug", () => {
+    it("resolves by slug scoped to the caller's groups when no groupId is given", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getWorkflowBySlug.mockResolvedValue(mockWorkflowInfo);
+      const result = await controller.getWorkflowBySlug(
+        "test-workflow",
+        undefined,
+        req,
+      );
+      expect(result).toEqual({ workflow: mockWorkflowInfo });
+      expect(workflowService.getWorkflowBySlug).toHaveBeenCalledWith(
+        "test-workflow",
+        ["group-1"],
+        "user-1",
+      );
+    });
+
+    it("scopes to the requested group when groupId is given and accessible", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getWorkflowBySlug.mockResolvedValue(mockWorkflowInfo);
+      await controller.getWorkflowBySlug("test-workflow", "group-1", req);
+      expect(workflowService.getWorkflowBySlug).toHaveBeenCalledWith(
+        "test-workflow",
+        ["group-1"],
+        "user-1",
+      );
+    });
+
+    it("throws ForbiddenException when groupId is not accessible", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as Request;
+      await expect(
+        controller.getWorkflowBySlug("test-workflow", "group-1", req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(workflowService.getWorkflowBySlug).not.toHaveBeenCalled();
     });
   });
 
@@ -2501,6 +2556,177 @@ describe("WorkflowController", () => {
           "graph-adhoc-xyz",
           mockReq(),
         ),
+      ).rejects.toThrow(unexpected);
+    });
+  });
+
+  describe("getPreviewCacheBatch", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    const rowFor = (nodeId: string) => ({
+      id: `row-${nodeId}`,
+      workflowLineageId: "wf-1",
+      nodeId,
+      configHash: "cfg",
+      inputHash: "in",
+      outputCtx: { node: nodeId },
+      outputKind: "Document",
+      createdAt: new Date("2026-05-24T12:00:30Z"),
+      expiresAt: new Date("2026-05-25T12:00:30Z"),
+    });
+
+    it("default (no runId): returns a nodeId→preview map from findManyMostRecentFresh", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (
+        activityOutputCache.findManyMostRecentFresh as jest.Mock
+      ).mockResolvedValue([rowFor("node-a"), rowFor("node-b")]);
+
+      const result = await controller.getPreviewCacheBatch(
+        "wf-1",
+        undefined,
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        previews: {
+          "node-a": {
+            outputCtx: { node: "node-a" },
+            outputKind: "Document",
+            createdAt: "2026-05-24T12:00:30.000Z",
+            expiresAt: "2026-05-25T12:00:30.000Z",
+          },
+          "node-b": {
+            outputCtx: { node: "node-b" },
+            outputKind: "Document",
+            createdAt: "2026-05-24T12:00:30.000Z",
+            expiresAt: "2026-05-25T12:00:30.000Z",
+          },
+        },
+      });
+      expect(activityOutputCache.findManyMostRecentFresh).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+      });
+      expect(activityOutputCache.findManyInRunWindow).not.toHaveBeenCalled();
+      expect(temporalClient.getRunWindow).not.toHaveBeenCalled();
+    });
+
+    it("with runId: scopes to the run window via findManyInRunWindow", async () => {
+      const startedAt = new Date("2026-05-24T12:00:00Z");
+      const endedAt = new Date("2026-05-24T12:01:00Z");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.getRunWindow as jest.Mock).mockResolvedValue({
+        startedAt,
+        endedAt,
+      });
+      (activityOutputCache.findManyInRunWindow as jest.Mock).mockResolvedValue([
+        rowFor("node-a"),
+      ]);
+
+      const result = await controller.getPreviewCacheBatch(
+        "wf-1",
+        "graph-adhoc-xyz",
+        mockReq(),
+      );
+
+      expect(Object.keys(result.previews)).toEqual(["node-a"]);
+      expect(temporalClient.getRunWindow).toHaveBeenCalledWith(
+        "graph-adhoc-xyz",
+      );
+      expect(activityOutputCache.findManyInRunWindow).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+        startedAt,
+        endedAt,
+      });
+      expect(
+        activityOutputCache.findManyMostRecentFresh,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("in-flight run (endedAt null): substitutes current time as the window upper bound", async () => {
+      const startedAt = new Date("2026-05-24T12:00:00Z");
+      const now = new Date("2026-05-24T12:05:00Z");
+      jest.useFakeTimers().setSystemTime(now);
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.getRunWindow as jest.Mock).mockResolvedValue({
+        startedAt,
+        endedAt: null,
+      });
+      (activityOutputCache.findManyInRunWindow as jest.Mock).mockResolvedValue(
+        [],
+      );
+
+      await controller.getPreviewCacheBatch(
+        "wf-1",
+        "graph-adhoc-running",
+        mockReq(),
+      );
+
+      expect(activityOutputCache.findManyInRunWindow).toHaveBeenCalledWith({
+        workflowLineageId: "wf-1",
+        startedAt,
+        endedAt: now,
+      });
+      jest.useRealTimers();
+    });
+
+    it("unknown runId (WorkflowNotFoundError): returns an empty map instead of 404", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.getRunWindow as jest.Mock).mockRejectedValue(
+        new WorkflowNotFoundError("not found", "graph-adhoc-typo", undefined),
+      );
+
+      const result = await controller.getPreviewCacheBatch(
+        "wf-1",
+        "graph-adhoc-typo",
+        mockReq(),
+      );
+      expect(result).toEqual({ previews: {} });
+    });
+
+    it("throws ForbiddenException when the caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(
+        controller.getPreviewCacheBatch("wf-1", undefined, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(
+        activityOutputCache.findManyMostRecentFresh,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("propagates non-Temporal errors from getRunWindow unchanged", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      const unexpected = new Error("connection refused");
+      (temporalClient.getRunWindow as jest.Mock).mockRejectedValue(unexpected);
+
+      await expect(
+        controller.getPreviewCacheBatch("wf-1", "graph-adhoc-xyz", mockReq()),
       ).rejects.toThrow(unexpected);
     });
   });

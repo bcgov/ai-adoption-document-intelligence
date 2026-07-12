@@ -534,6 +534,47 @@ export class WorkflowService {
   }
 
   /**
+   * Resolve a workflow lineage by its stable `slug` (unique per group)
+   * and return the head version — the by-slug twin of {@link getWorkflow}.
+   *
+   * Backs the shareable/stable editor links: a slug survives reseeds (it
+   * is derived deterministically from the name) even though the lineage
+   * `id` churns, so a `/workflows/by-slug/<slug>/edit` link keeps working
+   * after the demo data is re-created.
+   *
+   * @param slug      The lineage slug to resolve.
+   * @param groupIds  The caller's accessible group ids, scoping the lookup
+   *                  (slug is only unique *within* a group). `undefined`
+   *                  means an unrestricted caller (admin / API key) and
+   *                  drops the group filter entirely; an empty array
+   *                  matches nothing (caller belongs to no group).
+   */
+  async getWorkflowBySlug(
+    slug: string,
+    groupIds: string[] | undefined,
+    actorId: string,
+  ): Promise<WorkflowInfo> {
+    const lineage = await this.prisma.workflowLineage.findFirst({
+      where: {
+        slug,
+        ...(groupIds ? { group_id: { in: groupIds } } : {}),
+      },
+      include: this.lineageWithHead,
+      orderBy: { created_at: "asc" },
+    });
+
+    if (!lineage?.headVersion) {
+      throw new NotFoundException(`Workflow not found: slug "${slug}"`);
+    }
+
+    this.logger.debug(
+      `getWorkflowBySlug: "${slug}" resolved to ${lineage.id} by actor ${actorId}`,
+    );
+
+    return this.mapLineageAndVersion(lineage, lineage.headVersion);
+  }
+
+  /**
    * Resolve a lineage + a specific or head version for the run-spec /
    * runs endpoints. Splits the 404 (lineage not found) vs 409 (lineage
    * exists but has no published version) cases so the API can return

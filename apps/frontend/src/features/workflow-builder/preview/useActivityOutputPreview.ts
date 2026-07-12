@@ -3,23 +3,27 @@
  * editor's per-node preview widget while a Try (or replay) is in
  * progress.
  *
- *   GET /api/workflows/:workflowId/preview-cache?nodeId=<nodeId>[&runId=<runId>]
+ * The editor mounts a preview widget on **every** node, so a naive
+ * per-node fetch fired one `GET /preview-cache?nodeId=…` request per node
+ * on every load — an O(nodes) request storm that tripped the backend rate
+ * limiter. Instead this hook reads from a single shared batch query:
  *
- * The hook is driven by the per-node `useNodeRunStatus(nodeId)` lookup
- * (US-138). When the node transitions out of `pending` the hook fires
- * a debounced (`250ms`) `invalidateQueries` so the preview cache row
- * is re-fetched as soon as the worker decorator has written it — rapid
- * `running → succeeded` transitions are coalesced into a single
- * round-trip.
+ *   GET /api/workflows/:workflowId/preview-cache-batch[?runId=<runId>]
  *
- * 404 responses are normalised to `data: null` (not error). The
- * preview-cache endpoint returns 404 in two distinct situations the
- * UI cares about:
- *   - the node hasn't been executed yet (or the run never produced a
- *     cache row) — the consumer renders nothing
- *   - the cache row was TTL-evicted — US-155 owns the cache-evicted
- *     `<Alert>` + Re-run flow; the dispatch shell renders a
- *     placeholder until that lands.
+ * All node widgets that share the same `(workflowId, runId)` observe the
+ * SAME underlying query — one network round-trip — and each picks its own
+ * node's row out of the returned map via a per-observer `select`. TanStack
+ * de-dupes the fetch and the refetch.
+ *
+ * When the node transitions out of `pending` the hook fires a debounced
+ * (`250ms`) `invalidateQueries` on the shared batch key so the map is
+ * re-fetched as soon as the worker decorator has written the row — rapid
+ * `running → succeeded` transitions across nodes are coalesced.
+ *
+ * A node absent from the returned map surfaces as `data: null` (the batch
+ * endpoint simply omits nodes with no fresh cache row — the same "no fresh
+ * row" signal the old per-node endpoint expressed as a 404). US-155 owns
+ * the cache-evicted `<Alert>` + Re-run flow on top of that `null`.
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L30
@@ -46,31 +50,37 @@ export { ApiError } from "../sources/useSourceUpload";
  */
 export const PREVIEW_REFETCH_DEBOUNCE_MS = 250;
 
+/** `nodeId → cached preview row` map returned by the batch endpoint. */
+export type ActivityOutputPreviewMap = Record<string, ActivityOutputPreview>;
+
 interface ErrorResponseBody {
   message?: string | string[];
 }
 
+interface PreviewBatchResponse {
+  previews: ActivityOutputPreviewMap;
+}
+
 /**
- * Performs the GET and maps non-2xx responses to typed `ApiError`s.
- * `404` is treated specially — returns `null` so the hook surfaces
- * `data === null` rather than `error: ApiError(404)`. Auth headers,
- * cookies, and 401 refresh are handled by `builderFetch`.
+ * Fetch the whole-lineage preview map for `(workflowId, runId?)`.
+ * Non-2xx responses map to a typed `ApiError`; auth headers, cookies, and
+ * 401 refresh are handled by `builderFetch`. Unlike the old per-node
+ * endpoint, the batch endpoint does not 404 on "no rows" — it returns an
+ * empty map — so there is no 404 special-case here.
  */
-export async function fetchActivityOutputPreview(
+export async function fetchActivityOutputPreviewsBatch(
   workflowId: string,
-  nodeId: string,
   runId: string | undefined,
-): Promise<ActivityOutputPreview | null> {
-  const params = new URLSearchParams({ nodeId });
+): Promise<ActivityOutputPreviewMap> {
+  const params = new URLSearchParams();
   if (runId !== undefined && runId !== "") {
     params.set("runId", runId);
   }
-  const url = `${API_BASE_URL}/workflows/${workflowId}/preview-cache?${params.toString()}`;
+  const qs = params.toString();
+  const url = `${API_BASE_URL}/workflows/${workflowId}/preview-cache-batch${
+    qs ? `?${qs}` : ""
+  }`;
   const response = await builderFetch(url, { method: "GET" });
-
-  if (response.status === 404) {
-    return null;
-  }
 
   if (!response.ok) {
     let message = response.statusText || "Failed to fetch preview cache";
@@ -88,24 +98,25 @@ export async function fetchActivityOutputPreview(
     throw new ApiError(response.status, message);
   }
 
-  return (await response.json()) as ActivityOutputPreview;
+  const body = (await response.json()) as PreviewBatchResponse;
+  return body.previews ?? {};
 }
 
 /**
- * Build the canonical TanStack query key. Exported so tests + parallel
+ * Build the canonical batch query key. Exported so tests + parallel
  * Phase 4 stories (US-155's Re-run flow) can invalidate the same key
- * without duplicating the literal.
+ * without duplicating the literal. Keyed by `(workflowId, runId)` only —
+ * NOT `nodeId` — so every node widget shares one query.
  */
-export function previewCacheQueryKey(
+export function previewCacheBatchQueryKey(
   workflowId: string,
-  nodeId: string,
   runId: string | undefined,
 ): readonly unknown[] {
-  return ["preview-cache", workflowId, nodeId, runId ?? "latest"] as const;
+  return ["preview-cache-batch", workflowId, runId ?? "latest"] as const;
 }
 
 export interface UseActivityOutputPreviewResult {
-  /** The cached preview, or `null` when no fresh row exists (404). */
+  /** The cached preview, or `null` when no fresh row exists for the node. */
   data: ActivityOutputPreview | null;
   /** True while the query is in-flight (TanStack `isPending` semantics). */
   isLoading: boolean;
@@ -114,16 +125,17 @@ export interface UseActivityOutputPreviewResult {
 }
 
 /**
- * TanStack hook fetching the preview-cache row for `(workflowId,
- * nodeId, runId?)`. Re-fetches debounced once when the node's status
- * transitions out of `pending`. Returns `null` on 404 (no fresh row)
- * without surfacing an error.
+ * TanStack hook exposing the cached preview for `(workflowId, nodeId,
+ * runId?)`. Reads from the shared batch query and selects this node's row,
+ * so N node widgets cost ONE request. Re-fetches (debounced) once when the
+ * node's status transitions out of `pending`. Returns `null` when the node
+ * has no fresh row.
  *
  * @param workflowId  Lineage id of the workflow.
  * @param nodeId      ID of the node within the workflow's graph.
  * @param runId       Optional Temporal workflow execution id. When
  *                    omitted, the endpoint returns the most recent
- *                    fresh row for `(workflowLineageId, nodeId)`.
+ *                    fresh row for each node.
  */
 export function useActivityOutputPreview(
   workflowId: string,
@@ -132,15 +144,21 @@ export function useActivityOutputPreview(
 ): UseActivityOutputPreviewResult {
   const queryClient = useQueryClient();
 
-  const query = useQuery<ActivityOutputPreview | null, ApiError>({
-    queryKey: previewCacheQueryKey(workflowId, nodeId, runId),
-    queryFn: () => fetchActivityOutputPreview(workflowId, nodeId, runId),
-    // Only run when we have a workflowId + nodeId. `runId` is optional;
-    // without it the endpoint returns the most-recent fresh row.
-    enabled: !!workflowId && !!nodeId,
-    // 404 normalises to `null` (no retry needed — a pending node isn't an
-    // error), but rate-limits (429) and server hiccups (5xx) are transient:
-    // without a retry they lock the widget into a permanent red "Preview
+  const query = useQuery<
+    ActivityOutputPreviewMap,
+    ApiError,
+    ActivityOutputPreview | null
+  >({
+    queryKey: previewCacheBatchQueryKey(workflowId, runId),
+    queryFn: () => fetchActivityOutputPreviewsBatch(workflowId, runId),
+    // Only run when we have a workflowId. `runId` is optional; without it
+    // the endpoint returns each node's most-recent fresh row.
+    enabled: !!workflowId,
+    // Per-observer projection — every node widget shares the underlying
+    // fetch but selects only its own row. Absent node ⇒ `null`.
+    select: (map) => map[nodeId] ?? null,
+    // Rate-limits (429) and server hiccups (5xx) are transient: without a
+    // retry they lock every widget into a permanent red "Preview
     // unavailable" even though the next fetch would succeed.
     retry: (failureCount, error) =>
       failureCount < 3 &&
@@ -150,18 +168,14 @@ export function useActivityOutputPreview(
   });
 
   // -----------------------------------------------------------------------
-  // Scenario 2 — debounced re-fetch on status transition
+  // Debounced re-fetch on status transition
   // -----------------------------------------------------------------------
   //
-  // Subscribe to the node's status. When it transitions out of
-  // `pending` (running, succeeded, skipped, failed, cancelled), schedule
-  // a debounced cache invalidation. The 250ms window coalesces rapid
-  // `running → succeeded` flips into a single round-trip.
-  //
-  // The previous-status ref guards against same-status re-renders (the
-  // status map is rebuilt on every poll tick, but its content rarely
-  // changes — only the reference). We only invalidate on an actual
-  // transition.
+  // Subscribe to the node's status. When it transitions out of `pending`
+  // (running, succeeded, skipped, failed, cancelled), schedule a debounced
+  // invalidation of the SHARED batch key. The 250ms window coalesces rapid
+  // `running → succeeded` flips — and near-simultaneous transitions across
+  // different nodes — into a single map re-fetch.
   const { status } = useNodeRunStatus(nodeId);
   const previousStatusRef = useRef<string | null>(null);
 
@@ -170,7 +184,7 @@ export function useActivityOutputPreview(
     previousStatusRef.current = status;
 
     // First render: snapshot the status but don't fire — the initial
-    // mount's `useQuery` already loaded the row.
+    // mount's `useQuery` already loaded the map.
     if (previous === null) {
       return;
     }
@@ -178,22 +192,21 @@ export function useActivityOutputPreview(
     if (previous === status) {
       return;
     }
-    // Only fire on transition into a non-pending state. (Re-entering
-    // `pending` from `running` shouldn't happen in practice; ignore.)
+    // Only fire on transition into a non-pending state.
     if (status === "pending") {
       return;
     }
 
     const timer = window.setTimeout(() => {
       queryClient.invalidateQueries({
-        queryKey: previewCacheQueryKey(workflowId, nodeId, runId),
+        queryKey: previewCacheBatchQueryKey(workflowId, runId),
       });
     }, PREVIEW_REFETCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [status, queryClient, workflowId, nodeId, runId]);
+  }, [status, queryClient, workflowId, runId]);
 
   return {
     data: query.data ?? null,

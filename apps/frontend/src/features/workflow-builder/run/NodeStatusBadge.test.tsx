@@ -13,7 +13,11 @@ import { render, renderHook, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { NodeStatusBadge } from "./NodeStatusBadge";
+import {
+  GroupAggregateStatusBadgeOverlay,
+  NodeStatusBadge,
+  NodeStatusBadgeOverlay,
+} from "./NodeStatusBadge";
 import type { NodeStatusesMap } from "./node-status.types";
 import {
   buildRunStateContextValue,
@@ -146,5 +150,80 @@ describe("useNodeRunStatus — Scenario 6: integration via stubbed provider", ()
   it("soft-fails to { status: 'pending' } outside any provider", () => {
     const { result } = renderHook(() => useNodeRunStatus("anything"));
     expect(result.current.status).toBe("pending");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Idle-badge suppression — the run-status badge is meaningful only while a
+// run (or replay) is active. At design time (no run kicked off) every node
+// would otherwise show the gray "pending" placeholder, cluttering the canvas
+// and colliding with the validation badge in the same corner. The overlays
+// render nothing until `activeRunId` is set.
+// ---------------------------------------------------------------------------
+
+function renderInProvider(
+  ui: ReactNode,
+  value: Parameters<typeof buildRunStateContextValue>[0],
+) {
+  return render(
+    <MantineProvider>
+      <RunStateTestProvider value={buildRunStateContextValue(value)}>
+        {ui}
+      </RunStateTestProvider>
+    </MantineProvider>,
+  );
+}
+
+describe("NodeStatusBadgeOverlay — idle suppression", () => {
+  it("renders nothing when no run is active (activeRunId null)", () => {
+    renderInProvider(<NodeStatusBadgeOverlay nodeId="n1" />, {
+      activeRunId: null,
+      nodeStatuses: {},
+    });
+    expect(screen.queryByTestId("node-status-badge")).toBeNull();
+    expect(screen.queryByTestId("node-status-badge-wrapper-n1")).toBeNull();
+  });
+
+  it("renders the badge once a run is active", () => {
+    renderInProvider(<NodeStatusBadgeOverlay nodeId="n1" />, {
+      activeRunId: "run-1",
+      nodeStatuses: { n1: { status: "running" } },
+    });
+    const badge = screen.getByTestId("node-status-badge");
+    expect(badge.getAttribute("data-status")).toBe("running");
+  });
+
+  it("renders nothing outside any provider (isolated renderer, no run)", () => {
+    render(
+      <MantineProvider>
+        <NodeStatusBadgeOverlay nodeId="n1" />
+      </MantineProvider>,
+    );
+    expect(screen.queryByTestId("node-status-badge")).toBeNull();
+  });
+});
+
+describe("GroupAggregateStatusBadgeOverlay — idle suppression", () => {
+  it("renders nothing when no run is active", () => {
+    renderInProvider(
+      <GroupAggregateStatusBadgeOverlay memberIds={["a", "b"]} />,
+      { activeRunId: null, nodeStatuses: {} },
+    );
+    expect(screen.queryByTestId("node-status-badge")).toBeNull();
+  });
+
+  it("renders the aggregate badge once a run is active", () => {
+    renderInProvider(
+      <GroupAggregateStatusBadgeOverlay memberIds={["a", "b"]} />,
+      {
+        activeRunId: "run-1",
+        nodeStatuses: {
+          a: { status: "running" },
+          b: { status: "pending" },
+        },
+      },
+    );
+    const badge = screen.getByTestId("node-status-badge");
+    expect(badge.getAttribute("data-status")).toBe("running");
   });
 });

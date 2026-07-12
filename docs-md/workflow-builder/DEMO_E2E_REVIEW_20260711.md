@@ -202,14 +202,44 @@ the gray run circle. Two changes:
    reachability warnings that were previously hidden behind the run badge (e.g.
    an unreachable second-root node) are now visible.
 
-## Batch-three candidates (from the review conclusion, not yet done)
+## Batch-three (DONE)
 
-- **Design/run mode split** (item 1) — the highest-leverage change; needs its
-  own brainstorm/design pass. Would also structurally fix the preview-request
-  volume behind the 429 class of problems, and let the idle gray "pending" run
-  badge stop showing at design time (right now every node wears one).
-- **Batch the per-node run endpoints** (item 4) — pairs with the mode split.
-- **Stable demo links / slug-based editor route** (item 6).
+The user declined the design/run mode split for now; the other three items
+were implemented on their own.
+
+1. **Idle run-status badge suppressed at design time** — DONE. The gray
+   "pending" dot that every node wore before any run is gone: both
+   `NodeStatusBadgeOverlay` and `GroupAggregateStatusBadgeOverlay` now render
+   nothing until `RunStateContext.activeRunId` is set (a live Try or a replay).
+   During a run the badges behave exactly as before. This also removes the
+   last source of the top-right corner clutter that motivated moving the
+   problems badge to the top-left in batch two. TDD (`NodeStatusBadge.test.tsx`).
+
+2. **Batched per-node preview-cache endpoint** — DONE. The editor mounts a
+   preview widget on **every** node, so the per-node
+   `GET /:id/preview-cache?nodeId=…` fired one request per node on every load —
+   an O(nodes) request storm that was the real driver behind the 429 class of
+   problems (not just parallel e2e workers). New
+   `GET /:id/preview-cache-batch[?runId=]` returns a `{ previews: { nodeId → row } }`
+   map in one round-trip; `useActivityOutputPreview(nodeId)` now reads a single
+   shared TanStack query and picks its node's row via a per-observer `select`, so
+   N widgets cost **one** request (and one refetch on transition). The per-node
+   endpoint is untouched (still used by the cache-evicted Re-run flow). TDD:
+   repository (`findManyMostRecentFresh` / `findManyInRunWindow` + dedupe),
+   controller (batch scenarios incl. unknown-run → empty map), and the rewritten
+   `useActivityOutputPreview` / `PreviewWidget` unit tests.
+
+3. **Stable / slug-based editor links** — DONE. `WorkflowLineage.slug` already
+   existed (auto-derived, stable across reseeds); this exposes it. New
+   `GET /api/workflows/by-slug/:slug[?groupId=]` resolves a slug (scoped to the
+   caller's groups) to the workflow, and a new frontend route
+   `/workflows/by-slug/:slug/edit` (`WorkflowBySlugRedirect`) resolves + redirects
+   to the canonical `/workflows/:id/edit`. The feature-demo seeder now emits
+   `by-slug` links, so demo links survive a reseed (the lineage id churns, the
+   slug does not). TDD across service, controller, and the redirect component.
+
+> **Note:** the committed `FEATURE_DEMO_GUIDE.md` still shows id-based links until
+> the next `npm run seed:demos` run regenerates it with the slug links.
 
 ## Coverage gaps closed (new e2e)
 

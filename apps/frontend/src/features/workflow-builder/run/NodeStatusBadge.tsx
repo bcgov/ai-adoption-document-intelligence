@@ -113,8 +113,14 @@ export function NodeStatusBadgeOverlay({
   nodeId: string;
 }): ReactNode {
   const ctx = useOptionalRunState();
+  // Idle suppression: the run-status badge is meaningful only while a run
+  // (or replay) is active. At design time — no run kicked off, or the
+  // renderer mounted in isolation outside a provider — render nothing so the
+  // canvas isn't littered with gray "pending" dots that collide with the
+  // validation badge in the same corner.
+  if (!ctx?.activeRunId) return null;
   const status: NodeStatusBadgeStatus =
-    ctx?.nodeStatuses[nodeId]?.status ?? "pending";
+    ctx.nodeStatuses[nodeId]?.status ?? "pending";
   return (
     <Box
       pos="absolute"
@@ -139,9 +145,11 @@ export function GroupAggregateStatusBadgeOverlay({
   memberIds: readonly string[];
 }): ReactNode {
   const ctx = useOptionalRunState();
+  // Idle suppression — see `NodeStatusBadgeOverlay`.
+  if (!ctx?.activeRunId) return null;
   const status: NodeStatusBadgeStatus = getAggregateStatus(
     memberIds,
-    ctx?.nodeStatuses ?? {},
+    ctx.nodeStatuses,
   );
   return (
     <Box

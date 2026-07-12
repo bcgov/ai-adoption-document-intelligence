@@ -204,6 +204,15 @@ class ActivityOutputPreviewDto {
 
 Full Swagger decorators per CLAUDE.md. The endpoint is read-only — there's no `POST /preview-cache` (cache rows are only written by the worker decorator).
 
+**Batch read (perf).** The canvas mounts a preview widget on *every* node, so reading previews one-per-node fired an O(nodes) request storm on every editor load — the main driver behind the API rate-limit (429) issues. The batch twin collapses that into one round-trip:
+
+```
+GET /api/workflows/:id/preview-cache-batch[?runId=<runId>]
+→ { previews: { [nodeId]: ActivityOutputPreviewDto } }
+```
+
+Same `runId` semantics (default = each node's most-recent fresh row; with `runId` = rows in that run's execution window, 5s slack). Nodes with no fresh row are simply **absent** from the map — the consumer treats an absent key exactly like the per-node endpoint's 404, so there's no 404-for-missing-rows here (an unknown `runId` returns an empty map rather than erroring). Backed by `ActivityOutputCacheRepository.findManyMostRecentFresh` / `findManyInRunWindow`, which fetch all fresh rows for the lineage ordered `createdAt DESC` and keep one (newest) per node. Frontend: `useActivityOutputPreview(nodeId)` reads a single shared TanStack query keyed by `(workflowId, runId)` and selects its node's row via a per-observer `select` — N widgets → one fetch, one refetch-on-transition. The per-node endpoint stays for the cache-evicted single-node Re-run flow (§6.3).
+
 ### 2.6 Opt-out via `nonCacheable?`
 
 Extend `ActivityCatalogEntry` in `packages/graph-workflow/src/catalog/types.ts`:

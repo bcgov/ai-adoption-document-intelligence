@@ -376,6 +376,51 @@ describe("WorkflowService", () => {
     });
   });
 
+  describe("getWorkflowBySlug", () => {
+    it("resolves a lineage by (group, slug) and returns its head", async () => {
+      mockLineage.findFirst.mockResolvedValue(lineageRow);
+      const result = await service.getWorkflowBySlug(
+        "test",
+        ["group-1"],
+        "actor-1",
+      );
+      expect(result.id).toBe("lin-1");
+      expect(result.slug).toBe("test");
+      expect(mockLineage.findFirst).toHaveBeenCalledWith({
+        where: { slug: "test", group_id: { in: ["group-1"] } },
+        include: { headVersion: true },
+        orderBy: { created_at: "asc" },
+      });
+    });
+
+    it("omits the group filter for an unrestricted (undefined groupIds) caller", async () => {
+      mockLineage.findFirst.mockResolvedValue(lineageRow);
+      await service.getWorkflowBySlug("test", undefined, "actor-1");
+      expect(mockLineage.findFirst).toHaveBeenCalledWith({
+        where: { slug: "test" },
+        include: { headVersion: true },
+        orderBy: { created_at: "asc" },
+      });
+    });
+
+    it("throws NotFoundException when no lineage matches the slug", async () => {
+      mockLineage.findFirst.mockResolvedValue(null);
+      await expect(
+        service.getWorkflowBySlug("nope", ["group-1"], "actor-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws NotFoundException when the lineage has no published head", async () => {
+      mockLineage.findFirst.mockResolvedValue({
+        ...lineageRow,
+        headVersion: null,
+      });
+      await expect(
+        service.getWorkflowBySlug("test", ["group-1"], "actor-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe("getWorkflowVersionById", () => {
     it("returns snapshot for version id", async () => {
       mockVersion.findUnique.mockResolvedValue({
