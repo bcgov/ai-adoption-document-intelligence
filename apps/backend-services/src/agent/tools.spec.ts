@@ -687,3 +687,34 @@ describe("createWorkflow binds the conversation (ITEM 25)", () => {
     expect(onWorkflowCreated).toHaveBeenCalledWith("wf-new");
   });
 });
+
+describe("describeNode", () => {
+  it("returns the parameter JSON schema + port docs for a static activity", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      activityType: string;
+      parameters?: Record<string, unknown>;
+      inputs: Array<{ name: string; kind: string; required: boolean }>;
+      outputs: Array<{ name: string }>;
+    }>(tools, "describeNode", { activityType: "azureOcr.submit" });
+    expect(res.ok).toBe(true);
+    expect(res.activityType).toBe("azureOcr.submit");
+    expect(res.inputs.some((i) => i.name === "fileData")).toBe(true);
+    expect(res.parameters).toBeDefined();
+    expect(JSON.stringify(res.parameters)).toContain("locale");
+  });
+
+  it("returns ok:false for an unknown activity type", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "describeNode",
+      { activityType: "no.such.activity" },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("unknown-activity");
+  });
+});

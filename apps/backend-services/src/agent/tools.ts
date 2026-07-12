@@ -1,4 +1,6 @@
 import {
+  getActivityCatalogEntry,
+  getActivityParametersJsonSchema,
   normaliseLocks,
   resolveBindings,
   SOURCE_CATALOG,
@@ -290,6 +292,60 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
             runtime: e.runtime,
             outputKind: e.outputKind,
           })),
+        };
+      },
+    }),
+
+    describeNode: tool({
+      description:
+        "Get the full spec for one activity/source type: its parameters (JSON Schema with names, descriptions, defaults, allowed values) and its typed input/output ports. Call this before setting a node's parameters — never guess or leave placeholder parameter values.",
+      inputSchema: z.object({
+        activityType: z
+          .string()
+          .min(1)
+          .describe(
+            "An activityType from listActivityCatalog, e.g. `azureOcr.submit` or `dyn.<slug>`.",
+          ),
+      }),
+      execute: async ({ activityType }) => {
+        // Static catalog first; fall back to this group's dynamic nodes.
+        const staticEntry = getActivityCatalogEntry(activityType);
+        if (staticEntry) {
+          return {
+            ok: true as const,
+            activityType,
+            displayName: staticEntry.displayName ?? activityType,
+            category: staticEntry.category,
+            description: staticEntry.description,
+            inputs: staticEntry.inputs,
+            outputs: staticEntry.outputs,
+            parameters: getActivityParametersJsonSchema(activityType) ?? {},
+            isDynamic: false,
+          };
+        }
+        const merged = await ctx.dynamicNodesService.getMergedCatalogForGroup(
+          ctx.groupId,
+        );
+        const dyn = merged.find((e) => e.activityType === activityType);
+        if (dyn) {
+          return {
+            ok: true as const,
+            activityType,
+            displayName: dyn.displayName,
+            category: dyn.category,
+            description: dyn.description,
+            inputs: dyn.inputs,
+            outputs: dyn.outputs,
+            parameters: dyn.paramsSchema ?? {},
+            isDynamic: true,
+          };
+        }
+        return {
+          ok: false as const,
+          error: {
+            code: "unknown-activity",
+            message: `No activity or source type '${activityType}' is registered in this group. Call listActivityCatalog / listSourceCatalog for valid types.`,
+          },
         };
       },
     }),
