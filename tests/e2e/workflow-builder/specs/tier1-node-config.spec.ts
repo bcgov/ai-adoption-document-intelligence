@@ -4,6 +4,7 @@ import {
   buildLinearConfig,
   createWorkflow,
   deleteWorkflow,
+  getWorkflow,
 } from "../helpers/workflow-api";
 import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
 
@@ -79,6 +80,50 @@ test.describe("node settings panel", () => {
     await label.fill("Submit (edited)");
     await label.blur();
     await expect(label).toHaveValue("Submit (edited)");
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
+
+  test("binding a port to a brand-new ctx key via inline Create saves cleanly (no undeclared-ctx error)", async ({
+    page,
+    request,
+  }) => {
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(createdId as string, 3);
+    await editor.selectNode("submit");
+
+    // Reveal the raw port-bindings editor and rebind fileData to a key that
+    // does NOT exist in config.ctx yet. Without the inline "+ Create" this
+    // would persist an undeclared ctx key → save fails with a 400.
+    await page.getByTestId("node-settings-advanced-toggle").click();
+    const inputs = page.getByTestId("node-settings-input-bindings");
+    const fileDataField = inputs.getByLabel(/Prepared file data/i);
+    await fileDataField.fill("freshVar");
+
+    // The inline create affordance appears for the new identifier; declaring
+    // it makes the binding reference a real ctx key.
+    const createBtn = page.getByTestId("variable-picker-create");
+    await expect(createBtn).toBeVisible();
+    await createBtn.click();
+    // Once declared it's an existing option, so the button goes away.
+    await expect(createBtn).toBeHidden();
+
+    await editor.saveButton.click();
+
+    // Save persisted: the new ctx key is declared (object) and the binding
+    // points at it — the round-trip to Workflow Settings is gone.
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        const ctxType = (
+          wf.config.ctx as Record<string, { type?: string }> | undefined
+        )?.freshVar?.type;
+        const bound = wf.config.nodes.submit.inputs?.find(
+          (b) => b.port === "fileData",
+        )?.ctxKey;
+        return { ctxType, bound };
+      })
+      .toEqual({ ctxType: "object", bound: "freshVar" });
+
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 });

@@ -302,3 +302,82 @@ describe("VariablePicker — Scenario 5: re-sort on expectedKind change", () => 
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Inline ctx-key creation: the "+ Create variable" affordance
+// ---------------------------------------------------------------------------
+
+describe("VariablePicker — inline ctx-key creation", () => {
+  it("shows a create button for a new valid identifier and calls onCreateCtxKey when clicked", () => {
+    const onCreateCtxKey = vi.fn();
+    renderPicker(
+      <VariablePicker
+        config={makeFourVarConfig()}
+        value="freshVar"
+        onChange={vi.fn()}
+        onCreateCtxKey={onCreateCtxKey}
+        data-testid="picker"
+      />,
+    );
+    const btn = screen.getByTestId("variable-picker-create");
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onCreateCtxKey).toHaveBeenCalledWith("freshVar");
+  });
+
+  it("also shows the create button on the typed-I/O (expectedKind) render path", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeFourVarConfig()}
+        value="freshVar"
+        onChange={vi.fn()}
+        onCreateCtxKey={vi.fn()}
+        expectedKind="Document"
+        resolveProducerKind={FOUR_VAR_RESOLVER}
+        data-testid="picker"
+      />,
+    );
+    expect(screen.getByTestId("variable-picker-create")).toBeInTheDocument();
+  });
+
+  it("hides the create button when the typed value is an existing ctx key", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeFourVarConfig()}
+        value="seg1"
+        onChange={vi.fn()}
+        onCreateCtxKey={vi.fn()}
+        data-testid="picker"
+      />,
+    );
+    expect(screen.queryByTestId("variable-picker-create")).toBeNull();
+  });
+
+  it("hides the create button when no onCreateCtxKey is provided", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeFourVarConfig()}
+        value="freshVar"
+        onChange={vi.fn()}
+        data-testid="picker"
+      />,
+    );
+    expect(screen.queryByTestId("variable-picker-create")).toBeNull();
+  });
+
+  it("hides the create button for an invalid identifier (dotted path / bad chars / empty)", () => {
+    for (const value of ["foo.bar", "1bad", "has space", ""]) {
+      const { unmount } = renderPicker(
+        <VariablePicker
+          config={makeFourVarConfig()}
+          value={value}
+          onChange={vi.fn()}
+          onCreateCtxKey={vi.fn()}
+          data-testid="picker"
+        />,
+      );
+      expect(screen.queryByTestId("variable-picker-create")).toBeNull();
+      unmount();
+    }
+  });
+});

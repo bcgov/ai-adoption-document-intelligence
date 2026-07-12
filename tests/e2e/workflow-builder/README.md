@@ -64,6 +64,16 @@ developing (the seed fixtures these tests rely on must already exist):
 PLAYWRIGHT_SKIP_DB_RESET=1 npm run test:e2e -- tests/e2e/workflow-builder
 ```
 
+**Parallelism vs the backend rate limiter.** All workers share ONE backend
+instance behind a global throttle (`THROTTLE_GLOBAL_LIMIT`, default 100
+req/min/IP — every worker is `localhost`). Editor pages are chatty (config +
+catalog + per-node preview/status fetches), so unbounded workers make
+full-suite runs 429-storm the backend: preview widgets flip to `error`,
+canvas interaction stalls, and the same handful of tests flake. Local runs
+are therefore capped at **6 workers** (`playwright.config.ts`); if you bump
+`THROTTLE_GLOBAL_LIMIT` in your backend env you can raise it with
+`PLAYWRIGHT_WORKERS=<n>`.
+
 ## Design notes
 
 - **Canvas via API, not drag.** React Flow renders SVG + absolutely-positioned

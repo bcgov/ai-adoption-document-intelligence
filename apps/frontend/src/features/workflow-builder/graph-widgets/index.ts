@@ -11,6 +11,7 @@ export {
   ConditionExpressionEditor,
   type ConditionExpressionEditorProps,
 } from "./ConditionExpressionEditor";
+export { declareCtxKey } from "./ctx-declaration";
 export { EdgePicker, type EdgePickerProps } from "./EdgePicker";
 export { KindDot, type KindDotProps } from "./KindDot";
 export { NodePicker, type NodePickerProps } from "./NodePicker";

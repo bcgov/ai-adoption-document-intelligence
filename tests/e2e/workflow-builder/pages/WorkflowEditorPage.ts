@@ -96,13 +96,26 @@ export class WorkflowEditorPage {
    * coordinates.
    */
   async selectNode(nodeId: string): Promise<void> {
-    const { x, y } = await bringNodeIntoClear(this.page, nodeId);
-    await this.page.mouse.click(x, y);
-    // Confirm selection landed (universal across node types) — the panel
-    // testid is type-specific, so each test asserts its own.
-    await this.page
-      .locator(`.react-flow__node[data-id="${nodeId}"].selected`)
-      .waitFor({ state: "visible" });
+    // Under CPU load the fitView animation can still be moving nodes when the
+    // click lands, so the coordinates read a beat earlier go stale and the
+    // click hits empty pane. Re-read + re-click a few times before failing.
+    const selected = this.page.locator(
+      `.react-flow__node[data-id="${nodeId}"].selected`,
+    );
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { x, y } = await bringNodeIntoClear(this.page, nodeId);
+      await this.page.mouse.click(x, y);
+      try {
+        // Confirm selection landed (universal across node types) — the panel
+        // testid is type-specific, so each test asserts its own.
+        await selected.waitFor({ state: "visible", timeout: 5_000 });
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
   }
 
   /** Right-click a node to open its context menu. */

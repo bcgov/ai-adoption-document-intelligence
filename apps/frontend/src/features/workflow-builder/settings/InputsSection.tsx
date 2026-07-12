@@ -18,6 +18,15 @@ interface InputsSectionProps {
   config: GraphWorkflowConfig;
   nodeId: string;
   onConfigChange: (next: GraphWorkflowConfig) => void;
+  /**
+   * When set, open the source picker for this input port on arrival — the
+   * deep-link a clicked status dot uses to jump straight to the problem
+   * input. Consumed once (see `onFocusConsumed`) so a re-render doesn't
+   * re-open it.
+   */
+  focusPort?: string | null;
+  /** Called right after `focusPort` is applied so the caller can clear it. */
+  onFocusConsumed?: () => void;
 }
 
 /**
@@ -71,8 +80,24 @@ export function InputsSection({
   config,
   nodeId,
   onConfigChange,
+  focusPort,
+  onFocusConsumed,
 }: InputsSectionProps) {
   const [overrideOf, setOverrideOf] = useState<string | null>(null);
+
+  // The picker is open for the port the user clicked "Choose source" on
+  // (`overrideOf`) OR the port a clicked status dot deep-linked to
+  // (`focusPort`). Deriving the open port from the prop — rather than copying
+  // it into state via an effect — keeps the deep-link resilient to remounts
+  // (a mount effect that cleared the parent signal would lose it under a
+  // React StrictMode double-mount). Both the picker's close and a successful
+  // pick clear `overrideOf` and call `onFocusConsumed`, so it never re-opens.
+  const activePickerPort = overrideOf ?? focusPort ?? null;
+  const closePicker = () => {
+    setOverrideOf(null);
+    onFocusConsumed?.();
+  };
+
   const node = config.nodes[nodeId];
   if (!node || (node.type !== "activity" && node.type !== "pollUntil")) {
     return null;
@@ -120,7 +145,7 @@ export function InputsSection({
         } as GraphNode,
       },
     });
-    setOverrideOf(null);
+    closePicker();
   };
 
   const handleRevert = (portName: string) => {
@@ -186,23 +211,23 @@ export function InputsSection({
       })}
 
       <Modal
-        opened={overrideOf !== null}
-        onClose={() => setOverrideOf(null)}
+        opened={activePickerPort !== null}
+        onClose={closePicker}
         title="Choose source"
         size="sm"
         transitionProps={{ duration: 0 }}
       >
-        {overrideOf && (
+        {activePickerPort && (
           <ProducerPicker
             config={config}
             consumerNodeId={nodeId}
             expectedKind={
-              (entry.inputs.find((p) => p.name === overrideOf)?.kind ??
+              (entry.inputs.find((p) => p.name === activePickerPort)?.kind ??
                 "Artifact") as KindRef
             }
             value=""
             onChange={(selection) => {
-              if (selection) handleOverride(overrideOf, selection);
+              if (selection) handleOverride(activePickerPort, selection);
             }}
           />
         )}

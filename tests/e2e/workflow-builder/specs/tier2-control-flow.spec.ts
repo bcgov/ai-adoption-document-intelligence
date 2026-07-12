@@ -430,3 +430,78 @@ test.describe("control-flow authoring", () => {
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 });
+
+test.describe("control-flow authoring — map form round-trip", () => {
+  let pageErrors: string[] = [];
+  let createdId: string | null = null;
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(e.message));
+    await setupWorkflowBuilderTest(page);
+  });
+
+  test.afterEach(async ({ request }) => {
+    if (createdId) {
+      await deleteWorkflow(request, createdId);
+      createdId = null;
+    }
+  });
+
+  test("4.2 — the map form shows every saved field and a maxConcurrency edit round-trips", async ({
+    page,
+    request,
+  }) => {
+    createdId = (
+      await createWorkflow(request, {
+        name: `e2e map-form ${test.info().testId}`,
+        config: buildControlFlowConfig(`e2e map-form ${test.info().testId}`),
+      })
+    ).id;
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(createdId, 9);
+    await editor.selectNode("eachDoc");
+
+    // Full form: iteration keys, concurrency, and both body pickers carry
+    // the saved values (the render test only spot-checks concurrency).
+    await expect(
+      page.getByTestId("map-node-settings-collection-ctx-key"),
+    ).toHaveValue("documents");
+    await expect(
+      page.getByTestId("map-node-settings-item-ctx-key"),
+    ).toHaveValue("item");
+    await expect(
+      page.getByTestId("map-node-settings-index-ctx-key"),
+    ).toHaveValue("docIndex");
+    await expect(
+      page.getByTestId("map-node-settings-body-entry"),
+    ).toHaveValue(/Body In/);
+    await expect(page.getByTestId("map-node-settings-body-exit")).toHaveValue(
+      /Body Out/,
+    );
+
+    // Edit maxConcurrency through the map's own serializer (distinct from the
+    // pollUntil round-trip — different form + node-type serialize path).
+    const input = page.getByTestId("map-node-settings-max-concurrency");
+    await expect(input).toHaveValue("5");
+    await input.fill("3");
+    await page.keyboard.press("Tab");
+    await editor.saveButton.click();
+
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        return wf.config.nodes.eachDoc.maxConcurrency;
+      })
+      .toBe(3);
+
+    // Survives a reload into the form.
+    await editor.openExisting(createdId, 9);
+    await editor.selectNode("eachDoc");
+    await expect(
+      page.getByTestId("map-node-settings-max-concurrency"),
+    ).toHaveValue("3");
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
+});

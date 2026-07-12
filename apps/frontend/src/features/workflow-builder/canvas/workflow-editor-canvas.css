@@ -1,0 +1,19 @@
+/*
+ * Workflow-builder canvas overrides on top of @xyflow/react/dist/style.css.
+ *
+ * Scoped under .wb-editor-canvas (set on the editor's <ReactFlow>) so the
+ * read-only GraphVisualization component keeps the xyflow defaults.
+ */
+
+/*
+ * Connection handles: xyflow's default 6×6px dot is hard to see and a tiny
+ * drag target. Enlarge to 12×12px with a body-coloured ring so the kind
+ * colour stays readable against both the node card and the canvas.
+ * The doubled array-cardinality outline (inline style) sits outside this
+ * border via outline-offset, so the two cues don't collide.
+ */
+.wb-editor-canvas .react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--mantine-color-body, #fff);
+}

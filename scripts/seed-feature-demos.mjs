@@ -116,7 +116,7 @@ function typedChainConfig(name) {
         type: "activity",
         label: "Cleanup",
         activityType: "ocr.cleanup",
-        ...pos(360, 340),
+        ...pos(1040, 120),
       },
     },
     edges: [
@@ -181,6 +181,10 @@ function ambiguousConfig(name) {
         type: "activity",
         label: "Normalize B",
         activityType: "document.normalizeOrientation",
+        // Root node reading a workflow ctx-input — an explicit binding to a
+        // declared ctx key counts as a source, so this node surfaces no
+        // problem; the only issue in this demo is the sink's ambiguous input.
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
         ...pos(80, 320),
       },
       sink: {
@@ -208,6 +212,7 @@ function linearConfig(name, submitLabel = "Submit to Azure OCR") {
       fileName: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
+      ocrResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -236,7 +241,12 @@ function linearConfig(name, submitLabel = "Submit to Azure OCR") {
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
-        inputs: [{ port: "documentId", ctxKey: "apimRequestId" }],
+        // Both required inputs bound so the node doesn't carry a red
+        // "unsatisfied" auto-wire dot in demos that showcase other features.
+        inputs: [
+          { port: "documentId", ctxKey: "apimRequestId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
         ...pos(720, 80),
       },
     },
@@ -324,6 +334,8 @@ function controlFlowConfig(name) {
     ctx: {
       documents: { type: "array" },
       currentDoc: { type: "object" },
+      documentId: { type: "string" },
+      apimRequestId: { type: "string" },
       ocrResult: { type: "object" },
       results: { type: "array" },
     },
@@ -412,6 +424,9 @@ function controlFlowConfig(name) {
         maxAttempts: 20,
         initialDelay: "5s",
         timeout: "10m",
+        // Bind the poll activity's required input so the node doesn't carry
+        // a red "unsatisfied" dot in a demo about control-flow forms.
+        inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
         ...pos(460, 360),
       },
       approve: {
@@ -440,6 +455,10 @@ function controlFlowConfig(name) {
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
         ...pos(1120, 80),
       },
     },
@@ -486,6 +505,7 @@ function edgesValidateConfig(name) {
       processedSegments: { type: "array" },
       validationResults: { type: "object" },
       requiresReview: { type: "boolean" },
+      ocrResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -510,6 +530,9 @@ function edgesValidateConfig(name) {
         type: "activity",
         label: "Fallback handler",
         activityType: "ocr.cleanup",
+        // No OcrResult producer upstream (prep emits a Document) — bind
+        // explicitly so the demo's fallback node doesn't show a red dot.
+        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
         ...pos(120, 360),
       },
       reviewSwitch: {
@@ -579,6 +602,7 @@ function edgesValidateConfig(name) {
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
+        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
         ...pos(820, 360),
       },
     },
@@ -630,6 +654,7 @@ function groupingConfig(name) {
       apimRequestId: { type: "string" },
       modelId: { type: "string", defaultValue: "prebuilt-layout" },
       confidenceThreshold: { type: "number", defaultValue: 0.7 },
+      ocrResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -658,7 +683,10 @@ function groupingConfig(name) {
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
-        inputs: [{ port: "documentId", ctxKey: "apimRequestId" }],
+        inputs: [
+          { port: "documentId", ctxKey: "apimRequestId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
         ...pos(720, 80),
       },
       cleanup: {
@@ -666,6 +694,7 @@ function groupingConfig(name) {
         type: "activity",
         label: "Cleanup",
         activityType: "ocr.cleanup",
+        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
         ...pos(1020, 80),
       },
     },
@@ -821,8 +850,9 @@ const DEMOS = [
     title: "Auto-wire — typed input binding states (Part 8)",
     config: autoWireConfig,
     steps: [
-      "Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No status dot.",
-      "Select **Lone Submit (unsatisfied)** → its input shows **Needs source** and the node carries a red **unsatisfied** status dot (no upstream producer).",
+      "Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No problems badge.",
+      "**Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.",
+      "**Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).",
       "On the auto-bound node, click **Override** → the binding locks; click **Revert to auto** to restore it.",
     ],
   },
@@ -832,8 +862,9 @@ const DEMOS = [
     config: ambiguousConfig,
     steps: [
       "Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.",
-      "Select **Submit OCR (ambiguous)** → its `fileData` input shows **Choose source** and the node carries an amber **ambiguous** status dot.",
-      "Use the producer picker to pick one — the dot clears.",
+      "**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input fileData has an ambiguous source”*.",
+      "**Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.",
+      "*Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.",
     ],
   },
   {
@@ -854,6 +885,7 @@ const DEMOS = [
       "Click **Submit to Azure OCR** → the settings panel shows the editable label + a type badge.",
       "Edit the label and blur — the node updates live.",
       "Toggle **Advanced** to reveal the raw port bindings.",
+      "In an input binding, type a **new** variable name (e.g. `myNewVar`) → a **+ Create variable \"myNewVar\"** button appears beneath the field. Click it → the variable is declared and the node binds to it. Without this, saving a binding to an undeclared ctx key fails validation — the button removes the detour to Workflow Settings.",
     ],
   },
   {
@@ -950,6 +982,109 @@ const DEMOS = [
 ];
 
 // ---------------------------------------------------------------------------
+// Dynamic-node demo (Part 14) — publish-time needs the deno-runner toolchain
+// (jsdoc-parse → signature-semantics → ts-check → allowlist), so this demo is
+// seeded best-effort: when the runner is down the publish fails and the demo
+// is skipped with a console note instead of failing the whole seeder.
+// ---------------------------------------------------------------------------
+
+const DYN_DEMO_NAME = "demo-uppercase";
+
+function demoDynamicNodeScript() {
+  return `import type { Document } from "@ai-di/graph-workflow/kinds";
+
+/**
+ * @workflow-node
+ * @name ${DYN_DEMO_NAME}
+ * @description Uppercases the documentUrl field.
+ * @inputs { document: { kind: "Document", required: true } }
+ * @outputs { result: { kind: "Artifact" } }
+ */
+export default async function dynamicNode(
+  ctx: { document: Document },
+  _params: Record<string, unknown>,
+): Promise<{ result: { url: string } }> {
+  const url = String((ctx.document as { url?: string }).url ?? "");
+  return { result: { url: url.toUpperCase() } };
+}`;
+}
+
+/**
+ * Publish (idempotently) the demo dynamic node under the stable base slug;
+ * null when the toolchain is down. The backend restores soft-deleted
+ * lineages on re-publish (POST = create-or-restore), so a tombstone from a
+ * prior seed publishes cleanly — no `-N` suffix churn. PUT appends a version
+ * when the lineage is already live.
+ */
+async function publishDemoDynamicNode() {
+  const live = await api("GET", `/api/dynamic-nodes/${DYN_DEMO_NAME}`).catch(
+    () => null,
+  );
+  try {
+    if (live) {
+      await api("PUT", `/api/dynamic-nodes/${DYN_DEMO_NAME}`, {
+        script: demoDynamicNodeScript(),
+      });
+    } else {
+      // POST restores a soft-deleted lineage as well as creating a new one.
+      await api("POST", "/api/dynamic-nodes", {
+        script: demoDynamicNodeScript(),
+      });
+    }
+    return DYN_DEMO_NAME;
+  } catch (err) {
+    console.warn(
+      `  ⚠ dynamic-node demo skipped — publish failed (deno-runner down?): ${String(err).slice(0, 160)}`,
+    );
+    return null;
+  }
+}
+
+/** `file.prepare` (Document producer) → the published `dyn.<slug>` node. */
+function dynamicNodeConfig(name, slugName) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "prep",
+    ctx: {
+      blobKey: { type: "string" },
+      preparedFileData: { type: "object" },
+    },
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...pos(120, 140),
+      },
+      dynNode: {
+        id: "dynNode",
+        type: "activity",
+        label: "Uppercase URL (custom)",
+        activityType: `dyn.${slugName}`,
+        // The dynamic-node binding walk requires the required `document`
+        // input to be explicitly bound (auto-wire doesn't cover dyn nodes).
+        inputs: [{ port: "document", ctxKey: "preparedFileData" }],
+        ...pos(460, 140),
+      },
+    },
+    edges: [{ id: "e1", source: "prep", target: "dynNode", type: "normal" }],
+  };
+}
+
+const DYN_DEMO_STEPS = [
+  "The **CUSTOM** section of the activity palette lists **demo-uppercase** with a **DYN** badge — click it to drop another instance.",
+  "The canvas node carries a purple **DYN** pill; select it → the Inputs section shows its `document` port bound to *Prepare*'s output.",
+  "Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).",
+  "**+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).",
+  "**Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).",
+  "⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).",
+];
+
+// ---------------------------------------------------------------------------
 
 function unwrap(created) {
   return created && created.workflow ? created.workflow : created;
@@ -1006,6 +1141,23 @@ async function seed() {
     results.push({ ...demo, id: created.id });
     console.log(`  ✓ ${demo.key.padEnd(14)} ${created.id}`);
   }
+
+  // Best-effort dynamic-node demo (Part 14) — see publishDemoDynamicNode.
+  const dynSlug = await publishDemoDynamicNode();
+  if (dynSlug) {
+    const title = "Dynamic (custom-code) node — DYN pill & script editor (Part 14)";
+    const name = `${NAME_PREFIX}${title}`;
+    const created = unwrap(
+      await api("POST", "/api/workflows", {
+        name,
+        config: dynamicNodeConfig(name, dynSlug),
+        groupId: GROUP_ID,
+      }),
+    );
+    results.push({ key: "dynamic-node", title, steps: DYN_DEMO_STEPS, id: created.id, dyn: true });
+    console.log(`  ✓ ${"dynamic-node".padEnd(14)} ${created.id} (dyn.${dynSlug})`);
+  }
+
   return results;
 }
 
@@ -1063,12 +1215,17 @@ function renderGuide(results) {
     lines.push("---");
     lines.push("");
   }
+  const dynSeeded = results.some((r) => r.dyn);
   lines.push(
-    "_Not seeded here because they need a live worker, the deno-runner, a" +
-      " published dynamic node, or LLM credentials: real OCR output previews +" +
-      " incremental cache-hit re-runs (Part 9 run-time), dynamic-node" +
-      " authoring/execution/security (Part 14), and the AI agent (Part 15)." +
-      " Walk those from `MANUAL_TEST_PLAN.md` with the stack up._",
+    "_Not seeded here because they need a live worker" +
+      (dynSeeded ? "" : ", the deno-runner") +
+      " or LLM credentials: real OCR output previews + incremental cache-hit" +
+      " re-runs (Part 9 run-time), dynamic-node " +
+      (dynSeeded
+        ? "execution/security (Part 14 run-time — the editor surface is seeded above)"
+        : "authoring/execution/security (Part 14)") +
+      ", and the AI agent (Part 15). Walk those from `MANUAL_TEST_PLAN.md`" +
+      " with the stack up._",
   );
   lines.push("");
   return lines.join("\n");

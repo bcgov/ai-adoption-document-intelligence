@@ -46,7 +46,11 @@ import type {
   PortBinding,
 } from "../../../types/workflow";
 import { getActivityVisualHints } from "../catalog-utils";
-import { resolveProducerKindFor, VariablePicker } from "../graph-widgets";
+import {
+  declareCtxKey,
+  resolveProducerKindFor,
+  VariablePicker,
+} from "../graph-widgets";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
 import { replaceNode } from "../replace-node";
 import { useOptionalRunState } from "../run/RunStateContext";
@@ -82,6 +86,13 @@ interface NodeSettingsPanelProps {
    * that need it (e.g. `SourceNodeSettings`'s "Test upload" button).
    */
   workflowId?: string;
+  /**
+   * Status-dot deep-link: when this targets the selected node, the Inputs
+   * section opens the source picker for `port`. Cleared via
+   * `onFocusInputConsumed` so it fires once.
+   */
+  focusInput?: { nodeId: string; port: string } | null;
+  onFocusInputConsumed?: () => void;
 }
 
 export function NodeSettingsPanel({
@@ -91,6 +102,8 @@ export function NodeSettingsPanel({
   onConfigChange,
   onDeleteSelected,
   workflowId,
+  focusInput,
+  onFocusInputConsumed,
 }: NodeSettingsPanelProps) {
   const node = selectedNodeId ? config.nodes[selectedNodeId] : null;
 
@@ -128,6 +141,8 @@ export function NodeSettingsPanel({
       onConfigChange={onConfigChange}
       onDeleteSelected={onDeleteSelected}
       workflowId={workflowId}
+      focusPort={focusInput?.nodeId === node.id ? focusInput.port : null}
+      onFocusConsumed={onFocusInputConsumed}
     />
   );
 }
@@ -143,6 +158,8 @@ interface NodeSettingsProps {
   onConfigChange: (next: GraphWorkflowConfig) => void;
   onDeleteSelected: () => void;
   workflowId?: string;
+  focusPort?: string | null;
+  onFocusConsumed?: () => void;
 }
 
 function NodeSettings({
@@ -151,10 +168,15 @@ function NodeSettings({
   onConfigChange,
   onDeleteSelected,
   workflowId,
+  focusPort,
+  onFocusConsumed,
 }: NodeSettingsProps) {
   const updateNode = (next: GraphNode) => {
     onConfigChange(replaceNode(config, node.id, next));
   };
+
+  const createCtxKey = (key: string) =>
+    onConfigChange(declareCtxKey(config, key));
 
   const setLabel = (label: string) => {
     // Discriminated-union-safe label update: rebuild the node literally so
@@ -285,6 +307,8 @@ function NodeSettings({
             config={config}
             nodeId={node.id}
             onConfigChange={onConfigChange}
+            focusPort={focusPort}
+            onFocusConsumed={onFocusConsumed}
           />
           <Divider />
           <AdvancedBindingsToggle
@@ -292,6 +316,7 @@ function NodeSettings({
             config={config}
             onInputsChange={setInputBindings}
             onOutputsChange={setOutputBindings}
+            onCreateCtxKey={createCtxKey}
           />
         </Stack>
       </ScrollArea>
@@ -612,6 +637,7 @@ interface AdvancedBindingsToggleProps {
   config: GraphWorkflowConfig;
   onInputsChange: (next: PortBinding[]) => void;
   onOutputsChange: (next: PortBinding[]) => void;
+  onCreateCtxKey: (key: string) => void;
 }
 
 function AdvancedBindingsToggle({
@@ -619,6 +645,7 @@ function AdvancedBindingsToggle({
   config,
   onInputsChange,
   onOutputsChange,
+  onCreateCtxKey,
 }: AdvancedBindingsToggleProps) {
   const [open, setOpen] = useState(false);
   return (
@@ -637,6 +664,7 @@ function AdvancedBindingsToggle({
           config={config}
           onInputsChange={onInputsChange}
           onOutputsChange={onOutputsChange}
+          onCreateCtxKey={onCreateCtxKey}
         />
       )}
     </Stack>
@@ -658,6 +686,7 @@ interface PortBindingsFooterProps {
   config: GraphWorkflowConfig;
   onInputsChange: (next: PortBinding[]) => void;
   onOutputsChange: (next: PortBinding[]) => void;
+  onCreateCtxKey: (key: string) => void;
 }
 
 function PortBindingsFooter({
@@ -665,6 +694,7 @@ function PortBindingsFooter({
   config,
   onInputsChange,
   onOutputsChange,
+  onCreateCtxKey,
 }: PortBindingsFooterProps) {
   const inputs = node.inputs ?? [];
   const outputs = node.outputs ?? [];
@@ -689,6 +719,7 @@ function PortBindingsFooter({
         config={config}
         currentNodeId={node.id}
         useVariablePicker
+        onCreateCtxKey={onCreateCtxKey}
         testId="node-settings-input-bindings"
       />
 
@@ -762,6 +793,8 @@ interface PortBindingsEditorProps {
    * so the user can declare a fresh ctx key.
    */
   useVariablePicker?: boolean;
+  /** Threaded to the input VariablePicker so a new ctx key can be declared inline. */
+  onCreateCtxKey?: (key: string) => void;
   testId: string;
 }
 
@@ -774,6 +807,7 @@ function PortBindingsEditor({
   config,
   currentNodeId,
   useVariablePicker,
+  onCreateCtxKey,
   testId,
 }: PortBindingsEditorProps) {
   if (ports.length === 0) {
@@ -819,6 +853,7 @@ function PortBindingsEditor({
                 config={config}
                 currentNodeId={currentNodeId}
                 onChange={(v) => setBinding(port.name, v)}
+                onCreateCtxKey={onCreateCtxKey}
                 expectedKind={port.kind}
                 resolveProducerKind={(ctxKey) =>
                   resolveProducerKindFor(ctxKey, config)

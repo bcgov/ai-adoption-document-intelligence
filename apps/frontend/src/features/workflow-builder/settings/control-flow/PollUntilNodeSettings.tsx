@@ -44,7 +44,7 @@ import type {
   GraphWorkflowConfig,
   PollUntilNode,
 } from "../../../../types/workflow";
-import { ConditionExpressionEditor } from "../../graph-widgets";
+import { ConditionExpressionEditor, declareCtxKey } from "../../graph-widgets";
 import {
   JsonSchemaForm,
   type JsonSchemaProperty,
@@ -136,6 +136,9 @@ export function PollUntilNodeSettings({
   const updateNode = (next: PollUntilNode) => {
     onConfigChange(replaceNode(config, node.id, next));
   };
+
+  const createCtxKey = (key: string) =>
+    onConfigChange(declareCtxKey(config, key));
 
   // ── Activity-type Select (grouped by CatalogCategory) ──────────────────
   const activityTypeOptions = useMemo(buildActivityTypeOptions, []);
@@ -263,6 +266,7 @@ export function PollUntilNodeSettings({
           value={node.condition}
           onChange={setCondition}
           config={config}
+          onCreateCtxKey={createCtxKey}
           currentNodeId={node.id}
           data-testid="poll-until-node-settings-condition"
         />

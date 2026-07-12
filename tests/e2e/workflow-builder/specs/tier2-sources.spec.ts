@@ -1,10 +1,17 @@
 import { expect, test } from "@playwright/test";
-import { BACKEND_URL, SEED_GROUP_ID, TEST_API_KEY } from "../helpers/wb-test";
+import {
+  BACKEND_URL,
+  SEED_GROUP_ID,
+  setupWorkflowBuilderTest,
+  TEST_API_KEY,
+} from "../helpers/wb-test";
 import {
   createWorkflow,
   deleteWorkflow,
+  getWorkflow,
   type GraphConfig,
 } from "../helpers/workflow-api";
+import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
 
 /**
  * Tier 2 — document sources: upload-endpoint validation (13.4) + the
@@ -286,5 +293,70 @@ test.describe("document sources — upload validation + single-source rule", () 
       | { id: string }
       | { workflow: { id: string } };
     created.push("workflow" in body ? body.workflow.id : body.id);
+  });
+});
+
+test.describe("source node settings UI", () => {
+  let pageErrors: string[] = [];
+  let createdId: string | null = null;
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(e.message));
+    await setupWorkflowBuilderTest(page);
+  });
+
+  test.afterEach(async ({ request }) => {
+    if (createdId) {
+      await deleteWorkflow(request, createdId);
+      createdId = null;
+    }
+  });
+
+  test("13.2/13.3 — SourceNodeSettings renders the upload params and a maxFileSizeMB edit round-trips", async ({
+    page,
+    request,
+  }, testInfo) => {
+    const name = `e2e source-settings ${testInfo.testId}`;
+    const created = await createWorkflow(request, {
+      name,
+      config: uploadConfig(name, 25),
+    });
+    createdId = created.id;
+
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(created.id, 2);
+    await editor.selectNode("upload1");
+
+    // The source-specific settings body mounts with the catalog identity.
+    const settings = page.getByTestId("source-node-settings");
+    await expect(settings).toBeVisible();
+    await expect(
+      page.getByTestId("source-node-settings-display-name"),
+    ).toBeVisible();
+
+    // Edit the schema-driven "Max file size (MB)" parameter and save.
+    const sizeInput = page.getByLabel("Max file size (MB)");
+    await expect(sizeInput).toHaveValue("25");
+    await sizeInput.fill("10");
+    await page.keyboard.press("Tab");
+    await editor.saveButton.click();
+
+    // Persisted server-side…
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        return (
+          wf.config.nodes.upload1.parameters as { maxFileSizeMB?: number }
+        ).maxFileSizeMB;
+      })
+      .toBe(10);
+
+    // …and survives a reload into the form.
+    await editor.openExisting(createdId, 2);
+    await editor.selectNode("upload1");
+    await expect(page.getByLabel("Max file size (MB)")).toHaveValue("10");
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 });

@@ -138,9 +138,15 @@ export function useActivityOutputPreview(
     // Only run when we have a workflowId + nodeId. `runId` is optional;
     // without it the endpoint returns the most-recent fresh row.
     enabled: !!workflowId && !!nodeId,
-    // 404 normalises to `null` — TanStack's default retry-on-error
-    // would otherwise hammer the backend while a node is still pending.
-    retry: false,
+    // 404 normalises to `null` (no retry needed — a pending node isn't an
+    // error), but rate-limits (429) and server hiccups (5xx) are transient:
+    // without a retry they lock the widget into a permanent red "Preview
+    // unavailable" even though the next fetch would succeed.
+    retry: (failureCount, error) =>
+      failureCount < 3 &&
+      error instanceof ApiError &&
+      (error.status === 429 || error.status >= 500),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 5000),
   });
 
   // -----------------------------------------------------------------------

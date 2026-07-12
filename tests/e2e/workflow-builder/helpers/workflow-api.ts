@@ -349,6 +349,7 @@ export function buildLinearConfig(opts?: {
       fileName: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
+      ocrResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -377,7 +378,13 @@ export function buildLinearConfig(opts?: {
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
-        inputs: [{ port: "documentId", ctxKey: "apimRequestId" }],
+        // Bind BOTH required inputs (documentId + the typed OcrResult) so the
+        // node has no auto-wire "needs a source" warning — those now fold into
+        // the unified validation surface.
+        inputs: [
+          { port: "documentId", ctxKey: "apimRequestId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
         ...pos(720, 80),
       },
     },

@@ -23,6 +23,7 @@
  */
 
 import "@xyflow/react/dist/style.css";
+import "./workflow-editor-canvas.css";
 
 import { getActivityCatalogEntry } from "@ai-di/graph-workflow";
 import { Badge, Modal, Tooltip } from "@mantine/core";
@@ -45,16 +46,7 @@ import {
   useNodesState,
   useReactFlow,
 } from "@xyflow/react";
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ActivityNode,
   ErrorPolicy,
@@ -66,7 +58,6 @@ import type {
   SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
-import { computeNodeStatus, type NodeStatus } from "../auto-wire-status";
 import { getActivityVisualHints } from "../catalog-utils";
 import {
   type ControlFlowVisualHints,
@@ -100,7 +91,6 @@ import {
 } from "./MapBodyContainer";
 import { isSyntheticMapBodyGroupId } from "./map-body-groups";
 import { NodeContextMenu } from "./NodeContextMenu";
-import { NodeStatusDot } from "./NodeStatusDot";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
@@ -223,35 +213,6 @@ type FlowNode =
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
 
-// ---------------------------------------------------------------------------
-// WorkflowConfigContext — provides config + onSelectNode to node renderers
-// so they can compute per-node auto-wire status without threading new props
-// through the xyflow data layer. Follows the same pattern as RunStateContext.
-// ---------------------------------------------------------------------------
-
-interface WorkflowConfigContextValue {
-  config: GraphWorkflowConfig;
-  onSelectNode: (nodeId: string | null) => void;
-}
-
-const WorkflowConfigContext = createContext<WorkflowConfigContextValue | null>(
-  null,
-);
-
-/**
- * Reads the workflow config context and computes the auto-wire status for
- * `nodeId`. Used inside activity / pollUntil renderers as a single-line
- * overlay — mirrors the `NodeStatusBadgeOverlay` pattern from RunStateContext.
- */
-function NodeStatusDotOverlay({ nodeId }: { nodeId: string }) {
-  const ctx = useContext(WorkflowConfigContext);
-  if (!ctx) return null;
-  const status: NodeStatus = computeNodeStatus(ctx.config, nodeId);
-  return (
-    <NodeStatusDot status={status} onClick={() => ctx.onSelectNode(nodeId)} />
-  );
-}
-
 // Stroke colours match `WorkflowEdge`'s palette so the arrowhead marker
 // colours line up with the rendered stroke (US-023 follow-up — flagged in
 // US-025).
@@ -355,7 +316,11 @@ const ValidationBadge = memo(function ValidationBadge({
   const commonStyle: React.CSSProperties = {
     position: "absolute",
     top: -7,
-    right: -7,
+    // Top-LEFT so the diagnostics badge never collides with the run-status
+    // badge (top-right). This is the single per-node "problems" indicator —
+    // it now folds in the auto-wire input issues that used to be a separate
+    // left-edge status dot.
+    left: -7,
     background,
     color: "#fff",
     fontSize: 10,
@@ -624,7 +589,6 @@ const ActivityNodeRenderer = memo(
           onBadgeClick={data.onBadgeClick}
         />
         <NodeStatusBadgeOverlay nodeId={id} />
-        <NodeStatusDotOverlay nodeId={id} />
         <div
           style={{
             fontSize: 11,
@@ -824,9 +788,6 @@ const ControlFlowRectangleRenderer = memo(
           onBadgeClick={data.onBadgeClick}
         />
         <NodeStatusBadgeOverlay nodeId={id} />
-        {data.controlFlowType === "pollUntil" && (
-          <NodeStatusDotOverlay nodeId={id} />
-        )}
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
         <NodePreviewOverlay nodeId={id} />
@@ -1371,11 +1332,11 @@ function WorkflowEditorCanvasInner({
     const options =
       added.length === 1
         ? {
-            padding: 0.25,
+            padding: 0.15,
             duration: 300,
             nodes: [{ id: added[0] }],
           }
-        : { padding: 0.25, duration: 300 };
+        : { padding: 0.15, duration: 300 };
     // Defer one macrotask so xyflow's structural-projection effect (which
     // pushes the new node into the internal store) has finished running
     // before we ask it to fit the new node. A 0ms timeout is enough
@@ -2011,103 +1972,94 @@ function WorkflowEditorCanvasInner({
     [hoverExtend, closeHoverExtend, extendFromSource, config.nodes],
   );
 
-  const workflowConfigContextValue = useMemo<WorkflowConfigContextValue>(
-    () => ({ config, onSelectNode }),
-    [config, onSelectNode],
-  );
-
   return (
-    <WorkflowConfigContext.Provider value={workflowConfigContextValue}>
-      <div style={{ height: "100%", width: "100%" }}>
-        <ReactFlow
-          nodes={internalNodes}
-          edges={internalEdges}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          onNodesChange={onInternalNodesChange}
-          onEdgesChange={onInternalEdgesChange}
-          onNodeDragStop={handleNodeDragStop}
-          onSelectionChange={handleSelectionChange}
-          onNodesDelete={handleNodesDelete}
-          onEdgesDelete={handleEdgesDelete}
-          onConnect={handleConnect}
-          onNodeContextMenu={handleNodeContextMenu}
-          onInit={(instance) =>
-            // Cast away the typed-generic narrowing on the inner instance —
-            // the host only needs the generic `ReactFlowInstance` surface
-            // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
-            // (US-049 Scenario 3).
-            onReactFlowReady?.(instance as unknown as ReactFlowInstance)
+    <div style={{ height: "100%", width: "100%" }}>
+      <ReactFlow
+        className="wb-editor-canvas"
+        nodes={internalNodes}
+        edges={internalEdges}
+        nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
+        onNodesChange={onInternalNodesChange}
+        onEdgesChange={onInternalEdgesChange}
+        onNodeDragStop={handleNodeDragStop}
+        onSelectionChange={handleSelectionChange}
+        onNodesDelete={handleNodesDelete}
+        onEdgesDelete={handleEdgesDelete}
+        onConnect={handleConnect}
+        onNodeContextMenu={handleNodeContextMenu}
+        onInit={(instance) =>
+          // Cast away the typed-generic narrowing on the inner instance —
+          // the host only needs the generic `ReactFlowInstance` surface
+          // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
+          // (US-049 Scenario 3).
+          onReactFlowReady?.(instance as unknown as ReactFlowInstance)
+        }
+        nodesDraggable
+        nodesConnectable
+        elementsSelectable
+        fitView
+        fitViewOptions={{ padding: 0.15 }}
+        deleteKeyCode={["Delete", "Backspace"]}
+      >
+        <Background gap={18} size={1} />
+        <Controls showInteractive={false} />
+        <MiniMap pannable zoomable />
+      </ReactFlow>
+      {contextMenu && (
+        <NodeContextMenu
+          nodeId={contextMenu.nodeId}
+          nodeType={contextMenu.nodeType}
+          activityType={contextMenu.activityType}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={closeContextMenu}
+          onChangeActivityType={changeActivityTypeFromContextMenu}
+          onDelete={deleteNodeFromContextMenu}
+          onEditScript={
+            contextMenu.activityType?.startsWith("dyn.")
+              ? () => {
+                  const slug = contextMenu.activityType!.replace(/^dyn\./, "");
+                  setEditScriptSlug(slug);
+                }
+              : undefined
           }
-          nodesDraggable
-          nodesConnectable
-          elementsSelectable
-          fitView
-          fitViewOptions={{ padding: 0.25 }}
-          deleteKeyCode={["Delete", "Backspace"]}
+        />
+      )}
+      {editScriptSlug && (
+        <Modal
+          opened
+          onClose={() => setEditScriptSlug(null)}
+          size="80%"
+          title="Edit dynamic node"
+          centered
         >
-          <Background gap={18} size={1} />
-          <Controls showInteractive={false} />
-          <MiniMap pannable zoomable />
-        </ReactFlow>
-        {contextMenu && (
-          <NodeContextMenu
-            nodeId={contextMenu.nodeId}
-            nodeType={contextMenu.nodeType}
-            activityType={contextMenu.activityType}
-            position={{ x: contextMenu.x, y: contextMenu.y }}
-            onClose={closeContextMenu}
-            onChangeActivityType={changeActivityTypeFromContextMenu}
-            onDelete={deleteNodeFromContextMenu}
-            onEditScript={
-              contextMenu.activityType?.startsWith("dyn.")
-                ? () => {
-                    const slug = contextMenu.activityType!.replace(
-                      /^dyn\./,
-                      "",
-                    );
-                    setEditScriptSlug(slug);
-                  }
-                : undefined
-            }
-          />
-        )}
-        {editScriptSlug && (
-          <Modal
-            opened
+          <DynamicNodeEditor
+            slug={editScriptSlug}
+            layout="modal"
+            onAfterPublish={() => setEditScriptSlug(null)}
             onClose={() => setEditScriptSlug(null)}
-            size="80%"
-            title="Edit dynamic node"
-            centered
-          >
-            <DynamicNodeEditor
-              slug={editScriptSlug}
-              layout="modal"
-              onAfterPublish={() => setEditScriptSlug(null)}
-              onClose={() => setEditScriptSlug(null)}
-            />
-          </Modal>
-        )}
-        {swapState && swapCurrentActivityType !== null && (
-          <NodeTypeSwapModal
-            opened
-            currentActivityType={swapCurrentActivityType}
-            onClose={closeSwapModal}
-            onPick={handleSwapPick}
           />
-        )}
-        {hoverExtend && (
-          <HoverExtendPopover
-            opened
-            anchorPosition={hoverExtend.anchor}
-            onClose={closeHoverExtend}
-            onPickActivity={handleHoverPickActivity}
-            onPickControlFlow={handleHoverPickControlFlow}
-            onMouseEnter={handlePopoverEnter}
-            onMouseLeave={handlePopoverLeave}
-          />
-        )}
-      </div>
-    </WorkflowConfigContext.Provider>
+        </Modal>
+      )}
+      {swapState && swapCurrentActivityType !== null && (
+        <NodeTypeSwapModal
+          opened
+          currentActivityType={swapCurrentActivityType}
+          onClose={closeSwapModal}
+          onPick={handleSwapPick}
+        />
+      )}
+      {hoverExtend && (
+        <HoverExtendPopover
+          opened
+          anchorPosition={hoverExtend.anchor}
+          onClose={closeHoverExtend}
+          onPickActivity={handleHoverPickActivity}
+          onPickControlFlow={handleHoverPickControlFlow}
+          onMouseEnter={handlePopoverEnter}
+          onMouseLeave={handlePopoverLeave}
+        />
+      )}
+    </div>
   );
 }

@@ -314,6 +314,45 @@ describe("DynamicNodeRepository", () => {
       });
       expect(result.dynamicNode.groupId).toBe("g-2");
     });
+
+    it("restores a soft-deleted lineage instead of colliding — clears deletedAt, appends the next version, moves head", async () => {
+      const sig = makeSignature();
+      // v1, then soft-delete (the tombstone keeps version rows so pinned
+      // workflows still resolve — see softDelete's contract).
+      await repository.createWithFirstVersion({
+        groupId: "g-1",
+        slug: "my-node",
+        script: "/* v1 */",
+        signature: sig,
+        allowNet: [],
+        deterministic: false,
+      });
+      await repository.softDelete("g-1", "my-node");
+
+      // Re-publishing the SAME slug must restore the lineage, not 409.
+      const restored = await repository.createWithFirstVersion({
+        groupId: "g-1",
+        slug: "my-node",
+        script: "/* v2 after restore */",
+        signature: sig,
+        allowNet: [],
+        deterministic: false,
+      });
+
+      // Un-deleted, head moved to the appended version.
+      expect(restored.dynamicNode.deletedAt).toBeNull();
+      expect(restored.dynamicNode.headVersionId).toBe(restored.headVersion.id);
+      // Version numbering CONTINUES the preserved history (v2), never
+      // re-issues v1 (which would collide with the kept row).
+      expect(restored.headVersion.versionNumber).toBe(2);
+      expect(restored.headVersion.script).toBe("/* v2 after restore */");
+
+      // The lineage is visible again with its full history intact.
+      const found = await repository.findBySlugForGroup("g-1", "my-node");
+      expect(found).not.toBeNull();
+      expect(found?.deletedAt).toBeNull();
+      expect(found?.versions).toHaveLength(2);
+    });
   });
 
   describe("publishNewVersion", () => {

@@ -70,7 +70,7 @@ Eight workflow templates live in `docs-md/graph-workflows/templates/` and are lo
 - **No light/dark toggle exists** — the app is fixed to light mode (`main.tsx` `defaultColorScheme="light"`). The only top-bar toggle is **Simplified view**.
 - Some feature docs reference `-v2` routes (`/workflows/create-v2`); the **live canonical routes have no `-v2`** and the V2 visual editor is the *only* editor.
 - **Run history** lives in the top-bar **More** menu, not as a standalone button.
-- Auto-wire **“satisfied” state = no status dot** (there is no green dot); only red/amber dots appear.
+- Auto-wire input problems (unbound / ambiguous) surface on the node's **unified problems badge** (top-left) — the same badge as validation warnings, not a separate status dot; a satisfied node shows **no badge**.
 - **Type mismatch is not blocked at wire-draw time** — wires are execution-order only; mismatches are caught by the variable picker (dimming) and the save-time validator.
 - Only **5 catalog activities carry typed kinds** today: `document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`. All other nodes show gray/wildcard handles.
 - After any rebuild of `@ai-di/graph-workflow`, **restart Vite** or typed handles/auto-wire show stale data.
@@ -87,18 +87,18 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 | Plan item(s) | Spec | Tier / tag |
 |---|---|---|
-| 3.3, 8.4 | `tier1-node-config` | 1 (CI) |
+| 3.3, 8.4, 8.8 (settings panel; advanced bindings; inline ctx-key create round-trip) | `tier1-node-config` | 1 (CI) |
 | 3.4 | `tier2-canvas-drag` | 2 (CI) |
 | 3.7, 5.1 (render only) | `tier2-canvas-render` | 2 (CI) |
 | 5.4 (validation surfacing), 7.6 (node-anchored, warning path) | `tier2-validation` | 2 (CI) |
 | 11.3 (run-spec contract), 12.2 (version revert) | `tier2-workflow-api` | 2 (CI) |
 | 3.7, 6.7 (auto-layout on load) | `tier1-editor-load` | 1 (CI) |
 | 7.1, 7.2, 7.3 (handles, tooltip, pills) | `tier2-typed-io` | 2 (CI) |
-| 8.1, 8.2, 8.3, 8.5, 8.6 (auto-bind, states, override/revert, status dot, locked) | `tier2-autowire` | 2 (CI) |
+| 8.1, 8.2, 8.3, 8.5, 8.6 (auto-bind, states, override/revert, unified problems badge + click-to-picker deep-link, locked) | `tier2-autowire` | 2 (CI) |
 | 10.1 | `tier1-library` | 1 (CI) |
 | 12.1, 12.3 | `tier1-versioning` | 1 (CI) |
 | 13.3 | `tier1-sources` | 1 (CI) |
-| 14.7 (list + editor render) | `tier1-dynamic-node` | 1 (CI) |
+| 14.7 (list + editor render), 14.14 (delete→republish restores under same slug; live collision still 409s) | `tier1-dynamic-node` | 1 (CI); 14.14 `@infra` |
 | 14.11, 14.12, 14.13 (publish allowlist gate + runtime net/env denial) | `tier3-dynamic-node-security` | 3 `@infra` (opt-in) |
 | 15.1, 15.2, 15.3 (surface) | `tier3-agent-stubbed` | 3 (CI) |
 | 15.3 (real build) | `tier3-agent-live` | 3 `@llm` (opt-in) |
@@ -106,13 +106,14 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 | 9.4, 9.5 (run completes: status badges → succeeded + preview widget renders) | `tier3-try-preview` | 3 `@infra` (opt-in) |
 | 9.6, 9.9 (incremental cache-hit: re-run → node `skipped`) | `tier3-try-cache` | 3 `@infra` (opt-in) |
 | 14.9, 14.10 (dyn-node run path: node succeeds / throws→failed) | `tier3-dynamic-node-run` | 3 `@infra` (opt-in, +`PLATFORM_API_KEY`) |
-| 4.1, 4.3, 4.6, 4.7 (control-flow forms render; join source-map + switch case-edge picker constraints; recursive condition editor deep render; humanGate fallback reveal; pollUntil round-trip) | `tier2-control-flow` | 2 (CI) |
-| 6.3, 6.4, 6.6 (simplified-view group chip; exposed-param prune on member removal; activity node-type swap + control-flow swap blocked) | `tier2-node-swap-grouping` | 2 (CI) |
-| 13.4, 13.7 (upload endpoint validation matrix; single-source rule + isInput warning) | `tier2-sources` | 2 (CI) |
+| 4.1, 4.2, 4.3, 4.6, 4.7 (control-flow forms render; map full-form values + maxConcurrency round-trip; join source-map + switch case-edge picker constraints; recursive condition editor deep render; humanGate fallback reveal; pollUntil round-trip) | `tier2-control-flow` | 2 (CI) |
+| 6.3, 6.4, 6.6, 6.7 (simplified-view group chip; exposed-param prune on member removal; activity node-type swap + control-flow swap blocked; auto-arrange spreads a stacked graph + persists) | `tier2-node-swap-grouping` | 2 (CI) |
+| 13.2, 13.3, 13.4, 13.7 (SourceNodeSettings UI + maxFileSizeMB round-trip; upload endpoint validation matrix; single-source rule + isInput warning) | `tier2-sources` | 2 (CI) |
+| 11.1, 11.2, 13.6 (Run drawer renders trigger URL / declared input schema / sample curl / auth notes; upload-source workflow shows the dropzone, no API tabs) | `tier2-run-drawer` | 2 (CI) |
 
 **🔬 unit / integration-backstopped** (not e2e): 5.5 (graph validator), 7.6 (`dynamic-node-binding-walk.spec` + workflow validator), 11.3/11.4 (`build-run-spec.spec`), 14.1/14.2 (`dynamic-nodes.service/controller.spec`), 14.11–14.13 (`dynamic-nodes.service.spec` + deno-runner + `dyn-run.activity` sandbox-escape specs), 15.7/15.9/15.10 (`agent.service.spec`, `tools.spec`, `abort-flag-map.spec`).
 
-**✍️ manual-only** (no automated guard): everything else — notably the *deeper* control-flow form editing not covered by `tier2-control-flow` (**4.2** map full form, **4.4** childWorkflow mappings, **4.5** pollUntil nested params), **Part 6** residuals (**6.1** rich widgets, **6.2** group-creation gesture — the "Group selected" → panel path has a create-time selection race, so it's driven pre-seeded in e2e and left manual as a gesture, **6.5** hover-extend, **6.7** auto-arrange), **7.4–7.8** (draw-time mismatch, picker dimming, save-time binding-walk, ctx/library Kind columns), **8.7** (map-iteration auto-wire), most of **Part 9** (previews, caching/incremental re-run, run history, replay, cache-evicted), **Part 11** (run drawer UI), **12.2/12.4/12.5** (revert / run-a-version / library pinning), **13.1–13.3, 13.5, 13.6** (source palette/settings UI + run-drawer sections), **14.8–14.10** (in-canvas custom node lifecycle + Try/runtime errors via UI) and the *canvas surfacing* of **14.11–14.13** security (the gates themselves are now `@infra` e2e), **15.4–15.10** (agent tools/file-drop/persistence/guards via UI), and **all of Part 16** (UX polish).
+**✍️ manual-only** (no automated guard): everything else — notably the *deeper* control-flow form editing not covered by `tier2-control-flow` (**4.4** childWorkflow mappings, **4.5** pollUntil nested params), **Part 6** residuals (**6.1** rich widgets, **6.2** group-creation gesture — the "Group selected" → panel path has a create-time selection race, so it's driven pre-seeded in e2e and left manual as a gesture, **6.5** hover-extend), **7.4–7.8** (draw-time mismatch, picker dimming, save-time binding-walk, ctx/library Kind columns), **8.7** (map-iteration auto-wire), most of **Part 9** (previews, caching/incremental re-run, run history, replay, cache-evicted), **11.4 run-a-version drawer flow** (the drawer's static surface is now e2e — `tier2-run-drawer`), **12.4/12.5** (run-a-version / library pinning), **13.1, 13.5** (source palette + the remaining run-drawer sections), **14.8–14.10** (in-canvas custom node lifecycle + Try/runtime errors via UI) and the *canvas surfacing* of **14.11–14.13** security (the gates themselves are now `@infra` e2e), **15.4–15.10** (agent tools/file-drop/persistence/guards via UI), and **all of Part 16** (UX polish).
 
 ### Automation backlog — what to build next (priority order)
 
@@ -137,6 +138,12 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 - ✅ **Done — Incremental cache-hit (`@infra`, 9.6/9.9).** `tier3-try-cache` (1 test, pure-API): run a `source.upload → file.prepare` workflow once (populates the cache), then `POST /:id/runs` with the **same** `documentUrl` — `prep` comes back `status:"skipped"` with a `cacheHit` hash pair (the violet badge). Drives the real worker + cache. A same-input re-run isn't cleanly reachable through the source.upload canvas UI, so this is API-level; the violet `skipped` **badge rendering** is unit-covered by `NodeStatusBadge.test.tsx`.
 
 - ✅ **Done — Dynamic-node run path (`@infra`, 14.9/14.10).** `tier3-dynamic-node-run` (2 tests, pure-API): publish over HTTP → reference `dyn.<slug>` in a workflow → start a Temporal run → a valid node ends `succeeded`; a throwing node ends `failed` with an error surfaced. **Needs the worker's `PLATFORM_API_KEY` set** (see the note below); the transform's exact output *value* is asserted by `dyn-run.activity.integration.test.ts` (Scenario 1).
+
+- ✅ **Done (2026-07-11 review pass) — Run-drawer UI + source-settings UI + auto-arrange + map round-trip.** `tier2-run-drawer` (2 tests: 11.1/11.2 drawer surface for a `source.api` workflow; 13.6 upload-mode dropzone contrast), a browser describe in `tier2-sources` (13.2/13.3 SourceNodeSettings + `maxFileSizeMB` round-trip), an `auto-arrange` describe in `tier2-node-swap-grouping` (6.7 — stacked graph spreads left-to-right on screen AND persists ordered positions via Save), and a map-form describe in `tier2-control-flow` (4.2 — all six map fields render saved values; `maxConcurrency` round-trips). All deterministic, default CI. Two robustness fixes landed with this pass: `useGraphValidation` now validates `dyn.*` types against the **merged** catalog (was: false red "not registered" on every dynamic-node workflow), and the `@infra` try specs got honest `test.describe.configure({ timeout })` budgets (their 60s per-assertion waits exceeded the default 30s per-test budget under parallel load). See `DEMO_E2E_REVIEW_20260711.md`.
+
+- ✅ **Done (post-review improvement batch one) — authoring-friction UX + a robustness fix.** Three items, each verified end-to-end (`DEMO_E2E_REVIEW_20260711.md` "Follow-up batch"): (1) **dynamic-node slug tombstone → restore-on-republish** — `DynamicNodeRepository.createWithFirstVersion` now restores a soft-deleted lineage instead of dead-ending on `DUPLICATE_SLUG`; guarded by the repository spec + the new `@infra` `tier1-dynamic-node` restore test (14.14). (2) **Actionable auto-wire status dots (8.5)** — the dot now carries a tooltip and, on click, opens the source picker for the first unresolved input (ambiguous → producer list; unsatisfied → "add a producer" guidance) instead of just selecting the node; guarded by a new `tier2-autowire` test. (3) **Inline ctx-key creation (8.8)** — the `VariablePicker` offers a "+ Create variable" button for a new identifier, declaring it in `config.ctx` so binding a port to a fresh key no longer save-blocks on an undeclared-ctx error; guarded by a new `tier1-node-config` round-trip test. All deterministic except the dyn restore (`@infra`, needs the deno-runner).
+
+- ✅ **Done (post-review improvement batch two) — one unified problems surface.** Fixes a reported overlap (a node's red/amber validation badge was hidden behind the gray run-status circle — both were top-right). The per-node **problems badge moved to the top-left** (run-status stays top-right, no collision), and the separate auto-wire **status dot was removed** — unbound/ambiguous inputs now **fold into the same validation surface** (top-bar count + one per-node badge + drawer) via `autoWireIssuesToValidationErrors` → `useGraphValidation`. A port explicitly bound to a ctx variable counts as a source (no false positive). Clicking the badge (or its drawer entry) deep-links to the input's picker — which required fixing a long-standing bug where programmatic node selection didn't stick (now selects through the ReactFlow instance). Guards: `autoWireIssuesToValidationErrors` + `ValidationDrawer` unit specs, updated `tier2-autowire` (8.5, dot→badge), `tier2-validation`. See `DEMO_E2E_REVIEW_20260711.md`.
 
 **Deferred:**
 
@@ -235,9 +242,10 @@ Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.p
 - [ ] **8.2 Row states.** Construct each: **auto** (single producer), **ambiguous** (2+ equidistant same-kind producers → amber **Choose source**), **unsatisfied** (no producer → red **Needs source**), **locked** (hand-authored/overridden → gray **locked** + **Revert to auto**). **Pass:** each row renders the right state/badge.
 - [ ] **8.3 Override / Revert.** On an auto row → **Override** → ProducerPicker (producers only, ranked by distance, no raw ctx keys) → pick another. Then **Revert to auto**. **Pass:** Override locks the port (`metadata.lockedInputPorts`) and persists; Revert removes the lock and the resolver re-derives.
 - [ ] **8.4 Advanced toggle.** Node settings → **Show advanced**. **Pass:** reveals the raw `port → ctxKey` editor incl. synthesized `__auto.<nodeId>.<port>` keys and outputs; collapsed by default.
-- [ ] **8.5 Per-node status dot.** Left-edge dot (`node-status-dot`). **Pass:** **red** when any input unsatisfied, **amber** when ambiguous, **no dot** when all satisfied (⚠️ no green dot). Clicking the dot opens settings scrolled to the offending row.
+- [ ] **8.5 Per-node problems badge.** Auto-wire input health folds into the node's **unified problems badge** (`node-badge-<id>`, **top-left** corner) alongside validation warnings — there is no separate status dot, and it never overlaps the run-status circle (top-right). **Pass:** a node with an unbound or ambiguous input shows the amber badge (a port explicitly bound to a ctx variable is a *source* — no badge); it counts in the top-bar summary and lists in the Validation drawer as *"Input <port> needs a source"* / *"…has an ambiguous source"*. **Click the badge** → selects the node AND opens the source picker for the first unresolved input (ambiguous → the candidate producers; unsatisfied → the *"No upstream producer emits <kind>"* guidance); clicking the same issue's drawer entry does likewise.
 - [ ] **8.6 Locked-binding preservation.** Open a hand-authored template → Inputs load as **locked** → Save → reload. **Pass:** bindings unchanged byte-for-byte (resolver never rewrites non-`__auto.` keys).
 - [ ] **8.7 (Optional) Map iteration wiring.** In a map node, confirm the collection input auto-binds to the nearest `T[]` producer and the map synthesizes a `T` producer inside its body.
+- [ ] **8.8 Inline ctx-key create.** In any `VariablePicker` (Advanced port bindings, Map/Join ctx keys, a condition Ref) type a **new** variable name (a simple identifier, no dots). **Pass:** a **`+ Create variable "<name>"`** button appears beneath the field; clicking it declares the key in `config.ctx` (`{ type: "object" }`, refine later in Workflow Settings) and the button disappears. Binding a port to that key then **Saves cleanly** — no *"references undeclared ctx key"* error. (Without Create, the same binding would fail Save with a 400.) The button also appears for any pre-existing undeclared key as a one-click fix.
 
 ---
 
@@ -346,11 +354,12 @@ One `source.api` and one `source.upload` max per workflow.
     -d '{"script":"/**\n * @workflow-node\n * @name uppercase-url\n * @description Uppercases the document URL.\n * @inputs { document: { kind: \"Document\", required: true } }\n * @outputs { uppercased: { kind: \"Artifact\" } }\n */\nexport default async function dynamicNode(ctx, params){ return { uppercased: { url: ctx.document.url.toUpperCase() } }; }"}'
   ```
   **Pass:** `201 {slug:"uppercase-url", version:1, signature:{…}, errors:[]}`.
-- [ ] **14.2 Publish negative cases.** Malformed JSDoc → `400 stage:"jsdoc-parse"`; unknown kind → `400 stage:"signature-semantics"`; TS type error → `400 stage:"ts-check"` (from runner); duplicate slug → `409 DUPLICATE_SLUG`.
+- [ ] **14.2 Publish negative cases.** Malformed JSDoc → `400 stage:"jsdoc-parse"`; unknown kind → `400 stage:"signature-semantics"`; TS type error → `400 stage:"ts-check"` (from runner); duplicate of a **live** slug → `409 DUPLICATE_SLUG` (a *soft-deleted* slug re-POST **restores** instead — see 14.14).
 - [ ] **14.3 New version (update).** `PUT /api/dynamic-nodes/uppercase-url` with a modified script. **Pass:** `200 {version:2}`. `@name` ≠ path → `409 NAME_MISMATCH`; unknown/soft-deleted → `404`.
 - [ ] **14.4 List / detail.** `GET /api/dynamic-nodes` (+ `/:slug`). **Pass:** list sorted by slug, excludes soft-deleted, includes `headVersion`, `versionCount`, `usedInWorkflowCount`.
 - [ ] **14.5 Soft-delete.** `DELETE /api/dynamic-nodes/uppercase-url`. **Pass:** `200 {slug, deletedAt}`, idempotent, returns used-in-N count.
 - [ ] **14.6 Merged catalog.** `GET /api/activity-catalog`. **Pass:** includes `dyn.uppercase-url` with `dynamicNodeSlug/Version` + `colorHint:"dyn"` after static entries. A different group’s key does **not** see it (30s cache — allow a moment).
+- [ ] **14.14 Restore-on-republish.** Publish `uppercase-url` (v1) → **14.5 soft-delete** it → `POST /api/dynamic-nodes` with the **same** `@name`. **Pass:** `201` and the lineage is **restored** — `version` continues the history (`v2`, not a fresh v1), `GET /:slug` is live again (`deletedAt:null`) with both versions. Re-POST once more while live → `409 DUPLICATE_SLUG` (the guard still fires for a genuine live clash). In the UI: delete a custom node, then **+ New custom node** with the same name — it re-appears instead of dead-ending. (`@infra` e2e: `tier1-dynamic-node`.)
 
 ### Editor UI
 - [ ] **14.7 Management page.** Top-bar **Dynamic nodes** → `/dynamic-nodes` list → **+ New** → editor with prefilled boilerplate → edit → watch the **live parse strip** (300ms debounce) show green “Signature OK” or red line-anchored errors → Publish. **Pass:** on success the palette/catalog refresh **without a Vite restart**; on `400`, errors also show as Monaco gutter squiggles and clicking jumps to the line.

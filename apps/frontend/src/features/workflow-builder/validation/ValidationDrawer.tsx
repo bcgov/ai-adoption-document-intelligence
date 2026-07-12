@@ -35,11 +35,31 @@ interface ValidationDrawerProps {
   config: GraphWorkflowConfig;
   onSelectNode: (nodeId: string) => void;
   /**
+   * Deep-link for an input-anchored issue (an unbound / ambiguous port folded
+   * in from auto-wire): instead of just selecting the node, open that input's
+   * source picker. Falls back to plain selection when absent or the issue
+   * isn't input-anchored.
+   */
+  onFixNodeInput?: (nodeId: string, port: string) => void;
+  /**
    * When set, the drawer scrolls the matching node's entry into view on
    * open. Used by the canvas validation badges — clicking a badge opens
    * the drawer scrolled to the relevant entry.
    */
   focusedNodeId?: string | null;
+}
+
+/**
+ * Parse a `nodes.<id>.inputs.<port>` validation path into its node + port.
+ * Returns null for any other path shape. `<id>` may contain dots (greedy);
+ * `<port>` is the final segment.
+ */
+function parseInputPortPath(
+  path: string,
+): { nodeId: string; port: string } | null {
+  const match = /^nodes\.(.+)\.inputs\.([^.]+)$/.exec(path);
+  if (!match) return null;
+  return { nodeId: match[1], port: match[2] };
 }
 
 export function ValidationDrawer({
@@ -48,11 +68,23 @@ export function ValidationDrawer({
   result,
   config,
   onSelectNode,
+  onFixNodeInput,
   focusedNodeId,
 }: ValidationDrawerProps) {
   const handleSelect = (nodeId: string) => {
     onSelectNode(nodeId);
     onClose();
+  };
+
+  /** Click handler for a single issue row — deep-links input issues. */
+  const handleIssueClick = (err: GraphValidationError, nodeId: string) => {
+    const target = parseInputPortPath(err.path);
+    if (target && onFixNodeInput) {
+      onFixNodeInput(target.nodeId, target.port);
+      onClose();
+      return;
+    }
+    handleSelect(nodeId);
   };
 
   const nodeBuckets = [...result.errorsByNode.entries()].sort((a, b) =>
@@ -145,7 +177,7 @@ export function ValidationDrawer({
                   <IssueRow
                     key={`${err.path}-${i}`}
                     error={err}
-                    onClick={() => handleSelect(nodeId)}
+                    onClick={() => handleIssueClick(err, nodeId)}
                   />
                 ))}
               </Stack>

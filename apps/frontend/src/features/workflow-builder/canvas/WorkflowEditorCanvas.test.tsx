@@ -866,7 +866,7 @@ describe("WorkflowEditorCanvas — US-014: auto-fit-on-add", () => {
     expect(mockFitView).toHaveBeenCalledTimes(1);
     expect(mockFitView).toHaveBeenCalledWith(
       expect.objectContaining({
-        padding: 0.25,
+        padding: 0.15,
         duration: 300,
         nodes: [{ id: "activity_added_1" }],
       }),
@@ -978,7 +978,7 @@ describe("WorkflowEditorCanvas — US-014: auto-fit-on-add", () => {
     // Multi-add path: no `nodes:` filter, so the whole graph is fit.
     const callArg = mockFitView.mock.calls[0][0];
     expect(callArg).toEqual(
-      expect.objectContaining({ padding: 0.25, duration: 300 }),
+      expect.objectContaining({ padding: 0.15, duration: 300 }),
     );
     expect(callArg.nodes).toBeUndefined();
   });

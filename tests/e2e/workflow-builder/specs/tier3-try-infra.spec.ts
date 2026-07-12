@@ -28,6 +28,11 @@ const SAMPLE_PDF = path.join(
 test.describe("try-in-place @infra", () => {
   let createdId: string | null = null;
 
+  // The 30s success-affordance wait below can consume the whole default
+  // per-test budget under parallel-worker load; give the editor open +
+  // upload + run kickoff an honest ceiling.
+  test.describe.configure({ timeout: 90_000 });
+
   test.beforeEach(async ({ page }) => {
     await setupWorkflowBuilderTest(page);
   });

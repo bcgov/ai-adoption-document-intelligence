@@ -84,18 +84,74 @@ export class DynamicNodeRepository {
   constructor(private readonly prismaService: PrismaService) {}
 
   /**
-   * Atomically create a new lineage + v1 version + set head pointer.
+   * Create-mode persist for a `(groupId, slug)`:
    *
-   * Wrapped in a single `$transaction` so the lineage row, its v1
-   * version row, and the `headVersionId` pointer either all land or
-   * none do. The lineage's `(groupId, slug)` unique constraint
-   * surfaces as `DuplicateSlugError` when violated (Prisma `P2002`).
+   *  - **No lineage yet** → create the lineage + its v1 version + head
+   *    pointer, all in one `$transaction`.
+   *  - **A soft-deleted lineage exists** → *restore* it: clear
+   *    `deletedAt`, append the next version (`maxVersion + 1`, continuing
+   *    the preserved history — soft-delete keeps version rows so pinned
+   *    workflows still resolve, so re-issuing v1 would collide), and move
+   *    the head pointer. This is what makes delete-then-republish under
+   *    the same name work instead of dead-ending on the slug tombstone.
+   *  - **A live lineage exists** → `DuplicateSlugError` (a genuine
+   *    conflict — callers updating a live node use `publishNewVersion`).
+   *
+   * The find + branch runs inside the transaction so the decision is
+   * atomic. The outer `P2002` catch remains the backstop for the
+   * concurrent fresh-create race (two POSTs for the same new slug — the
+   * loser's insert violates the `(groupId, slug)` unique index).
    */
   async createWithFirstVersion(
     input: CreateWithFirstVersionInput,
   ): Promise<DynamicNodeWithHead> {
     try {
       return await this.prismaService.transaction(async (tx) => {
+        const existing = await tx.dynamicNode.findUnique({
+          where: {
+            groupId_slug: { groupId: input.groupId, slug: input.slug },
+          },
+        });
+
+        if (existing !== null && existing.deletedAt === null) {
+          // A live lineage already owns this slug — genuine conflict.
+          throw new DuplicateSlugError(input.slug);
+        }
+
+        if (existing !== null) {
+          // Soft-deleted → restore + append the next version.
+          const maxVersion = await tx.dynamicNodeVersion.findFirst({
+            where: { dynamicNodeId: existing.id },
+            orderBy: { versionNumber: "desc" },
+            select: { versionNumber: true },
+          });
+          const nextVersionNumber = (maxVersion?.versionNumber ?? 0) + 1;
+
+          const headVersion = await tx.dynamicNodeVersion.create({
+            data: {
+              dynamicNodeId: existing.id,
+              versionNumber: nextVersionNumber,
+              script: input.script,
+              signature: input.signature as unknown as Prisma.InputJsonValue,
+              allowNet: input.allowNet,
+              deterministic: input.deterministic,
+              publishedByUserId: input.ownerUserId,
+            },
+          });
+
+          const restored = await tx.dynamicNode.update({
+            where: { id: existing.id },
+            data: {
+              headVersionId: headVersion.id,
+              deletedAt: null,
+              description: input.description ?? existing.description,
+            },
+          });
+
+          return { dynamicNode: restored, headVersion };
+        }
+
+        // No lineage yet → fresh create.
         const dynamicNode = await tx.dynamicNode.create({
           data: {
             groupId: input.groupId,

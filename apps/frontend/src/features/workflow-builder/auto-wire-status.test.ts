@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GraphWorkflowConfig } from "../../types/workflow";
-import { computeNodeStatus } from "./auto-wire-status";
+import { computeNodeInputIssues, computeNodeStatus } from "./auto-wire-status";
 
 function makeConfig(
   nodes: Record<string, GraphWorkflowConfig["nodes"][string]>,
@@ -106,5 +106,99 @@ describe("computeNodeStatus", () => {
     // With blobKey locked and all remaining inputs being Artifact-kinded,
     // computeNodeStatus should return "ok" (not "unsatisfied").
     expect(computeNodeStatus(cfg, "A")).toBe("ok");
+  });
+});
+
+describe("computeNodeInputIssues", () => {
+  it("returns ok with no problem ports when everything resolves", () => {
+    const cfg = makeConfig(
+      {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+        },
+      },
+      [{ source: "A", target: "B" }],
+    );
+    expect(computeNodeInputIssues(cfg, "B")).toEqual({
+      status: "ok",
+      problemPorts: [],
+    });
+  });
+
+  it("surfaces the unsatisfied port with its kind so the dot can deep-link to it", () => {
+    const cfg = makeConfig({
+      Z: {
+        id: "Z",
+        type: "activity",
+        activityType: "azureOcr.submit",
+        label: "Z",
+      },
+    });
+    const issues = computeNodeInputIssues(cfg, "Z");
+    expect(issues.status).toBe("unsatisfied");
+    expect(issues.problemPorts).toEqual([
+      { port: "fileData", kind: "Document", status: "unsatisfied" },
+    ]);
+  });
+
+  it("surfaces the ambiguous port", () => {
+    const cfg = makeConfig(
+      {
+        X: {
+          id: "X",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "X",
+        },
+        Y: {
+          id: "Y",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Y",
+        },
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+      },
+      [
+        { source: "X", target: "Z" },
+        { source: "Y", target: "Z" },
+      ],
+    );
+    const issues = computeNodeInputIssues(cfg, "Z");
+    expect(issues.status).toBe("ambiguous");
+    expect(issues.problemPorts).toEqual([
+      { port: "fileData", kind: "Document", status: "ambiguous" },
+    ]);
+  });
+
+  it("returns ok with no problem ports for a non-activity node", () => {
+    const cfg = makeConfig({
+      S: {
+        id: "S",
+        type: "switch",
+        label: "S",
+        cases: [],
+        defaultEdge: "",
+      } as unknown as GraphWorkflowConfig["nodes"][string],
+    });
+    expect(computeNodeInputIssues(cfg, "S")).toEqual({
+      status: "ok",
+      problemPorts: [],
+    });
   });
 });

@@ -261,8 +261,10 @@ describe("Scenario 5 — loading + error states", () => {
   });
 
   it("renders a red Alert when the hook errors (non-404)", async () => {
+    // 403 — non-transient, so the hook surfaces it without retrying
+    // (429/5xx would be retried before erroring).
     fetchSpy.mockResolvedValue(
-      jsonResponse({ message: "Boom" }, { status: 500 }),
+      jsonResponse({ message: "Boom" }, { status: 403 }),
     );
 
     renderWithProviders(

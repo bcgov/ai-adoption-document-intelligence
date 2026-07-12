@@ -31,7 +31,11 @@ import type {
   SwitchCase,
   SwitchNode,
 } from "../../../../types/workflow";
-import { ConditionExpressionEditor, EdgePicker } from "../../graph-widgets";
+import {
+  ConditionExpressionEditor,
+  declareCtxKey,
+  EdgePicker,
+} from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
@@ -80,6 +84,9 @@ export function SwitchNodeSettings({
   const updateNode = (next: SwitchNode) => {
     onConfigChange(replaceNode(config, node.id, next));
   };
+
+  const createCtxKey = (key: string) =>
+    onConfigChange(declareCtxKey(config, key));
 
   const setCases = (cases: SwitchCase[]) => updateNode({ ...node, cases });
 
@@ -141,6 +148,7 @@ export function SwitchNodeSettings({
                 fromNodeId={node.id}
                 onChange={(next) => setCaseAt(index, next)}
                 onRemove={() => removeCaseAt(index)}
+                onCreateCtxKey={createCtxKey}
               />
             ))}
           </Stack>
@@ -182,6 +190,7 @@ interface CaseRowProps {
   fromNodeId: string;
   onChange: (next: SwitchCase) => void;
   onRemove: () => void;
+  onCreateCtxKey: (key: string) => void;
 }
 
 function CaseRow({
@@ -191,6 +200,7 @@ function CaseRow({
   fromNodeId,
   onChange,
   onRemove,
+  onCreateCtxKey,
 }: CaseRowProps) {
   const testIdBase = `switch-node-settings-case-${index}`;
 
@@ -232,6 +242,7 @@ function CaseRow({
               })
             }
             config={config}
+            onCreateCtxKey={onCreateCtxKey}
             currentNodeId={fromNodeId}
             data-testid={`${testIdBase}-condition`}
           />

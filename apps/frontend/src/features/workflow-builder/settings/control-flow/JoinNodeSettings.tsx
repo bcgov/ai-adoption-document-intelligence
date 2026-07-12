@@ -15,7 +15,7 @@
 
 import { Box, Stack, Title } from "@mantine/core";
 import type { GraphWorkflowConfig, JoinNode } from "../../../../types/workflow";
-import { NodePicker, VariablePicker } from "../../graph-widgets";
+import { declareCtxKey, NodePicker, VariablePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +54,9 @@ export function JoinNodeSettings({
   const setResultsCtxKey = (next: string) =>
     updateNode({ ...node, resultsCtxKey: next });
 
+  const createCtxKey = (key: string) =>
+    onConfigChange(declareCtxKey(config, key));
+
   return (
     <Stack gap="md" data-testid="join-node-settings" data-node-id={node.id}>
       <Box>
@@ -83,6 +86,7 @@ export function JoinNodeSettings({
           currentNodeId={node.id}
           value={node.resultsCtxKey}
           onChange={setResultsCtxKey}
+          onCreateCtxKey={createCtxKey}
           label="Results ctx key"
           description="ctx key the aggregated iteration results are written to."
           required

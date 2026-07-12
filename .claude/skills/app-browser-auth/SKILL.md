@@ -28,6 +28,18 @@ If the user says "test with playwright" / "verify with chrome-devtools" / "look 
 
 Use `page.route()` to fulfill `/api/auth/me` with a mock user and add `x-api-key` to all backend requests. Works in `@playwright/test` specs *and* in inline scripts via the `playwright` npm package (which is installed at the repo root: `node_modules/playwright`).
 
+> **⚠️ Use origin-agnostic globs.** Parts of the frontend (notably the
+> `/workflows/:id/edit` visual editor) call the API through the **frontend
+> origin** (`:3000/api/...`, Vite-proxied to `:3002`) — routes registered on
+> `http://localhost:3002/**` never match those requests, the auth mock never
+> fires, and you land on the login page anyway. Register
+> `page.route("**/api/**", ...)` + `page.route("**/api/auth/me", ...)`
+> instead (general one FIRST so the specific one wins on most-recent
+> priority). This is the pattern
+> [tests/e2e/workflow-builder/helpers/wb-test.ts](../../../tests/e2e/workflow-builder/helpers/wb-test.ts)
+> uses — prefer it over the `BACKEND + '/**'` form in the example below
+> whenever the target page is under `/workflows`.
+
 ### In a test spec
 
 Import the helper and call it once at the top of the test:

@@ -17,7 +17,7 @@
 
 import { Box, NumberInput, Stack, Title } from "@mantine/core";
 import type { GraphWorkflowConfig, MapNode } from "../../../../types/workflow";
-import { NodePicker, VariablePicker } from "../../graph-widgets";
+import { declareCtxKey, NodePicker, VariablePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
@@ -49,6 +49,9 @@ export function MapNodeSettings({
   const updateNode = (next: MapNode) => {
     onConfigChange(replaceNode(config, node.id, next));
   };
+
+  const createCtxKey = (key: string) =>
+    onConfigChange(declareCtxKey(config, key));
 
   const setCollectionCtxKey = (next: string) =>
     updateNode({ ...node, collectionCtxKey: next });
@@ -104,6 +107,7 @@ export function MapNodeSettings({
             currentNodeId={node.id}
             value={node.collectionCtxKey}
             onChange={setCollectionCtxKey}
+            onCreateCtxKey={createCtxKey}
             label="Collection ctx key"
             description="The ctx variable holding the collection to fan out over."
             required
@@ -114,6 +118,7 @@ export function MapNodeSettings({
             currentNodeId={node.id}
             value={node.itemCtxKey}
             onChange={setItemCtxKey}
+            onCreateCtxKey={createCtxKey}
             label="Item ctx key"
             description="ctx key bound to the current item inside each iteration."
             required
@@ -124,6 +129,7 @@ export function MapNodeSettings({
             currentNodeId={node.id}
             value={node.indexCtxKey ?? ""}
             onChange={setIndexCtxKey}
+            onCreateCtxKey={createCtxKey}
             label="Index ctx key (optional)"
             description="If set, the current 0-based index is written to this ctx key."
             data-testid="map-node-settings-index-ctx-key"

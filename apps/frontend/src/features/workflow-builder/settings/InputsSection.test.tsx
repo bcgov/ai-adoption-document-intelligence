@@ -233,4 +233,84 @@ describe("InputsSection", () => {
       "fileData",
     );
   });
+
+  function ambiguousConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        X: {
+          id: "X",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare X",
+        },
+        Y: {
+          id: "Y",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare Y",
+        },
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+      },
+      edges: [
+        { id: "e1", source: "X", target: "Z", type: "normal" },
+        { id: "e2", source: "Y", target: "Z", type: "normal" },
+      ],
+      entryNodeId: "X",
+      ctx: {},
+    };
+  }
+
+  it("opens the source picker for `focusPort` on mount (status-dot deep-link)", () => {
+    mount(
+      <InputsSection
+        config={ambiguousConfig()}
+        nodeId="Z"
+        onConfigChange={vi.fn()}
+        focusPort="fileData"
+        onFocusConsumed={vi.fn()}
+      />,
+    );
+    // The picker modal is open, listing both competing producers to choose
+    // from — without focusPort it stays collapsed behind the "Choose source"
+    // button (no producer rows rendered).
+    expect(screen.getAllByTestId("producer-row-label")).toHaveLength(2);
+  });
+
+  it("clears the focus signal (onFocusConsumed) once a producer is picked so it doesn't re-open", async () => {
+    const user = userEvent.setup();
+    const onFocusConsumed = vi.fn();
+    const onConfigChange = vi.fn();
+    mount(
+      <InputsSection
+        config={ambiguousConfig()}
+        nodeId="Z"
+        onConfigChange={onConfigChange}
+        focusPort="fileData"
+        onFocusConsumed={onFocusConsumed}
+      />,
+    );
+    // Deep-linked picker is open; pick one of the competing producers.
+    await user.click(screen.getAllByTestId("producer-row-label")[0]);
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    expect(onFocusConsumed).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open any picker when focusPort is null", () => {
+    mount(
+      <InputsSection
+        config={ambiguousConfig()}
+        nodeId="Z"
+        onConfigChange={vi.fn()}
+        focusPort={null}
+      />,
+    );
+    expect(screen.queryAllByTestId("producer-row-label")).toHaveLength(0);
+  });
 });

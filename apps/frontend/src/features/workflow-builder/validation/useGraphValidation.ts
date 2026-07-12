@@ -19,6 +19,8 @@ import {
   validateGraphConfig,
 } from "@ai-di/graph-workflow";
 import { useEffect, useMemo, useState } from "react";
+import { autoWireIssuesToValidationErrors } from "../auto-wire-validation";
+import { useActivityCatalog } from "../dynamic-nodes/useActivityCatalog";
 
 const validateActivityParameters = createCatalogParameterValidator();
 
@@ -43,18 +45,40 @@ export function useGraphValidation(
   const [errors, setErrors] = useState<GraphValidationError[]>(EMPTY_ERRORS);
   const [isPending, setIsPending] = useState(false);
 
+  // Published dynamic nodes (`dyn.*`) only exist in the merged catalog the
+  // backend serves — validating against the static ACTIVITY_CATALOG alone
+  // flags every dynamic-node instance with a false "not registered" error.
+  const { entries: mergedEntries, isLoading: catalogLoading } =
+    useActivityCatalog();
+  const mergedTypes = useMemo(
+    () => new Set(mergedEntries.map((e) => e.activityType)),
+    [mergedEntries],
+  );
+
   useEffect(() => {
     setIsPending(true);
     const handle = setTimeout(() => {
       const result = validateGraphConfig(config, {
-        isRegisteredActivityType: (type) => Boolean(ACTIVITY_CATALOG[type]),
+        isRegisteredActivityType: (type) =>
+          Boolean(ACTIVITY_CATALOG[type]) ||
+          mergedTypes.has(type) ||
+          // While the merged catalog is still loading, give dyn.* types the
+          // benefit of the doubt — otherwise a false "not registered" error
+          // flashes on every editor load of a dynamic-node workflow.
+          (catalogLoading && type.startsWith("dyn.")),
         validateActivityParameters,
       });
-      setErrors(result.errors);
+      // Fold auto-wire input health (unbound / ambiguous ports) into the same
+      // problems list so it feeds the ONE unified surface — top-bar count,
+      // per-node badge, and drawer — instead of a separate status-dot system.
+      setErrors([
+        ...result.errors,
+        ...autoWireIssuesToValidationErrors(config),
+      ]);
       setIsPending(false);
     }, debounceMs);
     return () => clearTimeout(handle);
-  }, [config, debounceMs]);
+  }, [config, debounceMs, mergedTypes, catalogLoading]);
 
   return useMemo(() => {
     const errorsByNode = new Map<string, GraphValidationError[]>();

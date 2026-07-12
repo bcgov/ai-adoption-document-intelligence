@@ -31,7 +31,17 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Local runs share ONE backend instance behind a global rate limiter
+  // (THROTTLE_GLOBAL_LIMIT, default 100 req/min/IP) — unbounded workers
+  // (= CPU cores/2, 10+ on dev boxes) make full-suite runs 429-storm the
+  // backend: preview/status/catalog fetches error out and canvas
+  // interactions stall. 6 keeps the suite fast without tripping the limit;
+  // override with PLAYWRIGHT_WORKERS if your backend runs a higher limit.
+  workers: process.env.CI
+    ? 1
+    : process.env.PLAYWRIGHT_WORKERS
+      ? Number(process.env.PLAYWRIGHT_WORKERS)
+      : 6,
   reporter: 'html',
   grepInvert: excludedTags.length > 0 ? excludedTags : undefined,
 

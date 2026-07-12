@@ -25,7 +25,7 @@ import type {
   ComboboxLikeRenderOptionInput,
   ComboboxStringItem,
 } from "@mantine/core";
-import { Autocomplete, Text, Tooltip } from "@mantine/core";
+import { Autocomplete, Button, Text, Tooltip } from "@mantine/core";
 import { useMemo } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
@@ -69,7 +69,19 @@ export interface VariablePickerProps {
    * wildcard and lands in the compatible group.
    */
   resolveProducerKind?: (ctxKey: string) => KindRef | undefined;
+  /**
+   * When provided, the picker offers an inline "+ Create variable" button
+   * once the typed `value` is a valid new identifier that isn't already an
+   * option — declaring a ctx key in place so binding to it doesn't require a
+   * detour to Workflow Settings (an undeclared ctx key on a port binding is a
+   * save-blocking validation error). Consumers wire this to
+   * `declareCtxKey(config, key)` via `onConfigChange`.
+   */
+  onCreateCtxKey?: (key: string) => void;
 }
+
+/** A simple, dot-free identifier the "+ Create" affordance is offered for. */
+const NEW_CTX_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Build grouped Autocomplete suggestions for variable bindings.
@@ -137,27 +149,54 @@ export function VariablePicker({
   "data-testid": testId,
   expectedKind,
   resolveProducerKind,
+  onCreateCtxKey,
 }: VariablePickerProps) {
   const groupedOptions = useMemo(
     () => buildVariableOptions(config, currentNodeId),
     [config, currentNodeId],
   );
 
+  // Inline "+ Create variable" affordance — offered once the typed value is a
+  // valid new identifier that isn't already an option. Rendered beneath the
+  // input in BOTH render paths (undeclared ctx keys error on either).
+  const existingOptionValues = useMemo(
+    () => new Set(flattenGroupedOptions(groupedOptions)),
+    [groupedOptions],
+  );
+  const showCreate =
+    onCreateCtxKey !== undefined &&
+    NEW_CTX_KEY_RE.test(value) &&
+    !existingOptionValues.has(value);
+  const createButton = showCreate ? (
+    <Button
+      variant="subtle"
+      size="compact-xs"
+      mt={4}
+      data-testid="variable-picker-create"
+      onClick={() => onCreateCtxKey?.(value)}
+    >
+      + Create variable "{value}"
+    </Button>
+  ) : null;
+
   // Legacy / Scenario 3 path: no `expectedKind` → render the existing
   // grouped flat list unchanged. No sort, no divider, no dimming.
   if (expectedKind === undefined) {
     return (
-      <Autocomplete
-        label={label}
-        description={description}
-        placeholder={placeholder}
-        withAsterisk={required}
-        size="xs"
-        value={value}
-        data={groupedOptions}
-        data-testid={testId}
-        onChange={onChange}
-      />
+      <>
+        <Autocomplete
+          label={label}
+          description={description}
+          placeholder={placeholder}
+          withAsterisk={required}
+          size="xs"
+          value={value}
+          data={groupedOptions}
+          data-testid={testId}
+          onChange={onChange}
+        />
+        {createButton}
+      </>
     );
   }
 
@@ -221,17 +260,20 @@ export function VariablePicker({
   };
 
   return (
-    <Autocomplete
-      label={label}
-      description={description}
-      placeholder={placeholder}
-      withAsterisk={required}
-      size="xs"
-      value={value}
-      data={sortedGroups}
-      data-testid={testId}
-      renderOption={renderOption}
-      onChange={onChange}
-    />
+    <>
+      <Autocomplete
+        label={label}
+        description={description}
+        placeholder={placeholder}
+        withAsterisk={required}
+        size="xs"
+        value={value}
+        data={sortedGroups}
+        data-testid={testId}
+        renderOption={renderOption}
+        onChange={onChange}
+      />
+      {createButton}
+    </>
   );
 }

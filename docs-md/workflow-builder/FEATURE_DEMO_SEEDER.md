@@ -65,8 +65,24 @@ graph shapes the e2e specs build** (so they're known-valid):
 | Try-in-place | run a workflow & see previews (Part 9) — needs worker |
 | Versioning | history & revert, seeded with **two** versions (Part 12) |
 | Library | a `library`-kind workflow (Part 10) |
+| Dynamic node | palette DYN entry, DYN pill, Edit script (Part 14) — **best-effort**, see below |
 
 Part 16 (UX polish) isn't a separate workflow — its checks (switch diamond, three-zone top bar, hover-to-extend, node pills) are folded into the steps of the control-flow, grouping and typed-I/O demos.
+
+### The dynamic-node demo is best-effort
+
+Publishing the demo's custom node (`demo-uppercase`) runs the real publish
+toolchain (jsdoc-parse → signature-semantics → ts-check → allowlist), which
+needs the **deno-runner** sidecar. When the runner is down, the seeder prints a
+`⚠ dynamic-node demo skipped` note and the guide footer says Part 14 isn't
+seeded — everything else still seeds normally.
+
+**Stable slug.** The backend restores a soft-deleted lineage on re-publish
+(`POST` is create-*or*-restore — it clears the tombstone and appends the next
+version, preserving history), so the seeder always publishes under the base
+slug `demo-uppercase`: `PUT` when the lineage is already live, `POST` otherwise
+(which restores a tombstone from a prior run). No `-N` suffix churn — deleting
+the demo node in the UI and re-seeding lands back on `demo-uppercase`.
 
 ## Why it's generated
 
@@ -98,6 +114,7 @@ and guide section are produced from that single entry.
 
 ## Not covered (see the manual plan)
 
-Real OCR-output previews, incremental **cache-hit** re-runs (9.6/9.9), **dynamic
--node runs** (need `PLATFORM_API_KEY` on the worker — publish/security gates *are*
-covered by e2e), and the agent chat.
+Real OCR-output previews, incremental **cache-hit** re-runs (9.6/9.9),
+**dynamic-node runs** (need `PLATFORM_API_KEY` on the worker — the *editor
+surface* is now seeded as a demo; publish/security gates are covered by e2e),
+and the agent chat.

@@ -222,6 +222,35 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       setActiveGroupId(null);
     }
   }, []);
+  // Deep-link target for a problems-badge / drawer click: select the node AND
+  // ask the settings panel to open the source picker for the offending input.
+  // Cleared once the panel consumes it so it fires exactly once.
+  const [focusInput, setFocusInput] = useState<{
+    nodeId: string;
+    port: string;
+  } | null>(null);
+  // Select a node so it STICKS: go through xyflow's own selection store via the
+  // ReactFlow instance. A plain `setSelectedNodeId` alone doesn't hold — xyflow
+  // reasserts its internal (empty) selection on the next change event and
+  // clobbers it (the long-standing reason drawer/programmatic selection never
+  // focused a node). Falls back to state-only before the instance is ready.
+  const selectNodeSticky = useCallback(
+    (nodeId: string) => {
+      reactFlowRef.current?.setNodes((ns) =>
+        ns.map((n) => ({ ...n, selected: n.id === nodeId })),
+      );
+      setSelectedNodeId(nodeId);
+    },
+    [setSelectedNodeId],
+  );
+  const handleFixNodeInput = useCallback(
+    (nodeId: string, port: string) => {
+      selectNodeSticky(nodeId);
+      setFocusInput({ nodeId, port });
+    },
+    [selectNodeSticky],
+  );
+  const clearFocusInput = useCallback(() => setFocusInput(null), []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
@@ -299,7 +328,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     // 0ms is enough — xyflow updates its internal node store
     // synchronously inside its sibling effect on the same tick.
     setTimeout(() => {
-      reactFlowRef.current?.fitView({ padding: 0.25, duration: 300 });
+      reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
     }, 0);
   }, []);
 
@@ -339,6 +368,30 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setValidationFocusNodeId(nodeId);
     setValidationOpen(true);
   }, []);
+
+  // Clicking a node's problems badge: for an auto-wire input problem (the
+  // common case) deep-link straight to that input's source picker — the badge
+  // is on-canvas, so this 1-click fix works without the drawer's programmatic-
+  // selection race. Other issues (reachability, etc.) open the drawer. We read
+  // the *current* validation result (which already carries the folded-in
+  // auto-wire issues, anchored `nodes.<id>.inputs.<port>`) through a ref, so
+  // the callback stays stable AND never sees a stale config.
+  const validationRef = useRef(validation);
+  validationRef.current = validation;
+  const handleProblemBadgeClick = useCallback(
+    (nodeId: string) => {
+      const prefix = `nodes.${nodeId}.inputs.`;
+      const inputIssue = (
+        validationRef.current.errorsByNode.get(nodeId) ?? []
+      ).find((e) => e.path.startsWith(prefix));
+      if (inputIssue) {
+        handleFixNodeInput(nodeId, inputIssue.path.slice(prefix.length));
+      } else {
+        openValidationDrawerForNode(nodeId);
+      }
+    },
+    [handleFixNodeInput, openValidationDrawerForNode],
+  );
 
   // Clear the template from history.state so future back/forward
   // navigations land on a blank editor (not the templated one).
@@ -1074,6 +1127,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           result={validation}
           config={config}
           onSelectNode={setSelectedNodeId}
+          onFixNodeInput={handleFixNodeInput}
           focusedNodeId={validationFocusNodeId}
         />
 
@@ -1257,7 +1311,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               onSelectNode={setSelectedNodeId}
               onSelectionChangeMany={setSelectedNodeIds}
               errorsByNode={validation.errorsByNode}
-              onNodeBadgeClick={openValidationDrawerForNode}
+              onNodeBadgeClick={handleProblemBadgeClick}
               onReactFlowReady={handleReactFlowReady}
               simplifiedView={simplifiedView}
               onGroupChipClick={setActiveGroupId}
@@ -1271,6 +1325,8 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             onConfigChange={handleCanvasConfigChange}
             onDeleteSelected={deleteSelected}
             workflowId={isEditMode ? workflowId : undefined}
+            focusInput={focusInput}
+            onFocusInputConsumed={clearFocusInput}
           />
         </Box>
       </Stack>

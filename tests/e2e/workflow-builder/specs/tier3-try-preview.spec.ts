@@ -73,6 +73,12 @@ function nodeStatusBadge(
 }
 
 test.describe("try-in-place previews @infra", () => {
+  // A real Try execution (upload → Temporal run → preview-cache write) plus a
+  // reload; the per-assertion waits below are 60s each, so the default 30s
+  // per-test budget flakes under parallel-worker load. Give the whole test
+  // room for its slowest honest path.
+  test.describe.configure({ timeout: 180_000 });
+
   let createdId: string | null = null;
 
   test.beforeEach(async ({ page }) => {

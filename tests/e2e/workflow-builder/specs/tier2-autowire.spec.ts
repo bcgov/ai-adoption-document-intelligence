@@ -13,9 +13,9 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  * The resolver hides port bindings behind the wire: a typed input with a
  * single upstream producer of its kind auto-binds; two equidistant producers
  * are ambiguous; none is unsatisfied; a hand-authored binding is locked. State
- * surfaces two ways — the per-node status dot on the canvas
- * ([data-testid="node-status-dot"] data-status) and the "Inputs" section in the
- * settings panel ([data-testid="inputs-section"]).
+ * surfaces two ways — the per-node unified problems badge on the canvas
+ * ([data-testid="node-badge-<id>"], into which auto-wire issues now fold) and
+ * the "Inputs" section in the settings panel ([data-testid="inputs-section"]).
  *
  * Typed catalog kinds used (from /api/activity-catalog):
  *   - file.prepare               OUT[preparedData:Document]
@@ -170,16 +170,13 @@ test.describe("auto-wire", () => {
     await expect(
       inputs.getByRole("button", { name: "Override" }),
     ).toBeVisible();
-    // satisfied node → the "ok" status renders NO dot.
-    await expect(
-      page.locator(
-        '.react-flow__node[data-id="submit"] [data-testid="node-status-dot"]',
-      ),
-    ).toHaveCount(0);
+    // satisfied node → NO problems badge (auto-wire issues fold into the same
+    // per-node validation badge, which only renders when something's wrong).
+    await expect(page.getByTestId("node-badge-submit")).toHaveCount(0);
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
-  test("an unsatisfied input shows Needs source + a red status dot", async ({
+  test("an unsatisfied input shows Needs source + a problems badge", async ({
     page,
     request,
   }) => {
@@ -192,12 +189,9 @@ test.describe("auto-wire", () => {
     const editor = new WorkflowEditorPage(page);
     await editor.openExisting(createdId, 3);
 
-    // Status dot renders per-node without selection.
-    const dot = page.locator(
-      '.react-flow__node[data-id="lone"] [data-testid="node-status-dot"]',
-    );
-    await expect(dot).toBeVisible();
-    await expect(dot).toHaveAttribute("data-status", "unsatisfied");
+    // The unbound input folds into the node's unified problems badge
+    // (top-left) — no separate status dot anymore.
+    await expect(page.getByTestId("node-badge-lone")).toBeVisible();
 
     await editor.selectNode("lone");
     await expect(
@@ -220,11 +214,7 @@ test.describe("auto-wire", () => {
     const editor = new WorkflowEditorPage(page);
     await editor.openExisting(createdId, 3);
 
-    const dot = page.locator(
-      '.react-flow__node[data-id="sink"] [data-testid="node-status-dot"]',
-    );
-    await expect(dot).toBeVisible();
-    await expect(dot).toHaveAttribute("data-status", "ambiguous");
+    await expect(page.getByTestId("node-badge-sink")).toBeVisible();
 
     await editor.selectNode("sink");
     await expect(
@@ -232,6 +222,32 @@ test.describe("auto-wire", () => {
         name: "Choose source",
       }),
     ).toBeVisible();
+  });
+
+  test("clicking a node's problems badge deep-links to the offending input's picker", async ({
+    page,
+    request,
+  }) => {
+    createdId = (
+      await createWorkflow(request, {
+        name: `e2e autowire badge-fix ${test.info().testId}`,
+        config: buildAmbiguousConfig(),
+      })
+    ).id;
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(createdId, 3);
+
+    // The ambiguous input surfaces on the unified problems badge; clicking it
+    // selects the node AND opens the source picker for that input — one click
+    // to the exact fix.
+    const badge = page.getByTestId("node-badge-sink");
+    await expect(badge).toBeVisible();
+    await badge.click();
+
+    const picker = page.getByRole("dialog");
+    await expect(picker).toBeVisible();
+    // Both competing producers are offered to disambiguate.
+    await expect(picker.getByTestId("producer-row-label")).toHaveCount(2);
   });
 
   test("Override locks the port and Revert restores auto", async ({

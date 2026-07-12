@@ -300,8 +300,9 @@ describe("Scenario 3 — 404 maps to data: null", () => {
   });
 
   it("surfaces non-404 ApiErrors via the `error` field", async () => {
+    // 403 — a NON-transient status, so the hook must not retry it.
     fetchSpy.mockResolvedValue(
-      jsonResponse({ message: "Boom" }, { status: 500 }),
+      jsonResponse({ message: "Boom" }, { status: 403 }),
     );
     const queryClient = createQueryClient();
 
@@ -313,7 +314,32 @@ describe("Scenario 3 — 404 maps to data: null", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.data).toBeNull();
     expect(result.current.error).toBeInstanceOf(ApiError);
-    expect(result.current.error?.status).toBe(500);
+    expect(result.current.error?.status).toBe(403);
     expect(result.current.error?.message).toBe("Boom");
+    // No retry for non-transient statuses — exactly one fetch.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries transient errors (429) and settles on the eventual success", async () => {
+    // First call rate-limited, second succeeds — the retry predicate
+    // (429/5xx, up to 3 attempts) must recover instead of locking the
+    // widget into a permanent error state.
+    fetchSpy
+      .mockResolvedValueOnce(
+        jsonResponse({ message: "Too Many Requests" }, { status: 429 }),
+      )
+      .mockResolvedValue(jsonResponse(sampleRow, { status: 200 }));
+    const queryClient = createQueryClient();
+
+    const { result } = renderHook(
+      () => useActivityOutputPreview(WORKFLOW_ID, NODE_ID, RUN_ID),
+      { wrapper: buildWrapper({ queryClient, nodeStatuses: {} }) },
+    );
+
+    await waitFor(() => expect(result.current.data).toEqual(sampleRow), {
+      timeout: 10_000,
+    });
+    expect(result.current.error).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

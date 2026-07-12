@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectLaidOut, readNodeBoxes } from "../helpers/canvas";
 import { setupWorkflowBuilderTest } from "../helpers/wb-test";
 import {
   createWorkflow,
@@ -272,6 +273,122 @@ test.describe("node-type swap + grouping", () => {
         };
       })
       .toEqual({ members: ["prep"], exposed: 0 });
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
+});
+
+/** Three chained activities deliberately stacked on one coordinate. */
+function buildStackedConfig(name: string): GraphConfig {
+  const stacked = pos(300, 300);
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "prep",
+    ctx: {
+      blobKey: { type: "string" },
+      preparedFileData: { type: "object" },
+      apimRequestId: { type: "string" },
+    },
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...stacked,
+      },
+      submit: {
+        id: "submit",
+        type: "activity",
+        label: "Submit OCR",
+        activityType: "azureOcr.submit",
+        inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+        outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        ...stacked,
+      },
+      extract: {
+        id: "extract",
+        type: "activity",
+        label: "Extract",
+        activityType: "azureOcr.extract",
+        ...stacked,
+      },
+    },
+    edges: [
+      { id: "e1", source: "prep", target: "submit", type: "normal" },
+      { id: "e2", source: "submit", target: "extract", type: "normal" },
+    ],
+  };
+}
+
+test.describe("auto-arrange", () => {
+  let pageErrors: string[] = [];
+  let createdId: string | null = null;
+
+  test.beforeEach(async ({ page }) => {
+    pageErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(e.message));
+    await setupWorkflowBuilderTest(page);
+  });
+
+  test.afterEach(async ({ request }) => {
+    if (createdId) {
+      await deleteWorkflow(request, createdId);
+      createdId = null;
+    }
+  });
+
+  test("6.7 — More ▸ Auto-arrange spreads a stacked graph left-to-right and persists via Save", async ({
+    page,
+    request,
+  }, testInfo) => {
+    const name = `e2e auto-arrange ${testInfo.testId}`;
+    const created = await createWorkflow(request, {
+      name,
+      config: buildStackedConfig(name),
+    });
+    createdId = created.id;
+
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(created.id, 3);
+
+    await editor.autoArrange();
+    // The refit animates for 300ms after the layout lands.
+    await page.waitForTimeout(600);
+
+    // The three chained nodes now sit strictly left-to-right on screen.
+    const boxes = await readNodeBoxes(page);
+    expectLaidOut(boxes);
+    const byId = new Map(boxes.map((b) => [b.id, b]));
+    const prep = byId.get("prep");
+    const submit = byId.get("submit");
+    const extract = byId.get("extract");
+    expect(prep && submit && extract, "all three nodes rendered").toBeTruthy();
+    expect(prep!.x).toBeLessThan(submit!.x);
+    expect(submit!.x).toBeLessThan(extract!.x);
+
+    // Auto-arrange dirties the config; Save persists the new positions.
+    await editor.saveButton.click();
+    await expect
+      .poll(async () => {
+        const wf = await getWorkflow(request, createdId as string);
+        const p = (id: string) =>
+          (
+            wf.config.nodes[id].metadata as {
+              position?: { x: number; y: number };
+            }
+          ).position;
+        const xs = [p("prep")?.x, p("submit")?.x, p("extract")?.x];
+        return (
+          xs.every((x) => typeof x === "number") &&
+          (xs[0] as number) < (xs[1] as number) &&
+          (xs[1] as number) < (xs[2] as number)
+        );
+      })
+      .toBe(true);
 
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });

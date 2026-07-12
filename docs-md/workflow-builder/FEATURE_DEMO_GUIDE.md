@@ -27,12 +27,13 @@ npm run seed:demos
 - [Try-in-place — run a workflow & see previews (Part 9)](#tryinplace-run-a-workflow-see-previews-part-9)
 - [Versioning — history & revert (Part 12)](#versioning-history-revert-part-12)
 - [Library workflow (Part 10)](#library-workflow-part-10)
+- [Dynamic (custom-code) node — DYN pill & script editor (Part 14)](#dynamic-customcode-node-dyn-pill-script-editor-part-14)
 
 ---
 
 ## Typed I/O — coloured handles & type pills (Part 7)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhoz00nqcxgcmswbbp2n/edit](http://localhost:3000/workflows/cmrg6uhoz00nqcxgcmswbbp2n/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883hc00dvxxgc51oqg6u2/edit](http://localhost:3000/workflows/cmrh883hc00dvxxgc51oqg6u2/edit)
 
 1. Look at the node handles: single-typed ports are **coloured**; a node with multiple same-kind outputs (Submit OCR) shows a **grey wildcard** handle.
 1. Hover a handle to see its kind (e.g. `OcrResult`) or the multi-output prompt.
@@ -43,27 +44,29 @@ npm run seed:demos
 
 ## Auto-wire — typed input binding states (Part 8)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhqm00nscxgcrph3pdyr/edit](http://localhost:3000/workflows/cmrg6uhqm00nscxgcrph3pdyr/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883ix00dxxxgckiutdsz1/edit](http://localhost:3000/workflows/cmrh883ix00dxxxgckiutdsz1/edit)
 
-1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No status dot.
-1. Select **Lone Submit (unsatisfied)** → its input shows **Needs source** and the node carries a red **unsatisfied** status dot (no upstream producer).
+1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No problems badge.
+1. **Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.
+1. **Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).
 1. On the auto-bound node, click **Override** → the binding locks; click **Revert to auto** to restore it.
 
 ---
 
 ## Auto-wire — ambiguous source picker (Part 8)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhsh00nucxgc35iy7pdy/edit](http://localhost:3000/workflows/cmrg6uhsh00nucxgc35iy7pdy/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883kg00dzxxgcvacm1777/edit](http://localhost:3000/workflows/cmrh883kg00dzxxgcvacm1777/edit)
 
 1. Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.
-1. Select **Submit OCR (ambiguous)** → its `fileData` input shows **Choose source** and the node carries an amber **ambiguous** status dot.
-1. Use the producer picker to pick one — the dot clears.
+1. **Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input fileData has an ambiguous source”*.
+1. **Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.
+1. *Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.
 
 ---
 
 ## Validation surfacing — warning badge & drawer (5.4)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhu100nwcxgcy4wl78nt/edit](http://localhost:3000/workflows/cmrg6uhu100nwcxgcy4wl78nt/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883lz00e1xxgc34rb3ynr/edit](http://localhost:3000/workflows/cmrh883lz00e1xxgc34rb3ynr/edit)
 
 1. The **Orphan (unreachable)** node has no incoming edge → a validation issue is computed on load (no Save needed).
 1. The top-bar summary reads **1 warning** (amber); the orphan node shows an amber count badge.
@@ -73,17 +76,18 @@ npm run seed:demos
 
 ## Node settings panel & canvas basics (Part 3)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhvj00nycxgcjkmgwgt0/edit](http://localhost:3000/workflows/cmrg6uhvj00nycxgcjkmgwgt0/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883nk00e3xxgc7kec50pt/edit](http://localhost:3000/workflows/cmrh883nk00e3xxgc7kec50pt/edit)
 
 1. Click **Submit to Azure OCR** → the settings panel shows the editable label + a type badge.
 1. Edit the label and blur — the node updates live.
 1. Toggle **Advanced** to reveal the raw port bindings.
+1. In an input binding, type a **new** variable name (e.g. `myNewVar`) → a **+ Create variable "myNewVar"** button appears beneath the field. Click it → the variable is declared and the node binds to it. Without this, saving a binding to an undeclared ctx key fails validation — the button removes the detour to Workflow Settings.
 
 ---
 
 ## Control-flow forms & condition editor (Part 4)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhx500o0cxgciz2tc7n1/edit](http://localhost:3000/workflows/cmrg6uhx500o0cxgciz2tc7n1/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883p300e5xxgci7yat7lc/edit](http://localhost:3000/workflows/cmrh883p300e5xxgci7yat7lc/edit)
 
 1. This graph contains **all six** control-flow nodes. Click each to see its hand-rolled settings form:
 1. **Run for each document** (map) → collection/item/index ctx keys, max-concurrency, and body entry/exit node pickers.
@@ -97,7 +101,7 @@ npm run seed:demos
 
 ## Switch/error edges & validateFields editor (Part 5)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6uhyq00o2cxgcr1ksaq1z/edit](http://localhost:3000/workflows/cmrg6uhyq00o2cxgcr1ksaq1z/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883qo00e7xxgc5loujmcy/edit](http://localhost:3000/workflows/cmrh883qo00e7xxgc5loujmcy/edit)
 
 1. The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.
 1. **Route by review flag** (switch) draws **conditional** edges with `case[0]…` / `default` labels.
@@ -107,7 +111,7 @@ npm run seed:demos
 
 ## Grouping, simplified view & node swap (Part 6)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui0c00o4cxgczf52vrdl/edit](http://localhost:3000/workflows/cmrg6ui0c00o4cxgczf52vrdl/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883s600e9xxgc07kc7o21/edit](http://localhost:3000/workflows/cmrh883s600e9xxgc07kc7o21/edit)
 
 1. This chain ships pre-organised into two groups — **OCR Extraction** and **Finalize** — each with an **exposed parameter**.
 1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type).
@@ -119,7 +123,7 @@ npm run seed:demos
 
 ## Workflow-as-API — trigger URL & schema (Part 11)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui1w00o6cxgc98z02634/edit](http://localhost:3000/workflows/cmrg6ui1w00o6cxgc98z02634/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883to00ebxxgcyu894ohr/edit](http://localhost:3000/workflows/cmrh883to00ebxxgcyu894ohr/edit)
 
 1. This workflow starts with a **source.api** node declaring two fields (`documentUrl` required, `priority` optional).
 1. Click **Run this workflow** (top bar) → the Run drawer shows the **Trigger URL**, the derived **input schema** (only the declared fields), a copyable **sample curl**, and the **auth notes**.
@@ -129,7 +133,7 @@ npm run seed:demos
 
 ## Document sources — file upload (Part 13)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui3g00o8cxgciizwhmhf/edit](http://localhost:3000/workflows/cmrg6ui3g00o8cxgciizwhmhf/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883v800edxxgc91k1ki5r/edit](http://localhost:3000/workflows/cmrh883v800edxxgc91k1ki5r/edit)
 
 1. Select the **File upload** source node → SourceNodeSettings exposes `allowedMimeTypes` (`application/pdf`, `image/*`), `maxFileSizeMB` (25 here) and `ctxKey` (`documentUrl`).
 1. The source node has **no input handle** and a single blue **Document** output.
@@ -139,7 +143,7 @@ npm run seed:demos
 
 ## Try-in-place — run a workflow & see previews (Part 9)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui5300oacxgc03cfueux/edit](http://localhost:3000/workflows/cmrg6ui5300oacxgc03cfueux/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883ws00efxxgcwbbqmvpy/edit](http://localhost:3000/workflows/cmrh883ws00efxxgcwbbqmvpy/edit)
 
 > Needs the Temporal worker + deno-runner live (the `dev: all` task).
 
@@ -152,7 +156,7 @@ npm run seed:demos
 
 ## Versioning — history & revert (Part 12)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui6m00occxgcx9pzfkay/edit](http://localhost:3000/workflows/cmrg6ui6m00occxgcx9pzfkay/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh883y900ehxxgcq3a1xe0b/edit](http://localhost:3000/workflows/cmrh883y900ehxxgcq3a1xe0b/edit)
 
 1. This workflow has **two saved versions**. Open **More ▸ History**.
 1. You'll see `v2` (head) and `v1`, newest-first, each with a timestamp.
@@ -163,7 +167,7 @@ npm run seed:demos
 
 ## Library workflow (Part 10)
 
-**▶ Open:** [http://localhost:3000/workflows/cmrg6ui9y00ofcxgc06y7afn9/edit](http://localhost:3000/workflows/cmrg6ui9y00ofcxgc06y7afn9/edit)
+**▶ Open:** [http://localhost:3000/workflows/cmrh8841d00ekxxgcbs21b9nd/edit](http://localhost:3000/workflows/cmrh8841d00ekxxgcbs21b9nd/edit)
 
 1. This is a **library** workflow (a reusable building block, not a top-level runnable).
 1. Open the workflows list and switch to the **Library** view/kind — this entry appears there.
@@ -171,4 +175,17 @@ npm run seed:demos
 
 ---
 
-_Not seeded here because they need a live worker, the deno-runner, a published dynamic node, or LLM credentials: real OCR output previews + incremental cache-hit re-runs (Part 9 run-time), dynamic-node authoring/execution/security (Part 14), and the AI agent (Part 15). Walk those from `MANUAL_TEST_PLAN.md` with the stack up._
+## Dynamic (custom-code) node — DYN pill & script editor (Part 14)
+
+**▶ Open:** [http://localhost:3000/workflows/cmrh8848900enxxgc1xyitbfy/edit](http://localhost:3000/workflows/cmrh8848900enxxgc1xyitbfy/edit)
+
+1. The **CUSTOM** section of the activity palette lists **demo-uppercase** with a **DYN** badge — click it to drop another instance.
+1. The canvas node carries a purple **DYN** pill; select it → the Inputs section shows its `document` port bound to *Prepare*'s output.
+1. Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).
+1. **+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).
+1. **Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).
+1. ⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).
+
+---
+
+_Not seeded here because they need a live worker or LLM credentials: real OCR output previews + incremental cache-hit re-runs (Part 9 run-time), dynamic-node execution/security (Part 14 run-time — the editor surface is seeded above), and the AI agent (Part 15). Walk those from `MANUAL_TEST_PLAN.md` with the stack up._

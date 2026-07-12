@@ -95,6 +95,7 @@ export interface ConditionExpressionEditorProps {
   onChange: (next: ConditionExpression | undefined) => void;
   /** Full graph config, forwarded to nested `VariablePicker` instances. */
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   /**
    * The id of the node currently being edited. Used so that the
    * `VariablePicker` excludes this node's own outputs from the
@@ -264,6 +265,7 @@ export function ConditionExpressionEditor({
   value,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   depth = 0,
   "data-testid": testId,
@@ -310,6 +312,7 @@ export function ConditionExpressionEditor({
         expr={current}
         onChange={onChange}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         depth={depth}
         testId={testId ?? "condition-expression-editor"}
@@ -326,6 +329,7 @@ interface ExpressionBodyProps {
   expr: ConditionExpression;
   onChange: (next: ConditionExpression | undefined) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   depth: number;
   testId: string;
@@ -335,6 +339,7 @@ function ExpressionBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   depth,
   testId,
@@ -352,6 +357,7 @@ function ExpressionBody({
           expr={expr}
           onChange={onChange}
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           testId={testId}
         />
@@ -363,6 +369,7 @@ function ExpressionBody({
           expr={expr}
           onChange={onChange}
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           depth={depth}
           testId={testId}
@@ -374,6 +381,7 @@ function ExpressionBody({
           expr={expr}
           onChange={onChange}
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           depth={depth}
           testId={testId}
@@ -386,6 +394,7 @@ function ExpressionBody({
           expr={expr}
           onChange={onChange}
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           testId={testId}
         />
@@ -397,6 +406,7 @@ function ExpressionBody({
           expr={expr}
           onChange={onChange}
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           testId={testId}
         />
@@ -412,6 +422,7 @@ interface ComparisonBodyProps {
   expr: ComparisonExpression;
   onChange: (next: ConditionExpression) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   testId: string;
 }
@@ -420,6 +431,7 @@ function ComparisonBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   testId,
 }: ComparisonBodyProps) {
@@ -445,6 +457,7 @@ function ComparisonBody({
         value={expr.left}
         onChange={(left) => onChange({ ...expr, left })}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         testId={`${testId}-left`}
       />
@@ -453,6 +466,7 @@ function ComparisonBody({
         value={expr.right}
         onChange={(right) => onChange({ ...expr, right })}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         testId={`${testId}-right`}
       />
@@ -468,6 +482,7 @@ interface LogicalBodyProps {
   expr: LogicalExpression;
   onChange: (next: ConditionExpression) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   depth: number;
   testId: string;
@@ -477,6 +492,7 @@ function LogicalBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   depth,
   testId,
@@ -535,6 +551,7 @@ function LogicalBody({
                 value={operand}
                 onChange={(next) => setOperandAt(index, next)}
                 config={config}
+                onCreateCtxKey={onCreateCtxKey}
                 currentNodeId={currentNodeId}
                 depth={depth + 1}
                 data-testid={`${testId}-operand-${index}-editor`}
@@ -575,6 +592,7 @@ interface NotBodyProps {
   expr: NotExpression;
   onChange: (next: ConditionExpression) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   depth: number;
   testId: string;
@@ -584,6 +602,7 @@ function NotBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   depth,
   testId,
@@ -598,6 +617,7 @@ function NotBody({
           }
         }}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         depth={depth + 1}
         data-testid={`${testId}-not-operand-editor`}
@@ -614,6 +634,7 @@ interface NullCheckBodyProps {
   expr: NullCheckExpression;
   onChange: (next: ConditionExpression) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   testId: string;
 }
@@ -622,6 +643,7 @@ function NullCheckBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   testId,
 }: NullCheckBodyProps) {
@@ -647,6 +669,7 @@ function NullCheckBody({
         value={expr.value}
         onChange={(value) => onChange({ ...expr, value })}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         testId={`${testId}-value`}
       />
@@ -662,6 +685,7 @@ interface MembershipBodyProps {
   expr: ListMembershipExpression;
   onChange: (next: ConditionExpression) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   testId: string;
 }
@@ -670,6 +694,7 @@ function MembershipBody({
   expr,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   testId,
 }: MembershipBodyProps) {
@@ -695,6 +720,7 @@ function MembershipBody({
         value={expr.value}
         onChange={(value) => onChange({ ...expr, value })}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         testId={`${testId}-value`}
       />
@@ -703,6 +729,7 @@ function MembershipBody({
         value={expr.list}
         onChange={(list) => onChange({ ...expr, list })}
         config={config}
+        onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
         testId={`${testId}-list`}
       />
@@ -719,6 +746,7 @@ interface ValueRefEditorProps {
   value: ValueRef;
   onChange: (next: ValueRef) => void;
   config: GraphWorkflowConfig;
+  onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
   testId: string;
 }
@@ -760,6 +788,7 @@ function ValueRefEditor({
   value,
   onChange,
   config,
+  onCreateCtxKey,
   currentNodeId,
   testId,
 }: ValueRefEditorProps) {
@@ -822,6 +851,7 @@ function ValueRefEditor({
       {mode === "ref" ? (
         <VariablePicker
           config={config}
+          onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
           value={"ref" in value && value.ref !== undefined ? value.ref : ""}
           onChange={(nextRef) => onChange({ ref: nextRef })}
