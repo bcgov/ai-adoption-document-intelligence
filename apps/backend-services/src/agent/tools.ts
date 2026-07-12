@@ -24,6 +24,7 @@ import type {
   WorkflowService,
 } from "@/workflow/workflow.service";
 import type { RunBudgetMap } from "./run-budget-map";
+import { listSampleDocuments as loadSampleDocuments } from "./sample-documents";
 
 /**
  * Default cap on the number of characters of a single tool result that
@@ -348,6 +349,16 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
           },
         };
       },
+    }),
+
+    listSampleDocuments: tool({
+      description:
+        "List the built-in sample documents you can run a workflow against when the user hasn't uploaded one. Use with startTestRun to self-test. If the task needs the USER's specific document (their invoice/format), ask them instead.",
+      inputSchema: z.object({}),
+      execute: async () => ({
+        ok: true as const,
+        documents: loadSampleDocuments(),
+      }),
     }),
 
     listLibraryWorkflows: tool({

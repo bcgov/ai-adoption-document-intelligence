@@ -759,3 +759,19 @@ describe("validateWorkflow", () => {
     expect(res.warnings[0].message).toContain("unsatisfied");
   });
 });
+
+describe("listSampleDocuments", () => {
+  it("returns the bundled sample documents", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      documents: Array<{ id: string; description: string }>;
+    }>(tools, "listSampleDocuments", {});
+    expect(res.ok).toBe(true);
+    expect(res.documents.map((d) => d.id).sort()).toEqual([
+      "multi-page-sample",
+      "sample-invoice",
+    ]);
+  });
+});
