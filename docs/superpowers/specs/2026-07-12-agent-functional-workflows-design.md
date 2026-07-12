@@ -84,7 +84,13 @@ Returns the full spec for one activity so the agent can configure it correctly.
   `extract1`/`poll1`/`store1` case), no entry node, nodes in multiple groups,
   etc. `valid` is false only when there are hard errors.
 
-### 3. Sample documents — `listSampleDocuments()` + seeded assets
+### 3. Sample documents — `listSampleDocuments()` + bundled app assets
+
+**No seed dependency.** The sample documents are **application assets shipped
+with the backend**, available in every environment including production — NOT
+seed data, NOT `Document` DB rows. The feature works on a fresh production
+deploy with no seeding step. (`startTestRun` uploads the bytes at run time, so
+there is nothing to pre-seed.)
 
 - **Assets:** copy the two existing fixtures into a stable, committed dir
   `apps/backend-services/assets/sample-documents/` with a `manifest.json`:
@@ -99,8 +105,14 @@ Returns the full spec for one activity so the agent can configure it correctly.
   (Sources: `tests/e2e/workflow-builder/fixtures/documents/sample-invoice.pdf`,
   `apps/backend-services/integration-tests/graph-workflow-tests/multi-page-sample-1.pdf`.)
 - **`listSampleDocuments()`** reads the manifest and returns
-  `{ ok, documents: [{ id, name, description, mimeType }] }`. No DB seeding
-  needed — the bytes are read at test-run time (below).
+  `{ ok, documents: [{ id, name, description, mimeType }] }`. The manifest +
+  files are resolved from a path anchored at the backend package root so it
+  works from both `src` (dev) and `dist` (prod).
+- **Packaging (required):** the assets must land in the built artifact, not
+  just the dev tree. Add `assets/sample-documents/**` to the Nest build asset
+  copy (`nest-cli.json` `compilerOptions.assets`) and confirm the Dockerfile
+  copies them into the image. Without this the tool works in dev and 404s in
+  prod — verify the asset path resolves against `dist` in a built run.
 
 ### 4. `startTestRun({ sampleDocumentId, workflowId? })` — test with a sample
 
