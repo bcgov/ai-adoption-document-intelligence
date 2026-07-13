@@ -75,18 +75,24 @@ interface MockNodeProps {
 // most recently passed ReactFlow props (including `onConnect`, `edges`,
 // `edgeTypes`) so US-025 scenarios can dispatch a connection without
 // booting xyflow's runtime.
-const { mockFitView, mockReactFlowApi, latestReactFlowProps } = vi.hoisted(
-  () => {
-    const fitView = vi.fn();
-    return {
-      mockFitView: fitView,
-      mockReactFlowApi: { fitView },
-      latestReactFlowProps: {
-        current: null as null | Record<string, unknown>,
-      },
-    };
-  },
-);
+const {
+  mockFitView,
+  mockReactFlowApi,
+  latestReactFlowProps,
+  mockUpdateNodeInternals,
+} = vi.hoisted(() => {
+  const fitView = vi.fn();
+  return {
+    mockFitView: fitView,
+    mockReactFlowApi: { fitView },
+    latestReactFlowProps: {
+      current: null as null | Record<string, unknown>,
+    },
+    // Stable function identity — a fresh fn per render would retrigger the
+    // activity renderer's updateNodeInternals effect on every commit.
+    mockUpdateNodeInternals: vi.fn(),
+  };
+});
 
 vi.mock("@xyflow/react", () => {
   const useNodesState = <T,>(initial: T[]) => {
@@ -112,6 +118,15 @@ vi.mock("@xyflow/react", () => {
       const nodeTypes = props.nodeTypes as
         | Record<string, React.ComponentType<MockNodeProps>>
         | undefined;
+      interface MockEdgeProps {
+        id: string;
+        source: string;
+        target: string;
+        sourceHandle?: string | null;
+        targetHandle?: string | null;
+        data?: { wire?: { variant?: string } };
+      }
+      const edges: MockEdgeProps[] = (props.edges as MockEdgeProps[]) ?? [];
       return (
         <div data-testid="react-flow">
           {nodes.map((node) => {
@@ -127,6 +142,20 @@ vi.mock("@xyflow/react", () => {
               </div>
             ) : null;
           })}
+          {/* Flattened edge projection — exposes the wire variant + the
+              resolved handle ids as data attributes so projection tests
+              can assert anchoring without booting xyflow's runtime. */}
+          {edges.map((edge) => (
+            <div
+              key={edge.id}
+              data-testid={`rf-edge-${edge.id}`}
+              data-wire-variant={edge.data?.wire?.variant}
+              data-source={edge.source}
+              data-target={edge.target}
+              data-source-handle={edge.sourceHandle ?? undefined}
+              data-target-handle={edge.targetHandle ?? undefined}
+            />
+          ))}
         </div>
       );
     },
@@ -161,6 +190,7 @@ vi.mock("@xyflow/react", () => {
     useNodesState,
     useEdgesState,
     useReactFlow: () => mockReactFlowApi,
+    useUpdateNodeInternals: () => mockUpdateNodeInternals,
   };
 });
 
@@ -1364,6 +1394,159 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     const errorColor = "var(--mantine-color-red-6, #e03131)";
     expect(errorEdge?.markerEnd).toMatchObject({ color: errorColor });
     expect(errorEdge?.style).toMatchObject({ stroke: errorColor });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wire projection (PORT_WIRING_DESIGN.md §5): data bindings render as
+// port-to-port wires; bindings-free normal edges render as dashed
+// sequence wires; error edges anchor at the bottom `error` handle.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => {
+  /**
+   * prep (`file.prepare`) → submit (`azureOcr.submit`) bound through
+   * prep's auto-synthesised `preparedData` ctx key + a normal edge;
+   * plus a bindings-free pair (poll → human) and an error-policy edge
+   * (prep → join) so one config exercises all three variants.
+   */
+  function makeWireProjectionConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prepare File",
+      activityType: "file.prepare",
+      parameters: {},
+      outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+      errorPolicy: { retryable: false, onError: "fallback" },
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const bare1: ActivityNode = {
+      id: "bare1",
+      type: "activity",
+      label: "Bare A",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 200 } },
+    };
+    const bare2: ActivityNode = {
+      id: "bare2",
+      type: "activity",
+      label: "Bare B",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 300, y: 200 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Wire projection", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        prep,
+        submit,
+        bare1,
+        bare2,
+      },
+      edges: [
+        { id: "e_bound", source: "prep", target: "submit", type: "normal" },
+        { id: "e_bare", source: "bare1", target: "bare2", type: "normal" },
+        { id: "e_error", source: "prep", target: "bare1", type: "error" },
+      ],
+      entryNodeId: "prep",
+    };
+  }
+
+  function getCapturedEdges(): Edge[] {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    return (props.edges as Edge[]) ?? [];
+  }
+
+  it("renders a bound pair as a per-port data wire and drops the grey edge between the pair", async () => {
+    renderCanvas(makeWireProjectionConfig());
+    await flushAnimationFrame();
+
+    const dataWire = screen.getByTestId("rf-edge-wire:submit:fileData");
+    expect(dataWire).toHaveAttribute("data-wire-variant", "data");
+    expect(dataWire).toHaveAttribute("data-source", "prep");
+    expect(dataWire).toHaveAttribute("data-target", "submit");
+    // Activity endpoints anchor at the per-port handles minted by
+    // `outputHandleId` / `inputHandleId` — the same ids `<PortRows>`
+    // mounts.
+    expect(dataWire).toHaveAttribute("data-source-handle", "out-preparedData");
+    expect(dataWire).toHaveAttribute("data-target-handle", "in-fileData");
+    // The normal edge between the pair is absorbed into the data wire —
+    // no separate grey sequence edge renders for it.
+    expect(screen.queryByTestId("rf-edge-e_bound")).not.toBeInTheDocument();
+
+    // Render-only phase: data wires are neither deletable nor selectable.
+    const projected = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:fileData",
+    );
+    expect(projected?.deletable).toBe(false);
+    expect(projected?.selectable).toBe(false);
+  });
+
+  it("renders a bindings-free pair as a dashed sequence wire", async () => {
+    renderCanvas(makeWireProjectionConfig());
+    await flushAnimationFrame();
+
+    const sequence = screen.getByTestId("rf-edge-e_bare");
+    expect(sequence).toHaveAttribute("data-wire-variant", "sequence");
+
+    const projected = getCapturedEdges().find((e) => e.id === "e_bare");
+    expect(projected?.style).toMatchObject({ strokeDasharray: "6 4" });
+  });
+
+  it("anchors error edges at the bottom `error` source handle", async () => {
+    renderCanvas(makeWireProjectionConfig());
+    await flushAnimationFrame();
+
+    const errorEdge = screen.getByTestId("rf-edge-e_error");
+    expect(errorEdge).toHaveAttribute("data-wire-variant", "error");
+    expect(errorEdge).toHaveAttribute("data-source-handle", "error");
+  });
+
+  it("re-projects wires when a binding edit changes the config (fingerprint covers bindings)", async () => {
+    const config = makeWireProjectionConfig();
+    const { rerenderWithConfig } = renderCanvas(config);
+    await flushAnimationFrame();
+    expect(
+      screen.getByTestId("rf-edge-wire:submit:fileData"),
+    ).toBeInTheDocument();
+
+    // Settings-rail-style edit: clear submit's input binding. Node ids,
+    // labels, types and edges all stay identical — only the binding
+    // changes, which the pre-fix fingerprint ignored.
+    const submit = config.nodes.submit as ActivityNode;
+    const next: GraphWorkflowConfig = {
+      ...config,
+      nodes: {
+        ...config.nodes,
+        submit: { ...submit, inputs: [] },
+      },
+    };
+    rerenderWithConfig(next);
+    await flushAnimationFrame();
+
+    // The data wire is gone and the underlying normal edge resurfaces as
+    // a sequence wire.
+    expect(
+      screen.queryByTestId("rf-edge-wire:submit:fileData"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("rf-edge-e_bound")).toHaveAttribute(
+      "data-wire-variant",
+      "sequence",
+    );
   });
 });
 

@@ -219,8 +219,17 @@ vi.mock("@xyflow/react", () => {
     useNodesState,
     useEdgesState,
     useReactFlow: () => ({ fitView: vi.fn() }),
+    // Stable no-op — the activity renderer calls this to re-measure
+    // per-port handle bounds; jsdom has no layout to invalidate.
+    useUpdateNodeInternals: () => mockUpdateNodeInternals,
   };
 });
+
+const { mockUpdateNodeInternals } = vi.hoisted(() => ({
+  mockUpdateNodeInternals: (_nodeId: string) => {
+    // Intentional no-op — jsdom has no handle bounds to re-measure.
+  },
+}));
 
 // Imported AFTER `vi.mock` calls so the mocked module is what the canvas
 // resolves at module load.

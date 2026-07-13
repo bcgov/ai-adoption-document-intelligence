@@ -24,7 +24,12 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import { getControlFlowVisualHints } from "../control-flow-visual-hints";
-import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
+import type { DataWire, StructuralWire } from "./derive-wires";
+import {
+  WorkflowEdge,
+  type WorkflowEdgeData,
+  wireTooltip,
+} from "./WorkflowEdge";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -127,6 +132,31 @@ function expectBaseEdgeStroke(expected: string) {
   // check is via the rendered style attribute string.
   const styleAttr = baseEdge.getAttribute("style") ?? "";
   expect(styleAttr).toContain(`stroke: ${expected}`);
+}
+
+/** The `<g>` wrapper carrying `data-wire-variant` / `data-provenance`. */
+function getWireGroup(container: HTMLElement): Element {
+  const group = container.querySelector("g[data-wire-variant]");
+  if (!group) throw new Error("wire <g> wrapper not rendered");
+  return group;
+}
+
+function makeDataWire(overrides: Partial<DataWire> = {}): DataWire {
+  return {
+    variant: "data",
+    id: "wire:B:fileData",
+    source: "A",
+    sourcePort: "preparedData",
+    target: "B",
+    targetPort: "fileData",
+    kind: "Document",
+    pinned: false,
+    auto: true,
+    via: "nearest-kind",
+    edgeId: "e1",
+    ctxKey: "__auto.A.preparedData",
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +303,193 @@ describe("WorkflowEdge — Scenario 5: error edge", () => {
     // raw string in the serialised style attribute.
     expectBaseEdgeStroke("var(--mantine-color-red-6, #e03131)");
     expect(screen.getByTestId("edge-label")).toHaveTextContent("on error");
+  });
+});
+
+describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
+  it("data wire: kind-coloured stroke, no label, provenance attrs + title tooltip", () => {
+    const wire = makeDataWire({ kind: "Document", via: "name-match" });
+    const { container } = renderEdge(
+      makeEdgeProps({
+        id: wire.id,
+        source: wire.source,
+        target: wire.target,
+        data: { wire },
+      }),
+    );
+    // `Document` → registry colour "blue" → the same shade-6 Mantine
+    // variable the port dots use.
+    expectBaseEdgeStroke("var(--mantine-color-blue-6, blue)");
+    expect(screen.queryByTestId("edge-label")).not.toBeInTheDocument();
+    const group = getWireGroup(container);
+    expect(group.getAttribute("data-wire-variant")).toBe("data");
+    expect(group.getAttribute("data-provenance")).toBe("auto:name-match");
+    const title = group.querySelector("title");
+    expect(title?.textContent).toBe(
+      'Connected automatically — matched by name "fileData"',
+    );
+  });
+
+  it("data wire provenance: pinned / auto / manual variants", () => {
+    const pinned = renderEdge(
+      makeEdgeProps({
+        id: "w1",
+        source: "A",
+        target: "B",
+        data: { wire: makeDataWire({ pinned: true, via: undefined }) },
+      }),
+    );
+    expect(getWireGroup(pinned.container).getAttribute("data-provenance")).toBe(
+      "pinned",
+    );
+    pinned.unmount();
+
+    const auto = renderEdge(
+      makeEdgeProps({
+        id: "w2",
+        source: "A",
+        target: "B",
+        data: { wire: makeDataWire({ via: undefined }) },
+      }),
+    );
+    expect(getWireGroup(auto.container).getAttribute("data-provenance")).toBe(
+      "auto",
+    );
+    auto.unmount();
+
+    const manual = renderEdge(
+      makeEdgeProps({
+        id: "w3",
+        source: "A",
+        target: "B",
+        data: {
+          wire: makeDataWire({
+            auto: false,
+            via: undefined,
+            ctxKey: "sharedBlob",
+          }),
+        },
+      }),
+    );
+    expect(getWireGroup(manual.container).getAttribute("data-provenance")).toBe(
+      "manual",
+    );
+  });
+
+  it("sequence wire: grey dashed stroke, no label, data-wire-variant='sequence'", () => {
+    const graphEdge: GraphEdge = {
+      id: "e-seq",
+      source: "n1",
+      target: "n2",
+      type: "normal",
+    };
+    const wire: StructuralWire = {
+      variant: "sequence",
+      id: graphEdge.id,
+      edge: graphEdge,
+    };
+    const { container } = renderEdge(
+      makeEdgeProps({
+        id: graphEdge.id,
+        source: graphEdge.source,
+        target: graphEdge.target,
+        data: { wire, graphEdge },
+      }),
+    );
+    expectBaseEdgeStroke("rgb(156, 163, 175)");
+    const styleAttr =
+      screen.getByTestId("base-edge").getAttribute("style") ?? "";
+    expect(styleAttr).toContain("stroke-dasharray: 6 4");
+    expect(screen.queryByTestId("edge-label")).not.toBeInTheDocument();
+    expect(getWireGroup(container).getAttribute("data-wire-variant")).toBe(
+      "sequence",
+    );
+    expect(getWireGroup(container).hasAttribute("data-provenance")).toBe(false);
+  });
+
+  it("error structural wire keeps today's rendering plus its variant attr", () => {
+    const graphEdge: GraphEdge = {
+      id: "e-err",
+      source: "n1",
+      target: "fallback",
+      type: "error",
+    };
+    const wire: StructuralWire = {
+      variant: "error",
+      id: graphEdge.id,
+      edge: graphEdge,
+    };
+    const { container } = renderEdge(
+      makeEdgeProps({
+        id: graphEdge.id,
+        source: graphEdge.source,
+        target: graphEdge.target,
+        data: { wire, graphEdge },
+      }),
+    );
+    expectBaseEdgeStroke("var(--mantine-color-red-6, #e03131)");
+    expect(screen.getByTestId("edge-label")).toHaveTextContent("on error");
+    expect(getWireGroup(container).getAttribute("data-wire-variant")).toBe(
+      "error",
+    );
+  });
+
+  it("run-time isActive blue override wins over the data-wire stroke", () => {
+    renderEdge(
+      makeEdgeProps({
+        id: "w1",
+        source: "A",
+        target: "B",
+        // `kind: undefined` → gray stroke when inactive, so the blue
+        // active override is unambiguous in the assertion below.
+        data: { wire: makeDataWire({ kind: undefined }), isActive: true },
+      }),
+    );
+    expectBaseEdgeStroke("var(--mantine-color-blue-6, #228be6)");
+    const styleAttr =
+      screen.getByTestId("base-edge").getAttribute("style") ?? "";
+    expect(styleAttr).toContain("stroke-width: 2.5");
+    expect(styleAttr).not.toContain("stroke-dasharray");
+  });
+});
+
+describe("wireTooltip", () => {
+  it("pinned wins over every other flag", () => {
+    expect(wireTooltip(makeDataWire({ pinned: true, via: "name-match" }))).toBe(
+      "Pinned by you",
+    );
+  });
+
+  it("name-match names the target port", () => {
+    expect(wireTooltip(makeDataWire({ via: "name-match" }))).toBe(
+      'Connected automatically — matched by name "fileData"',
+    );
+  });
+
+  it("map-item explains the loop item", () => {
+    expect(wireTooltip(makeDataWire({ via: "map-item" }))).toBe(
+      "Connected automatically — item from the loop",
+    );
+  });
+
+  it("auto without a specific via describes the nearest producer by kind", () => {
+    expect(wireTooltip(makeDataWire({ via: "nearest-kind" }))).toBe(
+      "Connected automatically — nearest Document producer",
+    );
+    expect(wireTooltip(makeDataWire({ via: undefined }))).toBe(
+      "Connected automatically — nearest Document producer",
+    );
+    expect(wireTooltip(makeDataWire({ via: undefined, kind: undefined }))).toBe(
+      "Connected automatically — nearest compatible producer",
+    );
+  });
+
+  it("manual bindings surface the ctx key", () => {
+    expect(
+      wireTooltip(
+        makeDataWire({ auto: false, via: undefined, ctxKey: "sharedBlob" }),
+      ),
+    ).toBe("Connected — via sharedBlob");
   });
 });
 

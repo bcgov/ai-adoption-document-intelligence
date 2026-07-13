@@ -1,23 +1,31 @@
 /**
  * Custom xyflow edge component for the workflow builder canvas.
  *
- * Renders the underlying `GraphEdge` with stroke colour + an optional
- * inline pill label whose contents reflect the semantic role of the
- * edge:
+ * Renders a `DerivedWire` (PORT_WIRING_DESIGN.md §5 — "one wire = data")
+ * with a variant-specific stroke + an optional inline pill label:
  *
- *   - `type: "normal"`     → grey stroke, no label.
- *   - `type: "conditional"`→ switch accent stroke, label is either
+ *   - `variant: "data"`    → stroke coloured by the wire's artifact kind
+ *                            (`colorForKind`), no label, a native SVG
+ *                            `<title>` tooltip describing the binding's
+ *                            provenance (`wireTooltip`).
+ *   - `variant: "sequence"`→ grey DASHED stroke, no label — execution
+ *                            order only, no data flows on this hop.
+ *   - `variant: "conditional"` → switch accent stroke, label is either
  *                            `case[i]: <predicate>` (when the edge id is
  *                            referenced by `switch.cases[i].edgeId`),
  *                            `default` (when the edge id is the
  *                            switch's `defaultEdge`), or `case[?]`
  *                            otherwise.
- *   - `type: "error"`      → red stroke, label `on error`.
+ *   - `variant: "error"`   → red stroke, label `on error`.
  *
- * The component reads the `GraphEdge` (and, when applicable, the source
- * `SwitchNode`) from `data` populated by the canvas projection — the
- * canvas walks the graph once and hands each edge enough context to
- * compute its own label without re-walking.
+ * Edges projected without a `wire` (e.g. the simplified-view chip
+ * projection) fall back to the legacy `GraphEdge.type` styling: `normal`
+ * → solid grey, `conditional`/`error` as above.
+ *
+ * The component reads everything it needs from `data` populated by the
+ * canvas projection — the canvas walks the graph once and hands each
+ * edge enough context to compute its own stroke/label without
+ * re-walking.
  *
  * See feature-docs/20260524-workflow-builder-switch-edges-and-validation-editor/
  * user_stories/US-023-workflow-edge-component.md.
@@ -32,13 +40,21 @@ import {
 import { type CSSProperties, memo } from "react";
 import type { GraphEdge, SwitchNode } from "../../../types/workflow";
 import { getControlFlowVisualHints } from "../control-flow-visual-hints";
+import { colorForKind } from "./artifact-kind-colour";
+import type { DataWire, DerivedWire } from "./derive-wires";
 import { formatCaseLabel } from "./edge-labels";
+import { handleBackground } from "./handle-style";
 
 /**
  * Shape of the `data` payload the canvas projection hands to
- * `WorkflowEdge`. The renderer needs the source `SwitchNode` (only when
- * the source is a switch) so it can resolve `cases[i].edgeId` →
- * `case[i]: <label>` without holding a reference to the entire graph.
+ * `WorkflowEdge`.
+ *
+ * `wire` carries the derived wire this edge renders. Structural wires
+ * (sequence / conditional / error) ALSO carry `graphEdge` (and, for
+ * switch sources, `sourceSwitch` so the renderer can resolve
+ * `cases[i].edgeId` → `case[i]: <label>` without holding a reference to
+ * the entire graph); data wires carry `wire` only. Legacy projections
+ * (simplified view) supply `graphEdge` without `wire`.
  *
  * Phase 4 (US-139) adds the optional `isActive` flag — when true the
  * edge renders with the active-edge animation (blue stroke + 2.5px
@@ -46,10 +62,43 @@ import { formatCaseLabel } from "./edge-labels";
  * the edge's `animated` flag set by `WorkflowEditorCanvas`.
  */
 export interface WorkflowEdgeData {
-  graphEdge: GraphEdge;
+  graphEdge?: GraphEdge;
   sourceSwitch?: SwitchNode;
+  wire?: DerivedWire;
   isActive?: boolean;
   [key: string]: unknown;
+}
+
+/**
+ * Plain-language provenance tooltip for a data wire (Task 3 vocabulary:
+ * "Connected automatically…", "Pinned by you"). Pure so it can be unit
+ * tested without rendering.
+ */
+export function wireTooltip(wire: DataWire): string {
+  if (wire.pinned) {
+    return "Pinned by you";
+  }
+  if (wire.via === "name-match") {
+    return `Connected automatically — matched by name "${wire.targetPort}"`;
+  }
+  if (wire.via === "map-item") {
+    return "Connected automatically — item from the loop";
+  }
+  if (wire.auto) {
+    return `Connected automatically — nearest ${wire.kind ?? "compatible"} producer`;
+  }
+  return `Connected — via ${wire.ctxKey}`;
+}
+
+/**
+ * Machine-readable provenance stamped as `data-provenance` on the
+ * rendered wire: `pinned` | `auto:<via>` | `auto` | `manual`.
+ */
+function wireProvenance(wire: DataWire): string {
+  if (wire.pinned) return "pinned";
+  if (wire.via !== undefined) return `auto:${wire.via}`;
+  if (wire.auto) return "auto";
+  return "manual";
 }
 
 const NORMAL_STROKE = "#9ca3af";
@@ -92,27 +141,60 @@ function computeConditionalLabel(
   };
 }
 
+/** Dash pattern for sequence wires — execution order only, no data. */
+const SEQUENCE_DASH = "6 4";
+
 interface StyleResolution {
   stroke: string;
+  strokeDasharray?: string;
   label: LabelComputation | null;
+  /** Stamped as `data-wire-variant` when the projection supplied a wire. */
+  wireVariant?: DerivedWire["variant"];
+  /** Data wires only — stamped as `data-provenance`. */
+  provenance?: string;
+  /** Data wires only — native SVG `<title>` hover text. */
+  title?: string;
 }
 
 function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
   if (!data) {
     return { stroke: NORMAL_STROKE, label: null };
   }
-  const { graphEdge, sourceSwitch } = data;
+  const { graphEdge, sourceSwitch, wire } = data;
+  if (wire?.variant === "data") {
+    return {
+      stroke: handleBackground(colorForKind(wire.kind)),
+      label: null,
+      wireVariant: "data",
+      provenance: wireProvenance(wire),
+      title: wireTooltip(wire),
+    };
+  }
+  if (wire?.variant === "sequence") {
+    return {
+      stroke: NORMAL_STROKE,
+      strokeDasharray: SEQUENCE_DASH,
+      label: null,
+      wireVariant: "sequence",
+    };
+  }
+  // Structural conditional/error wires + legacy (no-wire) projections
+  // resolve through the underlying GraphEdge exactly as before.
+  if (!graphEdge) {
+    return { stroke: NORMAL_STROKE, label: null };
+  }
   switch (graphEdge.type) {
     case "normal":
       return { stroke: NORMAL_STROKE, label: null };
     case "conditional": {
       const label = computeConditionalLabel(graphEdge, sourceSwitch);
-      return { stroke: label.accent, label };
+      return { stroke: label.accent, label, wireVariant: wire?.variant };
     }
     case "error":
       return {
         stroke: ERROR_STROKE,
         label: { text: "on error", accent: ERROR_STROKE },
+        wireVariant: wire?.variant,
       };
   }
 }
@@ -129,15 +211,20 @@ export const WorkflowEdge = memo(function WorkflowEdge(
     targetY,
   });
 
-  const { stroke, label } = resolveStyle(data);
+  const { stroke, strokeDasharray, label, wireVariant, provenance, title } =
+    resolveStyle(data);
   // Active-edge override (US-139): when the canvas projection flags this
   // edge as the currently-flowing hop, swap in the blue stroke +
-  // wider 2.5px line. Otherwise render the existing Phase 1B
-  // per-edge-type stroke unchanged.
+  // wider 2.5px line — it wins over every wire variant (including the
+  // sequence dash, which would fight xyflow's marching-ants animation).
   const isActive = data?.isActive === true;
   const edgeStyle: CSSProperties = isActive
     ? { stroke: ACTIVE_STROKE, strokeWidth: ACTIVE_STROKE_WIDTH }
-    : { stroke, strokeWidth: 2 };
+    : {
+        stroke,
+        strokeWidth: 2,
+        ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
+      };
 
   const labelPillStyle: CSSProperties = {
     position: "absolute",
@@ -156,12 +243,18 @@ export const WorkflowEdge = memo(function WorkflowEdge(
 
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={edgePath}
-        markerEnd={markerEnd}
-        style={edgeStyle}
-      />
+      {/* The <g> wrapper carries the wire metadata + the native SVG
+          <title> hover tooltip (title applies to the wrapped path).
+          Attributes are simply absent for legacy no-wire edges. */}
+      <g data-wire-variant={wireVariant} data-provenance={provenance}>
+        {title !== undefined ? <title>{title}</title> : null}
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          markerEnd={markerEnd}
+          style={edgeStyle}
+        />
+      </g>
       {label ? (
         <EdgeLabelRenderer>
           <div data-testid="edge-label" style={labelPillStyle}>
