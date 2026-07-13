@@ -37,7 +37,7 @@
 /* Tight title/description pairing in standard page headers */
 .bcds-page-header__title-block .bcds-react-aria-Heading,
 .bcds-page-header__title-block .bcds-react-aria-Text {
-  margin: 0 !important;
+  margin: 0;
 }
 
 .bcds-page-header__meta {
