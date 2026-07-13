@@ -244,7 +244,7 @@ describe("deriveWires — Scenario 7: source node emitting its ctx key", () => {
     expect(dataWires).toHaveLength(1);
     expect(dataWires[0]).toMatchObject({
       source: "S",
-      sourcePort: "out",
+      sourcePort: "documentUrl",
       target: "A",
       targetPort: "blobKey",
       kind: "Document",

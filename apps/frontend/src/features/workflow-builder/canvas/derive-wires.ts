@@ -105,9 +105,11 @@ function buildProducerIndex(
     const entry = getSourceCatalogEntry(sourceNode.sourceType);
     if (!entry) continue;
 
-    // Source nodes render a single `"out"` handle regardless of subtype
-    // (see `sources/SourceNodeRenderer.tsx`) — even `source.api`, whose
-    // multiple emitted fields all fan out of that one handle.
+    // Source nodes have no `outputs[]` bindings — they write directly to
+    // ctx — so the wire's `sourcePort` is the emitted field's name (the
+    // ctx key for source.upload, the field name for source.api). Mapping
+    // that onto the renderer's actual handle id is the render-layer
+    // projection's concern, not this data model's.
     if (sourceNode.sourceType === "source.upload") {
       const params = sourceNode.parameters as { ctxKey?: unknown } | undefined;
       const producedKey =
@@ -117,7 +119,7 @@ function buildProducerIndex(
       if (!index.has(producedKey)) {
         index.set(producedKey, {
           nodeId: sourceNode.id,
-          port: "out",
+          port: producedKey,
           kind: entry.outputKind,
         });
       }
@@ -135,7 +137,7 @@ function buildProducerIndex(
         if (index.has(field.name)) continue;
         index.set(field.name, {
           nodeId: sourceNode.id,
-          port: "out",
+          port: field.name,
           kind: field.kind ?? "Artifact",
         });
       }
