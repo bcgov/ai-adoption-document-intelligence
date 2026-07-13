@@ -115,10 +115,11 @@ describe("resolveInputPort", () => {
     ]);
   });
 
-  it("disambiguates an ambiguous kind-match by exact port name (nearest tie)", () => {
-    // submit → poll. poll.apimRequestId (Artifact) sees three Artifact
-    // outputs from submit (apimRequestId, statusCode, headers) — a tie by
-    // kind. The exact same-named output disambiguates it.
+  it("binds a base-Artifact port to the unique same-named upstream output", () => {
+    // submit → poll. poll.apimRequestId has kind `Artifact`, so it takes the
+    // identifier fast path: no kind-matching at all — bind only to the UNIQUE
+    // upstream output whose name matches exactly (submit.apimRequestId).
+    // The bind is by name, so provenance is "name-match".
     const cfg = makeConfig(
       {
         S: activity("S", "azureOcr.submit"),
@@ -136,11 +137,12 @@ describe("resolveInputPort", () => {
     });
   });
 
-  it("name-match wins over distance when the nearest tie has no name match", () => {
-    // submit → poll → extract. extract.apimRequestId: the nearest producer
-    // (poll) outputs ocrResponse/status — a kind tie, neither named
-    // apimRequestId. The unique same-named output is submit's (farther), so
-    // bind to it rather than staying ambiguous.
+  it("binds a base-Artifact port to a same-named output farther upstream", () => {
+    // submit → poll → extract. extract.apimRequestId has kind `Artifact`
+    // (identifier fast path). The nearest producer (poll) has no output named
+    // apimRequestId; the unique same-named output is submit's (farther), so
+    // bind to it — with "name-match" provenance — rather than leaving the
+    // port unsatisfied.
     const cfg = makeConfig(
       {
         S: activity("S", "azureOcr.submit"),
@@ -210,52 +212,30 @@ describe("resolveInputPort", () => {
 });
 
 describe("provenance (via)", () => {
-  it("reports 'nearest-kind' for a kind-matched bind", () => {
-    const cfg = makeConfig(
-      { A: activity("A", "file.prepare"), B: activity("B", "azureOcr.submit") },
-      [{ source: "A", target: "B" }],
-    );
-    expect(resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }))
-      .toEqual({
-        status: "auto-bound",
-        producerNodeId: "A",
-        producerPort: "preparedData",
-        via: "nearest-kind",
-      });
-  });
-
-  it("reports 'name-match' for an Artifact identifier bind", () => {
-    const cfg = makeConfig(
-      { S: activity("S", "azureOcr.submit"), P: activity("P", "azureOcr.poll") },
-      [{ source: "S", target: "P" }],
-    );
-    expect(resolveInputPort(cfg, "P", { name: "apimRequestId", kind: "Artifact" }))
-      .toEqual({
-        status: "auto-bound",
-        producerNodeId: "S",
-        producerPort: "apimRequestId",
-        via: "name-match",
-      });
-  });
-
-  it("reports 'name-match' when a kind tie is disambiguated by exact port name (farther producer)", () => {
+  it("reports 'name-match' when a genuine non-Artifact kind tie is broken by port name", () => {
+    // X (azureClassify.submit → `blobKey`: Document) and Y (file.prepare →
+    // `preparedData`: Document) both feed Z at distance 1 — a REAL kind tie
+    // on Z's `blobKey` (Document) port that reaches the same-name tiebreak
+    // (not the base-Artifact fast path). Exactly one candidate's output port
+    // shares the consumer port's name, so the tiebreak fires and the name is
+    // what disambiguated the bind.
     const cfg = makeConfig(
       {
-        S: activity("S", "azureOcr.submit"),
-        P: activity("P", "azureOcr.poll"),
-        E: activity("E", "azureOcr.extract"),
+        X: activity("X", "azureClassify.submit"),
+        Y: activity("Y", "file.prepare"),
+        Z: activity("Z", "blob.read"),
       },
       [
-        { source: "S", target: "P" },
-        { source: "P", target: "E" },
+        { source: "X", target: "Z" },
+        { source: "Y", target: "Z" },
       ],
     );
     expect(
-      resolveInputPort(cfg, "E", { name: "apimRequestId", kind: "Artifact" }),
+      resolveInputPort(cfg, "Z", { name: "blobKey", kind: "Document" }),
     ).toEqual({
       status: "auto-bound",
-      producerNodeId: "S",
-      producerPort: "apimRequestId",
+      producerNodeId: "X",
+      producerPort: "blobKey",
       via: "name-match",
     });
   });

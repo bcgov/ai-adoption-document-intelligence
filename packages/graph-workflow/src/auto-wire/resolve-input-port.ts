@@ -67,18 +67,15 @@ export function resolveInputPort(
   // OCR submit→poll→extract) wire without hand-binding, while genuine config
   // ports with no upstream producer (modelId) stay unsatisfied.
   if (port.kind === "Artifact") {
-    const named: Candidate[] = [];
+    // No per-candidate `via` here: every bind on this path is by definition
+    // a name match, so the single return below hardcodes it.
+    const named: Omit<Candidate, "via">[] = [];
     for (const [producerNodeId, distance] of distances) {
       const producer = config.nodes[producerNodeId];
       if (!producer) continue;
       for (const output of outputPortsFor(producer)) {
         if (output.name === port.name) {
-          named.push({
-            producerNodeId,
-            producerPort: output.name,
-            distance,
-            via: "name-match",
-          });
+          named.push({ producerNodeId, producerPort: output.name, distance });
         }
       }
     }
