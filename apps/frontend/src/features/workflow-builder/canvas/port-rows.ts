@@ -128,6 +128,35 @@ export function computePortRows(
 }
 
 /**
+ * True when the canvas actually mounts a per-port ReactFlow handle
+ * (`in-<port>` / `out-<port>`) for this node+port — i.e. the node is an
+ * `activity` node (the ONLY type the canvas renders `<PortRows>` for;
+ * `pollUntil` resolves a catalog entry but renders the control-flow
+ * rectangle without rows) AND `computePortRows` emits a row with that
+ * port name on that side. Nodes without a static catalog entry (`dyn.*`
+ * activity types, deleted entries) and stale bindings to ports the
+ * current entry doesn't declare both return `false`.
+ *
+ * The wire→edge projection MUST anchor per-port only under this
+ * predicate — targeting a handle id that never mounts makes xyflow drop
+ * the whole edge (error008), which would leave bound node pairs looking
+ * disconnected. Derived from `computePortRows` (not a re-implementation
+ * of the catalog lookup) so the two can't drift.
+ */
+export function rendersPerPortHandle(
+  config: GraphWorkflowConfig,
+  nodeId: string,
+  portName: string,
+  direction: "input" | "output",
+): boolean {
+  const node = config.nodes[nodeId];
+  if (!node || node.type !== "activity") return false;
+  const rows = computePortRows(config, nodeId, []);
+  const side = direction === "input" ? rows.inputs : rows.outputs;
+  return side.some((row) => row.name === portName);
+}
+
+/**
  * `NODE_BASE_HEIGHT` plus one `PORT_ROW_HEIGHT` per row on the taller side
  * (inputs vs. outputs) — the card renders both columns in the same
  * vertical run, so the shorter side just leaves blank space. Wires don't

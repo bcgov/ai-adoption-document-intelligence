@@ -81,7 +81,6 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
-import { colorForKind } from "./artifact-kind-colour";
 import { type DerivedWire, deriveWires } from "./derive-wires";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
@@ -112,10 +111,16 @@ import {
   inputHandleId,
   outputHandleId,
   type PortRowModel,
+  rendersPerPortHandle,
 } from "./port-rows";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
-import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
+import {
+  dataWireStroke,
+  WorkflowEdge,
+  type WorkflowEdgeData,
+  wireTooltip,
+} from "./WorkflowEdge";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -613,14 +618,17 @@ const ActivityNodeRenderer = memo(
       !catalog.isLoading &&
       !catalog.entries.some((e) => e.activityType === data.activityType);
     // Node-level flow handles: the unnamed left target + the `id="out"`
-    // right source keep today's connect gesture AND keep existing edges
-    // rendering. Edges carry no sourceHandle/targetHandle, and xyflow's
-    // default resolution (`getHandle`) picks `bounds[0]` — the FIRST
-    // handle of the required type in DOM order — so these node-level
-    // handles MUST render before <PortRows> in the JSX or every edge
-    // would silently anchor to the first per-port row dot instead
-    // (per-port handles are render-only in this phase). The `out` handle
-    // also keeps the hover-to-extend bridge (US-045).
+    // right source keep today's connect gesture AND anchor everything the
+    // wire projection doesn't route to a per-port dot. Source handles are
+    // now always stamped explicitly ("out" / "error" / "out-<port>"), but
+    // TARGET handles on structural wires and node-level-fallback data
+    // wires are projected as `null`, and xyflow's default resolution
+    // (`getHandle`) picks `bounds[0]` — the FIRST handle of the required
+    // type in DOM order — so the node-level target MUST render before
+    // <PortRows> in the JSX or those edges would silently anchor to the
+    // first per-port row dot instead (per-port handles are render-only in
+    // this phase). The `out` handle also keeps the hover-to-extend bridge
+    // (US-045).
     const hoverHandlers = makeSourceHandleHoverHandlers(
       id,
       data.onSourceHandleEnter,
@@ -1182,29 +1190,35 @@ function projectFlowNodes(
 }
 
 /**
- * True when `nodeId` resolves to an `activity` node — the only node type
- * that renders per-port handles (`in-<port>` / `out-<port>` via
- * `<PortRows>`). Control-flow, pollUntil, and source nodes render
- * node-level handles only, so wires touching them anchor at the
- * node-level `out` source handle / unnamed target handle instead.
+ * xyflow class marking data wires. Paired with the
+ * `.wb-editor-canvas .react-flow__edge.wb-data-wire` rule in
+ * workflow-editor-canvas.css that re-enables pointer events — xyflow
+ * treats unselectable, click-handler-less edges as `.inactive` and its
+ * base stylesheet turns pointer events off, which would kill the
+ * provenance hover tooltip.
  */
-function isActivityNode(config: GraphWorkflowConfig, nodeId: string): boolean {
-  return config.nodes[nodeId]?.type === "activity";
-}
+const DATA_WIRE_CLASS = "wb-data-wire";
 
 /**
  * Maps derived wires (PORT_WIRING_DESIGN.md §5) to xyflow edges — the
  * "one wire = data" projection.
  *
- *   - Data wires attach port-to-port: per-port handle ids on activity
- *     endpoints (`inputHandleId`/`outputHandleId` — the SAME formula the
- *     row renderer mounts), node-level handles otherwise. They are
- *     render-only this phase: not deletable, not selectable (gestures
- *     stay keyed to `config.edges`).
+ *   - Data wires attach port-to-port when — and only when —
+ *     `rendersPerPortHandle` says the endpoint actually mounts an
+ *     `in-<port>` / `out-<port>` handle (`inputHandleId`/`outputHandleId`
+ *     — the SAME formula the row renderer uses). Everything else
+ *     (control-flow, source, `dyn.*`/catalog-less activities, stale
+ *     bindings to undeclared ports) anchors at the node-level handles —
+ *     pointing at a handle id that never mounts makes xyflow drop the
+ *     edge entirely (error008), leaving the pair looking disconnected.
+ *     Data wires are render-only this phase: not deletable, not
+ *     selectable (gestures stay keyed to `config.edges`), but hoverable
+ *     via `DATA_WIRE_CLASS`.
  *   - Structural wires keep the legacy edge projection: id = edge id,
- *     `graphEdge` + `sourceSwitch` data, per-type stroke. Sequence wires
- *     add the dashed style; error wires anchor at the bottom `error`
- *     source handle (previously they silently defaulted to `out`).
+ *     `graphEdge` + `sourceSwitch` data. Error wires anchor at the bottom
+ *     `error` source handle (previously they silently defaulted to
+ *     `out`). Stroke/dash are rendered by `WorkflowEdge` from the wire
+ *     data; only the arrowhead marker colour lives here.
  */
 function projectFlowWires(
   wires: readonly DerivedWire[],
@@ -1212,26 +1226,39 @@ function projectFlowWires(
 ): Edge[] {
   return wires.map((wire) => {
     if (wire.variant === "data") {
-      // Same shade-6 Mantine variable the port dots use, so the wire,
-      // its arrowhead, and both endpoint dots share one kind colour.
-      const strokeColor = handleBackground(colorForKind(wire.kind));
       const data: WorkflowEdgeData = { wire };
       return {
         id: wire.id,
         source: wire.source,
         target: wire.target,
-        sourceHandle: isActivityNode(config, wire.source)
+        sourceHandle: rendersPerPortHandle(
+          config,
+          wire.source,
+          wire.sourcePort,
+          "output",
+        )
           ? outputHandleId(wire.sourcePort)
           : "out",
-        targetHandle: isActivityNode(config, wire.target)
+        targetHandle: rendersPerPortHandle(
+          config,
+          wire.target,
+          wire.targetPort,
+          "input",
+        )
           ? inputHandleId(wire.targetPort)
           : null,
         type: "workflow-edge",
+        className: DATA_WIRE_CLASS,
+        // Surfaces the provenance to assistive tech — the visual
+        // affordance is the hover <title> inside WorkflowEdge.
+        ariaLabel: wireTooltip(wire),
         data,
         deletable: false,
         selectable: false,
-        markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
-        style: { stroke: strokeColor, strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: dataWireStroke(wire.kind),
+        },
       };
     }
     const edge = wire.edge;
@@ -1239,7 +1266,6 @@ function projectFlowWires(
     const sourceSwitch: SwitchNode | undefined =
       sourceNode?.type === "switch" ? sourceNode : undefined;
     const data: WorkflowEdgeData = { wire, graphEdge: edge, sourceSwitch };
-    const strokeColor = getEdgeStrokeColor(edge.type);
     return {
       id: edge.id,
       source: edge.source,
@@ -1252,11 +1278,9 @@ function projectFlowWires(
       targetHandle: null,
       type: "workflow-edge",
       data,
-      markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
-      style: {
-        stroke: strokeColor,
-        strokeWidth: 2,
-        ...(wire.variant === "sequence" ? { strokeDasharray: "6 4" } : {}),
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: getEdgeStrokeColor(edge.type),
       },
     };
   });
@@ -1290,7 +1314,6 @@ function projectSimplifiedFlowEdges(
       type: "workflow-edge",
       data,
       markerEnd: { type: MarkerType.ArrowClosed, color: strokeColor },
-      style: { stroke: strokeColor, strokeWidth: 2 },
     };
   });
 }
@@ -1426,7 +1449,9 @@ function buildStructuralFingerprint(
       ]),
     ),
     // Ctx declarations drive the "from <ctx>" chip on port rows — only
-    // key presence matters (`computePortRows` checks existence).
+    // key presence matters today (`computePortRows` checks existence).
+    // Revisit if rows ever read ctx VALUES (defaults, types): a value
+    // edit under an unchanged key would then need to re-project too.
     ctxKeys: Object.keys(config.ctx).sort(),
     simplifiedView,
     groups: groupsFingerprint,
@@ -1517,12 +1542,40 @@ function WorkflowEditorCanvasInner({
     [config, simplifiedView],
   );
 
-  // Derived ONCE per config identity change and shared by the node
-  // projection (port rows) and the edge projection (wires → edges) so the
-  // graph walk in `deriveWires` never runs twice for one change. Always
-  // derived from the FULL config so a wire from a group-hidden producer
-  // still marks the visible consumer's port as bound in simplified view.
-  const derivedWires = useMemo(() => deriveWires(config), [config]);
+  // Wire derivation gate. `deriveWires` walks the upstream graph per
+  // auto-bound port (see its performance note), so it must NOT rerun on
+  // every config identity change — position-only drag-stops included.
+  // Wires depend on the binding/node state (covered by `dataFingerprint`)
+  // plus the edge structure (edge-id stamping + sequence classification),
+  // which the structural fingerprint deliberately excludes — so fold the
+  // FULL config's edge tuples in here (not `visibleEdges`: wires always
+  // derive from the full config).
+  const wireEdgesFingerprint = useMemo(
+    () =>
+      JSON.stringify(
+        config.edges.map((e) => [e.id, e.source, e.target, e.type]),
+      ),
+    [config.edges],
+  );
+
+  // Derived ONCE per fingerprint change (ref-cached across config identity
+  // churn) and shared by the node projection (port rows) and the edge
+  // projection (wires → edges) so the graph walk never runs twice for one
+  // change. Always derived from the FULL config so a wire from a
+  // group-hidden producer still marks the visible consumer's port as
+  // bound in simplified view.
+  const wiresCacheRef = useRef<{
+    key: string;
+    wires: DerivedWire[];
+  } | null>(null);
+  const derivedWires = useMemo(() => {
+    const key = `${dataFingerprint}::${wireEdgesFingerprint}`;
+    const cached = wiresCacheRef.current;
+    if (cached && cached.key === key) return cached.wires;
+    const wires = deriveWires(config);
+    wiresCacheRef.current = { key, wires };
+    return wires;
+  }, [dataFingerprint, wireEdgesFingerprint, config]);
 
   // Hover-to-extend (US-045) — debounced source-handle popover. See
   // use-hover-extend.ts. Picking a node stays here since it mutates the graph

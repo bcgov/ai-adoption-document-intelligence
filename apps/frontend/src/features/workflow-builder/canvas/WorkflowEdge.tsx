@@ -31,6 +31,7 @@
  * user_stories/US-023-workflow-edge-component.md.
  */
 
+import type { KindRef } from "@ai-di/graph-workflow";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -141,8 +142,22 @@ function computeConditionalLabel(
   };
 }
 
-/** Dash pattern for sequence wires — execution order only, no data. */
-const SEQUENCE_DASH = "6 4";
+/**
+ * Dash pattern for sequence wires — execution order only, no data. Single
+ * definition shared with anything that needs to echo the sequence look.
+ */
+export const SEQUENCE_DASH = "6 4";
+
+/**
+ * Kind-coloured stroke for a data wire — the same shade-6 Mantine variable
+ * the port dots use (`handleBackground`), so the wire, its arrowhead
+ * marker, and both endpoint dots share one kind colour. The canvas
+ * projection imports this for the arrowhead `markerEnd` colour; the edge
+ * renderer uses it for the stroke itself.
+ */
+export function dataWireStroke(kind: KindRef | undefined): string {
+  return handleBackground(colorForKind(kind));
+}
 
 interface StyleResolution {
   stroke: string;
@@ -163,7 +178,7 @@ function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
   const { graphEdge, sourceSwitch, wire } = data;
   if (wire?.variant === "data") {
     return {
-      stroke: handleBackground(colorForKind(wire.kind)),
+      stroke: dataWireStroke(wire.kind),
       label: null,
       wireVariant: "data",
       provenance: wireProvenance(wire),

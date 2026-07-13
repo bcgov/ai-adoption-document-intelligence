@@ -4,7 +4,11 @@
  * the row count up into an estimated card height.
  */
 import { describe, expect, it } from "vitest";
-import type { ActivityNode, SwitchNode } from "../../../types/workflow";
+import type {
+  ActivityNode,
+  PollUntilNode,
+  SwitchNode,
+} from "../../../types/workflow";
 import { config, node } from "./__test-utils__/config-fixtures";
 import { deriveWires } from "./derive-wires";
 import {
@@ -12,6 +16,7 @@ import {
   estimateNodeHeight,
   NODE_BASE_HEIGHT,
   PORT_ROW_HEIGHT,
+  rendersPerPortHandle,
 } from "./port-rows";
 
 describe("computePortRows — Scenario 1: azureOcr.submit with no bindings", () => {
@@ -167,5 +172,72 @@ describe("computePortRows — Scenario 6: optional unbound input", () => {
       bound: false,
       needsSource: false,
     });
+  });
+});
+
+describe("rendersPerPortHandle — per-port handle mount predicate", () => {
+  it("is true only for catalog-declared ports on activity nodes", () => {
+    const cfg = config({
+      nodes: {
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+        }),
+      },
+    });
+
+    expect(rendersPerPortHandle(cfg, "B", "fileData", "input")).toBe(true);
+    expect(rendersPerPortHandle(cfg, "B", "apimRequestId", "output")).toBe(
+      true,
+    );
+    // Wrong side — `fileData` is an input, not an output.
+    expect(rendersPerPortHandle(cfg, "B", "fileData", "output")).toBe(false);
+    // Stale binding to a port the entry does not declare (e.g. left over
+    // after an activity-type swap).
+    expect(rendersPerPortHandle(cfg, "B", "legacyPort", "input")).toBe(false);
+  });
+
+  it("is false for dyn.* (catalog-less) activity nodes", () => {
+    const cfg = config({
+      nodes: {
+        D: node<ActivityNode>({
+          id: "D",
+          type: "activity",
+          activityType: "dyn.custom-script",
+          inputs: [{ port: "payload", ctxKey: "payload" }],
+        }),
+      },
+    });
+
+    expect(rendersPerPortHandle(cfg, "D", "payload", "input")).toBe(false);
+  });
+
+  it("is false for non-activity nodes, including catalog-backed pollUntil", () => {
+    const cfg = config({
+      nodes: {
+        S: node<SwitchNode>({ id: "S", type: "switch", cases: [] }),
+        P: node<PollUntilNode>({
+          id: "P",
+          type: "pollUntil",
+          activityType: "azureOcr.submit",
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: true },
+          },
+          interval: "30s",
+        }),
+      },
+    });
+
+    expect(rendersPerPortHandle(cfg, "S", "anything", "input")).toBe(false);
+    // pollUntil resolves a catalog entry inside computePortRows, but the
+    // canvas renders it as a control-flow rectangle WITHOUT port rows —
+    // the predicate must mirror the render condition, not the catalog.
+    expect(rendersPerPortHandle(cfg, "P", "fileData", "input")).toBe(false);
+    expect(rendersPerPortHandle(cfg, "missing", "fileData", "input")).toBe(
+      false,
+    );
   });
 });

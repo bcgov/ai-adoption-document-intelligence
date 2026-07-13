@@ -17,3 +17,16 @@
   height: 12px;
   border: 2px solid var(--mantine-color-body, #fff);
 }
+
+/*
+ * Data wires are projected with `selectable: false` (render-only phase —
+ * gestures stay keyed to config.edges). xyflow marks unselectable edges
+ * with no click handler as `.inactive` and its base stylesheet applies
+ * `pointer-events: none`, which would swallow hover entirely and kill the
+ * provenance <title> tooltip. Re-enable pointer events for data wires so
+ * hovering the (invisible, 20px-wide) interaction stroke surfaces the
+ * tooltip; selection stays off because `edge.selectable` is false.
+ */
+.wb-editor-canvas .react-flow__edge.wb-data-wire {
+  pointer-events: all;
+}

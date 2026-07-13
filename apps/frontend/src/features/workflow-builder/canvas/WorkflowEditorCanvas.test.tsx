@@ -1345,7 +1345,7 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     });
   });
 
-  it("aligns each edge's arrowhead marker colour with its stroke colour", async () => {
+  it("colours each edge's arrowhead marker by its wire variant", async () => {
     const base = makeAllNodeTypesConfig();
     const config: GraphWorkflowConfig = {
       ...base,
@@ -1380,20 +1380,22 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     const conditionalEdge = byId.get("edge_conditional");
     const errorEdge = byId.get("edge_error");
 
-    // Normal: grey marker matching the grey stroke.
+    // The stroke itself is rendered by WorkflowEdge from the wire data
+    // (covered by WorkflowEdge.test.tsx) — the projection only owns the
+    // arrowhead marker colour, which must use the SAME palette so the
+    // arrowhead never mismatches the stroke users see.
+
+    // Normal (bindings-free → sequence wire): grey marker.
     expect(normalEdge?.markerEnd).toMatchObject({ color: "#9ca3af" });
-    expect(normalEdge?.style).toMatchObject({ stroke: "#9ca3af" });
 
-    // Conditional: switch accent for both stroke and marker.
-    const switchAccent = "#facc15";
-    expect(conditionalEdge?.markerEnd).toMatchObject({ color: switchAccent });
-    expect(conditionalEdge?.style).toMatchObject({ stroke: switchAccent });
+    // Conditional: switch accent marker.
+    expect(conditionalEdge?.markerEnd).toMatchObject({ color: "#facc15" });
 
-    // Error: red for both stroke and marker (matches the WorkflowEdge
-    // renderer's ERROR_STROKE colour).
-    const errorColor = "var(--mantine-color-red-6, #e03131)";
-    expect(errorEdge?.markerEnd).toMatchObject({ color: errorColor });
-    expect(errorEdge?.style).toMatchObject({ stroke: errorColor });
+    // Error: red marker (matches the WorkflowEdge renderer's
+    // ERROR_STROKE colour).
+    expect(errorEdge?.markerEnd).toMatchObject({
+      color: "var(--mantine-color-red-6, #e03131)",
+    });
   });
 });
 
@@ -1488,23 +1490,35 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     // no separate grey sequence edge renders for it.
     expect(screen.queryByTestId("rf-edge-e_bound")).not.toBeInTheDocument();
 
-    // Render-only phase: data wires are neither deletable nor selectable.
+    // Render-only phase: data wires are neither deletable nor selectable,
+    // but they stay HOVERABLE — the `wb-data-wire` class pairs with the
+    // canvas stylesheet rule that re-enables pointer events (xyflow marks
+    // unselectable, handler-less edges `.inactive` → pointer-events:none,
+    // which would kill the provenance tooltip). The ariaLabel mirrors the
+    // hover tooltip for assistive tech.
     const projected = getCapturedEdges().find(
       (e) => e.id === "wire:submit:fileData",
     );
     expect(projected?.deletable).toBe(false);
     expect(projected?.selectable).toBe(false);
+    expect(projected?.className).toBe("wb-data-wire");
+    expect(projected?.ariaLabel).toBe(
+      "Connected automatically — nearest Document producer",
+    );
   });
 
-  it("renders a bindings-free pair as a dashed sequence wire", async () => {
+  it("renders a bindings-free pair as a sequence wire with a grey marker", async () => {
     renderCanvas(makeWireProjectionConfig());
     await flushAnimationFrame();
 
     const sequence = screen.getByTestId("rf-edge-e_bare");
     expect(sequence).toHaveAttribute("data-wire-variant", "sequence");
 
+    // The dashed grey stroke itself is rendered by WorkflowEdge from the
+    // wire data (WorkflowEdge.test.tsx covers it); the projection only
+    // supplies the matching grey arrowhead marker.
     const projected = getCapturedEdges().find((e) => e.id === "e_bare");
-    expect(projected?.style).toMatchObject({ strokeDasharray: "6 4" });
+    expect(projected?.markerEnd).toMatchObject({ color: "#9ca3af" });
   });
 
   it("anchors error edges at the bottom `error` source handle", async () => {
@@ -1547,6 +1561,153 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
       "data-wire-variant",
       "sequence",
     );
+  });
+
+  it("anchors wires touching catalog-less (dyn.*) activity nodes at node level — and still renders them", async () => {
+    // prep (static catalog) → dyn1 (no static entry → no port rows) →
+    // submit (static catalog). Both wires must render; the dyn.* ends
+    // fall back to the node-level handles because `in-<port>`/
+    // `out-<port>` never mount for catalog-less nodes (targeting them
+    // would make xyflow drop the edge → pair looks disconnected).
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prepare File",
+      activityType: "file.prepare",
+      parameters: {},
+      outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const dyn1: ActivityNode = {
+      id: "dyn1",
+      type: "activity",
+      label: "Custom Script",
+      activityType: "dyn.custom-script",
+      parameters: {},
+      inputs: [{ port: "payload", ctxKey: "__auto.prep.preparedData" }],
+      outputs: [{ port: "result", ctxKey: "__auto.dyn1.result" }],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      inputs: [{ port: "fileData", ctxKey: "__auto.dyn1.result" }],
+      metadata: { position: { x: 600, y: 0 } },
+    };
+    renderCanvas({
+      schemaVersion: "1.0",
+      metadata: { name: "Dyn wires", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, dyn1, submit },
+      edges: [
+        { id: "e1", source: "prep", target: "dyn1", type: "normal" },
+        { id: "e2", source: "dyn1", target: "submit", type: "normal" },
+      ],
+      entryNodeId: "prep",
+    });
+    await flushAnimationFrame();
+
+    // Wire INTO the dyn node: per-port at the static-catalog source,
+    // node-level (no target handle attr → xyflow default) at the dyn end.
+    const intoDyn = screen.getByTestId("rf-edge-wire:dyn1:payload");
+    expect(intoDyn).toHaveAttribute("data-wire-variant", "data");
+    expect(intoDyn).toHaveAttribute("data-source-handle", "out-preparedData");
+    expect(intoDyn).not.toHaveAttribute("data-target-handle");
+
+    // Wire OUT OF the dyn node: node-level "out" at the dyn end,
+    // per-port at the static-catalog consumer.
+    const outOfDyn = screen.getByTestId("rf-edge-wire:submit:fileData");
+    expect(outOfDyn).toHaveAttribute("data-source-handle", "out");
+    expect(outOfDyn).toHaveAttribute("data-target-handle", "in-fileData");
+  });
+
+  it("anchors a stale binding (port the swapped-to entry lacks) at node level instead of a never-mounted handle", async () => {
+    // `azureOcr.submit` declares `fileData`, not `legacyPort` — e.g. a
+    // binding left behind by an activity-type swap. The wire must still
+    // render, anchored at the node-level target handle.
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prepare File",
+      activityType: "file.prepare",
+      parameters: {},
+      outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      inputs: [{ port: "legacyPort", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    renderCanvas({
+      schemaVersion: "1.0",
+      metadata: { name: "Stale binding", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, submit },
+      edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
+      entryNodeId: "prep",
+    });
+    await flushAnimationFrame();
+
+    const wire = screen.getByTestId("rf-edge-wire:submit:legacyPort");
+    expect(wire).toHaveAttribute("data-wire-variant", "data");
+    expect(wire).toHaveAttribute("data-source-handle", "out-preparedData");
+    expect(wire).not.toHaveAttribute("data-target-handle");
+  });
+
+  it("simplified view: error edges anchor at the error handle for real sources but not for chip sources", async () => {
+    const inGroup: ActivityNode = {
+      id: "inGroup",
+      type: "activity",
+      label: "Grouped",
+      activityType: "file.prepare",
+      parameters: {},
+      errorPolicy: { retryable: false, onError: "fallback" },
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const loose: ActivityNode = {
+      id: "loose",
+      type: "activity",
+      label: "Loose",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      errorPolicy: { retryable: false, onError: "fallback" },
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    renderCanvas(
+      {
+        schemaVersion: "1.0",
+        metadata: { name: "Simplified error", version: "1.0.0" },
+        ctx: {},
+        nodes: { inGroup, loose },
+        edges: [
+          // Real-node source → gets the explicit error source handle.
+          { id: "e_real", source: "loose", target: "inGroup", type: "error" },
+          // Group-chip source (rewritten to `group-chip-g1`) → chips have
+          // anonymous handles, so no sourceHandle may be stamped.
+          { id: "e_chip", source: "inGroup", target: "loose", type: "error" },
+        ],
+        entryNodeId: "loose",
+        nodeGroups: {
+          g1: { label: "Group 1", nodeIds: ["inGroup"] },
+        },
+      },
+      { simplifiedView: true },
+    );
+    await flushAnimationFrame();
+
+    const real = screen.getByTestId("rf-edge-e_real");
+    expect(real).toHaveAttribute("data-source-handle", "error");
+    const chip = screen.getByTestId("rf-edge-e_chip");
+    expect(chip).toHaveAttribute("data-source", "group-chip-g1");
+    expect(chip).not.toHaveAttribute("data-source-handle");
   });
 });
 
