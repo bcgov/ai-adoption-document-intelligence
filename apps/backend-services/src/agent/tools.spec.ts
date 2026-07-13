@@ -338,6 +338,20 @@ describe("wrapToolData (ITEM 27 delimiting + ITEM 26 truncation)", () => {
     expect(result.preview).toContain("secret OCR text");
   });
 
+  it("getPreviewCache calls the batch (all-nodes) endpoint and forwards runId", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(
+      fetchResponse(200, { previews: {} }),
+    );
+    const tools = createAgentTools(ctx);
+    await exec(tools, "getPreviewCache", { runId: "run-9" });
+    const calledUrl = internalFetchMock.mock.calls[0][0] as string;
+    // Must hit the batch endpoint (nodeId-free, returns every node) not the
+    // per-node endpoint that 400s without a nodeId.
+    expect(calledUrl).toContain("/preview-cache-batch");
+    expect(calledUrl).toContain("runId=run-9");
+  });
+
   it("getPreviewCache truncates a huge preview body", async () => {
     const { ctx, internalFetchMock } = makeCtx({ maxToolResultChars: 100 });
     internalFetchMock.mockResolvedValueOnce(

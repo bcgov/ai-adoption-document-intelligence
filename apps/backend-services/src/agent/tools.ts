@@ -1059,15 +1059,20 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
 
     getPreviewCache: tool({
       description:
-        "Get the cached preview outputs for a workflow's most recent run. Use this to read what each node produced and evaluate against the user's goal.",
+        "Get the cached preview outputs for a workflow's most recent run as a `nodeId → output` map for every node that produced a result. Use this after a run/startTestRun to read what each node produced and evaluate against the user's goal. Pass `runId` to scope to a specific run (from startRun/startTestRun); omit it for each node's most-recent result. Nodes with no cached output are simply absent from the map.",
       inputSchema: z.object({
         workflowId: z.string().optional(),
+        runId: z.string().optional(),
       }),
-      execute: async ({ workflowId }) => {
+      execute: async ({ workflowId, runId }) => {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
+        // The per-node `/preview-cache` endpoint requires a `nodeId`; the
+        // batch endpoint returns ALL nodes' previews in one call, which is
+        // what "read what each node produced" needs.
+        const query = runId ? `?runId=${encodeURIComponent(runId)}` : "";
         const result = await internalFetch(
           ctx,
-          `/api/workflows/${id}/preview-cache`,
+          `/api/workflows/${id}/preview-cache-batch${query}`,
         );
         // Preview cache carries full document/OCR text — the highest-risk
         // injection surface. Wrap as DATA + size-cap.
