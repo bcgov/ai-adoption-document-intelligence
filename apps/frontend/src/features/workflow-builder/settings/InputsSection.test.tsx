@@ -10,7 +10,7 @@ function mount(ui: React.ReactNode) {
 }
 
 describe("InputsSection", () => {
-  it("shows an auto-bound row with the producer node's label and an 'auto' pill", () => {
+  it("shows an auto-bound row with the producer node's label and an 'Auto' pill", () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -75,10 +75,10 @@ describe("InputsSection", () => {
     mount(
       <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
     );
-    expect(screen.getByText(/choose source/i)).toBeInTheDocument();
+    expect(screen.getByText(/pick a source/i)).toBeInTheDocument();
   });
 
-  it("shows a red 'Needs source' chip when no upstream producer matches", () => {
+  it("shows a red 'Needs a source' chip when no upstream producer matches", () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -97,10 +97,10 @@ describe("InputsSection", () => {
     mount(
       <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
     );
-    expect(screen.getByText(/needs source/i)).toBeInTheDocument();
+    expect(screen.getByText(/needs a source/i)).toBeInTheDocument();
   });
 
-  it("clicking 'Override' on an auto row adds the port to lockedInputPorts and stamps the new binding", async () => {
+  it("clicking 'Change source' on an auto row adds the port to lockedInputPorts and stamps the new binding", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();
     const config: GraphWorkflowConfig = {
@@ -145,7 +145,7 @@ describe("InputsSection", () => {
         onConfigChange={onConfigChange}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /override/i }));
+    await user.click(screen.getByRole("button", { name: /change source/i }));
     await user.click(screen.getByText("Prepare ALT"));
 
     expect(onConfigChange).toHaveBeenCalled();
@@ -162,7 +162,7 @@ describe("InputsSection", () => {
     // (kind "Artifact") and `blobKey` (kind "Document"). The Artifact-kinded
     // ports should be invisible; only the Document-kinded `blobKey` row (if any)
     // should appear. Since `blobKey` is unsatisfied here, the panel should
-    // show at most one row (Needs source for blobKey) and NOT show rows for
+    // show at most one row (Needs a source for blobKey) and NOT show rows for
     // the four identifier ports.
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
@@ -191,7 +191,7 @@ describe("InputsSection", () => {
     expect(screen.getByText("File reference (blob key)")).toBeInTheDocument();
   });
 
-  it("clicking 'Revert to auto' removes the port from lockedInputPorts", async () => {
+  it("clicking 'Revert to automatic' removes the port from lockedInputPorts", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();
     const config: GraphWorkflowConfig = {
@@ -225,7 +225,9 @@ describe("InputsSection", () => {
         onConfigChange={onConfigChange}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /revert to auto/i }));
+    await user.click(
+      screen.getByRole("button", { name: /revert to automatic/i }),
+    );
 
     expect(onConfigChange).toHaveBeenCalled();
     const next = onConfigChange.mock.calls[0][0];
@@ -278,7 +280,7 @@ describe("InputsSection", () => {
       />,
     );
     // The picker modal is open, listing both competing producers to choose
-    // from — without focusPort it stays collapsed behind the "Choose source"
+    // from — without focusPort it stays collapsed behind the "Pick a source"
     // button (no producer rows rendered).
     expect(screen.getAllByTestId("producer-row-label")).toHaveLength(2);
   });

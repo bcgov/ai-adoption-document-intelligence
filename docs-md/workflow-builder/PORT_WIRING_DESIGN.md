@@ -29,7 +29,7 @@ One wire concept for the user. Execution order is implied by data flow; the rare
 The persisted model is untouched: `GraphEdge` stays node-level `{source, target, type}`; data flow stays `PortBinding {port, ctxKey}` against the ctx blackboard; `resolveBindings` keeps running exactly as designed in [AUTO_WIRE_DESIGN.md](AUTO_WIRE_DESIGN.md). The canvas becomes a **view + gesture layer over bindings**:
 
 - **Rendering:** wires are *derived* from bindings (§5). The stored `edges[]` remain the source of truth for execution order; bindings remain the source of truth for data.
-- **Gestures:** a port-to-port drag *writes a binding* (plus ensures a control edge), using the same code path as today's settings-panel Override (§6).
+- **Gestures:** a port-to-port drag *writes a binding* (plus ensures a control edge), using the same code path as today's settings-panel Change source (§6).
 
 Consequences: runtime, validator, agent tools, templates, seeded demos, and every saved workflow work unchanged. Agent-built graphs (nodes + edges → resolver fills bindings) render correctly on the new canvas with zero agent changes — the auto-wire result simply becomes visible. All risk is in the frontend.
 
@@ -90,7 +90,7 @@ Wires derived from `__auto.` ctx keys are *auto* wires; wires whose consumer por
 
 ### 6.1 Drag port → port
 
-Creates the binding through the existing Override mechanics (stamp consumer `inputs[]` row; `ensureProducerOutputBinding` on the producer; add the port to `lockedInputPorts`) **and** ensures a `normal` control edge exists between the two nodes (skip if any edge already connects them; switch sources keep stamping `conditional` as today). One gesture = data + order + pin.
+Creates the binding through the existing Change source mechanics (stamp consumer `inputs[]` row; `ensureProducerOutputBinding` on the producer; add the port to `lockedInputPorts`) **and** ensures a `normal` control edge exists between the two nodes (skip if any edge already connects them; switch sources keep stamping `conditional` as today). One gesture = data + order + pin.
 
 ### 6.2 Connect-time validation (first appearance of `isValidConnection`)
 
@@ -98,7 +98,7 @@ While dragging from an output of kind `K`: ports where `isAssignable(K, expected
 
 ### 6.3 Deleting a wire
 
-- **Data wire:** removes the consumer's input binding and adds the port to `lockedInputPorts` *without* a binding — "pinned unbound" — so the resolver doesn't instantly re-create the same wire (which would make deletion feel broken). The port shows its amber ring; "Revert to auto" (§7) hands it back to the resolver. `resolveInputPort` needs one small extension: a locked port with no `inputs[]` row reports `locked-unbound` instead of assuming a ctx key exists.
+- **Data wire:** removes the consumer's input binding and adds the port to `lockedInputPorts` *without* a binding — "pinned unbound" — so the resolver doesn't instantly re-create the same wire (which would make deletion feel broken). The port shows its amber ring; "Revert to automatic" (§7) hands it back to the resolver. `resolveInputPort` needs one small extension: a locked port with no `inputs[]` row reports `locked-unbound` instead of assuming a ctx key exists.
 - If it was the **last data wire between the pair**, the control edge remains as a dashed sequence wire, with a transient hint: "Execution order kept — delete the dashed wire to fully detach."
 - **Sequence / conditional / error wires:** delete the underlying edge, as today.
 
@@ -112,7 +112,7 @@ Resolver semantics are untouched (nearest kind-assignable; exact-unique name mat
 
 - **Wire tooltip states the provenance:** "connected automatically — nearest Document producer" / "connected automatically — name match `apimRequestId`" / "pinned by you".
 - **Wire context menu:** *Revert to automatic* (removes the lock; resolver re-derives), *Disconnect* (§6.3), *View data* (§10, after a run).
-- The settings-panel `InputsSection` survives unchanged as the details/override view; "Revert to auto" now exists in both places.
+- The settings-panel `InputsSection` survives unchanged as the details/override view; "Revert to automatic" now exists in both places.
 
 ## 8. Workstream: catalog kind + label coverage
 

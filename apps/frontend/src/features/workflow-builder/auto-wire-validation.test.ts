@@ -62,7 +62,9 @@ describe("autoWireIssuesToValidationErrors", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe("warning");
     expect(errors[0].path).toBe("nodes.Z.inputs.fileData");
-    expect(errors[0].message).toMatch(/needs a source/i);
+    expect(errors[0].message).toBe(
+      'Input "Prepared file data" needs a source — choose where it comes from',
+    );
   });
 
   it("emits a warning for an ambiguous input", () => {
@@ -100,7 +102,9 @@ describe("autoWireIssuesToValidationErrors", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe("warning");
     expect(errors[0].path).toBe("nodes.Z.inputs.fileData");
-    expect(errors[0].message).toMatch(/ambiguous/i);
+    expect(errors[0].message).toBe(
+      'Input "Prepared file data" has multiple possible sources — pick one',
+    );
   });
 
   it("does not flag a port explicitly bound to a ctx variable, even when unlocked and producer-less", () => {

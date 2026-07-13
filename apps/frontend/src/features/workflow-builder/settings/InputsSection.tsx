@@ -9,7 +9,15 @@ import {
   shouldAutoWirePort,
   synthesiseCtxKey,
 } from "@ai-di/graph-workflow";
-import { Badge, Button, Group, Modal, Stack, Text } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  Group,
+  Modal,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { useState } from "react";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
 import { ProducerPicker } from "../graph-widgets/ProducerPicker";
@@ -48,7 +56,7 @@ function decodeAutoProducerNodeId(ctxKey: string): string | null {
  * "ambiguous" but the consumer already has an auto-key binding for this
  * port (left over from a previous auto-wire pass), we display the existing
  * binding as "auto-bound" so the user sees where their data comes from and
- * can choose to Override or leave it.
+ * can choose to change the source or leave it.
  */
 function effectiveResolution(
   rawResolution: PortResolution,
@@ -89,7 +97,7 @@ export function InputsSection({
 }: InputsSectionProps) {
   const [overrideOf, setOverrideOf] = useState<string | null>(null);
 
-  // The picker is open for the port the user clicked "Choose source" on
+  // The picker is open for the port the user clicked "Change source" on
   // (`overrideOf`) OR the port a clicked status dot deep-linked to
   // (`focusPort`). Deriving the open port from the prop — rather than copying
   // it into state via an effect — keeps the deep-link resilient to remounts
@@ -217,7 +225,7 @@ export function InputsSection({
       <Modal
         opened={activePickerPort !== null}
         onClose={closePicker}
-        title="Choose source"
+        title="Choose a source"
         size="sm"
         transitionProps={{ duration: 0 }}
       >
@@ -262,45 +270,53 @@ function PortRow({
           <Group gap={6} wrap="nowrap">
             <Text size="xs">←</Text>
             <Text size="xs">{producerLabel}</Text>
-            <Badge size="xs" color="green" variant="light">
-              auto
-            </Badge>
+            <Tooltip label="Connected automatically">
+              <Badge size="xs" color="green" variant="light">
+                Auto
+              </Badge>
+            </Tooltip>
             <Button size="compact-xs" variant="subtle" onClick={onOverride}>
-              Override
+              Change source
             </Button>
           </Group>
         );
       case "ambiguous":
         return (
-          <Button
-            size="compact-xs"
-            color="yellow"
-            variant="light"
-            onClick={onOverride}
-          >
-            Choose source
-          </Button>
+          <Tooltip label="Multiple possible sources">
+            <Button
+              size="compact-xs"
+              color="yellow"
+              variant="light"
+              onClick={onOverride}
+            >
+              Pick a source
+            </Button>
+          </Tooltip>
         );
       case "unsatisfied":
         return (
-          <Button
-            size="compact-xs"
-            color="red"
-            variant="light"
-            onClick={onOverride}
-          >
-            Needs source
-          </Button>
+          <Tooltip label="Choose where this comes from">
+            <Button
+              size="compact-xs"
+              color="red"
+              variant="light"
+              onClick={onOverride}
+            >
+              Needs a source
+            </Button>
+          </Tooltip>
         );
       case "locked":
         return (
           <Group gap={6} wrap="nowrap">
             <Text size="xs">{resolution.ctxKey}</Text>
-            <Badge size="xs" color="gray" variant="light">
-              locked
-            </Badge>
+            <Tooltip label="Pinned by you">
+              <Badge size="xs" color="gray" variant="light">
+                Pinned
+              </Badge>
+            </Tooltip>
             <Button size="compact-xs" variant="subtle" onClick={onRevert}>
-              Revert to auto
+              Revert to automatic
             </Button>
           </Group>
         );

@@ -148,7 +148,12 @@ describe("computeNodeInputIssues", () => {
     const issues = computeNodeInputIssues(cfg, "Z");
     expect(issues.status).toBe("unsatisfied");
     expect(issues.problemPorts).toEqual([
-      { port: "fileData", kind: "Document", status: "unsatisfied" },
+      {
+        port: "fileData",
+        label: "Prepared file data",
+        kind: "Document",
+        status: "unsatisfied",
+      },
     ]);
   });
 
@@ -182,7 +187,12 @@ describe("computeNodeInputIssues", () => {
     const issues = computeNodeInputIssues(cfg, "Z");
     expect(issues.status).toBe("ambiguous");
     expect(issues.problemPorts).toEqual([
-      { port: "fileData", kind: "Document", status: "ambiguous" },
+      {
+        port: "fileData",
+        label: "Prepared file data",
+        kind: "Document",
+        status: "ambiguous",
+      },
     ]);
   });
 

@@ -118,11 +118,11 @@ One row per declared input port (catalog-driven). Per-row UI by state:
 
 | State | Row contents |
 |---|---|
-| **auto-bound** | Port label · ← producer-node label · "auto" pill · chevron menu (Override · Reveal ctx key) |
+| **auto-bound** | Port label · ← producer-node label · "Auto" pill (tooltip: "Connected automatically") · chevron menu (Change source · Reveal ctx key) |
 | **constant / fixed value** | Port label · current value summary · "Edit" button. Only available for ports whose declared kind is a primitive (string, number, boolean) — these can also be set as a static parameter. The value lives in `node.parameters`, not in a binding. |
-| **ambiguous** | Port label · amber "Choose source" pill · click opens the producer picker (compatible producers only, no raw ctx keys) |
-| **unsatisfied** | Port label · red "Needs source" pill · click opens the producer picker + a "no upstream candidate" hint with a one-click "Add a step that produces *<Kind>*" affordance (palette filtered to activities that emit a compatible kind) |
-| **user-locked override** | Port label · "← *<producer node>*" (when the locked ctx key matches an upstream output) or "Manual ctx: *<key>*" (when it points at a `config.ctx` declaration or a key with no producer) · "lock" icon · chevron menu (Edit · Revert to auto) |
+| **ambiguous** | Port label · amber "Pick a source" pill (tooltip: "Multiple possible sources") · click opens the producer picker (compatible producers only, no raw ctx keys) |
+| **unsatisfied** | Port label · red "Needs a source" pill (tooltip: "Choose where this comes from") · click opens the producer picker + a "no upstream candidate" hint with a one-click "Add a step that produces *<Kind>*" affordance (palette filtered to activities that emit a compatible kind) |
+| **user-locked override** | Port label · "← *<producer node>*" (when the locked ctx key matches an upstream output) or "Manual ctx: *<key>*" (when it points at a `config.ctx` declaration or a key with no producer) · "Pinned" badge (tooltip: "Pinned by you") · chevron menu (Edit · Revert to automatic) |
 
 Producer labels are the consumer-friendly node label (`node.label`), not the node id. Hovering a row surfaces the canonical port name + kind in a tooltip for the rare case the user needs the engineering signal.
 
@@ -130,11 +130,11 @@ Producer labels are the consumer-friendly node label (`node.label`), not the nod
 
 Ports whose `kind` is a primitive (or whose activity also accepts the same field as a static parameter) get a two-mode toggle on the row: **Set value** vs. **Connect from**. This honours the user-vision framing in [NOTES.md §1.1](NOTES.md): some types are adjustable — a primitive like an integer can be set to a fixed value or connected from an upstream source. Switching to "Set value" moves the binding into `node.parameters` and locks the port to constant mode; switching to "Connect from" returns it to the resolver.
 
-### 4.3 Override + revert
+### 4.3 Change source + revert
 
-"Override" on an auto-bound row opens the producer-only picker, filtered by `isAssignable` against `P.kind`, ranked by topological distance. Picking a producer locks the port (adds it to `metadata.lockedInputPorts`) and stamps the binding to that producer's output (creating an output binding on the producer if needed, with a non-`__auto.` ctx key the user can rename if they care).
+"Change source" on an auto-bound row opens the producer-only picker, filtered by `isAssignable` against `P.kind`, ranked by topological distance. Picking a producer locks the port (adds it to `metadata.lockedInputPorts`) and stamps the binding to that producer's output (creating an output binding on the producer if needed, with a non-`__auto.` ctx key the user can rename if they care).
 
-"Revert to auto" removes the port from `metadata.lockedInputPorts`. The next resolver pass re-derives the binding.
+"Revert to automatic" removes the port from `metadata.lockedInputPorts`. The next resolver pass re-derives the binding.
 
 ### 4.4 Advanced peek
 
@@ -215,7 +215,7 @@ The old JSON editor (`WorkflowEditorPage.tsx`) renders the raw JSON. It will sho
 - **Re-wiring.** When an edge is added, removed, or redirected, the next resolver pass re-evaluates every unlocked port that could be affected. (Pragmatically: re-run on every config mutation. The resolver is O(nodes × ports × edges); the workflows we ship are <100 nodes, so this is fine without incrementalisation.)
 - **Multiple inputs of the same kind on one node.** E.g. a future activity with two `Document` inputs (`primary`, `reference`). The resolver picks the nearest upstream `Document` producer for each port — but both ports will tend to resolve to the same producer, which is wrong. **Fix:** when one port has auto-bound to a producer, exclude that producer from the candidate set for the other ports on the *same* node within the same kind family. If that leaves a port with no candidates → mark ambiguous (not unsatisfied — there IS a candidate, but it's already taken). This is the "two-doc" edge case the codebase has so far avoided by collapsing inputs into a single array; once we have typed multi-input activities the rule above handles them.
 - **Map body referencing parent ctx.** A body node can legitimately read from a parent-scope ctx key (e.g., a parameter declared at workflow level). The resolver checks `config.ctx` declarations as producers of last resort (kind taken from `CtxDeclaration.kind` per Phase 3). They lose ties against in-graph producers — parent ctx is the fallback, not the default.
-- **Templates that import.** A template loaded from `docs-md/graph-workflows/templates/*.json` keeps all its hand-authored bindings (per §7 class 1). The user can choose to "Revert to auto" any of them and the resolver takes over.
+- **Templates that import.** A template loaded from `docs-md/graph-workflows/templates/*.json` keeps all its hand-authored bindings (per §7 class 1). The user can choose to "Revert to automatic" any of them and the resolver takes over.
 
 ---
 

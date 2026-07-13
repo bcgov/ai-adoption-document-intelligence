@@ -34,8 +34,8 @@ export function autoWireIssuesToValidationErrors(
       if (manuallyBoundPorts.has(problem.port)) continue;
       const message =
         problem.status === "ambiguous"
-          ? `Input "${problem.port}" has an ambiguous source — pick a producer`
-          : `Input "${problem.port}" needs a source`;
+          ? `Input "${problem.label}" has multiple possible sources — pick one`
+          : `Input "${problem.label}" needs a source — choose where it comes from`;
       errors.push({
         path: `nodes.${nodeId}.inputs.${problem.port}`,
         message,

@@ -11,6 +11,8 @@ export type NodeStatus = "ok" | "ambiguous" | "unsatisfied";
 /** A single input port that couldn't be auto-resolved. */
 export interface NodeInputProblem {
   port: string;
+  /** Human-readable label for user-facing messages; falls back to `port`. */
+  label: string;
   kind: KindRef;
   status: "ambiguous" | "unsatisfied";
 }
@@ -50,6 +52,7 @@ export function computeNodeInputIssues(
     if (result.status === "ambiguous" || result.status === "unsatisfied") {
       problemPorts.push({
         port: port.name,
+        label: port.label ?? port.name,
         // `shouldAutoWirePort` guarantees a defined, non-Artifact kind here.
         kind: port.kind as KindRef,
         status: result.status,

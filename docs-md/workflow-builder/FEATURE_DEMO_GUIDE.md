@@ -49,10 +49,10 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-auto-wire-typed-input-binding-states-part-8/edit](http://localhost:3000/workflows/by-slug/demo-auto-wire-typed-input-binding-states-part-8/edit)
 
-1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No problems badge.
+1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **Auto** badge and a **Change source** button. No problems badge.
 1. **Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.
 1. **Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).
-1. On the auto-bound node, click **Override** → the binding locks; click **Revert to auto** to restore it.
+1. On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.
 
 ---
 
@@ -61,7 +61,7 @@ npm run seed:demos
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-auto-wire-ambiguous-source-picker-part-8/edit](http://localhost:3000/workflows/by-slug/demo-auto-wire-ambiguous-source-picker-part-8/edit)
 
 1. Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.
-1. **Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input fileData has an ambiguous source”*.
+1. **Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input "Prepared file data" has multiple possible sources — pick one”*.
 1. **Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.
 1. *Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.
 

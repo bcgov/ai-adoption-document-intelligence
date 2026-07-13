@@ -164,11 +164,11 @@ test.describe("auto-wire", () => {
 
     const inputs = page.getByTestId("inputs-section");
     await expect(inputs).toBeVisible();
-    // auto-bound row: producer label + "auto" badge + Override.
+    // auto-bound row: producer label + "Auto" badge + Change source.
     await expect(inputs.getByText("Prepare", { exact: true })).toBeVisible();
-    await expect(inputs.getByText("auto", { exact: true })).toBeVisible();
+    await expect(inputs.getByText("Auto", { exact: true })).toBeVisible();
     await expect(
-      inputs.getByRole("button", { name: "Override" }),
+      inputs.getByRole("button", { name: "Change source" }),
     ).toBeVisible();
     // satisfied node → NO problems badge (auto-wire issues fold into the same
     // per-node validation badge, which only renders when something's wrong).
@@ -176,7 +176,7 @@ test.describe("auto-wire", () => {
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
-  test("an unsatisfied input shows Needs source + a problems badge", async ({
+  test("an unsatisfied input shows Needs a source + a problems badge", async ({
     page,
     request,
   }) => {
@@ -196,7 +196,7 @@ test.describe("auto-wire", () => {
     await editor.selectNode("lone");
     await expect(
       page.getByTestId("inputs-section").getByRole("button", {
-        name: "Needs source",
+        name: "Needs a source",
       }),
     ).toBeVisible();
   });
@@ -219,7 +219,7 @@ test.describe("auto-wire", () => {
     await editor.selectNode("sink");
     await expect(
       page.getByTestId("inputs-section").getByRole("button", {
-        name: "Choose source",
+        name: "Pick a source",
       }),
     ).toBeVisible();
   });
@@ -250,7 +250,7 @@ test.describe("auto-wire", () => {
     await expect(picker.getByTestId("producer-row-label")).toHaveCount(2);
   });
 
-  test("Override locks the port and Revert restores auto", async ({
+  test("Change source locks the port and Revert restores automatic", async ({
     page,
     request,
   }) => {
@@ -265,26 +265,26 @@ test.describe("auto-wire", () => {
     await editor.selectNode("submit");
 
     const inputs = page.getByTestId("inputs-section");
-    // Override → pick the sole compatible producer in the modal.
-    await inputs.getByRole("button", { name: "Override" }).click();
+    // Change source → pick the sole compatible producer in the modal.
+    await inputs.getByRole("button", { name: "Change source" }).click();
     const modal = page.getByRole("dialog");
-    await expect(modal).toContainText("Choose source");
+    await expect(modal).toContainText("Choose a source");
     await modal.getByTestId("producer-row-label").first().click();
 
-    // Now locked: ctxKey shown, "locked" badge, "Revert to auto".
-    await expect(inputs.getByText("locked", { exact: true })).toBeVisible();
-    const revert = inputs.getByRole("button", { name: "Revert to auto" });
+    // Now locked: ctxKey shown, "Pinned" badge, "Revert to automatic".
+    await expect(inputs.getByText("Pinned", { exact: true })).toBeVisible();
+    const revert = inputs.getByRole("button", { name: "Revert to automatic" });
     await expect(revert).toBeVisible();
-    await expect(inputs.getByRole("button", { name: "Override" })).toHaveCount(
-      0,
-    );
+    await expect(
+      inputs.getByRole("button", { name: "Change source" }),
+    ).toHaveCount(0);
 
-    // Revert → back to auto.
+    // Revert → back to automatic.
     await revert.click();
     await expect(
-      inputs.getByRole("button", { name: "Override" }),
+      inputs.getByRole("button", { name: "Change source" }),
     ).toBeVisible();
-    await expect(inputs.getByText("locked", { exact: true })).toHaveCount(0);
+    await expect(inputs.getByText("Pinned", { exact: true })).toHaveCount(0);
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
@@ -305,9 +305,9 @@ test.describe("auto-wire", () => {
     const inputs = page.getByTestId("inputs-section");
     // Locked binding surfaces its ctx key verbatim (not rewritten to __auto.*).
     await expect(inputs.getByText("manualDoc")).toBeVisible();
-    await expect(inputs.getByText("locked", { exact: true })).toBeVisible();
+    await expect(inputs.getByText("Pinned", { exact: true })).toBeVisible();
     await expect(
-      inputs.getByRole("button", { name: "Revert to auto" }),
+      inputs.getByRole("button", { name: "Revert to automatic" }),
     ).toBeVisible();
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
