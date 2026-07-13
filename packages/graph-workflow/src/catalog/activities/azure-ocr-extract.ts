@@ -25,22 +25,23 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
     {
       name: "fileName",
       label: "File name",
-      description: "Original file name.",
-      required: true,
+      description: "Original file name. Optional — used only for logging.",
+      required: false,
       kind: "Artifact",
     },
     {
       name: "fileType",
       label: "File type",
-      description: "`pdf` or `image`.",
-      required: true,
+      description: "`pdf` or `image`. Optional — used only for logging.",
+      required: false,
       kind: "Artifact",
     },
     {
       name: "modelId",
       label: "OCR model ID",
-      description: "Model the OCR was submitted against.",
-      required: true,
+      description:
+        "Model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
+      required: false,
       kind: "Artifact",
     },
     {

@@ -24,8 +24,9 @@ export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
     {
       name: "modelId",
       label: "OCR model ID",
-      description: "Which Azure DI model the OCR was submitted against.",
-      required: true,
+      description:
+        "Which Azure DI model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
+      required: false,
       kind: "Artifact",
     },
   ],
