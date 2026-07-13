@@ -167,6 +167,7 @@ Each phase ships independently and leaves the editor coherent:
 
 1. **Catalog coverage + vocabulary** (§8, §12) — pure data + copy; immediately improves the *current* UI too.
 2. **Per-port handles + derived wires, render-only** (§4, §5, §7 tooltips) — the canvas starts telling the truth; gestures still node-level. Biggest e2e/docs churn lands here.
+   *Status (2026-07-12):* landed so far — `deriveWires` (canvas/derive-wires.ts), the `computePortRows`/`estimateNodeHeight` selectors + `inputHandleId`/`outputHandleId` (canvas/port-rows.ts, the single definition of the per-port handle-id formula), and the `PortRows` renderer integrated into `ActivityNodeRenderer` (one kind-coloured, `isConnectable={false}` handle per catalog port; amber needs-source ring; `· from <ctxKey>` provenance suffix; type pills retired on activity nodes). Node-level handles (unnamed target / `out` / `error`) remain the connect-gesture + edge anchors. Still open in this phase: wire→port edge projection and row-aware auto-layout heights.
 3. **Gestures** (§6) + **port-aware popover** (§9) — drag-to-bind, connect-time validation, delete semantics, connect summary.
 4. **Wire data peek** (§10).
 5. **Conditions from node outputs** (§11).
