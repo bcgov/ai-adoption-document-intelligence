@@ -40,8 +40,15 @@ export interface PortRowsProps {
 const INPUT_HANDLE_LEFT = -24; // 14px padding + 6px border + 4px clearance
 const OUTPUT_HANDLE_RIGHT = -20; // 14px padding + 2px border + 4px clearance
 
-/** Amber "needs a source" ring (required input with no wire/binding). */
+/**
+ * Amber "needs a source" ring (required input with no wire/binding). Array
+ * kinds already wear a 2px outline at 2px offset (4px past the dot edge),
+ * so their ring widens to 7px to clear the outline — otherwise the two
+ * cues stack into one muddled halo.
+ */
 const NEEDS_SOURCE_RING = "0 0 0 3px var(--mantine-color-yellow-5, #fab005)";
+const NEEDS_SOURCE_RING_ARRAY =
+  "0 0 0 7px var(--mantine-color-yellow-5, #fab005)";
 
 function rowTooltip(row: PortRowModel): string {
   const kindText = `${row.name}: ${row.kind ?? "Artifact"}`;
@@ -73,7 +80,9 @@ function PortRow({
           outlineOffset: "2px",
         }
       : {}),
-    ...(row.needsSource ? { boxShadow: NEEDS_SOURCE_RING } : {}),
+    ...(row.needsSource
+      ? { boxShadow: isArray ? NEEDS_SOURCE_RING_ARRAY : NEEDS_SOURCE_RING }
+      : {}),
   };
 
   return (
@@ -122,7 +131,12 @@ function PortRow({
             style={{
               fontStyle: "italic",
               whiteSpace: "nowrap",
-              flexShrink: 0,
+              // Shrinkable + ellipsized so a long ctx key can't overflow
+              // the row into the opposite column (the row div can't clip
+              // via `overflow: hidden` — that would cut off the handle
+              // dot positioned outside the card edge).
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             · from {row.fromCtx}

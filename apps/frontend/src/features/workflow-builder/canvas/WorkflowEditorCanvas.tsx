@@ -584,10 +584,13 @@ const ActivityNodeRenderer = memo(
       !catalog.entries.some((e) => e.activityType === data.activityType);
     // Node-level flow handles: the unnamed left target + the `id="out"`
     // right source keep today's connect gesture AND keep existing edges
-    // rendering (edges carry no sourceHandle/targetHandle, so xyflow
-    // resolves them to these default handles — per-port row handles are
-    // render-only in this phase). The `out` handle also keeps the
-    // hover-to-extend bridge (US-045).
+    // rendering. Edges carry no sourceHandle/targetHandle, and xyflow's
+    // default resolution (`getHandle`) picks `bounds[0]` — the FIRST
+    // handle of the required type in DOM order — so these node-level
+    // handles MUST render before <PortRows> in the JSX or every edge
+    // would silently anchor to the first per-port row dot instead
+    // (per-port handles are render-only in this phase). The `out` handle
+    // also keeps the hover-to-extend bridge (US-045).
     const hoverHandlers = makeSourceHandleHoverHandlers(
       id,
       data.onSourceHandleEnter,
@@ -687,25 +690,29 @@ const ActivityNodeRenderer = memo(
             (deleted dynamic node)
           </div>
         )}
-        <PortRows
-          nodeId={id}
-          inputs={data.portRows.inputs}
-          outputs={data.portRows.outputs}
-        />
-        <NodePreviewOverlay nodeId={id} />
-        <Handle
-          type="target"
-          position={Position.Left}
-          style={{ top: 18, background: handleBackground("gray") }}
-        />
-        <Handle
-          id="out"
-          type="source"
-          position={Position.Right}
-          style={{ top: 18, background: handleBackground("gray") }}
-          onMouseEnter={hoverHandlers.onMouseEnter}
-          onMouseLeave={hoverHandlers.onMouseLeave}
-        />
+        {/* Node-level handles FIRST in DOM order for their type — see the
+            default-resolution comment above `hoverHandlers`. */}
+        <Tooltip label="Flow — execution order" withArrow position="left">
+          <span>
+            <Handle
+              type="target"
+              position={Position.Left}
+              style={{ top: 18, background: handleBackground("gray") }}
+            />
+          </span>
+        </Tooltip>
+        <Tooltip label="Flow — execution order" withArrow position="right">
+          <span>
+            <Handle
+              id="out"
+              type="source"
+              position={Position.Right}
+              style={{ top: 18, background: handleBackground("gray") }}
+              onMouseEnter={hoverHandlers.onMouseEnter}
+              onMouseLeave={hoverHandlers.onMouseLeave}
+            />
+          </span>
+        </Tooltip>
         {data.errorPolicy?.onError === "fallback" && (
           <Handle
             id="error"
@@ -714,6 +721,12 @@ const ActivityNodeRenderer = memo(
             style={{ background: ERROR_HANDLE_BACKGROUND }}
           />
         )}
+        <PortRows
+          nodeId={id}
+          inputs={data.portRows.inputs}
+          outputs={data.portRows.outputs}
+        />
+        <NodePreviewOverlay nodeId={id} />
       </div>
     );
   },

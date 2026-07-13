@@ -54,12 +54,17 @@ function isDataWire(wire: DerivedWire): wire is DataWire {
 
 /**
  * Maps a node's catalog inputs/outputs to render-ready rows. Only nodes
- * with an `activityType` (`activity` / `pollUntil`) resolving against the
- * static catalog get rows — everything else (switch, map, join,
- * childWorkflow, humanGate, source, and Phase-6 `dyn.*` activity types,
- * which resolve against a per-lineage runtime schema rather than the
- * static catalog) falls into the "no catalog entry" branch and renders no
- * rows.
+ * with an `activityType` resolving against the static catalog produce
+ * rows; everything else (switch, map, join, childWorkflow, humanGate,
+ * source, and Phase-6 `dyn.*` activity types, which resolve against a
+ * per-lineage runtime schema rather than the static catalog) falls into
+ * the "no catalog entry" branch and returns empty rows.
+ *
+ * Note the canvas projection currently renders rows for `activity` nodes
+ * only — `pollUntil` nodes render through the control-flow rectangle with
+ * no port rows in the render-only slice. The `pollUntil` branch below
+ * exists so `estimateNodeHeight` (and the upcoming layout/projection
+ * work) can size any catalog-backed node without a second code path.
  */
 export function computePortRows(
   config: GraphWorkflowConfig,

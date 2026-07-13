@@ -403,6 +403,26 @@ describe("WorkflowEditorCanvas — activity node-level handles stay intact", () 
     expect(nodeLevelSource).toBeDefined();
     expect(nodeLevelSource?.getAttribute("data-isconnectable")).toBe("true");
   });
+
+  it("mounts the node-level handles FIRST in DOM order for their type (xyflow default-edge resolution picks bounds[0])", () => {
+    // xyflow resolves an edge with no sourceHandle/targetHandle to the
+    // FIRST handle of the required type in DOM order (`getHandle` →
+    // `bounds[0]` from an unsorted querySelectorAll). If a per-port row
+    // handle ever renders before the node-level ones, every existing edge
+    // silently re-anchors onto the first row dot.
+    renderCanvas(makeConfigWith("test.split"));
+    const nodeEl = screen.getByTestId("rf-node-activity_1");
+
+    const firstTarget = nodeEl.querySelector(
+      "[data-testid='handle-target-left']",
+    );
+    expect(firstTarget?.getAttribute("data-handleid")).toBeNull();
+
+    const firstSource = nodeEl.querySelector(
+      "[data-testid='handle-source-right']",
+    );
+    expect(firstSource?.getAttribute("data-handleid")).toBe("out");
+  });
 });
 
 // ---------------------------------------------------------------------------
