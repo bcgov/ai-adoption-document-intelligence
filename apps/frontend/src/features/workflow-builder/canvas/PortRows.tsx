@@ -23,7 +23,11 @@ import { type CSSProperties, memo } from "react";
 
 import { colorForKind } from "./artifact-kind-colour";
 import { handleArrayOutline, handleBackground } from "./handle-style";
-import { PORT_ROW_HEIGHT, type PortRowModel } from "./port-rows";
+import {
+  PORT_ROW_HEIGHT,
+  PORT_ROWS_TOP_MARGIN,
+  type PortRowModel,
+} from "./port-rows";
 
 export interface PortRowsProps {
   nodeId: string;
@@ -160,7 +164,7 @@ export const PortRows = memo(function PortRows({
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         columnGap: 12,
-        marginTop: 6,
+        marginTop: PORT_ROWS_TOP_MARGIN,
       }}
     >
       {inputs.map((row, index) => (

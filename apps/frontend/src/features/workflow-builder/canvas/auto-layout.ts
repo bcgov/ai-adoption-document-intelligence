@@ -17,10 +17,14 @@
  * Design choices:
  *   - Defaults: `rankdir: "LR"`, `nodesep: 60`, `ranksep: 80`. These
  *     match the visual editor's preferred orientation (LR flow).
- *   - Node sizes: default `width: 200`, `height: 80` — close to the
- *     `WorkflowEditorCanvas` activity node footprint. Switch nodes are
+ *   - Node sizes: fixed `width: DEFAULT_NODE_WIDTH` (200) for every node,
+ *     but `height` is derived per node via `estimateNodeHeight` (which
+ *     rolls up the node's real catalog port-row count) so tall,
+ *     multi-port cards (e.g. `azureOcr.extract`'s 5 input rows) don't
+ *     overlap same-rank neighbours. `DEFAULT_NODE_HEIGHT` (80) is only a
+ *     fallback for nodes `estimateNodeHeight` can't size. Switch nodes are
  *     square-diamond shaped at 140 × 140 in the canvas, but a uniform
- *     box is good enough for the layout step; dagre uses width/height
+ *     width is good enough for the layout step; dagre uses width/height
  *     only to compute the bounding boxes.
  *   - Output positions are the centre coordinates dagre returns. We
  *     convert them to top-left so the result is xyflow-friendly (xyflow
@@ -39,6 +43,7 @@ import type { graphlib } from "dagre";
 // eslint-disable-next-line import/extensions
 import dagreLib from "dagre-esm/dist/dagre.esm.js";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
+import { estimateNodeHeight } from "./port-rows";
 
 // ---------------------------------------------------------------------------
 // dagre-esm typing wrapper
@@ -102,11 +107,23 @@ export function layoutGraph(
   });
   graph.setDefaultEdgeLabel(() => ({}));
 
+  // Per-node height, derived from the node's real port-row count so tall,
+  // multi-port cards (e.g. azureOcr.extract's 5 input rows) don't overlap
+  // same-rank neighbours. Computed once and reused for both dagre node
+  // registration and the center→top-left conversion below, so the box
+  // dagre reasons about matches the box we report. DEFAULT_NODE_HEIGHT is
+  // only a fallback for a node id absent from `config.nodes`, which
+  // shouldn't happen since this map is built from that same record.
+  const nodeHeights = new Map<string, number>();
+  for (const node of Object.values(config.nodes)) {
+    nodeHeights.set(node.id, estimateNodeHeight(config, node.id));
+  }
+
   // Register every node.
   for (const node of Object.values(config.nodes)) {
     graph.setNode(node.id, {
       width: DEFAULT_NODE_WIDTH,
-      height: DEFAULT_NODE_HEIGHT,
+      height: nodeHeights.get(node.id) ?? DEFAULT_NODE_HEIGHT,
     });
   }
 
@@ -141,13 +158,14 @@ export function layoutGraph(
     const laidOut = graph.node(nodeId);
     const centerX = laidOut?.x ?? 0;
     const centerY = laidOut?.y ?? 0;
+    const height = nodeHeights.get(nodeId) ?? DEFAULT_NODE_HEIGHT;
     nextNodes[nodeId] = {
       ...node,
       metadata: {
         ...(node.metadata ?? {}),
         position: {
           x: centerX - DEFAULT_NODE_WIDTH / 2,
-          y: centerY - DEFAULT_NODE_HEIGHT / 2,
+          y: centerY - height / 2,
         },
       },
     } as GraphNode;

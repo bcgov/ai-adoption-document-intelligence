@@ -14,12 +14,14 @@ import type {
   ActivityNode,
   GraphEdge,
   GraphWorkflowConfig,
+  SwitchNode,
 } from "../../../types/workflow";
 import {
   configHasAnyPosition,
   layoutGraph,
   layoutGraphIfMissingPositions,
 } from "./auto-layout";
+import { estimateNodeHeight } from "./port-rows";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -57,6 +59,53 @@ function buildLinearConfig(): GraphWorkflowConfig {
     nodes,
     edges,
     entryNodeId: "a",
+    ctx: {},
+  };
+}
+
+function buildActivityOfType(id: string, activityType: string): ActivityNode {
+  return {
+    id,
+    type: "activity",
+    label: id,
+    activityType,
+    inputs: [],
+    outputs: [],
+    parameters: {},
+  };
+}
+
+function buildSwitch(id: string): SwitchNode {
+  return {
+    id,
+    type: "switch",
+    label: id,
+    cases: [],
+  };
+}
+
+/**
+ * A tall (`azureOcr.extract`, 5 input rows) and a zero-row (`switch`) node
+ * both hang directly off `root` with no edge between them, so dagre's
+ * network-simplex ranker settles both at rank 1 — same rank, real height
+ * mismatch. Exercises the per-node-height auto-layout path (Task 9).
+ */
+function buildTallShortConfig(): GraphWorkflowConfig {
+  const nodes: Record<string, ActivityNode | SwitchNode> = {
+    root: buildActivityOfType("root", "data.transform"),
+    tall: buildActivityOfType("tall", "azureOcr.extract"),
+    short: buildSwitch("short"),
+  };
+  const edges: GraphEdge[] = [
+    { id: "e1", source: "root", target: "tall", type: "normal" },
+    { id: "e2", source: "root", target: "short", type: "normal" },
+  ];
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "tall-short" },
+    nodes,
+    edges,
+    entryNodeId: "root",
     ctx: {},
   };
 }
@@ -149,6 +198,57 @@ describe("layoutGraph — Scenario 1: stamps positions on every node", () => {
       .position.y;
     expect(by).toBeGreaterThan(ay);
     expect(cy).toBeGreaterThan(by);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 9 — per-node heights (real port-row counts, not the fixed default).
+// ---------------------------------------------------------------------------
+
+describe("layoutGraph — Task 9: per-node heights avoid same-rank overlap", () => {
+  it("separates a tall (5-row) node from a same-rank zero-row node by at least its real height", () => {
+    const cfg = buildTallShortConfig();
+    const out = layoutGraph(cfg, { rankdir: "LR" });
+
+    const tallY = (
+      out.nodes.tall.metadata as { position: { x: number; y: number } }
+    ).position.y;
+    const shortY = (
+      out.nodes.short.metadata as { position: { x: number; y: number } }
+    ).position.y;
+    const tallX = (
+      out.nodes.tall.metadata as { position: { x: number; y: number } }
+    ).position.x;
+    const shortX = (
+      out.nodes.short.metadata as { position: { x: number; y: number } }
+    ).position.x;
+
+    // Same rank in an LR layout — same column (x), separated vertically (y).
+    expect(tallX).toBeCloseTo(shortX, 5);
+
+    const tallHeight = estimateNodeHeight(cfg, "tall");
+    const shortHeight = estimateNodeHeight(cfg, "short");
+    expect(tallHeight).toBeGreaterThan(shortHeight);
+
+    // `position` is top-left, so this is exact edge-to-edge non-overlap
+    // regardless of x/y unit conventions.
+    const tallTop = tallY;
+    const tallBottom = tallY + tallHeight;
+    const shortTop = shortY;
+    const shortBottom = shortY + shortHeight;
+    const noOverlap = tallBottom <= shortTop || shortBottom <= tallTop;
+    expect(noOverlap).toBe(true);
+
+    // Old fixed-80 layout would have given both nodes identical height
+    // (200x80), so same-rank centers would land exactly
+    // `nodesep(60) + 80 = 140` apart. The real per-node heights (tall=180,
+    // short=64) push the centers further apart than that fixed baseline —
+    // proof the positions differ from what the old code produced.
+    const centerGap = Math.abs(
+      tallY + tallHeight / 2 - (shortY + shortHeight / 2),
+    );
+    const oldFixedCenterGap = 60 + 80; // nodesep + DEFAULT_NODE_HEIGHT
+    expect(centerGap).toBeGreaterThan(oldFixedCenterGap);
   });
 });
 

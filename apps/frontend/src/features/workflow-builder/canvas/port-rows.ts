@@ -16,6 +16,12 @@ import type { DataWire, DerivedWire } from "./derive-wires";
 
 export const PORT_ROW_HEIGHT = 22;
 export const NODE_BASE_HEIGHT = 64; // header + label + padding
+/**
+ * `marginTop` the `<PortRows>` grid renders above its rows (see
+ * `PortRows.tsx`). Only applies when the node has at least one row — the
+ * grid returns `null` (no margin) when both columns are empty.
+ */
+export const PORT_ROWS_TOP_MARGIN = 6;
 
 /**
  * Single definition of the per-port ReactFlow handle-id formula. The row
@@ -169,5 +175,6 @@ export function estimateNodeHeight(
 ): number {
   const { inputs, outputs } = computePortRows(config, nodeId, []);
   const rows = Math.max(inputs.length, outputs.length);
-  return NODE_BASE_HEIGHT + rows * PORT_ROW_HEIGHT;
+  if (rows === 0) return NODE_BASE_HEIGHT;
+  return NODE_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
 }

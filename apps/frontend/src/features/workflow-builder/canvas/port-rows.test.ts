@@ -16,6 +16,7 @@ import {
   estimateNodeHeight,
   NODE_BASE_HEIGHT,
   PORT_ROW_HEIGHT,
+  PORT_ROWS_TOP_MARGIN,
   rendersPerPortHandle,
 } from "./port-rows";
 
@@ -127,6 +128,8 @@ describe("computePortRows — Scenario 4: non-activity node", () => {
     const { inputs, outputs } = computePortRows(cfg, "Sw", []);
     expect(inputs).toEqual([]);
     expect(outputs).toEqual([]);
+    // Zero rows: PortRows renders nothing (no `marginTop: 6` grid), so the
+    // estimate must NOT add PORT_ROWS_TOP_MARGIN here.
     expect(estimateNodeHeight(cfg, "Sw")).toBe(NODE_BASE_HEIGHT);
   });
 });
@@ -147,7 +150,7 @@ describe("computePortRows — Scenario 5: estimateNodeHeight scales with the wid
     expect(inputs).toHaveLength(5);
     expect(outputs).toHaveLength(1);
     expect(estimateNodeHeight(cfg, "E")).toBe(
-      NODE_BASE_HEIGHT + 5 * PORT_ROW_HEIGHT,
+      NODE_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + 5 * PORT_ROW_HEIGHT,
     );
   });
 });
