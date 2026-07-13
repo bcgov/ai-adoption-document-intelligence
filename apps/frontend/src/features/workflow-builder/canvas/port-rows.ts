@@ -1,0 +1,125 @@
+/**
+ * `computePortRows` / `estimateNodeHeight` — pure selectors that turn a
+ * node's activity-catalog entry into per-port row models for the card
+ * renderer, and roll the row count up into an estimated card height for the
+ * dagre auto-layout pass. See PORT_WIRING_DESIGN.md (port-row rendering
+ * slice).
+ *
+ * Both functions are pure and cheap: `estimateNodeHeight` only needs the
+ * row COUNT, which doesn't depend on wires, so it calls `computePortRows`
+ * with an empty wire list rather than requiring a caller-supplied
+ * `DerivedWire[]`.
+ */
+import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
+import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type { DataWire, DerivedWire } from "./derive-wires";
+
+export const PORT_ROW_HEIGHT = 22;
+export const NODE_BASE_HEIGHT = 64; // header + label + padding
+
+export interface PortRowModel {
+  name: string;
+  label: string;
+  description?: string;
+  kind?: KindRef;
+  direction: "input" | "output";
+  required: boolean;
+  /** ReactFlow handle id: `in-<name>` / `out-<name>`. */
+  handleId: string;
+  /** Input only: satisfied by a wire, a ctx variable, or any persisted binding. Outputs: always true. */
+  bound: boolean;
+  /** Set when the binding reads a declared workflow variable (renders a chip). */
+  fromCtx?: string;
+  /** required && !bound — renders the amber ring. */
+  needsSource: boolean;
+}
+
+function isDataWire(wire: DerivedWire): wire is DataWire {
+  return wire.variant === "data";
+}
+
+/**
+ * Maps a node's catalog inputs/outputs to render-ready rows. Only nodes
+ * with an `activityType` (`activity` / `pollUntil`) resolving against the
+ * static catalog get rows — everything else (switch, map, join,
+ * childWorkflow, humanGate, source, and Phase-6 `dyn.*` activity types,
+ * which resolve against a per-lineage runtime schema rather than the
+ * static catalog) falls into the "no catalog entry" branch and renders no
+ * rows.
+ */
+export function computePortRows(
+  config: GraphWorkflowConfig,
+  nodeId: string,
+  wires: readonly DerivedWire[],
+): { inputs: PortRowModel[]; outputs: PortRowModel[] } {
+  const node = config.nodes[nodeId];
+  if (!node) return { inputs: [], outputs: [] };
+
+  const catalogEntry =
+    node.type === "activity" || node.type === "pollUntil"
+      ? getActivityCatalogEntry(node.activityType)
+      : undefined;
+
+  if (!catalogEntry) return { inputs: [], outputs: [] };
+
+  const dataWires = wires.filter(isDataWire);
+
+  const inputs: PortRowModel[] = catalogEntry.inputs.map((descriptor) => {
+    const binding = node.inputs?.find((b) => b.port === descriptor.name);
+    const wireTargeting = dataWires.find(
+      (wire) => wire.target === nodeId && wire.targetPort === descriptor.name,
+    );
+    const bound = wireTargeting !== undefined || binding !== undefined;
+    const fromCtx =
+      wireTargeting === undefined &&
+      binding !== undefined &&
+      config.ctx[binding.ctxKey] !== undefined
+        ? binding.ctxKey
+        : undefined;
+    const required = descriptor.required === true;
+
+    return {
+      name: descriptor.name,
+      label: descriptor.label,
+      description: descriptor.description,
+      kind: descriptor.kind,
+      direction: "input",
+      required,
+      handleId: `in-${descriptor.name}`,
+      bound,
+      fromCtx,
+      needsSource: required && !bound,
+    };
+  });
+
+  const outputs: PortRowModel[] = catalogEntry.outputs.map((descriptor) => ({
+    name: descriptor.name,
+    label: descriptor.label,
+    description: descriptor.description,
+    kind: descriptor.kind,
+    direction: "output",
+    required: descriptor.required === true,
+    handleId: `out-${descriptor.name}`,
+    bound: true,
+    fromCtx: undefined,
+    needsSource: false,
+  }));
+
+  return { inputs, outputs };
+}
+
+/**
+ * `NODE_BASE_HEIGHT` plus one `PORT_ROW_HEIGHT` per row on the taller side
+ * (inputs vs. outputs) — the card renders both columns in the same
+ * vertical run, so the shorter side just leaves blank space. Wires don't
+ * affect row count, so this passes an empty wire list to `computePortRows`
+ * rather than requiring one from the caller.
+ */
+export function estimateNodeHeight(
+  config: GraphWorkflowConfig,
+  nodeId: string,
+): number {
+  const { inputs, outputs } = computePortRows(config, nodeId, []);
+  const rows = Math.max(inputs.length, outputs.length);
+  return NODE_BASE_HEIGHT + rows * PORT_ROW_HEIGHT;
+}
