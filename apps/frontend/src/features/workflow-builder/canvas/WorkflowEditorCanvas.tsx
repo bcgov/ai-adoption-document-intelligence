@@ -77,6 +77,7 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
+import { type DerivedWire, deriveWires } from "./derive-wires";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
   type GroupChip,
@@ -84,7 +85,12 @@ import {
   projectGroupedConfig,
 } from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
-import { computeHandleStyle, type HandleStyle } from "./handle-style";
+import {
+  computeHandleStyle,
+  type HandleStyle,
+  handleArrayOutline,
+  handleBackground,
+} from "./handle-style";
 import {
   MapBodyContainer,
   type MapBodyContainerFlowNode,
@@ -94,7 +100,9 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
+import { PortRows } from "./PortRows";
 import { findNextFreePosition } from "./place-extended-node";
+import { computePortRows, type PortRowModel } from "./port-rows";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
 import { WorkflowEdge, type WorkflowEdgeData } from "./WorkflowEdge";
@@ -166,22 +174,6 @@ interface CommonNodeData extends Record<string, unknown> {
     anchor: { x: number; y: number },
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
-  /**
-   * Pre-computed kind-aware styling for the node's single input + output
-   * handle (US-095). The projection layer derives these from the catalog
-   * entry's port kinds — the renderer just consumes them.
-   */
-  inputHandleStyle: HandleStyle;
-  outputHandleStyle: HandleStyle;
-  /**
-   * Pre-computed per-port entries used by the on-selection type pill
-   * (US-096). The projection layer derives these from the activity
-   * catalog entry's `inputs[]` / `outputs[]` — each entry carries the
-   * port name + the declared `KindRef` (or `undefined` for legacy
-   * un-typed descriptors). Control-flow nodes pass `[]` on both sides.
-   */
-  inputPillEntries: NodeTypePillEntry[];
-  outputPillEntries: NodeTypePillEntry[];
 }
 
 interface ActivityNodeData extends CommonNodeData {
@@ -192,12 +184,38 @@ interface ActivityNodeData extends CommonNodeData {
    * without re-looking-up the source node by id (US-024).
    */
   errorPolicy?: ErrorPolicy;
+  /**
+   * Per-port row models (PORT_WIRING_DESIGN.md, port-row rendering
+   * slice). The projection layer derives these from the catalog entry +
+   * the derived wires — the renderer just mounts `<PortRows>`. Nodes
+   * without a static catalog entry (control-flow skeletons never reach
+   * this data shape; `dyn.*` activities do) get empty arrays and render
+   * no rows.
+   */
+  portRows: { inputs: PortRowModel[]; outputs: PortRowModel[] };
 }
 
 interface ControlFlowNodeData extends CommonNodeData {
   controlFlowType: ControlFlowNodeType;
   /** Same as ActivityNodeData.errorPolicy — see US-024. */
   errorPolicy?: ErrorPolicy;
+  /**
+   * Pre-computed kind-aware styling for the node's single input + output
+   * handle (US-095). The projection layer derives these — the renderer
+   * just consumes them. Activity nodes render per-port rows instead
+   * (`ActivityNodeData.portRows`), so these now live on the control-flow
+   * data shape only.
+   */
+  inputHandleStyle: HandleStyle;
+  outputHandleStyle: HandleStyle;
+  /**
+   * Pre-computed per-port entries used by the on-selection type pill
+   * (US-096). Control-flow nodes have no typed catalog ports today, so
+   * these stay `[]` and the pill renders nothing — kept until a future
+   * story types control-flow I/O explicitly.
+   */
+  inputPillEntries: NodeTypePillEntry[];
+  outputPillEntries: NodeTypePillEntry[];
 }
 
 type ActivityFlowNode = Node<ActivityNodeData, "activity">;
@@ -416,22 +434,36 @@ interface NodeHandlesProps {
 const ERROR_HANDLE_BACKGROUND = "#e03131";
 
 /**
- * Translates a Mantine colour name from `HandleStyle.color` into the
- * matching theme CSS variable, then renders the handle dot background.
- * Falls back to the literal value (so `"gray"` still resolves) when the
- * variable isn't defined in the current theme.
+ * Builds the mouseenter/mouseleave pair the source `out` handle uses to
+ * drive the hover-to-extend popover (US-045). Shared between
+ * `NodeHandles` (control-flow / switch renderers) and the activity
+ * renderer's node-level `out` handle so the anchor geometry (handle
+ * bounding-rect right-centre) stays identical.
  */
-function handleBackground(color: string): string {
-  return `var(--mantine-color-${color}-6, ${color})`;
-}
-
-/**
- * Lighter outline tone used to signal array cardinality on a kind-
- * coloured handle dot. Picks shade `3` for a faded ring against shade
- * `6`'s saturated dot.
- */
-function handleArrayOutline(color: string): string {
-  return `var(--mantine-color-${color}-3, ${color})`;
+function makeSourceHandleHoverHandlers(
+  nodeId: string,
+  onSourceHandleEnter?: (
+    nodeId: string,
+    anchor: { x: number; y: number },
+  ) => void,
+  onSourceHandleLeave?: (nodeId: string) => void,
+): {
+  onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseLeave: () => void;
+} {
+  return {
+    onMouseEnter: (event) => {
+      if (!onSourceHandleEnter) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      onSourceHandleEnter(nodeId, {
+        x: rect.right,
+        y: rect.top + rect.height / 2,
+      });
+    },
+    onMouseLeave: () => {
+      onSourceHandleLeave?.(nodeId);
+    },
+  };
 }
 
 const NodeHandles = memo(function NodeHandles({
@@ -446,17 +478,12 @@ const NodeHandles = memo(function NodeHandles({
   selected,
 }: NodeHandlesProps) {
   const showErrorHandle = errorPolicy?.onError === "fallback";
-  const handleEnter = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!onSourceHandleEnter) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    onSourceHandleEnter(nodeId, {
-      x: rect.right,
-      y: rect.top + rect.height / 2,
-    });
-  };
-  const handleLeave = () => {
-    onSourceHandleLeave?.(nodeId);
-  };
+  const { onMouseEnter: handleEnter, onMouseLeave: handleLeave } =
+    makeSourceHandleHoverHandlers(
+      nodeId,
+      onSourceHandleEnter,
+      onSourceHandleLeave,
+    );
 
   // Doubled-outline cue for `T[]` cardinality (US-095 Scenario 1).
   // Applied via inline outline so it nests around the existing handle
@@ -555,6 +582,17 @@ const ActivityNodeRenderer = memo(
       isDynamic &&
       !catalog.isLoading &&
       !catalog.entries.some((e) => e.activityType === data.activityType);
+    // Node-level flow handles: the unnamed left target + the `id="out"`
+    // right source keep today's connect gesture AND keep existing edges
+    // rendering (edges carry no sourceHandle/targetHandle, so xyflow
+    // resolves them to these default handles — per-port row handles are
+    // render-only in this phase). The `out` handle also keeps the
+    // hover-to-extend bridge (US-045).
+    const hoverHandlers = makeSourceHandleHoverHandlers(
+      id,
+      data.onSourceHandleEnter,
+      data.onSourceHandleLeave,
+    );
     return (
       <div
         data-testid={`canvas-node-${id}`}
@@ -649,18 +687,33 @@ const ActivityNodeRenderer = memo(
             (deleted dynamic node)
           </div>
         )}
-        <NodePreviewOverlay nodeId={id} />
-        <NodeHandles
+        <PortRows
           nodeId={id}
-          errorPolicy={data.errorPolicy}
-          onSourceHandleEnter={data.onSourceHandleEnter}
-          onSourceHandleLeave={data.onSourceHandleLeave}
-          inputHandleStyle={data.inputHandleStyle}
-          outputHandleStyle={data.outputHandleStyle}
-          inputPillEntries={data.inputPillEntries}
-          outputPillEntries={data.outputPillEntries}
-          selected={selected ?? false}
+          inputs={data.portRows.inputs}
+          outputs={data.portRows.outputs}
         />
+        <NodePreviewOverlay nodeId={id} />
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{ top: 18, background: handleBackground("gray") }}
+        />
+        <Handle
+          id="out"
+          type="source"
+          position={Position.Right}
+          style={{ top: 18, background: handleBackground("gray") }}
+          onMouseEnter={hoverHandlers.onMouseEnter}
+          onMouseLeave={hoverHandlers.onMouseLeave}
+        />
+        {data.errorPolicy?.onError === "fallback" && (
+          <Handle
+            id="error"
+            type="source"
+            position={Position.Bottom}
+            style={{ background: ERROR_HANDLE_BACKGROUND }}
+          />
+        )}
       </div>
     );
   },
@@ -970,63 +1023,14 @@ interface ProjectionCallbacks {
 }
 
 /**
- * Per-side projection shape consumed by the node renderers — bundles the
- * US-095 handle style with the US-096 pill entries derived from the same
- * catalog descriptor.
+ * Per-side projection shape consumed by the control-flow node renderers —
+ * bundles the US-095 handle style with the US-096 pill entries. Activity
+ * nodes render per-port rows instead (`computePortRows`), so this shape
+ * only feeds `controlFlowNodeSides` today.
  */
 interface SideProjection {
   handleStyle: HandleStyle;
   pillEntries: NodeTypePillEntry[];
-}
-
-/**
- * Derives the input + output `HandleStyle` pair PLUS the pill entries for
- * an activity node from its catalog entry. Activities without a registered
- * catalog entry fall back to the wildcard / multi-port style (gray +
- * "Multiple …" tooltip) and empty pill entries — the same shape
- * control-flow nodes get today.
- */
-function activityNodeSides(activityType: string): {
-  input: SideProjection;
-  output: SideProjection;
-} {
-  const entry = getActivityCatalogEntry(activityType);
-  if (!entry) {
-    return {
-      input: {
-        handleStyle: computeHandleStyle({ portKinds: [], direction: "input" }),
-        pillEntries: [],
-      },
-      output: {
-        handleStyle: computeHandleStyle({ portKinds: [], direction: "output" }),
-        pillEntries: [],
-      },
-    };
-  }
-  const inputPillEntries: NodeTypePillEntry[] = entry.inputs.map((p) => ({
-    portName: p.name,
-    kind: p.kind,
-  }));
-  const outputPillEntries: NodeTypePillEntry[] = entry.outputs.map((p) => ({
-    portName: p.name,
-    kind: p.kind,
-  }));
-  return {
-    input: {
-      handleStyle: computeHandleStyle({
-        portKinds: entry.inputs.map((p) => p.kind),
-        direction: "input",
-      }),
-      pillEntries: inputPillEntries,
-    },
-    output: {
-      handleStyle: computeHandleStyle({
-        portKinds: entry.outputs.map((p) => p.kind),
-        direction: "output",
-      }),
-      pillEntries: outputPillEntries,
-    },
-  };
 }
 
 /**
@@ -1058,13 +1062,13 @@ function projectFlowNodes(
   config: GraphWorkflowConfig,
   selectedNodeId: string | null,
   callbacks: ProjectionCallbacks,
+  wires: readonly DerivedWire[],
 ): FlowNode[] {
   const all = Object.values(config.nodes);
   return all.map((node, idx) => {
     const position = readPosition(node, idx);
     const isEntry = node.id === config.entryNodeId;
     if (node.type === "activity") {
-      const sides = activityNodeSides(node.activityType);
       const flowNode: ActivityFlowNode = {
         id: node.id,
         type: "activity",
@@ -1080,10 +1084,7 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
-          inputHandleStyle: sides.input.handleStyle,
-          outputHandleStyle: sides.output.handleStyle,
-          inputPillEntries: sides.input.pillEntries,
-          outputPillEntries: sides.output.pillEntries,
+          portRows: computePortRows(config, node.id, wires),
         },
       };
       return flowNode;
@@ -1387,6 +1388,12 @@ function WorkflowEditorCanvasInner({
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
     lastFingerprintRef.current = dataFingerprint;
+    // Derived ONCE per re-projection (the fingerprint gate above keeps
+    // this off the per-render hot path — `deriveWires` walks the upstream
+    // graph per auto-bound port, see its performance note). Always derived
+    // from the FULL config so a wire from a group-hidden producer still
+    // marks the visible consumer's port as bound in simplified view.
+    const wires = deriveWires(config);
     if (simplifiedView) {
       // Simplified projection: collapse each group into a chip; hide
       // grouped underlying nodes; remap edges. The chip projection adds
@@ -1400,6 +1407,7 @@ function WorkflowEditorCanvasInner({
         visibleConfig,
         selectedNodeId,
         projectionCallbacks,
+        wires,
       );
       const chipNodes = projectChipFlowNodes(projected.chips, selectedNodeId);
       setInternalNodes([...normalNodes, ...chipNodes]);
@@ -1418,6 +1426,7 @@ function WorkflowEditorCanvasInner({
         config,
         selectedNodeId,
         projectionCallbacks,
+        wires,
       );
       setInternalNodes([...containerNodes, ...normalNodes]);
     }

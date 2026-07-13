@@ -670,7 +670,7 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
    */
   function collectHandles(
     nodeId: string,
-  ): Array<{ type: string; handleId: string | null }> {
+  ): Array<{ type: string; handleId: string | null; perPort: boolean }> {
     const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
     const handles = Array.from(
       nodeEl.querySelectorAll<HTMLElement>("[data-testid^='handle-']"),
@@ -682,6 +682,10 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
       return {
         type,
         handleId: handleId === "null" ? null : handleId,
+        // Activity nodes additionally mount render-only per-port handles
+        // inside PortRows rows — the US-024 scenarios below assert the
+        // NODE-LEVEL flow handles, so tag per-port ones for filtering.
+        perPort: el.closest("[data-testid^='port-row-']") !== null,
       };
     });
   }
@@ -712,7 +716,7 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
     // No errorPolicy at all.
     renderCanvas(makeAllNodeTypesConfig());
     const handles = collectHandles("activity_1");
-    const sources = handles.filter((h) => h.type === "source");
+    const sources = handles.filter((h) => h.type === "source" && !h.perPort);
     expect(sources).toHaveLength(1);
     // Without a fallback policy the renderer still names the normal
     // source handle `out` so xyflow can disambiguate consistently —
@@ -723,7 +727,7 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
   it("Scenario 1b: activity node with errorPolicy.onError='fail' renders exactly one source handle", () => {
     renderCanvas(configWithErrorPolicyActivity("fail"));
     const handles = collectHandles("activity_1");
-    const sources = handles.filter((h) => h.type === "source");
+    const sources = handles.filter((h) => h.type === "source" && !h.perPort);
     expect(sources).toHaveLength(1);
     expect(sources.some((h) => h.handleId === "error")).toBe(false);
   });
@@ -731,7 +735,7 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
   it("Scenario 2: activity node with errorPolicy.onError='fallback' renders two source handles (out + error)", () => {
     renderCanvas(configWithErrorPolicyActivity("fallback"));
     const handles = collectHandles("activity_1");
-    const sources = handles.filter((h) => h.type === "source");
+    const sources = handles.filter((h) => h.type === "source" && !h.perPort);
     expect(sources).toHaveLength(2);
     const sourceIds = sources.map((h) => h.handleId).sort();
     expect(sourceIds).toEqual(["error", "out"]);
@@ -817,10 +821,11 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
       expect(sourceNode).toBeInTheDocument();
       expect(targetNode).toBeInTheDocument();
     }
-    // Source handle on activity_1 must carry id="out" so xyflow's
-    // default-handle resolution can still match it.
+    // NODE-LEVEL source handle on activity_1 must carry id="out" so
+    // xyflow's default-handle resolution can still match it (the
+    // render-only per-port handles are excluded).
     const handles = collectHandles("activity_1");
-    const source = handles.find((h) => h.type === "source");
+    const source = handles.find((h) => h.type === "source" && !h.perPort);
     expect(source).toBeDefined();
     expect(source?.handleId).toBe("out");
   });
@@ -1744,10 +1749,13 @@ describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
    * `mouseenter` on it. Used to drive the 200ms-debounced popover
    * open path.
    */
+  // The hover-to-extend bridge lives on the NODE-LEVEL `out` handle only —
+  // per-port row handles (PortRows) also render as `handle-source-right`
+  // but are render-only, so target by data-handleid explicitly.
   function hoverSourceHandle(nodeId: string) {
     const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
     const handle = nodeEl.querySelector<HTMLElement>(
-      '[data-testid="handle-source-right"]',
+      '[data-testid="handle-source-right"][data-handleid="out"]',
     );
     if (!handle) throw new Error(`source handle missing on ${nodeId}`);
     fireEvent.mouseEnter(handle);
@@ -1756,7 +1764,7 @@ describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
   function leaveSourceHandle(nodeId: string) {
     const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
     const handle = nodeEl.querySelector<HTMLElement>(
-      '[data-testid="handle-source-right"]',
+      '[data-testid="handle-source-right"][data-handleid="out"]',
     );
     if (!handle) throw new Error(`source handle missing on ${nodeId}`);
     fireEvent.mouseLeave(handle);

@@ -17,6 +17,20 @@ import type { DataWire, DerivedWire } from "./derive-wires";
 export const PORT_ROW_HEIGHT = 22;
 export const NODE_BASE_HEIGHT = 64; // header + label + padding
 
+/**
+ * Single definition of the per-port ReactFlow handle-id formula. The row
+ * renderer mounts handles under these ids and the wire→edge projection
+ * targets them — both sides MUST import these helpers rather than
+ * re-deriving the string shape.
+ */
+export function inputHandleId(portName: string): string {
+  return `in-${portName}`;
+}
+
+export function outputHandleId(portName: string): string {
+  return `out-${portName}`;
+}
+
 export interface PortRowModel {
   name: string;
   label: string;
@@ -85,7 +99,7 @@ export function computePortRows(
       kind: descriptor.kind,
       direction: "input",
       required,
-      handleId: `in-${descriptor.name}`,
+      handleId: inputHandleId(descriptor.name),
       bound,
       fromCtx,
       needsSource: required && !bound,
@@ -99,7 +113,7 @@ export function computePortRows(
     kind: descriptor.kind,
     direction: "output",
     required: descriptor.required === true,
-    handleId: `out-${descriptor.name}`,
+    handleId: outputHandleId(descriptor.name),
     bound: true,
     fromCtx: undefined,
     needsSource: false,

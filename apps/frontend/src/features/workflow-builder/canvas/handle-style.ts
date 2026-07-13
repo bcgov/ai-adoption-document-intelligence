@@ -62,6 +62,26 @@ export interface ComputeHandleStyleOpts {
 const GRAY_COLOR = "gray";
 
 /**
+ * Translates a Mantine colour name into the matching theme CSS variable
+ * for a handle dot's background. Falls back to the literal value (so
+ * `"gray"` still resolves) when the variable isn't defined in the current
+ * theme. Shared by the node-level handles (`WorkflowEditorCanvas`) and the
+ * per-port row handles (`PortRows`) so the two dot palettes never drift.
+ */
+export function handleBackground(color: string): string {
+  return `var(--mantine-color-${color}-6, ${color})`;
+}
+
+/**
+ * Lighter outline tone used to signal array cardinality on a kind-
+ * coloured handle dot. Picks shade `3` for a faded ring against shade
+ * `6`'s saturated dot.
+ */
+export function handleArrayOutline(color: string): string {
+  return `var(--mantine-color-${color}-3, ${color})`;
+}
+
+/**
  * Compute the canvas handle style for one side of a node.
  *
  * Pure: given the same `portKinds` + `direction` always returns the same

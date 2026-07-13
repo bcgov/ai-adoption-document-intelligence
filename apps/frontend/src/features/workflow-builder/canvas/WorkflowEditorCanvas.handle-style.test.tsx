@@ -1,15 +1,19 @@
 /**
- * Integration tests for kind-aware canvas handle styling (US-095).
+ * Integration tests for kind-aware activity-node port rendering on the
+ * canvas.
  *
- * The shared catalog has no `PortDescriptor.kind` declarations at the time
- * this story ships (the fan-out happens in US-101 / US-102 — Milestone F).
- * So these tests selectively mock `@ai-di/graph-workflow` to inject
- * synthetic typed activities and assert that the canvas renders the
- * expected handle colour + tooltip text per scenario.
+ * Originally written for the single-handle-per-side styling (US-095) and
+ * the on-selection type pill (US-096); activity nodes now render one
+ * kind-coloured handle per catalog port via `PortRows`, so the activity
+ * assertions target `port-row-*` testids. Control-flow and source nodes
+ * keep the `NodeHandles` single-handle shape — covered in
+ * `WorkflowEditorCanvas.test.tsx`.
  *
- * Kept in its own file so the mock doesn't bleed into the broader
- * `WorkflowEditorCanvas.test.tsx` suite — that file relies on the real
- * catalog for its existing scenarios.
+ * The shared catalog is mocked with synthetic typed activities
+ * (`test.*`) so each colour/cardinality branch is exercised
+ * deterministically; the `document.classify` block hits the real catalog
+ * entry. Kept in its own file so the mock doesn't bleed into the broader
+ * `WorkflowEditorCanvas.test.tsx` suite.
  */
 
 import "@testing-library/jest-dom";
@@ -29,8 +33,7 @@ import type {
 // `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
 // integration tests here don't exercise auth state, so stub the hook with an
 // empty catalog so the canvas renderers proceed past their dynamic-node
-// branch unchanged. Mirrors the shim used in
-// `WorkflowEditorCanvas.type-pill.test.tsx` and `WorkflowEditorV2Page.test.tsx`.
+// branch unchanged. Mirrors the shim used in `WorkflowEditorV2Page.test.tsx`.
 // ---------------------------------------------------------------------------
 
 vi.mock("../dynamic-nodes", async (importOriginal) => {
@@ -46,11 +49,10 @@ vi.mock("../dynamic-nodes", async (importOriginal) => {
 });
 
 // ---------------------------------------------------------------------------
-// Catalog mock — synthetic typed activities for the four canvas-styling
-// branches the helper supports (single-typed-output / array-cardinality /
-// multi-typed / untyped). The mock is partial — every non-overridden
-// surface falls through to the real module so the rest of the canvas
-// behaves normally.
+// Catalog mock — synthetic typed activities covering the port-row branches
+// (single typed input/output, array cardinality, multi-port, untyped). The
+// mock is partial — every non-overridden surface falls through to the real
+// module so the rest of the canvas behaves normally.
 // ---------------------------------------------------------------------------
 
 vi.mock("@ai-di/graph-workflow", async (importOriginal) => {
@@ -136,9 +138,9 @@ vi.mock("@ai-di/graph-workflow", async (importOriginal) => {
 // ---------------------------------------------------------------------------
 // xyflow mock — mirrors the harness used by `WorkflowEditorCanvas.test.tsx`
 // so each registered node-type renders directly through `nodeTypes` and we
-// can read the kind-aware wrapper's data-* attributes from the DOM.
-// `Handle` forwards `style` so the assertion can probe the background +
-// outline overrides on the dot itself.
+// can read the port rows' data-* attributes from the DOM. `Handle` forwards
+// `style` + `isConnectable` so the assertions can probe the background /
+// outline overrides and the render-only connectability on the dot itself.
 // ---------------------------------------------------------------------------
 
 vi.mock("@xyflow/react", () => {
@@ -197,15 +199,18 @@ vi.mock("@xyflow/react", () => {
       position,
       id,
       style,
+      isConnectable,
     }: {
       type: string;
       position: string;
       id?: string;
       style?: React.CSSProperties;
+      isConnectable?: boolean;
     }) => (
       <div
         data-testid={`handle-${type}-${position}`}
         data-handleid={id ?? null}
+        data-isconnectable={isConnectable === false ? "false" : "true"}
         style={style}
       />
     ),
@@ -246,12 +251,15 @@ function makeConfigWith(activityType: string): GraphWorkflowConfig {
   };
 }
 
-function renderCanvas(config: GraphWorkflowConfig) {
+function renderCanvas(
+  config: GraphWorkflowConfig,
+  selectedNodeId: string | null = null,
+) {
   return render(
     <MantineProvider>
       <WorkflowEditorCanvas
         config={config}
-        selectedNodeId={null}
+        selectedNodeId={selectedNodeId}
         onConfigChange={vi.fn()}
         onSelectNode={vi.fn()}
       />
@@ -259,135 +267,189 @@ function renderCanvas(config: GraphWorkflowConfig) {
   );
 }
 
+function handleFor(id: string): HTMLElement {
+  const el = document.querySelector(`[data-handleid='${id}']`);
+  expect(el).not.toBeNull();
+  return el as HTMLElement;
+}
+
 // ---------------------------------------------------------------------------
-// US-095 — canvas wiring of `computeHandleStyle`
+// Per-port rows — kind colours + cardinality + connectability
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorCanvas — US-095 Scenario 1: single typed port", () => {
-  it("test.split (one MultiPageDocument input, one Segment[] output) renders blue input + green array-outline output", () => {
+describe("WorkflowEditorCanvas — activity port rows: single typed ports", () => {
+  it("test.split renders one row per port with kind attributes and kind-coloured, non-connectable handles", () => {
     renderCanvas(makeConfigWith("test.split"));
 
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-color")).toBe("blue");
-    expect(inputWrap.getAttribute("data-port-array")).toBe("false");
-    expect(inputWrap.getAttribute("data-port-multi")).toBe("false");
-    expect(inputWrap.getAttribute("data-port-tooltip")).toBe(
-      "MultiPageDocument",
+    expect(screen.getByTestId("port-rows-activity_1")).toBeInTheDocument();
+
+    const inputRow = screen.getByTestId("port-row-activity_1-in-source");
+    expect(inputRow.getAttribute("data-port-kind")).toBe("MultiPageDocument");
+    expect(inputRow).toHaveTextContent("Source");
+    const inputHandle = handleFor("in-source");
+    expect(inputHandle.getAttribute("data-testid")).toBe("handle-target-left");
+    expect(inputHandle.getAttribute("data-isconnectable")).toBe("false");
+    // MultiPageDocument → blue kind family.
+    expect(inputHandle.style.background).toContain("--mantine-color-blue-6");
+
+    const outputRow = screen.getByTestId("port-row-activity_1-out-segments");
+    expect(outputRow.getAttribute("data-port-kind")).toBe("Segment[]");
+    expect(outputRow).toHaveTextContent("Segments");
+    const outputHandle = handleFor("out-segments");
+    expect(outputHandle.getAttribute("data-testid")).toBe(
+      "handle-source-right",
     );
-
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-color")).toBe("green");
-    expect(outputWrap.getAttribute("data-port-array")).toBe("true");
-    expect(outputWrap.getAttribute("data-port-multi")).toBe("false");
-    expect(outputWrap.getAttribute("data-port-tooltip")).toBe("Segment[]");
-
-    // The doubled-outline visual cue rides on the handle dot's `outline`
-    // style — confirms the array cardinality renders distinctly.
-    const sourceHandle = outputWrap.querySelector(
-      "[data-testid='handle-source-right']",
-    );
-    expect(sourceHandle).not.toBeNull();
-    const style = (sourceHandle as HTMLElement).getAttribute("style") ?? "";
-    expect(style).toContain("outline");
-  });
-});
-
-describe("WorkflowEditorCanvas — US-095 Scenario 2: multi/untyped stay gray", () => {
-  it("test.classify-multi (two typed inputs + two typed outputs) renders gray on BOTH sides", () => {
-    renderCanvas(makeConfigWith("test.classify-multi"));
-
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(inputWrap.getAttribute("data-port-multi")).toBe("true");
-
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(outputWrap.getAttribute("data-port-multi")).toBe("true");
+    expect(outputHandle.getAttribute("data-isconnectable")).toBe("false");
+    // Segment[] → green kind family with the doubled array outline.
+    expect(outputHandle.style.background).toContain("--mantine-color-green-6");
+    expect(outputHandle.style.outline).toContain("2px solid");
   });
 
-  it("test.untyped (no kinds declared) renders gray multi-port on both sides", () => {
-    renderCanvas(makeConfigWith("test.untyped"));
-
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(inputWrap.getAttribute("data-port-multi")).toBe("true");
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(outputWrap.getAttribute("data-port-multi")).toBe("true");
-  });
-});
-
-describe("WorkflowEditorCanvas — US-095 Scenario 3: tooltip is the kind literal verbatim", () => {
-  it("tooltip text on a single-typed output handle is the declared kind including the `[]` suffix", () => {
+  it("flags an unbound required input with the amber needs-source ring", () => {
     renderCanvas(makeConfigWith("test.split"));
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    // The Mantine Tooltip mounts the label into the wrapped element's
-    // data-* attribute via our `data-port-tooltip` mirror so the test
-    // can read it directly. The same string is passed to Tooltip's
-    // `label` prop.
-    expect(outputWrap.getAttribute("data-port-tooltip")).toBe("Segment[]");
+    // The fixture node has no `inputs[]` bindings, so the required
+    // `source` port has no wire and no persisted binding.
+    const inputRow = screen.getByTestId("port-row-activity_1-in-source");
+    expect(inputRow.getAttribute("data-needs-source")).toBe("true");
+    expect(handleFor("in-source").style.boxShadow).toContain("yellow");
+    // Outputs never need a source.
+    const outputRow = screen.getByTestId("port-row-activity_1-out-segments");
+    expect(outputRow.getAttribute("data-needs-source")).toBe("false");
   });
 });
 
-describe("WorkflowEditorCanvas — US-095 Scenario 4: multi-port tooltip explains the indirection", () => {
-  it("multi-port output tooltip reads 'Multiple outputs — select node to view all'", () => {
+describe("WorkflowEditorCanvas — activity port rows: multi-port nodes get one coloured handle per port", () => {
+  it("test.classify-multi renders all four rows, each coloured by its own kind", () => {
     renderCanvas(makeConfigWith("test.classify-multi"));
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple outputs — select node to view all",
+
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-in-segment")
+        .getAttribute("data-port-kind"),
+    ).toBe("Segment");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-in-ocr")
+        .getAttribute("data-port-kind"),
+    ).toBe("OcrResult");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-classification")
+        .getAttribute("data-port-kind"),
+    ).toBe("Classification");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-validation")
+        .getAttribute("data-port-kind"),
+    ).toBe("ValidationResult");
+
+    // Per-port colours replace the old side-level gray collapse.
+    expect(handleFor("in-segment").style.background).toContain(
+      "--mantine-color-green-6",
+    );
+    expect(handleFor("in-ocr").style.background).toContain(
+      "--mantine-color-violet-6",
+    );
+    expect(handleFor("out-classification").style.background).toContain(
+      "--mantine-color-yellow-6",
     );
   });
 
-  it("multi-port input tooltip reads 'Multiple inputs — select node to view all'", () => {
-    renderCanvas(makeConfigWith("test.classify-multi"));
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple inputs — select node to view all",
-    );
-  });
-
-  it("legacy untyped activity falls back to the same multi-port tooltip text", () => {
+  it("test.untyped (no kinds declared) renders rows as the gray Artifact wildcard", () => {
     renderCanvas(makeConfigWith("test.untyped"));
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple inputs — select node to view all",
+
+    const inputRow = screen.getByTestId("port-row-activity_1-in-in");
+    expect(inputRow.getAttribute("data-port-kind")).toBe("Artifact");
+    expect(handleFor("in-in").style.background).toContain(
+      "--mantine-color-gray-6",
     );
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple outputs — select node to view all",
+    const outputRow = screen.getByTestId("port-row-activity_1-out-out");
+    expect(outputRow.getAttribute("data-port-kind")).toBe("Artifact");
+    expect(handleFor("out-out").style.background).toContain(
+      "--mantine-color-gray-6",
     );
   });
 });
 
 // ---------------------------------------------------------------------------
-// US-102 — real `document.classify` catalog entry drives the multi-port
-// gray rendering on BOTH sides. Unlike the `test.*` fixtures above, this
-// scenario hits the production catalog (US-102 typed the entry with
-// OcrResult + Segment inputs and Classification + Artifact + Artifact
-// outputs), so the multi-port branch of `computeHandleStyle` fires
-// against the real shipped data.
+// Node-level flow handles — the connect gesture + existing-edge anchors
+// stay on the unnamed target / `out` source handles (per-port handles are
+// render-only in this phase).
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorCanvas — US-102: document.classify renders gray multi-port handles on both sides", () => {
-  it("renders gray input handle with the 'Multiple inputs' tooltip (real catalog entry, 2 typed inputs of distinct kinds)", () => {
-    renderCanvas(makeConfigWith("document.classify"));
+describe("WorkflowEditorCanvas — activity node-level handles stay intact", () => {
+  it("renders the unnamed left target handle and the `out` right source handle alongside the rows", () => {
+    renderCanvas(makeConfigWith("test.split"));
+    const nodeEl = screen.getByTestId("rf-node-activity_1");
 
-    const inputWrap = screen.getByTestId("port-tooltip-input-activity_1");
-    expect(inputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(inputWrap.getAttribute("data-port-multi")).toBe("true");
-    expect(inputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple inputs — select node to view all",
+    const targets = Array.from(
+      nodeEl.querySelectorAll("[data-testid='handle-target-left']"),
     );
+    // One per-port input handle + the unnamed node-level target.
+    // React omits the attribute when `id` is undefined (`?? null`), so the
+    // node-level default target is the one with no data-handleid at all.
+    const nodeLevelTarget = targets.find(
+      (el) => el.getAttribute("data-handleid") === null,
+    );
+    expect(nodeLevelTarget).toBeDefined();
+    expect(nodeLevelTarget?.getAttribute("data-isconnectable")).toBe("true");
+
+    const sources = Array.from(
+      nodeEl.querySelectorAll("[data-testid='handle-source-right']"),
+    );
+    const nodeLevelSource = sources.find(
+      (el) => el.getAttribute("data-handleid") === "out",
+    );
+    expect(nodeLevelSource).toBeDefined();
+    expect(nodeLevelSource?.getAttribute("data-isconnectable")).toBe("true");
   });
+});
 
-  it("renders gray output handle with the 'Multiple outputs' tooltip (real catalog entry, 3 typed outputs)", () => {
+// ---------------------------------------------------------------------------
+// Pills are superseded by rows on activity nodes (US-096 retired there).
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — activity nodes render no type pill", () => {
+  it("selected typed activity renders port rows, not the node-type-pill-row", () => {
+    renderCanvas(makeConfigWith("test.classify-multi"), "activity_1");
+    expect(screen.queryByTestId("node-type-pill-row")).not.toBeInTheDocument();
+    expect(screen.getByTestId("port-rows-activity_1")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Real catalog entry — `document.classify` (typed in US-102) renders one
+// row per shipped port descriptor without any synthetic mocking.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — document.classify port rows come from the real catalog", () => {
+  it("renders rows for in:ocrResult/in:segment and out:segmentType/out:confidence/out:matchedRule", () => {
     renderCanvas(makeConfigWith("document.classify"));
 
-    const outputWrap = screen.getByTestId("port-tooltip-output-activity_1");
-    expect(outputWrap.getAttribute("data-port-color")).toBe("gray");
-    expect(outputWrap.getAttribute("data-port-multi")).toBe("true");
-    expect(outputWrap.getAttribute("data-port-tooltip")).toBe(
-      "Multiple outputs — select node to view all",
-    );
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-in-ocrResult")
+        .getAttribute("data-port-kind"),
+    ).toBe("OcrResult");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-in-segment")
+        .getAttribute("data-port-kind"),
+    ).toBe("Segment");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-segmentType")
+        .getAttribute("data-port-kind"),
+    ).toBe("Classification");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-confidence")
+        .getAttribute("data-port-kind"),
+    ).toBe("Artifact");
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-matchedRule")
+        .getAttribute("data-port-kind"),
+    ).toBe("Artifact");
   });
 });
