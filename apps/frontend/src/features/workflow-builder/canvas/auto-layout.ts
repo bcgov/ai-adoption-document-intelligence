@@ -17,7 +17,8 @@
  * Design choices:
  *   - Defaults: `rankdir: "LR"`, `nodesep: 60`, `ranksep: 80`. These
  *     match the visual editor's preferred orientation (LR flow).
- *   - Node sizes: fixed `width: DEFAULT_NODE_WIDTH` (200) for every node,
+ *   - Node sizes: fixed `width: DEFAULT_NODE_WIDTH` for every node (sized
+ *     to the widest rendered activity card — see the constant's comment),
  *     but `height` is derived per node via `estimateNodeHeight` (which
  *     rolls up the node's real catalog port-row count) so tall,
  *     multi-port cards (e.g. `azureOcr.extract`'s 5 input rows) don't
@@ -84,7 +85,19 @@ const DEFAULT_OPTIONS: Required<LayoutGraphOptions> = {
   ranksep: 80,
 };
 
-const DEFAULT_NODE_WIDTH = 200;
+/**
+ * Activity cards render with `minWidth: 200` but NO max — the two-column
+ * port-label grid grows the card to fit its content, and cards anchor at
+ * the dagre slot's left edge (`centerX - width/2`) and spill rightward.
+ * Measured across the three seed workflows (2026-07) the widest rendered
+ * card is 522px (`validateFields`, multi-page-report), so a 200px dagre
+ * box let wide cards spill `522 - 200 = 322px` past their slot — far more
+ * than the 80px `ranksep` gap, producing real post-arrange overlap.
+ *
+ * 482 is the smallest width that keeps a >= 40px visual gap after the
+ * widest measured card: gap = WIDTH + ranksep(80) - 522 >= 40.
+ */
+const DEFAULT_NODE_WIDTH = 482;
 const DEFAULT_NODE_HEIGHT = 80;
 
 /**
