@@ -99,6 +99,13 @@ export class HitlService {
           ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
           : [DocumentStatus.awaiting_review];
 
+    // Approving a document moves it to `complete`; escalate/skip leave it at
+    // `awaiting_review`. The Reviewed tab must therefore also include
+    // `complete`, or approved documents disappear from the queue entirely.
+    if (reviewStatusFilter === "reviewed") {
+      statuses.push(DocumentStatus.complete);
+    }
+
     const documents = (await this.reviewDb.findReviewQueue({
       statuses,
       modelId: filters.modelId,
@@ -168,8 +175,15 @@ export class HitlService {
           ? "reviewed"
           : "pending";
 
+    // Approved documents move to `complete`; include it for the Reviewed
+    // filter so the stat count matches the Reviewed queue (see getQueue).
+    const statuses: DocumentStatus[] =
+      reviewStatusFilter === "reviewed"
+        ? [DocumentStatus.awaiting_review, DocumentStatus.complete]
+        : [DocumentStatus.awaiting_review];
+
     const allDocs = (await this.reviewDb.findReviewQueue({
-      statuses: [DocumentStatus.awaiting_review],
+      statuses,
       limit: 1000,
       reviewStatus: reviewStatusFilter,
       groupIds,

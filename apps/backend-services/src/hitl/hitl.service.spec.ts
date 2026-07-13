@@ -315,6 +315,32 @@ describe("HitlService", () => {
       );
     });
 
+    it("should include complete documents in the REVIEWED filter so approved docs appear", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr as any,
+      ]);
+
+      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
+        }),
+      );
+    });
+
+    it("should NOT include complete documents in the pending filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
+
+      await service.getQueue({ reviewStatus: ReviewStatusFilter.PENDING });
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statuses: [DocumentStatus.awaiting_review],
+        }),
+      );
+    });
+
     it("should use default values for optional filters", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
@@ -404,7 +430,7 @@ describe("HitlService", () => {
       await service.getQueueStats(ReviewStatusFilter.REVIEWED);
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        statuses: [DocumentStatus.awaiting_review],
+        statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
         limit: 1000,
         reviewStatus: "reviewed",
         groupIds: undefined,
