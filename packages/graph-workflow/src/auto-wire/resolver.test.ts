@@ -7,7 +7,13 @@ function activity(
   activityType: string,
   extra: Partial<GraphWorkflowConfig["nodes"][string]> = {},
 ): GraphWorkflowConfig["nodes"][string] {
-  return { id, type: "activity", activityType, label: id, ...extra } as GraphWorkflowConfig["nodes"][string];
+  return {
+    id,
+    type: "activity",
+    activityType,
+    label: id,
+    ...extra,
+  } as GraphWorkflowConfig["nodes"][string];
 }
 
 function makeConfig(
@@ -50,6 +56,38 @@ describe("resolveBindings", () => {
     expect(out.nodes.B.inputs).toContainEqual({
       port: "fileData",
       ctxKey: "__auto.A.preparedData",
+    });
+  });
+
+  it("name-binds Artifact identifier ports across an OCR chain", () => {
+    // submit → poll → extract. The Artifact-typed identifier ports don't
+    // kind-match (Artifact is the wildcard base), but each has a UNIQUE
+    // same-named upstream output, so they bind by name.
+    const cfg = makeConfig(
+      {
+        S: activity("S", "azureOcr.submit"),
+        P: activity("P", "azureOcr.poll"),
+        E: activity("E", "azureOcr.extract"),
+      },
+      [
+        { source: "S", target: "P" },
+        { source: "P", target: "E" },
+      ],
+    );
+
+    const out = resolveBindings(cfg);
+
+    expect(out.nodes.P.inputs).toContainEqual({
+      port: "apimRequestId",
+      ctxKey: "__auto.S.apimRequestId",
+    });
+    expect(out.nodes.E.inputs).toContainEqual({
+      port: "apimRequestId",
+      ctxKey: "__auto.S.apimRequestId",
+    });
+    expect(out.nodes.E.inputs).toContainEqual({
+      port: "ocrResponse",
+      ctxKey: "__auto.P.ocrResponse",
     });
   });
 

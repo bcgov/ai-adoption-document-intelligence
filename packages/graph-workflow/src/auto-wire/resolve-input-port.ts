@@ -1,10 +1,10 @@
 // packages/graph-workflow/src/auto-wire/resolve-input-port.ts
 import { getActivityCatalogEntry } from "../catalog";
-import { isAssignable } from "../types/subtype-check";
-import type { KindRef } from "../types/artifacts";
 import type { GraphWorkflowConfig } from "../types";
-import { upstreamNodesWithDistance } from "./upstream-walk";
+import type { KindRef } from "../types/artifacts";
+import { isAssignable } from "../types/subtype-check";
 import { getLockedInputPorts } from "./lock-list";
+import { upstreamNodesWithDistance } from "./upstream-walk";
 
 export type PortResolution =
   | { status: "auto-bound"; producerNodeId: string; producerPort: string }
@@ -50,6 +50,35 @@ export function resolveInputPort(
     producerPort: string;
     distance: number;
   };
+
+  // Base-`Artifact` ports are wildcard identifier ports (apimRequestId,
+  // ocrResponse, modelId, documentId). Kind-matching is meaningless — every
+  // artifact is assignable to the base type — so bind ONLY to a UNIQUE upstream
+  // output whose port name exactly matches; otherwise leave the port for the
+  // user rather than guessing. This is what lets Artifact-heavy chains (Azure
+  // OCR submit→poll→extract) wire without hand-binding, while genuine config
+  // ports with no upstream producer (modelId) stay unsatisfied.
+  if (port.kind === "Artifact") {
+    const named: Candidate[] = [];
+    for (const [producerNodeId, distance] of distances) {
+      const producer = config.nodes[producerNodeId];
+      if (!producer) continue;
+      for (const output of outputPortsFor(producer)) {
+        if (output.name === port.name) {
+          named.push({ producerNodeId, producerPort: output.name, distance });
+        }
+      }
+    }
+    const pick = uniqueNearest(named);
+    return pick
+      ? {
+          status: "auto-bound",
+          producerNodeId: pick.producerNodeId,
+          producerPort: pick.producerPort,
+        }
+      : { status: "unsatisfied" };
+  }
+
   const candidates: Candidate[] = [];
 
   for (const [producerNodeId, distance] of distances) {
@@ -98,6 +127,27 @@ export function resolveInputPort(
       producerPort: closest[0].producerPort,
     };
   }
+
+  // Name-match disambiguation. A kind-based tie is resolved when exactly one
+  // candidate's OUTPUT PORT shares the consumer port's exact name — a strong
+  // signal it's the intended source (e.g. `apimRequestId` → `apimRequestId`).
+  // Prefer a unique same-named producer among the nearest tie; otherwise across
+  // all distances. This only fires when kind-matching is ALREADY ambiguous, so
+  // it never changes a port that auto-binds today — it just lets Artifact-heavy
+  // chains (Azure OCR: apimRequestId, ocrResponse, …) wire without hand-binding.
+  const uniqueByName = (pool: Candidate[]): Candidate | null => {
+    const named = pool.filter((c) => c.producerPort === port.name);
+    return named.length === 1 ? named[0] : null;
+  };
+  const nameMatch = uniqueByName(closest) ?? uniqueByName(candidates);
+  if (nameMatch) {
+    return {
+      status: "auto-bound",
+      producerNodeId: nameMatch.producerNodeId,
+      producerPort: nameMatch.producerPort,
+    };
+  }
+
   return {
     status: "ambiguous",
     candidates: closest.map((c) => ({
@@ -105,6 +155,21 @@ export function resolveInputPort(
       producerPort: c.producerPort,
     })),
   };
+}
+
+/**
+ * From a list of same-named producer candidates, pick the single unambiguous
+ * one: the sole candidate overall, or the sole candidate at the minimum
+ * distance. Returns null when the choice is still ambiguous (don't guess).
+ */
+function uniqueNearest<
+  T extends { producerNodeId: string; producerPort: string; distance: number },
+>(list: T[]): T | null {
+  if (list.length === 0) return null;
+  if (list.length === 1) return list[0];
+  const min = Math.min(...list.map((c) => c.distance));
+  const nearest = list.filter((c) => c.distance === min);
+  return nearest.length === 1 ? nearest[0] : null;
 }
 
 interface OutputPortInfo {

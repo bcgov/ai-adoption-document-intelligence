@@ -1,15 +1,11 @@
 // packages/graph-workflow/src/auto-wire/resolver.ts
 import { getActivityCatalogEntry } from "../catalog";
-import type {
-  GraphNode,
-  GraphWorkflowConfig,
-  PortBinding,
-} from "../types";
-import { resolveInputPort } from "./resolve-input-port";
-import { synthesiseCtxKey } from "./synthesise-ctx-key";
+import type { GraphNode, GraphWorkflowConfig, PortBinding } from "../types";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
-import { upstreamNodesWithDistance } from "./upstream-walk";
+import { resolveInputPort } from "./resolve-input-port";
 import { shouldAutoWirePort } from "./should-auto-wire";
+import { synthesiseCtxKey } from "./synthesise-ctx-key";
+import { upstreamNodesWithDistance } from "./upstream-walk";
 
 /**
  * Walks every typed input port on every consumer node, fills unlocked
@@ -100,10 +96,11 @@ export function resolveBindings(
     let inputsChanged = false;
 
     for (const port of entry.inputs) {
-      // Skip kindless ports and base-Artifact ports — see shouldAutoWirePort
-      // for the full rationale. Using a shared helper keeps resolver,
-      // computeNodeStatus, and InputsSection in sync.
-      if (!shouldAutoWirePort(port)) continue;
+      // Skip kindless ports. Base-`Artifact` ports are handled specially by
+      // resolveInputPort (unique same-name match only) — see shouldAutoWirePort
+      // for the kind-match rationale; the name-only path is safe because it
+      // never guesses across differently-named artifacts.
+      if (!shouldAutoWirePort(port) && port.kind !== "Artifact") continue;
       const result = resolveInputPort(
         { ...config, nodes: nextNodes },
         consumerId,
