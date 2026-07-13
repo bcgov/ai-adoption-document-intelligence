@@ -6,8 +6,15 @@ import { isAssignable } from "../types/subtype-check";
 import { getLockedInputPorts } from "./lock-list";
 import { upstreamNodesWithDistance } from "./upstream-walk";
 
+export type AutoBoundVia = "nearest-kind" | "name-match" | "map-item";
+
 export type PortResolution =
-  | { status: "auto-bound"; producerNodeId: string; producerPort: string }
+  | {
+      status: "auto-bound";
+      producerNodeId: string;
+      producerPort: string;
+      via: AutoBoundVia;
+    }
   | {
       status: "ambiguous";
       candidates: { producerNodeId: string; producerPort: string }[];
@@ -49,6 +56,7 @@ export function resolveInputPort(
     producerNodeId: string;
     producerPort: string;
     distance: number;
+    via: AutoBoundVia;
   };
 
   // Base-`Artifact` ports are wildcard identifier ports (apimRequestId,
@@ -65,7 +73,12 @@ export function resolveInputPort(
       if (!producer) continue;
       for (const output of outputPortsFor(producer)) {
         if (output.name === port.name) {
-          named.push({ producerNodeId, producerPort: output.name, distance });
+          named.push({
+            producerNodeId,
+            producerPort: output.name,
+            distance,
+            via: "name-match",
+          });
         }
       }
     }
@@ -75,6 +88,7 @@ export function resolveInputPort(
           status: "auto-bound",
           producerNodeId: pick.producerNodeId,
           producerPort: pick.producerPort,
+          via: "name-match",
         }
       : { status: "unsatisfied" };
   }
@@ -92,6 +106,7 @@ export function resolveInputPort(
           producerNodeId,
           producerPort: output.name,
           distance,
+          via: "nearest-kind",
         });
       }
     }
@@ -110,6 +125,7 @@ export function resolveInputPort(
         producerNodeId,
         producerPort: producer.itemCtxKey,
         distance,
+        via: "map-item",
       });
     }
   }
@@ -125,6 +141,7 @@ export function resolveInputPort(
       status: "auto-bound",
       producerNodeId: closest[0].producerNodeId,
       producerPort: closest[0].producerPort,
+      via: closest[0].via,
     };
   }
 
@@ -145,6 +162,7 @@ export function resolveInputPort(
       status: "auto-bound",
       producerNodeId: nameMatch.producerNodeId,
       producerPort: nameMatch.producerPort,
+      via: "name-match",
     };
   }
 

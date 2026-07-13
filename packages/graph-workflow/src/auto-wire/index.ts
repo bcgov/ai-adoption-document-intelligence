@@ -6,6 +6,7 @@ export {
 export { upstreamNodesWithDistance } from "./upstream-walk";
 export {
   resolveInputPort,
+  type AutoBoundVia,
   type PortResolution,
 } from "./resolve-input-port";
 export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";

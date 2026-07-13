@@ -70,6 +70,10 @@ function effectiveResolution(
         status: "auto-bound",
         producerNodeId,
         producerPort,
+        // The original binding mechanism isn't recoverable from a stale
+        // auto ctx key alone (only producer node/port survive); default to
+        // the most common mechanism rather than guessing a misleading one.
+        via: "nearest-kind",
       };
     }
   }

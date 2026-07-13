@@ -103,6 +103,7 @@ export {
   getLockedOutputPorts,
   isAutoCtxKey,
   normaliseLocks,
+  type AutoBoundVia,
   type PortResolution,
   resolveBindings,
   resolveInputPort,

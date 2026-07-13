@@ -62,6 +62,7 @@ describe("resolveInputPort", () => {
       status: "auto-bound",
       producerNodeId: "A",
       producerPort: "preparedData",
+      via: "nearest-kind",
     });
   });
 
@@ -84,6 +85,7 @@ describe("resolveInputPort", () => {
       status: "auto-bound",
       producerNodeId: "B",
       producerPort: "preparedData",
+      via: "nearest-kind",
     });
   });
 
@@ -130,6 +132,7 @@ describe("resolveInputPort", () => {
       status: "auto-bound",
       producerNodeId: "S",
       producerPort: "apimRequestId",
+      via: "name-match",
     });
   });
 
@@ -155,6 +158,7 @@ describe("resolveInputPort", () => {
       status: "auto-bound",
       producerNodeId: "S",
       producerPort: "apimRequestId",
+      via: "name-match",
     });
   });
 
@@ -201,6 +205,99 @@ describe("resolveInputPort", () => {
     );
     expect(resolveInputPort(cfg, "B", { name: "freeform" })).toEqual({
       status: "unsatisfied",
+    });
+  });
+});
+
+describe("provenance (via)", () => {
+  it("reports 'nearest-kind' for a kind-matched bind", () => {
+    const cfg = makeConfig(
+      { A: activity("A", "file.prepare"), B: activity("B", "azureOcr.submit") },
+      [{ source: "A", target: "B" }],
+    );
+    expect(resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }))
+      .toEqual({
+        status: "auto-bound",
+        producerNodeId: "A",
+        producerPort: "preparedData",
+        via: "nearest-kind",
+      });
+  });
+
+  it("reports 'name-match' for an Artifact identifier bind", () => {
+    const cfg = makeConfig(
+      { S: activity("S", "azureOcr.submit"), P: activity("P", "azureOcr.poll") },
+      [{ source: "S", target: "P" }],
+    );
+    expect(resolveInputPort(cfg, "P", { name: "apimRequestId", kind: "Artifact" }))
+      .toEqual({
+        status: "auto-bound",
+        producerNodeId: "S",
+        producerPort: "apimRequestId",
+        via: "name-match",
+      });
+  });
+
+  it("reports 'name-match' when a kind tie is disambiguated by exact port name (farther producer)", () => {
+    const cfg = makeConfig(
+      {
+        S: activity("S", "azureOcr.submit"),
+        P: activity("P", "azureOcr.poll"),
+        E: activity("E", "azureOcr.extract"),
+      },
+      [
+        { source: "S", target: "P" },
+        { source: "P", target: "E" },
+      ],
+    );
+    expect(
+      resolveInputPort(cfg, "E", { name: "apimRequestId", kind: "Artifact" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "S",
+      producerPort: "apimRequestId",
+      via: "name-match",
+    });
+  });
+
+  it("reports 'map-item' for a bind to a map's synthetic element producer", () => {
+    // SPLIT(Segment[]) → MAP → BODY (document.classify wants Segment `segment`).
+    const cfg: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        SPLIT: activity("SPLIT", "document.split"),
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "Map",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        },
+        BODY: activity("BODY", "document.classify"),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+      entryNodeId: "SPLIT",
+      ctx: {},
+    };
+    // SPLIT's `segments` output must be bound so resolveMapElementKind can
+    // find it by ctxKey.
+    cfg.nodes.SPLIT = {
+      ...cfg.nodes.SPLIT,
+      outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+    };
+    expect(
+      resolveInputPort(cfg, "BODY", { name: "segment", kind: "Segment" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "MAP",
+      producerPort: "currentSegment",
+      via: "map-item",
     });
   });
 });
