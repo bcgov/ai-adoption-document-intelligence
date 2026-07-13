@@ -1271,9 +1271,9 @@ function renderGuide(results, agentResults = []) {
       "> The chat log opens for the **signed-in user the demos were seeded" +
         " for** (`SEED_USER_SUB`). Conversations are private per user, so if" +
         " you're signed in as someone else, re-run `npm run seed:demos` as" +
-        " that identity. These demos build the graph only — they don't run" +
-        " it or test it with a document (that needs the worker + a sample" +
-        " file).",
+        " that identity. The transcript replays as it happened — including the" +
+        " agent's own end-to-end self-test against the built-in sample" +
+        " document.",
     );
     lines.push("");
     for (const r of agentResults) {

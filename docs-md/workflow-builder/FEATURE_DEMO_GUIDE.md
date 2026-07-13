@@ -195,7 +195,7 @@ npm run seed:demos
 
 Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.4). Open the demo link — the workflow the agent built loads on the canvas **and** the agent drawer opens and **replays** the whole conversation (your prompt + every tool call it made) beside it, so you can see the result and how it was built in one place.
 
-> The chat log opens for the **signed-in user the demos were seeded for** (`SEED_USER_SUB`). Conversations are private per user, so if you're signed in as someone else, re-run `npm run seed:demos` as that identity. These demos build the graph only — they don't run it or test it with a document (that needs the worker + a sample file).
+> The chat log opens for the **signed-in user the demos were seeded for** (`SEED_USER_SUB`). Conversations are private per user, so if you're signed in as someone else, re-run `npm run seed:demos` as that identity. The transcript replays as it happened — including the agent's own end-to-end self-test against the built-in sample document.
 
 ### Agent demo — Invoice OCR pipeline (built + tested end-to-end)
 
