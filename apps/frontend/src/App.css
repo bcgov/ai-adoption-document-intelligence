@@ -11,8 +11,11 @@
 .app-shell-bcds-header .bcds-header--container {
   display: flex;
   align-items: center;
-  max-width: none;
   width: 100%;
+}
+
+.app-shell-bcds-header .bcds-header .bcds-header--container {
+  max-width: none;
 }
 
 .app-shell-bcds-header .bcds-header--title {
