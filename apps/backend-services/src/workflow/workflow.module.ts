@@ -2,6 +2,7 @@ import { forwardRef, Module } from "@nestjs/common";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 import { CacheModule } from "@/cache/cache.module";
 import { DatabaseModule } from "@/database/database.module";
+import { DocumentDbService } from "@/document/document-db.service";
 import { DynamicNodesModule } from "@/dynamic-nodes/dynamic-nodes.module";
 import { TemporalModule } from "@/temporal/temporal.module";
 import { SourceUploadService } from "./source-upload.service";
@@ -17,7 +18,7 @@ import { WorkflowService } from "./workflow.service";
     DynamicNodesModule,
   ],
   controllers: [WorkflowController],
-  providers: [WorkflowService, SourceUploadService],
+  providers: [WorkflowService, SourceUploadService, DocumentDbService],
   exports: [WorkflowService],
 })
 export class WorkflowModule {}

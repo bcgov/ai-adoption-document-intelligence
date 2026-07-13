@@ -44,6 +44,16 @@ export class SourceUploadResponseDto {
 
   @ApiProperty({
     description:
+      "Id of the `Document` record created for this upload. Included in the " +
+      "run's `initialCtx` as `documentId` so document-processing activities " +
+      "(OCR prepare/poll/extract, status updates, result storage) resolve it. " +
+      "Pass it in `initialCtx` on any subsequent `/runs` call.",
+    example: "cmrih55vk0002czgcqqrthw3b",
+  })
+  documentId!: string;
+
+  @ApiProperty({
+    description:
       "`WorkflowVersion.id` used for the kicked-off run — read from the " +
       "`WorkflowService.resolveLineageAndVersion` helper so head + " +
       "pinned versions both work.",

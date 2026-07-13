@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getSourceCatalogEntry } from "@ai-di/graph-workflow";
 import {
   BadRequestException,
@@ -49,7 +50,8 @@ import {
 } from "@/auth/identity.helpers";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { LruTtlCache } from "@/cache/lru-ttl-cache";
-import { GroupRole } from "@/generated";
+import { DocumentDbService } from "@/document/document-db.service";
+import { DocumentStatus, GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   type ListRunsExecution,
@@ -235,6 +237,7 @@ export class WorkflowController {
     private readonly logger: AppLoggerService,
     private readonly sourceUploadService: SourceUploadService,
     private readonly activityOutputCache: ActivityOutputCacheRepository,
+    private readonly documentDbService: DocumentDbService,
   ) {}
 
   @Get()
@@ -592,10 +595,12 @@ export class WorkflowController {
       "Upload succeeded and a Temporal Try run was kicked off. The " +
       "response carries a dynamic property whose key is the source's " +
       "configured `ctxKey` (default `documentUrl`) and whose value is " +
-      "the blob storage key, alongside two fixed properties: `runId` " +
-      "(Temporal workflow execution id of the kicked-off run) and " +
-      "`workflowVersionId` (the version id used for the run — head or " +
-      "pinned, resolved via `WorkflowService.resolveLineageAndVersion`).",
+      "the blob storage key, alongside fixed properties: `runId` " +
+      "(Temporal workflow execution id of the kicked-off run), " +
+      "`documentId` (the created Document record, echoed into the run's " +
+      "initialCtx), and `workflowVersionId` (the version id used for the " +
+      "run — head or pinned, resolved via " +
+      "`WorkflowService.resolveLineageAndVersion`).",
     schema: {
       type: "object",
       properties: {
@@ -605,12 +610,18 @@ export class WorkflowController {
             "Temporal workflow execution id of the run kicked off " +
             "immediately after upload commit (Phase 4 / US-146).",
         },
+        documentId: {
+          type: "string",
+          description:
+            "Id of the Document record created for this upload; included " +
+            "in the run's initialCtx as `documentId`.",
+        },
         workflowVersionId: {
           type: "string",
           description: "`WorkflowVersion.id` used for the kicked-off run.",
         },
       },
-      required: ["runId", "workflowVersionId"],
+      required: ["runId", "documentId", "workflowVersionId"],
       additionalProperties: { type: "string" },
     },
   })
@@ -684,6 +695,32 @@ export class WorkflowController {
       `Source upload stored: workflow=${workflowId}, source=${sourceNodeId}, ctxKey=${resolvedParameters.ctxKey}, blobKey=${blobKey}`,
     );
 
+    // Create a Document record for the upload so document-processing
+    // workflows (OCR: prepare/poll/extract require a `documentId` via
+    // `requireDocumentId`; status updates; result storage) have a real
+    // document to run against. The graph engine reads `ctx.documentId` from
+    // initialCtx (see node-executors.ts — "documentId ... set by the
+    // upload/start"). Without this, an OCR workflow run from an ad-hoc
+    // upload fails at the first activity that needs the id.
+    const document = await this.documentDbService.createDocument({
+      id: randomUUID(),
+      title: file.originalname,
+      original_filename: file.originalname,
+      file_path: blobKey,
+      normalized_file_path: null,
+      file_type: file.mimetype === "application/pdf" ? "pdf" : "image",
+      file_size: file.size,
+      metadata: {},
+      source: "workflow-upload",
+      status: DocumentStatus.pre_ocr,
+      apim_request_id: null,
+      workflow_id: null,
+      workflow_config_id: wf.workflowVersionId,
+      workflow_execution_id: null,
+      model_id: "prebuilt-layout",
+      group_id: wf.groupId,
+    });
+
     // Phase 4 (US-146): cancel any in-flight Try for this lineage
     // BEFORE starting the new run, so the "cancel-on-new-Try" semantics
     // are enforced server-side. Cancel errors don't block the new run
@@ -693,11 +730,12 @@ export class WorkflowController {
     // Kick off a fresh Temporal Try with the uploaded file's ctx
     // reference. The ctx key is the source.upload node's configured
     // `ctxKey`; the value is the blob storage key the upload just
-    // produced. The same blob key is also returned to the caller via
-    // the dynamic ctxKey-keyed property so the frontend can chain
-    // upload → run with one round-trip.
+    // produced. `documentId` is included so document-processing activities
+    // resolve it from initialCtx. Both are returned to the caller so a
+    // client can chain upload → run with one round-trip.
     const initialCtx: Record<string, unknown> = {
       [resolvedParameters.ctxKey]: blobKey,
+      documentId: document.id,
     };
     const runId = await this.temporalClient.startGraphWorkflow(
       undefined,
@@ -707,11 +745,12 @@ export class WorkflowController {
     );
 
     this.logger.log(
-      `Source upload-and-Try started run ${runId} (workflow=${workflowId}, version=${wf.workflowVersionId})`,
+      `Source upload-and-Try started run ${runId} (workflow=${workflowId}, version=${wf.workflowVersionId}, documentId=${document.id})`,
     );
 
     return {
       [resolvedParameters.ctxKey]: blobKey,
+      documentId: document.id,
       runId,
       workflowVersionId: wf.workflowVersionId,
     };

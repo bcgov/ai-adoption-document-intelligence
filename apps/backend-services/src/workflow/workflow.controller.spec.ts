@@ -6,6 +6,7 @@ import { Request } from "express";
 import * as request from "supertest";
 import { z } from "zod/v4";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
+import { DocumentDbService } from "@/document/document-db.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -102,6 +103,7 @@ describe("WorkflowController", () => {
   let temporalClient: jest.Mocked<TemporalClientService>;
   let sourceUploadService: jest.Mocked<SourceUploadService>;
   let activityOutputCache: jest.Mocked<ActivityOutputCacheRepository>;
+  let documentDbService: jest.Mocked<DocumentDbService>;
 
   beforeEach(async () => {
     workflowService = {
@@ -148,6 +150,10 @@ describe("WorkflowController", () => {
       deleteExpired: jest.fn(),
     } as unknown as jest.Mocked<ActivityOutputCacheRepository>;
 
+    documentDbService = {
+      createDocument: jest.fn().mockResolvedValue({ id: "doc-created-1" }),
+    } as unknown as jest.Mocked<DocumentDbService>;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
       providers: [
@@ -170,6 +176,10 @@ describe("WorkflowController", () => {
         {
           provide: ActivityOutputCacheRepository,
           useValue: activityOutputCache,
+        },
+        {
+          provide: DocumentDbService,
+          useValue: documentDbService,
         },
       ],
     }).compile();
@@ -1629,16 +1639,36 @@ describe("WorkflowController", () => {
         mockReq(),
       );
 
-      // Three keys: the dynamic ctxKey-keyed entry + the two fixed
-      // US-146 fields. Use sets to ignore ordering.
+      // The dynamic ctxKey-keyed entry + the fixed fields (US-146 runId /
+      // workflowVersionId + the created documentId). Use sets to ignore order.
       expect(new Set(Object.keys(result))).toEqual(
-        new Set(["myFile", "runId", "workflowVersionId"]),
+        new Set(["myFile", "documentId", "runId", "workflowVersionId"]),
       );
       expect(result["myFile"]).toBe(
         "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
       );
       expect(result.runId).toBe("graph-adhoc-the-new-run");
       expect(result.workflowVersionId).toBe(wf.workflowVersionId);
+
+      // A Document record is created for the upload so document-processing
+      // workflows have a documentId to run against.
+      expect(result.documentId).toBe("doc-created-1");
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file_path:
+            "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
+          group_id: "group-1",
+          workflow_config_id: wf.workflowVersionId,
+          source: "workflow-upload",
+        }),
+      );
+      // documentId is threaded into the run's initialCtx.
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        wf.workflowVersionId,
+        expect.objectContaining({ documentId: "doc-created-1" }),
+        "group-1",
+      );
 
       // SourceUploadService received the file payload, the resolved
       // (defaults-merged) parameters, and the workflow / node ids.
@@ -1870,10 +1900,13 @@ describe("WorkflowController", () => {
 
       expect(temporalClient.startGraphWorkflow).toHaveBeenCalledTimes(1);
       expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
-        undefined, // no documentId — adhoc Try
+        undefined, // adhoc Try — no parent document id arg
         wf.workflowVersionId, // pinned/head version id from resolveLineageAndVersion
         {
           documentUrl: "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
+          // documentId of the Document record created for this upload, so
+          // document-processing activities resolve it from initialCtx.
+          documentId: "doc-created-1",
         },
         wf.groupId,
       );
@@ -3710,6 +3743,9 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
       );
       const { ActivityOutputCacheRepository: FreshActivityOutputCacheRepo } =
         await import("@/cache/activity-output-cache.repository");
+      const { DocumentDbService: FreshDocumentDbService } = await import(
+        "@/document/document-db.service"
+      );
 
       const uploadSpy = jest.fn();
       const moduleRef = await Test.createTestingModule({
@@ -3730,6 +3766,10 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
             useValue: { uploadFileForSource: uploadSpy },
           },
           { provide: FreshActivityOutputCacheRepo, useValue: {} },
+          {
+            provide: FreshDocumentDbService,
+            useValue: { createDocument: jest.fn() },
+          },
         ],
       }).compile();
 
