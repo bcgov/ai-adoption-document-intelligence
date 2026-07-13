@@ -52,3 +52,7 @@ data/datasets/*/private/**
 /SDPR_OCR_Performance_Report*.pdf
 /plots/
 /hitl/
+
+# Generated repo wiki HTML (built by docs/build.sh at docs deploy time)
+/docs/wiki.html
+/docs/wiki-*.html

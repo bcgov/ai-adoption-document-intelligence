@@ -15,6 +15,7 @@ import {
 import { identityCanAccessGroup, requireUserId } from "@/auth/identity.helpers";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
+import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { GroupMemberDto } from "./dto/group-member.dto";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
@@ -28,6 +29,7 @@ export class GroupService {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
     private readonly groupDb: GroupDbService,
+    private readonly prismaService: PrismaService,
   ) {}
 
   /**
@@ -203,20 +205,29 @@ export class GroupService {
     // user+group pair before creating a new PENDING request. This prevents
     // unique constraint violations on (group_id, user_id, status) when the user
     // has previously been through one or more request cycles.
-    await this.groupDb.deleteResolvedMembershipRequests(userId, groupId);
+    const created = await this.prismaService.transaction(async (tx) => {
+      await this.groupDb.deleteResolvedMembershipRequests(userId, groupId, tx);
 
-    const created = await this.groupDb.createMembershipRequest(
-      userId,
-      groupId,
-      identity,
-    );
-    await this.auditService.recordEvent({
-      event_type: "membership_request_created",
-      resource_type: "group_membership_request",
-      resource_id: created.id,
-      actor_id: identity.actorId,
-      group_id: groupId,
-      payload: { user_id: userId, group_id: groupId },
+      const request = await this.groupDb.createMembershipRequest(
+        userId,
+        groupId,
+        identity,
+        tx,
+      );
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "membership_request_created",
+          resource_type: "group_membership_request",
+          resource_id: request.id,
+          actor_id: identity.actorId,
+          group_id: groupId,
+          payload: { user_id: userId, group_id: groupId },
+        },
+        tx,
+      );
+
+      return request;
     });
     this.logger.log("Membership request created", {
       requestId: created.id,

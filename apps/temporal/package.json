@@ -16,7 +16,6 @@
 		"lint:fix": "npm run lint -- --write",
 		"pretest": "npm run build:logging && npm run build:graph-insertion-slots && npm run build:graph-workflow",
 		"build:graph-workflow": "cd ../../packages/graph-workflow && npm run build",
-		"build:graph-workflow-config": "cd ../../packages/graph-workflow-config && npm run build",
 		"test": "jest",
 		"build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
 	},

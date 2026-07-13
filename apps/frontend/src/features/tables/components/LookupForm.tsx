@@ -81,7 +81,7 @@ export function LookupForm({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={initial ? "Edit Lookup" : "Add Lookup"}
+      title={initial ? "Edit lookup" : "Add lookup"}
       size="lg"
     >
       <Stack>

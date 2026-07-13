@@ -171,14 +171,14 @@ export function TableDetailPage() {
                       );
                     }}
                   >
-                    Save Settings
+                    Save settings
                   </Button>
                   <Button
                     color="red"
                     leftSection={<IconTrash size={16} />}
                     onClick={() => setConfirmDelete(true)}
                   >
-                    Delete Table
+                    Delete table
                   </Button>
                 </Group>
               </Stack>

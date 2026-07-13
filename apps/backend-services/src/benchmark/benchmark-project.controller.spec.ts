@@ -234,7 +234,7 @@ describe("BenchmarkProjectController", () => {
 
       await controller.deleteProject(projectId, mockReq);
 
-      expect(service.deleteProject).toHaveBeenCalledWith(projectId);
+      expect(service.deleteProject).toHaveBeenCalledWith(projectId, "user-1");
     });
 
     it("returns 404 when project not found", async () => {

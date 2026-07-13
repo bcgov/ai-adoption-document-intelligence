@@ -5,10 +5,13 @@ import {
 } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
+import { computeContentHash } from "@/document/content-hash.util";
 import { DocumentService } from "@/document/document.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
@@ -140,6 +143,16 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: BLOB_STORAGE,
           useValue: mockBlobStorage,
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(async (fn) => fn({})),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -599,6 +612,12 @@ describe("GroundTruthGenerationService", () => {
         expect.any(String),
         { confidenceThreshold: 0 },
         jobOverrides,
+      );
+      expect(mockDocumentService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(Buffer.from("%PDF-1.4")),
+        }),
+        expect.anything(),
       );
     });
 

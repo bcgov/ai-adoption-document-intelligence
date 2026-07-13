@@ -35,7 +35,7 @@ Pair with **`oc-build-push.sh`** when images need to come from the developer mac
 
 6. **Report results**: Show frontend/backend URLs and teardown command (`./scripts/oc-teardown.sh --namespace <ns> --instance <name>`).
 
-See [docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md](../../../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md).
+See [docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md](../../../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md).
 
 ## Examples
 

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -76,6 +77,12 @@ const mockPrismaService = {
       }),
     ),
   },
+  transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
+    fn({
+      workflowLineage: mockLineage,
+      workflowVersion: mockVersion,
+    }),
+  ),
 };
 
 describe("WorkflowService", () => {
@@ -109,6 +116,10 @@ describe("WorkflowService", () => {
           useValue: mockPrismaService,
         },
         { provide: AppLoggerService, useValue: mockAppLogger },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -400,7 +411,7 @@ describe("WorkflowService", () => {
           },
         );
 
-      mockPrismaService.prisma.$transaction.mockImplementation(
+      mockPrismaService.transaction.mockImplementationOnce(
         async (fn: (tx: any) => Promise<unknown>) =>
           fn({
             workflowLineage: {
