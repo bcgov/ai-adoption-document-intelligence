@@ -1,0 +1,12 @@
+{
+  "slug": "synth-regular-1",
+  "title": "HITL synth-regular (1)",
+  "originalFilename": "synth-regular-(1).jpg",
+  "fileType": "image",
+  "fileSize": 552864,
+  "source": "api",
+  "modelId": "sdpr_synth_test",
+  "contentHash": "b562ce6b7405579ed5fd5f21bc3d5bd85c222f080184ce9c0e0f03a1286e0056",
+  "metadata": {},
+  "sourceImage": "data/datasets/samples-mix/public/synth-regular (1).jpg"
+}
