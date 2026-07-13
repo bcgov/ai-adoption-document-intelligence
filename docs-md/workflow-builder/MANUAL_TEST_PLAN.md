@@ -72,7 +72,7 @@ Eight workflow templates live in `docs-md/graph-workflows/templates/` and are lo
 - **Run history** lives in the top-bar **More** menu, not as a standalone button.
 - Auto-wire input problems (unbound / ambiguous) surface on the node's **unified problems badge** (top-left) — the same badge as validation warnings, not a separate status dot; a satisfied node shows **no badge**.
 - **Type mismatch is not blocked at wire-draw time** — wires are execution-order only; mismatches are caught by the variable picker (dimming) and the save-time validator.
-- Only **5 catalog activities carry typed kinds** today: `document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`. All other nodes show gray/wildcard handles.
+- **Every catalog activity declares `kind` on every port** (US-103 all-or-nothing invariant, `catalog.test.ts`). Gray handles mean either the deliberate `Artifact` wildcard (identifier/scalar ports, the whole `benchmark.*` family) or a side with ≥2 typed ports collapsing to the multi-port gray handle.
 - After any rebuild of `@ai-di/graph-workflow`, **restart Vite** or typed handles/auto-wire show stale data.
 
 ---

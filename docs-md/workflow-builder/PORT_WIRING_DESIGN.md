@@ -116,10 +116,10 @@ Resolver semantics are untouched (nearest kind-assignable; exact-unique name mat
 
 ## 8. Workstream: catalog kind + label coverage
 
-**The enabler.** Only 5 activities carry typed kinds today ([MANUAL_TEST_PLAN §1.6](MANUAL_TEST_PLAN.md)); on an untyped catalog the new canvas degrades to colorless handles with no compatibility filtering. Acceptance criteria:
+**The enabler — kind coverage already landed.** Catalog-wide `kind` coverage exists today: every registered `ActivityCatalogEntry` port declares `kind` on 100% of inputs/outputs, enforced by the US-103 all-or-nothing invariant test (`catalog.test.ts`). `kind: "Artifact"` is the deliberate wildcard for identifier/scalar ports (e.g. `apimRequestId`, the whole `benchmark.*` family) — not a gap. §8's remaining scope is (1) the label/description invariant, (2) `parametersSchema` field titles, and (3) the identifier-kinds open question below. Acceptance criteria:
 
-1. Every `ActivityCatalogEntry` input/output `PortDescriptor` declares `kind` unless it is genuinely wildcard, plus a human `label` and one-sentence `description`. (`label` becomes required in spirit: the UI never falls back to the raw port name on canvas.)
-2. Every `parametersSchema` field carries a human title/description (feeds the `⚙︎` summaries and settings forms).
+1. ~~Every `ActivityCatalogEntry` input/output `PortDescriptor` declares `kind` unless it is genuinely wildcard~~ — **done** (US-103 invariant, above). Every port also carries a human `label` and one-sentence `description` — **done**, enforced by the "port copy invariant" test added in commit e3a552f1 (`label` is required in spirit: the UI never falls back to the raw port name on canvas).
+2. Every `parametersSchema` field carries a human title/description (feeds the `⚙︎` summaries and settings forms) — **deferred** to the phase that renders per-field `⚙︎` summaries.
 3. Dynamic nodes already declare kinds via JSDoc `@inputs`/`@outputs` — unchanged.
 
 **Open question (recommendation: yes, as a follow-up):** mint registry kinds for stable identifier chains — e.g. an opaque-reference family under `Reference` for `apimRequestId`-style tokens — so those ports gain color, compatibility filtering, and typed auto-wire instead of relying on exact-name matching. Deferred from this spec because it changes resolver behavior for those ports; the name-match path keeps working meanwhile.
