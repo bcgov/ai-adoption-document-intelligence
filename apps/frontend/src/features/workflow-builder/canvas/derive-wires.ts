@@ -32,7 +32,11 @@ import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
 
 export interface DataWire {
   variant: "data";
-  /** `wire:${target}:${targetPort}` — stable, distinct from edge ids. */
+  /**
+   * `wire:${target}:${targetPort}` — stable, distinct from edge ids.
+   * Uniqueness assumes one `inputs[]` row per (node, port) — duplicate
+   * rows for the same port would collide.
+   */
   id: string;
   source: string;
   sourcePort: string;
@@ -44,7 +48,11 @@ export interface DataWire {
   pinned: boolean;
   /** ctxKey starts with `__auto.`. */
   auto: boolean;
-  /** Only set for auto + unpinned wires whose resolver result is auto-bound. */
+  /**
+   * Only set for auto + unpinned wires where the resolver auto-binds to
+   * this wire's exact producer (node + port) — never claims a mechanism
+   * for a stale binding the resolver would no longer produce.
+   */
   via?: AutoBoundVia;
   /** Normal edge between the pair, if any. */
   edgeId?: string;
@@ -71,10 +79,18 @@ interface Producer {
  * declared `outputs[]` bindings (kind resolved via the activity catalog
  * when the producing node has an `activityType`) plus source-node
  * synthetic emissions (`source.upload`'s single ctx key, `source.api`'s
- * per-field ctx keys) — mirrors
- * `graph-widgets/resolve-producer-kind.ts`'s precedence: catalog-declared
- * outputs win over source emissions when (in a malformed config) both
- * claim the same ctx key.
+ * per-field ctx keys). The source-node branch mirrors
+ * `graph-widgets/resolve-producer-kind.ts`'s source handling — read that
+ * module before changing it so the two stay in sync.
+ *
+ * Two deliberate divergences from that module: (1) ANY node's `outputs[]`
+ * bindings index as producers here, not just activity/pollUntil — design
+ * §5.1 says "some node N has an output binding", and a wire to a
+ * non-catalog producer is still a real binding worth drawing (its kind is
+ * simply unknown); (2) duplicate writers of the same ctx key resolve
+ * first-writer-wins in node-iteration order — the single-source validator
+ * flags that config as broken, and the index just needs a deterministic
+ * pick until the user fixes it.
  */
 function buildProducerIndex(
   config: GraphWorkflowConfig,
@@ -177,13 +193,23 @@ function deriveDataWires(
         (p) => p.name === binding.port,
       );
 
+      // Provenance (`via`) comes from re-running the resolver, so it only
+      // describes THIS wire when the resolver still lands on the persisted
+      // binding's producer. On a stale config (topology changed after the
+      // binding was written) the resolver may pick a different producer —
+      // the wire still renders where the binding points, but claiming the
+      // resolver's mechanism for it would be a lie, so `via` stays unset.
       let via: AutoBoundVia | undefined;
       if (auto && !pinned && inputDescriptor) {
         const resolution = resolveInputPort(config, consumerNode.id, {
           name: inputDescriptor.name,
           kind: inputDescriptor.kind,
         });
-        if (resolution.status === "auto-bound") {
+        if (
+          resolution.status === "auto-bound" &&
+          resolution.producerNodeId === producer.nodeId &&
+          resolution.producerPort === producer.port
+        ) {
           via = resolution.via;
         }
       }
@@ -226,14 +252,21 @@ function deriveStructuralWires(
       continue;
     }
 
-    const pairWires = dataWires.filter(
-      (wire) => wire.source === edge.source && wire.target === edge.target,
+    const unstampedPairWires = dataWires.filter(
+      (wire) =>
+        wire.source === edge.source &&
+        wire.target === edge.target &&
+        wire.edgeId === undefined,
     );
-    if (pairWires.length === 0) {
+    if (unstampedPairWires.length === 0) {
+      // Either the pair has no data wires, or an earlier normal edge
+      // already claimed them all (duplicate edges between one pair). In
+      // both cases the edge renders as a sequence wire so it never
+      // silently disappears from the canvas.
       structural.push({ variant: "sequence", id: edge.id, edge });
       continue;
     }
-    for (const wire of pairWires) {
+    for (const wire of unstampedPairWires) {
       wire.edgeId = edge.id;
     }
   }

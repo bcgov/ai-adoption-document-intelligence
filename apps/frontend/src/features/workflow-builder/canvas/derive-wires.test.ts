@@ -260,3 +260,143 @@ describe("deriveWires — Scenario 8: via provenance on an auto-bound wire", () 
     expect(dataWires[0].via).toBe("nearest-kind");
   });
 });
+
+describe("deriveWires — stale binding: resolver disagrees with the persisted producer", () => {
+  it("draws the wire to the persisted producer with via left undefined", () => {
+    // C's __auto. binding points at A, but only B is upstream of C — the
+    // resolver would auto-bind fileData to B today. The wire must still
+    // follow the persisted binding (to A) without claiming the resolver's
+    // mechanism for it.
+    const cfg = config({
+      nodes: {
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
+        }),
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "file.prepare",
+        }),
+        C: node<ActivityNode>({
+          id: "C",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "B", target: "C", type: "normal" }],
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].source).toBe("A");
+    expect(dataWires[0].target).toBe("C");
+    expect(dataWires[0].auto).toBe(true);
+    expect(dataWires[0].via).toBeUndefined();
+  });
+});
+
+describe("deriveWires — source.api with multiple typed fields", () => {
+  it("derives one wire per consumed field with per-field sourcePort and kind", () => {
+    const cfg = config({
+      nodes: {
+        S: node<SourceNode>({
+          id: "S",
+          type: "source",
+          sourceType: "source.api",
+          parameters: {
+            fields: [
+              {
+                name: "documentUrl",
+                type: "string",
+                kind: "Document",
+                required: true,
+              },
+              { name: "priority", type: "string", required: false },
+            ],
+          },
+        }),
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          inputs: [
+            { port: "blobKey", ctxKey: "documentUrl" },
+            { port: "fileName", ctxKey: "priority" },
+          ],
+        }),
+      },
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(2);
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        source: "S",
+        sourcePort: "documentUrl",
+        target: "A",
+        targetPort: "blobKey",
+        kind: "Document",
+      }),
+    );
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        source: "S",
+        sourcePort: "priority",
+        target: "A",
+        targetPort: "fileName",
+        kind: "Artifact",
+      }),
+    );
+  });
+});
+
+describe("deriveWires — duplicate normal edges between one pair", () => {
+  it("stamps the first edge onto the data wire and keeps the surplus edge as a sequence wire", () => {
+    const cfg = linearChainConfig();
+    cfg.edges.push({ id: "e2", source: "A", target: "B", type: "normal" });
+
+    const wires = deriveWires(cfg);
+    const dataWires = wires.filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].edgeId).toBe("e1");
+
+    const sequenceWires = wires.filter((w) => w.variant === "sequence");
+    expect(sequenceWires).toHaveLength(1);
+    expect(sequenceWires[0].id).toBe("e2");
+  });
+});
+
+describe("deriveWires — two producers writing the same ctx key", () => {
+  it("picks the first writer in node-iteration order", () => {
+    const cfg = config({
+      nodes: {
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "shared" }],
+        }),
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "shared" }],
+        }),
+        C: node<ActivityNode>({
+          id: "C",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "shared" }],
+        }),
+      },
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].source).toBe("A");
+  });
+});
