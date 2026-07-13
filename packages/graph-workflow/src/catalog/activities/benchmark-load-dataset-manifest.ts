@@ -14,6 +14,7 @@ export const benchmarkLoadDatasetManifestCatalogEntry: ActivityCatalogEntry = {
     {
       name: "materializedPath",
       label: "Materialized path",
+      description: "Local path where the dataset was materialized.",
       required: true,
       kind: "Artifact",
     },

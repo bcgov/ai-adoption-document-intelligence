@@ -11,8 +11,20 @@ export const benchmarkLoadOcrCacheCatalogEntry: ActivityCatalogEntry = {
   iconHint: "database",
   colorHint: "green",
   inputs: [
-    { name: "sourceRunId", label: "Source run ID", required: true, kind: "Artifact" },
-    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
+    {
+      name: "sourceRunId",
+      label: "Source run ID",
+      description: "Benchmark run whose cached OCR responses should be reused.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "sampleId",
+      label: "Sample ID",
+      description: "Benchmark sample identifier to look up in the OCR cache.",
+      required: true,
+      kind: "Artifact",
+    },
   ],
   outputs: [
     {

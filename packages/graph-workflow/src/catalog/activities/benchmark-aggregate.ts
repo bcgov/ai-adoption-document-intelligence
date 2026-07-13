@@ -11,10 +11,17 @@ export const benchmarkAggregateCatalogEntry: ActivityCatalogEntry = {
   iconHint: "chart-bar",
   colorHint: "green",
   inputs: [
-    { name: "results", label: "Evaluation results", required: true, kind: "Artifact" },
+    {
+      name: "results",
+      label: "Evaluation results",
+      description: "Per-sample evaluation results to aggregate.",
+      required: true,
+      kind: "Artifact",
+    },
     {
       name: "options",
       label: "Aggregation options",
+      description: "Optional settings controlling how metrics are aggregated.",
       required: false,
       kind: "Artifact",
     },

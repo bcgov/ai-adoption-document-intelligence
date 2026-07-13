@@ -14,9 +14,27 @@ export const benchmarkWritePredictionCatalogEntry: ActivityCatalogEntry = {
   // TRY_IN_PLACE_DESIGN.md §2.6.
   nonCacheable: true,
   inputs: [
-    { name: "predictionData", label: "Prediction data", required: true, kind: "Artifact" },
-    { name: "outputDir", label: "Output directory", required: true, kind: "Artifact" },
-    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
+    {
+      name: "predictionData",
+      label: "Prediction data",
+      description: "The workflow's predicted output to write to disk.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "outputDir",
+      label: "Output directory",
+      description: "Directory the prediction JSON file will be written to.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "sampleId",
+      label: "Sample ID",
+      description: "Benchmark sample identifier the prediction belongs to.",
+      required: true,
+      kind: "Artifact",
+    },
   ],
   outputs: [
     {

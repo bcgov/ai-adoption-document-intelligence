@@ -231,3 +231,19 @@ describe("Phase 3 — kind annotation all-or-nothing invariant (US-103)", () => 
   //   document.split: untyped inputs [groupId], untyped outputs []
   // Revert the change before committing.
 });
+
+describe("port copy invariant (port-wiring Phase 1)", () => {
+  it.each(listActivityTypes())(
+    "%s: every port declares a non-empty label and description",
+    (activityType) => {
+      const entry = getActivityCatalogEntry(activityType);
+      expect(entry).toBeDefined();
+      for (const port of [...entry!.inputs, ...entry!.outputs]) {
+        // Labels/descriptions are the only strings the new canvas shows for a
+        // port — the raw port name is demoted to tooltips (PORT_WIRING_DESIGN §12).
+        expect(port.label?.trim() ?? "").not.toEqual("");
+        expect(port.description?.trim() ?? "").not.toEqual("");
+      }
+    },
+  );
+});

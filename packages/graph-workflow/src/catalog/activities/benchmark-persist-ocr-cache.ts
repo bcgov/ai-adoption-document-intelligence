@@ -14,9 +14,27 @@ export const benchmarkPersistOcrCacheCatalogEntry: ActivityCatalogEntry = {
   // See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
   nonCacheable: true,
   inputs: [
-    { name: "sourceRunId", label: "Source run ID", required: true, kind: "Artifact" },
-    { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
-    { name: "ocrResponse", label: "OCR response", required: true, kind: "Artifact" },
+    {
+      name: "sourceRunId",
+      label: "Source run ID",
+      description: "Benchmark run the cached OCR response is stored against.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "sampleId",
+      label: "Sample ID",
+      description: "Benchmark sample identifier the OCR response belongs to.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "ocrResponse",
+      label: "OCR response",
+      description: "The Azure OCR poll response to cache.",
+      required: true,
+      kind: "Artifact",
+    },
   ],
   outputs: [],
   parametersSchema: benchmarkPersistOcrCacheParametersSchema,

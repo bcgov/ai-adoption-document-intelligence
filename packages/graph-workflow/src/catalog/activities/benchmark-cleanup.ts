@@ -17,18 +17,22 @@ export const benchmarkCleanupCatalogEntry: ActivityCatalogEntry = {
     {
       name: "materializedDatasetPaths",
       label: "Materialized dataset paths",
+      description: "Local paths of materialized datasets to remove.",
       required: false,
       kind: "Artifact",
     },
     {
       name: "temporaryOutputPaths",
       label: "Temporary output paths",
+      description: "Local paths of temporary run output files to remove.",
       required: false,
       kind: "Artifact",
     },
     {
       name: "preserveCachedDatasets",
       label: "Preserve cached datasets",
+      description:
+        "When true, materialized datasets are kept for reuse by later runs instead of being deleted.",
       required: false,
       kind: "Artifact",
     },

@@ -14,6 +14,7 @@ export const benchmarkMaterializeDatasetCatalogEntry: ActivityCatalogEntry = {
     {
       name: "datasetVersionId",
       label: "Dataset version ID",
+      description: "The dataset version to materialize from object storage.",
       required: true,
       kind: "Artifact",
     },

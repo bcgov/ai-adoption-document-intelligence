@@ -15,8 +15,20 @@ export const benchmarkPersistEvaluationDetailsCatalogEntry: ActivityCatalogEntry
     // must always run. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
     nonCacheable: true,
     inputs: [
-      { name: "runId", label: "Run ID", required: true, kind: "Artifact" },
-      { name: "sampleId", label: "Sample ID", required: true, kind: "Artifact" },
+      {
+        name: "runId",
+        label: "Run ID",
+        description: "Benchmark run the evaluation details belong to.",
+        required: true,
+        kind: "Artifact",
+      },
+      {
+        name: "sampleId",
+        label: "Sample ID",
+        description: "Benchmark sample identifier the evaluation details belong to.",
+        required: true,
+        kind: "Artifact",
+      },
       {
         name: "details",
         label: "Details",
