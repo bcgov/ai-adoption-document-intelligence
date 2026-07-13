@@ -1,5 +1,6 @@
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconArrowsSort,
   IconCheck,
   IconLayoutGrid,
@@ -13,6 +14,7 @@ type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
 
 interface ReviewToolbarProps {
+  onBack: () => void;
   onApprove: () => void;
   onEscalate: () => void;
   onSkip: () => void;
@@ -26,6 +28,7 @@ interface ReviewToolbarProps {
 }
 
 export const ReviewToolbar: FC<ReviewToolbarProps> = ({
+  onBack,
   onApprove,
   onEscalate,
   onSkip,
@@ -40,6 +43,14 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   return (
     <Group justify="space-between">
       <Group>
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={onBack}
+        >
+          Back
+        </Button>
         <Button
           leftSection={<IconCheck size={16} />}
           onClick={onApprove}

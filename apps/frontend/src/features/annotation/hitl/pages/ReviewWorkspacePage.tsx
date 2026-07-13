@@ -21,12 +21,14 @@ import {
   Text,
   Textarea,
   TextInput,
-  Title,
   Tooltip,
   useElementSize,
 } from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
@@ -354,7 +356,13 @@ export const ReviewWorkspacePage: FC = () => {
     if (ocrPage?.width) {
       return pdfPageSize.width / ocrPage.width;
     }
-    return 144; // 72 pts/inch * RENDER_SCALE(2)
+    // Azure OCR polygons are in inches; the PDF page is rendered at
+    // RENDER_SCALE × 72 DPI. When the OCR page width is unavailable (the
+    // session payload omits analyzeResult.pages), this ratio is the exact
+    // fallback: pdfPageSize.width / ocrPage.width always reduces to
+    // RENDER_SCALE × 72 regardless of page size. Must track RENDER_SCALE —
+    // a hardcoded constant silently misplaces every box when it changes.
+    return RENDER_SCALE * 72;
   }, [
     isNormalizedPdf,
     pdfPageSize,
@@ -855,25 +863,16 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
-        <Group justify="space-between">
-          <Group>
+        {readOnly ? (
+          <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
               variant="subtle"
+              color="gray"
               leftSection={<IconArrowLeft size={16} />}
               onClick={navigateToQueue}
             >
               Back
             </Button>
-            <Stack gap={2}>
-              <Title order={2}>
-                {readOnly ? "view session" : "review session"}
-              </Title>
-              <Text size="sm" c="dimmed">
-                {session?.document?.original_filename || "Document review"}
-              </Text>
-            </Stack>
-          </Group>
-          {readOnly && (
             <Button
               variant="light"
               color="blue"
@@ -883,11 +882,10 @@ export const ReviewWorkspacePage: FC = () => {
             >
               Reopen for editing
             </Button>
-          )}
-        </Group>
-
-        {!readOnly && (
+          </Group>
+        ) : (
           <ReviewToolbar
+            onBack={navigateToQueue}
             onApprove={handleApprove}
             onEscalate={() => setEscalationOpen(true)}
             onSkip={handleSkip}
@@ -1072,8 +1070,8 @@ export const ReviewWorkspacePage: FC = () => {
               style={{
                 width: 360,
                 flexShrink: 0,
+                alignSelf: "stretch",
                 minHeight: 0,
-                maxHeight: "100%",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
@@ -1086,30 +1084,34 @@ export const ReviewWorkspacePage: FC = () => {
               }}
             >
               {session?.document?.ocr_result?.enrichment_summary != null && (
-                <EnrichmentSummaryPanel
-                  summary={
-                    session.document.ocr_result
-                      .enrichment_summary as EnrichmentSummary
-                  }
-                  mb="sm"
-                />
+                <div style={{ flexShrink: 0 }}>
+                  <EnrichmentSummaryPanel
+                    summary={
+                      session.document.ocr_result
+                        .enrichment_summary as EnrichmentSummary
+                    }
+                    mb="sm"
+                  />
+                </div>
               )}
               <Text
                 size="sm"
                 fw={600}
                 mb="sm"
                 onClick={() => setActiveFieldKey(null)}
-                style={{ cursor: "pointer" }}
+                style={{ cursor: "pointer", flexShrink: 0 }}
               >
                 Fields
               </Text>
 
-              <FieldFilterInput
-                value={fieldFilter}
-                onChange={setFieldFilter}
-                totalCount={sortedFields.length}
-                filteredCount={filteredSortedFields.length}
-              />
+              <div style={{ flexShrink: 0 }}>
+                <FieldFilterInput
+                  value={fieldFilter}
+                  onChange={setFieldFilter}
+                  totalCount={sortedFields.length}
+                  filteredCount={filteredSortedFields.length}
+                />
+              </div>
 
               <FieldListScrollArea
                 onBackgroundClick={() => setActiveFieldKey(null)}
