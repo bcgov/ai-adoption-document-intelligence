@@ -88,9 +88,8 @@ interface Producer {
  * §5.1 says "some node N has an output binding", and a wire to a
  * non-catalog producer is still a real binding worth drawing (its kind is
  * simply unknown); (2) duplicate writers of the same ctx key resolve
- * first-writer-wins in node-iteration order — the single-source validator
- * flags that config as broken, and the index just needs a deterministic
- * pick until the user fixes it.
+ * first-writer-wins in node-iteration order — no validator currently
+ * flags duplicate writers, so the index just needs a deterministic pick.
  */
 function buildProducerIndex(
   config: GraphWorkflowConfig,
