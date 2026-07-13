@@ -58,7 +58,7 @@ const NAME_PREFIX = "🎯 Demo — ";
 // (Azure gpt-5.4), seeded as ChatConversation + ChatMessage rows so the
 // FEATURE_DEMO_GUIDE `?agentChat=<id>` links replay them. Fixture workflow
 // names carry NAME_PREFIX so deleteExistingDemos() sweeps them too.
-const AGENT_DEMO_FIXTURES = ["scenario-1.json", "scenario-2.json"];
+const AGENT_DEMO_FIXTURES = ["scenario-1.json"];
 const GUIDE_PATH = resolve(
   __dirname,
   "../docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md",
@@ -1279,7 +1279,9 @@ function renderGuide(results, agentResults = []) {
     for (const r of agentResults) {
       lines.push(`### ${r.title}`);
       lines.push("");
-      lines.push(`**▶ Open (canvas + chat replay):** [${chatLink(r)}](${chatLink(r)})`);
+      lines.push(
+        `**▶ Open (canvas + chat replay):** [${chatLink(r)}](${chatLink(r)})`,
+      );
       lines.push("");
       lines.push(`**Workflow only:** [${link(r)}](${link(r)})`);
       lines.push("");
@@ -1360,7 +1362,9 @@ async function seedAgentDemos() {
       // keep the raw connection string
     }
   }
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString }),
+  });
   const results = [];
   try {
     // Own the demo conversations as the identity that will VIEW them.
@@ -1403,10 +1407,27 @@ async function seedAgentDemos() {
     }
     console.log(`  agent chat logs owned by: ${ownerLabel}`);
 
-    for (const file of AGENT_DEMO_FIXTURES) {
-      const fx = JSON.parse(
+    // Collect the fixture conversation ids up front so we can remove any
+    // previously-seeded demo conversation that is no longer a fixture (all
+    // demo conversation ids are `demo-agent-*`). Keeps re-runs idempotent
+    // when a scenario is dropped.
+    const fixtures = AGENT_DEMO_FIXTURES.map((file) =>
+      JSON.parse(
         readFileSync(resolve(__dirname, "agent-demo-fixtures", file), "utf-8"),
-      );
+      ),
+    );
+    const keepIds = fixtures.map((fx) => fx.conversationId);
+    const removed = await prisma.chatConversation.deleteMany({
+      where: {
+        groupId: GROUP_ID,
+        id: { startsWith: "demo-agent-", notIn: keepIds },
+      },
+    });
+    if (removed.count) {
+      console.log(`  cleared ${removed.count} stale demo chat log(s)`);
+    }
+
+    for (const fx of fixtures) {
       const created = unwrap(
         await api("POST", "/api/workflows", {
           name: fx.workflow.name,
