@@ -11,7 +11,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,18 +25,24 @@ vi.mock("@xyflow/react", () => ({
     id,
     style,
     isConnectable,
+    onMouseEnter,
+    onMouseLeave,
   }: {
     type: string;
     position: string;
     id?: string;
     style?: React.CSSProperties;
     isConnectable?: boolean;
+    onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+    onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
   }) => (
     <div
       data-testid={`handle-${type}-${position}`}
       data-handleid={id ?? null}
       data-isconnectable={isConnectable === false ? "false" : "true"}
       style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     />
   ),
   Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
@@ -322,5 +328,79 @@ describe("PortRows — connect-time drop-target highlight (§6.2)", () => {
     );
     const row = screen.getByTestId("port-row-node_1-in-source");
     expect(row.getAttribute("data-drop-compatible")).toBe("true");
+  });
+});
+
+describe("PortRows — output-handle hover-extend callbacks (§9)", () => {
+  function renderWithHover(
+    onOutputHandleEnter: (
+      nodeId: string,
+      portName: string,
+      anchor: { x: number; y: number },
+    ) => void,
+    onOutputHandleLeave: () => void,
+  ) {
+    return render(
+      <MantineProvider>
+        <PortRows
+          nodeId="node_1"
+          inputs={[makeRow({})]}
+          outputs={[
+            makeRow({
+              name: "preparedData",
+              label: "Prepared",
+              kind: "Document",
+              direction: "output",
+              handleId: "out-preparedData",
+            }),
+          ]}
+          onOutputHandleEnter={onOutputHandleEnter}
+          onOutputHandleLeave={onOutputHandleLeave}
+        />
+      </MantineProvider>,
+    );
+  }
+
+  it("fires onOutputHandleEnter(nodeId, portName, anchor) on an output handle mouseenter", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithHover(onEnter, onLeave);
+    const outputHandle = container.querySelector(
+      "[data-handleid='out-preparedData']",
+    ) as HTMLElement;
+    fireEvent.mouseEnter(outputHandle);
+    expect(onEnter).toHaveBeenCalledTimes(1);
+    expect(onEnter.mock.calls[0][0]).toBe("node_1");
+    expect(onEnter.mock.calls[0][1]).toBe("preparedData");
+    expect(onEnter.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        x: expect.any(Number),
+        y: expect.any(Number),
+      }),
+    );
+  });
+
+  it("fires onOutputHandleLeave on an output handle mouseleave", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithHover(onEnter, onLeave);
+    const outputHandle = container.querySelector(
+      "[data-handleid='out-preparedData']",
+    ) as HTMLElement;
+    fireEvent.mouseLeave(outputHandle);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire the output callbacks from an input handle", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithHover(onEnter, onLeave);
+    const inputHandle = container.querySelector(
+      "[data-handleid='in-source']",
+    ) as HTMLElement;
+    fireEvent.mouseEnter(inputHandle);
+    fireEvent.mouseLeave(inputHandle);
+    expect(onEnter).not.toHaveBeenCalled();
+    expect(onLeave).not.toHaveBeenCalled();
   });
 });

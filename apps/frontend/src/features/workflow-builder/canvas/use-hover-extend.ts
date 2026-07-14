@@ -11,14 +11,31 @@ export interface HoverExtendAnchor {
 export interface HoverExtendState {
   nodeId: string;
   anchor: HoverExtendAnchor;
+  /**
+   * §9 — the specific output port the extend was launched from, when the
+   * trigger was a typed per-port output handle (or a drag released from
+   * one). `undefined` for the node-level `out` handle, which keeps today's
+   * unfiltered popover.
+   */
+  sourcePort?: string;
 }
 
 export interface UseHoverExtend {
   hoverExtend: HoverExtendState | null;
-  handleSourceHandleEnter: (nodeId: string, anchor: HoverExtendAnchor) => void;
+  handleSourceHandleEnter: (
+    nodeId: string,
+    anchor: HoverExtendAnchor,
+    sourcePort?: string,
+  ) => void;
   handleSourceHandleLeave: () => void;
   handlePopoverEnter: () => void;
   handlePopoverLeave: () => void;
+  /**
+   * §9 — open the popover immediately, bypassing the hover debounce. Used
+   * by the drag-release-on-canvas trigger, where the gesture is already a
+   * deliberate release (no accidental-hover flicker to guard against).
+   */
+  openHoverExtendNow: (state: HoverExtendState) => void;
   closeHoverExtend: () => void;
 }
 
@@ -50,7 +67,7 @@ export function useHoverExtend(): UseHoverExtend {
   }, []);
 
   const handleSourceHandleEnter = useCallback(
-    (nodeId: string, anchor: HoverExtendAnchor) => {
+    (nodeId: string, anchor: HoverExtendAnchor, sourcePort?: string) => {
       // If a close was scheduled (e.g. the user just re-entered the same
       // handle), cancel it — the user is still in the hover region.
       if (closeTimerRef.current) {
@@ -63,11 +80,25 @@ export function useHoverExtend(): UseHoverExtend {
       }
       openTimerRef.current = setTimeout(() => {
         openTimerRef.current = null;
-        setHoverExtend({ nodeId, anchor });
+        setHoverExtend({ nodeId, anchor, sourcePort });
       }, HOVER_DEBOUNCE_MS);
     },
     [],
   );
+
+  const openHoverExtendNow = useCallback((state: HoverExtendState) => {
+    // Cancel any in-flight open/close timers so a stale hover can't clobber
+    // the state we're setting synchronously here.
+    if (openTimerRef.current) {
+      clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setHoverExtend(state);
+  }, []);
 
   const handleSourceHandleLeave = useCallback(() => {
     // Cancel any pending open — the user moved off the handle before the
@@ -125,6 +156,7 @@ export function useHoverExtend(): UseHoverExtend {
     handleSourceHandleLeave,
     handlePopoverEnter,
     handlePopoverLeave,
+    openHoverExtendNow,
     closeHoverExtend,
   };
 }

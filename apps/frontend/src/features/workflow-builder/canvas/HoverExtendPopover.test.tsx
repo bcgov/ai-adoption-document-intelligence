@@ -21,6 +21,7 @@ function renderPopover(
     onClose: overrides.onClose ?? vi.fn(),
     onPickActivity: overrides.onPickActivity ?? vi.fn(),
     onPickControlFlow: overrides.onPickControlFlow ?? vi.fn(),
+    filterKind: overrides.filterKind,
   };
   const utils = render(
     <MantineProvider>
@@ -106,5 +107,79 @@ describe("HoverExtendPopover", () => {
     fireEvent.click(screen.getByTestId("hover-extend-control-flow-switch"));
     expect(onPickControlFlow).toHaveBeenCalledTimes(1);
     expect(onPickControlFlow).toHaveBeenCalledWith("switch");
+  });
+});
+
+describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
+  it("with filterKind set, shows only activities accepting that kind, plus Flow Control", () => {
+    renderPopover({ filterKind: "Document" });
+    // azureOcr.submit.fileData: Document accepts a Document producer.
+    expect(
+      screen.getByTestId("hover-extend-activity-azureOcr.submit"),
+    ).toBeInTheDocument();
+    // document.split.blobKey is MultiPageDocument — a plain Document is NOT
+    // assignable to it, so it is filtered out.
+    expect(
+      screen.queryByTestId("hover-extend-activity-document.split"),
+    ).not.toBeInTheDocument();
+    // Flow Control always renders.
+    expect(
+      screen.getByTestId("hover-extend-control-flow-switch"),
+    ).toBeInTheDocument();
+  });
+
+  it("ranks exact-kind matches first when filterKind is set", () => {
+    renderPopover({ filterKind: "MultiPageDocument" });
+    // Within "Document Handling": document.split (exact MultiPageDocument)
+    // must render before document.normalizeOrientation (Document — merely
+    // assignable), reversing their displayName order ("Correct Orientation"
+    // < "Split Document").
+    const split = screen.getByTestId("hover-extend-activity-document.split");
+    const normalize = screen.getByTestId(
+      "hover-extend-activity-document.normalizeOrientation",
+    );
+    expect(
+      split.compareDocumentPosition(normalize) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("'Show all' (testid hover-extend-show-all) reveals the full catalog", () => {
+    renderPopover({ filterKind: "Document" });
+    // Hidden while filtered.
+    expect(
+      screen.queryByTestId("hover-extend-activity-document.split"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("hover-extend-show-all"));
+    // Now the full catalog (including non-accepting activities) shows.
+    expect(
+      screen.getByTestId("hover-extend-activity-document.split"),
+    ).toBeInTheDocument();
+  });
+
+  it("without filterKind, renders exactly as before (regression)", () => {
+    renderPopover();
+    // Full catalog + no Show-all affordance.
+    expect(
+      screen.getByTestId("hover-extend-activity-data.transform"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("hover-extend-activity-document.split"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("hover-extend-show-all"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("when zero activities accept the kind, falls back to the full list (no dead end)", () => {
+    // ValidationResult is a registered kind that no auto-wireable input
+    // consumes → zero matches → fall back to the unfiltered list.
+    renderPopover({ filterKind: "ValidationResult" });
+    expect(
+      screen.getByTestId("hover-extend-activity-document.split"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("hover-extend-control-flow-switch"),
+    ).toBeInTheDocument();
   });
 });

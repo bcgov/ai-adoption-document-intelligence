@@ -3745,3 +3745,207 @@ describe("WorkflowEditorCanvas — connect summary (§6.4)", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// PORT_WIRING_DESIGN.md §9 — kind-aware extend popover. A typed output port
+// (file.prepare.preparedData: Document) drives a filtered popover that ranks
+// activities accepting `Document`; picking a matching entry pins the matched
+// input port (azureOcr.submit.fileData: Document). Real catalog activities
+// throughout so the kind lookups hit the actual registry.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — kind-aware extend popover (§9)", () => {
+  function makeExtendConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Extend", version: "1.0.0" },
+      ctx: {},
+      nodes: { [prep.id]: prep },
+      edges: [],
+      entryNodeId: prep.id,
+    };
+  }
+
+  function getOnConnectEnd(): (
+    event: unknown,
+    connectionState: unknown,
+  ) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnectEnd !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnectEnd");
+    }
+    return props.onConnectEnd as (
+      event: unknown,
+      connectionState: unknown,
+    ) => void;
+  }
+
+  it("hovering a port-row output handle opens the popover filtered by that port's kind", () => {
+    vi.useFakeTimers();
+    try {
+      renderCanvas(makeExtendConfig());
+      const nodeEl = screen.getByTestId("canvas-node-prep");
+      const outputHandle = nodeEl.querySelector<HTMLElement>(
+        '[data-handleid="out-preparedData"]',
+      );
+      if (!outputHandle) throw new Error("preparedData output handle missing");
+      fireEvent.mouseEnter(outputHandle);
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      // azureOcr.submit.fileData: Document accepts the Document producer.
+      expect(
+        screen.getByTestId("hover-extend-activity-azureOcr.submit"),
+      ).toBeInTheDocument();
+      // document.split.blobKey is MultiPageDocument — a plain Document is not
+      // assignable to it, so it is filtered out.
+      expect(
+        screen.queryByTestId("hover-extend-activity-document.split"),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("releasing a port drag on empty canvas opens the filtered popover at the release point", () => {
+    renderCanvas(makeExtendConfig());
+    act(() => {
+      getOnConnectEnd()(
+        new MouseEvent("mouseup", { clientX: 250, clientY: 120 }),
+        {
+          isValid: false,
+          fromNode: { id: "prep" },
+          fromHandle: { id: "out-preparedData" },
+          toNode: null,
+          toHandle: null,
+        },
+      );
+    });
+    expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    // Filtered by Document (drag source kind).
+    expect(
+      screen.getByTestId("hover-extend-activity-azureOcr.submit"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("hover-extend-activity-document.split"),
+    ).not.toBeInTheDocument();
+    // Anchored at the release point.
+    const anchor = screen.getByTestId("hover-extend-anchor");
+    expect(anchor.style.left).toBe("250px");
+    expect(anchor.style.top).toBe("120px");
+  });
+
+  it("picking a matching activity places the node, pins the matching input port, and adds the edge", () => {
+    const { onConfigChange } = renderCanvas(makeExtendConfig());
+    act(() => {
+      getOnConnectEnd()(
+        new MouseEvent("mouseup", { clientX: 250, clientY: 120 }),
+        {
+          isValid: false,
+          fromNode: { id: "prep" },
+          fromHandle: { id: "out-preparedData" },
+          toNode: null,
+          toHandle: null,
+        },
+      );
+    });
+    fireEvent.click(
+      screen.getByTestId("hover-extend-activity-azureOcr.submit"),
+    );
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[
+      onConfigChange.mock.calls.length - 1
+    ][0] as GraphWorkflowConfig;
+    const newId = Object.keys(next.nodes).find((id) => id !== "prep");
+    if (!newId) throw new Error("new node not added");
+    const newNode = next.nodes[newId] as ActivityNode;
+    expect(newNode.activityType).toBe("azureOcr.submit");
+    // The matched input port is pinned to the PRODUCER's ctx key (not the
+    // self-named `fileData`) and locked.
+    const fileDataBinding = (newNode.inputs ?? []).find(
+      (b) => b.port === "fileData",
+    );
+    expect(fileDataBinding?.ctxKey).toBe("__auto.prep.preparedData");
+    const locks =
+      (newNode.metadata as { lockedInputPorts?: string[] } | undefined)
+        ?.lockedInputPorts ?? [];
+    expect(locks).toContain("fileData");
+    // Exactly one edge added, prep → new node.
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({ source: "prep", target: newId });
+  });
+
+  it("picking a non-matching activity falls back to plain extend + connect summary (no pin)", async () => {
+    const { onConfigChange, rerenderWithConfig } = renderCanvas(
+      makeExtendConfig(),
+    );
+    act(() => {
+      getOnConnectEnd()(
+        new MouseEvent("mouseup", { clientX: 250, clientY: 120 }),
+        {
+          isValid: false,
+          fromNode: { id: "prep" },
+          fromHandle: { id: "out-preparedData" },
+          toNode: null,
+          toHandle: null,
+        },
+      );
+    });
+    fireEvent.click(screen.getByTestId("hover-extend-show-all"));
+    // document.classify accepts OcrResult/Segment — NOT Document — so no
+    // input matches the source kind; the pick falls back to plain extend.
+    fireEvent.click(
+      screen.getByTestId("hover-extend-activity-document.classify"),
+    );
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[
+      onConfigChange.mock.calls.length - 1
+    ][0] as GraphWorkflowConfig;
+    const newId = Object.keys(next.nodes).find((id) => id !== "prep");
+    if (!newId) throw new Error("new node not added");
+    const newNode = next.nodes[newId] as ActivityNode;
+    expect(newNode.activityType).toBe("document.classify");
+    // No pin: no locked input ports.
+    const locks =
+      (newNode.metadata as { lockedInputPorts?: string[] } | undefined)
+        ?.lockedInputPorts ?? [];
+    expect(locks).toHaveLength(0);
+    // Connect summary still fires (§6.4 fallback narration).
+    rerenderWithConfig(next, newId);
+    await flushAnimationFrame();
+    expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+  });
+
+  it("extending from the node-level out handle stays unfiltered", () => {
+    vi.useFakeTimers();
+    try {
+      renderCanvas(makeExtendConfig());
+      const nodeEl = screen.getByTestId("canvas-node-prep");
+      const nodeLevelHandle = nodeEl.querySelector<HTMLElement>(
+        '[data-testid="handle-source-right"][data-handleid="out"]',
+      );
+      if (!nodeLevelHandle) throw new Error("node-level out handle missing");
+      fireEvent.mouseEnter(nodeLevelHandle);
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      // Unfiltered: document.split (a MultiPageDocument consumer, hidden by a
+      // Document filter) is present because no filter is applied.
+      expect(
+        screen.getByTestId("hover-extend-activity-document.split"),
+      ).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

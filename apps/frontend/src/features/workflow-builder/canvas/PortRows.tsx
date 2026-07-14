@@ -27,7 +27,13 @@
 import { isAssignable, type KindRef } from "@ai-di/graph-workflow";
 import { Tooltip } from "@mantine/core";
 import { Handle, Position } from "@xyflow/react";
-import { type CSSProperties, createContext, memo, useContext } from "react";
+import {
+  type CSSProperties,
+  createContext,
+  memo,
+  type MouseEvent as ReactMouseEvent,
+  useContext,
+} from "react";
 
 import { colorForKind } from "./artifact-kind-colour";
 import { handleArrayOutline, handleBackground } from "./handle-style";
@@ -51,6 +57,18 @@ export interface PortRowsProps {
   nodeId: string;
   inputs: PortRowModel[];
   outputs: PortRowModel[];
+  /**
+   * §9 — hover-to-extend from a typed OUTPUT port. Fired on an output row
+   * handle's mouseenter with the handle's right-centre anchor (same geometry
+   * the node-level `out` handle uses). The canvas debounces these into the
+   * kind-aware extend popover. Input rows never fire these.
+   */
+  onOutputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onOutputHandleLeave?: () => void;
 }
 
 /**
@@ -87,10 +105,18 @@ function PortRow({
   nodeId,
   row,
   gridRow,
+  onOutputHandleEnter,
+  onOutputHandleLeave,
 }: {
   nodeId: string;
   row: PortRowModel;
   gridRow: number;
+  onOutputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onOutputHandleLeave?: () => void;
 }) {
   const isInput = row.direction === "input";
   const color = colorForKind(row.kind);
@@ -173,6 +199,21 @@ function PortRow({
           position={isInput ? Position.Left : Position.Right}
           isConnectable
           style={handleStyle}
+          {...(isInput
+            ? {}
+            : {
+                onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
+                  if (!onOutputHandleEnter) return;
+                  // Right-centre of the handle dot — same anchor geometry as
+                  // the node-level `out` handle (§9 / makeSourceHandleHoverHandlers).
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  onOutputHandleEnter(nodeId, row.name, {
+                    x: rect.right,
+                    y: rect.top + rect.height / 2,
+                  });
+                },
+                onMouseLeave: () => onOutputHandleLeave?.(),
+              })}
         />
         <span
           style={{
@@ -208,6 +249,8 @@ export const PortRows = memo(function PortRows({
   nodeId,
   inputs,
   outputs,
+  onOutputHandleEnter,
+  onOutputHandleLeave,
 }: PortRowsProps) {
   if (inputs.length === 0 && outputs.length === 0) return null;
   return (
@@ -234,6 +277,8 @@ export const PortRows = memo(function PortRows({
           nodeId={nodeId}
           row={row}
           gridRow={index + 1}
+          onOutputHandleEnter={onOutputHandleEnter}
+          onOutputHandleLeave={onOutputHandleLeave}
         />
       ))}
     </div>

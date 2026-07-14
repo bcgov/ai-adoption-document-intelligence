@@ -29,6 +29,7 @@ import {
   getActivityCatalogEntry,
   getLockedInputPorts,
   isAssignable,
+  type KindRef,
 } from "@ai-di/graph-workflow";
 import { Badge, Modal, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -88,6 +89,7 @@ import {
 } from "../sources/SourceNodeRenderer";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
+import { firstMatchingInputPort } from "./extend-filter";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
   type GroupChip,
@@ -216,6 +218,18 @@ interface CommonNodeData extends Record<string, unknown> {
     anchor: { x: number; y: number },
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
+  /**
+   * §9 — hover-to-extend from a typed per-port OUTPUT handle (PortRows).
+   * The activity renderer forwards these to `<PortRows>`; the canvas routes
+   * them into the kind-aware extend popover. Node-level `out` hover keeps
+   * using `onSourceHandleEnter` (unfiltered).
+   */
+  onOutputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onOutputHandleLeave?: () => void;
 }
 
 interface ActivityNodeData extends CommonNodeData {
@@ -508,6 +522,19 @@ function makeSourceHandleHoverHandlers(
   };
 }
 
+/**
+ * §9 — viewport coordinates of a connect-end release, handling both mouse
+ * and touch. xyflow's `OnConnectEnd` hands a `MouseEvent | TouchEvent`.
+ */
+function releaseAnchorFromEvent(event: MouseEvent | TouchEvent): {
+  x: number;
+  y: number;
+} {
+  if ("clientX" in event) return { x: event.clientX, y: event.clientY };
+  const touch = event.changedTouches[0];
+  return { x: touch.clientX, y: touch.clientY };
+}
+
 const NodeHandles = memo(function NodeHandles({
   nodeId,
   errorPolicy,
@@ -792,6 +819,8 @@ const ActivityNodeRenderer = memo(
           nodeId={id}
           inputs={data.portRows.inputs}
           outputs={data.portRows.outputs}
+          onOutputHandleEnter={data.onOutputHandleEnter}
+          onOutputHandleLeave={data.onOutputHandleLeave}
         />
         <NodePreviewOverlay nodeId={id} />
       </div>
@@ -1100,6 +1129,14 @@ interface ProjectionCallbacks {
     | ((nodeId: string, anchor: { x: number; y: number }) => void)
     | undefined;
   onSourceHandleLeave: ((nodeId: string) => void) | undefined;
+  onOutputHandleEnter:
+    | ((
+        nodeId: string,
+        portName: string,
+        anchor: { x: number; y: number },
+      ) => void)
+    | undefined;
+  onOutputHandleLeave: (() => void) | undefined;
 }
 
 /**
@@ -1164,6 +1201,8 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          onOutputHandleEnter: callbacks.onOutputHandleEnter,
+          onOutputHandleLeave: callbacks.onOutputHandleLeave,
           portRows: computePortRows(config, node.id, wires),
         },
       };
@@ -1674,16 +1713,34 @@ function WorkflowEditorCanvasInner({
     handleSourceHandleLeave,
     handlePopoverEnter,
     handlePopoverLeave,
+    openHoverExtendNow,
     closeHoverExtend,
   } = useHoverExtend();
+
+  // §9 — per-port output-handle hover routes through the same debounced
+  // opener as the node-level `out` handle, carrying the port name so the
+  // popover can filter/rank by that port's kind.
+  const handlePortOutputHandleEnter = useCallback(
+    (nodeId: string, portName: string, anchor: { x: number; y: number }) => {
+      handleSourceHandleEnter(nodeId, anchor, portName);
+    },
+    [handleSourceHandleEnter],
+  );
 
   const projectionCallbacks = useMemo<ProjectionCallbacks>(
     () => ({
       onBadgeClick: onNodeBadgeClick,
       onSourceHandleEnter: handleSourceHandleEnter,
       onSourceHandleLeave: handleSourceHandleLeave,
+      onOutputHandleEnter: handlePortOutputHandleEnter,
+      onOutputHandleLeave: handleSourceHandleLeave,
     }),
-    [onNodeBadgeClick, handleSourceHandleEnter, handleSourceHandleLeave],
+    [
+      onNodeBadgeClick,
+      handleSourceHandleEnter,
+      handleSourceHandleLeave,
+      handlePortOutputHandleEnter,
+    ],
   );
 
   const lastFingerprintRef = useRef<string | null>(null);
@@ -2483,13 +2540,18 @@ function WorkflowEditorCanvasInner({
    * don't read "a OcrResult".
    */
   const handleConnectEnd = useCallback<OnConnectEnd>(
-    (_event, connectionState) => {
+    (event, connectionState) => {
       setDragFrom(null);
       const fromPort = portFromHandleId(
         connectionState.fromHandle?.id,
         "output",
       );
       const toPort = portFromHandleId(connectionState.toHandle?.id, "input");
+
+      // §6.2 — plain-language rejection notice on a genuine port-to-port
+      // drop that failed validation. Independent of the §9 drag-release
+      // path below (that path requires `toNode == null`, so the two are
+      // mutually exclusive — no early return needed to keep them separate).
       if (
         !connectionState.isValid &&
         fromPort !== null &&
@@ -2503,26 +2565,41 @@ function WorkflowEditorCanvasInner({
             message: "A step can't feed itself",
             autoClose: 5000,
           });
-          return;
+        } else {
+          const sourceKind = outputPortKind(
+            config,
+            connectionState.fromNode.id,
+            fromPort,
+          );
+          const targetKind = inputPortKind(
+            config,
+            connectionState.toNode.id,
+            toPort,
+          );
+          notifications.show({
+            color: "yellow",
+            message: `This input needs ${humanKindLabel(targetKind)} — ${humanKindLabel(sourceKind)} can't be used here`,
+            autoClose: 5000,
+          });
         }
-        const sourceKind = outputPortKind(
-          config,
-          connectionState.fromNode.id,
-          fromPort,
-        );
-        const targetKind = inputPortKind(
-          config,
-          connectionState.toNode.id,
-          toPort,
-        );
-        notifications.show({
-          color: "yellow",
-          message: `This input needs ${humanKindLabel(targetKind)} — ${humanKindLabel(sourceKind)} can't be used here`,
-          autoClose: 5000,
+      }
+
+      // §9 — a typed OUTPUT port drag released on the empty pane (not on any
+      // node) opens the kind-aware extend popover at the release point, so
+      // "drag out → pick → auto-pick-wire" works without a target handle.
+      if (
+        fromPort !== null &&
+        connectionState.toNode == null &&
+        connectionState.fromNode
+      ) {
+        openHoverExtendNow({
+          nodeId: connectionState.fromNode.id,
+          sourcePort: fromPort,
+          anchor: releaseAnchorFromEvent(event),
         });
       }
     },
-    [config],
+    [config, openHoverExtendNow],
   );
 
   /**
@@ -2579,10 +2656,47 @@ function WorkflowEditorCanvasInner({
     ],
   );
 
+  /**
+   * §9 auto-pick variant of `extendFromSource`: place the new node AND pin
+   * its matched input port to the source producer (§6.1) so it lands
+   * pre-wired. Placement, pin, and edge compose into ONE `onConfigChange`,
+   * with `pinPortBinding` applied AFTER placement so the producer ctxKey
+   * overwrites the node's initial self-named input binding (not the other
+   * way round).
+   */
+  const extendFromSourceAndPin = useCallback(
+    (
+      sourceNodeId: string,
+      newNode: GraphNode,
+      pin: { consumerPort: string; producerPort: string },
+    ) => {
+      if (!config.nodes[sourceNodeId]) return;
+      const position = findNextFreePosition(config, sourceNodeId);
+      const newNodeWithPosition: GraphNode = {
+        ...newNode,
+        metadata: { ...(newNode.metadata ?? {}), position },
+      };
+      let next: GraphWorkflowConfig = {
+        ...config,
+        nodes: { ...config.nodes, [newNode.id]: newNodeWithPosition },
+      };
+      next = pinPortBinding(next, newNode.id, pin.consumerPort, {
+        producerNodeId: sourceNodeId,
+        producerPort: pin.producerPort,
+      });
+      next = ensureEdgeBetween(next, sourceNodeId, newNode.id);
+      onConfigChange(next);
+      onSelectNode(newNode.id);
+      openConnectSummary(newNode.id);
+    },
+    [config, onConfigChange, onSelectNode, openConnectSummary],
+  );
+
   const handleHoverPickActivity = useCallback(
     (activityType: string) => {
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
+      const sourcePort = hoverExtend.sourcePort;
       closeHoverExtend();
       const newId = makeUniqueNodeId("activity", config.nodes);
       const entry = getActivityCatalogEntry(activityType);
@@ -2601,9 +2715,33 @@ function WorkflowEditorCanvasInner({
         outputs,
         parameters: {},
       };
-      extendFromSource(sourceNodeId, newNode);
+      // §9 — extend launched from a typed output port + the picked activity
+      // has a compatible auto-wireable input → land it pre-wired. Otherwise
+      // (untyped source, Show-all pick, or no matching input) fall back to
+      // plain extend, which narrates the connection in the §6.4 summary.
+      const kind: KindRef | undefined = sourcePort
+        ? outputPortKind(config, sourceNodeId, sourcePort)
+        : undefined;
+      const matchedPort =
+        sourcePort !== undefined && kind !== undefined
+          ? firstMatchingInputPort(activityType, kind)
+          : null;
+      if (sourcePort !== undefined && matchedPort !== null) {
+        extendFromSourceAndPin(sourceNodeId, newNode, {
+          consumerPort: matchedPort,
+          producerPort: sourcePort,
+        });
+      } else {
+        extendFromSource(sourceNodeId, newNode);
+      }
     },
-    [hoverExtend, closeHoverExtend, extendFromSource, config.nodes],
+    [
+      hoverExtend,
+      closeHoverExtend,
+      extendFromSource,
+      extendFromSourceAndPin,
+      config,
+    ],
   );
 
   const handleHoverPickControlFlow = useCallback(
@@ -2716,6 +2854,15 @@ function WorkflowEditorCanvasInner({
           onClose={closeHoverExtend}
           onPickActivity={handleHoverPickActivity}
           onPickControlFlow={handleHoverPickControlFlow}
+          filterKind={
+            hoverExtend.sourcePort
+              ? outputPortKind(
+                  config,
+                  hoverExtend.nodeId,
+                  hoverExtend.sourcePort,
+                )
+              : undefined
+          }
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handlePopoverLeave}
         />

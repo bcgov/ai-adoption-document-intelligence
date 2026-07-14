@@ -25,9 +25,11 @@
  * enters the popover (hover-friendly behaviour from Scenario 2).
  */
 
+import type { KindRef } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Box,
+  Button,
   Group,
   Popover,
   ScrollArea,
@@ -45,7 +47,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CATEGORY_ORDER,
   getActivityVisualHints,
@@ -56,6 +58,7 @@ import {
   type ControlFlowPaletteEntry,
 } from "../palette/control-flow-palette-entries";
 import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
+import { entryAcceptsKind, rankActivityTypesForKind } from "./extend-filter";
 
 interface TablerIconProps {
   size?: number | string;
@@ -84,6 +87,15 @@ export interface HoverExtendPopoverProps {
   /** User clicked a control-flow row — passes the control-flow type. */
   onPickControlFlow: (controlFlowType: ControlFlowNodeType) => void;
   /**
+   * §9 — when set, the activity list is filtered to entries that can accept
+   * a value of this kind (see `entryAcceptsKind`) and ranked with exact-kind
+   * matches first, so extending from a typed output port surfaces "what can
+   * I do with a <kind>?". Flow Control always renders regardless. A
+   * "Show all" affordance escapes back to the full catalog. When omitted,
+   * the popover renders the full, unranked catalog exactly as before.
+   */
+  filterKind?: KindRef;
+  /**
    * Optional hover-bridge callbacks — the host uses these to cancel /
    * re-arm its 200ms close timer when the cursor crosses from the handle
    * to the popover.
@@ -98,10 +110,17 @@ export function HoverExtendPopover({
   onClose,
   onPickActivity,
   onPickControlFlow,
+  filterKind,
   onMouseEnter,
   onMouseLeave,
 }: HoverExtendPopoverProps) {
   const [query, setQuery] = useState("");
+  // §9 — "Show all" escape hatch from the kind-filtered view. Reset whenever
+  // the source kind changes so a fresh extend always starts filtered.
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    setShowAll(false);
+  }, [filterKind]);
   const grouped = useMemo(() => getCatalogByCategory(), []);
 
   const filteredControlFlowEntries = useMemo(() => {
@@ -114,28 +133,86 @@ export function HoverExtendPopover({
     );
   }, [query]);
 
-  const filteredCategories = useMemo(() => {
-    const lower = query.trim().toLowerCase();
+  // §9 — kind-filter + rank pass applied BEFORE the search filter. Only
+  // active when a `filterKind` is set and the user hasn't hit "Show all".
+  const kindFilteredCategories = useMemo(() => {
     const out: Array<{
       category: string;
       entries: ReturnType<typeof getCatalogByCategory>[string];
     }> = [];
     for (const cat of CATEGORY_ORDER) {
-      // Skip the (empty) catalog "Flow Control" category — the section
-      // header above already covers the control-flow shortcuts.
       if (cat === CONTROL_FLOW_SECTION_LABEL) continue;
       const all = grouped[cat] ?? [];
-      const entries = lower
-        ? all.filter(
-            (e) =>
-              e.displayName.toLowerCase().includes(lower) ||
-              e.activityType.toLowerCase().includes(lower),
-          )
-        : all;
-      if (entries.length > 0) out.push({ category: cat, entries });
+      if (filterKind === undefined) {
+        if (all.length > 0) out.push({ category: cat, entries: all });
+        continue;
+      }
+      const accepting = all.filter((e) =>
+        entryAcceptsKind(e.activityType, filterKind),
+      );
+      if (accepting.length === 0) continue;
+      // Rank exact-kind matches first, then map the ordered activityTypes
+      // back to their catalog entries.
+      const rankedTypes = rankActivityTypesForKind(
+        accepting.map((e) => e.activityType),
+        filterKind,
+      );
+      const byType = new Map(accepting.map((e) => [e.activityType, e]));
+      const entries = rankedTypes
+        .map((t) => byType.get(t))
+        .filter((e): e is (typeof accepting)[number] => e !== undefined);
+      out.push({ category: cat, entries });
     }
     return out;
-  }, [grouped, query]);
+  }, [grouped, filterKind]);
+
+  // The full, unfiltered catalog (used unfiltered, on "Show all", and as the
+  // zero-match fallback). Always computed so the hook order stays stable.
+  const fullCategories = useMemo(() => {
+    const out: Array<{
+      category: string;
+      entries: ReturnType<typeof getCatalogByCategory>[string];
+    }> = [];
+    for (const cat of CATEGORY_ORDER) {
+      if (cat === CONTROL_FLOW_SECTION_LABEL) continue;
+      const all = grouped[cat] ?? [];
+      if (all.length > 0) out.push({ category: cat, entries: all });
+    }
+    return out;
+  }, [grouped]);
+
+  // Zero matches → fall back to the unfiltered list (no dead end). This also
+  // means the "Show all" affordance is redundant, so we hide it below.
+  const kindFilterActive =
+    filterKind !== undefined && !showAll && kindFilteredCategories.length > 0;
+
+  const baseCategories = kindFilterActive
+    ? kindFilteredCategories
+    : fullCategories;
+
+  const filteredCategories = useMemo(() => {
+    const lower = query.trim().toLowerCase();
+    if (!lower) return baseCategories;
+    const out: Array<{
+      category: string;
+      entries: ReturnType<typeof getCatalogByCategory>[string];
+    }> = [];
+    for (const { category, entries } of baseCategories) {
+      const matched = entries.filter(
+        (e) =>
+          e.displayName.toLowerCase().includes(lower) ||
+          e.activityType.toLowerCase().includes(lower),
+      );
+      if (matched.length > 0) out.push({ category, entries: matched });
+    }
+    return out;
+  }, [baseCategories, query]);
+
+  // Offer "Show all" only while the kind filter is genuinely narrowing the
+  // list (a real filterKind, not showing-all already, and at least one match
+  // to filter against — the zero-match fallback needs no escape hatch).
+  const showShowAll =
+    filterKind !== undefined && !showAll && kindFilteredCategories.length > 0;
 
   const nothingMatchesQuery =
     filteredControlFlowEntries.length === 0 && filteredCategories.length === 0;
@@ -277,6 +354,18 @@ export function HoverExtendPopover({
               )}
             </Stack>
           </ScrollArea>
+          {showShowAll && (
+            <Button
+              variant="subtle"
+              color="gray"
+              size="xs"
+              fullWidth
+              data-testid="hover-extend-show-all"
+              onClick={() => setShowAll(true)}
+            >
+              Show all nodes
+            </Button>
+          )}
         </Stack>
       </Popover.Dropdown>
     </Popover>
