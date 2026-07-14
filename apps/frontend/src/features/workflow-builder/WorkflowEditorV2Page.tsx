@@ -1316,6 +1316,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               simplifiedView={simplifiedView}
               onGroupChipClick={setActiveGroupId}
               layoutNonce={layoutNonce}
+              onFixNodeInput={handleFixNodeInput}
             />
           </Box>
           <NodeSettingsPanel

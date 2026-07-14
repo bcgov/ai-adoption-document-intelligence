@@ -76,12 +76,23 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
     WorkflowEditorCanvas: (props: Record<string, unknown>) => {
       capturedCanvasProps.current = props;
       // Simulate xyflow handing back an instance once mounted so the page
-      // can trigger fitView on Auto-arrange.
+      // can trigger fitView on Auto-arrange, and `setNodes` (a no-op here)
+      // so `selectNodeSticky` — used by `handleFixNodeInput` — doesn't
+      // throw when a test drives the canvas's `onFixNodeInput` callback.
       const onReady = props.onReactFlowReady as
-        | ((instance: { fitView: typeof fitViewMock }) => void)
+        | ((instance: {
+            fitView: typeof fitViewMock;
+            setNodes: (updater: (nodes: unknown[]) => unknown[]) => void;
+          }) => void)
         | undefined;
       React.useEffect(() => {
-        onReady?.({ fitView: fitViewMock });
+        onReady?.({
+          fitView: fitViewMock,
+          setNodes: () => {
+            // No-op — the stub doesn't simulate xyflow's node-selection
+            // side effects, only that `setNodes` exists as a callable.
+          },
+        });
       }, [onReady]);
       return <div data-testid="canvas-stub" />;
     },
@@ -1879,5 +1890,39 @@ describe("auto-wire integration", () => {
       metadata?: { lockedInputPorts?: string[] };
     };
     expect(nodeBInDto?.metadata?.lockedInputPorts).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8 (§6.4): connect-summary popover's Fix deep-link
+//   The canvas's `onFixNodeInput` prop must be the page's existing
+//   `handleFixNodeInput` (already wired to `ValidationDrawer` and the
+//   problem-badge click path) so the popover's Fix button reaches the same
+//   node-select + focus-input behaviour, not a separate one-off.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — connect summary (§6.4) Fix deep-link", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedSettingsPanelProps.current = null;
+  });
+
+  it("passes onFixNodeInput to the canvas, wired to select the node and focus the port", () => {
+    const config = buildTemplateConfig({ positions: "all" });
+    renderPage(makeTemplate(config));
+
+    const onFixNodeInput = capturedCanvasProps.current?.onFixNodeInput as
+      | ((nodeId: string, port: string) => void)
+      | undefined;
+    expect(onFixNodeInput).toBeInstanceOf(Function);
+
+    act(() => {
+      onFixNodeInput?.("b", "fileData");
+    });
+
+    expect(capturedSettingsPanelProps.current?.focusInput).toEqual({
+      nodeId: "b",
+      port: "fileData",
+    });
   });
 });

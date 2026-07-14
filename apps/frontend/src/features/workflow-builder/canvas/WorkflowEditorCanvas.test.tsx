@@ -300,6 +300,7 @@ function renderCanvas(
     selectedNodeId?: string | null;
     simplifiedView?: boolean;
     onGroupChipClick?: (groupId: string) => void;
+    onFixNodeInput?: (nodeId: string, port: string) => void;
   } = {},
 ) {
   const onConfigChange = vi.fn();
@@ -318,6 +319,7 @@ function renderCanvas(
         onNodeBadgeClick={options.onNodeBadgeClick}
         simplifiedView={currentSimplified}
         onGroupChipClick={options.onGroupChipClick}
+        onFixNodeInput={options.onFixNodeInput}
       />
     </MantineProvider>,
   );
@@ -346,6 +348,7 @@ function renderCanvas(
           onNodeBadgeClick={options.onNodeBadgeClick}
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
+          onFixNodeInput={options.onFixNodeInput}
         />
       </MantineProvider>,
     );
@@ -367,6 +370,7 @@ function renderCanvas(
           onNodeBadgeClick={options.onNodeBadgeClick}
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
+          onFixNodeInput={options.onFixNodeInput}
         />
       </MantineProvider>,
     );
@@ -3539,5 +3543,203 @@ describe("WorkflowEditorCanvas — US-043: simplified-view projection", () => {
     expect(screen.queryByTestId("canvas-group-chip-g1")).toBeNull();
     expect(screen.getByTestId("canvas-node-n1")).toBeInTheDocument();
     expect(screen.getByTestId("canvas-node-n4")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8 (§6.4): connect-summary popover
+//   After a NODE-LEVEL connect (drag node-to-node, hover-extend pick, §6.1
+//   fall-throughs), a transient popover on the target narrates what
+//   auto-wire did to its input bindings. Port-to-port drags (§6.1
+//   both-port branch) get no popover — the pinned wire itself is the
+//   feedback.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — connect summary (§6.4)", () => {
+  /** Resolves the `onConnect` callback the canvas hands to ReactFlow. */
+  function getOnConnect(): (connection: Connection) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnect !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnect");
+    }
+    return props.onConnect as (connection: Connection) => void;
+  }
+
+  /**
+   * Two activity nodes, no edges, no bindings (mirrors the §6.1 drag-to-
+   * bind fixture). `submit`'s `fileData` input has no producer or
+   * binding, so it's a wireable ("unsatisfied") row the moment the
+   * connect summary opens for it — enough to make the popover non-empty
+   * without relying on the (test-harness-only) auto-wire pass the real
+   * page runs in `handleCanvasConfigChange`.
+   */
+  function makeUnwiredPairConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Unwired pair", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, submit },
+      edges: [],
+      entryNodeId: "prep",
+    };
+  }
+
+  it("opens the summary for the target after a node-level connect", async () => {
+    const config = makeUnwiredPairConfig();
+    renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    await flushAnimationFrame();
+    expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connect-summary-row-fileData"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens after a hover-extend activity pick", async () => {
+    vi.useFakeTimers();
+    try {
+      const seed: ActivityNode = {
+        id: "seed",
+        type: "activity",
+        label: "Seed",
+        activityType: "data.transform",
+        parameters: {},
+        metadata: { position: { x: 100, y: 50 } },
+      };
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "T", version: "1.0.0" },
+        ctx: {},
+        nodes: { [seed.id]: seed },
+        edges: [],
+        entryNodeId: seed.id,
+      };
+      const { onConfigChange, rerenderWithConfig } = renderCanvas(config);
+      const nodeEl = screen.getByTestId("canvas-node-seed");
+      const handle = nodeEl.querySelector<HTMLElement>(
+        '[data-testid="handle-source-right"][data-handleid="out"]',
+      );
+      if (!handle) throw new Error("source handle missing on seed");
+      fireEvent.mouseEnter(handle);
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      const row = screen.getByTestId("hover-extend-activity-file.prepare");
+      // Switch to real timers before the click — React's click + commit
+      // needs them (mirrors Scenario 3/4 above).
+      vi.useRealTimers();
+      fireEvent.click(row);
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const next = onConfigChange.mock.calls[
+        onConfigChange.mock.calls.length - 1
+      ][0] as GraphWorkflowConfig;
+      const newId = Object.keys(next.nodes).filter((id) => id !== "seed")[0];
+      // The connect-summary effect re-runs once `config.nodes` actually
+      // carries the new node — feed it back in, mirroring Scenario 4's
+      // rerender-then-assert dance above. No fixed-delay race here: the
+      // popover is driven by an effect keyed on `config.nodes`, not a
+      // timer, so it resolves deterministically off this rerender.
+      rerenderWithConfig(next, newId);
+      await flushAnimationFrame();
+      expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does NOT open for a port-to-port drag", async () => {
+    const config = makeUnwiredPairConfig();
+    renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out-preparedData",
+        targetHandle: "in-fileData",
+      });
+    });
+    await flushAnimationFrame();
+    expect(
+      screen.queryByTestId("connect-summary-popover"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Fix routes through onFixNodeInput prop", async () => {
+    const config = makeUnwiredPairConfig();
+    const onFixNodeInput = vi.fn();
+    renderCanvas(config, { onFixNodeInput });
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    await flushAnimationFrame();
+    expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("connect-summary-fix-fileData"));
+    expect(onFixNodeInput).toHaveBeenCalledWith("submit", "fileData");
+    expect(
+      screen.queryByTestId("connect-summary-popover"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("auto-dismisses after 8 seconds", () => {
+    vi.useFakeTimers();
+    try {
+      const config = makeUnwiredPairConfig();
+      renderCanvas(config);
+      act(() => {
+        getOnConnect()({
+          source: "prep",
+          target: "submit",
+          sourceHandle: "out",
+          targetHandle: null,
+        });
+      });
+      // Flush the popover's own deferred (0ms) anchor-lookup timer.
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+      expect(
+        screen.queryByTestId("connect-summary-popover"),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

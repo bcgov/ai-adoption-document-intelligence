@@ -1,12 +1,4 @@
-import {
-  AUTO_CTX_KEY_PREFIX,
-  getActivityCatalogEntry,
-  isAutoCtxKey,
-  type KindRef,
-  type PortResolution,
-  resolveInputPort,
-  shouldAutoWirePort,
-} from "@ai-di/graph-workflow";
+import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
 import {
   Badge,
   Button,
@@ -23,6 +15,10 @@ import {
   revertPortToAutomatic,
 } from "../canvas/wire-mutations";
 import { ProducerPicker } from "../graph-widgets/ProducerPicker";
+import {
+  type RowResolution,
+  resolveWireableInputRows,
+} from "./input-row-resolution";
 
 interface InputsSectionProps {
   config: GraphWorkflowConfig;
@@ -37,77 +33,6 @@ interface InputsSectionProps {
   focusPort?: string | null;
   /** Called right after `focusPort` is applied so the caller can clear it. */
   onFocusConsumed?: () => void;
-}
-
-/**
- * Decode the producer node ID from an auto ctx key of the form
- * `__auto.{nodeId}.{port}`.  Returns null if the key is not an auto key.
- */
-function decodeAutoProducerNodeId(ctxKey: string): string | null {
-  if (!ctxKey.startsWith(AUTO_CTX_KEY_PREFIX)) return null;
-  // "__auto.{nodeId}.{port}" — nodeId may contain dots, but port is the last
-  // segment. We at least need the first segment after the prefix.
-  const withoutPrefix = ctxKey.slice(AUTO_CTX_KEY_PREFIX.length);
-  const dotIdx = withoutPrefix.indexOf(".");
-  if (dotIdx === -1) return null;
-  return withoutPrefix.slice(0, dotIdx);
-}
-
-/**
- * What a port row renders from: the resolver's `PortResolution` plus one
- * display-only state — "ctx-bound", an UNLOCKED port whose persisted binding
- * points at a real (non-auto) ctx variable. The resolver ignores unlocked
- * `inputs[]` rows and reports "unsatisfied" for these, but the unified
- * validation drawer suppresses exactly this case (its `manuallyBoundPorts`
- * filter in auto-wire-validation.ts): a ctx-bound port HAS a source. The
- * panel must agree with the drawer.
- */
-type RowResolution = PortResolution | { status: "ctx-bound"; ctxKey: string };
-
-/**
- * Effective resolution for a port row: when `resolveInputPort` returns
- * "ambiguous" but the consumer already has an auto-key binding for this
- * port (left over from a previous auto-wire pass), we display the existing
- * binding as "auto-bound" so the user sees where their data comes from and
- * can choose to change the source or leave it. When it returns "unsatisfied"
- * but the port carries a persisted non-auto binding, we display "ctx-bound"
- * (see `RowResolution`) rather than the red "Needs a source" button.
- */
-function effectiveResolution(
-  rawResolution: PortResolution,
-  existingCtxKey: string | undefined,
-  config: GraphWorkflowConfig,
-): RowResolution {
-  if (
-    rawResolution.status === "ambiguous" &&
-    existingCtxKey &&
-    isAutoCtxKey(existingCtxKey)
-  ) {
-    const producerNodeId = decodeAutoProducerNodeId(existingCtxKey);
-    if (producerNodeId && config.nodes[producerNodeId]) {
-      // Determine the producer port from the ctxKey suffix
-      const withoutPrefix = existingCtxKey.slice(AUTO_CTX_KEY_PREFIX.length);
-      const dotIdx = withoutPrefix.indexOf(".");
-      const producerPort = dotIdx !== -1 ? withoutPrefix.slice(dotIdx + 1) : "";
-      return {
-        status: "auto-bound",
-        producerNodeId,
-        producerPort,
-        // The original binding mechanism isn't recoverable from a stale
-        // auto ctx key alone (only producer node/port survive); default to
-        // the most common mechanism rather than guessing a misleading one.
-        via: "nearest-kind",
-      };
-    }
-  }
-  if (
-    rawResolution.status === "unsatisfied" &&
-    existingCtxKey &&
-    !isAutoCtxKey(existingCtxKey)
-  ) {
-    return { status: "ctx-bound", ctxKey: existingCtxKey };
-  }
-  return rawResolution;
 }
 
 export function InputsSection({
@@ -145,10 +70,7 @@ export function InputsSection({
   // fires for these on canvas, so the settings panel must surface them too
   // (ring/badge reconciliation, PORT_WIRING §4.2). Optional identifier ports
   // stay invisible.
-  const wireableInputs = entry.inputs.filter(
-    (p) =>
-      shouldAutoWirePort(p) || (p.kind === "Artifact" && p.required === true),
-  );
+  const rows = resolveWireableInputRows(config, nodeId);
 
   const handleOverride = (
     portName: string,
@@ -168,41 +90,26 @@ export function InputsSection({
       <Text size="xs" fw={600}>
         Inputs
       </Text>
-      {wireableInputs.length === 0 && (
+      {rows.length === 0 && (
         <Text size="10px" c="dimmed">
           None.
         </Text>
       )}
-      {wireableInputs.map((port) => {
-        const portKind = port.kind as KindRef | undefined;
-        const rawResolution = resolveInputPort(config, nodeId, {
-          name: port.name,
-          kind: portKind,
-        });
-        const existingCtxKey = node.inputs?.find(
-          (b) => b.port === port.name,
-        )?.ctxKey;
-        const resolution = effectiveResolution(
-          rawResolution,
-          existingCtxKey,
-          config,
-        );
-        return (
-          <PortRow
-            key={port.name}
-            portLabel={port.label}
-            resolution={resolution}
-            producerLabel={
-              resolution.status === "auto-bound"
-                ? (config.nodes[resolution.producerNodeId]?.label ??
-                  resolution.producerNodeId)
-                : null
-            }
-            onOverride={() => setOverrideOf(port.name)}
-            onRevert={() => handleRevert(port.name)}
-          />
-        );
-      })}
+      {rows.map(({ port, resolution }) => (
+        <PortRow
+          key={port.name}
+          portLabel={port.label}
+          resolution={resolution}
+          producerLabel={
+            resolution.status === "auto-bound"
+              ? (config.nodes[resolution.producerNodeId]?.label ??
+                resolution.producerNodeId)
+              : null
+          }
+          onOverride={() => setOverrideOf(port.name)}
+          onRevert={() => handleRevert(port.name)}
+        />
+      ))}
 
       <Modal
         opened={activePickerPort !== null}
@@ -216,7 +123,7 @@ export function InputsSection({
             config={config}
             consumerNodeId={nodeId}
             expectedKind={
-              (entry.inputs.find((p) => p.name === activePickerPort)?.kind ??
+              (rows.find((r) => r.port.name === activePickerPort)?.port.kind ??
                 "Artifact") as KindRef
             }
             value=""

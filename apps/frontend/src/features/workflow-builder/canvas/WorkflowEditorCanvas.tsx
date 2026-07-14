@@ -86,6 +86,7 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
+import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
@@ -190,6 +191,13 @@ interface WorkflowEditorCanvasProps {
    * the canvas re-apply the config's positions to its internal xyflow nodes.
    */
   layoutNonce?: number;
+  /**
+   * Deep-link into the settings-panel source picker for a specific input
+   * port (§6.4's "Fix" button on a warning row). The host owns node
+   * selection + opening the right rail; the canvas just forwards the
+   * (nodeId, port) pair up.
+   */
+  onFixNodeInput?: (nodeId: string, port: string) => void;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -1561,6 +1569,7 @@ function WorkflowEditorCanvasInner({
   simplifiedView = false,
   onGroupChipClick,
   layoutNonce = 0,
+  onFixNodeInput,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -2278,6 +2287,81 @@ function WorkflowEditorCanvasInner({
     return node.activityType;
   }, [swapState, config.nodes]);
 
+  // Connect-summary popover state (§6.4) — set by `openConnectSummary`
+  // below, cleared when the popover closes (Fix click, click-away, Escape,
+  // or the 8s auto-dismiss).
+  const [connectSummary, setConnectSummary] = useState<{
+    nodeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Node id awaiting a connect-summary popover — set by `openConnectSummary`
+  // below, resolved by the effect that follows it. A plain synchronous
+  // lookup at call time doesn't work for BOTH callers: `handleConnect`'s
+  // node-level branch calls this with a target that already exists in
+  // `config`, but `extendFromSource`'s hover-extend path calls this with a
+  // BRAND NEW node that only exists in the `next` config it just handed to
+  // `onConfigChange` — not yet in the `config` PROP this render closes
+  // over. Driving the resolution off a state value (rather than a ref +
+  // blind timer) means the effect naturally re-runs on the next render
+  // that actually carries the new node in `config.nodes`, however many
+  // renders that takes, instead of racing a fixed delay against however
+  // long the host takes to round-trip `onConfigChange`.
+  const [pendingSummaryTarget, setPendingSummaryTarget] = useState<
+    string | null
+  >(null);
+
+  const openConnectSummary = useCallback((targetNodeId: string) => {
+    setPendingSummaryTarget(targetNodeId);
+  }, []);
+
+  // Resolves `pendingSummaryTarget` into an anchored `connectSummary` once
+  // the node is both present in `config` (see above) and an
+  // activity/pollUntil node (the only types that ever have wireable input
+  // rows — other types would just render nothing, so there's no popover to
+  // anchor). Reads the node's rendered card via the same `canvas-node-<id>`
+  // testid every node renderer already stamps (used elsewhere in this file
+  // for hover-handle lookups), so no new DOM hook is needed. Runs as a
+  // plain effect (not deferred by a timer) — by the time an effect runs,
+  // React has already committed the node's DOM, so `getBoundingClientRect`
+  // reads a real position.
+  useEffect(() => {
+    if (!pendingSummaryTarget) return;
+    const target = config.nodes[pendingSummaryTarget];
+    if (
+      !target ||
+      (target.type !== "activity" && target.type !== "pollUntil")
+    ) {
+      // A node that exists but is the WRONG type never will satisfy this
+      // — give up rather than spin forever. Otherwise (not in `config`
+      // yet — extendFromSource's new node, pre-round-trip) stay pending;
+      // this effect re-runs once `config.nodes` changes again.
+      if (target) setPendingSummaryTarget(null);
+      return;
+    }
+    // `config.nodes` having the target doesn't mean its DOM card exists
+    // yet: the canvas's OWN `internalNodes` state is projected from
+    // `config` by a separate effect (see the structural-projection effects
+    // above) that runs in the SAME commit but hasn't landed in the DOM
+    // until ITS scheduled state update flushes on the NEXT commit. Depend
+    // on `internalNodes` too so this effect retries once that lands,
+    // rather than querying a DOM that's one render behind.
+    const el = document.querySelector(
+      `[data-testid="canvas-node-${pendingSummaryTarget}"]`,
+    );
+    if (!el) return;
+    setPendingSummaryTarget(null);
+    const rect = el.getBoundingClientRect();
+    if (rect) {
+      setConnectSummary({
+        nodeId: pendingSummaryTarget,
+        x: rect.right,
+        y: rect.top,
+      });
+    }
+  }, [pendingSummaryTarget, config.nodes, internalNodes]);
+
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
@@ -2285,7 +2369,10 @@ function WorkflowEditorCanvasInner({
       // §6.1 drag-to-bind: BOTH endpoints on per-port handles → one gesture
       // writes data + order + pin. Mixed gestures (port→node-body or
       // node→port) fall through to the node-level path below — an edge is
-      // created and auto-wire fills bindings as before.
+      // created and auto-wire fills bindings as before. Port-to-port drags
+      // do NOT get the §6.4 connect-summary popover — the pinned wire
+      // itself is the feedback — so `openConnectSummary` is only called
+      // from the node-level path below.
       const sourcePort = portFromHandleId(connection.sourceHandle, "output");
       const targetPort = portFromHandleId(connection.targetHandle, "input");
       if (sourcePort !== null && targetPort !== null) {
@@ -2330,8 +2417,9 @@ function WorkflowEditorCanvasInner({
         type: edgeType,
       };
       onConfigChange({ ...config, edges: [...config.edges, newEdge] });
+      openConnectSummary(connection.target);
     },
-    [config, onConfigChange],
+    [config, onConfigChange, openConnectSummary],
   );
 
   /**
@@ -2475,8 +2563,15 @@ function WorkflowEditorCanvasInner({
         edges: [...config.edges, newEdge],
       });
       onSelectNode(newNode.id);
+      openConnectSummary(newNode.id);
     },
-    [config, onConfigChange, onSelectNode, inferExtendEdgeType],
+    [
+      config,
+      onConfigChange,
+      onSelectNode,
+      inferExtendEdgeType,
+      openConnectSummary,
+    ],
   );
 
   const handleHoverPickActivity = useCallback(
@@ -2620,6 +2715,21 @@ function WorkflowEditorCanvasInner({
           onMouseLeave={handlePopoverLeave}
         />
       )}
+      {/*
+       * §6.4 — reads the LIVE `config` prop: by the time this renders, the
+       * host's `resolveBindings` pass (inside `handleCanvasConfigChange`)
+       * has already run against the `onConfigChange` call `handleConnect` /
+       * `extendFromSource` made above, so these rows show post-auto-wire
+       * truth, not the pre-connect snapshot.
+       */}
+      <ConnectSummaryPopover
+        opened={connectSummary !== null}
+        anchorPosition={connectSummary ?? { x: 0, y: 0 }}
+        config={config}
+        nodeId={connectSummary?.nodeId ?? null}
+        onClose={() => setConnectSummary(null)}
+        onFix={onFixNodeInput}
+      />
     </div>
   );
 }
