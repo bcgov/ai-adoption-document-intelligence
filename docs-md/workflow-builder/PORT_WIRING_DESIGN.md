@@ -45,7 +45,7 @@ An activity node renders one **port row** per wireable port: inputs down the lef
 
 - **Handles:** every catalog output; every input that is wireable — typed ports (`shouldAutoWirePort`) plus base-`Artifact` identifier ports (the name-match set from [resolve-input-port.ts](../../packages/graph-workflow/src/auto-wire/resolve-input-port.ts)).
 - **No handles:** static parameters (`node.parameters` — model IDs, thresholds, rule lists). These render inside the card as a compact `⚙︎ label: value` summary line (click → settings form at that field). A business user is never offered a wire for something that wants a typed-in value.
-- A **required input with no source** shows an amber ring on its port. This feeds the existing unified problems badge / validation-drawer pipeline (`autoWireIssuesToValidationErrors`) — same counts, same drawer entries, now with an on-node anchor.
+- A **required input with no source** shows an amber ring on its port. *As shipped in Phase 2 the ring is deliberately broader than the problems badge/drawer:* the ring fires for ANY required unbound catalog port (including base-`Artifact` identifier ports like `documentId`), while `autoWireIssuesToValidationErrors` only counts auto-wireable (typed) ports — so an identifier port can wear the ring with no badge/drawer entry and a clean Save. Reconciling the two (either counting required identifier ports as problems, or scoping the ring to the badge set) is a Phase-3 UX decision; see §15.
 
 ### 4.3 Density
 
@@ -182,6 +182,8 @@ Each phase ships independently and leaves the editor coherent:
    - The uniform 482px dagre node width makes narrow/few-port graphs lay out sparsely; per-node width estimation is deferred.
    - Map-body container sizing still assumes fixed footprints, so a wide member card can protrude past the container border (pre-existing).
    - The activity height estimate calibrates to the preview-skeleton state — never-run cards render ~120px shorter, ready-state previews up to ~80px taller than estimated.
+   - The amber needs-source ring is broader than the problems badge/drawer: it also fires for required base-`Artifact` identifier ports, which the auto-wire issue pipeline (and Save validation) deliberately skip — reconcile in Phase 3 (§4.2 note).
+   - Map-body item data flow renders as a plain sequence wire — the resolver feeds the loop item through `itemCtxKey` without materializing a map-node output binding, so no map-item wire derives until §4.4's `item (T)` port lands (the `via: "map-item"` tooltip branch is forward-looking).
 3. **Gestures** (§6) + **port-aware popover** (§9) — drag-to-bind, connect-time validation, delete semantics, connect summary.
 4. **Wire data peek** (§10).
 5. **Conditions from node outputs** (§11).
