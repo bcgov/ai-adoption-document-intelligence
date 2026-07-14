@@ -205,6 +205,14 @@ describe("ensureEdgeBetween", () => {
     expect(ensureEdgeBetween(config, "producer", "producer")).toBe(config);
   });
 
+  it("returns the config unchanged when the pair is linked only by an error edge — no normal edge is added", () => {
+    const config = baseConfig();
+    config.edges = [
+      { id: "e1", source: "producer", target: "consumer", type: "error" },
+    ];
+    expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
+  });
+
   it("returns the config unchanged when a forward edge already connects the pair", () => {
     const config = baseConfig();
     config.edges = [

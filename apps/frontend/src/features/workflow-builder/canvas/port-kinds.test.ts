@@ -6,7 +6,12 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityNode, SwitchNode } from "../../../types/workflow";
 import { config, node } from "./__test-utils__/config-fixtures";
-import { inputPortKind, outputPortKind, portFromHandleId } from "./port-kinds";
+import {
+  humanKindLabel,
+  inputPortKind,
+  outputPortKind,
+  portFromHandleId,
+} from "./port-kinds";
 
 describe("outputPortKind / inputPortKind", () => {
   it("returns the catalog kind for an activity output port", () => {
@@ -86,5 +91,19 @@ describe("portFromHandleId", () => {
     // Wrong prefix for the requested direction.
     expect(portFromHandleId("out-preparedData", "input")).toBeNull();
     expect(portFromHandleId("in-fileData", "output")).toBeNull();
+  });
+});
+
+describe("humanKindLabel", () => {
+  it('renders "Segment (list)" for "Segment[]"', () => {
+    expect(humanKindLabel("Segment[]")).toBe("Segment (list)");
+  });
+
+  it("passes base kinds through", () => {
+    expect(humanKindLabel("Document")).toBe("Document");
+  });
+
+  it('falls back to "Artifact" for undefined', () => {
+    expect(humanKindLabel(undefined)).toBe("Artifact");
   });
 });

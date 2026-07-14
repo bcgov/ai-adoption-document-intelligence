@@ -42,3 +42,13 @@ export function portFromHandleId(
   if (!handleId || !handleId.startsWith(prefix)) return null;
   return handleId.slice(prefix.length);
 }
+
+/**
+ * Plain-language kind for user-facing copy (§6.2 rejection notice —
+ * `humanKindLabel("Segment[]")` → `"Segment (list)"`). `undefined` reads as
+ * the `Artifact` wildcard, matching `isAssignable`'s treatment.
+ */
+export function humanKindLabel(kind: KindRef | undefined): string {
+  if (kind === undefined) return "Artifact";
+  return kind.endsWith("[]") ? `${kind.slice(0, -2)} (list)` : kind;
+}

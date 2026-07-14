@@ -19,13 +19,22 @@
 }
 
 /*
- * Data wires are projected with `selectable: false` (render-only phase —
- * gestures stay keyed to config.edges). xyflow marks unselectable edges
- * with no click handler as `.inactive` and its base stylesheet applies
- * `pointer-events: none`, which would swallow hover entirely and kill the
- * provenance <title> tooltip. Re-enable pointer events for data wires so
- * hovering the (invisible, 20px-wide) interaction stroke surfaces the
- * tooltip; selection stays off because `edge.selectable` is false.
+ * Data wires are projected with `selectable: true, deletable: true` (since
+ * the §6.3 task — no longer the original render-only phase this comment
+ * used to describe). This rule predates that change: it was written to
+ * counter xyflow marking an UNselectable, click-handler-less edge as
+ * `.inactive` (base stylesheet applies `pointer-events: none` to
+ * `.inactive` edges), which would have swallowed hover and killed the
+ * provenance <title> tooltip.
+ *
+ * Verified in-browser (2026-07, Task 7 §6.2 check): now that
+ * `selectable: true`, xyflow never applies `.inactive` to a data wire, so
+ * the base stylesheet's default `.react-flow__edge { pointer-events:
+ * visibleStroke }` already lets the (transparent, wide) interaction stroke
+ * catch hover — the tooltip works even with this rule removed. Left in
+ * place anyway as a defence-in-depth pin (not removed in this task) rather
+ * than relying on that default staying true across future xyflow/rendering
+ * changes.
  */
 .wb-editor-canvas .react-flow__edge.wb-data-wire {
   pointer-events: all;

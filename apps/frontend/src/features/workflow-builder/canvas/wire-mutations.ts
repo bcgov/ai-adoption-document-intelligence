@@ -147,7 +147,12 @@ export function revertPortToAutomatic(
  * Skipped when ANY edge already links the two nodes in either direction
  * (a reverse edge means adding a forward one would mint a 2-cycle — the
  * data wire renders regardless of execution path, per §5.1). Switch
- * sources stamp `conditional`, everything else `normal`.
+ * sources stamp `conditional`, everything else `normal`. A pair already
+ * linked only by a same-direction edge of a DIFFERENT type (e.g. an
+ * `error` or `conditional` edge, with no `normal` edge between them) also
+ * counts as "already connected" — no `normal` edge is added, so the data
+ * wire renders without a normal-path execution-order guarantee, consistent
+ * with how §5.1 renders data wires independent of the underlying edge type.
  */
 export function ensureEdgeBetween(
   config: GraphWorkflowConfig,

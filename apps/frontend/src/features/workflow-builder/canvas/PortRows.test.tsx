@@ -43,7 +43,7 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { PortRows } from "./PortRows";
+import { PortDragContext, PortRows } from "./PortRows";
 
 function makeRow(overrides: Partial<PortRowModel>): PortRowModel {
   return {
@@ -65,6 +65,20 @@ function renderRows(inputs: PortRowModel[], outputs: PortRowModel[]) {
   return render(
     <MantineProvider>
       <PortRows nodeId="node_1" inputs={inputs} outputs={outputs} />
+    </MantineProvider>,
+  );
+}
+
+function renderRowsWithDrag(
+  inputs: PortRowModel[],
+  outputs: PortRowModel[],
+  dragValue: { sourceKind: PortRowModel["kind"] } | null,
+) {
+  return render(
+    <MantineProvider>
+      <PortDragContext.Provider value={dragValue}>
+        <PortRows nodeId="node_1" inputs={inputs} outputs={outputs} />
+      </PortDragContext.Provider>
     </MantineProvider>,
   );
 }
@@ -247,5 +261,63 @@ describe("PortRows — labels and ctx provenance", () => {
     const row = screen.getByTestId("port-row-node_1-in-source");
     expect(row.hasAttribute("data-from-ctx")).toBe(false);
     expect(row).not.toHaveTextContent("· from");
+  });
+});
+
+describe("PortRows — connect-time drop-target highlight (§6.2)", () => {
+  it("stamps data-drop-compatible on input rows during a port drag; output rows carry no attribute", () => {
+    renderRowsWithDrag(
+      [
+        makeRow({ kind: "Document" }), // assignable — identity match
+        makeRow({
+          name: "segments",
+          label: "Segments",
+          kind: "Segment[]",
+          handleId: "in-segments",
+        }), // incompatible — cardinality mismatch vs a scalar Document source
+      ],
+      [
+        makeRow({
+          name: "out1",
+          label: "Out1",
+          direction: "output",
+          handleId: "out-out1",
+          kind: "Document",
+        }),
+      ],
+      { sourceKind: "Document" },
+    );
+
+    const compatible = screen.getByTestId("port-row-node_1-in-source");
+    expect(compatible.getAttribute("data-drop-compatible")).toBe("true");
+
+    const incompatible = screen.getByTestId("port-row-node_1-in-segments");
+    expect(incompatible.getAttribute("data-drop-compatible")).toBe("false");
+
+    const output = screen.getByTestId("port-row-node_1-out-out1");
+    expect(output.hasAttribute("data-drop-compatible")).toBe(false);
+  });
+
+  it("renders without the attribute when no drag is in progress", () => {
+    renderRowsWithDrag([makeRow({})], [], null);
+    const row = screen.getByTestId("port-row-node_1-in-source");
+    expect(row.hasAttribute("data-drop-compatible")).toBe(false);
+
+    // Same holds with no provider mounted at all.
+    renderRows([makeRow({})], []);
+    const rows = screen.getAllByTestId("port-row-node_1-in-source");
+    for (const r of rows) {
+      expect(r.hasAttribute("data-drop-compatible")).toBe(false);
+    }
+  });
+
+  it("wildcard Artifact input rows always read compatible during a drag", () => {
+    renderRowsWithDrag(
+      [makeRow({ kind: "Artifact" })],
+      [],
+      { sourceKind: "Segment[]" }, // deliberately unrelated to Artifact's usual family
+    );
+    const row = screen.getByTestId("port-row-node_1-in-source");
+    expect(row.getAttribute("data-drop-compatible")).toBe("true");
   });
 });

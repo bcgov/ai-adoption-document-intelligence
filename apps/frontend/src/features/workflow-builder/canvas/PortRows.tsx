@@ -16,11 +16,18 @@
  *
  * Vocabulary rule: rows show the plain-language `label`; the raw port
  * `name` + kind literal live in the tooltip.
+ *
+ * Connect-time drop-target highlight (PORT_WIRING_DESIGN.md §6.2): while a
+ * port-to-port drag is in progress, the canvas publishes the drag's source
+ * kind via `PortDragContext`. Each input row self-classifies as a
+ * compatible (enlarged handle) or incompatible (dimmed row) drop target —
+ * see `PortRow`'s `dropCompatible` derivation below.
  */
 
+import { isAssignable, type KindRef } from "@ai-di/graph-workflow";
 import { Tooltip } from "@mantine/core";
 import { Handle, Position } from "@xyflow/react";
-import { type CSSProperties, memo } from "react";
+import { type CSSProperties, createContext, memo, useContext } from "react";
 
 import { colorForKind } from "./artifact-kind-colour";
 import { handleArrayOutline, handleBackground } from "./handle-style";
@@ -29,6 +36,16 @@ import {
   PORT_ROWS_TOP_MARGIN,
   type PortRowModel,
 } from "./port-rows";
+
+/**
+ * Published by the canvas while a per-port connection drag is in progress
+ * (§6.2): carries the drag source's output kind so every input row can
+ * self-classify as a compatible (highlight) or incompatible (dim) drop
+ * target. `null` when no port drag is active.
+ */
+export const PortDragContext = createContext<{
+  sourceKind: KindRef | undefined;
+} | null>(null);
 
 export interface PortRowsProps {
   nodeId: string;
@@ -44,6 +61,12 @@ export interface PortRowsProps {
  */
 const INPUT_HANDLE_LEFT = -24; // 14px padding + 6px border + 4px clearance
 const OUTPUT_HANDLE_RIGHT = -20; // 14px padding + 2px border + 4px clearance
+
+/**
+ * Enlarged dot size for a compatible drop target during a port drag
+ * (§6.2), up from the base 12×12px stamped by `workflow-editor-canvas.css`.
+ */
+const DROP_COMPATIBLE_HANDLE_SIZE = 16;
 
 /**
  * Amber "needs a source" ring (required input with no wire/binding). Array
@@ -73,6 +96,17 @@ function PortRow({
   const color = colorForKind(row.kind);
   const isArray = row.kind?.endsWith("[]") === true;
 
+  const drag = useContext(PortDragContext);
+  // Input rows classify against the in-flight drag; wildcard (base
+  // Artifact) ports accept any drop (§6.2). Output rows are untouched —
+  // only input handles are ever drop targets.
+  const dropCompatible =
+    drag !== null && isInput
+      ? row.kind === undefined ||
+        row.kind === "Artifact" ||
+        isAssignable(drag.sourceKind, row.kind)
+      : null;
+
   const handleStyle: CSSProperties = {
     background: handleBackground(color),
     top: "50%",
@@ -88,6 +122,20 @@ function PortRow({
     ...(row.needsSource
       ? { boxShadow: isArray ? NEEDS_SOURCE_RING_ARRAY : NEEDS_SOURCE_RING }
       : {}),
+    // Enlarge the dot for a compatible drop target during a drag. Grown via
+    // explicit width/height (not `transform: scale()`): xyflow's base
+    // `.react-flow__handle-left`/`-right` CSS classes already apply a
+    // `translate(-50%, -50%)` positioning transform, and that percentage is
+    // resolved against the handle's OWN box size at layout time — so
+    // enlarging width/height keeps the dot centred on the same anchor point
+    // for free, whereas an inline `transform` would outright replace (not
+    // compose with) the class's translate and knock the dot off-position.
+    ...(dropCompatible === true
+      ? {
+          width: DROP_COMPATIBLE_HANDLE_SIZE,
+          height: DROP_COMPATIBLE_HANDLE_SIZE,
+        }
+      : {}),
   };
 
   return (
@@ -101,6 +149,9 @@ function PortRow({
         data-port-kind={row.kind ?? "Artifact"}
         data-needs-source={row.needsSource ? "true" : "false"}
         data-from-ctx={row.fromCtx}
+        {...(dropCompatible === null
+          ? {}
+          : { "data-drop-compatible": String(dropCompatible) })}
         style={{
           position: "relative",
           gridColumn: isInput ? 1 : 2,
@@ -113,6 +164,7 @@ function PortRow({
           minWidth: 0,
           fontSize: 11,
           color: "var(--mantine-color-dimmed, #9ca3af)",
+          ...(dropCompatible === false ? { opacity: 0.35 } : {}),
         }}
       >
         <Handle

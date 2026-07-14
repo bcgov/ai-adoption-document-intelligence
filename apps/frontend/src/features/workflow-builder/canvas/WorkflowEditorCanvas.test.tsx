@@ -2264,13 +2264,18 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
     return props.onConnect as (connection: Connection) => void;
   }
 
-  /** Two activity nodes, no edges, no bindings — nothing wires them yet. */
+  /**
+   * Two activity nodes, no edges, no bindings — nothing wires them yet.
+   * Uses a REAL catalog pair (not invented port names): `file.prepare`'s
+   * `preparedData` output (Document) → `azureOcr.submit`'s `fileData`
+   * input (Document) — the same pair `port-kinds.test.ts` exercises.
+   */
   function makeUnwiredPairConfig(): GraphWorkflowConfig {
     const prep: ActivityNode = {
       id: "prep",
       type: "activity",
       label: "Prep",
-      activityType: "data.transform",
+      activityType: "file.prepare",
       parameters: {},
       metadata: { position: { x: 0, y: 0 } },
     };
@@ -2278,7 +2283,7 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
       id: "submit",
       type: "activity",
       label: "Submit",
-      activityType: "data.transform",
+      activityType: "azureOcr.submit",
       parameters: {},
       metadata: { position: { x: 300, y: 0 } },
     };
@@ -2300,8 +2305,8 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
       getOnConnect()({
         source: "prep",
         target: "submit",
-        sourceHandle: "out-outA",
-        targetHandle: "in-inA",
+        sourceHandle: "out-preparedData",
+        targetHandle: "in-fileData",
       });
     });
 
@@ -2311,10 +2316,10 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
     const prep = next.nodes.prep as ActivityNode;
 
     expect(submit.inputs).toHaveLength(1);
-    expect(submit.inputs?.[0].port).toBe("inA");
+    expect(submit.inputs?.[0].port).toBe("fileData");
     const ctxKey = submit.inputs?.[0].ctxKey;
-    expect(prep.outputs).toEqual([{ port: "outA", ctxKey }]);
-    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+    expect(prep.outputs).toEqual([{ port: "preparedData", ctxKey }]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
 
     expect(next.edges).toHaveLength(1);
     expect(next.edges[0]).toMatchObject({
@@ -2336,8 +2341,8 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
       getOnConnect()({
         source: "prep",
         target: "submit",
-        sourceHandle: "out-outA",
-        targetHandle: "in-inA",
+        sourceHandle: "out-preparedData",
+        targetHandle: "in-fileData",
       });
     });
 
@@ -2347,8 +2352,8 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
 
     const submit = next.nodes.submit as ActivityNode;
     expect(submit.inputs).toHaveLength(1);
-    expect(submit.inputs?.[0].port).toBe("inA");
-    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+    expect(submit.inputs?.[0].port).toBe("fileData");
+    expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
   });
 
   it("port-source dropped on a node-level target falls through to plain edge creation", () => {
@@ -2359,7 +2364,7 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
       getOnConnect()({
         source: "prep",
         target: "submit",
-        sourceHandle: "out-outA",
+        sourceHandle: "out-preparedData",
         targetHandle: null,
       });
     });
@@ -2387,7 +2392,7 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
         source: "prep",
         target: "submit",
         sourceHandle: "out",
-        targetHandle: "in-inA",
+        targetHandle: "in-fileData",
       });
     });
 
@@ -2409,6 +2414,197 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
   // keep today's behavior — covered by the existing
   // "US-025: handleConnect edge-type stamping" suite above; not duplicated
   // here.
+});
+
+// ---------------------------------------------------------------------------
+// Task 7 (§6.2): connect-time kind validation — `isValidConnection` +
+// rejection notice. Real catalog activities/ports throughout (no invented
+// port names) so the kind lookups exercise the actual registry:
+//   - file.prepare.preparedData: Document  →  azureOcr.submit.fileData: Document
+//     (assignable — identity match)
+//   - document.split.segments: Segment[]   →  azureOcr.submit.fileData: Document
+//     (incompatible — cardinality mismatch)
+//   - document.split.segments: Segment[]   →  file.prepare.documentId: Artifact
+//     (wildcard target — always accepted)
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
+  function makeTypedPortsConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const ocr: ActivityNode = {
+      id: "ocr",
+      type: "activity",
+      label: "OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const split: ActivityNode = {
+      id: "split",
+      type: "activity",
+      label: "Split",
+      activityType: "document.split",
+      parameters: {},
+      metadata: { position: { x: 600, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Typed ports" },
+      ctx: {},
+      nodes: { prep, ocr, split },
+      edges: [],
+      entryNodeId: "prep",
+    };
+  }
+
+  /** Resolves the `isValidConnection` callback the canvas hands to ReactFlow. */
+  function getIsValidConnection(): (connection: Connection) => boolean {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.isValidConnection !== "function") {
+      throw new Error("ReactFlow mock did not capture isValidConnection");
+    }
+    return props.isValidConnection as (connection: Connection) => boolean;
+  }
+
+  /** Resolves the `onConnectEnd` callback the canvas hands to ReactFlow. */
+  function getOnConnectEnd(): (
+    event: unknown,
+    connectionState: unknown,
+  ) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnectEnd !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnectEnd");
+    }
+    return props.onConnectEnd as (
+      event: unknown,
+      connectionState: unknown,
+    ) => void;
+  }
+
+  it("rejects an incompatible port-to-port pair", () => {
+    renderCanvas(makeTypedPortsConfig());
+    const result = getIsValidConnection()({
+      source: "split",
+      target: "ocr",
+      sourceHandle: "out-segments",
+      targetHandle: "in-fileData",
+    });
+    expect(result).toBe(false);
+  });
+
+  it("accepts an assignable pair", () => {
+    renderCanvas(makeTypedPortsConfig());
+    const result = getIsValidConnection()({
+      source: "prep",
+      target: "ocr",
+      sourceHandle: "out-preparedData",
+      targetHandle: "in-fileData",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("accepts any drop onto a base-Artifact input port", () => {
+    renderCanvas(makeTypedPortsConfig());
+    // document.split's `segments` (Segment[]) output is a poor structural
+    // match for anything, but `file.prepare`'s `documentId` input declares
+    // the wildcard `Artifact` kind — a manual drag onto it is always
+    // accepted per §6.2.
+    const result = getIsValidConnection()({
+      source: "split",
+      target: "prep",
+      sourceHandle: "out-segments",
+      targetHandle: "in-documentId",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("always accepts node-level connections", () => {
+    renderCanvas(makeTypedPortsConfig());
+    const result = getIsValidConnection()({
+      source: "split",
+      target: "ocr",
+      sourceHandle: "out",
+      targetHandle: null,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("rejects self-connections", () => {
+    renderCanvas(makeTypedPortsConfig());
+    const result = getIsValidConnection()({
+      source: "prep",
+      target: "prep",
+      sourceHandle: "out",
+      targetHandle: null,
+    });
+    expect(result).toBe(false);
+  });
+
+  it("shows a plain-language rejection notice on an invalid port drop", () => {
+    renderCanvas(makeTypedPortsConfig());
+    const onConnectEnd = getOnConnectEnd();
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+
+    showMock.mockClear();
+    act(() => {
+      onConnectEnd(new MouseEvent("mouseup"), {
+        isValid: false,
+        fromNode: { id: "split" },
+        fromHandle: { id: "out-segments" },
+        toNode: { id: "ocr" },
+        toHandle: { id: "in-fileData" },
+      });
+    });
+    expect(showMock).toHaveBeenCalledTimes(1);
+    expect(showMock.mock.calls[0][0]).toMatchObject({
+      message: "Segment (list) can't be used as a Document",
+    });
+
+    showMock.mockClear();
+    act(() => {
+      onConnectEnd(new MouseEvent("mouseup"), {
+        isValid: true,
+        fromNode: { id: "split" },
+        fromHandle: { id: "out-segments" },
+        toNode: { id: "ocr" },
+        toHandle: { id: "in-fileData" },
+      });
+    });
+    expect(showMock).not.toHaveBeenCalled();
+
+    showMock.mockClear();
+    act(() => {
+      onConnectEnd(new MouseEvent("mouseup"), {
+        isValid: false,
+        fromNode: { id: "split" },
+        // Node-level source handle — not a port-to-port drag.
+        fromHandle: { id: "out" },
+        toNode: { id: "ocr" },
+        toHandle: { id: "in-fileData" },
+      });
+    });
+    expect(showMock).not.toHaveBeenCalled();
+
+    showMock.mockClear();
+    act(() => {
+      onConnectEnd(new MouseEvent("mouseup"), {
+        isValid: false,
+        fromNode: { id: "split" },
+        fromHandle: { id: "out-segments" },
+        toNode: { id: "ocr" },
+        // Dropped off any handle entirely.
+        toHandle: null,
+      });
+    });
+    expect(showMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

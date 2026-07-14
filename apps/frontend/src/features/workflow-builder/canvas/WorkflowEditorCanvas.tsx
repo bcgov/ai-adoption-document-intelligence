@@ -28,6 +28,7 @@ import "./workflow-editor-canvas.css";
 import {
   getActivityCatalogEntry,
   getLockedInputPorts,
+  isAssignable,
 } from "@ai-di/graph-workflow";
 import { Badge, Modal, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -37,10 +38,13 @@ import {
   Controls,
   type Edge,
   Handle,
+  type IsValidConnection,
   MarkerType,
   MiniMap,
   type Node,
   type NodeProps,
+  type OnConnectEnd,
+  type OnConnectStart,
   type OnSelectionChangeParams,
   Position,
   ReactFlow,
@@ -105,9 +109,14 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
-import { PortRows } from "./PortRows";
+import { PortDragContext, PortRows } from "./PortRows";
 import { findNextFreePosition } from "./place-extended-node";
-import { portFromHandleId } from "./port-kinds";
+import {
+  humanKindLabel,
+  inputPortKind,
+  outputPortKind,
+  portFromHandleId,
+} from "./port-kinds";
 import {
   computePortRows,
   inputHandleId,
@@ -635,10 +644,12 @@ const ActivityNodeRenderer = memo(
     // wires are projected as `null`, and xyflow's default resolution
     // (`getHandle`) picks `bounds[0]` — the FIRST handle of the required
     // type in DOM order — so the node-level target MUST render before
-    // <PortRows> in the JSX or those edges would silently anchor to the
-    // first per-port row dot instead (per-port handles are render-only in
-    // this phase). The `out` handle also keeps the hover-to-extend bridge
-    // (US-045).
+    // <PortRows> in the JSX, or those null-targetHandle edges would
+    // silently resolve to `bounds[0]` and anchor at the first per-port row
+    // dot instead. This DOM-order requirement is independent of per-port
+    // handles being connectable and drag-validated (§6.1/§6.2) — it's
+    // purely about which handle xyflow's default resolver picks. The
+    // `out` handle also keeps the hover-to-extend bridge (US-045).
     const hoverHandlers = makeSourceHandleHoverHandlers(
       id,
       data.onSourceHandleEnter,
@@ -2324,6 +2335,91 @@ function WorkflowEditorCanvasInner({
   );
 
   /**
+   * §6.2 — connect-time kind validation for port-to-port drags. Node-level
+   * gestures (either endpoint missing a per-port handle id) keep today's
+   * permissive behavior; a self-connection is always rejected outright. A
+   * wildcard (`undefined` or base `Artifact`) target kind accepts any
+   * drop — a manual drag is an explicit choice, so §6.2 doesn't second-
+   * guess it the way auto-wire's resolver does.
+   */
+  const isValidConnection = useCallback<IsValidConnection>(
+    (connection) => {
+      if (connection.source === connection.target) return false;
+      const sourcePort = portFromHandleId(connection.sourceHandle, "output");
+      const targetPort = portFromHandleId(connection.targetHandle, "input");
+      if (sourcePort === null || targetPort === null) return true;
+      const targetKind = inputPortKind(config, connection.target, targetPort);
+      if (targetKind === undefined || targetKind === "Artifact") return true;
+      const sourceKind = outputPortKind(config, connection.source, sourcePort);
+      return isAssignable(sourceKind, targetKind);
+    },
+    [config],
+  );
+
+  // Tracks the in-flight port drag's origin handle so `<PortRows>` can
+  // classify each input row as a compatible/incompatible drop target
+  // (§6.2) via `PortDragContext`. Cleared on `onConnectEnd` regardless of
+  // outcome (drop, cancel, or a completed connect).
+  const [dragFrom, setDragFrom] = useState<{
+    nodeId: string;
+    handleId: string;
+  } | null>(null);
+
+  const handleConnectStart = useCallback<OnConnectStart>((_event, params) => {
+    if (params.nodeId && params.handleId) {
+      setDragFrom({ nodeId: params.nodeId, handleId: params.handleId });
+    }
+  }, []);
+
+  const portDragValue = useMemo(() => {
+    const sourcePort = portFromHandleId(dragFrom?.handleId, "output");
+    if (!dragFrom || sourcePort === null) return null;
+    return { sourceKind: outputPortKind(config, dragFrom.nodeId, sourcePort) };
+  }, [dragFrom, config]);
+
+  /**
+   * §6.2 — plain-language rejection notice. Fires ONLY when the drag was a
+   * genuine port-to-port drop (`isValidConnection` returning false is the
+   * only way `isValid` is false for a port pair) — node-level drags and
+   * drops off any handle don't name a source/target kind, so they're
+   * silently skipped rather than showing a confusing notice.
+   */
+  const handleConnectEnd = useCallback<OnConnectEnd>(
+    (_event, connectionState) => {
+      setDragFrom(null);
+      const fromPort = portFromHandleId(
+        connectionState.fromHandle?.id,
+        "output",
+      );
+      const toPort = portFromHandleId(connectionState.toHandle?.id, "input");
+      if (
+        !connectionState.isValid &&
+        fromPort !== null &&
+        toPort !== null &&
+        connectionState.fromNode &&
+        connectionState.toNode
+      ) {
+        const sourceKind = outputPortKind(
+          config,
+          connectionState.fromNode.id,
+          fromPort,
+        );
+        const targetKind = inputPortKind(
+          config,
+          connectionState.toNode.id,
+          toPort,
+        );
+        notifications.show({
+          color: "yellow",
+          message: `${humanKindLabel(sourceKind)} can't be used as a ${humanKindLabel(targetKind)}`,
+          autoClose: 5000,
+        });
+      }
+    },
+    [config],
+  );
+
+  /**
    * Resolves the edge type the hover-extender should stamp on the new
    * connection — mirrors the (`switch` → `conditional`, otherwise
    * `normal`) part of `handleConnect`. The new edge is always drawn from
@@ -2411,38 +2507,43 @@ function WorkflowEditorCanvasInner({
 
   return (
     <div style={{ height: "100%", width: "100%" }}>
-      <ReactFlow
-        className="wb-editor-canvas"
-        nodes={internalNodes}
-        edges={internalEdges}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        onNodesChange={onInternalNodesChange}
-        onEdgesChange={onInternalEdgesChange}
-        onNodeDragStop={handleNodeDragStop}
-        onSelectionChange={handleSelectionChange}
-        onDelete={handleDelete}
-        onConnect={handleConnect}
-        onNodeContextMenu={handleNodeContextMenu}
-        onEdgeContextMenu={handleEdgeContextMenu}
-        onInit={(instance) =>
-          // Cast away the typed-generic narrowing on the inner instance —
-          // the host only needs the generic `ReactFlowInstance` surface
-          // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
-          // (US-049 Scenario 3).
-          onReactFlowReady?.(instance as unknown as ReactFlowInstance)
-        }
-        nodesDraggable
-        nodesConnectable
-        elementsSelectable
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        deleteKeyCode={["Delete", "Backspace"]}
-      >
-        <Background gap={18} size={1} />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable />
-      </ReactFlow>
+      <PortDragContext.Provider value={portDragValue}>
+        <ReactFlow
+          className="wb-editor-canvas"
+          nodes={internalNodes}
+          edges={internalEdges}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          onNodesChange={onInternalNodesChange}
+          onEdgesChange={onInternalEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          onSelectionChange={handleSelectionChange}
+          onDelete={handleDelete}
+          onConnect={handleConnect}
+          isValidConnection={isValidConnection}
+          onConnectStart={handleConnectStart}
+          onConnectEnd={handleConnectEnd}
+          onNodeContextMenu={handleNodeContextMenu}
+          onEdgeContextMenu={handleEdgeContextMenu}
+          onInit={(instance) =>
+            // Cast away the typed-generic narrowing on the inner instance —
+            // the host only needs the generic `ReactFlowInstance` surface
+            // (`fitView`, `getNodes`, etc.) for the auto-arrange flow
+            // (US-049 Scenario 3).
+            onReactFlowReady?.(instance as unknown as ReactFlowInstance)
+          }
+          nodesDraggable
+          nodesConnectable
+          elementsSelectable
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          deleteKeyCode={["Delete", "Backspace"]}
+        >
+          <Background gap={18} size={1} />
+          <Controls showInteractive={false} />
+          <MiniMap pannable zoomable />
+        </ReactFlow>
+      </PortDragContext.Provider>
       {contextMenu && (
         <NodeContextMenu
           nodeId={contextMenu.nodeId}
