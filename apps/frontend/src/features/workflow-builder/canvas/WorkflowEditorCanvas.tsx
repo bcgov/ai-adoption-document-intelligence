@@ -116,13 +116,14 @@ import {
 } from "./port-rows";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
+import { WireContextMenu } from "./WireContextMenu";
 import {
   dataWireStroke,
   WorkflowEdge,
   type WorkflowEdgeData,
   wireTooltip,
 } from "./WorkflowEdge";
-import { disconnectDataWire } from "./wire-mutations";
+import { disconnectDataWire, revertPortToAutomatic } from "./wire-mutations";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -1999,8 +2000,10 @@ function WorkflowEditorCanvasInner({
   /**
    * §6.3 — disconnect data wires (pinned unbound) + one-shot hint when the
    * pair's normal edge survives as a dashed sequence remainder. Invoked
-   * from the unified `handleDelete` pass; callers must pre-filter to
-   * SURVIVOR wires only (both endpoints still in the graph).
+   * from the unified `handleDelete` pass and from the wire context menu's
+   * "Disconnect" entry (§7); callers must pre-filter to SURVIVOR wires only
+   * (both endpoints still in the graph) — the context menu's single wire
+   * trivially satisfies this since no nodes are being deleted.
    */
   const disconnectWires = useCallback(
     (wires: DataWire[], base: GraphWorkflowConfig): GraphWorkflowConfig => {
@@ -2099,6 +2102,47 @@ function WorkflowEditorCanvasInner({
       }
     },
     [config, onConfigChange, disconnectWires, onSelectNode, selectedNodeId],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Wire right-click context menu (Task 5, §7): "Disconnect" / "Revert to
+  // automatic". Only opened for data wires — structural (sequence /
+  // conditional / error) wires keep the browser's native context menu.
+  // ---------------------------------------------------------------------------
+
+  const [wireMenu, setWireMenu] = useState<{
+    wire: DataWire;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const handleEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      const wire = (edge.data as WorkflowEdgeData | undefined)?.wire;
+      if (wire?.variant !== "data") return; // structural edges keep native behavior
+      event.preventDefault();
+      setWireMenu({ wire, x: event.clientX, y: event.clientY });
+    },
+    [],
+  );
+
+  const closeWireMenu = useCallback(() => setWireMenu(null), []);
+
+  const handleWireDisconnect = useCallback(
+    (wire: DataWire) => {
+      const next = disconnectWires([wire], config);
+      if (next !== config) onConfigChange(next);
+    },
+    [config, onConfigChange, disconnectWires],
+  );
+
+  const handleWireRevert = useCallback(
+    (wire: DataWire) => {
+      onConfigChange(
+        revertPortToAutomatic(config, wire.target, wire.targetPort),
+      );
+    },
+    [config, onConfigChange],
   );
 
   // ---------------------------------------------------------------------------
@@ -2365,6 +2409,7 @@ function WorkflowEditorCanvasInner({
         onDelete={handleDelete}
         onConnect={handleConnect}
         onNodeContextMenu={handleNodeContextMenu}
+        onEdgeContextMenu={handleEdgeContextMenu}
         onInit={(instance) =>
           // Cast away the typed-generic narrowing on the inner instance —
           // the host only needs the generic `ReactFlowInstance` surface
@@ -2402,6 +2447,15 @@ function WorkflowEditorCanvasInner({
           }
         />
       )}
+      <WireContextMenu
+        opened={wireMenu !== null}
+        x={wireMenu?.x ?? 0}
+        y={wireMenu?.y ?? 0}
+        wire={wireMenu?.wire ?? null}
+        onClose={closeWireMenu}
+        onDisconnect={handleWireDisconnect}
+        onRevert={handleWireRevert}
+      />
       {editScriptSlug && (
         <Modal
           opened

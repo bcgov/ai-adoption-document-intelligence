@@ -1739,6 +1739,110 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
 });
 
 // ---------------------------------------------------------------------------
+// Shared fixtures/helpers for the data-wire tests below (Task 4 §6.3 and
+// Task 5 §7 both operate on the same "prep --(e1)--> submit" pair, so these
+// are hoisted to module scope rather than duplicated per describe block).
+// ---------------------------------------------------------------------------
+
+/**
+ * prep --(edge e1, normal)--> submit, with ONE data wire (prep.outA →
+ * submit.inA via ctxKey "k1"). The edge survives the wire — `edgeId` gets
+ * stamped onto it by `deriveStructuralWires` — so this is the "last data
+ * wire on the pair, its edge remains" fixture.
+ */
+function makeSingleWireConfig(): GraphWorkflowConfig {
+  const prep: ActivityNode = {
+    id: "prep",
+    type: "activity",
+    label: "Prep",
+    activityType: "data.transform",
+    parameters: {},
+    outputs: [{ port: "outA", ctxKey: "k1" }],
+    metadata: { position: { x: 0, y: 0 } },
+  };
+  const submit: ActivityNode = {
+    id: "submit",
+    type: "activity",
+    label: "Submit",
+    activityType: "data.transform",
+    parameters: {},
+    inputs: [{ port: "inA", ctxKey: "k1" }],
+    metadata: { position: { x: 300, y: 0 } },
+  };
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "Single wire", version: "1.0.0" },
+    ctx: {},
+    nodes: { prep, submit },
+    edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
+    entryNodeId: "prep",
+  };
+}
+
+/** Same pair, but `submit.inA` is already locked (pinned) to prep.outA. */
+function makePinnedSingleWireConfig(): GraphWorkflowConfig {
+  const config = makeSingleWireConfig();
+  const submit = config.nodes.submit as ActivityNode;
+  return {
+    ...config,
+    nodes: {
+      ...config.nodes,
+      submit: {
+        ...submit,
+        metadata: { ...submit.metadata, lockedInputPorts: ["inA"] },
+      },
+    },
+  };
+}
+
+/** A bindings-free pair — renders purely as a structural sequence wire. */
+function makeSequenceOnlyConfig(): GraphWorkflowConfig {
+  const bare1: ActivityNode = {
+    id: "bare1",
+    type: "activity",
+    label: "Bare A",
+    activityType: "data.transform",
+    parameters: {},
+    metadata: { position: { x: 0, y: 200 } },
+  };
+  const bare2: ActivityNode = {
+    id: "bare2",
+    type: "activity",
+    label: "Bare B",
+    activityType: "data.transform",
+    parameters: {},
+    metadata: { position: { x: 300, y: 200 } },
+  };
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "Sequence only", version: "1.0.0" },
+    ctx: {},
+    nodes: { bare1, bare2 },
+    edges: [{ id: "e_bare", source: "bare1", target: "bare2", type: "normal" }],
+    entryNodeId: "bare1",
+  };
+}
+
+function getCapturedEdges(): Edge[] {
+  const props = latestReactFlowProps.current;
+  if (!props) throw new Error("ReactFlow mock did not capture props");
+  return (props.edges as Edge[]) ?? [];
+}
+
+/** Minimal xyflow Node payload — the delete path only reads `id`. */
+function flowNode(id: string): FlowNode {
+  return { id, data: {}, position: { x: 0, y: 0 } };
+}
+
+function lastEmittedConfig(
+  onConfigChange: ReturnType<typeof vi.fn>,
+): GraphWorkflowConfig {
+  expect(onConfigChange).toHaveBeenCalled();
+  const calls = onConfigChange.mock.calls;
+  return calls[calls.length - 1][0] as GraphWorkflowConfig;
+}
+
+// ---------------------------------------------------------------------------
 // Task 4 (§6.3): data wire deletion — disconnect the binding + pin the port
 // unbound; `config.edges` is untouched by a data-wire delete. When the LAST
 // data wire between a pair is deleted and a normal edge still connects the
@@ -1748,41 +1852,6 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
-  /**
-   * prep --(edge e1, normal)--> submit, with ONE data wire (prep.outA →
-   * submit.inA via ctxKey "k1"). The edge survives the wire — `edgeId` gets
-   * stamped onto it by `deriveStructuralWires` — so this is the "last data
-   * wire on the pair, its edge remains" fixture.
-   */
-  function makeSingleWireConfig(): GraphWorkflowConfig {
-    const prep: ActivityNode = {
-      id: "prep",
-      type: "activity",
-      label: "Prep",
-      activityType: "data.transform",
-      parameters: {},
-      outputs: [{ port: "outA", ctxKey: "k1" }],
-      metadata: { position: { x: 0, y: 0 } },
-    };
-    const submit: ActivityNode = {
-      id: "submit",
-      type: "activity",
-      label: "Submit",
-      activityType: "data.transform",
-      parameters: {},
-      inputs: [{ port: "inA", ctxKey: "k1" }],
-      metadata: { position: { x: 300, y: 0 } },
-    };
-    return {
-      schemaVersion: "1.0",
-      metadata: { name: "Single wire", version: "1.0.0" },
-      ctx: {},
-      nodes: { prep, submit },
-      edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
-      entryNodeId: "prep",
-    };
-  }
-
   /**
    * Same pair, TWO data wires (prep.outA → submit.inA via "k1", prep.outB →
    * submit.inB via "k2") over the one normal edge — `deriveStructuralWires`
@@ -1830,36 +1899,6 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     return { ...config, edges: [] };
   }
 
-  /** A bindings-free pair — renders purely as a structural sequence wire. */
-  function makeSequenceOnlyConfig(): GraphWorkflowConfig {
-    const bare1: ActivityNode = {
-      id: "bare1",
-      type: "activity",
-      label: "Bare A",
-      activityType: "data.transform",
-      parameters: {},
-      metadata: { position: { x: 0, y: 200 } },
-    };
-    const bare2: ActivityNode = {
-      id: "bare2",
-      type: "activity",
-      label: "Bare B",
-      activityType: "data.transform",
-      parameters: {},
-      metadata: { position: { x: 300, y: 200 } },
-    };
-    return {
-      schemaVersion: "1.0",
-      metadata: { name: "Sequence only", version: "1.0.0" },
-      ctx: {},
-      nodes: { bare1, bare2 },
-      edges: [
-        { id: "e_bare", source: "bare1", target: "bare2", type: "normal" },
-      ],
-      entryNodeId: "bare1",
-    };
-  }
-
   /** `makeSingleWireConfig` + `makeSequenceOnlyConfig` merged into one graph. */
   function makeMixedConfig(): GraphWorkflowConfig {
     const wireConfig = makeSingleWireConfig();
@@ -1869,12 +1908,6 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
       nodes: { ...wireConfig.nodes, ...sequenceConfig.nodes },
       edges: [...wireConfig.edges, ...sequenceConfig.edges],
     };
-  }
-
-  function getCapturedEdges(): Edge[] {
-    const props = latestReactFlowProps.current;
-    if (!props) throw new Error("ReactFlow mock did not capture props");
-    return (props.edges as Edge[]) ?? [];
   }
 
   /** Resolves the unified `onDelete` callback the canvas hands to ReactFlow. */
@@ -1890,19 +1923,6 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
       nodes: FlowNode[];
       edges: Edge[];
     }) => void;
-  }
-
-  /** Minimal xyflow Node payload — the delete path only reads `id`. */
-  function flowNode(id: string): FlowNode {
-    return { id, data: {}, position: { x: 0, y: 0 } };
-  }
-
-  function lastEmittedConfig(
-    onConfigChange: ReturnType<typeof vi.fn>,
-  ): GraphWorkflowConfig {
-    expect(onConfigChange).toHaveBeenCalled();
-    const calls = onConfigChange.mock.calls;
-    return calls[calls.length - 1][0] as GraphWorkflowConfig;
   }
 
   it("projects data wires as selectable and deletable", async () => {
@@ -2103,6 +2123,125 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     const submit = next.nodes.submit as ActivityNode;
     expect(submit.inputs).toEqual([]);
     expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 5 (§7): right-click context menu on data wires — "Disconnect" (always)
+// and "Revert to automatic" (pinned wires only). Structural wires keep the
+// browser's native context menu (no preventDefault, nothing opens).
+//   PORT_WIRING_DESIGN.md §7
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — wire context menu (§7)", () => {
+  /** Resolves the `onEdgeContextMenu` callback the canvas hands to ReactFlow. */
+  function getOnEdgeContextMenu(): (
+    event: React.MouseEvent,
+    edge: Edge,
+  ) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onEdgeContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onEdgeContextMenu");
+    }
+    return props.onEdgeContextMenu as (
+      event: React.MouseEvent,
+      edge: Edge,
+    ) => void;
+  }
+
+  function makeContextMenuEvent(clientX = 111, clientY = 222) {
+    return {
+      preventDefault: vi.fn(),
+      clientX,
+      clientY,
+    } as unknown as React.MouseEvent & {
+      preventDefault: ReturnType<typeof vi.fn>;
+    };
+  }
+
+  it("opens the menu on data-wire context menu with preventDefault", async () => {
+    renderCanvas(makeSingleWireConfig());
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    const event = makeContextMenuEvent();
+    act(() => {
+      getOnEdgeContextMenu()(event, dataWireEdge);
+    });
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-context-menu")).toBeInTheDocument();
+    });
+  });
+
+  it("does not open for structural wires", async () => {
+    renderCanvas(makeSequenceOnlyConfig());
+    await flushAnimationFrame();
+
+    const sequenceEdge = getCapturedEdges().find((e) => e.id === "e_bare");
+    if (!sequenceEdge) throw new Error("sequence wire not projected");
+
+    const event = makeContextMenuEvent();
+    act(() => {
+      getOnEdgeContextMenu()(event, sequenceEdge);
+    });
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("wire-context-menu")).not.toBeInTheDocument();
+  });
+
+  it("Disconnect applies §6.3 semantics", async () => {
+    const config = makeSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgeContextMenu()(makeContextMenuEvent(), dataWireEdge);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-menu-disconnect")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("wire-menu-disconnect"));
+
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toEqual([]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+    expect(next.edges).toEqual(config.edges);
+  });
+
+  it("Revert to automatic removes the lock", async () => {
+    const config = makePinnedSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgeContextMenu()(makeContextMenuEvent(), dataWireEdge);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-menu-revert")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("wire-menu-revert"));
+
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
+    expect(submit.inputs).toEqual([{ port: "inA", ctxKey: "k1" }]);
   });
 });
 
