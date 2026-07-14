@@ -1,13 +1,11 @@
 import {
   AUTO_CTX_KEY_PREFIX,
   getActivityCatalogEntry,
-  getLockedInputPorts,
   isAutoCtxKey,
   type KindRef,
   type PortResolution,
   resolveInputPort,
   shouldAutoWirePort,
-  synthesiseCtxKey,
 } from "@ai-di/graph-workflow";
 import {
   Badge,
@@ -19,7 +17,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useState } from "react";
-import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
+import type { GraphWorkflowConfig } from "../../../types/workflow";
+import {
+  pinPortBinding,
+  revertPortToAutomatic,
+} from "../canvas/wire-mutations";
 import { ProducerPicker } from "../graph-widgets/ProducerPicker";
 
 interface InputsSectionProps {
@@ -122,63 +124,13 @@ export function InputsSection({
     portName: string,
     selection: { producerNodeId: string; producerPort: string },
   ) => {
-    const producer = config.nodes[selection.producerNodeId];
-    if (!producer) return;
-    const existingOutputBinding = producer.outputs?.find(
-      (b) => b.port === selection.producerPort,
-    );
-    const ctxKey =
-      existingOutputBinding?.ctxKey ??
-      synthesiseCtxKey(selection.producerNodeId, selection.producerPort);
-    const nextProducerOutputs = existingOutputBinding
-      ? (producer.outputs ?? [])
-      : [...(producer.outputs ?? []), { port: selection.producerPort, ctxKey }];
-    const nextConsumerInputs = [
-      ...(node.inputs ?? []).filter((b) => b.port !== portName),
-      { port: portName, ctxKey },
-    ];
-    const existingLocks = getLockedInputPorts(node);
-    const nextLocks = Array.from(new Set([...existingLocks, portName]));
-    onConfigChange({
-      ...config,
-      nodes: {
-        ...config.nodes,
-        [selection.producerNodeId]: {
-          ...producer,
-          outputs: nextProducerOutputs,
-        } as GraphNode,
-        [nodeId]: {
-          ...node,
-          inputs: nextConsumerInputs,
-          metadata: {
-            ...(node.metadata ?? {}),
-            lockedInputPorts: nextLocks,
-          },
-        } as GraphNode,
-      },
-    });
+    const next = pinPortBinding(config, nodeId, portName, selection);
+    if (next !== config) onConfigChange(next);
     closePicker();
   };
 
   const handleRevert = (portName: string) => {
-    const existingLocks = getLockedInputPorts(node);
-    const nextLocks = existingLocks.filter((p) => p !== portName);
-    const nextMetadata: Record<string, unknown> = { ...(node.metadata ?? {}) };
-    if (nextLocks.length > 0) {
-      nextMetadata.lockedInputPorts = nextLocks;
-    } else {
-      delete nextMetadata.lockedInputPorts;
-    }
-    onConfigChange({
-      ...config,
-      nodes: {
-        ...config.nodes,
-        [nodeId]: {
-          ...node,
-          metadata: nextMetadata,
-        } as GraphNode,
-      },
-    });
+    onConfigChange(revertPortToAutomatic(config, nodeId, portName));
   };
 
   return (
