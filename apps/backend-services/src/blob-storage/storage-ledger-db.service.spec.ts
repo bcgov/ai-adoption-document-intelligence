@@ -14,6 +14,7 @@ jest.mock("@ai-di/billing", () => ({
 function makeMockPrisma() {
   const groupStorageLedger = {
     create: jest.fn().mockResolvedValue({}),
+    upsert: jest.fn().mockResolvedValue({}),
     updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const usageEvent = { create: jest.fn().mockResolvedValue({ id: "event-1" }) };
@@ -77,18 +78,27 @@ describe("StorageLedgerDbService", () => {
         1024,
       );
 
-      expect(mockPrisma.groupStorageLedger.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockPrisma.groupStorageLedger.upsert).toHaveBeenCalledWith({
+        where: {
+          blob_key: "group-abc/documents/doc-1/original.pdf",
+        },
+        create: {
           group_id: "group-abc",
           blob_key: "group-abc/documents/doc-1/original.pdf",
           size_bytes: BigInt(1024),
+          written_at: expect.any(Date),
           deleted_at: null,
-        }),
+        },
+        update: {
+          size_bytes: BigInt(1024),
+          written_at: expect.any(Date),
+          deleted_at: null,
+        },
       });
     });
 
     it("throws when the insert fails", async () => {
-      mockPrisma.groupStorageLedger.create.mockRejectedValueOnce(
+      mockPrisma.groupStorageLedger.upsert.mockRejectedValueOnce(
         new Error("DB error"),
       );
 

@@ -36,10 +36,18 @@ export async function recordLedgerWrite(
 
   const groupId = key.split("/")[0];
   try {
-    await prisma.groupStorageLedger.create({
-      data: {
+    await prisma.groupStorageLedger.upsert({
+      where: {
+        blob_key: key,
+      },
+      create: {
         group_id: groupId,
         blob_key: key,
+        size_bytes: BigInt(sizeBytes),
+        written_at: new Date(),
+        deleted_at: null,
+      },
+      update: {
         size_bytes: BigInt(sizeBytes),
         written_at: new Date(),
         deleted_at: null,

@@ -73,6 +73,7 @@ COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 COPY --from=builder /packages/graph-workflow /packages/graph-workflow
 COPY --from=builder /packages/temporal-payload-codec /packages/temporal-payload-codec
 COPY --from=builder /packages/monitoring /packages/monitoring
+COPY --from=builder /packages/billing /packages/billing
 
 # Copy package files
 COPY apps/backend-services/package.json ./

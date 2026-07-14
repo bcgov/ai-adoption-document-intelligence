@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UsageEventType" AS ENUM ('activity_completed', 'workflow_cost', 'model_training_started', 'blob_storage');
+CREATE TYPE "UsageEventType" AS ENUM ('activity_completed', 'workflow_cost', 'model_training', 'blob_storage');
 
 -- CreateEnum
 CREATE TYPE "ActivityCostType" AS ENUM ('flat', 'per_page');

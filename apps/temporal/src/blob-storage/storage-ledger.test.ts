@@ -15,6 +15,7 @@ jest.mock("@temporalio/activity", () => ({
 function makeMockPrisma() {
   const groupStorageLedger = {
     create: jest.fn().mockResolvedValue({}),
+    upsert: jest.fn().mockResolvedValue({}),
     updateMany: jest.fn().mockResolvedValue({ count: 1 }),
   };
   const usageEvent = { create: jest.fn().mockResolvedValue({}) };
@@ -49,13 +50,22 @@ describe("recordLedgerWrite", () => {
     const prisma = makeMockPrisma();
     await recordLedgerWrite(prisma, "group-abc/docs/file.pdf", 2048);
 
-    expect(prisma.groupStorageLedger.create as jest.Mock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(prisma.groupStorageLedger.upsert as jest.Mock).toHaveBeenCalledWith({
+      where: {
+        blob_key: "group-abc/docs/file.pdf",
+      },
+      create: {
         group_id: "group-abc",
         blob_key: "group-abc/docs/file.pdf",
         size_bytes: BigInt(2048),
+        written_at: new Date(),
         deleted_at: null,
-      }),
+      },
+      update: {
+        size_bytes: BigInt(2048),
+        written_at: new Date(),
+        deleted_at: null,
+      },
     });
   });
 
@@ -64,13 +74,13 @@ describe("recordLedgerWrite", () => {
     await recordLedgerWrite(prisma, "_shared/template.pdf", 1024);
 
     expect(
-      prisma.groupStorageLedger.create as jest.Mock,
+      prisma.groupStorageLedger.upsert as jest.Mock,
     ).not.toHaveBeenCalled();
   });
 
   it("does not throw if ledger insert fails", async () => {
     const prisma = makeMockPrisma();
-    (prisma.groupStorageLedger.create as jest.Mock).mockRejectedValueOnce(
+    (prisma.groupStorageLedger.upsert as jest.Mock).mockRejectedValueOnce(
       new Error("DB error"),
     );
 

@@ -57,7 +57,7 @@ export class PreflightCapCheckService {
           { total_dollars_spent: Prisma.Decimal }[]
         >`
           SELECT total_dollars_spent
-          FROM "UsagePeriodSummary"
+          FROM "usage_period_summaries"
           WHERE group_id = ${groupId}
             AND period_year = ${year}
             AND period_month = ${month}

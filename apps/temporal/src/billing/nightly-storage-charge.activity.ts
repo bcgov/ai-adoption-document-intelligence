@@ -181,8 +181,9 @@ export async function runMonthEndArchival(
   const prisma = getPrismaClient();
   const currentMonthStart = new Date(input.currentMonthStartMs);
 
+  const usageRetentionDays = Number(process.env.USAGE_EVENT_RETENTION_DAYS); // Will be 0 if env is blank ("")
   const retentionDays = Number(
-    process.env.USAGE_EVENT_RETENTION_DAYS ?? DEFAULT_RETENTION_DAYS,
+    usageRetentionDays > 0 ? usageRetentionDays : DEFAULT_RETENTION_DAYS,
   );
   const retentionCutoff = new Date(
     Date.now() - retentionDays * 24 * MS_PER_HOUR,

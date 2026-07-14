@@ -48,7 +48,7 @@ const CHARGE_FOR_BLOB_TRANSACTION =
  * @param prisma - Prisma client instance from the Temporal worker
  */
 export function initStorageLedger(prisma: PrismaClient): void {
-  _ledgerPrisma = CHARGE_FOR_BLOB_TRANSACTION ? prisma : undefined;
+  _ledgerPrisma = prisma;
 }
 
 /** Minimal blob-storage interface used by Temporal activities. */
@@ -104,7 +104,7 @@ function buildMinioClient(): BlobStorageClient {
       await s3.send(
         new PutObjectCommand({ Bucket: bucket, Key: key, Body: data }),
       );
-      if (_ledgerPrisma) {
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
         await recordLedgerWrite(_ledgerPrisma, key, data.byteLength);
       }
     },
@@ -114,7 +114,7 @@ function buildMinioClient(): BlobStorageClient {
         new GetObjectCommand({ Bucket: bucket, Key: key }),
       );
       const data = Buffer.from(await res.Body!.transformToByteArray());
-      if (_ledgerPrisma) {
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
         await recordLedgerRead(_ledgerPrisma, key);
       }
       return data;
@@ -214,7 +214,7 @@ function buildAzureClient(): BlobStorageClient {
     async write(key: BlobFilePath, data: Buffer): Promise<void> {
       const blockBlob = container.getBlockBlobClient(key);
       await blockBlob.upload(data, data.length);
-      if (_ledgerPrisma) {
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
         await recordLedgerWrite(_ledgerPrisma, key, data.byteLength);
       }
     },
@@ -222,7 +222,7 @@ function buildAzureClient(): BlobStorageClient {
     async read(key: BlobFilePath): Promise<Buffer> {
       const blobClient = container.getBlobClient(key);
       const data = await blobClient.downloadToBuffer();
-      if (_ledgerPrisma) {
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
         await recordLedgerRead(_ledgerPrisma, key);
       }
       return data;
