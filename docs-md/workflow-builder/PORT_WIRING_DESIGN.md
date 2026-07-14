@@ -1,6 +1,6 @@
 # Port-Level Data Wires — Making the Wire Carry the Data
 
-**Status:** Draft 2026-07-12, pending review.
+**Status:** Phases 1–2 implemented 2026-07-13 (plan: [`docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md`](../../../docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md)); Phases 3–5 pending.
 **Supersedes:** the *canvas-surface* portion of [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A's single-handle canvas). The *engine* portion of that decision — ctx blackboard, node-level edges, single normal outgoing edge per activity — is unchanged and re-affirmed here.
 **Builds on:** [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) (kinds, registry, `isAssignable`) and [AUTO_WIRE_DESIGN.md](AUTO_WIRE_DESIGN.md) (resolver, locks, `__auto.` ctx keys). Both stay in force; this design changes what the user *sees and touches*, not how bindings work.
 
@@ -167,7 +167,21 @@ Each phase ships independently and leaves the editor coherent:
 
 1. **Catalog coverage + vocabulary** (§8, §12) — pure data + copy; immediately improves the *current* UI too.
 2. **Per-port handles + derived wires, render-only** (§4, §5, §7 tooltips) — the canvas starts telling the truth; gestures still node-level. Biggest e2e/docs churn lands here.
-   *Status (2026-07-12):* landed so far — `deriveWires` (canvas/derive-wires.ts), the `computePortRows`/`estimateNodeHeight` selectors + `inputHandleId`/`outputHandleId` (canvas/port-rows.ts, the single definition of the per-port handle-id formula), and the `PortRows` renderer integrated into `ActivityNodeRenderer` (one kind-coloured, `isConnectable={false}` handle per catalog port; amber needs-source ring; `· from <ctxKey>` provenance suffix; type pills retired on activity nodes). Node-level handles (unnamed target / `out` / `error`) remain the connect-gesture + edge anchors. Still open in this phase: wire→port edge projection and row-aware auto-layout heights.
+   *Status: complete 2026-07-13.* Landed:
+   - `deriveWires` (`canvas/derive-wires.ts`) + `computePortRows`/`estimateNodeHeight` (`canvas/port-rows.ts`, the single definition of the per-port handle-id formula) + the `PortRows` renderer inside `ActivityNodeRenderer` — one kind-coloured handle per catalog port (`port-row-<id>-<in|out>-<port>` testids), amber needs-source ring, `· from <ctx>` provenance chip, `name: Kind — description` tooltip. Type pills retired on activity nodes; node-level handles (unnamed target / `out` / `error`) remain the connect-gesture + edge anchors.
+   - Data bindings render as port-to-port wires: `data-wire-variant="data"`, stroke by producer kind, `data-provenance` (`auto:<via>` / `pinned` / `manual`), a hoverable native `<title>` tooltip stating provenance ("Connected automatically — matched by name …" / "Pinned by you") plus an ariaLabel mirror. Order-only `normal` edges render as dashed gray `sequence` wires. Error edges now anchor at the red error handle.
+   - Auto-arrange uses measured per-node sizes instead of the old fixed box (`ACTIVITY_BASE_HEIGHT` 177 + 22px/row + 6px margin; control-flow 180; source 165; dagre node width widened to 482 to fit port-row cards).
+   - `tier2-typed-io` rewritten to 4 tests, including a real hover-tooltip regression guard.
+   - Fixed a resolver bug (`732945ed`) where jsonb key-order normalization during write-back could clobber a producer's already-written output binding, silently dropping a downstream wire (surfaced as a missing extract→clean wire) — regression-tested in `resolver.test.ts`.
+
+   **Known limitations of this slice, documented rather than silently deferred:**
+   - Data wires are render-only this phase — not deletable/selectable; drag-to-bind + delete semantics are Phase 3 (§6).
+   - Control-flow nodes (incl. pollUntil) and source nodes still render a single node-level handle per side — no port rows yet (§4.4 partially deferred).
+   - Simplified view intentionally renders edge-only — group chips have anonymous handles, no data wires.
+   - Node-to-node drag still creates control edges + triggers auto-wire underneath it, unchanged.
+   - The uniform 482px dagre node width makes narrow/few-port graphs lay out sparsely; per-node width estimation is deferred.
+   - Map-body container sizing still assumes fixed footprints, so a wide member card can protrude past the container border (pre-existing).
+   - The activity height estimate calibrates to the preview-skeleton state — never-run cards render ~120px shorter, ready-state previews up to ~80px taller than estimated.
 3. **Gestures** (§6) + **port-aware popover** (§9) — drag-to-bind, connect-time validation, delete semantics, connect summary.
 4. **Wire data peek** (§10).
 5. **Conditions from node outputs** (§11).

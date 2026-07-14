@@ -71,8 +71,8 @@ Eight workflow templates live in `docs-md/graph-workflows/templates/` and are lo
 - Some feature docs reference `-v2` routes (`/workflows/create-v2`); the **live canonical routes have no `-v2`** and the V2 visual editor is the *only* editor.
 - **Run history** lives in the top-bar **More** menu, not as a standalone button.
 - Auto-wire input problems (unbound / ambiguous) surface on the node's **unified problems badge** (top-left) — the same badge as validation warnings, not a separate status dot; a satisfied node shows **no badge**.
-- **Type mismatch is not blocked at wire-draw time** — wires are execution-order only; mismatches are caught by the variable picker (dimming) and the save-time validator.
-- **Every catalog activity declares `kind` on every port** (US-103 all-or-nothing invariant, `catalog.test.ts`). Gray handles mean either the deliberate `Artifact` wildcard (identifier/scalar ports, the whole `benchmark.*` family) or a side with ≥2 typed ports collapsing to the multi-port gray handle.
+- **Type mismatch is not blocked at wire-draw time** — data wires now *render* actual data flow (colored port-to-port wires derived from bindings, Part 7/8), but the **draw** gesture (dragging node-to-node) still only creates a control edge and lets auto-wire fill bindings underneath it; it does not validate port kinds at drop time. Mismatches are still caught by the variable picker (dimming) and the save-time validator. Port-to-port drag-to-bind with connect-time validation is Phase 3 (not yet shipped — see `PORT_WIRING_DESIGN.md` §6).
+- **Every catalog activity declares `kind` on every port** (US-103 all-or-nothing invariant, `catalog.test.ts`). Activity nodes render one row + handle per catalog port (Part 7); gray means the deliberate `Artifact` wildcard (identifier/scalar ports, the whole `benchmark.*` family) — there's no more "2+ typed ports collapse to one gray handle" case on activity nodes. **Control-flow and source nodes** (switch/map/join/pollUntil/humanGate/childWorkflow/source.*) still render a single node-level handle per side — they haven't gotten port rows yet (`PORT_WIRING_DESIGN.md` §4.4 partially deferred).
 - After any rebuild of `@ai-di/graph-workflow`, **restart Vite** or typed handles/auto-wire show stale data.
 
 ---
@@ -93,7 +93,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 | 5.4 (validation surfacing), 7.6 (node-anchored, warning path) | `tier2-validation` | 2 (CI) |
 | 11.3 (run-spec contract), 12.2 (version revert) | `tier2-workflow-api` | 2 (CI) |
 | 3.7, 6.7 (auto-layout on load) | `tier1-editor-load` | 1 (CI) |
-| 7.1, 7.2, 7.3 (handles, tooltip, pills) | `tier2-typed-io` | 2 (CI) |
+| 7.1, 7.2, 7.3 (port rows, row tooltip, derived wire rendering incl. a hover regression guard) | `tier2-typed-io` (4 tests) | 2 (CI) |
 | 8.1, 8.2, 8.3, 8.5, 8.6 (auto-bind, states, override/revert, unified problems badge + click-to-picker deep-link, locked) | `tier2-autowire` | 2 (CI) |
 | 10.1 | `tier1-library` | 1 (CI) |
 | 12.1, 12.3 | `tier1-versioning` | 1 (CI) |
@@ -131,7 +131,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 - ✅ **Document-sources validation (Part 13, deterministic slice).** `tier2-sources` (4 tests, pure-API): the upload endpoint's rejection matrix — missing file / unknown workflow / unknown node / non-source node → 400/404, disallowed MIME + declared-vs-actual content mismatch → 400, over-cap file → 413 — all of which fire **before** the endpoint's Temporal Try run, so no worker is needed; plus the **single-source** rule (a second `source.upload` → `POST /api/workflows` 400 with a `severity:"error"` entry anchored at the duplicate's `sourceType`) and the contrast that a `source.api` + legacy `isInput` is a **warning** that still persists (201). Residual manual: 13.1–13.3/13.5/13.6 (source palette + settings UI + run-drawer sections) and the happy-path upload (needs the worker — `tier3-try-*`).
 
-- ✅ **Typed-I/O + auto-wire design-time specs (Parts 7 & 8 core).** `tier2-typed-io` (5 tests: colored vs gray-wildcard handles, tooltip text, arrow/stacked pills) + `tier2-autowire` (5 tests: auto-bind, unsatisfied/ambiguous/locked states, override→locked→revert, locked-binding preservation). Deterministic, in default CI. Residual manual: 7.4/7.5/7.7/7.8 and 8.7.
+- ✅ **Typed-I/O + auto-wire design-time specs (Parts 7 & 8 core).** `tier2-typed-io` (rewritten 2026-07-13 for the port-wiring Phase 2 render-only slice — 4 tests: per-port row handles + kind colors, row tooltip, derived data/sequence wire rendering with provenance, and a real hover-tooltip regression guard) + `tier2-autowire` (5 tests: auto-bind, unsatisfied/ambiguous/locked states, override→locked→revert, locked-binding preservation). Deterministic, in default CI. Residual manual: 7.4/7.5/7.7/7.8 and 8.7.
 
 - ✅ **Dynamic-node security tier as `@infra` e2e (14.11–14.13).** `tier3-dynamic-node-security` (4 tests): publish-time **allowlist gate** rejects a `@allowNet` host outside `DYNAMIC_NODE_ALLOW_NET` (`stage:"allowlist"`, `rejectedHost`); runtime **network egress** to a non-allowlisted host is denied by the Deno sandbox (`Requires net access`); **granting** the host lifts the denial (proves the allowlist is the gate); **env isolation** denies reading `PATH` (`Requires env access`). Drives the real publish pipeline + deno-runner sandbox over their HTTP surfaces. The complementary file/write/subprocess/ffi/remote-import denial matrix stays covered against the live runner by `dyn-run.activity.integration.test.ts` (Item 5). See the two robustness notes below surfaced while building this.
 
@@ -229,12 +229,12 @@ Select each node type and exercise its hand-rolled settings form:
 
 ## Part 7 — Typed I/O Artifacts
 
-Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`).
+Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`) — good picks to eyeball, but every catalog activity now works the same way (US-103: every port declares a `kind`).
 
-- [ ] **7.1 Colored typed handles.** Drop `document.split`. **Pass:** output handle dot is **green** (Segment). Palette: blue=Document, green=Segment, violet=OcrResult, amber=Classification/ValidationResult, teal=Reference. Array kinds show a **doubled outline**. A side with 0 or 2+ typed ports stays **gray** (wildcard).
-- [ ] **7.2 Handle tooltip.** Hover a `document.split` output → shows `Segment[]`. Hover a gray multi-port handle → `Multiple outputs — select node to view all`.
-- [ ] **7.3 On-selection type pill.** Click `document.classify` (3 outputs). **Pass:** pill row below the node enumerates all input+output ports with kinds, even though the canvas handle is gray. An all-untyped node shows **no pill**.
-- [ ] **7.4 Draw-time mismatch allowed.** ⚠️ Wire `document.split` (Segment) output → `mistral-ocr.process` (Document) input. **Pass:** wire is created (no rejection) — intended behavior.
+- [ ] **7.1 Per-port rows with colored handles.** Drop `document.split`. **Pass:** every input/output gets its own row (`port-row-<nodeId>-<in|out>-<port>`) with a kind-colored handle + human label — inputs down the left edge, outputs down the right. Palette: blue=Document, green=Segment, violet=OcrResult, amber=Classification/ValidationResult, teal=Reference, gray=Artifact (wildcard). Array kinds show a **doubled outline** on the row's handle. Multi-output nodes (e.g. `azureOcr.submit`) no longer collapse to one gray handle — each output is its own row.
+- [ ] **7.2 Row tooltip.** Hover a port row (or its handle). **Pass:** tooltip reads `<name>: <Kind> — <description>` (e.g. `segments: Segment[] — The document split into individual pages/segments.`). A **required input with no bound source** shows an **amber ring** around its handle.
+- [ ] **7.3 Port rows replace the type pill.** Click `document.classify` (3 outputs). **Pass:** the activity card itself lists all input+output ports as rows with kind-colored handles + labels — the old below-node "type pill row" is retired for **activity** nodes (control-flow nodes still show the pill row, see 16.3). Because every catalog port now declares a `kind` (US-103), there's no "all-untyped, no pill" case left for activities; a node with zero declared ports (rare) simply shows no port-row block.
+- [ ] **7.4 Draw-time mismatch allowed.** ⚠️ Wire `document.split` (Segment) output → `mistral-ocr.process` (Document) input by dragging **node-to-node** (not port-to-port — port-level drag-to-bind is Phase 3, unshipped). **Pass:** wire is created (no rejection) — intended behavior; the draw gesture only creates a control edge, it never validates kinds at drop time.
 - [ ] **7.5 Variable-picker dimming.** Show a typed input’s ctx picker (via **Advanced**, see 8.4). **Pass:** compatible vars first; incompatible ones below a **“Incompatible with this port”** divider, ~50% dimmed, tooltip `"<kind> — incompatible with this port (expects <kind>)"`. Nothing dimmed on wildcard ports.
 - [ ] **7.6 Save-time binding-walk validator.** Build a real cross-kind binding (a `Document` producer’s ctx key read by a `Segment`-typed input) → Save. **Pass:** error anchored to the **consumer node + port**, naming producer/consumer kinds + ctx key + “not assignable”. Cardinality strict (`Document` → `Document[]` rejected). Fix → re-save → green.
 - [ ] **7.7 Ctx Kind column.** Workflow **Settings** drawer → add a ctx variable → set **Kind = Document** → Save → reload. **Pass:** Kind column present (blank `—` = wildcard), round-trips, and drives downstream compatibility.
@@ -243,6 +243,8 @@ Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.p
 ---
 
 ## Part 8 — Auto-Wire
+
+> **Canvas note (Phase 2, render-only).** Auto-wire results now render directly on canvas as colored port-to-port **data wires** (stroke = producer's kind), each hoverable with a provenance tooltip — *"Connected automatically — matched by name \"apimRequestId\""* / *"Connected automatically — nearest Document producer"* / *"Pinned by you"*. A `normal` edge between a pair with no data riding it renders as a thin dashed gray **sequence** wire. Data wires are **not yet deletable or selectable** — drag-to-bind and wire deletion are Phase 3 (unshipped); today's node-to-node drag still creates a control edge and triggers auto-wire underneath it, unchanged.
 
 - [ ] **8.1 Auto-bind on connect.** Drop a `Document` producer → `mistral-ocr.process` (whose `fileData` is `Document`) → draw an edge → open the consumer’s **Inputs** section. **Pass:** the port flips to `← <producer label>` + green **Auto** badge, no manual ctx typing.
 - [ ] **8.2 Row states.** Construct each: **auto** (single producer), **ambiguous** (2+ equidistant same-kind producers → amber **Pick a source**), **unsatisfied** (no producer → red **Needs a source**), **locked** (hand-authored/overridden → gray **Pinned** + **Revert to automatic**). **Pass:** each row renders the right state/badge.
@@ -421,8 +423,8 @@ Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At
 
 - [ ] **16.1 Three-zone top bar.** Confirm `topbar-zone-left/center/right` render without overlap at narrow widths. **More** menu items: History, Run history, Save as library, Auto-arrange, Group selected, Simplified view, Workflow settings, Form preview.
 - [ ] **16.2 Simplified view / map-body grouping.** Build a map node with body nodes → toggle **Simplified view**. **Pass:** normal view draws a background container behind the map body (`map-body-container-<groupId>`); simplified view collapses to a group chip.
-- [ ] **16.3 Node type pills.** Select typed nodes → input→output kind pills with correct colors; multi-port shows `portName: KIND` rows; all-untyped node → no empty pill wrapper.
-- [ ] **16.4 Hover popover / drag-from-palette.** Hover an output handle → popover (with a Flow Control section) → pick a node (adds + auto-connects + fits). Also drag a palette node onto `workflow-editor-canvas-drop`.
+- [ ] **16.3 Node type pills → port rows.** **Activity** nodes: the below-node type-pill row is retired — port kinds render as per-port rows directly on the card (Part 7). **Control-flow** nodes (switch/map/join/pollUntil/humanGate/childWorkflow) still show the type-pill row below the node — select one and confirm input→output kind pills with correct colors, multi-port shows `portName: KIND` rows, an all-untyped control-flow node shows no empty pill wrapper.
+- [ ] **16.4 Hover popover / drag-from-palette.** Hover an output handle → popover (with a Flow Control section) → pick a node (adds + auto-connects + fits). Also drag a palette node onto `workflow-editor-canvas-drop`. ⚠️ On activity nodes, hover-extend still anchors to the node-level flow handle (top-right, `id="out"`), not an individual port row's handle — per-port row handles don't trigger the popover this phase.
 - [ ] **16.5 Switch diamond.** Add a switch node. **Pass:** renders as a **yellow diamond**; conditional branch edges render with labels.
 - [ ] **16.6 ⚠️ Light-mode toggle.** Confirm there is **no** color-scheme toggle in the UI (app is fixed light). If the test scope expected one, record as a scope discrepancy, not a bug.
 

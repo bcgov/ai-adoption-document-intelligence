@@ -30,6 +30,8 @@ export function resolveBindings(config: GraphWorkflowConfig): GraphWorkflowConfi
 
 Idempotent. Called on every editor mutation (debounced) and on save. Operates only on inputs that are **not locked** by the user (see §3). Produces a new `GraphWorkflowConfig` with `inputs[]` (and `outputs[]` it synthesises along the way) filled in.
 
+> **2026-07-13 fix:** the output write-back was key-order sensitive until `732945ed` — under certain jsonb key-normalization orderings, resolving one node's inputs could clobber a producer's already-written `outputs[]` binding instead of merging into it, silently dropping a downstream wire (surfaced in the port-wiring Phase 2 canvas as a missing extract→clean wire). Fixed and regression-tested in `resolver.test.ts`.
+
 ### 2.1 Per-port resolution
 
 For each consumer node `C`, for each declared input port `P` with a declared `kind`, when `P` is unlocked:
