@@ -60,8 +60,9 @@ Crunchy PostgreSQL operator creates secrets with names derived from the Postgres
 #### PostgresCluster databaseInitSQL
 - **Temporal PostgresCluster**: `databaseInitSQL.name` patched to `<instance>-temporal-postgres-init-sql` (Kustomize doesn't auto-update this CRD field)
 
-#### PostgresCluster backup PVC sizes
+#### PostgresCluster backup PVC sizes and retention
 - Both PostgresClusters (`app-pg`, `temporal-pg`) have their pgBackRest repo volume size patched to `__PG_BACKUP_STORAGE_SIZE__` (default `10Gi`), so test instances can use smaller backup storage
+- Backup retention is **14 days** (time-based) with a daily full backup and hourly incrementals (set in the base PostgresCluster manifests, not via env overlay)
 
 ## Instance Isolation
 
