@@ -331,6 +331,11 @@ export function buildSourceConfig(name = "e2e source"): GraphConfig {
  * A minimal three-node linear activity chain. `withPositions: false` (default)
  * omits every `metadata.position` — this is the shape the seed workflows ship
  * in, and the input the edit-mode auto-layout fix must handle.
+ *
+ * Positioned variant uses 440px column spacing: per-port rows widened the
+ * activity cards to ~330px, and at the old 300px spacing adjacent cards
+ * overlapped — burying the upstream node's `out` handle under the next card,
+ * which broke the real drag-to-connect gesture (tier2-canvas-drag).
  */
 export function buildLinearConfig(opts?: {
   name?: string;
@@ -371,7 +376,7 @@ export function buildLinearConfig(opts?: {
         activityType: "azureOcr.submit",
         inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
         outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-        ...pos(420, 80),
+        ...pos(560, 80),
       },
       store: {
         id: "store",
@@ -385,7 +390,7 @@ export function buildLinearConfig(opts?: {
           { port: "documentId", ctxKey: "apimRequestId" },
           { port: "ocrResult", ctxKey: "ocrResult" },
         ],
-        ...pos(720, 80),
+        ...pos(1000, 80),
       },
     },
     edges: [

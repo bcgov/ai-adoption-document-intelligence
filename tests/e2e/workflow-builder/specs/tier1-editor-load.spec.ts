@@ -79,7 +79,7 @@ test.describe("workflow editor — load & auto-layout", () => {
       await editor.openExisting(created.id, 3);
       await waitForCanvasReady(page, 3);
       const boxes = await readNodeBoxes(page);
-      // Authored x's were 120 / 420 / 720 — distinct columns, left-to-right.
+      // Authored x's were 120 / 560 / 1000 — distinct columns, left-to-right.
       const xs = boxes.map((b) => b.x).sort((a, b) => a - b);
       expect(xs[0]).toBeLessThan(xs[1]);
       expect(xs[1]).toBeLessThan(xs[2]);

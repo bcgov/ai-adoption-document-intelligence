@@ -138,6 +138,13 @@ export function expectLaidOut(boxes: Box[]): void {
  * input handle. This is the genuine React Flow connection gesture — flaky by
  * nature, so reserve it for a couple of smoke tests and use the API path for
  * breadth.
+ *
+ * Activity nodes now ALSO mount per-port handles (`in-<port>` / `out-<port>`,
+ * PORT_WIRING_DESIGN.md) which are render-only (`isConnectable={false}`) in
+ * this phase — the connect gesture stays on the node-level handles. Target
+ * those explicitly: the node-level source handle carries
+ * `data-handleid="out"`; the node-level target handle is the only target
+ * handle WITHOUT an `in-*` handle id.
  */
 export async function dragConnect(
   page: Page,
@@ -145,21 +152,28 @@ export async function dragConnect(
   targetId: string,
 ): Promise<void> {
   const sourceHandle = page.locator(
-    `.react-flow__node[data-id="${sourceId}"] .react-flow__handle.source`,
+    `.react-flow__node[data-id="${sourceId}"] .react-flow__handle.source[data-handleid="out"]`,
   );
   const targetHandle = page.locator(
-    `.react-flow__node[data-id="${targetId}"] .react-flow__handle.target`,
+    `.react-flow__node[data-id="${targetId}"] .react-flow__handle.target:not([data-handleid^="in-"])`,
   );
   const from = await sourceHandle.boundingBox();
   const to = await targetHandle.boundingBox();
   if (!from || !to) throw new Error("handle not found for drag-connect");
 
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  // Grab the dots at their OUTER edge, not their center: the node-level
+  // handle dot straddles the card border, and its card-side half paints
+  // UNDER the card's port-row content (elementFromPoint at the center hits
+  // a row label span, so a center mousedown never reaches the handle).
+  const fromX = from.x + from.width - 1; // source = right-edge handle
+  const fromY = from.y + from.height / 2;
+  const toX = to.x + 1; // target = left-edge handle
+  const toY = to.y + to.height / 2;
+
+  await page.mouse.move(fromX, fromY);
   await page.mouse.down();
   // Two-step move so xyflow registers the connection-in-progress.
-  await page.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 8 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, {
-    steps: 8,
-  });
+  await page.mouse.move((fromX + toX) / 2, (fromY + toY) / 2, { steps: 8 });
+  await page.mouse.move(toX, toY, { steps: 8 });
   await page.mouse.up();
 }
