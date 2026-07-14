@@ -1200,6 +1200,26 @@ function projectFlowNodes(
 const DATA_WIRE_CLASS = "wb-data-wire";
 
 /**
+ * True when `node`'s renderer actually mounts the bottom `error` source
+ * handle — activity nodes and control-flow rectangles with
+ * `errorPolicy.onError === "fallback"`. Switch nodes route via
+ * cases/defaultEdge and source nodes carry no error policy, so neither
+ * ever mounts one. Mirrors the render condition in
+ * `ActivityNodeRenderer` / `NodeHandles`.
+ *
+ * Error edges whose source does NOT mount the handle exist in the wild
+ * (hand-authored/API/agent configs — the validator checks fallback ⇒
+ * edge, not the converse); stamping `sourceHandle: "error"` on them
+ * would make xyflow drop the edge entirely (error008), so they fall
+ * back to the node-level `out` handle. Same class of guard as
+ * `rendersPerPortHandle`.
+ */
+function mountsErrorHandle(node: GraphNode | undefined): boolean {
+  if (!node || node.type === "switch" || node.type === "source") return false;
+  return node.errorPolicy?.onError === "fallback";
+}
+
+/**
  * Maps derived wires (PORT_WIRING_DESIGN.md §5) to xyflow edges — the
  * "one wire = data" projection.
  *
@@ -1270,11 +1290,15 @@ function projectFlowWires(
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      // Error wires spring from the bottom red `error` handle; every
-      // other structural wire uses the node-level `out` source handle
-      // (which is what xyflow's default resolution picked implicitly
-      // before per-port handles existed).
-      sourceHandle: edge.type === "error" ? "error" : "out",
+      // Error wires spring from the bottom red `error` handle — but only
+      // when the source actually mounts it (`mountsErrorHandle`); stray
+      // error edges and every other structural wire use the node-level
+      // `out` source handle (which is what xyflow's default resolution
+      // picked implicitly before per-port handles existed).
+      sourceHandle:
+        edge.type === "error" && mountsErrorHandle(sourceNode)
+          ? "error"
+          : "out",
       targetHandle: null,
       type: "workflow-edge",
       data,
@@ -1292,7 +1316,9 @@ function projectFlowWires(
  * may terminate at chip ids that don't exist in `config.nodes`, so the
  * wire projection doesn't apply here; data wires are not drawn while
  * the simplified toggle is ON. Error edges still anchor at the bottom
- * `error` handle when their source is a real (non-chip) node.
+ * `error` handle when their source is a real (non-chip) node that
+ * mounts it — `mountsErrorHandle` composes with the chip guard (chip
+ * ids miss `config.nodes`, so the lookup yields `undefined`).
  */
 function projectSimplifiedFlowEdges(
   edges: readonly GraphEdge[],
@@ -1308,7 +1334,7 @@ function projectSimplifiedFlowEdges(
       id: edge.id,
       source: edge.source,
       target: edge.target,
-      ...(edge.type === "error" && sourceNode !== undefined
+      ...(edge.type === "error" && mountsErrorHandle(sourceNode)
         ? { sourceHandle: "error" }
         : {}),
       type: "workflow-edge",

@@ -1530,6 +1530,26 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     expect(errorEdge).toHaveAttribute("data-source-handle", "error");
   });
 
+  it("falls back to `out` for a stray error edge whose source has no fallback policy", async () => {
+    // Hand-authored/API configs can carry an error edge WITHOUT the
+    // source's `errorPolicy.onError === "fallback"` (the validator checks
+    // fallback => edge, not the converse). The `error` handle only mounts
+    // under that policy, so stamping it would make xyflow drop the edge
+    // (error008) — the stray edge must render anchored at `out` instead.
+    const config = makeWireProjectionConfig();
+    const prep = config.nodes.prep as ActivityNode;
+    const { errorPolicy: _dropped, ...prepWithoutPolicy } = prep;
+    renderCanvas({
+      ...config,
+      nodes: { ...config.nodes, prep: prepWithoutPolicy as ActivityNode },
+    });
+    await flushAnimationFrame();
+
+    const errorEdge = screen.getByTestId("rf-edge-e_error");
+    expect(errorEdge).toHaveAttribute("data-wire-variant", "error");
+    expect(errorEdge).toHaveAttribute("data-source-handle", "out");
+  });
+
   it("re-projects wires when a binding edit changes the config (fingerprint covers bindings)", async () => {
     const config = makeWireProjectionConfig();
     const { rerenderWithConfig } = renderCanvas(config);
