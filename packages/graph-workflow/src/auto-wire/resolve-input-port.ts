@@ -20,7 +20,13 @@ export type PortResolution =
       candidates: { producerNodeId: string; producerPort: string }[];
     }
   | { status: "unsatisfied" }
-  | { status: "locked"; ctxKey: string };
+  | { status: "locked"; ctxKey: string }
+  /**
+   * Locked with NO binding — the user disconnected this port on the canvas
+   * (PORT_WIRING_DESIGN.md §6.3 "pinned unbound"). The resolver must leave
+   * it alone; the UI renders it as "Disconnected by you" (§12).
+   */
+  | { status: "locked-unbound" };
 
 interface PortSpec {
   name: string;
@@ -44,7 +50,10 @@ export function resolveInputPort(
 
   if (lockList.includes(port.name)) {
     const existing = consumer.inputs?.find((b) => b.port === port.name);
-    return { status: "locked", ctxKey: existing?.ctxKey ?? "" };
+    if (!existing || existing.ctxKey === "") {
+      return { status: "locked-unbound" };
+    }
+    return { status: "locked", ctxKey: existing.ctxKey };
   }
 
   if (port.kind === undefined) {

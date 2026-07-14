@@ -137,6 +137,28 @@ describe("resolveBindings", () => {
     expect(out.nodes.A.outputs ?? []).toEqual([]);
   });
 
+  it("does not re-bind a locked port with no binding (pinned-unbound survives resolveBindings)", () => {
+    // A (file.prepare) WOULD auto-bind B.fileData, but B pins the port via
+    // lockedInputPorts with no inputs[] row — resolveBindings must leave it
+    // unbound rather than re-creating the wire the user deleted.
+    const cfg = makeConfig(
+      {
+        A: activity("A", "file.prepare"),
+        B: activity("B", "azureOcr.submit", {
+          metadata: { lockedInputPorts: ["fileData"] },
+        }),
+      },
+      [{ source: "A", target: "B" }],
+    );
+
+    const resolved = resolveBindings(cfg);
+    const consumer = resolved.nodes.B;
+
+    expect(consumer.inputs ?? []).not.toContainEqual(
+      expect.objectContaining({ port: "fileData" }),
+    );
+  });
+
   it("reuses an existing output binding's ctxKey when auto-binding consumers", () => {
     const cfg = makeConfig(
       {

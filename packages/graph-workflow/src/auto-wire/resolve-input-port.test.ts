@@ -211,6 +211,51 @@ describe("resolveInputPort", () => {
   });
 });
 
+describe("locked-unbound (port-wiring Phase 3, §6.3)", () => {
+  it("reports locked-unbound for a locked port with no inputs row", () => {
+    // A (file.prepare) WOULD auto-bind B.fileData if the port were unlocked,
+    // but B has no inputs[] row for it and the port is locked.
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
+      { source: "A", target: "B" },
+    ]);
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+  });
+
+  it("reports locked-unbound for a locked port whose binding has an empty ctxKey", () => {
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
+      { source: "A", target: "B" },
+    ]);
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+  });
+
+  it("still reports locked (with ctxKey) when the locked port has a binding", () => {
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "someKey" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
+      { source: "A", target: "B" },
+    ]);
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked", ctxKey: "someKey" });
+  });
+});
+
 describe("provenance (via)", () => {
   it("reports 'name-match' when a genuine non-Artifact kind tie is broken by port name", () => {
     // X (azureClassify.submit → `blobKey`: Document) and Y (file.prepare →
