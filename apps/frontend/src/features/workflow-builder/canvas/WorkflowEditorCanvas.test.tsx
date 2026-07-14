@@ -2426,6 +2426,9 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
 //     (incompatible — cardinality mismatch)
 //   - document.split.segments: Segment[]   →  file.prepare.documentId: Artifact
 //     (wildcard target — always accepted)
+//   - document.split.segments: Segment[]   →  ocr.cleanup.ocrResult: OcrResult
+//     (incompatible with a vowel-initial target kind — pins the
+//     article-free notice copy)
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
@@ -2454,11 +2457,19 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
       parameters: {},
       metadata: { position: { x: 600, y: 0 } },
     };
+    const cleanup: ActivityNode = {
+      id: "cleanup",
+      type: "activity",
+      label: "Cleanup",
+      activityType: "ocr.cleanup",
+      parameters: {},
+      metadata: { position: { x: 900, y: 0 } },
+    };
     return {
       schemaVersion: "1.0",
       metadata: { name: "Typed ports" },
       ctx: {},
-      nodes: { prep, ocr, split },
+      nodes: { prep, ocr, split, cleanup },
       edges: [],
       entryNodeId: "prep",
     };
@@ -2564,7 +2575,7 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
     });
     expect(showMock).toHaveBeenCalledTimes(1);
     expect(showMock.mock.calls[0][0]).toMatchObject({
-      message: "Segment (list) can't be used as a Document",
+      message: "This input needs Document — Segment (list) can't be used here",
     });
 
     showMock.mockClear();
@@ -2604,6 +2615,52 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
       });
     });
     expect(showMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the notice article-free for vowel-initial target kinds", () => {
+    // "…as a OcrResult" is the trap the fixed copy avoids — the message
+    // names the kinds without an indefinite article.
+    renderCanvas(makeTypedPortsConfig());
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    showMock.mockClear();
+
+    act(() => {
+      getOnConnectEnd()(new MouseEvent("mouseup"), {
+        isValid: false,
+        fromNode: { id: "split" },
+        fromHandle: { id: "out-segments" },
+        toNode: { id: "cleanup" },
+        toHandle: { id: "in-ocrResult" },
+      });
+    });
+    expect(showMock).toHaveBeenCalledTimes(1);
+    expect(showMock.mock.calls[0][0]).toMatchObject({
+      message: "This input needs OcrResult — Segment (list) can't be used here",
+    });
+  });
+
+  it("shows a distinct self-feed notice (not the kind message) for a port drop on the same node", () => {
+    // isValidConnection rejects self-connections FIRST, so isValid is
+    // false even when the kinds match — the kind-mismatch copy would be
+    // self-contradictory ("Document can't be used as Document").
+    renderCanvas(makeTypedPortsConfig());
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    showMock.mockClear();
+
+    act(() => {
+      getOnConnectEnd()(new MouseEvent("mouseup"), {
+        isValid: false,
+        fromNode: { id: "prep" },
+        fromHandle: { id: "out-preparedData" },
+        toNode: { id: "prep" },
+        toHandle: { id: "in-blobKey" },
+      });
+    });
+    expect(showMock).toHaveBeenCalledTimes(1);
+    expect(showMock.mock.calls[0][0]).toMatchObject({
+      message: "A step can't feed itself",
+    });
+    expect(showMock.mock.calls[0][0].message).not.toContain("can't be used");
   });
 });
 

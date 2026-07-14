@@ -293,6 +293,9 @@ describe("PortRows — connect-time drop-target highlight (§6.2)", () => {
 
     const incompatible = screen.getByTestId("port-row-node_1-in-segments");
     expect(incompatible.getAttribute("data-drop-compatible")).toBe("false");
+    // Pin the dim itself, not just the classification attribute.
+    expect(incompatible).toHaveStyle({ opacity: "0.35" });
+    expect(compatible).not.toHaveStyle({ opacity: "0.35" });
 
     const output = screen.getByTestId("port-row-node_1-out-out1");
     expect(output.hasAttribute("data-drop-compatible")).toBe(false);

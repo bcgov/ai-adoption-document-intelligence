@@ -2379,10 +2379,15 @@ function WorkflowEditorCanvasInner({
 
   /**
    * §6.2 — plain-language rejection notice. Fires ONLY when the drag was a
-   * genuine port-to-port drop (`isValidConnection` returning false is the
-   * only way `isValid` is false for a port pair) — node-level drags and
-   * drops off any handle don't name a source/target kind, so they're
-   * silently skipped rather than showing a confusing notice.
+   * genuine port-to-port drop — node-level drags and drops off any handle
+   * don't name a source/target kind, so they're silently skipped rather
+   * than showing a confusing notice. A port pair can be invalid for TWO
+   * reasons (`isValidConnection` checks self-connection before kinds), so
+   * the copy branches: same node on both ends → "a step can't feed
+   * itself" (the kind copy would be self-contradictory when the kinds
+   * match); different nodes → the kind mismatch, worded without an
+   * indefinite article so vowel-initial kinds (OcrResult, OcrFields)
+   * don't read "a OcrResult".
    */
   const handleConnectEnd = useCallback<OnConnectEnd>(
     (_event, connectionState) => {
@@ -2399,6 +2404,14 @@ function WorkflowEditorCanvasInner({
         connectionState.fromNode &&
         connectionState.toNode
       ) {
+        if (connectionState.fromNode.id === connectionState.toNode.id) {
+          notifications.show({
+            color: "yellow",
+            message: "A step can't feed itself",
+            autoClose: 5000,
+          });
+          return;
+        }
         const sourceKind = outputPortKind(
           config,
           connectionState.fromNode.id,
@@ -2411,7 +2424,7 @@ function WorkflowEditorCanvasInner({
         );
         notifications.show({
           color: "yellow",
-          message: `${humanKindLabel(sourceKind)} can't be used as a ${humanKindLabel(targetKind)}`,
+          message: `This input needs ${humanKindLabel(targetKind)} — ${humanKindLabel(sourceKind)} can't be used here`,
           autoClose: 5000,
         });
       }
