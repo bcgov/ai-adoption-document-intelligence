@@ -22,11 +22,12 @@
  *     but `height` is derived per node via `estimateNodeHeight` (which
  *     rolls up the node's real catalog port-row count) so tall,
  *     multi-port cards (e.g. `azureOcr.extract`'s 5 input rows) don't
- *     overlap same-rank neighbours. `DEFAULT_NODE_HEIGHT` (80) is only a
- *     fallback for nodes `estimateNodeHeight` can't size. Switch nodes are
- *     square-diamond shaped at 140 × 140 in the canvas, but a uniform
- *     width is good enough for the layout step; dagre uses width/height
- *     only to compute the bounding boxes.
+ *     overlap same-rank neighbours. `DEFAULT_NODE_HEIGHT` (80) is a
+ *     defensive fallback only — `estimateNodeHeight` is total over
+ *     `config.nodes`, so it can't fire today. Switch nodes render as
+ *     180 × 180 diamonds (hence `CONTROL_FLOW_NODE_HEIGHT = 180`), but a
+ *     uniform width is good enough for the layout step; dagre uses
+ *     width/height only to compute the bounding boxes.
  *   - Output positions are the centre coordinates dagre returns. We
  *     convert them to top-left so the result is xyflow-friendly (xyflow
  *     `node.position` is the top-left of the node).
@@ -96,6 +97,11 @@ const DEFAULT_OPTIONS: Required<LayoutGraphOptions> = {
  *
  * 482 is the smallest width that keeps a >= 40px visual gap after the
  * widest measured card: gap = WIDTH + ranksep(80) - 522 >= 40.
+ *
+ * FRAGILITY: 522 is a point-in-time measurement — longer port labels or
+ * new catalog entries can exceed it. If auto-arrange starts producing
+ * horizontal overlap again, re-measure and bump (or replace with a
+ * per-node width estimate, the deferred long-term fix).
  */
 const DEFAULT_NODE_WIDTH = 482;
 const DEFAULT_NODE_HEIGHT = 80;

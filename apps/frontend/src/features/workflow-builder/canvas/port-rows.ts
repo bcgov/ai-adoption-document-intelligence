@@ -24,6 +24,15 @@ import type { DataWire, DerivedWire } from "./derive-wires";
  * exactly on `177 + 6 + rows * 22`: 205 (1 row), 227 (2), 249 (3),
  * 271 (4), 293 (5) — the 22px/row slope is exact; only the intercept
  * needed calibrating.
+ *
+ * CAVEAT — the 120px preview block is STATE-DEPENDENT, so 177 is a
+ * deliberate mid-point, not a universal fact: `PreviewWidget` renders the
+ * 120px skeleton while pending, `null` when a node has no fresh preview
+ * (a never-run workflow's cards are ~57px — over-estimating is safe,
+ * layout just gets sparser), and ready content up to
+ * `PREVIEW_MAX_HEIGHT_PX` (200px, i.e. up to +80px beyond the estimate,
+ * which can eat into the 60px nodesep after a run). Re-measure if the
+ * preview widget's sizing changes.
  */
 export const PORT_ROW_HEIGHT = 22;
 /** Row-less activity card: pill + label + 120px preview widget + padding. */
