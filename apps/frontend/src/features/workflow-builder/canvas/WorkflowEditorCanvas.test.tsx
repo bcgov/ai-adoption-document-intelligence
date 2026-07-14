@@ -1877,13 +1877,24 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     return (props.edges as Edge[]) ?? [];
   }
 
-  /** Resolves the `onEdgesDelete` callback the canvas hands to ReactFlow. */
-  function getOnEdgesDelete(): (deleted: Edge[]) => void {
+  /** Resolves the unified `onDelete` callback the canvas hands to ReactFlow. */
+  function getOnDelete(): (params: {
+    nodes: FlowNode[];
+    edges: Edge[];
+  }) => void {
     const props = latestReactFlowProps.current;
-    if (!props || typeof props.onEdgesDelete !== "function") {
-      throw new Error("ReactFlow mock did not capture onEdgesDelete");
+    if (!props || typeof props.onDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onDelete");
     }
-    return props.onEdgesDelete as (deleted: Edge[]) => void;
+    return props.onDelete as (params: {
+      nodes: FlowNode[];
+      edges: Edge[];
+    }) => void;
+  }
+
+  /** Minimal xyflow Node payload — the delete path only reads `id`. */
+  function flowNode(id: string): FlowNode {
+    return { id, data: {}, position: { x: 0, y: 0 } };
   }
 
   function lastEmittedConfig(
@@ -1916,7 +1927,7 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     if (!dataWireEdge) throw new Error("data wire not projected");
 
     act(() => {
-      getOnEdgesDelete()([dataWireEdge]);
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
     });
 
     const next = lastEmittedConfig(onConfigChange);
@@ -1935,7 +1946,7 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     if (!sequenceEdge) throw new Error("sequence wire not projected");
 
     act(() => {
-      getOnEdgesDelete()([sequenceEdge]);
+      getOnDelete()({ nodes: [], edges: [sequenceEdge] });
     });
 
     const next = lastEmittedConfig(onConfigChange);
@@ -1959,7 +1970,7 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     }
 
     act(() => {
-      getOnEdgesDelete()([dataWireEdge, sequenceEdge]);
+      getOnDelete()({ nodes: [], edges: [dataWireEdge, sequenceEdge] });
     });
 
     expect(onConfigChange).toHaveBeenCalledTimes(1);
@@ -1983,7 +1994,7 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     if (!dataWireEdge) throw new Error("data wire not projected");
 
     act(() => {
-      getOnEdgesDelete()([dataWireEdge]);
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
     });
 
     expect(onConfigChange).toHaveBeenCalled();
@@ -2006,7 +2017,7 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     if (!dataWireEdge) throw new Error("data wire not projected");
 
     act(() => {
-      getOnEdgesDelete()([dataWireEdge]);
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
     });
 
     expect(onConfigChange).toHaveBeenCalled();
@@ -2024,13 +2035,74 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     if (!dataWireEdge) throw new Error("data wire not projected");
 
     act(() => {
-      getOnEdgesDelete()([dataWireEdge]);
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
     });
 
     const next = lastEmittedConfig(onConfigChange);
     const submit = next.nodes.submit as ActivityNode;
     expect(submit.inputs).toEqual([]);
     expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("deleting a node with attached data wires does not disconnect surviving ports or show the hint", async () => {
+    // xyflow's delete pipeline sweeps every deletable edge connected to a
+    // deleted node into the same gesture — the swept data wire arrives in
+    // `onDelete`'s edges alongside the node. Because the wire's SOURCE is
+    // the dying node, the surviving consumer (`submit`) must NOT be
+    // pinned unbound, and the "Execution order kept" hint must not show
+    // (node + edge + wire all vanish together — nothing survives to
+    // explain).
+    const config = makeSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [flowNode("prep")], edges: [dataWireEdge] });
+    });
+
+    const next = lastEmittedConfig(onConfigChange);
+    expect(next.nodes.prep).toBeUndefined();
+    // e1 touched the deleted node → removed with it.
+    expect(next.edges).toEqual([]);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("co-deleting a node and an unrelated data wire applies both in one onConfigChange", async () => {
+    // Regression for the lost-update bug: node removal and wire
+    // disconnect used to run through two separate callbacks each calling
+    // `onConfigChange(fullConfig)` — the second call clobbered the first.
+    // The unified `onDelete` path must fold both into ONE emission.
+    const config = makeMixedConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [flowNode("bare1")], edges: [dataWireEdge] });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    // Node side: bare1 gone, its e_bare edge gone.
+    expect(next.nodes.bare1).toBeUndefined();
+    expect(next.edges).toEqual([
+      { id: "e1", source: "prep", target: "submit", type: "normal" },
+    ]);
+    // Wire side: the unrelated wire's disconnect survived the node delete.
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toEqual([]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
   });
 });
 

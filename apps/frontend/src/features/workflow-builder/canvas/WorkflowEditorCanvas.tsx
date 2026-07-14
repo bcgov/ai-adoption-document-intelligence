@@ -1236,7 +1236,7 @@ function mountsErrorHandle(node: GraphNode | undefined): boolean {
  *     Data wires are deletable + selectable (PORT_WIRING_DESIGN.md §6.3):
  *     deleting one does NOT remove a `config.edges` row — it disconnects
  *     the consumer's input binding and pins the port unbound, handled by
- *     `handleEdgesDelete` via `disconnectWires`. They stay hoverable via
+ *     `handleDelete` via `disconnectWires`. They stay hoverable via
  *     `DATA_WIRE_CLASS` regardless.
  *   - Structural wires keep the legacy edge projection: id = edge id,
  *     `graphEdge` + `sourceSwitch` data. Error wires anchor at the bottom
@@ -1486,6 +1486,36 @@ function buildStructuralFingerprint(
     simplifiedView,
     groups: groupsFingerprint,
   });
+}
+
+/**
+ * Removes the given node ids from the config: the nodes themselves, every
+ * edge touching one, the entry pointer (re-seated onto any survivor), and
+ * group memberships (pruned via `pruneNodesFromGroups` — emptied groups +
+ * orphaned exposedParams go too, so the save-time validator doesn't report
+ * "references non-existent node"). Pure; shared by the context menu's
+ * `handleNodesDelete` and the unified `handleDelete` pass.
+ */
+function removeNodesFromConfig(
+  config: GraphWorkflowConfig,
+  removedIds: ReadonlySet<string>,
+): GraphWorkflowConfig {
+  const nodesCopy = { ...config.nodes };
+  for (const id of removedIds) delete nodesCopy[id];
+  const filteredEdges = config.edges.filter(
+    (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
+  );
+  const nextEntryNodeId = removedIds.has(config.entryNodeId)
+    ? (Object.keys(nodesCopy)[0] ?? "")
+    : config.entryNodeId;
+  const prunedGroups = pruneNodesFromGroups(config, removedIds);
+  return {
+    ...config,
+    nodes: nodesCopy,
+    edges: filteredEdges,
+    entryNodeId: nextEntryNodeId,
+    nodeGroups: prunedGroups.nodeGroups,
+  };
 }
 
 export function WorkflowEditorCanvas(props: WorkflowEditorCanvasProps) {
@@ -1958,25 +1988,7 @@ function WorkflowEditorCanvasInner({
     (deleted: Node[]) => {
       if (deleted.length === 0) return;
       const removedIds = new Set(deleted.map((n) => n.id));
-      const nodesCopy = { ...config.nodes };
-      for (const id of removedIds) delete nodesCopy[id];
-      const filteredEdges = config.edges.filter(
-        (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-      );
-      const nextEntryNodeId = removedIds.has(config.entryNodeId)
-        ? (Object.keys(nodesCopy)[0] ?? "")
-        : config.entryNodeId;
-      // Strip the deleted ids from every group's membership (and prune
-      // emptied groups + orphaned exposedParams) so the save-time
-      // validator doesn't report "references non-existent node".
-      const prunedGroups = pruneNodesFromGroups(config, removedIds);
-      onConfigChange({
-        ...config,
-        nodes: nodesCopy,
-        edges: filteredEdges,
-        entryNodeId: nextEntryNodeId,
-        nodeGroups: prunedGroups.nodeGroups,
-      });
+      onConfigChange(removeNodesFromConfig(config, removedIds));
       if (selectedNodeId && removedIds.has(selectedNodeId)) {
         onSelectNode(null);
       }
@@ -1986,9 +1998,9 @@ function WorkflowEditorCanvasInner({
 
   /**
    * §6.3 — disconnect data wires (pinned unbound) + one-shot hint when the
-   * pair's normal edge survives as a dashed sequence remainder. Shared by
-   * keyboard deletion (`handleEdgesDelete`) and the wire context menu
-   * (Task 5).
+   * pair's normal edge survives as a dashed sequence remainder. Invoked
+   * from the unified `handleDelete` pass; callers must pre-filter to
+   * SURVIVOR wires only (both endpoints still in the graph).
    */
   const disconnectWires = useCallback(
     (wires: DataWire[], base: GraphWorkflowConfig): GraphWorkflowConfig => {
@@ -2013,6 +2025,10 @@ function WorkflowEditorCanvasInner({
         return pairWiresBefore === deletedFromPair;
       });
       if (leavesSequenceRemainder) {
+        // Deliberately grey + 6s (vs the codebase's red/green/blue 3s
+        // norm): this is a passive "here's why the arrow stayed" hint,
+        // not a success/failure verdict, and readers need time to spot
+        // the dashed wire it refers to.
         notifications.show({
           message:
             "Execution order kept — delete the dashed wire to fully detach.",
@@ -2025,27 +2041,64 @@ function WorkflowEditorCanvasInner({
     [derivedWires],
   );
 
-  const handleEdgesDelete = useCallback(
-    (deleted: Edge[]) => {
-      if (deleted.length === 0) return;
-      const dataWires: DataWire[] = [];
+  /**
+   * Unified deletion handler — xyflow's `onDelete` fires ONCE per delete
+   * gesture with everything removed (selected elements plus the swept-in
+   * edges connected to deleted nodes), unlike the `onNodesDelete` /
+   * `onEdgesDelete` pair which fire back-to-back in the same tick and,
+   * each emitting a full config, let the second call clobber the first
+   * (lost update). One pass, one `onConfigChange`:
+   *
+   *   - node removal reuses `removeNodesFromConfig` (shared with the
+   *     context menu's `handleNodesDelete`);
+   *   - structural wires are dropped from `config.edges` by id;
+   *   - data wires split by why they're here: swept in because an
+   *     endpoint node died → vanish with the node, no §6.3 disconnect
+   *     and no hint; deleted directly with both endpoints surviving →
+   *     routed through `disconnectWires` (pinned unbound + hint).
+   */
+  const handleDelete = useCallback(
+    ({
+      nodes: deletedNodes,
+      edges: deletedEdges,
+    }: {
+      nodes: Node[];
+      edges: Edge[];
+    }) => {
+      if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
+      const removedNodeIds = new Set(deletedNodes.map((n) => n.id));
+      const survivorDataWires: DataWire[] = [];
       const removedEdgeIds = new Set<string>();
-      for (const e of deleted) {
+      for (const e of deletedEdges) {
         const wire = (e.data as WorkflowEdgeData | undefined)?.wire;
-        if (wire?.variant === "data") dataWires.push(wire);
-        else removedEdgeIds.add(e.id);
+        if (wire?.variant === "data") {
+          if (
+            !removedNodeIds.has(wire.source) &&
+            !removedNodeIds.has(wire.target)
+          ) {
+            survivorDataWires.push(wire);
+          }
+        } else {
+          removedEdgeIds.add(e.id);
+        }
       }
       let next = config;
+      if (removedNodeIds.size > 0) {
+        next = removeNodesFromConfig(next, removedNodeIds);
+      }
       if (removedEdgeIds.size > 0) {
         next = {
           ...next,
           edges: next.edges.filter((e) => !removedEdgeIds.has(e.id)),
         };
       }
-      next = disconnectWires(dataWires, next);
+      next = disconnectWires(survivorDataWires, next);
       if (next !== config) onConfigChange(next);
+      if (selectedNodeId && removedNodeIds.has(selectedNodeId)) {
+        onSelectNode(null);
+      }
     },
-    [config, onConfigChange, disconnectWires],
+    [config, onConfigChange, disconnectWires, onSelectNode, selectedNodeId],
   );
 
   // ---------------------------------------------------------------------------
@@ -2095,9 +2148,9 @@ function WorkflowEditorCanvasInner({
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   /**
-   * Wires the context menu's "Delete node" entry into the existing
-   * `handleNodesDelete` path so deletion via right-click and the keyboard
-   * delete key share one removal flow.
+   * Wires the context menu's "Delete node" entry into `handleNodesDelete`,
+   * which shares `removeNodesFromConfig` with the keyboard-delete path
+   * (`handleDelete`) so both flows remove nodes identically.
    */
   const deleteNodeFromContextMenu = useCallback(() => {
     if (!contextMenu) return;
@@ -2309,8 +2362,7 @@ function WorkflowEditorCanvasInner({
         onEdgesChange={onInternalEdgesChange}
         onNodeDragStop={handleNodeDragStop}
         onSelectionChange={handleSelectionChange}
-        onNodesDelete={handleNodesDelete}
-        onEdgesDelete={handleEdgesDelete}
+        onDelete={handleDelete}
         onConnect={handleConnect}
         onNodeContextMenu={handleNodeContextMenu}
         onInit={(instance) =>
