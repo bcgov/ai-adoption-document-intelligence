@@ -842,13 +842,18 @@ function uploadSourceConfig(name) {
 const DEMOS = [
   {
     key: "typed-io",
+    // `title` feeds the seeded workflow NAME, which the backend turns into
+    // the stable slug the guide links to — keep it frozen so links survive
+    // reseeds. `guideTitle` is what the guide heading/anchor renders (updated
+    // for the port-wiring Phase 2 canvas: port rows replaced pills).
     title: "Typed I/O — coloured handles & type pills (Part 7)",
+    guideTitle: "Typed I/O — coloured port rows (Part 7)",
     config: typedChainConfig,
     steps: [
-      "Look at the node handles: single-typed ports are **coloured**; a node with multiple same-kind outputs (Submit OCR) shows a **grey wildcard** handle.",
-      "Hover a handle to see its kind (e.g. `OcrResult`) or the multi-output prompt.",
-      "Click **Cleanup** — the settings panel shows an **arrow** type pill (one typed port each side).",
-      "Click **Extract** — it shows a **stacked** pill listing all 5 input ports.",
+      "Look at the node cards: every catalog port now gets its own **row** with a kind-coloured handle + label — inputs down the left edge, outputs down the right. **Submit OCR**'s several same-kind outputs each get their own row instead of collapsing into one grey handle.",
+      "Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResponse: OcrResult — …`).",
+      'Click **Extract** — all 5 of its input rows are visible directly on the card; the old below-node "stacked pill" is gone.',
+      'Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill; a required input with nothing wired shows an amber ring on its handle.',
     ],
   },
   {
@@ -856,10 +861,11 @@ const DEMOS = [
     title: "Auto-wire — typed input binding states (Part 8)",
     config: autoWireConfig,
     steps: [
-      "Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **auto** badge and an **Override** button. No problems badge.",
+      "Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **Auto** badge and a **Change source** button. No problems badge.",
       "**Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.",
       "**Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).",
-      "On the auto-bound node, click **Override** → the binding locks; click **Revert to auto** to restore it.",
+      "On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.",
+      'On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*\'s output port to *Submit OCR (auto-bound)*\'s input port — hover it for the same provenance text as the Inputs section (e.g. *"Connected automatically — nearest Document producer"*). *Lone Submit*\'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.',
     ],
   },
   {
@@ -868,9 +874,10 @@ const DEMOS = [
     config: ambiguousConfig,
     steps: [
       "Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.",
-      "**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input fileData has an ambiguous source”*.",
+      "**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input \"Prepared file data\" has multiple possible sources — pick one”*.",
       "**Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.",
       "*Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.",
+      "Before you pick, **no data wire** renders into Submit OCR's `fileData` port — the resolver hasn't chosen, so there's nothing to draw; the port row just shows its amber ring. After you pick a producer in step 3, a colored wire appears from that producer's port to Submit OCR.",
     ],
   },
   {
@@ -1204,6 +1211,13 @@ function renderGuide(results, agentResults = []) {
   );
   lines.push("");
   lines.push(
+    "> **Not auto-seeded.** These workflows only exist if `npm run seed:demos`" +
+      " has been run against your current database — every link below 404s" +
+      " otherwise. Run it before walking any entry (needs the backend up on" +
+      " :3002); safe to re-run any time (idempotent).",
+  );
+  lines.push("");
+  lines.push(
     "> **Generated by** `scripts/seed-feature-demos.mjs`. Re-run it to",
   );
   lines.push(
@@ -1229,7 +1243,8 @@ function renderGuide(results, agentResults = []) {
   lines.push("## Contents");
   lines.push("");
   for (const r of results) {
-    lines.push(`- [${r.title}](#${slug(r.title)})`);
+    const heading = r.guideTitle ?? r.title;
+    lines.push(`- [${heading}](#${slug(heading)})`);
   }
   if (agentResults.length > 0) {
     lines.push("- [🤖 AI agent chat logs](#-ai-agent-chat-logs)");
@@ -1238,7 +1253,7 @@ function renderGuide(results, agentResults = []) {
   lines.push("---");
   lines.push("");
   for (const r of results) {
-    lines.push(`## ${r.title}`);
+    lines.push(`## ${r.guideTitle ?? r.title}`);
     lines.push("");
     lines.push(`**▶ Open:** [${link(r)}](${link(r)})`);
     if (r.infra) {
