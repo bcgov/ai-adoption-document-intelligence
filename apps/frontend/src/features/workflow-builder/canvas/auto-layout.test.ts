@@ -239,11 +239,11 @@ describe("layoutGraph — Task 9: per-node heights avoid same-rank overlap", () 
     const noOverlap = tallBottom <= shortTop || shortBottom <= tallTop;
     expect(noOverlap).toBe(true);
 
-    // Old fixed-80 layout would have given both nodes identical height
-    // (200x80), so same-rank centers would land exactly
-    // `nodesep(60) + 80 = 140` apart. The real per-node heights (tall=180,
-    // short=64) push the centers further apart than that fixed baseline —
-    // proof the positions differ from what the old code produced.
+    // Old fixed-80 layout would have given both nodes identical height,
+    // so same-rank centers would land exactly `nodesep(60) + 80 = 140`
+    // apart. The calibrated per-node heights (tall activity = 293, switch
+    // diamond = 180) push the centers further apart than that fixed
+    // baseline — proof the positions differ from the old code's output.
     const centerGap = Math.abs(
       tallY + tallHeight / 2 - (shortY + shortHeight / 2),
     );

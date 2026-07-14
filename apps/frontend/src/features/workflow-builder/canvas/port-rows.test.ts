@@ -7,17 +7,20 @@ import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
   PollUntilNode,
+  SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
 import { config, node } from "./__test-utils__/config-fixtures";
 import { deriveWires } from "./derive-wires";
 import {
+  ACTIVITY_BASE_HEIGHT,
+  CONTROL_FLOW_NODE_HEIGHT,
   computePortRows,
   estimateNodeHeight,
-  NODE_BASE_HEIGHT,
   PORT_ROW_HEIGHT,
   PORT_ROWS_TOP_MARGIN,
   rendersPerPortHandle,
+  SOURCE_NODE_HEIGHT,
 } from "./port-rows";
 
 describe("computePortRows — Scenario 1: azureOcr.submit with no bindings", () => {
@@ -128,9 +131,8 @@ describe("computePortRows — Scenario 4: non-activity node", () => {
     const { inputs, outputs } = computePortRows(cfg, "Sw", []);
     expect(inputs).toEqual([]);
     expect(outputs).toEqual([]);
-    // Zero rows: PortRows renders nothing (no `marginTop: 6` grid), so the
-    // estimate must NOT add PORT_ROWS_TOP_MARGIN here.
-    expect(estimateNodeHeight(cfg, "Sw")).toBe(NODE_BASE_HEIGHT);
+    // Switch renders as the 180×180 control-flow diamond — no port rows.
+    expect(estimateNodeHeight(cfg, "Sw")).toBe(CONTROL_FLOW_NODE_HEIGHT);
   });
 });
 
@@ -149,9 +151,12 @@ describe("computePortRows — Scenario 5: estimateNodeHeight scales with the wid
     const { inputs, outputs } = computePortRows(cfg, "E", []);
     expect(inputs).toHaveLength(5);
     expect(outputs).toHaveLength(1);
+    // Calibrated against the rendered card: 177 + 6 + 5×22 = 293px, the
+    // measured offsetHeight of azureOcr.extract on the seed workflows.
     expect(estimateNodeHeight(cfg, "E")).toBe(
-      NODE_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + 5 * PORT_ROW_HEIGHT,
+      ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + 5 * PORT_ROW_HEIGHT,
     );
+    expect(estimateNodeHeight(cfg, "E")).toBe(293);
   });
 });
 
@@ -175,6 +180,74 @@ describe("computePortRows — Scenario 6: optional unbound input", () => {
       bound: false,
       needsSource: false,
     });
+  });
+});
+
+describe("estimateNodeHeight — per-type routing (calibrated heights)", () => {
+  it("sizes pollUntil as a control-flow rectangle, NOT by its catalog rows", () => {
+    const cfg = config({
+      nodes: {
+        P: node<PollUntilNode>({
+          id: "P",
+          type: "pollUntil",
+          activityType: "azureOcr.submit",
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: true },
+          },
+          interval: "30s",
+        }),
+      },
+    });
+
+    // azureOcr.submit resolves catalog rows, but the canvas renders
+    // pollUntil as the control-flow rectangle without them (measured
+    // 178px; constant is the 180px switch-diamond max).
+    expect(estimateNodeHeight(cfg, "P")).toBe(CONTROL_FLOW_NODE_HEIGHT);
+  });
+
+  it("sizes source nodes with the slimmer source-card height", () => {
+    const cfg = config({
+      nodes: {
+        S: node<SourceNode>({
+          id: "S",
+          type: "source",
+          sourceType: "source.upload",
+        }),
+      },
+    });
+
+    expect(estimateNodeHeight(cfg, "S")).toBe(SOURCE_NODE_HEIGHT);
+  });
+
+  it("sizes a catalog-less (dyn.*) activity at the bare activity base", () => {
+    const cfg = config({
+      nodes: {
+        D: node<ActivityNode>({
+          id: "D",
+          type: "activity",
+          activityType: "dyn.custom-script",
+        }),
+      },
+    });
+
+    // No catalog entry → zero rows → no PortRows grid (and no 6px margin).
+    expect(estimateNodeHeight(cfg, "D")).toBe(ACTIVITY_BASE_HEIGHT);
+  });
+
+  it("falls back to the control-flow height for unknown node ids", () => {
+    const cfg = config({
+      nodes: {
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "azureOcr.submit",
+        }),
+      },
+    });
+
+    expect(estimateNodeHeight(cfg, "missing")).toBe(CONTROL_FLOW_NODE_HEIGHT);
   });
 });
 

@@ -14,8 +14,28 @@ import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import type { DataWire, DerivedWire } from "./derive-wires";
 
+/**
+ * Height constants below are CALIBRATED against rendered cards (measured
+ * via `offsetHeight` on the seed workflows, 2026-07). An activity card
+ * stacks: type-pill row (13px) + label (16px) + the `<PortRows>` grid
+ * (6px top margin + 22px per row) + a 120px preview-widget skeleton +
+ * card padding/gaps/border — so the row-less activity card measures
+ * 177px, NOT just "header + label". Measured activity heights land
+ * exactly on `177 + 6 + rows * 22`: 205 (1 row), 227 (2), 249 (3),
+ * 271 (4), 293 (5) — the 22px/row slope is exact; only the intercept
+ * needed calibrating.
+ */
 export const PORT_ROW_HEIGHT = 22;
-export const NODE_BASE_HEIGHT = 64; // header + label + padding
+/** Row-less activity card: pill + label + 120px preview widget + padding. */
+export const ACTIVITY_BASE_HEIGHT = 177;
+/**
+ * Control-flow rectangles/diamonds render WITHOUT port rows regardless of
+ * catalog entries: map/join/childWorkflow/pollUntil/humanGate measure
+ * 178px, the switch diamond 180×180 — one constant at the max.
+ */
+export const CONTROL_FLOW_NODE_HEIGHT = 180;
+/** Source cards (e.g. `source.upload`) render a slimmer fixed card: 165px. */
+export const SOURCE_NODE_HEIGHT = 165;
 /**
  * `marginTop` the `<PortRows>` grid renders above its rows (see
  * `PortRows.tsx`). Only applies when the node has at least one row — the
@@ -68,9 +88,11 @@ function isDataWire(wire: DerivedWire): wire is DataWire {
  *
  * Note the canvas projection currently renders rows for `activity` nodes
  * only — `pollUntil` nodes render through the control-flow rectangle with
- * no port rows in the render-only slice. The `pollUntil` branch below
- * exists so `estimateNodeHeight` (and the upcoming layout/projection
- * work) can size any catalog-backed node without a second code path.
+ * no port rows in the render-only slice, and `estimateNodeHeight`
+ * accordingly sizes them with `CONTROL_FLOW_NODE_HEIGHT`, not by row
+ * count. The `pollUntil` branch below just keeps the catalog lookup
+ * uniform across catalog-backed node types; no current caller consumes
+ * `pollUntil` rows.
  */
 export function computePortRows(
   config: GraphWorkflowConfig,
@@ -163,18 +185,36 @@ export function rendersPerPortHandle(
 }
 
 /**
- * `NODE_BASE_HEIGHT` plus one `PORT_ROW_HEIGHT` per row on the taller side
- * (inputs vs. outputs) — the card renders both columns in the same
- * vertical run, so the shorter side just leaves blank space. Wires don't
- * affect row count, so this passes an empty wire list to `computePortRows`
- * rather than requiring one from the caller.
+ * Estimated rendered card height for the dagre auto-layout pass, routed by
+ * node type to mirror what the canvas actually mounts:
+ *
+ *   - `activity`: `ACTIVITY_BASE_HEIGHT` plus one `PORT_ROW_HEIGHT` per row
+ *     on the taller side (inputs vs. outputs) plus the grid's top margin —
+ *     the card renders both columns in the same vertical run, so the
+ *     shorter side just leaves blank space. Row-less activities (`dyn.*`,
+ *     stale catalog entries) get the bare base.
+ *   - `source`: fixed `SOURCE_NODE_HEIGHT` card.
+ *   - everything else (switch/map/join/childWorkflow/pollUntil/humanGate,
+ *     and unknown node ids): `CONTROL_FLOW_NODE_HEIGHT`. Note `pollUntil`
+ *     resolves a catalog entry in `computePortRows` but the canvas renders
+ *     it as a control-flow rectangle WITHOUT rows, so its estimate must
+ *     NOT scale with row count.
+ *
+ * Wires don't affect row count, so this passes an empty wire list to
+ * `computePortRows` rather than requiring one from the caller.
  */
 export function estimateNodeHeight(
   config: GraphWorkflowConfig,
   nodeId: string,
 ): number {
+  const node = config.nodes[nodeId];
+  if (!node || node.type !== "activity") {
+    return node?.type === "source"
+      ? SOURCE_NODE_HEIGHT
+      : CONTROL_FLOW_NODE_HEIGHT;
+  }
   const { inputs, outputs } = computePortRows(config, nodeId, []);
   const rows = Math.max(inputs.length, outputs.length);
-  if (rows === 0) return NODE_BASE_HEIGHT;
-  return NODE_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
+  if (rows === 0) return ACTIVITY_BASE_HEIGHT;
+  return ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
 }
