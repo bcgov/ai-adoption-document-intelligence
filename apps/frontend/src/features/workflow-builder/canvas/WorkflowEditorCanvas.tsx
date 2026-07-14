@@ -2316,6 +2316,13 @@ function WorkflowEditorCanvasInner({
     setPendingSummaryTarget(targetNodeId);
   }, []);
 
+  // Stable identity — the popover holds `onClose` in a ref, but a stable
+  // callback keeps the prop honest (an inline closure here would be a new
+  // function on every canvas re-render).
+  const closeConnectSummary = useCallback(() => {
+    setConnectSummary(null);
+  }, []);
+
   // Resolves `pendingSummaryTarget` into an anchored `connectSummary` once
   // the node is both present in `config` (see above) and an
   // activity/pollUntil node (the only types that ever have wireable input
@@ -2353,13 +2360,11 @@ function WorkflowEditorCanvasInner({
     if (!el) return;
     setPendingSummaryTarget(null);
     const rect = el.getBoundingClientRect();
-    if (rect) {
-      setConnectSummary({
-        nodeId: pendingSummaryTarget,
-        x: rect.right,
-        y: rect.top,
-      });
-    }
+    setConnectSummary({
+      nodeId: pendingSummaryTarget,
+      x: rect.right,
+      y: rect.top,
+    });
   }, [pendingSummaryTarget, config.nodes, internalNodes]);
 
   const handleConnect = useCallback(
@@ -2727,7 +2732,7 @@ function WorkflowEditorCanvasInner({
         anchorPosition={connectSummary ?? { x: 0, y: 0 }}
         config={config}
         nodeId={connectSummary?.nodeId ?? null}
-        onClose={() => setConnectSummary(null)}
+        onClose={closeConnectSummary}
         onFix={onFixNodeInput}
       />
     </div>

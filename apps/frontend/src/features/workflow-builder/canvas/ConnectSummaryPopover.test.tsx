@@ -334,4 +334,51 @@ describe("ConnectSummaryPopover", () => {
       screen.queryByTestId("connect-summary-popover"),
     ).not.toBeInTheDocument();
   });
+
+  it("does not re-arm the 8s timer when onClose changes identity mid-countdown", () => {
+    // Regression guard: the canvas passes `onClose` as an inline closure —
+    // a NEW function identity on every canvas re-render (handle hover,
+    // selection, drag, config change). If the dismiss effect keys on
+    // `onClose`, each re-render clears + re-arms the full 8s and the
+    // popover never dismisses while the user interacts with the canvas.
+    // Dismissal must fire 8s from OPEN, not 8s from the last re-render.
+    vi.useFakeTimers();
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Submit",
+    };
+    const config = baseConfig({ submit });
+    const onCloseSpy = vi.fn();
+    const renderPopover = () => (
+      <MantineProvider>
+        <ConnectSummaryPopover
+          opened
+          anchorPosition={{ x: 0, y: 0 }}
+          config={config}
+          // Fresh inline closure each call — mirrors the canvas's
+          // `onClose={() => setConnectSummary(null)}`.
+          nodeId="submit"
+          onClose={() => onCloseSpy()}
+        />
+      </MantineProvider>
+    );
+    const { rerender } = render(renderPopover());
+    expect(screen.getByTestId("connect-summary-popover")).toBeInTheDocument();
+
+    // t=4s: simulate a canvas re-render that hands down a NEW onClose.
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    rerender(renderPopover());
+    expect(onCloseSpy).not.toHaveBeenCalled();
+
+    // t=8s from OPEN (4s after the identity churn): must dismiss now —
+    // a re-armed timer would only fire at t=12s.
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+    expect(onCloseSpy).toHaveBeenCalledTimes(1);
+  });
 });

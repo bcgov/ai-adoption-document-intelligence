@@ -3727,7 +3727,9 @@ describe("WorkflowEditorCanvas — connect summary (§6.4)", () => {
           targetHandle: null,
         });
       });
-      // Flush the popover's own deferred (0ms) anchor-lookup timer.
+      // Flush the scheduled state updates/effects under fake timers so the
+      // pending-summary effect resolves and the popover commits before we
+      // assert on it.
       act(() => {
         vi.advanceTimersByTime(0);
       });

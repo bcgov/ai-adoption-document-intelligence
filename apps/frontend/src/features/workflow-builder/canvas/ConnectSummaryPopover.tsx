@@ -22,7 +22,7 @@
  * so it escapes xyflow's scroll-clipped container.
  */
 import { Button, Group, Popover, Stack, Text } from "@mantine/core";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
   resolveWireableInputRows,
@@ -49,14 +49,25 @@ export function ConnectSummaryPopover({
   onClose,
   onFix,
 }: ConnectSummaryPopoverProps) {
-  // 8s auto-dismiss, armed whenever `opened` flips true. Cleared on close
-  // (opened flips false) or unmount so it never fires against a stale
-  // callback.
+  // `onClose` held in a ref so its IDENTITY can never churn the dismiss
+  // timer: the canvas passes an inline closure (`() => setConnectSummary(
+  // null)`) — a new function on every canvas re-render (handle hover,
+  // selection, drags, config changes) — and a timer effect keyed on
+  // `onClose` would clear + re-arm the full 8s on each of those,
+  // indefinitely deferring dismissal while the user interacts.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // 8s auto-dismiss, armed when `opened` flips true and re-armed when the
+  // popover retargets to a different node while already open (a second
+  // connect within the window deliberately restarts the countdown for the
+  // new summary). Cleared on close (opened flips false) or unmount so it
+  // never fires against a stale callback.
   useEffect(() => {
     if (!opened) return;
-    const timer = setTimeout(onClose, AUTO_DISMISS_MS);
+    const timer = setTimeout(() => onCloseRef.current(), AUTO_DISMISS_MS);
     return () => clearTimeout(timer);
-  }, [opened, onClose]);
+  }, [opened, nodeId]);
 
   // Reads the LIVE `config` prop — by the time this renders, the page's
   // `resolveBindings` pass (inside `handleCanvasConfigChange`) has already

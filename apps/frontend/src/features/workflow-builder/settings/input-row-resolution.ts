@@ -53,7 +53,7 @@ export type RowResolution =
  * but the port carries a persisted non-auto binding, we display "ctx-bound"
  * (see `RowResolution`) rather than the red "Needs a source" button.
  */
-export function effectiveResolution(
+function effectiveResolution(
   rawResolution: PortResolution,
   existingCtxKey: string | undefined,
   config: GraphWorkflowConfig,
