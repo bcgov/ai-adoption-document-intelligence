@@ -54,17 +54,30 @@ function decodeAutoProducerNodeId(ctxKey: string): string | null {
 }
 
 /**
+ * What a port row renders from: the resolver's `PortResolution` plus one
+ * display-only state — "ctx-bound", an UNLOCKED port whose persisted binding
+ * points at a real (non-auto) ctx variable. The resolver ignores unlocked
+ * `inputs[]` rows and reports "unsatisfied" for these, but the unified
+ * validation drawer suppresses exactly this case (its `manuallyBoundPorts`
+ * filter in auto-wire-validation.ts): a ctx-bound port HAS a source. The
+ * panel must agree with the drawer.
+ */
+type RowResolution = PortResolution | { status: "ctx-bound"; ctxKey: string };
+
+/**
  * Effective resolution for a port row: when `resolveInputPort` returns
  * "ambiguous" but the consumer already has an auto-key binding for this
  * port (left over from a previous auto-wire pass), we display the existing
  * binding as "auto-bound" so the user sees where their data comes from and
- * can choose to change the source or leave it.
+ * can choose to change the source or leave it. When it returns "unsatisfied"
+ * but the port carries a persisted non-auto binding, we display "ctx-bound"
+ * (see `RowResolution`) rather than the red "Needs a source" button.
  */
 function effectiveResolution(
   rawResolution: PortResolution,
   existingCtxKey: string | undefined,
   config: GraphWorkflowConfig,
-): PortResolution {
+): RowResolution {
   if (
     rawResolution.status === "ambiguous" &&
     existingCtxKey &&
@@ -86,6 +99,13 @@ function effectiveResolution(
         via: "nearest-kind",
       };
     }
+  }
+  if (
+    rawResolution.status === "unsatisfied" &&
+    existingCtxKey &&
+    !isAutoCtxKey(existingCtxKey)
+  ) {
+    return { status: "ctx-bound", ctxKey: existingCtxKey };
   }
   return rawResolution;
 }
@@ -212,7 +232,7 @@ export function InputsSection({
 
 interface PortRowProps {
   portLabel: string;
-  resolution: PortResolution;
+  resolution: RowResolution;
   producerLabel: string | null;
   onOverride: () => void;
   onRevert: () => void;
@@ -295,6 +315,18 @@ function PortRow({
             </Button>
             <Button size="compact-xs" variant="subtle" onClick={onRevert}>
               Revert to automatic
+            </Button>
+          </Group>
+        );
+      case "ctx-bound":
+        // Unlocked but bound to a real ctx variable — the port HAS a source
+        // (parity with the drawer's manuallyBoundPorts suppression). Show the
+        // binding rather than the misleading red "Needs a source" button.
+        return (
+          <Group gap={6} wrap="nowrap">
+            <Text size="xs">from {resolution.ctxKey}</Text>
+            <Button size="compact-xs" variant="subtle" onClick={onOverride}>
+              Change source
             </Button>
           </Group>
         );

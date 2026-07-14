@@ -215,6 +215,74 @@ describe("InputsSection", () => {
     expect(screen.getByText("Document ID")).toBeInTheDocument();
   });
 
+  it("treats an unlocked identifier port bound to a real ctx variable as sourced (parity with the drawer's manuallyBoundPorts filter)", () => {
+    // documentId carries a persisted non-auto binding but NO lock — the shape
+    // external tools/agents write (e.g. migrate-graph-config-ocr-refs). The
+    // resolver ignores unlocked inputs[] rows and reports "unsatisfied", but
+    // the drawer suppresses exactly this case: a ctx-bound port HAS a source.
+    // The panel must agree — show the binding, not the red button.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [
+            { port: "documentId", ctxKey: "documentId" },
+            { port: "blobKey", ctxKey: "blobKey" },
+          ],
+          // blobKey is locked/bound so documentId is the only port whose
+          // rendering is under test.
+          metadata: { lockedInputPorts: ["blobKey"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {
+        documentId: { type: "string", isInput: true },
+        blobKey: { type: "string", isInput: true },
+      },
+    };
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText("from documentId")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /change source/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/needs a source/i)).not.toBeInTheDocument();
+  });
+
+  it("still shows 'Needs a source' for an unlocked identifier port with no binding at all", () => {
+    // Inverse guard: without a persisted binding the port genuinely has no
+    // source — the red button must stay.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+          metadata: { lockedInputPorts: ["blobKey"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: { blobKey: { type: "string", isInput: true } },
+    };
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText(/needs a source/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^from /)).not.toBeInTheDocument();
+  });
+
   it("renders a 'Disconnected' badge with Pick-a-source and Revert-to-automatic buttons for a locked-unbound port", () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
