@@ -128,8 +128,15 @@ export function resolveBindings(
     }
 
     if (inputsChanged) {
+      // Read-your-writes: spread the CURRENT nextNodes[consumerId], not the
+      // pre-loop `consumer` snapshot. If this node's key sorts before some
+      // earlier-processed consumer's key that it produces for (e.g. Postgres
+      // jsonb key-order normalization), ensureProducerOutputBinding() may
+      // have already replaced nextNodes[consumerId] with a new object
+      // carrying a synthesized `outputs` binding. Spreading the stale
+      // snapshot here would silently discard that binding.
       nextNodes[consumerId] = {
-        ...consumer,
+        ...nextNodes[consumerId],
         inputs: nextInputs,
       } as GraphNode;
     }

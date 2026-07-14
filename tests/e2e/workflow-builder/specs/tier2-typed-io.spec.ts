@@ -39,15 +39,17 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  *                               (Document kind match → auto:nearest-kind)
  *   - wire:extract:apimRequestId submit.apimRequestId → extract.apimRequestId
  *                               (Artifact identifier port → auto:name-match)
+ *   - wire:clean:ocrResult      extract.ocrResult → clean.ocrResult
+ *                               (OcrResult kind match → auto:nearest-kind)
  *
- * KNOWN QUIRK (not asserted): extract.ocrResult → clean.ocrResult auto-binds
- * clean's input, but whether the wire RENDERS depends on backend node-key
- * order — resolveBindings' consumer loop iterates a snapshot and its
- * write-back can clobber a producer output binding materialised earlier in
- * the same pass (packages/graph-workflow/src/auto-wire/resolver.ts), so with
- * the order the backend currently persists, e3 renders as a sequence wire
- * with clean's row still bound. Total wire counts and e3's variant are
- * therefore deliberately NOT asserted; the two wires above are order-stable.
+ * All three are order-stable: resolveBindings' consumer loop now reads the
+ * CURRENT nextNodes[consumerId] at write-back time (instead of spreading the
+ * pre-loop snapshot), so a producer output binding materialised earlier in
+ * the pass survives regardless of backend node-key order — see
+ * packages/graph-workflow/src/auto-wire/resolver.ts and its regression tests
+ * for the fixed jsonb-key-order clobber (previously e3 could render as a
+ * bare sequence wire when the persisted node-key order iterated `extract`'s
+ * own inputs after it had already been stamped as `clean`'s producer).
  *
  * Node positions are staggered vertically on purpose: a perfectly
  * horizontal/vertical straight wire has a zero-height/width bounding box,
@@ -202,12 +204,26 @@ test.describe("typed I/O artifacts", () => {
     await expect(idWire).toHaveAttribute("data-wire-variant", "data");
     await expect(idWire).toHaveAttribute("data-provenance", "auto:name-match");
 
+    // Kind-based auto-wire across the extract → clean hop: extract.ocrResult
+    // (OcrResult) → clean.ocrResult (OcrResult). Regression coverage for the
+    // resolver key-order clobber fix — this wire must render as a data wire
+    // regardless of the node-key order the backend persists.
+    const ocrResultWire = wireGroup(page, "wire:clean:ocrResult");
+    await expect(ocrResultWire).toHaveAttribute("data-wire-variant", "data");
+    await expect(ocrResultWire).toHaveAttribute(
+      "data-provenance",
+      "auto:nearest-kind",
+    );
+
     // A wired required input is satisfied…
     await expect(
       page.getByTestId("port-row-submit-in-fileData"),
     ).toHaveAttribute("data-needs-source", "false");
     await expect(
       page.getByTestId("port-row-extract-in-apimRequestId"),
+    ).toHaveAttribute("data-needs-source", "false");
+    await expect(
+      page.getByTestId("port-row-clean-in-ocrResult"),
     ).toHaveAttribute("data-needs-source", "false");
     // …while a required input with no upstream producer still needs a source.
     await expect(

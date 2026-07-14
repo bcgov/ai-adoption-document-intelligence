@@ -1,5 +1,5 @@
 // packages/graph-workflow/src/auto-wire/resolver.test.ts
-import type { GraphWorkflowConfig } from "../types";
+import type { GraphWorkflowConfig, PortBinding } from "../types";
 import { resolveBindings } from "./resolver";
 
 function activity(
@@ -33,6 +33,30 @@ function makeConfig(
     entryNodeId: Object.keys(nodes)[0] ?? "",
     ctx: {},
   };
+}
+
+function sortByPort(a: PortBinding, b: PortBinding): number {
+  return a.port.localeCompare(b.port);
+}
+
+/**
+ * Sort-normalize every node's inputs/outputs (and the node key order
+ * itself) so two configs that differ only in object-key insertion order
+ * (e.g. pre- vs post- Postgres jsonb round-trip) compare equal.
+ */
+function normalizeBindings(
+  nodes: GraphWorkflowConfig["nodes"],
+): Record<string, { inputs: PortBinding[]; outputs: PortBinding[] }> {
+  const result: Record<string, { inputs: PortBinding[]; outputs: PortBinding[] }> =
+    {};
+  for (const id of Object.keys(nodes).sort()) {
+    const node = nodes[id];
+    result[id] = {
+      inputs: [...(node.inputs ?? [])].sort(sortByPort),
+      outputs: [...(node.outputs ?? [])].sort(sortByPort),
+    };
+  }
+  return result;
 }
 
 describe("resolveBindings", () => {
@@ -198,5 +222,76 @@ describe("resolveBindings", () => {
     expect(out.nodes.B.inputs ?? []).toEqual([]);
     // A should carry no output bindings either.
     expect(out.nodes.A.outputs ?? []).toEqual([]);
+  });
+
+  it("keeps a producer's output binding when its node key is iterated AFTER its consumer's (jsonb key-order regression)", () => {
+    // Postgres jsonb normalizes object key order (length-then-bytewise),
+    // which for this OCR-ish chain produces {clean, extract, prep, submit}
+    // — i.e. `extract`'s key is iterated by Object.entries() BEFORE `clean`
+    // resolves its `ocrResult` input (stamping extract.outputs), but
+    // `extract`'s OWN inputs get resolved later in the same pass, and that
+    // later write-back must not clobber the outputs binding stamped on it
+    // earlier. See resolver.ts resolveBindings() consumer loop.
+    const cfg = makeConfig(
+      {
+        clean: activity("clean", "ocr.cleanup"),
+        extract: activity("extract", "azureOcr.extract"),
+        prep: activity("prep", "file.prepare"),
+        submit: activity("submit", "azureOcr.submit"),
+      },
+      [
+        { source: "prep", target: "submit" },
+        { source: "submit", target: "extract" },
+        { source: "extract", target: "clean" },
+      ],
+    );
+
+    const out = resolveBindings(cfg);
+
+    expect(out.nodes.extract.outputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "__auto.extract.ocrResult",
+    });
+    expect(out.nodes.clean.inputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "__auto.extract.ocrResult",
+    });
+  });
+
+  it("produces order-invariant bindings regardless of node key insertion order", () => {
+    const edges = [
+      { source: "prep", target: "submit" },
+      { source: "submit", target: "extract" },
+      { source: "extract", target: "clean" },
+    ];
+
+    // jsonb-normalized order: shortest keys first, then bytewise.
+    const jsonbOrder = makeConfig(
+      {
+        clean: activity("clean", "ocr.cleanup"),
+        extract: activity("extract", "azureOcr.extract"),
+        prep: activity("prep", "file.prepare"),
+        submit: activity("submit", "azureOcr.submit"),
+      },
+      edges,
+    );
+
+    // Author/insertion order: topological.
+    const insertionOrder = makeConfig(
+      {
+        prep: activity("prep", "file.prepare"),
+        submit: activity("submit", "azureOcr.submit"),
+        extract: activity("extract", "azureOcr.extract"),
+        clean: activity("clean", "ocr.cleanup"),
+      },
+      edges,
+    );
+
+    const outJsonb = resolveBindings(jsonbOrder);
+    const outInsertion = resolveBindings(insertionOrder);
+
+    expect(normalizeBindings(outJsonb.nodes)).toEqual(
+      normalizeBindings(outInsertion.nodes),
+    );
   });
 });
