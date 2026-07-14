@@ -120,6 +120,16 @@ export function InputsSection({
   const entry = getActivityCatalogEntry(activityType);
   if (!entry) return null;
 
+  // Two port populations get a row: auto-wireable typed ports (as before),
+  // plus REQUIRED base-`Artifact` identifier ports — the amber ring already
+  // fires for these on canvas, so the settings panel must surface them too
+  // (ring/badge reconciliation, PORT_WIRING §4.2). Optional identifier ports
+  // stay invisible.
+  const wireableInputs = entry.inputs.filter(
+    (p) =>
+      shouldAutoWirePort(p) || (p.kind === "Artifact" && p.required === true),
+  );
+
   const handleOverride = (
     portName: string,
     selection: { producerNodeId: string; producerPort: string },
@@ -138,12 +148,12 @@ export function InputsSection({
       <Text size="xs" fw={600}>
         Inputs
       </Text>
-      {entry.inputs.filter(shouldAutoWirePort).length === 0 && (
+      {wireableInputs.length === 0 && (
         <Text size="10px" c="dimmed">
           None.
         </Text>
       )}
-      {entry.inputs.filter(shouldAutoWirePort).map((port) => {
+      {wireableInputs.map((port) => {
         const portKind = port.kind as KindRef | undefined;
         const rawResolution = resolveInputPort(config, nodeId, {
           name: port.name,
@@ -267,6 +277,22 @@ function PortRow({
                 Pinned
               </Badge>
             </Tooltip>
+            <Button size="compact-xs" variant="subtle" onClick={onRevert}>
+              Revert to automatic
+            </Button>
+          </Group>
+        );
+      case "locked-unbound":
+        return (
+          <Group gap={6} wrap="nowrap">
+            <Tooltip label="Disconnected by you">
+              <Badge size="xs" color="gray" variant="light">
+                Disconnected
+              </Badge>
+            </Tooltip>
+            <Button size="compact-xs" variant="light" onClick={onOverride}>
+              Pick a source
+            </Button>
             <Button size="compact-xs" variant="subtle" onClick={onRevert}>
               Revert to automatic
             </Button>

@@ -87,24 +87,27 @@ describe("computeNodeStatus", () => {
     expect(computeNodeStatus(cfg, "Z")).toBe("unsatisfied");
   });
 
-  it("returns 'ok' when every input port has kind 'Artifact' (identifier-style — invisible to status)", () => {
-    // file.prepare has multiple Artifact-kinded identifier inputs (documentId,
-    // fileName, fileType, contentType) plus one Document-kinded input (blobKey).
-    // This test exercises a node where we supply `blobKey` as locked so the
-    // only remaining ports for status computation are the Artifact-kinded ones,
-    // which should be completely invisible — status must be "ok".
+  it("returns 'ok' when required ports are resolved and OPTIONAL Artifact ports stay invisible", () => {
+    // file.prepare has one REQUIRED Artifact-kinded identifier input
+    // (documentId), three OPTIONAL Artifact-kinded identifier inputs
+    // (fileName, fileType, contentType), and one required Document-kinded
+    // input (blobKey). Optional identifier ports never participate in status
+    // computation — but the required documentId port now DOES (ring/badge
+    // reconciliation, PORT_WIRING §4.2), so it must be resolved like any
+    // other required port for the node to read "ok".
     const cfg = makeConfig({
       A: {
         id: "A",
         type: "activity",
         activityType: "file.prepare",
         label: "A",
-        inputs: [{ port: "blobKey", ctxKey: "myBlobKey" }],
-        metadata: { lockedInputPorts: ["blobKey"] },
+        inputs: [
+          { port: "documentId", ctxKey: "myDocId" },
+          { port: "blobKey", ctxKey: "myBlobKey" },
+        ],
+        metadata: { lockedInputPorts: ["documentId", "blobKey"] },
       },
     });
-    // With blobKey locked and all remaining inputs being Artifact-kinded,
-    // computeNodeStatus should return "ok" (not "unsatisfied").
     expect(computeNodeStatus(cfg, "A")).toBe("ok");
   });
 });
@@ -207,6 +210,133 @@ describe("computeNodeInputIssues", () => {
       } as unknown as GraphWorkflowConfig["nodes"][string],
     });
     expect(computeNodeInputIssues(cfg, "S")).toEqual({
+      status: "ok",
+      problemPorts: [],
+    });
+  });
+
+  it("flags a REQUIRED base-Artifact identifier port with no source", () => {
+    // documentId (kind Artifact, required) has no upstream producer and no
+    // binding. blobKey is locked/bound so it doesn't also show up as a
+    // problem — isolating the identifier-port behaviour under test.
+    const cfg = makeConfig({
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "A",
+        inputs: [{ port: "blobKey", ctxKey: "myBlobKey" }],
+        metadata: { lockedInputPorts: ["blobKey"] },
+      },
+    });
+    const issues = computeNodeInputIssues(cfg, "A");
+    expect(issues.status).toBe("unsatisfied");
+    expect(issues.problemPorts).toEqual([
+      {
+        port: "documentId",
+        label: "Document ID",
+        kind: "Artifact",
+        status: "unsatisfied",
+      },
+    ]);
+  });
+
+  it("does NOT flag an OPTIONAL base-Artifact identifier port", () => {
+    // fileName/fileType/contentType are optional Artifact-kinded ports with
+    // no source. documentId and blobKey are locked/bound so the node is
+    // otherwise clean — the optional identifier ports must stay invisible.
+    const cfg = makeConfig({
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "A",
+        inputs: [
+          { port: "documentId", ctxKey: "myDocId" },
+          { port: "blobKey", ctxKey: "myBlobKey" },
+        ],
+        metadata: { lockedInputPorts: ["documentId", "blobKey"] },
+      },
+    });
+    expect(computeNodeInputIssues(cfg, "A")).toEqual({
+      status: "ok",
+      problemPorts: [],
+    });
+  });
+
+  it("does NOT flag a required identifier port the resolver name-matches", () => {
+    // azureOcr.submit outputs a REQUIRED apimRequestId (kind Artifact);
+    // azureOcr.poll declares a REQUIRED apimRequestId input with the exact
+    // same name — the resolver name-matches it, so it must not be flagged.
+    const cfg = makeConfig(
+      {
+        S: {
+          id: "S",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "S",
+          outputs: [
+            { port: "apimRequestId", ctxKey: "__auto.S.apimRequestId" },
+          ],
+        },
+        P: {
+          id: "P",
+          type: "activity",
+          activityType: "azureOcr.poll",
+          label: "P",
+        },
+      },
+      [{ source: "S", target: "P" }],
+    );
+    expect(computeNodeInputIssues(cfg, "P")).toEqual({
+      status: "ok",
+      problemPorts: [],
+    });
+  });
+
+  it("flags a REQUIRED locked-unbound port", () => {
+    // fileData (kind Document, required) is locked with no binding — the
+    // user explicitly disconnected it.
+    const cfg = makeConfig({
+      Z: {
+        id: "Z",
+        type: "activity",
+        activityType: "azureOcr.submit",
+        label: "Z",
+        metadata: { lockedInputPorts: ["fileData"] },
+      },
+    });
+    const issues = computeNodeInputIssues(cfg, "Z");
+    expect(issues.status).toBe("unsatisfied");
+    expect(issues.problemPorts).toEqual([
+      {
+        port: "fileData",
+        label: "Prepared file data",
+        kind: "Document",
+        status: "locked-unbound",
+      },
+    ]);
+  });
+
+  it("does NOT flag an OPTIONAL locked-unbound port", () => {
+    // azureClassify.poll's blobKey (kind Document, required: false) is
+    // locked with no binding — a deliberate disconnect of an optional port
+    // is not a problem. resultId and modelId (both required) are
+    // locked/bound so they don't also surface as problems.
+    const cfg = makeConfig({
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "azureClassify.poll",
+        label: "A",
+        inputs: [
+          { port: "resultId", ctxKey: "r1" },
+          { port: "modelId", ctxKey: "m1" },
+        ],
+        metadata: { lockedInputPorts: ["resultId", "modelId", "blobKey"] },
+      },
+    });
+    expect(computeNodeInputIssues(cfg, "A")).toEqual({
       status: "ok",
       problemPorts: [],
     });

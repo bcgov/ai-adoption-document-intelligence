@@ -35,7 +35,9 @@ export function autoWireIssuesToValidationErrors(
       const message =
         problem.status === "ambiguous"
           ? `Input "${problem.label}" has multiple possible sources — pick one`
-          : `Input "${problem.label}" needs a source — choose where it comes from`;
+          : problem.status === "locked-unbound"
+            ? `Input "${problem.label}" was disconnected — pick a source or revert to automatic`
+            : `Input "${problem.label}" needs a source — choose where it comes from`;
       errors.push({
         path: `nodes.${nodeId}.inputs.${problem.port}`,
         message,

@@ -157,13 +157,11 @@ describe("InputsSection", () => {
     });
   });
 
-  it("does not render a row for Artifact-kinded identifier ports", () => {
-    // file.prepare has `documentId`, `fileName`, `fileType`, `contentType`
-    // (kind "Artifact") and `blobKey` (kind "Document"). The Artifact-kinded
-    // ports should be invisible; only the Document-kinded `blobKey` row (if any)
-    // should appear. Since `blobKey` is unsatisfied here, the panel should
-    // show at most one row (Needs a source for blobKey) and NOT show rows for
-    // the four identifier ports.
+  it("does not render a row for OPTIONAL Artifact-kinded identifier ports, but renders required ones", () => {
+    // file.prepare has `fileName`, `fileType`, `contentType` (kind
+    // "Artifact", optional) which must stay invisible. `documentId` (kind
+    // "Artifact", REQUIRED) and `blobKey` (kind "Document", required) both
+    // now render as rows (ring/badge reconciliation, PORT_WIRING §4.2).
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -182,13 +180,68 @@ describe("InputsSection", () => {
     mount(
       <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
     );
-    // Identifier-port labels that must NOT appear
-    expect(screen.queryByText("Document ID")).not.toBeInTheDocument();
+    // Optional identifier-port labels that must NOT appear
     expect(screen.queryByText("File name")).not.toBeInTheDocument();
     expect(screen.queryByText("File type")).not.toBeInTheDocument();
     expect(screen.queryByText("Content type (MIME)")).not.toBeInTheDocument();
-    // The Document-kinded port blobKey should be visible (unsatisfied)
+    // The required Document-kinded blobKey port and the required
+    // Artifact-kinded documentId port should both be visible (unsatisfied).
     expect(screen.getByText("File reference (blob key)")).toBeInTheDocument();
+    expect(screen.getByText("Document ID")).toBeInTheDocument();
+  });
+
+  it("renders a row for a REQUIRED base-Artifact identifier port", () => {
+    // Previously this row was hidden entirely (row filter only showed
+    // shouldAutoWirePort ports). documentId is required and kind "Artifact"
+    // so it must now render.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText("Document ID")).toBeInTheDocument();
+  });
+
+  it("renders a 'Disconnected' badge with Pick-a-source and Revert-to-automatic buttons for a locked-unbound port", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText("Disconnected")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /pick a source/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /revert to automatic/i }),
+    ).toBeInTheDocument();
   });
 
   it("clicking 'Revert to automatic' removes the port from lockedInputPorts", async () => {

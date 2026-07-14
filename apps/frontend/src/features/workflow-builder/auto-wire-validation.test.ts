@@ -24,7 +24,8 @@ function makeConfig(
 describe("autoWireIssuesToValidationErrors", () => {
   it("returns no entries when every input resolves", () => {
     // A produces a Document into B's fileData (auto-bound); A's own typed
-    // blobKey input is locked so the root doesn't itself report unsatisfied.
+    // blobKey input and required documentId identifier input are locked so
+    // the root doesn't itself report unsatisfied.
     const cfg = makeConfig(
       {
         A: {
@@ -32,9 +33,12 @@ describe("autoWireIssuesToValidationErrors", () => {
           type: "activity",
           activityType: "file.prepare",
           label: "A",
-          inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+          inputs: [
+            { port: "documentId", ctxKey: "docId" },
+            { port: "blobKey", ctxKey: "blobKey" },
+          ],
           outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
-          metadata: { lockedInputPorts: ["blobKey"] },
+          metadata: { lockedInputPorts: ["documentId", "blobKey"] },
         },
         B: {
           id: "B",
@@ -75,16 +79,22 @@ describe("autoWireIssuesToValidationErrors", () => {
           type: "activity",
           activityType: "file.prepare",
           label: "X",
-          inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
-          metadata: { lockedInputPorts: ["blobKey"] },
+          inputs: [
+            { port: "documentId", ctxKey: "docIdX" },
+            { port: "blobKey", ctxKey: "blobKey" },
+          ],
+          metadata: { lockedInputPorts: ["documentId", "blobKey"] },
         },
         Y: {
           id: "Y",
           type: "activity",
           activityType: "file.prepare",
           label: "Y",
-          inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
-          metadata: { lockedInputPorts: ["blobKey"] },
+          inputs: [
+            { port: "documentId", ctxKey: "docIdY" },
+            { port: "blobKey", ctxKey: "blobKey" },
+          ],
+          metadata: { lockedInputPorts: ["documentId", "blobKey"] },
         },
         Z: {
           id: "Z",
@@ -120,6 +130,45 @@ describe("autoWireIssuesToValidationErrors", () => {
       },
     });
     expect(autoWireIssuesToValidationErrors(cfg)).toEqual([]);
+  });
+
+  it("emits a 'disconnected' warning for a locked-unbound input", () => {
+    const cfg = makeConfig({
+      Z: {
+        id: "Z",
+        type: "activity",
+        activityType: "azureOcr.submit",
+        label: "Z",
+        metadata: { lockedInputPorts: ["fileData"] },
+      },
+    });
+    const errors = autoWireIssuesToValidationErrors(cfg);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe("warning");
+    expect(errors[0].path).toBe("nodes.Z.inputs.fileData");
+    expect(errors[0].message).toBe(
+      'Input "Prepared file data" was disconnected — pick a source or revert to automatic',
+    );
+  });
+
+  it("emits the needs-a-source warning for a required unbound identifier port", () => {
+    const cfg = makeConfig({
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "A",
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        metadata: { lockedInputPorts: ["blobKey"] },
+      },
+    });
+    const errors = autoWireIssuesToValidationErrors(cfg);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe("warning");
+    expect(errors[0].path).toBe("nodes.A.inputs.documentId");
+    expect(errors[0].message).toBe(
+      'Input "Document ID" needs a source — choose where it comes from',
+    );
   });
 
   it("covers every node in the graph", () => {

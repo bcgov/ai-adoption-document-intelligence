@@ -3,16 +3,16 @@
  * (PORT_WIRING_DESIGN.md §6). One module so the canvas drag gesture, the
  * wire context menu, the delete path, and the settings panel's
  * "Change source" all write bindings identically. Every function returns a
- * NEW config (or the input config unchanged when the operation is a no-op);
- * callers dispatch the result through `onConfigChange`, where
- * `resolveBindings` runs as usual.
+ * NEW config object; callers dispatch the result through `onConfigChange`,
+ * where `resolveBindings` runs as usual. Two kinds of no-op are possible:
+ * guard paths (missing node, self-referencing pin/edge, an edge that already
+ * connects the pair) return the SAME config reference, so callers can
+ * `===`-compare to skip a re-render; semantic no-ops (re-pinning the
+ * identical producer/port, disconnecting an already-disconnected port)
+ * still return a NEW, deep-equal config.
  */
 import { getLockedInputPorts, synthesiseCtxKey } from "@ai-di/graph-workflow";
-import type {
-  GraphEdge,
-  GraphNode,
-  GraphWorkflowConfig,
-} from "../../../types/workflow";
+import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
 
 export interface ProducerSelection {
   producerNodeId: string;
@@ -66,7 +66,7 @@ export function pinPortBinding(
       [selection.producerNodeId]: {
         ...producer,
         outputs: nextProducerOutputs,
-      } as GraphNode,
+      },
       [consumerNodeId]: {
         ...consumer,
         inputs: nextConsumerInputs,
@@ -74,7 +74,7 @@ export function pinPortBinding(
           ...(consumer.metadata ?? {}),
           lockedInputPorts: nextLocks,
         },
-      } as GraphNode,
+      },
     },
   };
 }
@@ -109,7 +109,7 @@ export function disconnectDataWire(
           ...(consumer.metadata ?? {}),
           lockedInputPorts: nextLocks,
         },
-      } as GraphNode,
+      },
     },
   };
 }
@@ -137,7 +137,7 @@ export function revertPortToAutomatic(
     ...config,
     nodes: {
       ...config.nodes,
-      [nodeId]: { ...node, metadata: nextMetadata } as GraphNode,
+      [nodeId]: { ...node, metadata: nextMetadata },
     },
   };
 }
@@ -154,6 +154,7 @@ export function ensureEdgeBetween(
   sourceId: string,
   targetId: string,
 ): GraphWorkflowConfig {
+  if (sourceId === targetId) return config;
   const connected = config.edges.some(
     (e) =>
       (e.source === sourceId && e.target === targetId) ||

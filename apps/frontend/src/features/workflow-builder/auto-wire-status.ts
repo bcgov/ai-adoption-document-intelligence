@@ -14,7 +14,7 @@ export interface NodeInputProblem {
   /** Human-readable label for user-facing messages; falls back to `port`. */
   label: string;
   kind: KindRef;
-  status: "ambiguous" | "unsatisfied";
+  status: "ambiguous" | "unsatisfied" | "locked-unbound";
 }
 
 /**
@@ -42,20 +42,31 @@ export function computeNodeInputIssues(
 
   const problemPorts: NodeInputProblem[] = [];
   for (const port of entry.inputs) {
-    // Ports with no kind or the base Artifact kind are identifier-style ports
-    // that should not participate in auto-wire status computation.
-    if (!shouldAutoWirePort(port)) continue;
+    // Two port populations feed the problems surface:
+    //   1. auto-wireable typed ports (kind defined, not base Artifact);
+    //   2. REQUIRED base-`Artifact` identifier ports — the amber ring
+    //      already fires for these on canvas, so the badge/drawer must
+    //      count them too (ring/badge reconciliation, PORT_WIRING §4.2).
+    // Optional identifier ports (kindless or base Artifact) stay invisible.
+    const identifierPort = port.kind === "Artifact" && port.required === true;
+    if (!shouldAutoWirePort(port) && !identifierPort) continue;
     const result = resolveInputPort(config, nodeId, {
       name: port.name,
       kind: port.kind,
     });
-    if (result.status === "ambiguous" || result.status === "unsatisfied") {
+    const isProblem =
+      result.status === "ambiguous" ||
+      result.status === "unsatisfied" ||
+      // A disconnect is deliberate — only nag when the port is required.
+      (result.status === "locked-unbound" && port.required === true);
+    if (isProblem) {
       problemPorts.push({
         port: port.name,
         label: port.label ?? port.name,
-        // `shouldAutoWirePort` guarantees a defined, non-Artifact kind here.
+        // `shouldAutoWirePort` guarantees a defined kind here; identifier
+        // ports admitted above are kind "Artifact".
         kind: port.kind as KindRef,
-        status: result.status,
+        status: result.status as NodeInputProblem["status"],
       });
     }
   }

@@ -199,4 +199,55 @@ describe("ensureEdgeBetween", () => {
     ];
     expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
   });
+
+  it("returns the config unchanged for a self-loop", () => {
+    const config = baseConfig();
+    expect(ensureEdgeBetween(config, "producer", "producer")).toBe(config);
+  });
+
+  it("returns the config unchanged when a forward edge already connects the pair", () => {
+    const config = baseConfig();
+    config.edges = [
+      { id: "e1", source: "producer", target: "consumer", type: "normal" },
+    ];
+    expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
+  });
+});
+
+/** Recursively `Object.freeze`s an object graph so any mutation throws in strict mode. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
+describe("input non-mutation", () => {
+  it("does not mutate a frozen config when pinning or disconnecting a binding", () => {
+    // ES modules are strict-mode by default, so mutating a frozen object
+    // throws a TypeError here rather than silently no-op'ing.
+    const config = baseConfig();
+    config.nodes.producer = {
+      ...config.nodes.producer,
+      outputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      inputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    deepFreeze(config);
+
+    expect(() =>
+      pinPortBinding(config, "consumer", "ocrResult", {
+        producerNodeId: "producer",
+        producerPort: "ocrResult",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      disconnectDataWire(config, "consumer", "ocrResult"),
+    ).not.toThrow();
+  });
 });
