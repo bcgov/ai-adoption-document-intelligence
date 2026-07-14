@@ -8,10 +8,11 @@
  * absolutely positioned just outside the card edge at the row's vertical
  * centre, so the upcoming wire→edge projection can attach edges per port.
  *
- * RENDER-ONLY phase: every per-port handle is `isConnectable={false}` —
- * the node-level handles keep today's connect gesture. Row height is
- * locked to `PORT_ROW_HEIGHT` because `estimateNodeHeight` (auto-layout)
- * derives card height from the row count.
+ * Per-port handles are connectable: a port-to-port drag pins a binding
+ * (PORT_WIRING_DESIGN.md §6.1 — see `WorkflowEditorCanvas.handleConnect`),
+ * while the node-level handles keep today's node-to-node connect gesture.
+ * Row height is locked to `PORT_ROW_HEIGHT` because `estimateNodeHeight`
+ * (auto-layout) derives card height from the row count.
  *
  * Vocabulary rule: rows show the plain-language `label`; the raw port
  * `name` + kind literal live in the tooltip.
@@ -118,7 +119,7 @@ function PortRow({
           id={row.handleId}
           type={isInput ? "target" : "source"}
           position={isInput ? Position.Left : Position.Right}
-          isConnectable={false}
+          isConnectable
           style={handleStyle}
         />
         <span

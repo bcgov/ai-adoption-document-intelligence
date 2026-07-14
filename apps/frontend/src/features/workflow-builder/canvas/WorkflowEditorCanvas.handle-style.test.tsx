@@ -140,7 +140,8 @@ vi.mock("@ai-di/graph-workflow", async (importOriginal) => {
 // so each registered node-type renders directly through `nodeTypes` and we
 // can read the port rows' data-* attributes from the DOM. `Handle` forwards
 // `style` + `isConnectable` so the assertions can probe the background /
-// outline overrides and the render-only connectability on the dot itself.
+// outline overrides and per-port drag-to-bind connectability (§6.1) on
+// the dot itself.
 // ---------------------------------------------------------------------------
 
 vi.mock("@xyflow/react", () => {
@@ -287,7 +288,7 @@ function handleFor(id: string): HTMLElement {
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorCanvas — activity port rows: single typed ports", () => {
-  it("test.split renders one row per port with kind attributes and kind-coloured, non-connectable handles", () => {
+  it("test.split renders one row per port with kind attributes and kind-coloured, connectable handles", () => {
     renderCanvas(makeConfigWith("test.split"));
 
     expect(screen.getByTestId("port-rows-activity_1")).toBeInTheDocument();
@@ -297,7 +298,7 @@ describe("WorkflowEditorCanvas — activity port rows: single typed ports", () =
     expect(inputRow).toHaveTextContent("Source");
     const inputHandle = handleFor("in-source");
     expect(inputHandle.getAttribute("data-testid")).toBe("handle-target-left");
-    expect(inputHandle.getAttribute("data-isconnectable")).toBe("false");
+    expect(inputHandle.getAttribute("data-isconnectable")).toBe("true");
     // MultiPageDocument → blue kind family.
     expect(inputHandle.style.background).toContain("--mantine-color-blue-6");
 
@@ -308,7 +309,7 @@ describe("WorkflowEditorCanvas — activity port rows: single typed ports", () =
     expect(outputHandle.getAttribute("data-testid")).toBe(
       "handle-source-right",
     );
-    expect(outputHandle.getAttribute("data-isconnectable")).toBe("false");
+    expect(outputHandle.getAttribute("data-isconnectable")).toBe("true");
     // Segment[] → green kind family with the doubled array outline.
     expect(outputHandle.style.background).toContain("--mantine-color-green-6");
     expect(outputHandle.style.outline).toContain("2px solid");
@@ -381,9 +382,9 @@ describe("WorkflowEditorCanvas — activity port rows: multi-port nodes get one 
 });
 
 // ---------------------------------------------------------------------------
-// Node-level flow handles — the connect gesture + existing-edge anchors
-// stay on the unnamed target / `out` source handles (per-port handles are
-// render-only in this phase).
+// Node-level flow handles — the node-to-node connect gesture + existing-edge
+// anchors stay on the unnamed target / `out` source handles; per-port
+// handles carry the separate drag-to-bind gesture (§6.1).
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorCanvas — activity node-level handles stay intact", () => {

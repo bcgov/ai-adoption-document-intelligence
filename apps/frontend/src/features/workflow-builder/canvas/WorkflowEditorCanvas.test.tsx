@@ -2246,6 +2246,172 @@ describe("WorkflowEditorCanvas — wire context menu (§7)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task 6 (§6.1): drag port → port pins a binding
+//   A connect gesture where BOTH endpoints are per-port handles
+//   (`out-<port>` / `in-<port>`) writes the consumer's input binding, locks
+//   the port, and ensures a normal edge connects the pair — one gesture,
+//   data + order + pin. Mixed gestures (port → node-body, node → port)
+//   fall through unchanged to the existing node-level edge path.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
+  /** Resolves the `onConnect` callback the canvas hands to ReactFlow. */
+  function getOnConnect(): (connection: Connection) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnect !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnect");
+    }
+    return props.onConnect as (connection: Connection) => void;
+  }
+
+  /** Two activity nodes, no edges, no bindings — nothing wires them yet. */
+  function makeUnwiredPairConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Unwired pair", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, submit },
+      edges: [],
+      entryNodeId: "prep",
+    };
+  }
+
+  it("a port-to-port connection pins the binding, locks the port, and ensures a normal edge", () => {
+    const config = makeUnwiredPairConfig();
+    const { onConfigChange } = renderCanvas(config);
+
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out-outA",
+        targetHandle: "in-inA",
+      });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    const prep = next.nodes.prep as ActivityNode;
+
+    expect(submit.inputs).toHaveLength(1);
+    expect(submit.inputs?.[0].port).toBe("inA");
+    const ctxKey = submit.inputs?.[0].ctxKey;
+    expect(prep.outputs).toEqual([{ port: "outA", ctxKey }]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({
+      source: "prep",
+      target: "submit",
+      type: "normal",
+    });
+  });
+
+  it("skips the edge when one already connects the pair but still pins the binding", () => {
+    const base = makeUnwiredPairConfig();
+    const config: GraphWorkflowConfig = {
+      ...base,
+      edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
+    };
+    const { onConfigChange } = renderCanvas(config);
+
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out-outA",
+        targetHandle: "in-inA",
+      });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    expect(next.edges).toEqual(config.edges);
+
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toHaveLength(1);
+    expect(submit.inputs?.[0].port).toBe("inA");
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+  });
+
+  it("port-source dropped on a node-level target falls through to plain edge creation", () => {
+    const config = makeUnwiredPairConfig();
+    const { onConfigChange } = renderCanvas(config);
+
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out-outA",
+        targetHandle: null,
+      });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({
+      source: "prep",
+      target: "submit",
+      type: "normal",
+    });
+
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
+    expect(submit.inputs).toBeUndefined();
+  });
+
+  it("node-level source dropped on a port target also falls through", () => {
+    const config = makeUnwiredPairConfig();
+    const { onConfigChange } = renderCanvas(config);
+
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: "in-inA",
+      });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({
+      source: "prep",
+      target: "submit",
+      type: "normal",
+    });
+
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
+    expect(submit.inputs).toBeUndefined();
+  });
+
+  // Node-level connections (both endpoints anonymous/`out`/`error` handles)
+  // keep today's behavior — covered by the existing
+  // "US-025: handleConnect edge-type stamping" suite above; not duplicated
+  // here.
+});
+
+// ---------------------------------------------------------------------------
 // US-046: Right-click context menu on canvas nodes
 //   feature-docs/20260525-workflow-builder-phase1b-completion/user_stories/US-046-canvas-context-menu.md
 // ---------------------------------------------------------------------------

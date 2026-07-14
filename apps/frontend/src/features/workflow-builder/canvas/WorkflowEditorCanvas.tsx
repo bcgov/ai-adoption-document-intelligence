@@ -107,6 +107,7 @@ import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
 import { PortRows } from "./PortRows";
 import { findNextFreePosition } from "./place-extended-node";
+import { portFromHandleId } from "./port-kinds";
 import {
   computePortRows,
   inputHandleId,
@@ -123,7 +124,13 @@ import {
   type WorkflowEdgeData,
   wireTooltip,
 } from "./WorkflowEdge";
-import { disconnectDataWire, revertPortToAutomatic } from "./wire-mutations";
+import {
+  disconnectDataWire,
+  ensureEdgeBetween,
+  makeEdgeId,
+  pinPortBinding,
+  revertPortToAutomatic,
+} from "./wire-mutations";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -2138,9 +2145,8 @@ function WorkflowEditorCanvasInner({
 
   const handleWireRevert = useCallback(
     (wire: DataWire) => {
-      onConfigChange(
-        revertPortToAutomatic(config, wire.target, wire.targetPort),
-      );
+      const next = revertPortToAutomatic(config, wire.target, wire.targetPort);
+      if (next !== config) onConfigChange(next);
     },
     [config, onConfigChange],
   );
@@ -2265,6 +2271,21 @@ function WorkflowEditorCanvasInner({
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
       if (connection.source === connection.target) return;
+      // §6.1 drag-to-bind: BOTH endpoints on per-port handles → one gesture
+      // writes data + order + pin. Mixed gestures (port→node-body or
+      // node→port) fall through to the node-level path below — an edge is
+      // created and auto-wire fills bindings as before.
+      const sourcePort = portFromHandleId(connection.sourceHandle, "output");
+      const targetPort = portFromHandleId(connection.targetHandle, "input");
+      if (sourcePort !== null && targetPort !== null) {
+        let next = pinPortBinding(config, connection.target, targetPort, {
+          producerNodeId: connection.source,
+          producerPort: sourcePort,
+        });
+        next = ensureEdgeBetween(next, connection.source, connection.target);
+        if (next !== config) onConfigChange(next);
+        return;
+      }
       // Edge type resolution (US-025):
       //   1. Default to `conditional` if the source node is a switch,
       //      otherwise `normal`.
@@ -2291,11 +2312,8 @@ function WorkflowEditorCanvasInner({
           e.type === edgeType,
       );
       if (duplicate) return;
-      const id = `edge-${Date.now().toString(36)}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`;
       const newEdge: GraphEdge = {
-        id,
+        id: makeEdgeId(),
         source: connection.source,
         target: connection.target,
         type: edgeType,
@@ -2336,11 +2354,8 @@ function WorkflowEditorCanvasInner({
           position,
         },
       };
-      const edgeId = `edge-${Date.now().toString(36)}-${Math.random()
-        .toString(36)
-        .slice(2, 6)}`;
       const newEdge: GraphEdge = {
-        id: edgeId,
+        id: makeEdgeId(),
         source: sourceNodeId,
         target: newNode.id,
         type: inferExtendEdgeType(sourceNodeId),

@@ -112,8 +112,8 @@ describe("PortRows — row rendering", () => {
   });
 });
 
-describe("PortRows — per-port handles (render-only phase)", () => {
-  it("mounts a non-connectable target/source handle per row with the row's handle id", () => {
+describe("PortRows — per-port handles (drag-to-bind, §6.1)", () => {
+  it("mounts a connectable target/source handle per row with the row's handle id", () => {
     const { container } = renderRows(
       [makeRow({})],
       [
@@ -132,7 +132,7 @@ describe("PortRows — per-port handles (render-only phase)", () => {
     ) as HTMLElement;
     expect(inputHandle).not.toBeNull();
     expect(inputHandle.getAttribute("data-testid")).toBe("handle-target-left");
-    expect(inputHandle.getAttribute("data-isconnectable")).toBe("false");
+    expect(inputHandle.getAttribute("data-isconnectable")).toBe("true");
 
     const outputHandle = container.querySelector(
       "[data-handleid='out-segments']",
@@ -141,7 +141,7 @@ describe("PortRows — per-port handles (render-only phase)", () => {
     expect(outputHandle.getAttribute("data-testid")).toBe(
       "handle-source-right",
     );
-    expect(outputHandle.getAttribute("data-isconnectable")).toBe("false");
+    expect(outputHandle.getAttribute("data-isconnectable")).toBe("true");
   });
 
   it("colours the handle dot by kind family (gray for the Artifact wildcard)", () => {
