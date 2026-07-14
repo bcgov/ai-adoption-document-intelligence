@@ -12,6 +12,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   act,
   fireEvent,
@@ -42,6 +43,10 @@ import { WorkflowEditorCanvas } from "./WorkflowEditorCanvas";
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
+
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: vi.fn() },
+}));
 
 // `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
 // integration tests here don't exercise auth state, so stub the hook with an
@@ -197,6 +202,7 @@ vi.mock("@xyflow/react", () => {
 beforeEach(() => {
   mockFitView.mockClear();
   latestReactFlowProps.current = null;
+  vi.mocked(notifications.show).mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -1490,17 +1496,18 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     // no separate grey sequence edge renders for it.
     expect(screen.queryByTestId("rf-edge-e_bound")).not.toBeInTheDocument();
 
-    // Render-only phase: data wires are neither deletable nor selectable,
-    // but they stay HOVERABLE — the `wb-data-wire` class pairs with the
-    // canvas stylesheet rule that re-enables pointer events (xyflow marks
+    // §6.3: data wires are deletable + selectable — deletion routes through
+    // `disconnectDataWire` (pinned unbound), not edge removal. They also
+    // stay HOVERABLE — the `wb-data-wire` class pairs with the canvas
+    // stylesheet rule that re-enables pointer events (xyflow marks
     // unselectable, handler-less edges `.inactive` → pointer-events:none,
     // which would kill the provenance tooltip). The ariaLabel mirrors the
     // hover tooltip for assistive tech.
     const projected = getCapturedEdges().find(
       (e) => e.id === "wire:submit:fileData",
     );
-    expect(projected?.deletable).toBe(false);
-    expect(projected?.selectable).toBe(false);
+    expect(projected?.deletable).toBe(true);
+    expect(projected?.selectable).toBe(true);
     expect(projected?.className).toBe("wb-data-wire");
     expect(projected?.ariaLabel).toBe(
       "Connected automatically — nearest Document producer",
@@ -1728,6 +1735,302 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     const chip = screen.getByTestId("rf-edge-e_chip");
     expect(chip).toHaveAttribute("data-source", "group-chip-g1");
     expect(chip).not.toHaveAttribute("data-source-handle");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 4 (§6.3): data wire deletion — disconnect the binding + pin the port
+// unbound; `config.edges` is untouched by a data-wire delete. When the LAST
+// data wire between a pair is deleted and a normal edge still connects the
+// pair, that edge re-renders as a dashed sequence wire — a one-shot
+// notification explains it.
+//   PORT_WIRING_DESIGN.md §6.3
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
+  /**
+   * prep --(edge e1, normal)--> submit, with ONE data wire (prep.outA →
+   * submit.inA via ctxKey "k1"). The edge survives the wire — `edgeId` gets
+   * stamped onto it by `deriveStructuralWires` — so this is the "last data
+   * wire on the pair, its edge remains" fixture.
+   */
+  function makeSingleWireConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "data.transform",
+      parameters: {},
+      outputs: [{ port: "outA", ctxKey: "k1" }],
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit",
+      activityType: "data.transform",
+      parameters: {},
+      inputs: [{ port: "inA", ctxKey: "k1" }],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Single wire", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, submit },
+      edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
+      entryNodeId: "prep",
+    };
+  }
+
+  /**
+   * Same pair, TWO data wires (prep.outA → submit.inA via "k1", prep.outB →
+   * submit.inB via "k2") over the one normal edge — `deriveStructuralWires`
+   * stamps the edge id onto BOTH wires, so deleting either one alone still
+   * leaves a data wire on the pair.
+   */
+  function makeTwoWiresConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "data.transform",
+      parameters: {},
+      outputs: [
+        { port: "outA", ctxKey: "k1" },
+        { port: "outB", ctxKey: "k2" },
+      ],
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit",
+      activityType: "data.transform",
+      parameters: {},
+      inputs: [
+        { port: "inA", ctxKey: "k1" },
+        { port: "inB", ctxKey: "k2" },
+      ],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Two wires", version: "1.0.0" },
+      ctx: {},
+      nodes: { prep, submit },
+      edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
+      entryNodeId: "prep",
+    };
+  }
+
+  /** Same single wire, but no edge connects the pair at all. */
+  function makeWireWithoutEdgeConfig(): GraphWorkflowConfig {
+    const config = makeSingleWireConfig();
+    return { ...config, edges: [] };
+  }
+
+  /** A bindings-free pair — renders purely as a structural sequence wire. */
+  function makeSequenceOnlyConfig(): GraphWorkflowConfig {
+    const bare1: ActivityNode = {
+      id: "bare1",
+      type: "activity",
+      label: "Bare A",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 200 } },
+    };
+    const bare2: ActivityNode = {
+      id: "bare2",
+      type: "activity",
+      label: "Bare B",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 300, y: 200 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Sequence only", version: "1.0.0" },
+      ctx: {},
+      nodes: { bare1, bare2 },
+      edges: [
+        { id: "e_bare", source: "bare1", target: "bare2", type: "normal" },
+      ],
+      entryNodeId: "bare1",
+    };
+  }
+
+  /** `makeSingleWireConfig` + `makeSequenceOnlyConfig` merged into one graph. */
+  function makeMixedConfig(): GraphWorkflowConfig {
+    const wireConfig = makeSingleWireConfig();
+    const sequenceConfig = makeSequenceOnlyConfig();
+    return {
+      ...wireConfig,
+      nodes: { ...wireConfig.nodes, ...sequenceConfig.nodes },
+      edges: [...wireConfig.edges, ...sequenceConfig.edges],
+    };
+  }
+
+  function getCapturedEdges(): Edge[] {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    return (props.edges as Edge[]) ?? [];
+  }
+
+  /** Resolves the `onEdgesDelete` callback the canvas hands to ReactFlow. */
+  function getOnEdgesDelete(): (deleted: Edge[]) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onEdgesDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onEdgesDelete");
+    }
+    return props.onEdgesDelete as (deleted: Edge[]) => void;
+  }
+
+  function lastEmittedConfig(
+    onConfigChange: ReturnType<typeof vi.fn>,
+  ): GraphWorkflowConfig {
+    expect(onConfigChange).toHaveBeenCalled();
+    const calls = onConfigChange.mock.calls;
+    return calls[calls.length - 1][0] as GraphWorkflowConfig;
+  }
+
+  it("projects data wires as selectable and deletable", async () => {
+    renderCanvas(makeSingleWireConfig());
+    await flushAnimationFrame();
+
+    const projected = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    expect(projected?.deletable).toBe(true);
+    expect(projected?.selectable).toBe(true);
+  });
+
+  it("deleting a data wire removes the input binding and locks the port, leaving config.edges untouched", async () => {
+    const config = makeSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgesDelete()([dataWireEdge]);
+    });
+
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toEqual([]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+    expect(next.edges).toEqual(config.edges);
+  });
+
+  it("deleting a structural sequence wire still removes the edge", async () => {
+    const config = makeSequenceOnlyConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const sequenceEdge = getCapturedEdges().find((e) => e.id === "e_bare");
+    if (!sequenceEdge) throw new Error("sequence wire not projected");
+
+    act(() => {
+      getOnEdgesDelete()([sequenceEdge]);
+    });
+
+    const next = lastEmittedConfig(onConfigChange);
+    expect(next.edges).toEqual([]);
+    const bare1 = next.nodes.bare1 as ActivityNode;
+    const bare2 = next.nodes.bare2 as ActivityNode;
+    expect(bare1.metadata?.lockedInputPorts).toBeUndefined();
+    expect(bare2.metadata?.lockedInputPorts).toBeUndefined();
+  });
+
+  it("mixed deletion handles both in one onConfigChange", async () => {
+    const config = makeMixedConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const edges = getCapturedEdges();
+    const dataWireEdge = edges.find((e) => e.id === "wire:submit:inA");
+    const sequenceEdge = edges.find((e) => e.id === "e_bare");
+    if (!dataWireEdge || !sequenceEdge) {
+      throw new Error("expected both a data wire and a sequence wire");
+    }
+
+    act(() => {
+      getOnEdgesDelete()([dataWireEdge, sequenceEdge]);
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toEqual([]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["inA"]);
+    expect(next.edges).toEqual([
+      { id: "e1", source: "prep", target: "submit", type: "normal" },
+    ]);
+  });
+
+  it("shows the 'Execution order kept' hint when the last data wire between a pair is deleted and a normal edge remains", async () => {
+    const config = makeSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgesDelete()([dataWireEdge]);
+    });
+
+    expect(onConfigChange).toHaveBeenCalled();
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          "Execution order kept — delete the dashed wire to fully detach.",
+      }),
+    );
+  });
+
+  it("does not show the hint when other data wires between the pair remain", async () => {
+    const config = makeTwoWiresConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgesDelete()([dataWireEdge]);
+    });
+
+    expect(onConfigChange).toHaveBeenCalled();
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("does not show the hint when no edge connects the pair", async () => {
+    const config = makeWireWithoutEdgeConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnEdgesDelete()([dataWireEdge]);
+    });
+
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.inputs).toEqual([]);
+    expect(notifications.show).not.toHaveBeenCalled();
   });
 });
 

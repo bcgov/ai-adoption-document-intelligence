@@ -30,6 +30,7 @@ import {
   getLockedInputPorts,
 } from "@ai-di/graph-workflow";
 import { Badge, Modal, Tooltip } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
 import {
   Background,
   type Connection,
@@ -81,7 +82,7 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
-import { type DerivedWire, deriveWires } from "./derive-wires";
+import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
 import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
 import {
   type GroupChip,
@@ -121,6 +122,7 @@ import {
   type WorkflowEdgeData,
   wireTooltip,
 } from "./WorkflowEdge";
+import { disconnectDataWire } from "./wire-mutations";
 
 interface WorkflowEditorCanvasProps {
   config: GraphWorkflowConfig;
@@ -1231,9 +1233,11 @@ function mountsErrorHandle(node: GraphNode | undefined): boolean {
  *     bindings to undeclared ports) anchors at the node-level handles —
  *     pointing at a handle id that never mounts makes xyflow drop the
  *     edge entirely (error008), leaving the pair looking disconnected.
- *     Data wires are render-only this phase: not deletable, not
- *     selectable (gestures stay keyed to `config.edges`), but hoverable
- *     via `DATA_WIRE_CLASS`.
+ *     Data wires are deletable + selectable (PORT_WIRING_DESIGN.md §6.3):
+ *     deleting one does NOT remove a `config.edges` row — it disconnects
+ *     the consumer's input binding and pins the port unbound, handled by
+ *     `handleEdgesDelete` via `disconnectWires`. They stay hoverable via
+ *     `DATA_WIRE_CLASS` regardless.
  *   - Structural wires keep the legacy edge projection: id = edge id,
  *     `graphEdge` + `sourceSwitch` data. Error wires anchor at the bottom
  *     `error` source handle (previously they silently defaulted to
@@ -1273,8 +1277,8 @@ function projectFlowWires(
         // affordance is the hover <title> inside WorkflowEdge.
         ariaLabel: wireTooltip(wire),
         data,
-        deletable: false,
-        selectable: false,
+        deletable: true,
+        selectable: true,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: dataWireStroke(wire.kind),
@@ -1980,16 +1984,68 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange, onSelectNode, selectedNodeId],
   );
 
+  /**
+   * §6.3 — disconnect data wires (pinned unbound) + one-shot hint when the
+   * pair's normal edge survives as a dashed sequence remainder. Shared by
+   * keyboard deletion (`handleEdgesDelete`) and the wire context menu
+   * (Task 5).
+   */
+  const disconnectWires = useCallback(
+    (wires: DataWire[], base: GraphWorkflowConfig): GraphWorkflowConfig => {
+      let next = base;
+      for (const wire of wires) {
+        next = disconnectDataWire(next, wire.target, wire.targetPort);
+      }
+      const leavesSequenceRemainder = wires.some((wire) => {
+        if (wire.edgeId === undefined) return false; // no edge → no remainder
+        // Pre-delete wires between the pair vs how many of them were just
+        // deleted: equal counts mean the LAST data wire on this pair went,
+        // so its normal edge will re-render as a dashed sequence wire.
+        const pairWiresBefore = derivedWires.filter(
+          (w): w is DataWire =>
+            w.variant === "data" &&
+            w.source === wire.source &&
+            w.target === wire.target,
+        ).length;
+        const deletedFromPair = wires.filter(
+          (d) => d.source === wire.source && d.target === wire.target,
+        ).length;
+        return pairWiresBefore === deletedFromPair;
+      });
+      if (leavesSequenceRemainder) {
+        notifications.show({
+          message:
+            "Execution order kept — delete the dashed wire to fully detach.",
+          color: "gray",
+          autoClose: 6000,
+        });
+      }
+      return next;
+    },
+    [derivedWires],
+  );
+
   const handleEdgesDelete = useCallback(
     (deleted: Edge[]) => {
       if (deleted.length === 0) return;
-      const removedIds = new Set(deleted.map((e) => e.id));
-      onConfigChange({
-        ...config,
-        edges: config.edges.filter((e) => !removedIds.has(e.id)),
-      });
+      const dataWires: DataWire[] = [];
+      const removedEdgeIds = new Set<string>();
+      for (const e of deleted) {
+        const wire = (e.data as WorkflowEdgeData | undefined)?.wire;
+        if (wire?.variant === "data") dataWires.push(wire);
+        else removedEdgeIds.add(e.id);
+      }
+      let next = config;
+      if (removedEdgeIds.size > 0) {
+        next = {
+          ...next,
+          edges: next.edges.filter((e) => !removedEdgeIds.has(e.id)),
+        };
+      }
+      next = disconnectWires(dataWires, next);
+      if (next !== config) onConfigChange(next);
     },
-    [config, onConfigChange],
+    [config, onConfigChange, disconnectWires],
   );
 
   // ---------------------------------------------------------------------------
