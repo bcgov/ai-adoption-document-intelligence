@@ -8,6 +8,7 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import {
+  ensureConditionProducerBindings,
   ensureProducerOutputBinding,
   producerCtxKey,
   resolveCtxKeyToProducer,
@@ -167,5 +168,115 @@ describe("resolveCtxKeyToProducer", () => {
       port: "preparedData",
       portLabel: "Prepared file data",
     });
+  });
+});
+
+describe("ensureConditionProducerBindings", () => {
+  it("materialises a switch case condition's producer output binding", () => {
+    const sw: SwitchNode = {
+      id: "SW",
+      type: "switch",
+      label: "Branch",
+      cases: [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "__auto.A.preparedData" },
+            right: { literal: "x" },
+          },
+          edgeId: "",
+        },
+      ],
+    };
+    const edges: GraphEdge[] = [
+      { id: "A-SW", source: "A", target: "SW", type: "normal" },
+    ];
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([prepare("A", "Prepare file"), sw]),
+      edges,
+    };
+
+    const next = ensureConditionProducerBindings(config, "SW");
+    expect(next.nodes.A.outputs).toContainEqual({
+      port: "preparedData",
+      ctxKey: "__auto.A.preparedData",
+    });
+  });
+
+  it("materialises a pollUntil condition's producer output binding", () => {
+    const poll: PollUntilNode = {
+      id: "P",
+      type: "pollUntil",
+      label: "Poll",
+      activityType: "file.prepare",
+      condition: {
+        operator: "is-not-null",
+        value: { ref: "__auto.A.preparedData" },
+      },
+      interval: "PT5S",
+    };
+    const edges: GraphEdge[] = [
+      { id: "A-P", source: "A", target: "P", type: "normal" },
+    ];
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([prepare("A", "Prepare file"), poll]),
+      edges,
+    };
+
+    const next = ensureConditionProducerBindings(config, "P");
+    expect(next.nodes.A.outputs).toContainEqual({
+      port: "preparedData",
+      ctxKey: "__auto.A.preparedData",
+    });
+  });
+
+  it("is idempotent — returns the SAME reference when already bound", () => {
+    const sw: SwitchNode = {
+      id: "SW",
+      type: "switch",
+      label: "Branch",
+      cases: [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "__auto.A.preparedData" },
+            right: { literal: "x" },
+          },
+          edgeId: "",
+        },
+      ],
+    };
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([
+        prepare("A", "Prepare file", [
+          { port: "preparedData", ctxKey: "__auto.A.preparedData" },
+        ]),
+        sw,
+      ]),
+      edges: [{ id: "A-SW", source: "A", target: "SW", type: "normal" }],
+    };
+
+    expect(ensureConditionProducerBindings(config, "SW")).toBe(config);
+  });
+
+  it("leaves config unchanged for a ref that resolves to no producer", () => {
+    const sw: SwitchNode = {
+      id: "SW",
+      type: "switch",
+      label: "Branch",
+      cases: [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "handTyped" },
+            right: { literal: "x" },
+          },
+          edgeId: "",
+        },
+      ],
+    };
+    const config = makeConfig([prepare("A", "Prepare file"), sw]);
+
+    expect(ensureConditionProducerBindings(config, "SW")).toBe(config);
   });
 });

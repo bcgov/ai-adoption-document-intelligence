@@ -319,18 +319,20 @@ describe("PollUntilNodeSettings — Phase 5: condition step-picker materialises 
 
     fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
 
-    // Picking a step fires two synchronous onConfigChange calls from the same
-    // render: first `onEnsureProducerBinding` (materialising A's output row),
-    // then the condition update (built from this render's config, so it does
-    // not itself carry A's new binding). Assert the binding was materialised
-    // by any call in the click.
-    const boundConfig = spy.mock.calls
-      .map((call) => call[0] as GraphWorkflowConfig)
-      .find((cfg) =>
-        cfg.nodes.A.outputs?.some((b) => b.port === "preparedData"),
-      );
-    expect(boundConfig).toBeDefined();
-    expect(boundConfig?.nodes.A.outputs).toContainEqual({
+    // Picking a step now fires ONE onConfigChange: the ref update is committed
+    // and the settings form reconciles the producer's output binding in that
+    // SAME config. The final committed config therefore carries BOTH the
+    // termination condition's ref AND A's materialised `outputs[]` binding.
+    const next = spy.mock.calls[spy.mock.calls.length - 1]?.[0] as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!next) throw new Error("Expected at least one onConfigChange call");
+    const updated = next.nodes.P as PollUntilNode;
+    if (updated.condition.operator !== "equals") {
+      throw new Error("Expected an equals comparison as the condition");
+    }
+    expect(updated.condition.left).toEqual({ ref: "__auto.A.preparedData" });
+    expect(next.nodes.A.outputs).toContainEqual({
       port: "preparedData",
       ctxKey: "__auto.A.preparedData",
     });

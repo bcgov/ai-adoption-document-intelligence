@@ -36,7 +36,7 @@ import {
   declareCtxKey,
   EdgePicker,
 } from "../../graph-widgets";
-import { ensureProducerOutputBinding } from "../../graph-widgets/condition-producer-binding";
+import { ensureConditionProducerBindings } from "../../graph-widgets/condition-producer-binding";
 import { replaceNode } from "../../replace-node";
 
 // ---------------------------------------------------------------------------
@@ -83,14 +83,16 @@ export function SwitchNodeSettings({
   onConfigChange,
 }: SwitchNodeSettingsProps) {
   const updateNode = (next: SwitchNode) => {
-    onConfigChange(replaceNode(config, node.id, next));
+    onConfigChange(
+      ensureConditionProducerBindings(
+        replaceNode(config, node.id, next),
+        node.id,
+      ),
+    );
   };
 
   const createCtxKey = (key: string) =>
     onConfigChange(declareCtxKey(config, key));
-
-  const ensureBinding = (producerNodeId: string, port: string) =>
-    onConfigChange(ensureProducerOutputBinding(config, producerNodeId, port));
 
   const setCases = (cases: SwitchCase[]) => updateNode({ ...node, cases });
 
@@ -153,7 +155,6 @@ export function SwitchNodeSettings({
                 onChange={(next) => setCaseAt(index, next)}
                 onRemove={() => removeCaseAt(index)}
                 onCreateCtxKey={createCtxKey}
-                onEnsureProducerBinding={ensureBinding}
               />
             ))}
           </Stack>
@@ -196,7 +197,6 @@ interface CaseRowProps {
   onChange: (next: SwitchCase) => void;
   onRemove: () => void;
   onCreateCtxKey: (key: string) => void;
-  onEnsureProducerBinding: (producerNodeId: string, port: string) => void;
 }
 
 function CaseRow({
@@ -207,7 +207,6 @@ function CaseRow({
   onChange,
   onRemove,
   onCreateCtxKey,
-  onEnsureProducerBinding,
 }: CaseRowProps) {
   const testIdBase = `switch-node-settings-case-${index}`;
 
@@ -251,7 +250,6 @@ function CaseRow({
             config={config}
             onCreateCtxKey={onCreateCtxKey}
             currentNodeId={fromNodeId}
-            onEnsureProducerBinding={onEnsureProducerBinding}
             data-testid={`${testIdBase}-condition`}
           />
         </Box>

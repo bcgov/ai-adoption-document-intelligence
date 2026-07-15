@@ -662,7 +662,11 @@ describe("ConditionExpressionEditor — Scenario 6: VariablePicker reuse for Ref
       />,
     );
 
-    // The left ValueRef defaults to Ref mode and renders the VariablePicker.
+    // The left ValueRef defaults to the step-picker whenever currentNodeId
+    // is present; switch to manual entry to reach the VariablePicker.
+    fireEvent.click(
+      screen.getByTestId("condition-expression-editor-left-manual-link"),
+    );
     const refInput = screen.getByTestId(
       "condition-expression-editor-left-ref-input",
     );
@@ -700,10 +704,7 @@ function stepPickerConfig(): GraphWorkflowConfig {
 }
 
 describe("ConditionExpressionEditor — conditions from node outputs (§11)", () => {
-  function renderEditor(
-    initial: ConditionExpression | undefined,
-    ensure = vi.fn(),
-  ) {
+  function renderEditor(initial: ConditionExpression | undefined) {
     function Harness() {
       const [expr, setExpr] = useState(initial);
       return (
@@ -713,7 +714,6 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
             onChange={setExpr}
             config={stepPickerConfig()}
             currentNodeId="SW"
-            onEnsureProducerBinding={ensure}
           />
         </MantineProvider>
       );
@@ -732,14 +732,15 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
     ).toBeInTheDocument();
   });
 
-  it("picking a step ensures the producer binding and stores its ctx key", () => {
-    const ensure = vi.fn();
-    renderEditor(
-      { operator: "equals", left: { ref: "" }, right: { literal: "x" } },
-      ensure,
-    );
+  it("picking a step stores the producer's ctx key", () => {
+    renderEditor({
+      operator: "equals",
+      left: { ref: "" },
+      right: { literal: "x" },
+    });
     fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
-    expect(ensure).toHaveBeenCalledWith("A", "preparedData");
+    // The store happened via onChange (the Harness's useState), so the
+    // resolved caption is now shown for the picked producer.
     expect(
       screen.getAllByText("Prepare file → Prepared file data").length,
     ).toBeGreaterThan(0);
@@ -771,7 +772,7 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
     ).toBeGreaterThan(0);
   });
 
-  it("falls back to manual mode when onEnsureProducerBinding is absent", () => {
+  it("falls back to manual mode when no currentNodeId", () => {
     function Harness() {
       const [expr, setExpr] = useState<ConditionExpression | undefined>({
         operator: "equals",
@@ -784,7 +785,6 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
             value={expr}
             onChange={setExpr}
             config={stepPickerConfig()}
-            currentNodeId="SW"
           />
         </MantineProvider>
       );

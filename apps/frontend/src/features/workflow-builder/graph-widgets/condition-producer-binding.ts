@@ -12,7 +12,11 @@ import {
   synthesiseCtxKey,
   upstreamNodesWithDistance,
 } from "@ai-di/graph-workflow";
-import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type {
+  ConditionExpression,
+  GraphWorkflowConfig,
+  ValueRef,
+} from "../../../types/workflow";
 
 /**
  * The deterministic ctx key a producer port maps to: the producer's existing
@@ -102,4 +106,82 @@ export function resolveCtxKeyToProducer(
     }
   }
   return best;
+}
+
+function collectValueRef(v: ValueRef, out: string[]): void {
+  if ("ref" in v && typeof v.ref === "string" && v.ref !== "") out.push(v.ref);
+}
+
+/** Collect every non-empty ValueRef `ref` in a condition expression tree. */
+function collectConditionRefs(
+  expr: ConditionExpression | undefined,
+  out: string[] = [],
+): string[] {
+  if (!expr) return out;
+  switch (expr.operator) {
+    case "and":
+    case "or":
+      for (const op of expr.operands) collectConditionRefs(op, out);
+      break;
+    case "not":
+      collectConditionRefs(expr.operand, out);
+      break;
+    case "is-null":
+    case "is-not-null":
+      collectValueRef(expr.value, out);
+      break;
+    case "in":
+    case "not-in":
+      collectValueRef(expr.value, out);
+      collectValueRef(expr.list, out);
+      break;
+    case "equals":
+    case "not-equals":
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+    case "contains":
+      collectValueRef(expr.left, out);
+      collectValueRef(expr.right, out);
+      break;
+  }
+  return out;
+}
+
+/**
+ * Reconcile producer output bindings for a control-flow node's condition(s):
+ * for every ValueRef `ref` inside the node's condition(s) that resolves to a
+ * producer port, guarantee that producer carries the matching `outputs[]`
+ * binding (so the executor writes the ctx key the condition reads). Idempotent;
+ * returns the SAME config reference when nothing needs adding. Covers `switch`
+ * (each case condition) and `pollUntil` (the single condition); any other node
+ * type is returned unchanged.
+ */
+export function ensureConditionProducerBindings(
+  config: GraphWorkflowConfig,
+  nodeId: string,
+): GraphWorkflowConfig {
+  const node = config.nodes[nodeId];
+  if (!node) return config;
+  const refs: string[] = [];
+  if (node.type === "switch") {
+    for (const c of node.cases) collectConditionRefs(c.condition, refs);
+  } else if (node.type === "pollUntil") {
+    collectConditionRefs(node.condition, refs);
+  } else {
+    return config;
+  }
+  let next = config;
+  for (const ref of refs) {
+    const producer = resolveCtxKeyToProducer(next, ref);
+    if (producer) {
+      next = ensureProducerOutputBinding(
+        next,
+        producer.producerNodeId,
+        producer.port,
+      );
+    }
+  }
+  return next;
 }
