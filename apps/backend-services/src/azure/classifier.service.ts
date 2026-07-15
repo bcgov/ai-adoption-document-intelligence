@@ -8,6 +8,7 @@ import {
 } from "@nestjs/common";
 import "multer";
 import * as path from "node:path";
+import { getErrorMessage } from "@ai-di/shared-logging";
 import { AuditService } from "@/audit/audit.service";
 import { AzureService } from "@/azure/azure.service";
 import {
@@ -420,16 +421,22 @@ export class ClassifierService {
 
       // Record usage event after successful Azure 202 acceptance
       if (trainingCosts) {
-        await this.usageEventService.recordUsageEvent({
-          event_type: "model_training",
-          group_id: groupId,
-          resource_id: classifierName,
-          resource_type: "classifier",
-          units_consumed: trainingCosts.classifierCost,
-          rate_version_id: trainingCosts.rateVersionId,
-          unit_cost_dollars: trainingCosts.unitCostDollars,
-          activity_name: "training.classifier",
-        });
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "model_training",
+            group_id: groupId,
+            resource_id: classifierName,
+            resource_type: "classifier",
+            units_consumed: trainingCosts.classifierCost,
+            rate_version_id: trainingCosts.rateVersionId,
+            unit_cost_dollars: trainingCosts.unitCostDollars,
+            activity_name: "training.classifier",
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record model_training event training.classifier. Name: ${classifierName}. Group: ${groupId}. Error: ${getErrorMessage(billingError)}`,
+          );
+        }
       }
 
       return await this.classifierDb.updateClassifierModel(

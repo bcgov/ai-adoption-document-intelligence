@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -582,16 +583,22 @@ export class TrainingService {
         new Date(),
       );
       if (trainingCosts) {
-        await this.usageEventService.recordUsageEvent({
-          event_type: "model_training",
-          group_id: groupId,
-          resource_id: jobId,
-          resource_type: "template_model",
-          units_consumed: trainingCosts.templateModelCost,
-          rate_version_id: trainingCosts.rateVersionId,
-          unit_cost_dollars: trainingCosts.unitCostDollars,
-          activity_name: "training.template_model",
-        });
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "model_training",
+            group_id: groupId,
+            resource_id: jobId,
+            resource_type: "template_model",
+            units_consumed: trainingCosts.templateModelCost,
+            rate_version_id: trainingCosts.rateVersionId,
+            unit_cost_dollars: trainingCosts.unitCostDollars,
+            activity_name: "training.template_model",
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record model_training event training.template_model: resource_id ${jobId} Group: ${groupId}. Error: ${getErrorMessage(billingError)}`,
+          );
+        }
       }
 
       this.logger.log(

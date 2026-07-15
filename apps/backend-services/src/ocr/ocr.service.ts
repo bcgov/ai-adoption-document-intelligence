@@ -203,7 +203,7 @@ export class OcrService {
           });
         } catch (billingError) {
           this.logger.warn(
-            `Failed to record workflow_started billing event for ${workflowExecutionId}: ${getErrorMessage(billingError)}`,
+            `Failed to record workflow_cost event for ${workflowExecutionId}: ${getErrorMessage(billingError)}`,
           );
         }
       }

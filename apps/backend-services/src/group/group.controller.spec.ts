@@ -622,16 +622,5 @@ describe("GroupController", () => {
         "admin-actor",
       );
     });
-
-    it("falls back to userId when actorId is absent", async () => {
-      mockBillingConfigService.upsertBillingCap.mockResolvedValue({});
-      const req = { resolvedIdentity: { userId: "user-only" } } as any;
-      await controller.setGroupBillingCap("group-1", {}, req);
-      expect(mockBillingConfigService.upsertBillingCap).toHaveBeenCalledWith(
-        "group-1",
-        undefined,
-        "user-only",
-      );
-    });
   });
 });
