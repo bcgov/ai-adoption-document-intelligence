@@ -572,6 +572,61 @@ describe("SwitchNodeSettings — US-026 Scenario 4: normal edge from switch excl
 });
 
 // ---------------------------------------------------------------------------
+// Phase 5: picking a step in a case condition materialises the producer's
+// output binding via onConfigChange.
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Phase 5: condition step-picker materialises producer bindings", () => {
+  it("clicking an upstream step's port row binds that producer's output on the config", () => {
+    // Upstream `file.prepare` activity feeding the switch; it emits the
+    // `preparedData` output port labelled "Prepared file data".
+    const prepare: ActivityNode = {
+      id: "A",
+      type: "activity",
+      label: "Prepare file",
+      activityType: "file.prepare",
+    };
+    // The switch case starts with an empty-ref left operand so the Ref
+    // field defaults to the step-picker once `onEnsureProducerBinding` is
+    // wired through.
+    const node = switchNode("SW", "Branch", [
+      {
+        condition: {
+          operator: "equals",
+          left: { ref: "" },
+          right: { literal: "x" },
+        },
+        edgeId: "",
+      },
+    ]);
+    const config = makeConfig(
+      [node, prepare],
+      [edge("A-SW", "A", "SW", "normal")],
+    );
+
+    const { spy } = mountWithSpy(config, "SW");
+
+    fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
+
+    // Picking a step fires two synchronous onConfigChange calls from the same
+    // render: first `onEnsureProducerBinding` (materialising A's output row),
+    // then the condition-ref update (built from this render's config, so it
+    // does not itself carry A's new binding). Assert the binding was
+    // materialised by any call in the click.
+    const boundConfig = spy.mock.calls
+      .map((call) => call[0] as GraphWorkflowConfig)
+      .find((cfg) =>
+        cfg.nodes.A.outputs?.some((b) => b.port === "preparedData"),
+      );
+    expect(boundConfig).toBeDefined();
+    expect(boundConfig?.nodes.A.outputs).toContainEqual({
+      port: "preparedData",
+      ctxKey: "__auto.A.preparedData",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 5: defaultEdge is editable via an EdgePicker scoped to outgoing
 // edges from this node
 // ---------------------------------------------------------------------------

@@ -45,6 +45,7 @@ import type {
   PollUntilNode,
 } from "../../../../types/workflow";
 import { ConditionExpressionEditor, declareCtxKey } from "../../graph-widgets";
+import { ensureProducerOutputBinding } from "../../graph-widgets/condition-producer-binding";
 import {
   JsonSchemaForm,
   type JsonSchemaProperty,
@@ -139,6 +140,9 @@ export function PollUntilNodeSettings({
 
   const createCtxKey = (key: string) =>
     onConfigChange(declareCtxKey(config, key));
+
+  const ensureBinding = (producerNodeId: string, port: string) =>
+    onConfigChange(ensureProducerOutputBinding(config, producerNodeId, port));
 
   // ── Activity-type Select (grouped by CatalogCategory) ──────────────────
   const activityTypeOptions = useMemo(buildActivityTypeOptions, []);
@@ -268,6 +272,7 @@ export function PollUntilNodeSettings({
           config={config}
           onCreateCtxKey={createCtxKey}
           currentNodeId={node.id}
+          onEnsureProducerBinding={ensureBinding}
           data-testid="poll-until-node-settings-condition"
         />
       </Box>

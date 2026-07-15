@@ -246,8 +246,13 @@ describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressi
     ).toBeInTheDocument();
 
     // Author `equals(ctx.status, "completed")`:
-    //   - left ValueRef: switch to ref mode (default) and type "ctx.status".
+    //   - left ValueRef: the Ref field now defaults to the step-picker (this
+    //     form supplies onEnsureProducerBinding), so switch to manual entry
+    //     first, then type "ctx.status".
     //   - right ValueRef: switch to literal mode and type "completed".
+    fireEvent.click(
+      screen.getByTestId("poll-until-node-settings-condition-left-manual-link"),
+    );
     const leftRef = screen.getByTestId(
       "poll-until-node-settings-condition-left-ref-input",
     ) as HTMLInputElement;
@@ -274,6 +279,60 @@ describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressi
       operator: "equals",
       left: { ref: "ctx.status" },
       right: { literal: "completed" },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5: picking a step in the termination condition materialises the
+// producer's output binding via onConfigChange.
+// ---------------------------------------------------------------------------
+
+describe("PollUntilNodeSettings — Phase 5: condition step-picker materialises producer bindings", () => {
+  it("clicking an upstream step's port row binds that producer's output on the config", () => {
+    // Upstream `file.prepare` activity feeding the pollUntil node; it emits
+    // the `preparedData` output port labelled "Prepared file data".
+    const prepare: GraphNode = {
+      id: "A",
+      type: "activity",
+      label: "Prepare file",
+      activityType: "file.prepare",
+    };
+    // The termination condition starts with an empty-ref left operand so the
+    // Ref field defaults to the step-picker once `onEnsureProducerBinding` is
+    // wired through.
+    const poll = pollUntilNode("P", "Poll", {
+      condition: {
+        operator: "equals",
+        left: { ref: "" },
+        right: { literal: "x" },
+      },
+    });
+    // The shared makeConfig hardcodes `edges: []`; override so A is strictly
+    // upstream of P and thus appears in the step-picker.
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([poll, prepare]),
+      edges: [{ id: "A-P", source: "A", target: "P", type: "normal" }],
+    };
+
+    const { spy } = mountWithSpy(config, "P");
+
+    fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
+
+    // Picking a step fires two synchronous onConfigChange calls from the same
+    // render: first `onEnsureProducerBinding` (materialising A's output row),
+    // then the condition update (built from this render's config, so it does
+    // not itself carry A's new binding). Assert the binding was materialised
+    // by any call in the click.
+    const boundConfig = spy.mock.calls
+      .map((call) => call[0] as GraphWorkflowConfig)
+      .find((cfg) =>
+        cfg.nodes.A.outputs?.some((b) => b.port === "preparedData"),
+      );
+    expect(boundConfig).toBeDefined();
+    expect(boundConfig?.nodes.A.outputs).toContainEqual({
+      port: "preparedData",
+      ctxKey: "__auto.A.preparedData",
     });
   });
 });
