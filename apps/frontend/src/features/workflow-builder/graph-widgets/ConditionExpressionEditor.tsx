@@ -16,6 +16,7 @@
 
 import {
   ActionIcon,
+  Anchor,
   Box,
   Button,
   Group,
@@ -26,7 +27,7 @@ import {
   TextInput,
 } from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ComparisonExpression,
   ConditionExpression,
@@ -37,6 +38,11 @@ import type {
   NullCheckExpression,
   ValueRef,
 } from "../../../types/workflow";
+import { ConditionProducerPicker } from "./ConditionProducerPicker";
+import {
+  producerCtxKey,
+  resolveCtxKeyToProducer,
+} from "./condition-producer-binding";
 import { VariablePicker } from "./VariablePicker";
 
 // ---------------------------------------------------------------------------
@@ -102,6 +108,12 @@ export interface ConditionExpressionEditorProps {
    * "Other nodes' outputs" group.
    */
   currentNodeId?: string;
+  /**
+   * Materialises a producer's output binding when a condition references it
+   * via the step-picker. When absent, the Ref field offers only the manual
+   * variable autocomplete.
+   */
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   /**
    * Recursion depth — controls visual indent. Internal; callers should
    * not pass this.
@@ -267,6 +279,7 @@ export function ConditionExpressionEditor({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   depth = 0,
   "data-testid": testId,
 }: ConditionExpressionEditorProps) {
@@ -314,6 +327,7 @@ export function ConditionExpressionEditor({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         depth={depth}
         testId={testId ?? "condition-expression-editor"}
       />
@@ -331,6 +345,7 @@ interface ExpressionBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   depth: number;
   testId: string;
 }
@@ -341,6 +356,7 @@ function ExpressionBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   depth,
   testId,
 }: ExpressionBodyProps) {
@@ -359,6 +375,7 @@ function ExpressionBody({
           config={config}
           onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
+          onEnsureProducerBinding={onEnsureProducerBinding}
           testId={testId}
         />
       );
@@ -371,6 +388,7 @@ function ExpressionBody({
           config={config}
           onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
+          onEnsureProducerBinding={onEnsureProducerBinding}
           depth={depth}
           testId={testId}
         />
@@ -383,6 +401,7 @@ function ExpressionBody({
           config={config}
           onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
+          onEnsureProducerBinding={onEnsureProducerBinding}
           depth={depth}
           testId={testId}
         />
@@ -396,6 +415,7 @@ function ExpressionBody({
           config={config}
           onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
+          onEnsureProducerBinding={onEnsureProducerBinding}
           testId={testId}
         />
       );
@@ -408,6 +428,7 @@ function ExpressionBody({
           config={config}
           onCreateCtxKey={onCreateCtxKey}
           currentNodeId={currentNodeId}
+          onEnsureProducerBinding={onEnsureProducerBinding}
           testId={testId}
         />
       );
@@ -424,6 +445,7 @@ interface ComparisonBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   testId: string;
 }
 
@@ -433,6 +455,7 @@ function ComparisonBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   testId,
 }: ComparisonBodyProps) {
   return (
@@ -459,6 +482,7 @@ function ComparisonBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         testId={`${testId}-left`}
       />
       <ValueRefEditor
@@ -468,6 +492,7 @@ function ComparisonBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         testId={`${testId}-right`}
       />
     </Stack>
@@ -484,6 +509,7 @@ interface LogicalBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   depth: number;
   testId: string;
 }
@@ -494,6 +520,7 @@ function LogicalBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   depth,
   testId,
 }: LogicalBodyProps) {
@@ -553,6 +580,7 @@ function LogicalBody({
                 config={config}
                 onCreateCtxKey={onCreateCtxKey}
                 currentNodeId={currentNodeId}
+                onEnsureProducerBinding={onEnsureProducerBinding}
                 depth={depth + 1}
                 data-testid={`${testId}-operand-${index}-editor`}
               />
@@ -594,6 +622,7 @@ interface NotBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   depth: number;
   testId: string;
 }
@@ -604,6 +633,7 @@ function NotBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   depth,
   testId,
 }: NotBodyProps) {
@@ -619,6 +649,7 @@ function NotBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         depth={depth + 1}
         data-testid={`${testId}-not-operand-editor`}
       />
@@ -636,6 +667,7 @@ interface NullCheckBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   testId: string;
 }
 
@@ -645,6 +677,7 @@ function NullCheckBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   testId,
 }: NullCheckBodyProps) {
   return (
@@ -671,6 +704,7 @@ function NullCheckBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         testId={`${testId}-value`}
       />
     </Stack>
@@ -687,6 +721,7 @@ interface MembershipBodyProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   testId: string;
 }
 
@@ -696,6 +731,7 @@ function MembershipBody({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   testId,
 }: MembershipBodyProps) {
   return (
@@ -722,6 +758,7 @@ function MembershipBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         testId={`${testId}-value`}
       />
       <ValueRefEditor
@@ -731,6 +768,7 @@ function MembershipBody({
         config={config}
         onCreateCtxKey={onCreateCtxKey}
         currentNodeId={currentNodeId}
+        onEnsureProducerBinding={onEnsureProducerBinding}
         testId={`${testId}-list`}
       />
     </Stack>
@@ -748,6 +786,7 @@ interface ValueRefEditorProps {
   config: GraphWorkflowConfig;
   onCreateCtxKey?: (key: string) => void;
   currentNodeId?: string;
+  onEnsureProducerBinding?: (producerNodeId: string, port: string) => void;
   testId: string;
 }
 
@@ -790,9 +829,31 @@ function ValueRefEditor({
   config,
   onCreateCtxKey,
   currentNodeId,
+  onEnsureProducerBinding,
   testId,
 }: ValueRefEditorProps) {
   const mode = getValueRefMode(value);
+
+  const refValue = "ref" in value && value.ref !== undefined ? value.ref : "";
+  const resolved = useMemo(
+    () => resolveCtxKeyToProducer(config, refValue, currentNodeId),
+    [config, refValue, currentNodeId],
+  );
+  const canUseSteps = onEnsureProducerBinding !== undefined;
+  const [manualOverride, setManualOverride] = useState(false);
+  const forcedManual = refValue !== "" && resolved === null;
+  const subMode: "step" | "manual" =
+    !canUseSteps || manualOverride || forcedManual ? "manual" : "step";
+
+  const pickProducer = (sel: {
+    producerNodeId: string;
+    producerPort: string;
+  }) => {
+    onEnsureProducerBinding?.(sel.producerNodeId, sel.producerPort);
+    onChange({
+      ref: producerCtxKey(config, sel.producerNodeId, sel.producerPort),
+    });
+  };
 
   // §4.13: hold the literal input as local text so typing is STABLE. The
   // input's displayed value used to be re-derived from the parsed literal on
@@ -849,15 +910,53 @@ function ValueRefEditor({
         />
       </Group>
       {mode === "ref" ? (
-        <VariablePicker
-          config={config}
-          onCreateCtxKey={onCreateCtxKey}
-          currentNodeId={currentNodeId}
-          value={"ref" in value && value.ref !== undefined ? value.ref : ""}
-          onChange={(nextRef) => onChange({ ref: nextRef })}
-          placeholder="Pick a ctx variable…"
-          data-testid={`${testId}-ref-input`}
-        />
+        subMode === "step" ? (
+          <Stack gap={4}>
+            {resolved && (
+              <Text size="10px" c="dimmed" data-testid={`${testId}-resolved`}>
+                {resolved.nodeLabel} → {resolved.portLabel}
+              </Text>
+            )}
+            <ConditionProducerPicker
+              config={config}
+              currentNodeId={currentNodeId ?? ""}
+              value={refValue}
+              onChange={pickProducer}
+            />
+            <Anchor
+              component="button"
+              type="button"
+              size="xs"
+              data-testid={`${testId}-manual-link`}
+              onClick={() => setManualOverride(true)}
+            >
+              Enter a variable manually
+            </Anchor>
+          </Stack>
+        ) : (
+          <Stack gap={4}>
+            <VariablePicker
+              config={config}
+              onCreateCtxKey={onCreateCtxKey}
+              currentNodeId={currentNodeId}
+              value={refValue}
+              onChange={(nextRef) => onChange({ ref: nextRef })}
+              placeholder="Pick a ctx variable…"
+              data-testid={`${testId}-ref-input`}
+            />
+            {canUseSteps && !forcedManual && (
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
+                data-testid={`${testId}-steps-link`}
+                onClick={() => setManualOverride(false)}
+              >
+                Back to steps
+              </Anchor>
+            )}
+          </Stack>
+        )
       ) : (
         <TextInput
           size="xs"

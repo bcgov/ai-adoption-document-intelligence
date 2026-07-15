@@ -678,3 +678,120 @@ describe("ConditionExpressionEditor — Scenario 6: VariablePicker reuse for Ref
     expect(screen.getByText("Other nodes' outputs")).toBeInTheDocument();
   });
 });
+
+// A(file.prepare: preparedData) → SWITCH(consumer). For step-picker tests.
+function stepPickerConfig(): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "A",
+    nodes: {
+      A: {
+        id: "A",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "Prepare file",
+      },
+      SW: { id: "SW", type: "switch", label: "Branch", cases: [] },
+    },
+    edges: [{ id: "e", source: "A", target: "SW", type: "normal" }],
+    ctx: {},
+  };
+}
+
+describe("ConditionExpressionEditor — conditions from node outputs (§11)", () => {
+  function renderEditor(
+    initial: ConditionExpression | undefined,
+    ensure = vi.fn(),
+  ) {
+    function Harness() {
+      const [expr, setExpr] = useState(initial);
+      return (
+        <MantineProvider>
+          <ConditionExpressionEditor
+            value={expr}
+            onChange={setExpr}
+            config={stepPickerConfig()}
+            currentNodeId="SW"
+            onEnsureProducerBinding={ensure}
+          />
+        </MantineProvider>
+      );
+    }
+    render(<Harness />);
+  }
+
+  it("defaults the Ref field to the step-picker for an empty ref", () => {
+    renderEditor({
+      operator: "equals",
+      left: { ref: "" },
+      right: { literal: "x" },
+    });
+    expect(
+      screen.getByText("Prepare file → Prepared file data"),
+    ).toBeInTheDocument();
+  });
+
+  it("picking a step ensures the producer binding and stores its ctx key", () => {
+    const ensure = vi.fn();
+    renderEditor(
+      { operator: "equals", left: { ref: "" }, right: { literal: "x" } },
+      ensure,
+    );
+    fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
+    expect(ensure).toHaveBeenCalledWith("A", "preparedData");
+    expect(
+      screen.getAllByText("Prepare file → Prepared file data").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("opens in manual mode for a ref that resolves to no producer", () => {
+    renderEditor({
+      operator: "equals",
+      left: { ref: "handTypedKey" },
+      right: { literal: "x" },
+    });
+    expect(screen.getByDisplayValue("handTypedKey")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("condition-producer-picker"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("advanced link swaps step → manual and back", () => {
+    renderEditor({
+      operator: "equals",
+      left: { ref: "" },
+      right: { literal: "x" },
+    });
+    fireEvent.click(screen.getAllByText("Enter a variable manually")[0]);
+    expect(screen.getAllByText("Back to steps").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText("Back to steps")[0]);
+    expect(
+      screen.getAllByTestId("condition-producer-picker").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("falls back to manual mode when onEnsureProducerBinding is absent", () => {
+    function Harness() {
+      const [expr, setExpr] = useState<ConditionExpression | undefined>({
+        operator: "equals",
+        left: { ref: "" },
+        right: { literal: "x" },
+      });
+      return (
+        <MantineProvider>
+          <ConditionExpressionEditor
+            value={expr}
+            onChange={setExpr}
+            config={stepPickerConfig()}
+            currentNodeId="SW"
+          />
+        </MantineProvider>
+      );
+    }
+    render(<Harness />);
+    expect(
+      screen.queryByTestId("condition-producer-picker"),
+    ).not.toBeInTheDocument();
+  });
+});
