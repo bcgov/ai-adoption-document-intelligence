@@ -1,18 +1,33 @@
 import { NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { BillingConfigService } from "./billing-config.service";
+
+const mockTx = {
+  groupBillingConfig: {
+    upsert: jest.fn(),
+  },
+};
 
 const mockPrismaService = {
   prisma: {
     groupBillingConfig: {
       findUnique: jest.fn(),
-      upsert: jest.fn(),
     },
     group: {
       findUnique: jest.fn(),
     },
   },
+  transaction: jest
+    .fn()
+    .mockImplementation((cb: (tx: typeof mockTx) => Promise<unknown>) =>
+      cb(mockTx),
+    ),
+};
+
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
 };
 
 describe("BillingConfigService", () => {
@@ -20,10 +35,15 @@ describe("BillingConfigService", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockTx.groupBillingConfig.upsert.mockReset();
+    mockPrismaService.transaction.mockImplementation(
+      (cb: (tx: typeof mockTx) => Promise<unknown>) => cb(mockTx),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BillingConfigService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -88,7 +108,7 @@ describe("BillingConfigService", () => {
       mockPrismaService.prisma.group.findUnique.mockResolvedValue({
         id: "group-1",
       });
-      mockPrismaService.prisma.groupBillingConfig.upsert.mockResolvedValue({
+      mockTx.groupBillingConfig.upsert.mockResolvedValue({
         id: "cfg-1",
         group_id: "group-1",
         monthly_cap_dollars: { toNumber: () => 250 },
@@ -100,9 +120,7 @@ describe("BillingConfigService", () => {
       const result = await service.upsertBillingCap("group-1", 250, "admin-1");
       expect(result.monthly_cap_dollars).toBe(250);
       expect(result.cap_configured_by).toBe("admin-1");
-      expect(
-        mockPrismaService.prisma.groupBillingConfig.upsert,
-      ).toHaveBeenCalledWith(
+      expect(mockTx.groupBillingConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { group_id: "group-1" },
           create: expect.objectContaining({
@@ -123,7 +141,7 @@ describe("BillingConfigService", () => {
       mockPrismaService.prisma.group.findUnique.mockResolvedValue({
         id: "group-1",
       });
-      mockPrismaService.prisma.groupBillingConfig.upsert.mockResolvedValue({
+      mockTx.groupBillingConfig.upsert.mockResolvedValue({
         id: "cfg-1",
         group_id: "group-1",
         monthly_cap_dollars: null,
@@ -134,9 +152,7 @@ describe("BillingConfigService", () => {
 
       const result = await service.upsertBillingCap("group-1", null, "admin-1");
       expect(result.monthly_cap_dollars).toBeNull();
-      expect(
-        mockPrismaService.prisma.groupBillingConfig.upsert,
-      ).toHaveBeenCalledWith(
+      expect(mockTx.groupBillingConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({ monthly_cap_dollars: null }),
           update: expect.objectContaining({ monthly_cap_dollars: null }),
@@ -149,7 +165,7 @@ describe("BillingConfigService", () => {
       mockPrismaService.prisma.group.findUnique.mockResolvedValue({
         id: "group-1",
       });
-      mockPrismaService.prisma.groupBillingConfig.upsert.mockResolvedValue({
+      mockTx.groupBillingConfig.upsert.mockResolvedValue({
         id: "cfg-1",
         group_id: "group-1",
         monthly_cap_dollars: null,
@@ -159,9 +175,7 @@ describe("BillingConfigService", () => {
       });
 
       await service.upsertBillingCap("group-1", undefined, "admin-1");
-      expect(
-        mockPrismaService.prisma.groupBillingConfig.upsert,
-      ).toHaveBeenCalledWith(
+      expect(mockTx.groupBillingConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({ monthly_cap_dollars: null }),
         }),

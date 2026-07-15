@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
+import { AuditService } from "../audit/audit.service";
 import type { GroupBillingConfigDto } from "./dto/group-billing-config.dto";
 
 /**
@@ -7,7 +8,10 @@ import type { GroupBillingConfigDto } from "./dto/group-billing-config.dto";
  */
 @Injectable()
 export class BillingConfigService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Retrieves the billing configuration for a group.
@@ -50,20 +54,32 @@ export class BillingConfigService {
     }
 
     const capValue = monthlyCap === undefined ? null : monthlyCap;
-
-    const config = await this.prismaService.prisma.groupBillingConfig.upsert({
-      where: { group_id: groupId },
-      create: {
-        group_id: groupId,
-        monthly_cap_dollars: capValue,
-        cap_configured_by: configuredBy,
-        cap_configured_at: new Date(),
-      },
-      update: {
-        monthly_cap_dollars: capValue,
-        cap_configured_by: configuredBy,
-        cap_configured_at: new Date(),
-      },
+    const config = await this.prismaService.transaction(async (tx) => {
+      await this.auditService.recordEvent(
+        {
+          event_type: "billing_cap_update",
+          resource_type: "billing",
+          resource_id: "",
+          actor_id: configuredBy,
+          group_id: groupId,
+          payload: { monthlyCap },
+        },
+        tx,
+      );
+      return await tx.groupBillingConfig.upsert({
+        where: { group_id: groupId },
+        create: {
+          group_id: groupId,
+          monthly_cap_dollars: capValue,
+          cap_configured_by: configuredBy,
+          cap_configured_at: new Date(),
+        },
+        update: {
+          monthly_cap_dollars: capValue,
+          cap_configured_by: configuredBy,
+          cap_configured_at: new Date(),
+        },
+      });
     });
 
     return this.toDto(config);
