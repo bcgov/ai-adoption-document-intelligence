@@ -13,6 +13,7 @@
  * canvas edge + wiring the context-menu entry belong to later tasks.
  */
 
+import { resolveCtxBinding } from "@ai-di/graph-workflow";
 import { Alert, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
@@ -134,7 +135,14 @@ export function WirePeekPopover({
       </Shell>
     );
   }
-  if (!(wire.ctxKey in data.outputCtx)) {
+  // `outputCtx` is stored NESTED at runtime: the engine splits the ctxKey
+  // on "." into nested objects and namespace-remaps prefixes (`doc.*` →
+  // `documentMetadata.*`). `resolveCtxBinding` performs the identical read
+  // the engine resolver uses, so flat, `__auto.*`, and namespaced keys all
+  // resolve. `undefined` is a sound "absent" signal — JSON leaves are never
+  // `undefined`.
+  const value = resolveCtxBinding(wire.ctxKey, data.outputCtx);
+  if (value === undefined) {
     return (
       <Shell state="empty" header={header}>
         <Text size="xs" c="dimmed" data-testid="wire-peek-value">
@@ -144,7 +152,6 @@ export function WirePeekPopover({
     );
   }
 
-  const value = data.outputCtx[wire.ctxKey];
   const widget = renderKindValue(wire.kind ?? null, value);
   return (
     <Shell state="ready" header={header}>

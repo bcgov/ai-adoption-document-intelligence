@@ -174,15 +174,23 @@ describe("WirePeekPopover", () => {
     );
   });
 
-  it("renders the kind widget for a ready OcrResult value", () => {
+  it("resolves a nested __auto ctxKey and renders the kind widget", () => {
+    // Runtime stores outputCtx NESTED: `__auto.extract.ocrResult` lands as
+    // `{ __auto: { extract: { ocrResult: <value> } } }`.
     const data: ActivityOutputPreview = {
-      outputCtx: { "__auto.extract.text": { total: 1 } },
+      outputCtx: { __auto: { extract: { ocrResult: { total: 1 } } } },
       outputKind: "OcrResult",
       createdAt: "",
       expiresAt: "",
     };
     mockPreview.mockReturnValue(preview({ data }));
-    renderPopover();
+    renderPopover({
+      wireOverride: {
+        ...wire,
+        kind: "OcrResult",
+        ctxKey: "__auto.extract.ocrResult",
+      },
+    });
 
     expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
       "data-state",
@@ -191,15 +199,62 @@ describe("WirePeekPopover", () => {
     expect(screen.getByTestId("ocr-preview-root")).toBeInTheDocument();
   });
 
-  it("falls back to the JSON preview for a kind with no widget", () => {
+  it("falls back to the JSON preview for a nested scalar with no widget kind", () => {
     const data: ActivityOutputPreview = {
-      outputCtx: { "__auto.extract.text": "hello world" },
+      outputCtx: {
+        __auto: { upload: { documentUrl: "https://blob/doc.pdf" } },
+      },
       outputKind: "Artifact",
       createdAt: "",
       expiresAt: "",
     };
     mockPreview.mockReturnValue(preview({ data }));
-    renderPopover({ wireOverride: { ...wire, kind: "Artifact" } });
+    renderPopover({
+      wireOverride: {
+        ...wire,
+        kind: "Artifact",
+        ctxKey: "__auto.upload.documentUrl",
+      },
+    });
+
+    expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
+      "data-state",
+      "ready",
+    );
+    expect(screen.getByTestId("json-value-preview")).toBeInTheDocument();
+  });
+
+  it("honors the namespace remap for a `doc.*` ctxKey", () => {
+    // `doc.total` remaps to `documentMetadata.total` before traversal.
+    const data: ActivityOutputPreview = {
+      outputCtx: { documentMetadata: { total: 5 } },
+      outputKind: "Artifact",
+      createdAt: "",
+      expiresAt: "",
+    };
+    mockPreview.mockReturnValue(preview({ data }));
+    renderPopover({
+      wireOverride: { ...wire, kind: "Artifact", ctxKey: "doc.total" },
+    });
+
+    expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
+      "data-state",
+      "ready",
+    );
+    expect(screen.getByTestId("json-value-preview")).toBeInTheDocument();
+  });
+
+  it("resolves a flat single-segment ctxKey (source-node style)", () => {
+    const data: ActivityOutputPreview = {
+      outputCtx: { documentUrl: "https://x" },
+      outputKind: "Artifact",
+      createdAt: "",
+      expiresAt: "",
+    };
+    mockPreview.mockReturnValue(preview({ data }));
+    renderPopover({
+      wireOverride: { ...wire, kind: "Artifact", ctxKey: "documentUrl" },
+    });
 
     expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
       "data-state",
@@ -210,13 +265,15 @@ describe("WirePeekPopover", () => {
 
   it("shows the empty state when the ctxKey is absent from the output", () => {
     const data: ActivityOutputPreview = {
-      outputCtx: { "some.other.key": 1 },
+      outputCtx: { somethingElse: 1 },
       outputKind: "OcrResult",
       createdAt: "",
       expiresAt: "",
     };
     mockPreview.mockReturnValue(preview({ data }));
-    renderPopover();
+    renderPopover({
+      wireOverride: { ...wire, ctxKey: "__auto.extract.ocrResult" },
+    });
 
     expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
       "data-state",
