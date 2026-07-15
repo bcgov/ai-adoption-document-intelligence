@@ -69,7 +69,18 @@ const authHeaders = () => ({
   "x-api-key": apiKey,
   "Content-Type": "application/json",
 });
-const pos = (x, y) => ({ metadata: { position: { x, y } } });
+// Port-row cards (one row per typed port) render up to ~522px wide, but the
+// demos below were hand-placed on a ~300–380px column grid tuned for the old
+// narrow cards — so wide cards overlap their right-hand neighbour on LOAD
+// (Auto-arrange re-lays them out fine; the seeded positions are the problem).
+// Widen the horizontal pitch (X only — vertical spacing already clears) so
+// seeded layouts match the ~562px rank spacing the Auto-arrange pass uses.
+// See apps/frontend/src/features/workflow-builder/canvas/auto-layout.ts
+// (DEFAULT_NODE_WIDTH) for the card-width calibration this tracks.
+const X_PITCH_SCALE = 1.9;
+const pos = (x, y) => ({
+  metadata: { position: { x: Math.round(x * X_PITCH_SCALE), y } },
+});
 
 async function api(method, path, body) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
