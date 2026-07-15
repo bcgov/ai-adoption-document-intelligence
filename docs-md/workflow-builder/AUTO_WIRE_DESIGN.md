@@ -225,7 +225,7 @@ The old JSON editor (`WorkflowEditorPage.tsx`) renders the raw JSON. It will sho
 
 ## 9. Out of scope
 
-- **Draw-time wire kind rejection.** Wires remain execution-order. The kind compatibility check happens via the binding-walk validator + the resolver's candidate filter, not at draw time.
+- **Draw-time rejection of node-to-node (execution-order) edges.** Node-level edges remain execution-order and are never kind-rejected; that compatibility check happens via the binding-walk validator + the resolver's candidate filter. (Port-to-port *data* drags DO get draw-time kind rejection as of Phase 3 — see [PORT_WIRING_DESIGN §6.2](PORT_WIRING_DESIGN.md); that is a separate gesture on the per-port handles, not the node-level edge drawn here.)
 - **ComfyUI-style per-port handles.** The designer vetoed; the [I/O model decision](WORKFLOW_NODE_IO_MODEL_DECISION.md) locks single in / single out.
 - **Auto-wrap / auto-unwrap between `T` and `T[]`.** Use `map` / `join`. (Same call as [TYPED_IO_DESIGN.md §11](TYPED_IO_DESIGN.md).)
 - **Auto-pick switch branches.** Conditional routing remains user-authored.

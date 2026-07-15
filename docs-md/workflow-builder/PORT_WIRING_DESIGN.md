@@ -45,7 +45,7 @@ An activity node renders one **port row** per wireable port: inputs down the lef
 
 - **Handles:** every catalog output; every input that is wireable — typed ports (`shouldAutoWirePort`) plus base-`Artifact` identifier ports (the name-match set from [resolve-input-port.ts](../../packages/graph-workflow/src/auto-wire/resolve-input-port.ts)).
 - **No handles:** static parameters (`node.parameters` — model IDs, thresholds, rule lists). These render inside the card as a compact `⚙︎ label: value` summary line (click → settings form at that field). A business user is never offered a wire for something that wants a typed-in value.
-- A **required input with no source** shows an amber ring on its port. *As shipped in Phase 2 the ring is deliberately broader than the problems badge/drawer:* the ring fires for ANY required unbound catalog port (including base-`Artifact` identifier ports like `documentId`), while `autoWireIssuesToValidationErrors` only counts auto-wireable (typed) ports — so an identifier port can wear the ring with no badge/drawer entry and a clean Save. Reconciling the two (either counting required identifier ports as problems, or scoping the ring to the badge set) is a Phase-3 UX decision; see §15.
+- A **required input with no source** shows an amber ring on its port. *As shipped in Phase 2 the ring is deliberately broader than the problems badge/drawer:* the ring fires for ANY required unbound catalog port (including base-`Artifact` identifier ports like `documentId`), while `autoWireIssuesToValidationErrors` only counts auto-wireable (typed) ports — so an identifier port can wear the ring with no badge/drawer entry and a clean Save. Reconciling the two (either counting required identifier ports as problems, or scoping the ring to the badge set) was a Phase-3 UX decision — **resolved in Phase 3**: required identifier ports now count as problems, so the ring and badge agree (see §15 item 3).
 
 ### 4.3 Density
 
@@ -94,7 +94,7 @@ Creates the binding through the existing Change source mechanics (stamp consumer
 
 ### 6.2 Connect-time validation (first appearance of `isValidConnection`)
 
-While dragging from an output of kind `K`: ports where `isAssignable(K, expected)` holds highlight/enlarge; incompatible ports dim. Dropping on an incompatible port is rejected with a notification naming both kinds in plain language. **Shipped copy** (2026-07-14): a kind mismatch reads *"This input needs `<TargetKind>` — `<SourceKind>` can't be used here"* (e.g. "This input needs Document — Segments (list) can't be used here"); dropping an output back onto an input on the same node reads *"A step can't feed itself"*. Wildcard (`Artifact`) ports accept any drop — a manual drag is an explicit choice, so no name-match restriction applies. Node-body drops (not on a port) fall through to §6.4.
+While dragging from an output of kind `K`: ports where `isAssignable(K, expected)` holds highlight/enlarge; incompatible ports dim. Dropping on an incompatible port is rejected with a notification naming both kinds in plain language. **Shipped copy** (2026-07-14): a kind mismatch reads *"This input needs `<TargetKind>` — `<SourceKind>` can't be used here"* (e.g. "This input needs Document — Segment (list) can't be used here"); dropping an output back onto an input on the same node reads *"A step can't feed itself"*. Wildcard (`Artifact`) ports accept any drop — a manual drag is an explicit choice, so no name-match restriction applies. Node-body drops (not on a port) fall through to §6.4.
 
 ### 6.3 Deleting a wire
 
