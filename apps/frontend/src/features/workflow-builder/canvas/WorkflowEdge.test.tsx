@@ -459,6 +459,83 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
   });
 });
 
+describe("WorkflowEdge — selection indicator", () => {
+  it("selected sequence wire: thicker stroke + glow, keeps grey dash", () => {
+    const graphEdge: GraphEdge = {
+      id: "e-seq",
+      source: "n1",
+      target: "n2",
+      type: "normal",
+    };
+    const wire: StructuralWire = {
+      variant: "sequence",
+      id: graphEdge.id,
+      edge: graphEdge,
+    };
+    renderEdge(
+      makeEdgeProps({
+        id: graphEdge.id,
+        source: graphEdge.source,
+        target: graphEdge.target,
+        data: { wire, graphEdge },
+        selected: true,
+      }),
+    );
+    const styleAttr =
+      screen.getByTestId("base-edge").getAttribute("style") ?? "";
+    expect(styleAttr).toContain("stroke-width: 3.5");
+    // Selection is additive — the sequence dash + grey stroke survive.
+    expect(styleAttr).toContain("stroke-dasharray: 6 4");
+    expect(styleAttr).toContain("stroke: rgb(156, 163, 175)");
+    expect(styleAttr).toContain("drop-shadow");
+  });
+
+  it("unselected sequence wire keeps the default 2px stroke, no glow", () => {
+    const graphEdge: GraphEdge = {
+      id: "e-seq",
+      source: "n1",
+      target: "n2",
+      type: "normal",
+    };
+    const wire: StructuralWire = {
+      variant: "sequence",
+      id: graphEdge.id,
+      edge: graphEdge,
+    };
+    renderEdge(
+      makeEdgeProps({
+        id: graphEdge.id,
+        source: graphEdge.source,
+        target: graphEdge.target,
+        data: { wire, graphEdge },
+        selected: false,
+      }),
+    );
+    const styleAttr =
+      screen.getByTestId("base-edge").getAttribute("style") ?? "";
+    expect(styleAttr).toContain("stroke-width: 2");
+    expect(styleAttr).not.toContain("stroke-width: 3.5");
+    expect(styleAttr).not.toContain("drop-shadow");
+  });
+
+  it("selected data wire also reads as selected (thicker stroke + glow)", () => {
+    const wire = makeDataWire({ kind: undefined });
+    renderEdge(
+      makeEdgeProps({
+        id: wire.id,
+        source: wire.source,
+        target: wire.target,
+        data: { wire },
+        selected: true,
+      }),
+    );
+    const styleAttr =
+      screen.getByTestId("base-edge").getAttribute("style") ?? "";
+    expect(styleAttr).toContain("stroke-width: 3.5");
+    expect(styleAttr).toContain("drop-shadow");
+  });
+});
+
 describe("wireTooltip", () => {
   it("pinned wins over every other flag", () => {
     expect(wireTooltip(makeDataWire({ pinned: true, via: "name-match" }))).toBe(

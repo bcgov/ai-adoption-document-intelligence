@@ -117,6 +117,12 @@ const SWITCH_ACCENT = getControlFlowVisualHints("switch").color;
  */
 const ACTIVE_STROKE = "var(--mantine-color-blue-6, #228be6)";
 const ACTIVE_STROKE_WIDTH = 2.5;
+/**
+ * Width applied to a selected edge. Wider than both the resting (2) and
+ * active (2.5) strokes so the user can tell a wire is selected even while
+ * it is animating as the currently-flowing hop.
+ */
+const SELECTED_STROKE_WIDTH = 3.5;
 
 interface LabelComputation {
   text: string;
@@ -239,13 +245,28 @@ export const WorkflowEdge = memo(function WorkflowEdge(
   // wider 2.5px line — it wins over every wire variant (including the
   // sequence dash, which would fight xyflow's marching-ants animation).
   const isActive = data?.isActive === true;
-  const edgeStyle: CSSProperties = isActive
+  const baseStyle: CSSProperties = isActive
     ? { stroke: ACTIVE_STROKE, strokeWidth: ACTIVE_STROKE_WIDTH }
     : {
         stroke,
         strokeWidth: 2,
         ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
       };
+  // Selection cue: xyflow adds a `.selected` class and paints a selected
+  // stroke via its base stylesheet, but BaseEdge's INLINE `style` overrides
+  // that class — so selection was visually silent (the edge selects and
+  // deletes, it just never looked selected). Reassert it inline: a thicker
+  // stroke plus a same-colour glow, layered on whichever base style applies.
+  // Works for structural AND data wires (a selected data wire also mounts
+  // the peek popover; this makes the wire itself read as selected too).
+  const edgeStyle: CSSProperties =
+    selected === true
+      ? {
+          ...baseStyle,
+          strokeWidth: SELECTED_STROKE_WIDTH,
+          filter: `drop-shadow(0 0 2px ${baseStyle.stroke})`,
+        }
+      : baseStyle;
 
   // Wire data peek (Phase 4): mount the peek popover at the wire midpoint
   // when a data wire's edge is selected. Narrow `DerivedWire` → `DataWire`
