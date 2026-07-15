@@ -288,6 +288,7 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 - [ ] **9.10 Cache-evicted preview.** Replay a run whose cache row was deleted. **Pass:** red alert “Preview unavailable — cache evicted. Re-run to repopulate.” + **Re-run** button fetches the original `initialCtx` and starts a fresh Try.
 - [ ] **9.11 Version run-count badge.** **More ▸ History** after some runs. **Pass:** each version row shows a `{n} runs` badge.
 - [ ] **9.12 Lazy deploy + auto-save on first Try.** Try on a workflow with unsaved changes. **Pass:** a new version is saved before Temporal starts; if validation fails, Try aborts with the validator toast and **no** Temporal resource is used.
+- [ ] **9.13 Wire data peek.** After a Try completes, **click a data wire** (a coloured port-to-port wire) on the canvas. **Pass:** a popover opens at the wire midpoint showing the value that flowed across it — a kind widget where one exists, otherwise a truncated JSON snippet. Click a wire **before any run**: **Pass:** the popover reads **“Run to see the data flowing here.”** **Right-click** a data wire: **Pass:** the menu shows **“View data”** only after a run has happened (it’s absent before the first run), and choosing it opens the same popover. ⚠️ The peek is scoped to the current run only — after a page reload (which clears the active run) a wire shows the “Run to see…” state and “View data” disappears until you Try again.
 
 ---
 

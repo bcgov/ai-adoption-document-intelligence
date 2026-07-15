@@ -130,6 +130,79 @@ test.describe("try-in-place previews @infra", () => {
         { timeout: 60_000 },
       );
 
+      // --- Wire data peek (Phase 4 §10) ----------------------------------
+      // With the run STILL ACTIVE (the upload set `activeRunId` on
+      // RunStateContext), exercise the value-on-a-wire peek on the
+      // upload1 → prep data wire.
+      //
+      // This runs BEFORE the reload below on purpose: RunStateProvider
+      // starts every mount with `activeRunId = null` and never restores it,
+      // so after a reload the peek would render its "no-run" branch and the
+      // "View data" context-menu item (gated on a live run via `canViewData`)
+      // would not appear at all. The live-run window is the only honest place
+      // to assert the peek reaches `ready`.
+      //
+      // Discover the derived data-wire edge id at runtime rather than
+      // hardcoding it: React Flow stamps each edge's id onto `data-id`, and a
+      // data wire's id is `wire:<target>:<targetPort>` (derive-wires.ts) — the
+      // only edge id that starts with `wire:`.
+      const edgeIds = await page
+        .locator(".react-flow__edge")
+        .evaluateAll((els) => els.map((e) => e.getAttribute("data-id")));
+      const wireId = edgeIds.find((id) => id?.startsWith("wire:"));
+      expect(
+        wireId,
+        `expected a derived data wire among edges: ${edgeIds.join(", ")}`,
+      ).toBeTruthy();
+
+      // Prefer right-clicking the wire (its context menu's "View data") over
+      // clicking the thin edge path directly — headless Chromium hit-tests a
+      // 2px SVG stroke unreliably. We drive a real mouse right-click at the
+      // wire's midpoint (the centre of the edge group's bounding box is the
+      // midpoint of a straight edge), landing on the wide (20px) xyflow
+      // interaction path when present.
+      const wireEdge = page.locator(`.react-flow__edge[data-id="${wireId}"]`);
+      await wireEdge.waitFor({ state: "attached" });
+      const interaction = wireEdge.locator(".react-flow__edge-interaction");
+      const clickTarget =
+        (await interaction.count()) > 0 ? interaction : wireEdge;
+      const box = await clickTarget.boundingBox();
+      expect(box, "wire edge has no bounding box to click").not.toBeNull();
+
+      const peekPopover = page.getByTestId("wire-peek-popover");
+      const wireMenu = page.getByTestId("wire-context-menu");
+      const viewDataItem = page.getByTestId("wire-menu-view-data");
+
+      if (box) {
+        const cx = box.x + box.width / 2;
+        const cy = box.y + box.height / 2;
+        await page.mouse.click(cx, cy, { button: "right" });
+
+        const menuOpened = await wireMenu
+          .waitFor({ state: "visible", timeout: 5_000 })
+          .then(() => true)
+          .catch(() => false);
+
+        if (menuOpened) {
+          // "View data" is only rendered once a run has happened — assert it
+          // is present, then open the peek through it (it selects the edge).
+          await expect(viewDataItem).toBeVisible();
+          await viewDataItem.click();
+        } else {
+          // Fallback: left-click the wire to select the edge directly —
+          // xyflow edge selection also mounts the peek popover at the midpoint.
+          await page.mouse.click(cx, cy);
+        }
+      }
+
+      // The upload produces the source `documentUrl` (a scalar/URL with no
+      // kind widget), so the popover falls to the `JsonValuePreview` snippet.
+      // The robust invariant is the STATE, not the widget: assert `ready`.
+      await expect(peekPopover).toHaveAttribute("data-state", "ready", {
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId("wire-peek-value")).toBeVisible();
+
       // Assert the completed source node renders its cached output as an inline
       // preview widget. We RELOAD first: during a live Try the preview hook
       // fires a single debounced refetch on the running→succeeded transition,
