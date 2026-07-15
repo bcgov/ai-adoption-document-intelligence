@@ -675,6 +675,117 @@ function edgesValidateConfig(name) {
 }
 
 /**
+ * A `source.upload → file.prepare (prep) → switch (routeByPrepared)` graph that
+ * showcases the Phase-5 "conditions from node outputs" step picker (Part 4,
+ * 4.8–4.12). The switch's single case condition is an `is-not-null` on the
+ * producer's ctx key, and `prep` carries the MATCHING output binding, so opening
+ * the case condition resolves to the "Prepare file → Prepared file data" caption
+ * on load (not a raw ctx key).
+ *
+ * The invariant `resolveCtxKeyToProducer` needs (see
+ * frontend graph-widgets/condition-producer-binding.ts):
+ *   1. `prep.outputs` binds `preparedData` → `__auto.prep.preparedData`.
+ *   2. The switch case condition's ValueRef `ref` equals that exact ctx key.
+ *   3. `prep` is upstream of the switch (the `prep-switch` edge).
+ * `__auto.*` keys are resolver-internal, so the validator does not require them
+ * in `ctx` (getRefCtxRootKey returns undefined for the `__auto` namespace).
+ */
+function conditionStepRefConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "upload1",
+    ctx: {
+      documentUrl: { type: "string" },
+      documentId: { type: "string" },
+      ocrResult: { type: "object" },
+    },
+    nodes: {
+      upload1: {
+        id: "upload1",
+        type: "source",
+        sourceType: "source.upload",
+        label: "Upload",
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(120, 300),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare file",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
+        // KEY invariant #1: the producer's output binding whose ctxKey the
+        // switch case condition references below — this is what makes the
+        // step-picker resolve "Prepare file → Prepared file data" on load.
+        outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+        ...pos(460, 300),
+      },
+      routeByPrepared: {
+        id: "routeByPrepared",
+        type: "switch",
+        label: "Route by prepared data",
+        cases: [
+          {
+            // KEY invariant #2: ref === prep's preparedData output ctxKey.
+            condition: {
+              operator: "is-not-null",
+              value: { ref: "__auto.prep.preparedData" },
+            },
+            edgeId: "route-ready",
+          },
+        ],
+        defaultEdge: "route-default",
+        ...pos(820, 300),
+      },
+      whenReady: {
+        id: "whenReady",
+        type: "activity",
+        label: "When prepared",
+        activityType: "ocr.cleanup",
+        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(1160, 160),
+      },
+      whenMissing: {
+        id: "whenMissing",
+        type: "activity",
+        label: "When missing (default)",
+        activityType: "ocr.storeResults",
+        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(1160, 460),
+      },
+    },
+    edges: [
+      { id: "upload1-prep", source: "upload1", target: "prep", type: "normal" },
+      // KEY invariant #3: prep is upstream of the switch.
+      {
+        id: "prep-switch",
+        source: "prep",
+        target: "routeByPrepared",
+        type: "normal",
+      },
+      {
+        id: "route-ready",
+        source: "routeByPrepared",
+        target: "whenReady",
+        type: "conditional",
+        condition: "ready",
+      },
+      {
+        id: "route-default",
+        source: "routeByPrepared",
+        target: "whenMissing",
+        type: "conditional",
+        condition: "default",
+      },
+    ],
+  };
+}
+
+/**
  * A linear chain pre-organised into two groups with exposed parameters, so
  * grouping (6.2), exposed params (6.4), simplified view (6.3), node-type swap
  * (6.6) and auto-arrange (6.7) can all be exercised from one workflow.
@@ -906,6 +1017,7 @@ const DEMOS = [
       "**Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).",
       "On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.",
       'On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*\'s output port to *Submit OCR (auto-bound)*\'s input port — hover it for the same provenance text as the Inputs section (e.g. *"Connected automatically — nearest Document producer"*). *Lone Submit*\'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.',
+      '**Drag-to-bind:** drag from *Prepare*\'s `preparedData` **output port handle** to a compatible **input port handle** on another node — one gesture pins the data binding **and** the execution-order edge (the new wire hovers as *"Pinned by you"*). Incompatible ports dim during the drag and reject the drop with a yellow *"…can\'t be used here"* notice. Right-click a data wire → **Disconnect** / **Revert to automatic** to hand the port back to the resolver.',
     ],
   },
   {
@@ -953,6 +1065,7 @@ const DEMOS = [
       "**Collect results** (join) → the source-map picker lists **only map nodes**; **Wait until condition** (pollUntil) → activity picker + interval; **Wait for approval** (humanGate) → signal name, timeout, and the **On timeout** control (switch it to *Fallback* to reveal the fallback-edge picker).",
       "**Sub-workflow** (childWorkflow) → toggle **Library / Inline**; this demo ships an inline child graph.",
       "UX polish (Part 16): note the **three-zone top bar** and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.",
+      "**Kind-aware extend popover:** hover a **typed output port handle** and click the **➕** to extend — the popover is **filtered + ranked** to catalog activities that accept that port's kind (matching consumers float to the top), with a **Show all** escape back to the unfiltered list. Picking a filtered entry drops the node **pre-wired** — it lands with a pinned data wire already connected (drag-to-bind semantics).",
     ],
   },
   {
@@ -963,6 +1076,17 @@ const DEMOS = [
       "The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.",
       "**Route by review flag** (switch) draws **conditional** edges with `case[0]…` / `default` labels.",
       "Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.",
+    ],
+  },
+  {
+    key: "condition-step-ref",
+    title: "Conditions from node outputs — step picker (Part 4)",
+    config: conditionStepRefConfig,
+    steps: [
+      "Select **Route by prepared data** (the switch) → its settings open. Expand the first **case**'s **condition** — the `is-not-null` value field is in **Ref** mode and defaults to the **step→port picker** (not a raw-key field). It already shows the resolved caption **Prepare file → Prepared file data** because the ref points at *Prepare file*'s output (4.8/4.9).",
+      "The picker lists **every upstream output port** as a **\"Node → Port\"** row with the kind as a hint — there's **no kind filter** here (a condition can compare any value). This graph has one upstream producer, so you see the single *Prepare file → Prepared file data* row.",
+      "Click **\"Enter a variable manually\"** → the raw-key autocomplete appears (the escape hatch for a ctx key no step produces, 4.10/4.11); click **\"Back to steps\"** to return to the step picker.",
+      "The resolution round-trips: because *Prepare file* carries the matching `preparedData` output binding and sits upstream of the switch, the caption resolves on **load** — no Save needed. Saving + reloading keeps it resolved (not the raw `__auto.prep.preparedData` key), and at run time the producer's output is materialised into `ctx` so the condition evaluates against a real value (4.12).",
     ],
   },
   {

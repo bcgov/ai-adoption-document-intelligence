@@ -25,6 +25,7 @@ npm run seed:demos
 - [Node settings panel & canvas basics (Part 3)](#node-settings-panel-canvas-basics-part-3)
 - [Control-flow forms & condition editor (Part 4)](#controlflow-forms-condition-editor-part-4)
 - [Switch/error edges & validateFields editor (Part 5)](#switcherror-edges-validatefields-editor-part-5)
+- [Conditions from node outputs — step picker (Part 4)](#conditions-from-node-outputs-step-picker-part-4)
 - [Grouping, simplified view & node swap (Part 6)](#grouping-simplified-view-node-swap-part-6)
 - [Workflow-as-API — trigger URL & schema (Part 11)](#workflowasapi-trigger-url-schema-part-11)
 - [Document sources — file upload (Part 13)](#document-sources-file-upload-part-13)
@@ -56,6 +57,7 @@ npm run seed:demos
 1. **Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).
 1. On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.
 1. On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*'s output port to *Submit OCR (auto-bound)*'s input port — hover it for the same provenance text as the Inputs section (e.g. *"Connected automatically — nearest Document producer"*). *Lone Submit*'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.
+1. **Drag-to-bind:** drag from *Prepare*'s `preparedData` **output port handle** to a compatible **input port handle** on another node — one gesture pins the data binding **and** the execution-order edge (the new wire hovers as *"Pinned by you"*). Incompatible ports dim during the drag and reject the drop with a yellow *"…can't be used here"* notice. Right-click a data wire → **Disconnect** / **Revert to automatic** to hand the port back to the resolver.
 
 ---
 
@@ -103,6 +105,7 @@ npm run seed:demos
 1. **Collect results** (join) → the source-map picker lists **only map nodes**; **Wait until condition** (pollUntil) → activity picker + interval; **Wait for approval** (humanGate) → signal name, timeout, and the **On timeout** control (switch it to *Fallback* to reveal the fallback-edge picker).
 1. **Sub-workflow** (childWorkflow) → toggle **Library / Inline**; this demo ships an inline child graph.
 1. UX polish (Part 16): note the **three-zone top bar** and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.
+1. **Kind-aware extend popover:** hover a **typed output port handle** and click the **➕** to extend — the popover is **filtered + ranked** to catalog activities that accept that port's kind (matching consumers float to the top), with a **Show all** escape back to the unfiltered list. Picking a filtered entry drops the node **pre-wired** — it lands with a pinned data wire already connected (drag-to-bind semantics).
 
 ---
 
@@ -113,6 +116,17 @@ npm run seed:demos
 1. The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.
 1. **Route by review flag** (switch) draws **conditional** edges with `case[0]…` / `default` labels.
 1. Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.
+
+---
+
+## Conditions from node outputs — step picker (Part 4)
+
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-conditions-from-node-outputs-step-picker-part-4/edit](http://localhost:3000/workflows/by-slug/demo-conditions-from-node-outputs-step-picker-part-4/edit)
+
+1. Select **Route by prepared data** (the switch) → its settings open. Expand the first **case**'s **condition** — the `is-not-null` value field is in **Ref** mode and defaults to the **step→port picker** (not a raw-key field). It already shows the resolved caption **Prepare file → Prepared file data** because the ref points at *Prepare file*'s output (4.8/4.9).
+1. The picker lists **every upstream output port** as a **"Node → Port"** row with the kind as a hint — there's **no kind filter** here (a condition can compare any value). This graph has one upstream producer, so you see the single *Prepare file → Prepared file data* row.
+1. Click **"Enter a variable manually"** → the raw-key autocomplete appears (the escape hatch for a ctx key no step produces, 4.10/4.11); click **"Back to steps"** to return to the step picker.
+1. The resolution round-trips: because *Prepare file* carries the matching `preparedData` output binding and sits upstream of the switch, the caption resolves on **load** — no Save needed. Saving + reloading keeps it resolved (not the raw `__auto.prep.preparedData` key), and at run time the producer's output is materialised into `ctx` so the condition evaluates against a real value (4.12).
 
 ---
 
