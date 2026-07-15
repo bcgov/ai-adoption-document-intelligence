@@ -598,10 +598,7 @@ export class GroupController {
     @Body() dto: SetBillingCapDto,
     @Req() req: Request,
   ): Promise<GroupBillingConfigDto> {
-    const actorId =
-      req.resolvedIdentity?.actorId ??
-      req.resolvedIdentity?.userId ??
-      "unknown";
+    const actorId = req.resolvedIdentity?.actorId;
     return this.billingConfigService.upsertBillingCap(
       groupId,
       dto.monthly_cap_dollars,

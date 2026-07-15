@@ -96,12 +96,22 @@ export class UsageQueryService {
    * Results are ordered by period ascending, then activity name ascending.
    *
    * @param groupId - The group to query.
+   * @param startDate - An optional start date.
+   * @param endDate - An optional end date.
    */
   async getGroupActivityHistory(
     groupId: string,
+    startDate?: Date,
+    endDate?: Date,
   ): Promise<GroupActivityHistoryItemDto[]> {
     const events = await this.prismaService.prisma.usageEvent.findMany({
-      where: { group_id: groupId },
+      where: {
+        group_id: groupId,
+        created_at: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
       select: {
         activity_name: true,
         units_consumed: true,

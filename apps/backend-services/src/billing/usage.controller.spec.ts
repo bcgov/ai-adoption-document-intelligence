@@ -81,7 +81,7 @@ describe("UsageController", () => {
       expect(result).toEqual(breakdown);
       expect(
         mockUsageQueryService.getGroupActivityHistory,
-      ).toHaveBeenCalledWith("g-1");
+      ).toHaveBeenCalledWith("g-1", undefined, undefined);
     });
   });
 

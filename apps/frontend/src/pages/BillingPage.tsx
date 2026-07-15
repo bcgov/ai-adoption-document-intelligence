@@ -224,7 +224,10 @@ function GroupSpendingView() {
     useState<string>("workflow");
 
   const { data: history, isLoading } = useGroupUsageHistory(groupId);
-  const { data: activityHistory } = useGroupActivityHistory(groupId);
+  const { data: activityHistory } = useGroupActivityHistory(
+    groupId,
+    selectedPeriod,
+  );
 
   const periodOptions = useMemo(() => {
     const opts: Array<{ value: string; label: string }> = [

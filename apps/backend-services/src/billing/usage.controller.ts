@@ -1,11 +1,12 @@
 import { GroupRole } from "@generated/client";
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
 import {
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -125,6 +126,18 @@ export class UsageController {
   })
   @ApiUnauthorizedResponse({ description: "Unauthorized." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
+  @ApiQuery({
+    name: "startDate",
+    required: false,
+    description: "The starting date for activity filtering.",
+    type: String,
+  })
+  @ApiQuery({
+    name: "endDate",
+    required: false,
+    description: "The ending date for activity filtering. Inclusive.",
+    type: String,
+  })
   @Identity({
     groupIdFrom: { param: "groupId" },
     minimumRole: GroupRole.ADMIN,
@@ -132,8 +145,14 @@ export class UsageController {
   @Get("groups/:groupId/activity-history")
   async getGroupActivityHistory(
     @Param("groupId") groupId: string,
+    @Query("startDate") startDate?: string,
+    @Query("endDate") endDate?: string,
   ): Promise<GroupActivityHistoryItemDto[]> {
-    return this.usageQueryService.getGroupActivityHistory(groupId);
+    return this.usageQueryService.getGroupActivityHistory(
+      groupId,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
   }
 
   /**

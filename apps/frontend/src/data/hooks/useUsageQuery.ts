@@ -178,12 +178,45 @@ export interface GroupActivityHistoryItem {
  *
  * @param groupId - The group to query.
  */
-export function useGroupActivityHistory(groupId: string) {
+export function useGroupActivityHistory(groupId: string, period: string) {
+  // Determine startDate and endDate if needed
+  let startDate: string | undefined;
+  let endDate: string | undefined;
+  if (period !== "all") {
+    // Period will be yyyy-mm, e.g. 2026-7 for July 2026
+    const [year, month] = period.split("-");
+    // Start of the month: 1st day at 00:00:00.000
+    // Month is 0 index here, but 1 above, so subtract 1.
+    startDate = new Date(
+      Number(year),
+      Number(month) - 1,
+      1,
+      0,
+      0,
+      0,
+      0,
+    ).toISOString();
+    // End of the month: 0th day of the NEXT month rolls back to the last day at 23:59:59.999
+    endDate = new Date(
+      Number(year),
+      Number(month),
+      0,
+      23,
+      59,
+      59,
+      999,
+    ).toISOString();
+  }
   return useQuery({
-    queryKey: ["activity-history", groupId],
+    queryKey: ["activity-history", groupId, { startDate, endDate }],
     queryFn: async (): Promise<GroupActivityHistoryItem[]> => {
+      const params = new URLSearchParams();
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
+
       const response = await apiService.get<GroupActivityHistoryItem[]>(
-        `/usage/groups/${groupId}/activity-history`,
+        `/usage/groups/${groupId}/activity-history${queryString}`,
       );
       if (!response.success) {
         throw new Error(response.message ?? "Failed to fetch activity history");
