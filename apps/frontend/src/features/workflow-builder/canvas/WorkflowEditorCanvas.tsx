@@ -1320,7 +1320,15 @@ function projectFlowWires(
 ): Edge[] {
   return wires.map((wire) => {
     if (wire.variant === "data") {
-      const data: WorkflowEdgeData = { wire };
+      const producerNode = config.nodes[wire.source];
+      const peekProducerLabel = producerNode?.label ?? wire.source;
+      const peekPortLabel =
+        (producerNode?.type === "activity" || producerNode?.type === "pollUntil"
+          ? getActivityCatalogEntry(producerNode.activityType)?.outputs.find(
+              (o) => o.name === wire.sourcePort,
+            )?.label
+          : undefined) ?? wire.sourcePort;
+      const data: WorkflowEdgeData = { wire, peekProducerLabel, peekPortLabel };
       return {
         id: wire.id,
         source: wire.source,

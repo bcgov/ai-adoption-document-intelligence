@@ -45,6 +45,7 @@ import { colorForKind } from "./artifact-kind-colour";
 import type { DataWire, DerivedWire } from "./derive-wires";
 import { formatCaseLabel } from "./edge-labels";
 import { handleBackground } from "./handle-style";
+import { WirePeekPopover } from "./WirePeekPopover";
 
 /**
  * Shape of the `data` payload the canvas projection hands to
@@ -67,6 +68,10 @@ export interface WorkflowEdgeData {
   sourceSwitch?: SwitchNode;
   wire?: DerivedWire;
   isActive?: boolean;
+  /** Data wires only — producer step label for the peek header. */
+  peekProducerLabel?: string;
+  /** Data wires only — producer port label for the peek header. */
+  peekPortLabel?: string;
   [key: string]: unknown;
 }
 
@@ -217,7 +222,8 @@ function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
 export const WorkflowEdge = memo(function WorkflowEdge(
   props: EdgeProps & { data?: WorkflowEdgeData },
 ) {
-  const { id, sourceX, sourceY, targetX, targetY, markerEnd, data } = props;
+  const { id, sourceX, sourceY, targetX, targetY, markerEnd, data, selected } =
+    props;
 
   const [edgePath, labelX, labelY] = getStraightPath({
     sourceX,
@@ -240,6 +246,13 @@ export const WorkflowEdge = memo(function WorkflowEdge(
         strokeWidth: 2,
         ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
       };
+
+  // Wire data peek (Phase 4): mount the peek popover at the wire midpoint
+  // when a data wire's edge is selected. Narrow `DerivedWire` → `DataWire`
+  // via the discriminant here so the popover receives a `DataWire` without
+  // a cast.
+  const peekWire =
+    selected === true && data?.wire?.variant === "data" ? data.wire : null;
 
   const labelPillStyle: CSSProperties = {
     position: "absolute",
@@ -274,6 +287,24 @@ export const WorkflowEdge = memo(function WorkflowEdge(
         <EdgeLabelRenderer>
           <div data-testid="edge-label" style={labelPillStyle}>
             {label.text}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+      {peekWire ? (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+              pointerEvents: "all",
+              zIndex: 10,
+            }}
+          >
+            <WirePeekPopover
+              wire={peekWire}
+              producerLabel={data?.peekProducerLabel}
+              portLabel={data?.peekPortLabel}
+            />
           </div>
         </EdgeLabelRenderer>
       ) : null}

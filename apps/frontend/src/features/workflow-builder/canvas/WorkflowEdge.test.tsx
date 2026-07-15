@@ -14,6 +14,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { type EdgeProps, Position } from "@xyflow/react";
 import React from "react";
@@ -117,12 +118,17 @@ function makeSwitchNode(overrides: Partial<SwitchNode> = {}): SwitchNode {
 }
 
 function renderEdge(props: WorkflowEdgeProps) {
+  // `WirePeekPopover` (mounted when a data edge is selected) calls
+  // `useActivityOutputPreview` → `useQuery`, so the harness must supply a
+  // QueryClient even though the no-run branch never fires a fetch.
   return render(
-    <MantineProvider>
-      <svg>
-        <WorkflowEdge {...props} />
-      </svg>
-    </MantineProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <MantineProvider>
+        <svg>
+          <WorkflowEdge {...props} />
+        </svg>
+      </MantineProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -490,6 +496,60 @@ describe("wireTooltip", () => {
         makeDataWire({ auto: false, via: undefined, ctxKey: "sharedBlob" }),
       ),
     ).toBe("Connected — via sharedBlob");
+  });
+});
+
+describe("wire data peek mount", () => {
+  it("renders the peek popover when a data edge is selected", () => {
+    const wire = makeDataWire();
+    renderEdge(
+      makeEdgeProps({
+        id: wire.id,
+        source: wire.source,
+        target: wire.target,
+        data: { wire },
+        selected: true,
+      }),
+    );
+    expect(screen.getByTestId("wire-peek-popover")).toBeInTheDocument();
+  });
+
+  it("does not render the popover when the data edge is unselected", () => {
+    const wire = makeDataWire();
+    renderEdge(
+      makeEdgeProps({
+        id: wire.id,
+        source: wire.source,
+        target: wire.target,
+        data: { wire },
+        selected: false,
+      }),
+    );
+    expect(screen.queryByTestId("wire-peek-popover")).toBeNull();
+  });
+
+  it("does not render the popover for a selected sequence wire", () => {
+    const graphEdge: GraphEdge = {
+      id: "e-seq",
+      source: "A",
+      target: "B",
+      type: "normal",
+    };
+    const wire: StructuralWire = {
+      variant: "sequence",
+      id: graphEdge.id,
+      edge: graphEdge,
+    };
+    renderEdge(
+      makeEdgeProps({
+        id: graphEdge.id,
+        source: graphEdge.source,
+        target: graphEdge.target,
+        data: { wire, graphEdge },
+        selected: true,
+      }),
+    );
+    expect(screen.queryByTestId("wire-peek-popover")).toBeNull();
   });
 });
 
