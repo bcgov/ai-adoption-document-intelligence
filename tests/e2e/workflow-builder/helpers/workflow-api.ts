@@ -352,6 +352,7 @@ export function buildLinearConfig(opts?: {
     ctx: {
       blobKey: { type: "string" },
       fileName: { type: "string" },
+      documentId: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
       ocrResult: { type: "object" },
@@ -362,9 +363,15 @@ export function buildLinearConfig(opts?: {
         type: "activity",
         label: "Prepare File Data",
         activityType: "file.prepare",
+        // Bind the required base-`Artifact` `documentId` input (to the
+        // declared workflow variable) alongside the typed ports: since the
+        // identifier-ports-join-problems change, an unbound required
+        // identifier port is a validation warning, so leaving it unbound
+        // would make an otherwise-valid fixture read "not valid".
         inputs: [
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
+          { port: "documentId", ctxKey: "documentId" },
         ],
         outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
         ...pos(120, 80),

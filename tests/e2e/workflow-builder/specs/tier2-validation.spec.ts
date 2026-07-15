@@ -31,8 +31,13 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
 function buildConfigWithUnreachableNode(name: string): GraphConfig {
   const config = buildLinearConfig({ name, withPositions: true });
   // Orphan must independently pass every error-severity check (registered
-  // activityType, non-empty label, inputs bound to already-declared ctx keys),
-  // so the ONLY issue is that no edge reaches it → warning, not error.
+  // activityType, non-empty label, inputs bound to already-declared ctx keys)
+  // AND leave no OTHER warning — every required input, including the
+  // base-`Artifact` `documentId` identifier port (a warning when unbound
+  // since identifier ports joined the problems surface), is bound to a
+  // declared ctx key — so the ONLY issue is that no edge reaches it →
+  // exactly one reachability warning, not error. `documentId` is declared
+  // in `buildLinearConfig`'s ctx.
   config.nodes.orphan = {
     id: "orphan",
     type: "activity",
@@ -41,6 +46,7 @@ function buildConfigWithUnreachableNode(name: string): GraphConfig {
     inputs: [
       { port: "blobKey", ctxKey: "blobKey" },
       { port: "fileName", ctxKey: "fileName" },
+      { port: "documentId", ctxKey: "documentId" },
     ],
     metadata: { position: { x: 420, y: 340 } },
   };
