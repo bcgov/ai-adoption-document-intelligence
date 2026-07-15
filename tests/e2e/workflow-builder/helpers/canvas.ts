@@ -177,3 +177,41 @@ export async function dragConnect(
   await page.mouse.move(toX, toY, { steps: 8 });
   await page.mouse.up();
 }
+
+/**
+ * Drags from a source node's per-port OUTPUT handle to a target node's
+ * per-port INPUT handle — the §6.1 drag-to-bind gesture (PORT_WIRING_DESIGN.md).
+ * Unlike `dragConnect` (which targets the node-level handles), this drives
+ * the typed `out-<port>` / `in-<port>` handles `PortRows` mounts, exercising
+ * connect-time kind validation (§6.2) and pinning a binding on success.
+ *
+ * Same outer-edge grab technique as `dragConnect`: the handle dot straddles
+ * the card border and paints under the port-row content at its center, so a
+ * center mousedown never reaches the handle.
+ */
+export async function dragConnectPorts(
+  page: Page,
+  sourceId: string,
+  sourcePort: string,
+  targetId: string,
+  targetPort: string,
+): Promise<void> {
+  const sourceHandle = page.locator(
+    `.react-flow__node[data-id="${sourceId}"] .react-flow__handle[data-handleid="out-${sourcePort}"]`,
+  );
+  const targetHandle = page.locator(
+    `.react-flow__node[data-id="${targetId}"] .react-flow__handle[data-handleid="in-${targetPort}"]`,
+  );
+  const from = await sourceHandle.boundingBox();
+  const to = await targetHandle.boundingBox();
+  if (!from || !to) throw new Error("port handle not found for drag-connect");
+  const fromX = from.x + from.width - 1;
+  const fromY = from.y + from.height / 2;
+  const toX = to.x + 1;
+  const toY = to.y + to.height / 2;
+  await page.mouse.move(fromX, fromY);
+  await page.mouse.down();
+  await page.mouse.move((fromX + toX) / 2, (fromY + toY) / 2, { steps: 8 });
+  await page.mouse.move(toX, toY, { steps: 8 });
+  await page.mouse.up();
+}
