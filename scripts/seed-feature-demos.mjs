@@ -1006,6 +1006,7 @@ const DEMOS = [
       "Select the **Upload** source node → use **Upload & Try** and pick any PDF/image.",
       "Watch the per-node **run-status badges** go blue → green as the run executes (no Azure needed — this chain just prepares the file).",
       "The **Upload** node renders a **document preview** of what you uploaded.",
+      "**Click a data wire** (a coloured port-to-port wire) — a popover pops at the wire midpoint showing the exact value that flowed across it (a kind widget where one exists, else a truncated JSON snippet). Right-clicking the wire offers the same thing via **“View data.”** Click a wire *before* running and it reads **“Run to see the data flowing here.”**",
       "⚠️ Requires the Temporal **worker** + **deno-runner** to be running (the `dev: all` task).",
     ],
   },
