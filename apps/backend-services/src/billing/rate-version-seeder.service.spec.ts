@@ -195,6 +195,7 @@ describe("RateVersionSeederService", () => {
           expect.objectContaining({ activity_name: "training.template_model" }),
           expect.objectContaining({ activity_name: "training.classifier" }),
         ]),
+        skipDuplicates: true,
       });
       expect(mockAppLogger.log).toHaveBeenCalledWith(
         "Backfilled missing activity costs",

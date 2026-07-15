@@ -634,6 +634,7 @@ model ActivityCost {
   created_at      DateTime         @default(now())
 
   @@index([rate_version_id])
+  @@unique([rate_version_id, activity_name])
   @@map("activity_costs")
 }
 

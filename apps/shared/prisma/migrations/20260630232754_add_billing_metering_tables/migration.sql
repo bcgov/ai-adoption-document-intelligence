@@ -94,6 +94,9 @@ CREATE UNIQUE INDEX "rate_versions_version_key" ON "rate_versions"("version");
 CREATE INDEX "activity_costs_rate_version_id_idx" ON "activity_costs"("rate_version_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "activity_costs_rate_version_id_activity_name_key" ON "activity_costs"("rate_version_id", "activity_name");
+
+-- CreateIndex
 CREATE INDEX "usage_events_group_id_created_at_idx" ON "usage_events"("group_id", "created_at");
 
 -- CreateIndex

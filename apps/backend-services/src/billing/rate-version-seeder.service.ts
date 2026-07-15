@@ -61,6 +61,7 @@ export class RateVersionSeederService implements OnApplicationBootstrap {
             cost_type: cost.cost_type,
             units: cost.units,
           })),
+          skipDuplicates: true,
         });
         this.logger.log("Backfilled missing activity costs", {
           version: entry.version,
