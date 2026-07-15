@@ -22,13 +22,22 @@ function renderPopover(
     onPickActivity: overrides.onPickActivity ?? vi.fn(),
     onPickControlFlow: overrides.onPickControlFlow ?? vi.fn(),
     filterKind: overrides.filterKind,
+    gestureKey: overrides.gestureKey,
   };
   const utils = render(
     <MantineProvider>
       <HoverExtendPopover {...props} />
     </MantineProvider>,
   );
-  return { ...utils, props };
+  const rerender = (
+    next: Partial<React.ComponentProps<typeof HoverExtendPopover>>,
+  ) =>
+    utils.rerender(
+      <MantineProvider>
+        <HoverExtendPopover {...props} {...next} />
+      </MantineProvider>,
+    );
+  return { ...utils, props, rerender };
 }
 
 describe("HoverExtendPopover", () => {
@@ -169,6 +178,25 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
     expect(
       screen.queryByTestId("hover-extend-show-all"),
     ).not.toBeInTheDocument();
+  });
+
+  it("resets 'Show all' per gesture, so sliding to another same-kind port re-filters", () => {
+    const { rerender } = renderPopover({
+      filterKind: "Document",
+      gestureKey: "prep:preparedData",
+    });
+    // Expand to the full list on the first port.
+    fireEvent.click(screen.getByTestId("hover-extend-show-all"));
+    expect(
+      screen.getByTestId("hover-extend-activity-document.split"),
+    ).toBeInTheDocument();
+    // Slide to a DIFFERENT output port of the SAME kind: filterKind is
+    // unchanged, but the gesture identity changes → the view re-filters.
+    rerender({ filterKind: "Document", gestureKey: "prep:otherDocPort" });
+    expect(
+      screen.queryByTestId("hover-extend-activity-document.split"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("hover-extend-show-all")).toBeInTheDocument();
   });
 
   it("when zero activities accept the kind, falls back to the full list (no dead end)", () => {

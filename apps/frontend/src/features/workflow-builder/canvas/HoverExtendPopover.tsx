@@ -96,6 +96,15 @@ export interface HoverExtendPopoverProps {
    */
   filterKind?: KindRef;
   /**
+   * §9 — stable identity of the CURRENT extend gesture (the source node +
+   * output port it launched from). Used only to reset the "Show all" toggle
+   * per gesture: the popover can stay mounted across the 200ms close-grace
+   * while the cursor slides between two output ports of the SAME kind, so
+   * `filterKind` alone doesn't change and can't drive the reset. Keying the
+   * reset on this identity makes each fresh extend start filtered again.
+   */
+  gestureKey?: string;
+  /**
    * Optional hover-bridge callbacks — the host uses these to cancel /
    * re-arm its 200ms close timer when the cursor crosses from the handle
    * to the popover.
@@ -111,16 +120,19 @@ export function HoverExtendPopover({
   onPickActivity,
   onPickControlFlow,
   filterKind,
+  gestureKey,
   onMouseEnter,
   onMouseLeave,
 }: HoverExtendPopoverProps) {
   const [query, setQuery] = useState("");
-  // §9 — "Show all" escape hatch from the kind-filtered view. Reset whenever
-  // the source kind changes so a fresh extend always starts filtered.
+  // §9 — "Show all" escape hatch from the kind-filtered view. Reset per
+  // gesture (source node + port), not per kind: two ports of the same kind
+  // share a `filterKind`, so keying on the gesture identity is what makes a
+  // fresh extend start filtered again after a prior "Show all".
   const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     setShowAll(false);
-  }, [filterKind]);
+  }, [gestureKey]);
   const grouped = useMemo(() => getCatalogByCategory(), []);
 
   const filteredControlFlowEntries = useMemo(() => {

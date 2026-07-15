@@ -38,7 +38,10 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
-import { WorkflowEditorCanvas } from "./WorkflowEditorCanvas";
+import {
+  releaseAnchorFromEvent,
+  WorkflowEditorCanvas,
+} from "./WorkflowEditorCanvas";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -3753,6 +3756,33 @@ describe("WorkflowEditorCanvas — connect summary (§6.4)", () => {
 // input port (azureOcr.submit.fileData: Document). Real catalog activities
 // throughout so the kind lookups hit the actual registry.
 // ---------------------------------------------------------------------------
+
+describe("releaseAnchorFromEvent (§9)", () => {
+  it("reads client coords from a mouse event", () => {
+    expect(
+      releaseAnchorFromEvent({
+        clientX: 42,
+        clientY: 24,
+      } as unknown as MouseEvent),
+    ).toEqual({ x: 42, y: 24 });
+  });
+
+  it("reads client coords from the first changed touch", () => {
+    expect(
+      releaseAnchorFromEvent({
+        changedTouches: [{ clientX: 7, clientY: 8 }],
+      } as unknown as TouchEvent),
+    ).toEqual({ x: 7, y: 8 });
+  });
+
+  it("falls back to the origin for a touch event with no changed touches (e.g. touchcancel)", () => {
+    expect(
+      releaseAnchorFromEvent({
+        changedTouches: [],
+      } as unknown as TouchEvent),
+    ).toEqual({ x: 0, y: 0 });
+  });
+});
 
 describe("WorkflowEditorCanvas — kind-aware extend popover (§9)", () => {
   function makeExtendConfig(): GraphWorkflowConfig {

@@ -525,13 +525,17 @@ function makeSourceHandleHoverHandlers(
 /**
  * §9 — viewport coordinates of a connect-end release, handling both mouse
  * and touch. xyflow's `OnConnectEnd` hands a `MouseEvent | TouchEvent`.
+ * A touch event with an empty `changedTouches` (e.g. `touchcancel`) carries
+ * no coordinate, so we fall back to the origin rather than dereferencing an
+ * undefined touch — the popover still opens, just at the top-left.
  */
-function releaseAnchorFromEvent(event: MouseEvent | TouchEvent): {
+export function releaseAnchorFromEvent(event: MouseEvent | TouchEvent): {
   x: number;
   y: number;
 } {
   if ("clientX" in event) return { x: event.clientX, y: event.clientY };
   const touch = event.changedTouches[0];
+  if (!touch) return { x: 0, y: 0 };
   return { x: touch.clientX, y: touch.clientY };
 }
 
@@ -2715,9 +2719,10 @@ function WorkflowEditorCanvasInner({
         outputs,
         parameters: {},
       };
-      // §9 — extend launched from a typed output port + the picked activity
-      // has a compatible auto-wireable input → land it pre-wired. Otherwise
-      // (untyped source, Show-all pick, or no matching input) fall back to
+      // §9 — the pin is kind-driven, not view-driven: extend launched from a
+      // typed output port + the picked activity has a compatible auto-wireable
+      // input → land it pre-wired, EVEN when picked from the "Show all" view.
+      // Only an untyped source or a pick with no matching input falls back to
       // plain extend, which narrates the connection in the §6.4 summary.
       const kind: KindRef | undefined = sourcePort
         ? outputPortKind(config, sourceNodeId, sourcePort)
@@ -2863,6 +2868,7 @@ function WorkflowEditorCanvasInner({
                 )
               : undefined
           }
+          gestureKey={`${hoverExtend.nodeId}:${hoverExtend.sourcePort ?? ""}`}
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handlePopoverLeave}
         />
