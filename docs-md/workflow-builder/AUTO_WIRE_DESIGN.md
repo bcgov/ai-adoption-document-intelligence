@@ -46,6 +46,8 @@ For each consumer node `C`, for each declared input port `P` with a declared `ki
 
 The tie rule is deliberate. Silent guessing on ties is the failure mode that erodes trust; users will eventually find the wrong wire and not understand why it was chosen. An ambiguous chip plus a one-click picker is the right escalation.
 
+**2026-07-14 addition — `locked-unbound` (PORT_WIRING_DESIGN §6.3):** a locked port can also have *no* binding — the user deleted its data wire on the canvas ("pinned unbound"). `resolveInputPort` reports this fifth status, `locked-unbound`, whenever a port is in `lockedInputPorts` but has no `inputs[]` row (or its ctx key is empty). The resolver leaves it alone exactly like any other locked port — it does not re-derive a binding, which is the point: deleting a wire must not make it silently reappear. The UI renders `locked-unbound` as "Disconnected by you" (§12 vocabulary table) rather than "Needs a source", so the user can tell a deliberate disconnect apart from a port that was never wired.
+
 ### 2.2 CtxKey synthesis
 
 When the resolver auto-binds `(P on C) ← (Q on N)`:
@@ -249,7 +251,7 @@ The old JSON editor (`WorkflowEditorPage.tsx`) renders the raw JSON. It will sho
 
 ## 11. Open after this lands
 
-- **Auto-pick on hover-extend.** When the user uses hover-to-extend to add a new node from an existing one, the new node's inputs are immediately resolvable against the source — the panel can open in "all inputs auto-bound" green state without the user touching anything. This is a small UX polish on top of the resolver and is filed for the hover-extend milestone in Phase 1B.
+- **Auto-pick on hover-extend.** *Implemented 2026-07-14 (PORT_WIRING_DESIGN §9).* When the user uses hover-to-extend (or releases a port-to-port drag on empty canvas) to add a new node from an existing typed output, the popover filters/ranks catalog entries to ones with a compatible input, and picking one places the node with the matching port pre-wired (pinned) via the drag-to-bind writer — the new node lands with that input already resolved instead of the panel needing a separate pass.
 - **Auto-insert helper nodes.** When a port is unsatisfied with no candidate, suggest a catalog activity whose output produces the right kind — and on click, insert + connect it. ("You need a Segment here — add a Splitter?") Bigger lift; deferred.
 - **Lineage-aware ctx key minimization.** Today's synthesis is per-port-per-producer-node. A future optimisation could merge ctx keys when the same producer's output feeds multiple consumers (it already does — the producer-side output binding is reused — but the *consumer* side's ctx key is the producer's, so this is mostly already done). Revisit if synthesised keys become noisy in advanced view.
 - **AI agent integration.** Phase 7's agent constructs workflows by composing typed activities. The resolver makes the agent's job easier: the agent picks an activity, connects its execution edge, and the resolver fills bindings — the agent doesn't need to author them. Worth re-reading the Phase 7 design once the resolver is in.

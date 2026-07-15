@@ -93,14 +93,17 @@ function typedChainConfig(name) {
     schemaVersion: "1.0",
     metadata: { name },
     entryNodeId: "prep",
-    ctx: { blobKey: { type: "string" } },
+    ctx: { blobKey: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       prep: {
         id: "prep",
         type: "activity",
         label: "Prepare",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
         ...pos(80, 120),
       },
       submit: {
@@ -138,14 +141,17 @@ function autoWireConfig(name) {
     schemaVersion: "1.0",
     metadata: { name },
     entryNodeId: "prep",
-    ctx: { blobKey: { type: "string" } },
+    ctx: { blobKey: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       prep: {
         id: "prep",
         type: "activity",
         label: "Prepare",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
         ...pos(80, 120),
       },
       submit: {
@@ -172,14 +178,20 @@ function ambiguousConfig(name) {
     schemaVersion: "1.0",
     metadata: { name },
     entryNodeId: "prepA",
-    ctx: { blobKey: { type: "string" } },
+    ctx: { blobKey: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       prepA: {
         id: "prepA",
         type: "activity",
         label: "Prepare A",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        // documentId bound too — an unbound identifier port now also counts
+        // as a problem (Phase 3 amber-ring reconciliation), and the only
+        // issue this demo means to show is the sink's ambiguous input.
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
         ...pos(80, 80),
       },
       normB: {
@@ -216,6 +228,7 @@ function linearConfig(name, submitLabel = "Submit to Azure OCR") {
     ctx: {
       blobKey: { type: "string" },
       fileName: { type: "string" },
+      documentId: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
       ocrResult: { type: "object" },
@@ -227,6 +240,7 @@ function linearConfig(name, submitLabel = "Submit to Azure OCR") {
         label: "Prepare File Data",
         activityType: "file.prepare",
         inputs: [
+          { port: "documentId", ctxKey: "documentId" },
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
         ],
@@ -272,7 +286,12 @@ function validationWarningConfig(name) {
     type: "activity",
     label: "Orphan (unreachable)",
     activityType: "file.prepare",
+    // documentId bound too — otherwise the unbound identifier port would add
+    // a second problems-badge warning on top of the reachability warning
+    // this demo means to show, and the guide's "1 warning" step would be
+    // wrong.
     inputs: [
+      { port: "documentId", ctxKey: "documentId" },
       { port: "blobKey", ctxKey: "blobKey" },
       { port: "fileName", ctxKey: "fileName" },
     ],
@@ -286,7 +305,7 @@ function sourcePrepConfig(name) {
     schemaVersion: "1.0",
     metadata: { name },
     entryNodeId: "upload1",
-    ctx: { documentUrl: { type: "string" } },
+    ctx: { documentUrl: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       upload1: {
         id: "upload1",
@@ -301,7 +320,14 @@ function sourcePrepConfig(name) {
         type: "activity",
         label: "Prepare File Data",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        // documentId bound to a declared ctx var — the upload endpoint
+        // injects the real value into initialCtx.documentId at run time
+        // regardless of this binding; the binding itself only keeps the
+        // canvas warning-clean (Phase 3 amber-ring reconciliation).
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
         ...pos(460, 300),
       },
     },
@@ -321,14 +347,17 @@ function controlFlowConfig(name) {
     schemaVersion: "1.0",
     metadata: { name: "Inline child" },
     entryNodeId: "c1",
-    ctx: { blobKey: { type: "string" } },
+    ctx: { blobKey: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       c1: {
         id: "c1",
         type: "activity",
         label: "Prepare (inline)",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
       },
     },
     edges: [],
@@ -508,6 +537,7 @@ function edgesValidateConfig(name) {
     ctx: {
       blobKey: { type: "string" },
       fileName: { type: "string" },
+      documentId: { type: "string" },
       processedSegments: { type: "array" },
       validationResults: { type: "object" },
       requiresReview: { type: "boolean" },
@@ -520,6 +550,7 @@ function edgesValidateConfig(name) {
         label: "Prepare File Data",
         activityType: "file.prepare",
         inputs: [
+          { port: "documentId", ctxKey: "documentId" },
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
         ],
@@ -656,6 +687,7 @@ function groupingConfig(name) {
     ctx: {
       blobKey: { type: "string" },
       fileName: { type: "string" },
+      documentId: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
       modelId: { type: "string", defaultValue: "prebuilt-layout" },
@@ -669,6 +701,7 @@ function groupingConfig(name) {
         label: "Prepare File Data",
         activityType: "file.prepare",
         inputs: [
+          { port: "documentId", ctxKey: "documentId" },
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
         ],
@@ -752,6 +785,7 @@ function apiSourceConfig(name) {
     ctx: {
       documentUrl: { type: "string" },
       priority: { type: "number" },
+      documentId: { type: "string" },
     },
     nodes: {
       apiSource: {
@@ -785,7 +819,10 @@ function apiSourceConfig(name) {
         type: "activity",
         label: "Prepare File Data",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
         ...pos(460, 160),
       },
     },
@@ -805,7 +842,7 @@ function uploadSourceConfig(name) {
     schemaVersion: "1.0",
     metadata: { name },
     entryNodeId: "upload1",
-    ctx: { documentUrl: { type: "string" } },
+    ctx: { documentUrl: { type: "string" }, documentId: { type: "string" } },
     nodes: {
       upload1: {
         id: "upload1",
@@ -825,7 +862,10 @@ function uploadSourceConfig(name) {
         type: "activity",
         label: "Prepare File Data",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
         ...pos(460, 200),
       },
     },
@@ -1061,6 +1101,7 @@ function dynamicNodeConfig(name, slugName) {
     entryNodeId: "prep",
     ctx: {
       blobKey: { type: "string" },
+      documentId: { type: "string" },
       preparedFileData: { type: "object" },
     },
     nodes: {
@@ -1069,7 +1110,10 @@ function dynamicNodeConfig(name, slugName) {
         type: "activity",
         label: "Prepare",
         activityType: "file.prepare",
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
         outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
         ...pos(120, 140),
       },

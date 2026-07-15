@@ -1,6 +1,6 @@
 # Port-Level Data Wires — Making the Wire Carry the Data
 
-**Status:** Phases 1–2 implemented 2026-07-13 (plan: [`docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md`](../../../docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md)); Phases 3–5 pending.
+**Status:** Phases 1–3 implemented 2026-07-14 (plans: [`docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md`](../../../docs/superpowers/plans/2026-07-12-port-wiring-phase-1-2.md), [`docs/superpowers/plans/2026-07-13-port-wiring-phase-3.md`](../../../docs/superpowers/plans/2026-07-13-port-wiring-phase-3.md)); Phases 4–5 pending.
 **Supersedes:** the *canvas-surface* portion of [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A's single-handle canvas). The *engine* portion of that decision — ctx blackboard, node-level edges, single normal outgoing edge per activity — is unchanged and re-affirmed here.
 **Builds on:** [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) (kinds, registry, `isAssignable`) and [AUTO_WIRE_DESIGN.md](AUTO_WIRE_DESIGN.md) (resolver, locks, `__auto.` ctx keys). Both stay in force; this design changes what the user *sees and touches*, not how bindings work.
 
@@ -94,7 +94,7 @@ Creates the binding through the existing Change source mechanics (stamp consumer
 
 ### 6.2 Connect-time validation (first appearance of `isValidConnection`)
 
-While dragging from an output of kind `K`: ports where `isAssignable(K, expected)` holds highlight/enlarge; incompatible ports dim. Dropping on an incompatible port is rejected with a tooltip naming both kinds in plain language ("Segments (list) can't be used as a Document"). Wildcard (`Artifact`) ports accept any drop — a manual drag is an explicit choice, so no name-match restriction applies. Node-body drops (not on a port) fall through to §6.4.
+While dragging from an output of kind `K`: ports where `isAssignable(K, expected)` holds highlight/enlarge; incompatible ports dim. Dropping on an incompatible port is rejected with a notification naming both kinds in plain language. **Shipped copy** (2026-07-14): a kind mismatch reads *"This input needs `<TargetKind>` — `<SourceKind>` can't be used here"* (e.g. "This input needs Document — Segments (list) can't be used here"); dropping an output back onto an input on the same node reads *"A step can't feed itself"*. Wildcard (`Artifact`) ports accept any drop — a manual drag is an explicit choice, so no name-match restriction applies. Node-body drops (not on a port) fall through to §6.4.
 
 ### 6.3 Deleting a wire
 
@@ -125,6 +125,8 @@ Resolver semantics are untouched (nearest kind-assignable; exact-unique name mat
 **Open question (recommendation: yes, as a follow-up):** mint registry kinds for stable identifier chains — e.g. an opaque-reference family under `Reference` for `apimRequestId`-style tokens — so those ports gain color, compatibility filtering, and typed auto-wire instead of relying on exact-name matching. Deferred from this spec because it changes resolver behavior for those ports; the name-match path keeps working meanwhile.
 
 ## 9. Workstream: port-aware extend popover
+
+*Status: implemented 2026-07-14 (§9).*
 
 Hover-to-extend (and drag-to-empty-canvas release) becomes kind-aware: dragging from an output of kind `K` filters/ranks the popover to catalog entries with an input assignable from `K` ("what can I do with an OcrResult?"), with flow-control and a "show all" escape below. Picking an entry places the node **and** wires the matching port via §6.1 (satisfying [AUTO_WIRE_DESIGN §11](AUTO_WIRE_DESIGN.md)'s "auto-pick on hover-extend" follow-up). Dragging from an untyped port shows today's unfiltered popover.
 
@@ -175,16 +177,33 @@ Each phase ships independently and leaves the editor coherent:
    - Fixed a resolver bug (`732945ed`) where jsonb key-order normalization during write-back could clobber a producer's already-written output binding, silently dropping a downstream wire (surfaced as a missing extract→clean wire) — regression-tested in `resolver.test.ts`.
 
    **Known limitations of this slice, documented rather than silently deferred:**
-   - Data wires are render-only this phase — not deletable/selectable; drag-to-bind + delete semantics are Phase 3 (§6).
+   - ~~Data wires are render-only this phase — not deletable/selectable; drag-to-bind + delete semantics are Phase 3 (§6).~~ **Resolved in Phase 3** — see item 3 below.
    - Control-flow nodes (incl. pollUntil) and source nodes still render a single node-level handle per side — no port rows yet (§4.4 partially deferred).
    - Simplified view intentionally renders edge-only — group chips have anonymous handles, no data wires.
    - Node-to-node drag still creates control edges + triggers auto-wire underneath it, unchanged.
    - The uniform 482px dagre node width makes narrow/few-port graphs lay out sparsely; per-node width estimation is deferred.
    - Map-body container sizing still assumes fixed footprints, so a wide member card can protrude past the container border (pre-existing).
    - The activity height estimate calibrates to the preview-skeleton state — never-run cards render ~120px shorter, ready-state previews up to ~80px taller than estimated.
-   - The amber needs-source ring is broader than the problems badge/drawer: it also fires for required base-`Artifact` identifier ports, which the auto-wire issue pipeline (and Save validation) deliberately skip — reconcile in Phase 3 (§4.2 note).
+   - ~~The amber needs-source ring is broader than the problems badge/drawer: it also fires for required base-`Artifact` identifier ports, which the auto-wire issue pipeline (and Save validation) deliberately skip — reconcile in Phase 3 (§4.2 note).~~ **Resolved in Phase 3** — see item 3 below.
    - Map-body item data flow renders as a plain sequence wire — the resolver feeds the loop item through `itemCtxKey` without materializing a map-node output binding, so no map-item wire derives until §4.4's `item (T)` port lands (the `via: "map-item"` tooltip branch is forward-looking).
 3. **Gestures** (§6) + **port-aware popover** (§9) — drag-to-bind, connect-time validation, delete semantics, connect summary.
+   *Status: complete 2026-07-14.* Landed:
+   - Drag-to-bind (§6.1): per-port handles are connectable; a port-to-port drag writes the binding through `pinPortBinding` + ensures a control edge via `ensureEdgeBetween` (skips if one already connects the pair) — one gesture pins data + order in a single step.
+   - Connect-time kind validation (§6.2, `isValidConnection`): compatible input ports highlight/enlarge and incompatible ports dim while dragging from an output; dropping on an incompatible port is rejected with a yellow notice (kind-mismatch copy above); dropping an output back onto an input on the same node is rejected with a distinct self-drop notice ("A step can't feed itself"). Wildcard base-`Artifact` inputs accept any drop.
+   - Wire delete → `locked-unbound` (§6.3): deleting a data wire adds the target port to `lockedInputPorts` with no binding — a new resolver status, `locked-unbound` ("pinned unbound") — so the resolver doesn't silently re-create the wire. The port renders amber (`data-needs-source="true"`) and the settings drawer shows a "was disconnected" warning. If the pair's control edge survives (no other data wire between the nodes), a one-shot "Execution order kept — delete the dashed wire to fully detach." notification fires. Node deletion was also consolidated into a single `onDelete` pass (wires + edges + node in one mutation) rather than several sequential ones.
+   - Wire context menu (§7): right-click a data wire → **Disconnect** (always) / **Revert to automatic** (pinned wires only).
+   - Connect summary popover (§6.4): a node-level connect opens a transient popover narrating what auto-wire did — ✓ rows for auto-bound/pinned/ctx-bound ports, ⚠ rows for needs-a-source/ambiguous/disconnected ports with **Fix** deep-links — auto-dismissing after ~8s. Row resolution is shared with the settings panel via `settings/input-row-resolution.ts` so the two surfaces can't drift.
+   - Kind-aware extend popover (§9, `extend-filter.ts`): hovering a typed `out-<port>` handle (or releasing a port-to-port drag on empty canvas) opens the hover-extend popover filtered + ranked to catalog activities accepting that kind, with a "Show all" escape (`hover-extend-show-all`); picking a filtered entry places the node pre-wired (pinned) via the drag-to-bind writer.
+   - **Amber-ring reconciliation** (Alex's decision, closes the Phase-2 divergence noted above): required base-`Artifact` identifier ports (e.g. `file.prepare`'s `documentId`) now also count as problems — warnings in the unified badge/drawer, never blocking Save. The settings panel renders a ctx-bound identifier port as "from `<var>`" (not a false "Needs a source"), and a `locked-unbound` port as a "Disconnected" badge + Pick a source + Revert to automatic.
+   - New e2e suite `tier2-port-wiring` (5 tests) + a `dragConnectPorts` helper exercising the drag-to-bind round trip, incompatible-drop rejection, wire delete → revert, connect-summary popover, and kind-aware popover filtering.
+
+   **Known limitations of this slice:**
+   1. Reverse drags — a connect gesture *started from an input handle* — get no highlight/dim and no rejection notice; §6.2's highlight/notice only fire when dragging from an output. `isValidConnection` still blocks an incompatible drop either direction, so nothing invalid can be wired, but the drag-in-progress feedback is one-directional.
+   2. The settings panel still shows a yellow "Pick a source" pill for an `ambiguous` port that *also* carries a manual (non-auto) ctx binding, while the drawer stays quiet for the same port — a narrow panel/drawer divergence.
+   3. `ProducerPicker` offers no ctx-variable option, so "Change source" on a ctx-bound identifier port is a one-way door — once replaced with a producer, the original ctx binding can't be re-selected through the picker.
+   4. A stale auto-binding whose producer node was deleted keeps the amber ring **off** while the problems badge correctly warns — the badge is the truthful surface in that case, the ring is not.
+   5. "Revert to automatic" on a port pinned to a non-auto ctx key can re-lock across a save/reload via `normaliseLocks` (pre-existing behaviour, not introduced this phase).
+   6. Control-flow nodes (incl. `pollUntil`) and source nodes still render a single node-level handle per side — drag-to-bind covers activity nodes only. Simplified view stays edge-only (group chips have anonymous handles). Map-item wires remain deferred, unchanged from Phase 2 (§15 item 2's limitation above).
 4. **Wire data peek** (§10).
 5. **Conditions from node outputs** (§11).
 
@@ -192,7 +211,7 @@ Each phase ships independently and leaves the editor coherent:
 
 - **Canvas density** (§4.3) — watched, mitigations staged, judged at the Phase-2 prototype.
 - **Designer sign-off** — this supersedes a recorded veto of per-port handles ([WORKFLOW_NODE_IO_MODEL_DECISION.md §4](WORKFLOW_NODE_IO_MODEL_DECISION.md)); the superseding rationale is §1, but the original stakeholder should confirm.
-- **Delete-feel** (§6.3) — "pinned unbound + dashed remainder" is predictable but two-step; validate with a user before hardening in e2e.
+- **Delete-feel** (§6.3) — "pinned unbound + dashed remainder" is predictable but two-step; e2e now covers the delete → revert round-trip (`tier2-port-wiring`), but validating the *feel* with an actual user is still owed.
 - **Identifier kinds** (§8 open question) — deferred; decide after Phase 1 exposes how many `Artifact` wildcard ports remain.
 - **Multi-binding pairs** — several wires between the same two nodes are visually parallel (distinct port anchors); if long chains look noisy, bundle only at low zoom (deferred until seen).
 
