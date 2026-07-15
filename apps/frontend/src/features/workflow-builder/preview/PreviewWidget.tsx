@@ -32,11 +32,8 @@ import type { ReactNode } from "react";
 
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
-import { ClassificationPreview } from "./ClassificationPreview";
-import { DocumentPreview } from "./DocumentPreview";
-import { OcrResultPreview } from "./OcrResultPreview";
 import type { ActivityOutputPreview } from "./preview.types";
-import { SegmentArrayPreview } from "./SegmentArrayPreview";
+import { renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
 
 /**
@@ -155,24 +152,28 @@ export function PreviewWidget({
  */
 function renderForOutputKind(data: ActivityOutputPreview): ReactNode {
   const { outputKind, outputCtx } = data;
-  switch (outputKind) {
-    case "Document":
-    case "MultiPageDocument":
-    case "SinglePageDocument":
-      return <DocumentPreview value={outputCtx.document} />;
-    case "Segment[]":
-      return <SegmentArrayPreview value={outputCtx.segments} />;
-    case "OcrResult":
-    case "OcrFields":
-      return <OcrResultPreview value={outputCtx.ocrResult} />;
-    case "Classification":
-      return <ClassificationPreview value={outputCtx.classification} />;
-    default:
-      // null `outputKind` OR an unsupported kind (`Segment` singular,
-      // `OcrTable`, `ValidationResult`, `Reference`, `Artifact`, …).
-      // Renders nothing — Phase 4.x adds further widgets here.
-      return null;
-  }
+  const slot = ((): unknown => {
+    switch (outputKind) {
+      case "Document":
+      case "MultiPageDocument":
+      case "SinglePageDocument":
+        return outputCtx.document;
+      case "Segment[]":
+        return outputCtx.segments;
+      case "OcrResult":
+      case "OcrFields":
+        return outputCtx.ocrResult;
+      case "Classification":
+        return outputCtx.classification;
+      default:
+        // null `outputKind` OR an unsupported kind (`Segment` singular,
+        // `OcrTable`, `ValidationResult`, `Reference`, `Artifact`, …).
+        // `renderKindValue` returns null for these — Phase 4.x adds
+        // further widgets to the shared dispatch.
+        return undefined;
+    }
+  })();
+  return renderKindValue(outputKind, slot);
 }
 
 export interface NodePreviewOverlayProps {
