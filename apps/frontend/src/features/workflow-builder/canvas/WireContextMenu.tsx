@@ -12,6 +12,8 @@
  * responsible for not opening this component for those.
  *
  * Entries:
+ *   - "View data" — only shown when `canViewData` (a run has happened);
+ *     selects the edge to open the data peek popover.
  *   - "Disconnect" — always shown; same effect as deleting the wire via the
  *     keyboard/delete-key path (routes through the canvas's
  *     `disconnectWires` — pinned unbound + one-shot hint when applicable).
@@ -35,6 +37,10 @@ export interface WireContextMenuProps {
   y: number;
   /** The data wire the menu was opened for; null when closed. */
   wire: DataWire | null;
+  /** Whether the "View data" item should show (a run has happened). */
+  canViewData: boolean;
+  /** Open the data peek for this wire (selects the edge). */
+  onViewData: (wire: DataWire) => void;
   /** Fired when the menu should close (click-away, item action, Escape). */
   onClose: () => void;
   /** Disconnect the wire — same effect as deleting it. */
@@ -48,11 +54,18 @@ export function WireContextMenu({
   x,
   y,
   wire,
+  canViewData,
+  onViewData,
   onClose,
   onDisconnect,
   onRevert,
 }: WireContextMenuProps) {
   if (!opened || !wire) return null;
+
+  const handleViewData = () => {
+    onViewData(wire);
+    onClose();
+  };
 
   const handleDisconnect = () => {
     onDisconnect(wire);
@@ -98,6 +111,11 @@ export function WireContextMenu({
         />
       </Menu.Target>
       <Menu.Dropdown data-testid="wire-context-menu">
+        {canViewData && (
+          <Menu.Item data-testid="wire-menu-view-data" onClick={handleViewData}>
+            View data
+          </Menu.Item>
+        )}
         {wire.pinned && (
           <Menu.Item data-testid="wire-menu-revert" onClick={handleRevert}>
             Revert to automatic

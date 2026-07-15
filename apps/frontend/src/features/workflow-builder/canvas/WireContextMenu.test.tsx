@@ -36,11 +36,15 @@ function renderMenu(
     onClose?: () => void;
     onDisconnect?: (wire: DataWire) => void;
     onRevert?: (wire: DataWire) => void;
+    onViewData?: (wire: DataWire) => void;
+    canViewData?: boolean;
   } = {},
 ) {
   const onClose = callbacks.onClose ?? vi.fn();
   const onDisconnect = callbacks.onDisconnect ?? vi.fn();
   const onRevert = callbacks.onRevert ?? vi.fn();
+  const onViewData = callbacks.onViewData ?? vi.fn();
+  const canViewData = callbacks.canViewData ?? false;
   const utils = render(
     <MantineProvider>
       <WireContextMenu
@@ -48,13 +52,15 @@ function renderMenu(
         x={50}
         y={60}
         wire={wire}
+        canViewData={canViewData}
+        onViewData={onViewData}
         onClose={onClose}
         onDisconnect={onDisconnect}
         onRevert={onRevert}
       />
     </MantineProvider>,
   );
-  return { ...utils, onClose, onDisconnect, onRevert };
+  return { ...utils, onClose, onDisconnect, onRevert, onViewData };
 }
 
 describe("WireContextMenu — auto (unpinned) wire", () => {
@@ -110,6 +116,40 @@ describe("WireContextMenu — actions", () => {
     await user.click(screen.getByTestId("wire-menu-revert"));
     expect(onRevert).toHaveBeenCalledTimes(1);
     expect(onRevert).toHaveBeenCalledWith(wire);
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("WireContextMenu — View data", () => {
+  it("shows View data only when a run is available and fires onViewData", async () => {
+    const user = userEvent.setup();
+    const onViewData = vi.fn();
+    const onClose = vi.fn();
+
+    // No run yet → item absent.
+    const first = renderMenu(makeWire({ variant: "data" }), {
+      canViewData: false,
+      onViewData,
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-context-menu")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("wire-menu-view-data")).toBeNull();
+    first.unmount();
+
+    // Run available → item present and clickable.
+    renderMenu(makeWire({ variant: "data" }), {
+      canViewData: true,
+      onViewData,
+      onClose,
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-menu-view-data")).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("wire-menu-view-data"));
+    expect(onViewData).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "data" }),
+    );
     expect(onClose).toHaveBeenCalled();
   });
 });

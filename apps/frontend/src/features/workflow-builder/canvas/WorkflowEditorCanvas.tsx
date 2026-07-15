@@ -2240,6 +2240,15 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange],
   );
 
+  const handleWireViewData = useCallback(
+    (wire: DataWire) => {
+      setInternalEdges((eds) =>
+        eds.map((e) => ({ ...e, selected: e.id === wire.id })),
+      );
+    },
+    [setInternalEdges],
+  );
+
   // ---------------------------------------------------------------------------
   // Right-click context menu (US-046)
   // ---------------------------------------------------------------------------
@@ -2832,6 +2841,10 @@ function WorkflowEditorCanvasInner({
         x={wireMenu?.x ?? 0}
         y={wireMenu?.y ?? 0}
         wire={wireMenu?.wire ?? null}
+        canViewData={
+          runState?.activeRunId != null && runState.activeRunId !== ""
+        }
+        onViewData={handleWireViewData}
         onClose={closeWireMenu}
         onDisconnect={handleWireDisconnect}
         onRevert={handleWireRevert}
