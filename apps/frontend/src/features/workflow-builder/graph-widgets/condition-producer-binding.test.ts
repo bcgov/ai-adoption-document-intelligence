@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
+  GraphEdge,
   GraphNode,
   GraphWorkflowConfig,
+  PollUntilNode,
+  SwitchNode,
 } from "../../../types/workflow";
 import {
   ensureProducerOutputBinding,
@@ -105,5 +108,64 @@ describe("resolveCtxKeyToProducer", () => {
     const config = makeConfig([prepare("A", "Prep")]);
     expect(resolveCtxKeyToProducer(config, "handTyped")).toBeNull();
     expect(resolveCtxKeyToProducer(config, "")).toBeNull();
+  });
+
+  it("breaks ties to the nearest upstream producer with a consumerNodeId", () => {
+    // Two producers write the SAME ctx key at different distances from C.
+    const consumer: SwitchNode = {
+      id: "C",
+      type: "switch",
+      label: "Route",
+      cases: [],
+    };
+    const edges: GraphEdge[] = [
+      { id: "e1", source: "A", target: "B", type: "normal" },
+      { id: "e2", source: "B", target: "C", type: "normal" },
+    ];
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([
+        prepare("A", "First prep", [
+          { port: "preparedData", ctxKey: "shared" },
+        ]),
+        prepare("B", "Second prep", [
+          { port: "preparedData", ctxKey: "shared" },
+        ]),
+        consumer,
+      ]),
+      edges,
+    };
+    // B is 1 hop upstream of C, A is 2 hops → resolves to the nearer B.
+    expect(resolveCtxKeyToProducer(config, "shared", "C")).toEqual({
+      producerNodeId: "B",
+      nodeLabel: "Second prep",
+      port: "preparedData",
+      portLabel: "Prepared file data",
+    });
+    // Without a consumerNodeId, ties fall back to node-record order → A.
+    expect(resolveCtxKeyToProducer(config, "shared")).toEqual({
+      producerNodeId: "A",
+      nodeLabel: "First prep",
+      port: "preparedData",
+      portLabel: "Prepared file data",
+    });
+  });
+
+  it("resolves a pollUntil producer node", () => {
+    const poll: PollUntilNode = {
+      id: "P",
+      type: "pollUntil",
+      label: "Poll ready",
+      activityType: "file.prepare",
+      condition: { operator: "is-not-null", value: { ref: "x" } },
+      interval: "PT5S",
+      outputs: [{ port: "preparedData", ctxKey: "pollOut" }],
+    };
+    const config = makeConfig([poll]);
+    expect(resolveCtxKeyToProducer(config, "pollOut")).toEqual({
+      producerNodeId: "P",
+      nodeLabel: "Poll ready",
+      port: "preparedData",
+      portLabel: "Prepared file data",
+    });
   });
 });
