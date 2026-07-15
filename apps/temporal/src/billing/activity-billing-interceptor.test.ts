@@ -1,21 +1,35 @@
 import type { ActivityExecuteInput } from "@temporalio/worker";
-import {
-  ActivityBillingInterceptor,
-  type loadRateVersionContext,
-} from "./activity-billing-interceptor";
+import { ActivityBillingInterceptor } from "./activity-billing-interceptor";
 import type { UsageEventWriter } from "./usage-event-writer";
-
-type RateVersionContext = Awaited<ReturnType<typeof loadRateVersionContext>>;
 
 function makeRateVersionContext(
   activityCosts: [string, { cost_type: "flat" | "per_page"; units: number }][],
-): NonNullable<RateVersionContext> {
+) {
   return {
-    rateVersionId: "rv-1",
-    unitCostDollars: 0.001,
-    activityCosts: new Map(activityCosts),
+    id: "rv-1",
+    unit_cost_dollars: 0.001,
+    activity_costs: activityCosts.map((c) => ({
+      activity_name: c[0],
+      cost_type: c[1].cost_type,
+      units: c[1].units,
+    })),
   };
 }
+
+jest.mock("../activities/database-client", () => ({
+  getPrismaClient: () => {
+    return {
+      rateVersion: {
+        findFirst: jest.fn().mockResolvedValue(
+          makeRateVersionContext([
+            ["azureOcr.submit", { cost_type: "flat", units: 10 }],
+            ["azureOcr.extract", { cost_type: "per_page", units: 40 }],
+          ]),
+        ),
+      },
+    };
+  },
+}));
 
 function makeInput(args: unknown[]): ActivityExecuteInput {
   return { args, headers: {} } as ActivityExecuteInput;
@@ -55,10 +69,7 @@ describe("ActivityBillingInterceptor", () => {
   describe("execute", () => {
     it("Scenario 1/2: records flat-cost activity_completed event on success", async () => {
       mockActivityInfo.mockReturnValue(makeActivityInfoMock("azureOcr.submit"));
-      const ctx = makeRateVersionContext([
-        ["azureOcr.submit", { cost_type: "flat", units: 10 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
 
       await interceptor.execute(
         makeInput([{ groupId: "group-1", documentId: "doc-1" }]),
@@ -79,10 +90,7 @@ describe("ActivityBillingInterceptor", () => {
 
     it("Scenario 3: failed activity does not record a UsageEvent", async () => {
       mockActivityInfo.mockReturnValue(makeActivityInfoMock("azureOcr.submit"));
-      const ctx = makeRateVersionContext([
-        ["azureOcr.submit", { cost_type: "flat", units: 10 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
       next.mockRejectedValue(new Error("activity failed"));
 
       await expect(
@@ -96,8 +104,7 @@ describe("ActivityBillingInterceptor", () => {
       mockActivityInfo.mockReturnValue(
         makeActivityInfoMock("document.updateStatus"),
       );
-      const ctx = makeRateVersionContext([]); // empty rate version
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
 
       await interceptor.execute(makeInput([{ groupId: "group-1" }]), next);
 
@@ -108,10 +115,7 @@ describe("ActivityBillingInterceptor", () => {
       mockActivityInfo.mockReturnValue(
         makeActivityInfoMock("azureOcr.extract"),
       );
-      const ctx = makeRateVersionContext([
-        ["azureOcr.extract", { cost_type: "per_page", units: 40 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
       next.mockResolvedValue({ ocrResult: {}, _metered_quantity: 7 });
 
       await interceptor.execute(makeInput([{ groupId: "group-1" }]), next);
@@ -130,10 +134,7 @@ describe("ActivityBillingInterceptor", () => {
       mockActivityInfo.mockReturnValue(
         makeActivityInfoMock("azureOcr.extract"),
       );
-      const ctx = makeRateVersionContext([
-        ["azureOcr.extract", { cost_type: "per_page", units: 40 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
       next.mockResolvedValue({ ocrResult: {} }); // no _metered_quantity
 
       await interceptor.execute(makeInput([{ groupId: "group-1" }]), next);
@@ -145,10 +146,7 @@ describe("ActivityBillingInterceptor", () => {
       mockActivityInfo.mockReturnValue(
         makeActivityInfoMock("azureOcr.extract"),
       );
-      const ctx = makeRateVersionContext([
-        ["azureOcr.extract", { cost_type: "per_page", units: 40 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
       next.mockResolvedValue({ _metered_quantity: 0 });
 
       await interceptor.execute(makeInput([{ groupId: "group-1" }]), next);
@@ -158,10 +156,7 @@ describe("ActivityBillingInterceptor", () => {
 
     it("Scenario 8: no groupId in activity args — no event recorded", async () => {
       mockActivityInfo.mockReturnValue(makeActivityInfoMock("azureOcr.submit"));
-      const ctx = makeRateVersionContext([
-        ["azureOcr.submit", { cost_type: "flat", units: 10 }],
-      ]);
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
 
       await interceptor.execute(makeInput([{ documentId: "doc-1" }]), next);
 
@@ -170,11 +165,8 @@ describe("ActivityBillingInterceptor", () => {
 
     it("Scenario 9: billing write failure does not propagate (non-blocking)", async () => {
       mockActivityInfo.mockReturnValue(makeActivityInfoMock("azureOcr.submit"));
-      const ctx = makeRateVersionContext([
-        ["azureOcr.submit", { cost_type: "flat", units: 10 }],
-      ]);
       writer.recordUsageEvent.mockRejectedValue(new Error("DB error"));
-      const interceptor = new ActivityBillingInterceptor(writer, ctx);
+      const interceptor = new ActivityBillingInterceptor(writer);
 
       await expect(
         interceptor.execute(makeInput([{ groupId: "group-1" }]), next),

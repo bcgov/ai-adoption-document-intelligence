@@ -5,6 +5,7 @@ import type {
   ActivityInboundCallsInterceptor,
   Next,
 } from "@temporalio/worker";
+import { getPrismaClient } from "../activities/database-client";
 import { createActivityLogger } from "../logger";
 import { UsageEventWriter } from "./usage-event-writer";
 
@@ -65,10 +66,7 @@ export async function loadRateVersionContext(
 export class ActivityBillingInterceptor
   implements ActivityInboundCallsInterceptor
 {
-  constructor(
-    private readonly writer: UsageEventWriter,
-    private readonly rateVersionContext: RateVersionContext,
-  ) {}
+  constructor(private readonly writer: UsageEventWriter) {}
 
   async execute(
     input: ActivityExecuteInput,
@@ -85,8 +83,15 @@ export class ActivityBillingInterceptor
       return result;
     }
 
+    // Load billing rate version context for the activity interceptor (US-007/008)
+    const prisma = getPrismaClient();
+    const rateVersionContext = await loadRateVersionContext(prisma);
+    if (!rateVersionContext) {
+      return result;
+    }
+
     const { rateVersionId, unitCostDollars, activityCosts } =
-      this.rateVersionContext;
+      rateVersionContext;
     const costEntry = activityCosts.get(activityType);
 
     if (!costEntry) {

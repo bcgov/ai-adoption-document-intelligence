@@ -161,11 +161,20 @@ export class OcrService {
         );
 
       if (document.group_id) {
-        await this.preflightCapCheckService.checkCap(
-          document.group_id,
-          costEstimation.estimatedUnits,
-          costEstimation.unitCostDollars,
-        );
+        try {
+          await this.preflightCapCheckService.checkCap(
+            document.group_id,
+            costEstimation.estimatedUnits,
+            costEstimation.unitCostDollars,
+          );
+        } catch (e) {
+          // Cap check throws if a cap was reached.
+          // We'll mark document as failed and re-throw the error
+          this.documentService.updateDocument(document.id, {
+            status: DocumentStatus.failed,
+          });
+          throw e;
+        }
       }
 
       // Start Temporal graph workflow

@@ -58,12 +58,12 @@ describe("recordLedgerWrite", () => {
         group_id: "group-abc",
         blob_key: "group-abc/docs/file.pdf",
         size_bytes: BigInt(2048),
-        written_at: new Date(),
+        written_at: expect.any(Date),
         deleted_at: null,
       },
       update: {
         size_bytes: BigInt(2048),
-        written_at: new Date(),
+        written_at: expect.any(Date),
         deleted_at: null,
       },
     });

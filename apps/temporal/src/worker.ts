@@ -14,10 +14,7 @@ import type { ActivityInterceptorsFactory } from "@temporalio/worker";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getPrismaClient } from "./activities/database-client";
 import { getActivityRegistry } from "./activity-registry";
-import {
-  ActivityBillingInterceptor,
-  loadRateVersionContext,
-} from "./billing/activity-billing-interceptor";
+import { ActivityBillingInterceptor } from "./billing/activity-billing-interceptor";
 import {
   runMonthEndArchival,
   runNightlyStorageCharge,
@@ -274,21 +271,14 @@ async function run() {
 
   // Load billing rate version context for the activity interceptor (US-007/008)
   const prisma = getPrismaClient();
-  const rateVersionContext = await loadRateVersionContext(prisma);
   const billingWriter = new UsageEventWriter(prisma);
 
   // Initialize storage ledger instrumentation
   initStorageLedger(prisma);
 
   const billingInterceptorFactory: ActivityInterceptorsFactory = (_ctx) => {
-    if (!rateVersionContext) {
-      return {};
-    }
     return {
-      inbound: new ActivityBillingInterceptor(
-        billingWriter,
-        rateVersionContext,
-      ),
+      inbound: new ActivityBillingInterceptor(billingWriter),
     };
   };
 
