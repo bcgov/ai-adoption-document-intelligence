@@ -567,7 +567,7 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ requireSystemAdmin: true })
+  @Identity({ groupIdFrom: { param: "groupId" } })
   @Get(":groupId/billing-config")
   async getGroupBillingConfig(
     @Param("groupId") groupId: string,
@@ -591,7 +591,7 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ requireSystemAdmin: true })
+  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: "ADMIN" })
   @Patch(":groupId/billing-config")
   async setGroupBillingCap(
     @Param("groupId") groupId: string,

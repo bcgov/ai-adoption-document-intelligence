@@ -4,6 +4,7 @@ import {
   IconLockOpen,
 } from "@tabler/icons-react";
 import { type JSX, useMemo, useState } from "react";
+import { Navigate } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -426,7 +427,7 @@ function GroupSpendingView() {
 }
 
 /** Spending cap section — monthly cap management for the active group. */
-function SpendingCapView({ isSystemAdmin }: { isSystemAdmin: boolean }) {
+function SpendingCapView() {
   const { activeGroup } = useGroup();
   const groupId = activeGroup?.id ?? "";
   const [editingCap, setEditingCap] = useState(false);
@@ -560,16 +561,14 @@ function SpendingCapView({ isSystemAdmin }: { isSystemAdmin: boolean }) {
                   </Badge>
                 </>
               )}
-              {isSystemAdmin && (
-                <Button
-                  variant="subtle"
-                  size="xs"
-                  onClick={handleStartEdit}
-                  data-testid="billing-edit-cap-btn"
-                >
-                  {currentCap !== null ? "Change cap" : "Set cap"}
-                </Button>
-              )}
+              <Button
+                variant="subtle"
+                size="xs"
+                onClick={handleStartEdit}
+                data-testid="billing-edit-cap-btn"
+              >
+                {currentCap !== null ? "Change cap" : "Set cap"}
+              </Button>
             </Group>
           ) : (
             <Stack gap="sm" maw={360}>
@@ -752,6 +751,12 @@ function RateVersionsView() {
  */
 export function BillingPage(): JSX.Element {
   const { isSystemAdmin } = useAuth();
+  const group = useGroup();
+  const isAdmin = isSystemAdmin || group.activeGroup?.role === "ADMIN";
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <Stack gap="lg">
@@ -779,7 +784,7 @@ export function BillingPage(): JSX.Element {
           </Tabs.Panel>
 
           <Tabs.Panel value="cap" pt="md">
-            <SpendingCapView isSystemAdmin={isSystemAdmin} />
+            <SpendingCapView />
           </Tabs.Panel>
 
           <Tabs.Panel value="rates" pt="md">
