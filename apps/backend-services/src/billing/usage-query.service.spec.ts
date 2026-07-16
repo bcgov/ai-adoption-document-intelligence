@@ -1,6 +1,7 @@
-import { NotFoundException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
+import { UsageEventType } from "@/generated";
 import { UsageQueryService } from "./usage-query.service";
 
 const mockPrisma = {
@@ -14,6 +15,29 @@ const mockPrisma = {
   },
   usageEvent: {
     findMany: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue({
+      rate_version: {
+        id: "123",
+        created_at: new Date(),
+        version: "1.0.0",
+        effective_from: new Date(),
+        unit_cost_dollars: 0.001,
+        units_per_gb_per_month: 0.1,
+        max_pages_assumption: 10,
+        max_array_items_assumption: 3,
+      },
+      id: "abc",
+      group_id: "group-1",
+      created_at: new Date(),
+      event_type: UsageEventType.activity_completed,
+      workflow_execution_id: "abc-123",
+      workflow_version_id: "1.0.0",
+      activity_name: "azureOcr.submit",
+      metered_quantity: 3,
+      units_consumed: 2,
+      unit_cost_dollars: 3,
+      rate_version_id: "132112",
+    }),
   },
   group: {
     findMany: jest.fn(),
@@ -30,7 +54,7 @@ const mockPrisma = {
 const mockPrismaService = { prisma: mockPrisma };
 
 function makeDecimal(n: number) {
-  return { toNumber: () => n };
+  return { toNumber: () => n, equals: (v: number) => n === v };
 }
 
 describe("UsageQueryService", () => {
@@ -146,82 +170,267 @@ describe("UsageQueryService", () => {
   // ---------------------------------------------------------------------------
   // getRunDetail
   // ---------------------------------------------------------------------------
-  // describe("getRunDetail", () => {
-  //   it("throws NotFoundException when no events exist for the execution", async () => {
-  //     mockPrisma.usageEvent.findMany.mockResolvedValue([]);
-  //     await expect(service.getRunDetail("group-1", "exec-abc")).rejects.toThrow(
-  //       NotFoundException,
-  //     );
-  //   });
+  describe("getRunDetail", () => {
+    it("throws NotFoundException when no events exist for the execution", async () => {
+      mockPrisma.usageEvent.findFirst.mockResolvedValue(null);
+      await expect(service.getRunDetail("group-1", "exec-abc")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
 
-  //   it("throws ForbiddenException when execution belongs to a different group", async () => {
-  //     mockPrisma.usageEvent.findMany.mockResolvedValue([
-  //       {
-  //         id: "evt-1",
-  //         group_id: "group-other",
-  //         event_type: "workflow_started",
-  //         activity_name: null,
-  //         units_consumed: makeDecimal(0),
-  //         estimated_units: null,
-  //         metered_quantity: null,
-  //         created_at: new Date(),
-  //         rate_version: { unit_cost_dollars: makeDecimal(0.001) },
-  //       },
-  //     ]);
+    it("throws ForbiddenException when execution belongs to a different group", async () => {
+      const createdAt = new Date("2026-06-01T10:00:00Z");
+      mockPrisma.usageEvent.findFirst.mockResolvedValue({
+        id: "evt-1",
+        group_id: "group-other",
+        event_type: "workflow_cost",
+        activity_name: null,
+        units_consumed: makeDecimal(10),
+        estimated_units: null,
+        metered_quantity: null,
+        created_at: createdAt,
+        workflow_version_id: "v1",
+        rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+      });
 
-  //     await expect(service.getRunDetail("group-1", "exec-abc")).rejects.toThrow(
-  //       ForbiddenException,
-  //     );
-  //   });
+      await expect(service.getRunDetail("group-1", "exec-abc")).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
 
-  //   it("returns correct run detail with dollar values computed", async () => {
-  //     const createdAt = new Date("2026-06-01T10:00:00Z");
-  //     mockPrisma.usageEvent.findMany.mockResolvedValue([
-  //       {
-  //         id: "evt-1",
-  //         group_id: "group-1",
-  //         event_type: "workflow_started",
-  //         activity_name: null,
-  //         units_consumed: makeDecimal(0),
-  //         estimated_units: makeDecimal(50),
-  //         metered_quantity: null,
-  //         created_at: createdAt,
-  //         rate_version: { unit_cost_dollars: makeDecimal(0.001) },
-  //       },
-  //       {
-  //         id: "evt-2",
-  //         group_id: "group-1",
-  //         event_type: "activity_completed",
-  //         activity_name: "azureOcr.extract",
-  //         units_consumed: makeDecimal(40),
-  //         estimated_units: null,
-  //         metered_quantity: 4,
-  //         created_at: createdAt,
-  //         rate_version: { unit_cost_dollars: makeDecimal(0.001) },
-  //       },
-  //       {
-  //         id: "evt-3",
-  //         group_id: "group-1",
-  //         event_type: "workflow_completed",
-  //         activity_name: null,
-  //         units_consumed: makeDecimal(40),
-  //         estimated_units: null,
-  //         metered_quantity: null,
-  //         created_at: createdAt,
-  //         rate_version: { unit_cost_dollars: makeDecimal(0.001) },
-  //       },
-  //     ]);
+    it("returns correct run detail with dollar values computed", async () => {
+      const createdAt = new Date("2026-06-01T10:00:00Z");
+      mockPrisma.usageEvent.findFirst.mockResolvedValue({
+        id: "evt-2",
+        group_id: "group-1",
+        event_type: "workflow_cost",
+        activity_name: null,
+        units_consumed: makeDecimal(40),
+        estimated_units: makeDecimal(50),
+        metered_quantity: 4,
+        created_at: createdAt,
+        workflow_version_id: "v-1",
+        rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+      });
 
-  //     const result = await service.getRunDetail("group-1", "exec-abc");
+      const result = await service.getRunDetail("group-1", "exec-abc");
 
-  //     expect(result.workflow_execution_id).toBe("exec-abc");
-  //     expect(result.estimated_units).toBe(50);
-  //     expect(result.total_units_consumed).toBe(40);
-  //     expect(result.events).toHaveLength(3);
-  //     expect(result.events[1].dollar_value).toBe(0.04); // 40 * 0.001
-  //     expect(result.events[1].metered_quantity).toBe(4);
-  //   });
-  // });
+      expect(result.workflow_execution_id).toBe("exec-abc");
+      expect(result.group_id).toBe("group-1");
+      expect(result.estimated_units).toBe(50);
+      expect(result.total_units_consumed).toBe(40);
+      expect(result.units_consumed).toBe(40);
+      expect(result.dollar_value).toBeCloseTo(0.04);
+      expect(result.workflow_version_id).toBe("v-1");
+    });
+
+    it("returns null estimated_units when event has no estimated_units", async () => {
+      const createdAt = new Date("2026-06-01T10:00:00Z");
+      mockPrisma.usageEvent.findFirst.mockResolvedValue({
+        id: "evt-3",
+        group_id: "group-1",
+        event_type: "workflow_cost",
+        activity_name: null,
+        units_consumed: makeDecimal(5),
+        estimated_units: null,
+        metered_quantity: null,
+        created_at: createdAt,
+        workflow_version_id: "v-2",
+        rate_version: { unit_cost_dollars: makeDecimal(0.01) },
+      });
+
+      const result = await service.getRunDetail("group-1", "exec-abc");
+      expect(result.estimated_units).toBeNull();
+      expect(result.workflow_version_id).toBe("v-2");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getGroupActivityHistory
+  // ---------------------------------------------------------------------------
+  describe("getGroupActivityHistory", () => {
+    it("returns empty array when no events exist", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([]);
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toEqual([]);
+    });
+
+    it("skips events with zero units_consumed", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(0),
+          created_at: new Date("2026-06-15T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toEqual([]);
+    });
+
+    it("groups a single activity_completed event by activity_name", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(10),
+          created_at: new Date("2026-06-15T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.002) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toHaveLength(1);
+      expect(result[0].period_year).toBe(2026);
+      expect(result[0].period_month).toBe(6);
+      expect(result[0].event_type).toBe("activity_completed");
+      expect(result[0].units_consumed).toBe(10);
+      expect(result[0].dollars_spent).toBeCloseTo(0.02);
+      expect(result[0].activities["azureOcr.extract"]).toEqual({
+        units_consumed: 10,
+        dollars_spent: expect.closeTo(0.02),
+      });
+    });
+
+    it("uses workflow_version_id as activity key for workflow_cost events", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: null,
+          units_consumed: makeDecimal(20),
+          created_at: new Date("2026-06-15T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "workflow_cost",
+          workflow_version_id: "workflow-v2",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toHaveLength(1);
+      expect(result[0].event_type).toBe("workflow_cost");
+      expect(result[0].activities["workflow-v2"]).toBeDefined();
+      expect(result[0].activities["workflow-v2"].units_consumed).toBe(20);
+    });
+
+    it("falls back to 'other' when activity_name is null for non-workflow_cost events", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: null,
+          units_consumed: makeDecimal(5),
+          created_at: new Date("2026-06-15T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: null,
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result[0].activities["other"]).toBeDefined();
+      expect(result[0].activities["other"].units_consumed).toBe(5);
+    });
+
+    it("aggregates multiple events in the same bucket", async () => {
+      const date = new Date("2026-06-15T00:00:00Z");
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(10),
+          created_at: date,
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(5),
+          created_at: date,
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toHaveLength(1);
+      expect(result[0].units_consumed).toBe(15);
+      expect(result[0].activities["azureOcr.extract"].units_consumed).toBe(15);
+    });
+
+    it("produces separate buckets for different activity types in same month", async () => {
+      const date = new Date("2026-06-15T00:00:00Z");
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(10),
+          created_at: date,
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+        {
+          activity_name: "formRecognizer.analyze",
+          units_consumed: makeDecimal(8),
+          created_at: date,
+          rate_version: { unit_cost_dollars: makeDecimal(0.002) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      // Same event_type + workflow_version_id → same bucket
+      expect(result).toHaveLength(1);
+      expect(result[0].units_consumed).toBe(18);
+      expect(result[0].activities["azureOcr.extract"]).toBeDefined();
+      expect(result[0].activities["formRecognizer.analyze"]).toBeDefined();
+    });
+
+    it("produces separate results for different months, sorted ascending", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(10),
+          created_at: new Date("2026-07-10T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+        {
+          activity_name: "azureOcr.extract",
+          units_consumed: makeDecimal(5),
+          created_at: new Date("2026-06-10T00:00:00Z"),
+          rate_version: { unit_cost_dollars: makeDecimal(0.001) },
+          event_type: "activity_completed",
+          workflow_version_id: "v1",
+        },
+      ]);
+
+      const result = await service.getGroupActivityHistory("group-1");
+      expect(result).toHaveLength(2);
+      expect(result[0].period_month).toBe(6);
+      expect(result[1].period_month).toBe(7);
+    });
+
+    it("passes date filters through to the Prisma query", async () => {
+      mockPrisma.usageEvent.findMany.mockResolvedValue([]);
+      const start = new Date("2026-01-01");
+      const end = new Date("2026-06-30");
+
+      await service.getGroupActivityHistory("group-1", start, end);
+
+      expect(mockPrisma.usageEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            group_id: "group-1",
+            created_at: { gte: start, lte: end },
+          }),
+        }),
+      );
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // getAllGroupsSummary
