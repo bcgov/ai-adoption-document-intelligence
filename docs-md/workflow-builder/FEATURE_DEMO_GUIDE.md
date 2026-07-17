@@ -44,7 +44,7 @@ npm run seed:demos
 1. Look at the node cards: every catalog port now gets its own **row** with a kind-coloured handle + label — inputs down the left edge, outputs down the right. **Submit OCR**'s several same-kind outputs each get their own row instead of collapsing into one grey handle.
 1. Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResponse: OcrResult — …`).
 1. Click **Extract** — all 5 of its input rows are visible directly on the card; the old below-node "stacked pill" is gone.
-1. Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill; a required input with nothing wired shows an amber ring on its handle.
+1. Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill. Here the `ocrResponse` input is auto-satisfied from **Extract** upstream, so its handle stays clean — the amber unsatisfied-ring appears in the Auto-wire demos below (e.g. *Lone Submit*), not here.
 
 ---
 
