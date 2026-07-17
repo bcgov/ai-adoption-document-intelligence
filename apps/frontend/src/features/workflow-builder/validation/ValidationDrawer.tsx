@@ -223,18 +223,32 @@ export function ValidationDrawer({
                 </Group>
               </Group>
               <Stack gap={6}>
-                {errs.map((err, i) => (
-                  <IssueRow
-                    key={`${err.path}-${i}`}
-                    error={err}
-                    onClick={() => handleIssueClick(err, nodeId)}
-                    actionHint={
-                      parseInputPortPath(err.path)
-                        ? "pick-source"
-                        : "select-node"
-                    }
-                  />
-                ))}
+                {errs.map((err, i) => {
+                  const isInput = parseInputPortPath(err.path) != null;
+                  // Node-scoped mode: the node is already selected, so
+                  // "Select node →" on a non-input row is a redundant no-op.
+                  // Drop the hint and make the row explain-only. Input rows
+                  // keep their picker deep-link in both modes.
+                  const explainOnly = isFiltered && !isInput;
+                  return (
+                    <IssueRow
+                      key={`${err.path}-${i}`}
+                      error={err}
+                      onClick={
+                        explainOnly
+                          ? undefined
+                          : () => handleIssueClick(err, nodeId)
+                      }
+                      actionHint={
+                        explainOnly
+                          ? undefined
+                          : isInput
+                            ? "pick-source"
+                            : "select-node"
+                      }
+                    />
+                  );
+                })}
               </Stack>
             </Box>
           );

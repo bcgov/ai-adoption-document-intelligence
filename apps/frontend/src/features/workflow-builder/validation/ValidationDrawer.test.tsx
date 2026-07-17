@@ -258,6 +258,88 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
     expect(screen.getByText(/no problems on this node/i)).toBeInTheDocument();
   });
 
+  it("drops the 'Select node' hint and is non-interactive for a non-input row in filtered mode", () => {
+    const onSelectNode = vi.fn();
+    const onClose = vi.fn();
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={onClose}
+        result={makeResult([
+          {
+            path: "nodes.Z",
+            message: "Node is not reachable from entry node",
+            severity: "warning",
+          },
+        ])}
+        config={multiConfig}
+        onSelectNode={onSelectNode}
+        onFixNodeInput={vi.fn()}
+        filterNodeId="Z"
+        onShowAll={vi.fn()}
+      />,
+    );
+    // Message still explains the problem.
+    const msg = screen.getByText(/not reachable/i);
+    expect(msg).toBeInTheDocument();
+    // No redundant "Select node →" hint.
+    expect(screen.queryByText(/select node/i)).not.toBeInTheDocument();
+    // Row is not interactive (not rendered as a button).
+    expect(msg.closest("button")).toBeNull();
+    // Clicking does nothing.
+    fireEvent.click(msg);
+    expect(onSelectNode).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the 'Pick a source' hint + picker deep-link for an input row in filtered mode", () => {
+    const onFixNodeInput = vi.fn();
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          {
+            path: "nodes.Z.inputs.fileData",
+            message: 'Input "fileData" needs a source',
+            severity: "warning",
+          },
+        ])}
+        config={multiConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={onFixNodeInput}
+        filterNodeId="Z"
+        onShowAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/pick a source/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/"fileData" needs a source/));
+    expect(onFixNodeInput).toHaveBeenCalledWith("Z", "fileData");
+  });
+
+  it("keeps the 'Select node' hint + selection for a non-input row in unfiltered mode", () => {
+    const onSelectNode = vi.fn();
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          {
+            path: "nodes.Z",
+            message: "Node is not reachable from entry node",
+            severity: "warning",
+          },
+        ])}
+        config={multiConfig}
+        onSelectNode={onSelectNode}
+        onFixNodeInput={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/select node/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/not reachable/i));
+    expect(onSelectNode).toHaveBeenCalledWith("Z");
+  });
+
   it("unfiltered mode still lists every node's bucket (regression)", () => {
     mount(
       <ValidationDrawer
