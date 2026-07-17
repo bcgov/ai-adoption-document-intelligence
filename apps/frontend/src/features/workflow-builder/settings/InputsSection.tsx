@@ -1,13 +1,17 @@
 import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
 import {
+  ActionIcon,
   Badge,
+  Box,
   Button,
   Group,
+  Menu,
   Modal,
   Stack,
   Text,
   Tooltip,
 } from "@mantine/core";
+import { IconDots } from "@tabler/icons-react";
 import { useState } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
@@ -245,137 +249,221 @@ function PortRow({
       : undefined;
   const handleRowLeave =
     interactive && onHoverProducer ? () => onHoverProducer(null) : undefined;
-  // Inner action buttons (Change source / Revert) must not also trigger the
-  // row-level jump — stop the click from bubbling to the row container.
+  // The `⋯` overflow-menu trigger, its menu items, and the inline primary
+  // button must not also trigger the row-level jump. Wrapping the whole
+  // trailing action cell in a `stopPropagation` click handler catches every
+  // in-cell click (primary button + the menu trigger) before it bubbles to
+  // the row container. Menu items render in a portal (outside this subtree),
+  // so their clicks never reach the row anyway.
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
-  const renderBody = () => {
-    switch (resolution.status) {
-      case "auto-bound":
-        return (
-          <Group gap={6} wrap="nowrap">
-            <Text size="xs">←</Text>
-            <Text size="xs">{producerLabel}</Text>
-            <Tooltip label="Connected automatically">
-              <Badge size="xs" color="green" variant="light">
-                Auto
-              </Badge>
-            </Tooltip>
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={(e) => {
-                stop(e);
-                onOverride();
-              }}
-            >
-              Change source
-            </Button>
-          </Group>
-        );
-      case "ambiguous":
-        return (
-          <Tooltip label="Multiple possible sources">
-            <Button
-              size="compact-xs"
-              color="yellow"
-              variant="light"
-              onClick={onOverride}
-            >
-              Pick a source
-            </Button>
+  // Each status contributes up to three uniform slots — a middle
+  // status/source body, an inline PRIMARY call-to-action button, and a set of
+  // SECONDARY actions that live behind the `⋯` overflow menu — so every row
+  // renders through the same 3-column grid and lines up down the panel.
+  let middle: React.ReactNode = null;
+  let primary: React.ReactNode = null;
+  const menuActions: { key: string; label: string; onClick: () => void }[] = [];
+
+  switch (resolution.status) {
+    case "auto-bound":
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Text size="xs">←</Text>
+          <Text size="xs" truncate title={producerLabel ?? undefined}>
+            {producerLabel}
+          </Text>
+          <Tooltip label="Connected automatically">
+            <Badge size="xs" color="green" variant="light">
+              Auto
+            </Badge>
           </Tooltip>
-        );
-      case "unsatisfied":
-        return (
-          <Tooltip label="Choose where this comes from">
-            <Button
-              size="compact-xs"
-              color="red"
-              variant="light"
-              onClick={onOverride}
-            >
-              Needs a source
-            </Button>
+        </Group>
+      );
+      menuActions.push({
+        key: "change",
+        label: "Change source",
+        onClick: onOverride,
+      });
+      break;
+    case "ambiguous":
+      primary = (
+        <Tooltip label="Multiple possible sources">
+          <Button
+            size="compact-xs"
+            color="yellow"
+            variant="light"
+            onClick={onOverride}
+          >
+            Pick a source
+          </Button>
+        </Tooltip>
+      );
+      break;
+    case "unsatisfied":
+      primary = (
+        <Tooltip label="Choose where this comes from">
+          <Button
+            size="compact-xs"
+            color="red"
+            variant="light"
+            onClick={onOverride}
+          >
+            Needs a source
+          </Button>
+        </Tooltip>
+      );
+      break;
+    case "locked":
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          {pinnedSource?.via === "ctx" ? (
+            <Text size="xs" truncate title={`from ${pinnedSource.ctxKey}`}>
+              from {pinnedSource.ctxKey}
+            </Text>
+          ) : (
+            <>
+              <Text size="xs">←</Text>
+              <Text
+                size="xs"
+                truncate
+                title={pinnedSource?.label ?? resolution.ctxKey}
+              >
+                {pinnedSource?.label ?? resolution.ctxKey}
+              </Text>
+            </>
+          )}
+          <Tooltip label="Pinned by you">
+            <Badge size="xs" color="gray" variant="light">
+              Pinned
+            </Badge>
           </Tooltip>
-        );
-      case "locked":
-        return (
-          <Group gap={6} wrap="nowrap">
-            {pinnedSource?.via === "ctx" ? (
-              <Text size="xs">from {pinnedSource.ctxKey}</Text>
-            ) : (
-              <>
-                <Text size="xs">←</Text>
-                <Text size="xs">
-                  {pinnedSource?.label ?? resolution.ctxKey}
-                </Text>
-              </>
-            )}
-            <Tooltip label="Pinned by you">
-              <Badge size="xs" color="gray" variant="light">
-                Pinned
-              </Badge>
-            </Tooltip>
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              onClick={(e) => {
-                stop(e);
-                onRevert();
-              }}
-            >
-              Revert to automatic
-            </Button>
-          </Group>
-        );
-      case "locked-unbound":
-        return (
-          <Group gap={6} wrap="nowrap">
-            <Tooltip label="Disconnected by you">
-              <Badge size="xs" color="gray" variant="light">
-                Disconnected
-              </Badge>
-            </Tooltip>
-            <Button size="compact-xs" variant="light" onClick={onOverride}>
-              Pick a source
-            </Button>
-            <Button size="compact-xs" variant="subtle" onClick={onRevert}>
-              Revert to automatic
-            </Button>
-          </Group>
-        );
-      case "ctx-bound":
-        // Unlocked but bound to a real ctx variable — the port HAS a source
-        // (parity with the drawer's manuallyBoundPorts suppression). Show the
-        // binding rather than the misleading red "Needs a source" button.
-        return (
-          <Group gap={6} wrap="nowrap">
-            <Text size="xs">from {resolution.ctxKey}</Text>
-            <Button size="compact-xs" variant="subtle" onClick={onOverride}>
-              Change source
-            </Button>
-          </Group>
-        );
-    }
-  };
+        </Group>
+      );
+      menuActions.push({
+        key: "change",
+        label: "Change source",
+        onClick: onOverride,
+      });
+      menuActions.push({
+        key: "revert",
+        label: "Revert to automatic",
+        onClick: onRevert,
+      });
+      break;
+    case "locked-unbound":
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Tooltip label="Disconnected by you">
+            <Badge size="xs" color="gray" variant="light">
+              Disconnected
+            </Badge>
+          </Tooltip>
+        </Group>
+      );
+      primary = (
+        <Button size="compact-xs" variant="light" onClick={onOverride}>
+          Pick a source
+        </Button>
+      );
+      menuActions.push({
+        key: "revert",
+        label: "Revert to automatic",
+        onClick: onRevert,
+      });
+      break;
+    case "ctx-bound":
+      // Unlocked but bound to a real ctx variable — the port HAS a source
+      // (parity with the drawer's manuallyBoundPorts suppression). Show the
+      // binding rather than the misleading red "Needs a source" button.
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Text size="xs" truncate title={`from ${resolution.ctxKey}`}>
+            from {resolution.ctxKey}
+          </Text>
+        </Group>
+      );
+      menuActions.push({
+        key: "change",
+        label: "Change source",
+        onClick: onOverride,
+      });
+      break;
+  }
 
   return (
-    <Group
-      gap={8}
-      wrap="nowrap"
-      justify="space-between"
+    <Box
       onClick={handleRowClick}
       onMouseEnter={handleRowEnter}
       onMouseLeave={handleRowLeave}
-      style={interactive ? { cursor: "pointer" } : undefined}
+      style={{
+        display: "grid",
+        // Fixed label + fixed trailing columns keep every (independent) row
+        // grid aligned: the label column, the `1fr` status/source column, and
+        // the trailing action column all start/end at the same x down the
+        // panel. The trailing `⋯` slot is a fixed width that is always
+        // reserved, so rows with and without a menu still line up. The label
+        // column is sized to hold the common demo labels (e.g. "Prepared file
+        // data", ~107px at the panel's xs font) without truncating; genuinely
+        // long labels still ellipsize with a `title` fallback.
+        gridTemplateColumns: "124px minmax(0, 1fr) auto",
+        alignItems: "center",
+        columnGap: 8,
+        ...(interactive ? { cursor: "pointer" } : {}),
+      }}
       data-testid={interactive ? `input-producer-row-${portName}` : undefined}
       data-interactive={interactive ? "true" : undefined}
     >
-      <Text size="xs" fw={500}>
+      <Text size="xs" fw={500} truncate title={portLabel}>
         {portLabel}
       </Text>
-      {renderBody()}
-    </Group>
+      <Box style={{ minWidth: 0 }}>{middle}</Box>
+      {/* Trailing action cell. `stop` keeps in-cell clicks (primary button +
+          the ⋯ menu trigger) from bubbling up to fire the row-level jump; the
+          real controls inside carry their own keyboard handling, so this
+          wrapper is just a click-propagation guard. */}
+      <Box
+        onClick={stop}
+        data-testid={`input-row-actions-${portName}`}
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        {primary}
+        {/* Reserve the trailing `⋯` column at a fixed width on every row so
+            menu / no-menu rows still align. */}
+        <Box style={{ width: 28, display: "flex", justifyContent: "flex-end" }}>
+          {menuActions.length > 0 && (
+            <Menu position="bottom-end" withArrow shadow="md">
+              <Menu.Target>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  aria-label="More actions"
+                  data-testid={`input-row-menu-${portName}`}
+                >
+                  <IconDots size={16} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {menuActions.map((action) => (
+                  <Menu.Item
+                    key={action.key}
+                    onClick={action.onClick}
+                    data-testid={`input-row-menu-${portName}-${action.key}`}
+                  >
+                    {action.label}
+                  </Menu.Item>
+                ))}
+              </Menu.Dropdown>
+            </Menu>
+          )}
+        </Box>
+      </Box>
+    </Box>
   );
 }

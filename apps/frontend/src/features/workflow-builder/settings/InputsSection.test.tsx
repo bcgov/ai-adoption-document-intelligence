@@ -9,6 +9,19 @@ function mount(ui: React.ReactNode) {
   return render(<MantineProvider>{ui}</MantineProvider>);
 }
 
+/**
+ * Secondary actions (Change source / Revert to automatic) now live behind a
+ * per-row `⋯` overflow menu. Open the menu for `portName` and return the
+ * menu-item lookups. Mantine renders the dropdown in a portal on open, so the
+ * items only exist in the DOM after the trigger is clicked.
+ */
+async function openRowMenu(
+  user: ReturnType<typeof userEvent.setup>,
+  portName: string,
+) {
+  await user.click(screen.getByTestId(`input-row-menu-${portName}`));
+}
+
 describe("InputsSection", () => {
   it("shows an auto-bound row with the producer node's label and an 'Auto' pill", () => {
     const config: GraphWorkflowConfig = {
@@ -100,7 +113,7 @@ describe("InputsSection", () => {
     expect(screen.getByText(/needs a source/i)).toBeInTheDocument();
   });
 
-  it("clicking 'Change source' on an auto row adds the port to lockedInputPorts and stamps the new binding", async () => {
+  it("clicking 'Change source' (in the ⋯ menu) on an auto row adds the port to lockedInputPorts and stamps the new binding", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();
     const config: GraphWorkflowConfig = {
@@ -145,7 +158,10 @@ describe("InputsSection", () => {
         onConfigChange={onConfigChange}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /change source/i }));
+    await openRowMenu(user, "fileData");
+    await user.click(
+      await screen.findByRole("menuitem", { name: /change source/i }),
+    );
     await user.click(screen.getByText("Prepare ALT"));
 
     expect(onConfigChange).toHaveBeenCalled();
@@ -215,7 +231,8 @@ describe("InputsSection", () => {
     expect(screen.getByText("Document ID")).toBeInTheDocument();
   });
 
-  it("treats an unlocked identifier port bound to a real ctx variable as sourced (parity with the drawer's manuallyBoundPorts filter)", () => {
+  it("treats an unlocked identifier port bound to a real ctx variable as sourced (parity with the drawer's manuallyBoundPorts filter)", async () => {
+    const user = userEvent.setup();
     // documentId carries a persisted non-auto binding but NO lock — the shape
     // external tools/agents write (e.g. migrate-graph-config-ocr-refs). The
     // resolver ignores unlocked inputs[] rows and reports "unsatisfied", but
@@ -250,10 +267,12 @@ describe("InputsSection", () => {
       <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
     );
     expect(screen.getByText("from documentId")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /change source/i }),
-    ).toBeInTheDocument();
     expect(screen.queryByText(/needs a source/i)).not.toBeInTheDocument();
+    // "Change source" is the row's only (secondary) action → behind the ⋯ menu.
+    await openRowMenu(user, "documentId");
+    expect(
+      await screen.findByRole("menuitem", { name: /change source/i }),
+    ).toBeInTheDocument();
   });
 
   it("still shows 'Needs a source' for an unlocked identifier port with no binding at all", () => {
@@ -285,7 +304,8 @@ describe("InputsSection", () => {
     expect(screen.queryByText("from documentId")).not.toBeInTheDocument();
   });
 
-  it("shows the producer label (not the raw __auto key) for a pinned auto-key row", () => {
+  it("shows the producer label (not the raw __auto key) for a pinned auto-key row", async () => {
+    const user = userEvent.setup();
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -320,12 +340,15 @@ describe("InputsSection", () => {
     expect(
       screen.queryByText("__auto.prep.preparedData"),
     ).not.toBeInTheDocument();
+    // Revert lives behind the ⋯ menu now.
+    await openRowMenu(user, "fileData");
     expect(
-      screen.getByRole("button", { name: /revert to automatic/i }),
+      await screen.findByRole("menuitem", { name: /revert to automatic/i }),
     ).toBeInTheDocument();
   });
 
-  it("shows 'from <ctxKey>' (no producer arrow) for a pinned NON-auto ctx var", () => {
+  it("shows 'from <ctxKey>' (no producer arrow) for a pinned NON-auto ctx var", async () => {
+    const user = userEvent.setup();
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -351,12 +374,14 @@ describe("InputsSection", () => {
     // node that doesn't exist.
     expect(screen.getByText("Pinned")).toBeInTheDocument();
     expect(screen.queryByText("←")).not.toBeInTheDocument();
+    await openRowMenu(user, "fileData");
     expect(
-      screen.getByRole("button", { name: /revert to automatic/i }),
+      await screen.findByRole("menuitem", { name: /revert to automatic/i }),
     ).toBeInTheDocument();
   });
 
-  it("renders a 'Disconnected' badge with Pick-a-source and Revert-to-automatic buttons for a locked-unbound port", () => {
+  it("renders a 'Disconnected' badge with an inline Pick-a-source button and a Revert-to-automatic ⋯ menu item for a locked-unbound port", async () => {
+    const user = userEvent.setup();
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -377,15 +402,214 @@ describe("InputsSection", () => {
       <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
     );
     expect(screen.getByText("Disconnected")).toBeInTheDocument();
+    // Pick a source is the PRIMARY call-to-action and stays inline.
     expect(
       screen.getByRole("button", { name: /pick a source/i }),
     ).toBeInTheDocument();
+    // Revert to automatic is SECONDARY → not directly visible, only in the menu.
     expect(
-      screen.getByRole("button", { name: /revert to automatic/i }),
+      screen.queryByRole("button", { name: /revert to automatic/i }),
+    ).not.toBeInTheDocument();
+    await openRowMenu(user, "fileData");
+    expect(
+      await screen.findByRole("menuitem", { name: /revert to automatic/i }),
     ).toBeInTheDocument();
   });
 
-  it("clicking 'Revert to automatic' removes the port from lockedInputPorts", async () => {
+  it("locked-unbound: inline 'Pick a source' calls onOverride (opens the picker) and does not need the menu", async () => {
+    const user = userEvent.setup();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
+    );
+    // Clicking the inline primary opens the ProducerPicker modal.
+    await user.click(screen.getByRole("button", { name: /pick a source/i }));
+    expect(
+      screen.getByText('Choose a source for "Prepared file data"'),
+    ).toBeInTheDocument();
+  });
+
+  it("locked-unbound: the ⋯ 'Revert to automatic' menu item calls onRevert (removes the lock)", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="Z"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await openRowMenu(user, "fileData");
+    await user.click(
+      await screen.findByRole("menuitem", { name: /revert to automatic/i }),
+    );
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[0][0];
+    expect(next.nodes.Z.metadata?.lockedInputPorts ?? []).not.toContain(
+      "fileData",
+    );
+  });
+
+  it("auto-bound: 'Change source' is in the ⋯ menu and calls onOverride (opens the picker)", async () => {
+    const user = userEvent.setup();
+    mount(
+      <InputsSection
+        config={autoBoundConfig()}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    // Not inline.
+    expect(
+      screen.queryByRole("button", { name: /change source/i }),
+    ).not.toBeInTheDocument();
+    await openRowMenu(user, "fileData");
+    await user.click(
+      await screen.findByRole("menuitem", { name: /change source/i }),
+    );
+    // Picker modal opened for the port.
+    expect(
+      screen.getByText('Choose a source for "Prepared file data"'),
+    ).toBeInTheDocument();
+  });
+
+  it("locked: the ⋯ menu offers BOTH 'Change source' and 'Revert to automatic'", async () => {
+    const user = userEvent.setup();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+          outputs: [
+            { port: "preparedData", ctxKey: "__auto.prep.preparedData" },
+          ],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [{ id: "e", source: "prep", target: "B", type: "normal" }],
+      entryNodeId: "prep",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="B" onConfigChange={vi.fn()} />,
+    );
+    await openRowMenu(user, "fileData");
+    // Capture the whole portaled dropdown in one waiting query (the menu can
+    // close under jsdom's focus handling before a second synchronous query).
+    const items = (await screen.findAllByRole("menuitem")).map(
+      (el) => el.textContent ?? "",
+    );
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/change source/i),
+        expect.stringMatching(/revert to automatic/i),
+      ]),
+    );
+  });
+
+  it("ambiguous and unsatisfied rows expose only the inline primary button — no ⋯ menu", () => {
+    // ambiguous → Pick a source (inline), unsatisfied → Needs a source (inline).
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        X: {
+          id: "X",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare X",
+        },
+        Y: {
+          id: "Y",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare Y",
+        },
+        // Ambiguous consumer: two equidistant producers compete for fileData.
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+        // Unsatisfied consumer: no upstream producer at all.
+        U: {
+          id: "U",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "U",
+        },
+      },
+      edges: [
+        { id: "e0", source: "X", target: "Z", type: "normal" },
+        { id: "e1", source: "Y", target: "Z", type: "normal" },
+      ],
+      entryNodeId: "X",
+      ctx: {},
+    };
+    // Ambiguous Z: inline Pick a source, no menu trigger.
+    const { unmount } = mount(
+      <InputsSection config={config} nodeId="Z" onConfigChange={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /pick a source/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("input-row-menu-fileData")).toBeNull();
+    unmount();
+
+    // Unsatisfied U: inline Needs a source, no menu trigger.
+    mount(
+      <InputsSection config={config} nodeId="U" onConfigChange={vi.fn()} />,
+    );
+    expect(
+      screen.getByRole("button", { name: /needs a source/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("input-row-menu-fileData")).toBeNull();
+  });
+
+  it("clicking 'Revert to automatic' (in the ⋯ menu) removes the port from lockedInputPorts", async () => {
     const user = userEvent.setup();
     const onConfigChange = vi.fn();
     const config: GraphWorkflowConfig = {
@@ -419,8 +643,9 @@ describe("InputsSection", () => {
         onConfigChange={onConfigChange}
       />,
     );
+    await openRowMenu(user, "fileData");
     await user.click(
-      screen.getByRole("button", { name: /revert to automatic/i }),
+      await screen.findByRole("menuitem", { name: /revert to automatic/i }),
     );
 
     expect(onConfigChange).toHaveBeenCalled();
@@ -428,6 +653,53 @@ describe("InputsSection", () => {
     expect(next.nodes.B.metadata?.lockedInputPorts ?? []).not.toContain(
       "fileData",
     );
+  });
+
+  it("reserves a trailing action slot on every row (menu-less unsatisfied rows and a menu-bearing auto-bound row alike) so columns line up", () => {
+    // file.prepare has two REQUIRED identifier ports (blobKey, documentId)
+    // that render as unsatisfied rows. Each must carry the trailing action
+    // slot — even though neither has a ⋯ menu — so the label / status / action
+    // columns stay aligned down the panel.
+    const prepConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {},
+    };
+    const { unmount } = mount(
+      <InputsSection config={prepConfig} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    // Both unsatisfied rows reserve the trailing slot; neither has a menu.
+    expect(screen.getByTestId("input-row-actions-blobKey")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-row-menu-blobKey")).toBeNull();
+    expect(
+      screen.getByTestId("input-row-actions-documentId"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("input-row-menu-documentId")).toBeNull();
+    unmount();
+
+    // An auto-bound row reserves the SAME trailing slot, this time holding a
+    // ⋯ menu — proving with-menu and without-menu rows share the slot.
+    mount(
+      <InputsSection
+        config={autoBoundConfig()}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId("input-row-actions-fileData"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("input-row-menu-fileData")).toBeInTheDocument();
   });
 
   function ambiguousConfig(): GraphWorkflowConfig {
@@ -579,7 +851,7 @@ describe("InputsSection", () => {
     expect(onJumpToProducer).toHaveBeenCalledWith("A");
   });
 
-  it("clicking the auto-bound row's 'Change source' button does NOT jump to the producer", async () => {
+  it("opening the auto-bound row's ⋯ menu and clicking 'Change source' does NOT jump to the producer", async () => {
     const user = userEvent.setup();
     const onJumpToProducer = vi.fn();
     mount(
@@ -590,7 +862,13 @@ describe("InputsSection", () => {
         onJumpToProducer={onJumpToProducer}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /change source/i }));
+    // Opening the ⋯ menu (a click inside the row) must not fire the row-jump.
+    await openRowMenu(user, "fileData");
+    expect(onJumpToProducer).not.toHaveBeenCalled();
+    // Nor does clicking the portaled menu item.
+    await user.click(
+      await screen.findByRole("menuitem", { name: /change source/i }),
+    );
     expect(onJumpToProducer).not.toHaveBeenCalled();
   });
 
