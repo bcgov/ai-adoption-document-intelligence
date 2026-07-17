@@ -261,23 +261,28 @@ function PortRow({
   // status/source body, an inline PRIMARY call-to-action button, and a set of
   // SECONDARY actions that live behind the `⋯` overflow menu — so every row
   // renders through the same 3-column grid and lines up down the panel.
+  // Status badge lives in its OWN fixed-width grid column (not trailing the
+  // variable-width source text) so every row's badge lines up vertically.
+  let badge: React.ReactNode = null;
   let middle: React.ReactNode = null;
   let primary: React.ReactNode = null;
   const menuActions: { key: string; label: string; onClick: () => void }[] = [];
 
   switch (resolution.status) {
     case "auto-bound":
+      badge = (
+        <Tooltip label="Connected automatically">
+          <Badge size="xs" color="green" variant="light">
+            Auto
+          </Badge>
+        </Tooltip>
+      );
       middle = (
         <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
           <Text size="xs">←</Text>
           <Text size="xs" truncate title={producerLabel ?? undefined}>
             {producerLabel}
           </Text>
-          <Tooltip label="Connected automatically">
-            <Badge size="xs" color="green" variant="light">
-              Auto
-            </Badge>
-          </Tooltip>
         </Group>
       );
       menuActions.push({
@@ -315,6 +320,13 @@ function PortRow({
       );
       break;
     case "locked":
+      badge = (
+        <Tooltip label="Pinned by you">
+          <Badge size="xs" color="gray" variant="light">
+            Pinned
+          </Badge>
+        </Tooltip>
+      );
       middle = (
         <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
           {pinnedSource?.via === "ctx" ? (
@@ -333,11 +345,6 @@ function PortRow({
               </Text>
             </>
           )}
-          <Tooltip label="Pinned by you">
-            <Badge size="xs" color="gray" variant="light">
-              Pinned
-            </Badge>
-          </Tooltip>
         </Group>
       );
       menuActions.push({
@@ -352,14 +359,12 @@ function PortRow({
       });
       break;
     case "locked-unbound":
-      middle = (
-        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-          <Tooltip label="Disconnected by you">
-            <Badge size="xs" color="gray" variant="light">
-              Disconnected
-            </Badge>
-          </Tooltip>
-        </Group>
+      badge = (
+        <Tooltip label="Disconnected by you">
+          <Badge size="xs" color="gray" variant="light">
+            Disconnected
+          </Badge>
+        </Tooltip>
       );
       primary = (
         <Button size="compact-xs" variant="light" onClick={onOverride}>
@@ -399,13 +404,15 @@ function PortRow({
       style={{
         display: "grid",
         // Fixed label + fixed trailing columns keep every (independent) row
-        // grid aligned: the label column, the `1fr` status/source column, and
+        // grid aligned: the label column, the `1fr` source/status column, and
         // the trailing action column all start/end at the same x down the
-        // panel. The trailing `⋯` slot is a fixed width that is always
-        // reserved, so rows with and without a menu still line up. The label
-        // column is sized to hold the common demo labels (e.g. "Prepared file
-        // data", ~107px at the panel's xs font) without truncating; genuinely
-        // long labels still ellipsize with a `title` fallback.
+        // panel. Inside the `1fr` column the source text is left-aligned
+        // (truncating if long) and the status BADGE is pushed to the right
+        // edge, so Auto / Pinned / Disconnected badges line up vertically as
+        // a right-hand status column regardless of the source text's width —
+        // without stealing a whole fixed column from the (already narrow)
+        // source text. The trailing `⋯` slot is a fixed width so menu /
+        // no-menu rows line up. Long labels/sources ellipsize with a `title`.
         gridTemplateColumns: "124px minmax(0, 1fr) auto",
         alignItems: "center",
         columnGap: 8,
@@ -417,7 +424,19 @@ function PortRow({
       <Text size="xs" fw={500} truncate title={portLabel}>
         {portLabel}
       </Text>
-      <Box style={{ minWidth: 0 }}>{middle}</Box>
+      {/* Source/detail (left, truncates) + status badge pushed to the right
+          edge so badges align down the panel as a status column. */}
+      <Box
+        style={{
+          minWidth: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <Box style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>{middle}</Box>
+        {badge}
+      </Box>
       {/* Trailing action cell. `stop` keeps in-cell clicks (primary button +
           the ⋯ menu trigger) from bubbling up to fire the row-level jump; the
           real controls inside carry their own keyboard handling, so this
