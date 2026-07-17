@@ -63,8 +63,9 @@ export function ProducerPicker({
   if (rows.length === 0) {
     return (
       <Text size="xs" c="dimmed">
-        No upstream producer emits a {expectedKind}. Add a step that produces
-        one.
+        Nothing upstream produces a {expectedKind} yet. Draw an execution edge
+        from a producer and it will wire automatically, or add a step that
+        produces one.
       </Text>
     );
   }

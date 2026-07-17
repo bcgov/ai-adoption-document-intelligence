@@ -11,6 +11,7 @@ import type {
   GraphWorkflowConfig,
 } from "@ai-di/graph-workflow";
 import {
+  Anchor,
   Badge,
   Box,
   Drawer,
@@ -47,6 +48,19 @@ interface ValidationDrawerProps {
    * the drawer scrolled to the relevant entry.
    */
   focusedNodeId?: string | null;
+  /**
+   * Node-scoped mode. When set, the drawer shows ONLY that node's issues
+   * (naming the node in its title) and omits workflow-level errors + every
+   * other node's bucket. Used by the canvas problems badge so a single
+   * badge never dumps the whole workflow's issue list. `null`/absent renders
+   * the full global list (top-bar "Warnings" behaviour).
+   */
+  filterNodeId?: string | null;
+  /**
+   * Escape hatch from node-scoped mode back to the full list. Rendered as a
+   * "Show all problems" affordance when `filterNodeId` is set.
+   */
+  onShowAll?: () => void;
 }
 
 /**
@@ -70,6 +84,8 @@ export function ValidationDrawer({
   onSelectNode,
   onFixNodeInput,
   focusedNodeId,
+  filterNodeId,
+  onShowAll,
 }: ValidationDrawerProps) {
   const handleSelect = (nodeId: string) => {
     onSelectNode(nodeId);
@@ -87,9 +103,20 @@ export function ValidationDrawer({
     handleSelect(nodeId);
   };
 
-  const nodeBuckets = [...result.errorsByNode.entries()].sort((a, b) =>
-    a[0].localeCompare(b[0]),
-  );
+  const isFiltered = filterNodeId != null;
+
+  const nodeBuckets = [...result.errorsByNode.entries()]
+    .filter(([nodeId]) => !isFiltered || nodeId === filterNodeId)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  const filteredNodeLabel =
+    isFiltered && filterNodeId != null
+      ? (config.nodes[filterNodeId]?.label ?? filterNodeId)
+      : null;
+  const title =
+    isFiltered && filteredNodeLabel != null
+      ? `Problems on ${filteredNodeLabel}`
+      : "Validation";
 
   const entryRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
   useEffect(() => {
@@ -109,37 +136,60 @@ export function ValidationDrawer({
       onClose={onClose}
       position="right"
       size={420}
-      title="Validation"
+      title={title}
       overlayProps={{ opacity: 0.3 }}
       withinPortal
     >
       <Stack gap="md">
-        <SummaryBar result={result} />
+        {isFiltered ? (
+          <>
+            {onShowAll && (
+              <Anchor
+                component="button"
+                type="button"
+                size="xs"
+                onClick={onShowAll}
+                style={{ alignSelf: "flex-start" }}
+              >
+                Show all problems
+              </Anchor>
+            )}
+            {nodeBuckets.length === 0 && (
+              <Text size="sm" c="dimmed">
+                No problems on this node.
+              </Text>
+            )}
+          </>
+        ) : (
+          <>
+            <SummaryBar result={result} />
 
-        {result.errors.length === 0 && (
-          <Group gap="xs" mt="md">
-            <ThemeIcon color="green" variant="light" size="sm" radius="xl">
-              <IconCircleCheck size={14} />
-            </ThemeIcon>
-            <Text size="sm">No issues. Workflow is valid.</Text>
-          </Group>
-        )}
+            {result.errors.length === 0 && (
+              <Group gap="xs" mt="md">
+                <ThemeIcon color="green" variant="light" size="sm" radius="xl">
+                  <IconCircleCheck size={14} />
+                </ThemeIcon>
+                <Text size="sm">No issues. Workflow is valid.</Text>
+              </Group>
+            )}
 
-        {result.workflowLevelErrors.length > 0 && (
-          <Box>
-            <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={6}>
-              Workflow-level
-            </Text>
-            <Stack gap={6}>
-              {result.workflowLevelErrors.map((err, i) => (
-                <IssueRow
-                  key={`${err.path}-${i}`}
-                  error={err}
-                  onClick={undefined}
-                />
-              ))}
-            </Stack>
-          </Box>
+            {result.workflowLevelErrors.length > 0 && (
+              <Box>
+                <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={6}>
+                  Workflow-level
+                </Text>
+                <Stack gap={6}>
+                  {result.workflowLevelErrors.map((err, i) => (
+                    <IssueRow
+                      key={`${err.path}-${i}`}
+                      error={err}
+                      onClick={undefined}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </>
         )}
 
         {nodeBuckets.map(([nodeId, errs]) => {
@@ -178,6 +228,11 @@ export function ValidationDrawer({
                     key={`${err.path}-${i}`}
                     error={err}
                     onClick={() => handleIssueClick(err, nodeId)}
+                    actionHint={
+                      parseInputPortPath(err.path)
+                        ? "pick-source"
+                        : "select-node"
+                    }
                   />
                 ))}
               </Stack>
@@ -216,12 +271,26 @@ function SummaryBar({ result }: { result: GraphValidationResult }) {
 interface IssueRowProps {
   error: GraphValidationError;
   onClick: (() => void) | undefined;
+  /**
+   * What the row does when clicked, surfaced as a right-aligned hint so the
+   * user can see a fix exists before clicking. `"pick-source"` opens the
+   * input's source picker (input-anchored issues); `"select-node"` just
+   * focuses the node (structural issues). Absent for non-clickable rows.
+   */
+  actionHint?: "pick-source" | "select-node";
 }
 
-function IssueRow({ error, onClick }: IssueRowProps) {
+function IssueRow({ error, onClick, actionHint }: IssueRowProps) {
   const isError = error.severity === "error";
   const color = isError ? "red" : "yellow";
   const Icon = isError ? IconExclamationCircle : IconAlertTriangle;
+
+  const hintLabel =
+    actionHint === "pick-source"
+      ? "Pick a source →"
+      : actionHint === "select-node"
+        ? "Select node →"
+        : null;
 
   const content = (
     <Group gap={8} wrap="nowrap" align="flex-start" p={6}>
@@ -236,6 +305,11 @@ function IssueRow({ error, onClick }: IssueRowProps) {
           {error.path || "(root)"}
         </Text>
       </Box>
+      {hintLabel && (
+        <Text size="xs" c={color} fw={500} style={{ whiteSpace: "nowrap" }}>
+          {hintLabel}
+        </Text>
+      )}
     </Group>
   );
 

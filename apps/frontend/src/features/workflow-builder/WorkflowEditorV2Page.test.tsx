@@ -41,12 +41,16 @@ const {
   capturedPaletteProps,
   capturedRunDrawerProps,
   capturedSettingsPanelProps,
+  capturedValidationDrawerProps,
   fitViewMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
   return {
     capturedCanvasProps: { current: null as null | Record<string, unknown> },
     capturedCreateDto: { current: null as null | Record<string, unknown> },
+    capturedValidationDrawerProps: {
+      current: null as null | Record<string, unknown>,
+    },
     // US-121 — palette stub captures the add-* callbacks so tests can
     // invoke `onAddSource(...)` directly without spinning up the real
     // palette UI.
@@ -136,7 +140,10 @@ vi.mock("./settings/WorkflowSettingsDrawer", () => ({
 }));
 
 vi.mock("./validation/ValidationDrawer", () => ({
-  ValidationDrawer: () => null,
+  ValidationDrawer: (props: Record<string, unknown>) => {
+    capturedValidationDrawerProps.current = props;
+    return null;
+  },
 }));
 
 // US-148 — capture the live props the page passes so the trigger tests
@@ -1930,6 +1937,63 @@ describe("WorkflowEditorV2Page — connect summary (§6.4) Fix deep-link", () =>
       nodeId: "b",
       port: "fileData",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Node problems badge → node-scoped ValidationDrawer.
+//   Clicking a node's problems badge must ALWAYS open the ValidationDrawer
+//   filtered to that node (naming every problem), never blind-jump into the
+//   bare source picker. The top-bar "Warnings" button opens it UNFILTERED.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — node problems badge", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedSettingsPanelProps.current = null;
+    capturedValidationDrawerProps.current = null;
+  });
+
+  it("opens the ValidationDrawer filtered to the clicked node, without opening the bare picker", () => {
+    const config = buildTemplateConfig({ positions: "all" });
+    renderPage(makeTemplate(config));
+
+    const onNodeBadgeClick = capturedCanvasProps.current?.onNodeBadgeClick as
+      | ((nodeId: string) => void)
+      | undefined;
+    expect(onNodeBadgeClick).toBeInstanceOf(Function);
+
+    act(() => {
+      onNodeBadgeClick?.("b");
+    });
+
+    expect(capturedValidationDrawerProps.current?.opened).toBe(true);
+    expect(capturedValidationDrawerProps.current?.filterNodeId).toBe("b");
+    // The bare picker deep-link (focusInput) must NOT fire from a badge click.
+    expect(capturedSettingsPanelProps.current?.focusInput ?? null).toBeNull();
+  });
+
+  it("top-bar Warnings button opens the drawer UNFILTERED", () => {
+    const config = buildTemplateConfig({ positions: "all" });
+    renderPage(makeTemplate(config));
+
+    // Open a node-scoped view first so we can prove the top-bar path clears it.
+    const onNodeBadgeClick = capturedCanvasProps.current?.onNodeBadgeClick as
+      | ((nodeId: string) => void)
+      | undefined;
+    act(() => {
+      onNodeBadgeClick?.("b");
+    });
+    expect(capturedValidationDrawerProps.current?.filterNodeId).toBe("b");
+
+    // onShowAll (wired to clearing the filter) should reset to global.
+    const onShowAll = capturedValidationDrawerProps.current?.onShowAll as
+      | (() => void)
+      | undefined;
+    act(() => {
+      onShowAll?.();
+    });
+    expect(capturedValidationDrawerProps.current?.filterNodeId).toBeNull();
   });
 });
 

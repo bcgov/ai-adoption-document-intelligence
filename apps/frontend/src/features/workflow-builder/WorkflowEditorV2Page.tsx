@@ -284,6 +284,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [validationFocusNodeId, setValidationFocusNodeId] = useState<
     string | null
   >(null);
+  // Node-scoped ValidationDrawer: when set, the drawer shows ONLY this node's
+  // problems (canvas badge path). `null` = full global list (top-bar path).
+  const [validationFilterNodeId, setValidationFilterNodeId] = useState<
+    string | null
+  >(null);
   const validation = useGraphValidation(config);
 
   // Render-time synthesis of map-body groups (Spec §6).
@@ -400,33 +405,20 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setActiveGroupId(newGroupId);
   }, [config, selectedNodeIds]);
 
-  const openValidationDrawerForNode = useCallback((nodeId: string) => {
-    setValidationFocusNodeId(nodeId);
-    setValidationOpen(true);
-  }, []);
-
-  // Clicking a node's problems badge: for an auto-wire input problem (the
-  // common case) deep-link straight to that input's source picker — the badge
-  // is on-canvas, so this 1-click fix works without the drawer's programmatic-
-  // selection race. Other issues (reachability, etc.) open the drawer. We read
-  // the *current* validation result (which already carries the folded-in
-  // auto-wire issues, anchored `nodes.<id>.inputs.<port>`) through a ref, so
-  // the callback stays stable AND never sees a stale config.
-  const validationRef = useRef(validation);
-  validationRef.current = validation;
+  // Clicking a node's problems badge ALWAYS opens the ValidationDrawer scoped
+  // to that node — naming every problem (input-unsatisfied, unreachable, …)
+  // with an inline fix where one exists. It never blind-jumps into the bare
+  // source picker (the picker is reachable from the drawer's input rows) nor
+  // dumps the whole workflow's issue list. Selecting the node keeps the canvas
+  // and the settings panel in sync with what the drawer is scoped to.
   const handleProblemBadgeClick = useCallback(
     (nodeId: string) => {
-      const prefix = `nodes.${nodeId}.inputs.`;
-      const inputIssue = (
-        validationRef.current.errorsByNode.get(nodeId) ?? []
-      ).find((e) => e.path.startsWith(prefix));
-      if (inputIssue) {
-        handleFixNodeInput(nodeId, inputIssue.path.slice(prefix.length));
-      } else {
-        openValidationDrawerForNode(nodeId);
-      }
+      selectNodeSticky(nodeId);
+      setValidationFocusNodeId(null);
+      setValidationFilterNodeId(nodeId);
+      setValidationOpen(true);
     },
-    [handleFixNodeInput, openValidationDrawerForNode],
+    [selectNodeSticky],
   );
 
   // Clear the template from history.state so future back/forward
@@ -988,6 +980,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               isPending={validation.isPending}
               onClick={() => {
                 setValidationFocusNodeId(null);
+                setValidationFilterNodeId(null);
                 setValidationOpen(true);
               }}
             />
@@ -1152,12 +1145,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
 
         <ValidationDrawer
           opened={validationOpen}
-          onClose={() => setValidationOpen(false)}
+          onClose={() => {
+            setValidationOpen(false);
+            // Reset the node filter so the next top-bar open is global.
+            setValidationFilterNodeId(null);
+          }}
           result={validation}
           config={config}
           onSelectNode={setSelectedNodeId}
           onFixNodeInput={handleFixNodeInput}
           focusedNodeId={validationFocusNodeId}
+          filterNodeId={validationFilterNodeId}
+          onShowAll={() => setValidationFilterNodeId(null)}
         />
 
         <SaveAsLibraryModal

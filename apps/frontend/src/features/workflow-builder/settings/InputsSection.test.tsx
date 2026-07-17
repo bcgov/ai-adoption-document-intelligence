@@ -406,6 +406,22 @@ describe("InputsSection", () => {
     expect(screen.getAllByTestId("producer-row-label")).toHaveLength(2);
   });
 
+  it("names the port in the picker modal title", () => {
+    mount(
+      <InputsSection
+        config={ambiguousConfig()}
+        nodeId="Z"
+        onConfigChange={vi.fn()}
+        focusPort="fileData"
+        onFocusConsumed={vi.fn()}
+      />,
+    );
+    // fileData's catalog label is "Prepared file data".
+    expect(
+      screen.getByText('Choose a source for "Prepared file data"'),
+    ).toBeInTheDocument();
+  });
+
   it("clears the focus signal (onFocusConsumed) once a producer is picked so it doesn't re-open", async () => {
     const user = userEvent.setup();
     const onFocusConsumed = vi.fn();

@@ -101,4 +101,181 @@ describe("ValidationDrawer", () => {
     expect(onSelectNode).toHaveBeenCalledWith("Z");
     expect(onFixNodeInput).not.toHaveBeenCalled();
   });
+
+  it("shows a 'Pick a source' affordance on an input-anchored row", () => {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          {
+            path: "nodes.Z.inputs.fileData",
+            message: 'Input "fileData" needs a source',
+            severity: "warning",
+          },
+        ])}
+        config={config}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/pick a source/i)).toBeInTheDocument();
+    expect(screen.queryByText(/select node/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a 'Select node' affordance on a non-input row", () => {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          {
+            path: "nodes.Z",
+            message: "Node is not reachable from entry node",
+            severity: "warning",
+          },
+        ])}
+        config={config}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/select node/i)).toBeInTheDocument();
+    expect(screen.queryByText(/pick a source/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Node-scoped (filtered) mode — clicking a canvas problems badge opens the
+// drawer filtered to a single node, naming it, with a "Show all problems"
+// escape hatch back to the global list.
+// ---------------------------------------------------------------------------
+
+const multiConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { name: "t" },
+  nodes: {
+    Z: {
+      id: "Z",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Submit OCR",
+    },
+    Q: {
+      id: "Q",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Other node",
+    },
+  },
+  edges: [],
+  entryNodeId: "Z",
+  ctx: {},
+};
+
+describe("ValidationDrawer — node-scoped filter mode", () => {
+  function twoNodeResult(): GraphValidationResult {
+    return makeResult([
+      {
+        path: "nodes.Z.inputs.fileData",
+        message: 'Input "fileData" needs a source',
+        severity: "warning",
+      },
+      {
+        path: "nodes.Z",
+        message: "Node is not reachable from entry node",
+        severity: "warning",
+      },
+      {
+        path: "nodes.Q.inputs.fileData",
+        message: "Q input needs a source",
+        severity: "warning",
+      },
+      {
+        path: "workflow.entry",
+        message: "Workflow-level thing",
+        severity: "error",
+      },
+    ]);
+  }
+
+  it("renders only the filtered node's issues, names the node, and hides workflow-level + other nodes", () => {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={twoNodeResult()}
+        config={multiConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+        filterNodeId="Z"
+        onShowAll={vi.fn()}
+      />,
+    );
+    // Title names the node.
+    expect(screen.getByText("Problems on Submit OCR")).toBeInTheDocument();
+    // Z's issues present.
+    expect(screen.getByText(/"fileData" needs a source/)).toBeInTheDocument();
+    expect(screen.getByText(/not reachable/i)).toBeInTheDocument();
+    // Other node's + workflow-level issues absent.
+    expect(
+      screen.queryByText("Q input needs a source"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Workflow-level thing")).not.toBeInTheDocument();
+  });
+
+  it("offers a 'Show all problems' affordance that calls onShowAll", () => {
+    const onShowAll = vi.fn();
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={twoNodeResult()}
+        config={multiConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+        filterNodeId="Z"
+        onShowAll={onShowAll}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /show all problems/i }));
+    expect(onShowAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a friendly message when the filtered node has no issues", () => {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={twoNodeResult()}
+        config={multiConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+        filterNodeId="not-a-node"
+        onShowAll={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/no problems on this node/i)).toBeInTheDocument();
+  });
+
+  it("unfiltered mode still lists every node's bucket (regression)", () => {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={twoNodeResult()}
+        config={multiConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/"fileData" needs a source/)).toBeInTheDocument();
+    expect(screen.getByText("Q input needs a source")).toBeInTheDocument();
+    expect(screen.getByText("Workflow-level thing")).toBeInTheDocument();
+    // Default global title, no "Show all problems" button.
+    expect(screen.getByText("Validation")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /show all problems/i }),
+    ).not.toBeInTheDocument();
+  });
 });

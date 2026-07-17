@@ -84,6 +84,37 @@ describe("ProducerPicker", () => {
     expect(screen.queryByText("B")).not.toBeInTheDocument();
   });
 
+  it("empty state reads as a next-step (draw an edge / add a step), not a dead-end", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <ProducerPicker
+        config={config}
+        consumerNodeId="Z"
+        expectedKind="Document"
+        value=""
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/nothing upstream produces a document yet/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/draw an execution edge/i)).toBeInTheDocument();
+  });
+
   it("ranks compatible producers by topological distance", () => {
     // A → B → C; both A and B emit Document. C asks for Document. B
     // (nearer) should render before A.

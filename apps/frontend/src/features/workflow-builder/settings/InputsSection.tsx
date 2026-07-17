@@ -71,6 +71,11 @@ export function InputsSection({
   // (ring/badge reconciliation, PORT_WIRING §4.2). Optional identifier ports
   // stay invisible.
   const rows = resolveWireableInputRows(config, nodeId);
+  const activePickerPortLabel =
+    activePickerPort != null
+      ? (rows.find((r) => r.port.name === activePickerPort)?.port.label ??
+        activePickerPort)
+      : null;
 
   const handleOverride = (
     portName: string,
@@ -114,7 +119,11 @@ export function InputsSection({
       <Modal
         opened={activePickerPort !== null}
         onClose={closePicker}
-        title="Choose a source"
+        title={
+          activePickerPortLabel
+            ? `Choose a source for "${activePickerPortLabel}"`
+            : "Choose a source"
+        }
         size="sm"
         transitionProps={{ duration: 0 }}
       >
