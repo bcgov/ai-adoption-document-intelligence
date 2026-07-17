@@ -45,13 +45,29 @@ const NAV_COLLAPSED = 72;
 const MAIN_CONTENT_ID = "main-content";
 
 /** Routes that use a fixed viewport workspace (document + field panel). */
-function isWorkspaceRoute(pathname: string): boolean {
+export function isWorkspaceRoute(pathname: string): boolean {
   return (
     /^\/template-models\/[^/]+\/document\/[^/]+$/.test(pathname) ||
     /^\/review\/[^/]+$/.test(pathname) ||
     /^\/benchmarking\/datasets\/[^/]+\/versions\/[^/]+\/review\/[^/]+$/.test(
       pathname,
     )
+  );
+}
+
+/**
+ * Routes that render the full-bleed visual workflow editor. These own the
+ * whole viewport-minus-header area with zero Main padding (edge-to-edge
+ * canvas). Distinct from workspace routes: the editor lives entirely under
+ * `/workflows/*`, which the workspace predicate never matches, so the two are
+ * mutually exclusive by prefix. `/workflows/by-slug/:slug/edit` is not matched
+ * here (extra path segment) — it only redirects to the canonical
+ * `/workflows/:id/edit` route, which is.
+ */
+export function isEditorRoute(pathname: string): boolean {
+  return (
+    /^\/workflows\/create$/.test(pathname) ||
+    /^\/workflows\/[^/]+\/edit$/.test(pathname)
   );
 }
 
@@ -63,6 +79,7 @@ export function RootLayout() {
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
   const workspaceRoute = isWorkspaceRoute(location.pathname);
+  const editorRoute = isEditorRoute(location.pathname);
 
   const navItems = useMemo(
     () => [
@@ -361,10 +378,25 @@ export function RootLayout() {
 
       <AppShell.Main
         id={MAIN_CONTENT_ID}
-        className={workspaceRoute ? "app-shell-main--workspace" : undefined}
+        className={
+          editorRoute
+            ? "app-shell-main--editor"
+            : workspaceRoute
+              ? "app-shell-main--workspace"
+              : undefined
+        }
         style={{ display: "flex", flexDirection: "column" }}
       >
-        {workspaceRoute ? (
+        {editorRoute ? (
+          <>
+            <div className="app-shell-editor-outlet">
+              <Outlet />
+            </div>
+            <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        ) : workspaceRoute ? (
           <>
             <div className="app-shell-workspace-outlet">
               <Outlet />

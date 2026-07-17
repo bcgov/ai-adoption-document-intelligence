@@ -966,7 +966,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       <Stack
         gap={0}
         style={{
-          height: "calc(100vh - 60px)",
+          height: "100%",
           overflow: "hidden",
         }}
       >

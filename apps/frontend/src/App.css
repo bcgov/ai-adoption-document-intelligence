@@ -97,6 +97,38 @@
   flex-shrink: 0;
 }
 
+/*
+ * Full-bleed editor route (visual workflow editor). Mantine folds the
+ * header/navbar offsets into Main's padding
+ * (`padding-top: calc(header-offset + --app-shell-padding)`), so we zero only
+ * the `--app-shell-padding` component — NOT the `padding` shorthand — to remove
+ * the gray gutter while keeping the canvas below the fixed header and right of
+ * the fixed navbar. Zeroing the variable (in `rem`, so the calc stays valid)
+ * also neutralises the footer's negative `--app-shell-padding` bleed margins.
+ */
+.app-shell-main--editor {
+  --app-shell-padding: 0rem;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.app-shell-editor-outlet {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* One viewport minus the real header; no padding subtraction (padding is 0) */
+  height: calc(100dvh - var(--app-shell-header-offset, 0rem));
+}
+
+.app-shell-editor-outlet > * {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+}
+
 .app-shell-workspace-outlet > * {
   flex: 1 1 0;
   min-height: 0;
