@@ -376,7 +376,12 @@ describe('ActivityPalette — US-182: Custom section + "+ New custom node"', () 
     await waitFor(() => {
       expect(screen.getByText("Custom")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("palette-custom-new-btn")).toBeInTheDocument();
+    const newBtn = screen.getByTestId("palette-custom-new-btn");
+    expect(newBtn).toBeInTheDocument();
+    // The button carries an IconPlus leftSection, so the label text must NOT
+    // also start with a literal "+" (that produced a doubled "+ +" glyph).
+    expect(newBtn).toHaveTextContent("New custom node");
+    expect(newBtn.textContent?.trimStart().startsWith("+")).toBe(false);
     expect(screen.getByTestId("custom-empty-placeholder")).toBeInTheDocument();
   });
 

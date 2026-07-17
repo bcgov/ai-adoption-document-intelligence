@@ -76,6 +76,21 @@ function parseInputPortPath(
   return { nodeId: match[1], port: match[2] };
 }
 
+/**
+ * Validator messages embed raw internal node IDs (the `config.nodes` keys) in
+ * double quotes — e.g. `Node "normB" is not reachable from entry node "prepA"`.
+ * Those IDs never appear in the UI, so swap any quoted token that matches a
+ * known node key for that node's friendly label. Generic across every current
+ * and future validator message that names nodes by ID; leaves non-node quoted
+ * tokens untouched.
+ */
+function humanizeNodeIds(message: string, config: GraphWorkflowConfig): string {
+  return message.replace(/"([^"]+)"/g, (whole, id: string) => {
+    const label = config.nodes[id]?.label;
+    return label ? `"${label}"` : whole;
+  });
+}
+
 export function ValidationDrawer({
   opened,
   onClose,
@@ -183,6 +198,7 @@ export function ValidationDrawer({
                     <IssueRow
                       key={`${err.path}-${i}`}
                       error={err}
+                      displayMessage={humanizeNodeIds(err.message, config)}
                       onClick={undefined}
                     />
                   ))}
@@ -234,6 +250,7 @@ export function ValidationDrawer({
                     <IssueRow
                       key={`${err.path}-${i}`}
                       error={err}
+                      displayMessage={humanizeNodeIds(err.message, config)}
                       onClick={
                         explainOnly
                           ? undefined
@@ -284,6 +301,11 @@ function SummaryBar({ result }: { result: GraphValidationResult }) {
 
 interface IssueRowProps {
   error: GraphValidationError;
+  /**
+   * The message to render. The caller humanizes raw node IDs into labels
+   * before passing it; falls back to `error.message` when omitted.
+   */
+  displayMessage?: string;
   onClick: (() => void) | undefined;
   /**
    * What the row does when clicked, surfaced as a right-aligned hint so the
@@ -294,7 +316,12 @@ interface IssueRowProps {
   actionHint?: "pick-source" | "select-node";
 }
 
-function IssueRow({ error, onClick, actionHint }: IssueRowProps) {
+function IssueRow({
+  error,
+  displayMessage,
+  onClick,
+  actionHint,
+}: IssueRowProps) {
   const isError = error.severity === "error";
   const color = isError ? "red" : "yellow";
   const Icon = isError ? IconExclamationCircle : IconAlertTriangle;
@@ -313,7 +340,7 @@ function IssueRow({ error, onClick, actionHint }: IssueRowProps) {
       </ThemeIcon>
       <Box style={{ minWidth: 0, flex: 1 }}>
         <Text size="xs" lh={1.3}>
-          {error.message}
+          {displayMessage ?? error.message}
         </Text>
         <Text size="10px" c="dimmed" ff="monospace" truncate>
           {error.path || "(root)"}

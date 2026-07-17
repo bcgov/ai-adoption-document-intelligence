@@ -143,6 +143,52 @@ describe("ValidationDrawer", () => {
     expect(screen.getByText(/select node/i)).toBeInTheDocument();
     expect(screen.queryByText(/pick a source/i)).not.toBeInTheDocument();
   });
+
+  it("humanizes raw node IDs in a message into their node labels", () => {
+    const reachabilityConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prepA: {
+          id: "prepA",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Prepare A",
+        },
+        normB: {
+          id: "normB",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Normalize B",
+        },
+      },
+      edges: [],
+      entryNodeId: "prepA",
+      ctx: {},
+    };
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          {
+            path: "nodes.normB",
+            message: 'Node "normB" is not reachable from entry node "prepA"',
+            severity: "warning",
+          },
+        ])}
+        config={reachabilityConfig}
+        onSelectNode={vi.fn()}
+        onFixNodeInput={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Node "Normalize B" is not reachable from entry node "Prepare A"',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/"normB"|"prepA"/)).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

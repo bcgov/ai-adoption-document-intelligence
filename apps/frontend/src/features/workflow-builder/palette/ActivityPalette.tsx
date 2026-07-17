@@ -286,7 +286,7 @@ export function ActivityPalette({
                 onClick={() => setNewDynamicOpen(true)}
                 data-testid="palette-custom-new-btn"
               >
-                + New custom node
+                New custom node
               </Button>
               {filteredDynamicEntries.length === 0 ? (
                 <Text
