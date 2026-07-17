@@ -1041,7 +1041,7 @@ const DEMOS = [
       "**Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.",
       "**Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).",
       "On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.",
-      'On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*\'s output port to *Submit OCR (auto-bound)*\'s input port — hover it for the same provenance text as the Inputs section (e.g. *"Connected automatically — nearest Document producer"*). *Lone Submit*\'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.',
+      "On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*'s output port to *Submit OCR (auto-bound)*'s input port — hover it for the same provenance text as the Inputs section (e.g. *\"Connected automatically — nearest Document producer\"*). *Lone Submit*'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.",
       '**Drag-to-bind:** drag from *Prepare*\'s `preparedData` **output port handle** to a compatible **input port handle** on another node — one gesture pins the data binding **and** the execution-order edge (the new wire hovers as *"Pinned by you"*). Incompatible ports dim during the drag and reject the drop with a yellow *"…can\'t be used here"* notice. Right-click a data wire → **Disconnect** / **Revert to automatic** to hand the port back to the resolver.',
     ],
   },
@@ -1051,7 +1051,7 @@ const DEMOS = [
     config: ambiguousConfig,
     steps: [
       "Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.",
-      "**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input \"Prepared file data\" has multiple possible sources — pick one”*.",
+      '**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input "Prepared file data" has multiple possible sources — pick one”*.',
       "**Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.",
       "*Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.",
       "Before you pick, **no data wire** renders into Submit OCR's `fileData` port — the resolver hasn't chosen, so there's nothing to draw; the port row just shows its amber ring. After you pick a producer in step 3, a colored wire appears from that producer's port to Submit OCR.",
@@ -1109,8 +1109,8 @@ const DEMOS = [
     config: conditionStepRefConfig,
     steps: [
       "Select **Route by prepared data** (the switch) → its settings open. Expand the first **case**'s **condition** — the `is-not-null` value field is in **Ref** mode and defaults to the **step→port picker** (not a raw-key field). It already shows the resolved caption **Prepare file → Prepared file data** because the ref points at *Prepare file*'s output (4.8/4.9).",
-      "The picker lists **every upstream output port** as a **\"Node → Port\"** row with the kind as a hint — there's **no kind filter** here (a condition can compare any value). This graph has one upstream producer, so you see the single *Prepare file → Prepared file data* row.",
-      "Click **\"Enter a variable manually\"** → the raw-key autocomplete appears (the escape hatch for a ctx key no step produces, 4.10/4.11); click **\"Back to steps\"** to return to the step picker.",
+      'The picker lists **every upstream output port** as a **"Node → Port"** row with the kind as a hint — there\'s **no kind filter** here (a condition can compare any value). This graph has one upstream producer, so you see the single *Prepare file → Prepared file data* row.',
+      'Click **"Enter a variable manually"** → the raw-key autocomplete appears (the escape hatch for a ctx key no step produces, 4.10/4.11); click **"Back to steps"** to return to the step picker.',
       "The resolution round-trips: because *Prepare file* carries the matching `preparedData` output binding and sits upstream of the switch, the caption resolves on **load** — no Save needed. Saving + reloading keeps it resolved (not the raw `__auto.prep.preparedData` key), and at run time the producer's output is materialised into `ctx` so the condition evaluates against a real value (4.12).",
     ],
   },
@@ -1320,63 +1320,86 @@ async function deleteExistingDemos() {
   return seen.size;
 }
 
+/** Create one workflow demo; returns its guide-result row. */
+async function createDemo(demo) {
+  const name = `${NAME_PREFIX}${demo.title}`;
+  const config = withArrangeOnLoad(
+    typeof demo.config === "function" ? demo.config(name) : demo.config,
+  );
+  const created = unwrap(
+    await api("POST", "/api/workflows", {
+      name,
+      config,
+      groupId: GROUP_ID,
+      kind: demo.kind,
+    }),
+  );
+  if (demo.secondVersion) {
+    await api("PUT", `/api/workflows/${created.id}`, {
+      name,
+      config: withArrangeOnLoad(demo.secondVersion(name)),
+      groupId: GROUP_ID,
+    });
+  }
+  console.log(`  ✓ ${demo.key.padEnd(14)} ${created.id}`);
+  return { ...demo, id: created.id, slug: created.slug };
+}
+
+/**
+ * Best-effort dynamic-node demo (Part 14) — see publishDemoDynamicNode.
+ * Returns its guide-result row, or null when the dynamic node couldn't be
+ * published.
+ */
+async function createDynamicNodeDemo() {
+  const dynSlug = await publishDemoDynamicNode();
+  if (!dynSlug) return null;
+  const title =
+    "Dynamic (custom-code) node — DYN pill & script editor (Part 14)";
+  const name = `${NAME_PREFIX}${title}`;
+  const created = unwrap(
+    await api("POST", "/api/workflows", {
+      name,
+      config: withArrangeOnLoad(dynamicNodeConfig(name, dynSlug)),
+      groupId: GROUP_ID,
+    }),
+  );
+  console.log(
+    `  ✓ ${"dynamic-node".padEnd(14)} ${created.id} (dyn.${dynSlug})`,
+  );
+  return {
+    key: "dynamic-node",
+    title,
+    steps: DYN_DEMO_STEPS,
+    id: created.id,
+    slug: created.slug,
+    dyn: true,
+  };
+}
+
 async function seed() {
   console.log(`Seeding feature demos → ${BACKEND_URL} (group ${GROUP_ID})`);
   const removed = await deleteExistingDemos();
   if (removed) console.log(`  cleared ${removed} previous demo(s)`);
 
-  const results = [];
-  for (const demo of DEMOS) {
-    const name = `${NAME_PREFIX}${demo.title}`;
-    const config = withArrangeOnLoad(
-      typeof demo.config === "function" ? demo.config(name) : demo.config,
-    );
-    const created = unwrap(
-      await api("POST", "/api/workflows", {
-        name,
-        config,
-        groupId: GROUP_ID,
-        kind: demo.kind,
-      }),
-    );
-    if (demo.secondVersion) {
-      await api("PUT", `/api/workflows/${created.id}`, {
-        name,
-        config: withArrangeOnLoad(demo.secondVersion(name)),
-        groupId: GROUP_ID,
-      });
-    }
-    results.push({ ...demo, id: created.id, slug: created.slug });
-    console.log(`  ✓ ${demo.key.padEnd(14)} ${created.id}`);
-  }
+  // The /workflows list is ordered newest-first (created_at desc). We want it
+  // to read top-to-bottom in FEATURE_DEMO_GUIDE order, so we CREATE the demos
+  // in REVERSE of guide order: the guide-first demo is created last (newest)
+  // and lands at the top. Guide order is [...DEMOS, dynamic-node], so the
+  // dynamic node (guide-last) is created FIRST (oldest → bottom). We still
+  // return `results` in guide order so renderGuide is unchanged.
+  //
+  // NOTE: this leans on each create getting a strictly later created_at than
+  // the previous one — reliable in practice because every create is a
+  // separate awaited HTTP round-trip.
+  const dynResult = await createDynamicNodeDemo();
 
-  // Best-effort dynamic-node demo (Part 14) — see publishDemoDynamicNode.
-  const dynSlug = await publishDemoDynamicNode();
-  if (dynSlug) {
-    const title =
-      "Dynamic (custom-code) node — DYN pill & script editor (Part 14)";
-    const name = `${NAME_PREFIX}${title}`;
-    const created = unwrap(
-      await api("POST", "/api/workflows", {
-        name,
-        config: withArrangeOnLoad(dynamicNodeConfig(name, dynSlug)),
-        groupId: GROUP_ID,
-      }),
-    );
-    results.push({
-      key: "dynamic-node",
-      title,
-      steps: DYN_DEMO_STEPS,
-      id: created.id,
-      slug: created.slug,
-      dyn: true,
-    });
-    console.log(
-      `  ✓ ${"dynamic-node".padEnd(14)} ${created.id} (dyn.${dynSlug})`,
-    );
+  const mainReversed = [];
+  for (let i = DEMOS.length - 1; i >= 0; i--) {
+    mainReversed.push(await createDemo(DEMOS[i]));
   }
+  const mainResults = mainReversed.reverse();
 
-  return results;
+  return dynResult ? [...mainResults, dynResult] : mainResults;
 }
 
 function renderGuide(results, agentResults = []) {
