@@ -32,7 +32,7 @@ import {
   type KindRef,
   resolveBindings,
 } from "@ai-di/graph-workflow";
-import { Badge, Modal, Tooltip } from "@mantine/core";
+import { Anchor, Badge, Modal, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   Background,
@@ -530,6 +530,13 @@ function makeSourceHandleHoverHandlers(
     },
   };
 }
+
+/**
+ * Fixed id for the "Execution order kept" data-wire disconnect hint so its
+ * inline "Detach fully" action can dismiss the exact toast it belongs to
+ * (`notifications.hide(id)`) after removing the surviving execution edge.
+ */
+export const DETACH_FULLY_TOAST_ID = "wb-wire-detach-fully-hint";
 
 /**
  * §9 — viewport coordinates of a connect-end release, handling both mouse
@@ -1669,6 +1676,21 @@ function WorkflowEditorCanvasInner({
     useEdgesState<Edge>([]);
   const reactFlow = useReactFlow();
 
+  // Latest config for deferred handlers. The "Detach fully" toast action
+  // (below) fires long after the toast was created, so closing over `config`
+  // directly would drop any edits made in between; the handler reads the
+  // current graph through this ref instead.
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  // Edge ids to auto-select on the NEXT edge projection. When the last data
+  // wire on a pair is deleted, its normal edge only re-materialises as a
+  // dashed sequence remainder after the disconnect re-projects — so we can't
+  // select it in the current `internalEdges` (it isn't there yet). We stash
+  // the surviving edge id here and the projection effect stamps `selected`
+  // onto it once the remainder edge exists, so the next Delete removes it.
+  const pendingEdgeSelectionRef = useRef<Set<string> | null>(null);
+
   // Auto-fit the viewport when nodes are added (US-014). Compares the
   // previous node-id set to the current one; new ids that weren't present
   // before are treated as additions and the viewport animates to bring
@@ -1984,11 +2006,21 @@ function WorkflowEditorCanvasInner({
     const combinedFingerprint = `${dataFingerprint}::${edgesFingerprint}`;
     if (lastEdgesFingerprintRef.current === combinedFingerprint) return;
     lastEdgesFingerprintRef.current = combinedFingerprint;
-    setInternalEdges(
-      simplifiedView
-        ? projectSimplifiedFlowEdges(visibleEdges, config)
-        : projectFlowWires(derivedWires, config),
-    );
+    const projected = simplifiedView
+      ? projectSimplifiedFlowEdges(visibleEdges, config)
+      : projectFlowWires(derivedWires, config);
+    // Apply a one-shot auto-selection queued by a data-wire disconnect that
+    // left a sequence remainder (see `disconnectWires`). Deselect everything
+    // else so the next Delete/Backspace targets only the survivor(s).
+    const pending = pendingEdgeSelectionRef.current;
+    if (pending) {
+      pendingEdgeSelectionRef.current = null;
+      setInternalEdges(
+        projected.map((e) => ({ ...e, selected: pending.has(e.id) })),
+      );
+      return;
+    }
+    setInternalEdges(projected);
   }, [
     dataFingerprint,
     edgesFingerprint,
@@ -2158,17 +2190,39 @@ function WorkflowEditorCanvasInner({
    * (both endpoints still in the graph) — the context menu's single wire
    * trivially satisfies this since no nodes are being deleted.
    */
+  /**
+   * Removes surviving execution edge(s) from the LATEST config in one click —
+   * the "Detach fully" toast action. Reads `configRef` (not the closed-over
+   * `config`) because the toast fires after later edits may have landed, then
+   * dismisses its own toast by fixed id.
+   */
+  const handleDetachFully = useCallback(
+    (edgeIds: ReadonlySet<string>) => {
+      const current = configRef.current;
+      const remaining = current.edges.filter((e) => !edgeIds.has(e.id));
+      if (remaining.length !== current.edges.length) {
+        onConfigChange({ ...current, edges: remaining });
+      }
+      notifications.hide(DETACH_FULLY_TOAST_ID);
+    },
+    [onConfigChange],
+  );
+
   const disconnectWires = useCallback(
     (wires: DataWire[], base: GraphWorkflowConfig): GraphWorkflowConfig => {
       let next = base;
       for (const wire of wires) {
         next = disconnectDataWire(next, wire.target, wire.targetPort);
       }
-      const leavesSequenceRemainder = wires.some((wire) => {
-        if (wire.edgeId === undefined) return false; // no edge → no remainder
+      // For every deleted wire that removed the LAST data wire on its pair,
+      // collect the surviving normal (execution) edge — it re-renders as a
+      // dashed sequence remainder. `base.edges` still holds it since a
+      // data-wire delete never touches `config.edges`.
+      const survivingEdgeIds = new Set<string>();
+      for (const wire of wires) {
+        if (wire.edgeId === undefined) continue; // no edge → no remainder
         // Pre-delete wires between the pair vs how many of them were just
-        // deleted: equal counts mean the LAST data wire on this pair went,
-        // so its normal edge will re-render as a dashed sequence wire.
+        // deleted: equal counts mean the LAST data wire on this pair went.
         const pairWiresBefore = derivedWires.filter(
           (w): w is DataWire =>
             w.variant === "data" &&
@@ -2178,23 +2232,50 @@ function WorkflowEditorCanvasInner({
         const deletedFromPair = wires.filter(
           (d) => d.source === wire.source && d.target === wire.target,
         ).length;
-        return pairWiresBefore === deletedFromPair;
-      });
-      if (leavesSequenceRemainder) {
+        if (pairWiresBefore !== deletedFromPair) continue; // a wire survives
+        const executionEdge =
+          base.edges.find(
+            (e) =>
+              e.source === wire.source &&
+              e.target === wire.target &&
+              e.type === "normal",
+          ) ??
+          base.edges.find(
+            (e) => e.source === wire.source && e.target === wire.target,
+          );
+        if (executionEdge) survivingEdgeIds.add(executionEdge.id);
+      }
+      if (survivingEdgeIds.size > 0) {
+        // Auto-select the surviving edge(s) once they re-project as dashed
+        // remainders, so a second Delete/Backspace detaches them with no
+        // manual click.
+        pendingEdgeSelectionRef.current = survivingEdgeIds;
         // Deliberately grey + 6s (vs the codebase's red/green/blue 3s
         // norm): this is a passive "here's why the arrow stayed" hint,
         // not a success/failure verdict, and readers need time to spot
-        // the dashed wire it refers to.
+        // the dashed wire it refers to. The inline "Detach fully" action
+        // removes those same edge(s) in one click.
         notifications.show({
-          message:
-            "Execution order kept — delete the dashed wire to fully detach.",
+          id: DETACH_FULLY_TOAST_ID,
+          message: (
+            <>
+              Execution order kept — delete the dashed wire to fully detach.{" "}
+              <Anchor
+                component="button"
+                type="button"
+                onClick={() => handleDetachFully(survivingEdgeIds)}
+              >
+                Detach fully
+              </Anchor>
+            </>
+          ),
           color: "gray",
           autoClose: 6000,
         });
       }
       return next;
     },
-    [derivedWires],
+    [derivedWires, handleDetachFully],
   );
 
   /**

@@ -40,6 +40,7 @@ import type {
 } from "../../../types/workflow";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
 import {
+  DETACH_FULLY_TOAST_ID,
   releaseAnchorFromEvent,
   WorkflowEditorCanvas,
 } from "./WorkflowEditorCanvas";
@@ -49,7 +50,7 @@ import {
 // ---------------------------------------------------------------------------
 
 vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
+  notifications: { show: vi.fn(), hide: vi.fn() },
 }));
 
 // `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
@@ -207,6 +208,7 @@ beforeEach(() => {
   mockFitView.mockClear();
   latestReactFlowProps.current = null;
   vi.mocked(notifications.show).mockClear();
+  vi.mocked(notifications.hide).mockClear();
 });
 
 // ---------------------------------------------------------------------------
@@ -2026,12 +2028,117 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     });
 
     expect(onConfigChange).toHaveBeenCalled();
-    expect(notifications.show).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message:
-          "Execution order kept — delete the dashed wire to fully detach.",
-      }),
+    // The hint is now JSX (text + inline "Detach fully" action) rather than
+    // a plain string, so render the captured `message` and assert the
+    // explanatory text is still present.
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    const toastCall = showMock.mock.calls.find(
+      (c) => (c[0] as { id?: string }).id === DETACH_FULLY_TOAST_ID,
     );
+    if (!toastCall) throw new Error("detach-fully toast not shown");
+    const { message } = toastCall[0] as { message: React.ReactNode };
+    render(<MantineProvider>{message}</MantineProvider>);
+    expect(
+      screen.getByText(
+        /Execution order kept — delete the dashed wire to fully detach\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-selects the surviving execution edge after the last data wire on a pair is deleted", async () => {
+    const config = makeSingleWireConfig();
+    const { onConfigChange, rerenderWithConfig } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
+    });
+
+    // The disconnect emits a new config where the normal edge `e1` re-renders
+    // as a dashed sequence remainder. Mirror the host's `setConfig(next)` so
+    // the projection re-runs and applies the pending auto-selection.
+    const next = lastEmittedConfig(onConfigChange);
+    act(() => {
+      rerenderWithConfig(next);
+    });
+    await flushAnimationFrame();
+
+    const survivor = getCapturedEdges().find((e) => e.id === "e1");
+    if (!survivor) throw new Error("surviving execution edge not projected");
+    expect(survivor.selected).toBe(true);
+    // Every other edge is deselected so the next Delete targets only e1.
+    for (const e of getCapturedEdges()) {
+      if (e.id !== "e1") expect(e.selected ?? false).toBe(false);
+    }
+  });
+
+  it("offers a 'Detach fully' action whose handler drops the surviving edge from the latest config", async () => {
+    const config = makeSingleWireConfig();
+    const { onConfigChange } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
+    });
+
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    const toastCall = showMock.mock.calls.find(
+      (c) => (c[0] as { id?: string }).id === DETACH_FULLY_TOAST_ID,
+    );
+    if (!toastCall) throw new Error("detach-fully toast not shown");
+    const { message } = toastCall[0] as { message: React.ReactNode };
+    render(<MantineProvider>{message}</MantineProvider>);
+
+    const detachBtn = screen.getByRole("button", { name: /Detach fully/ });
+    act(() => {
+      fireEvent.click(detachBtn);
+    });
+
+    // The handler drops the surviving execution edge from the CURRENT config.
+    expect(onConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ edges: [] }),
+    );
+    // And dismisses its own toast.
+    expect(notifications.hide).toHaveBeenCalledWith(DETACH_FULLY_TOAST_ID);
+  });
+
+  it("does not auto-select or offer detach when another data wire still binds the pair", async () => {
+    const config = makeTwoWiresConfig();
+    const { onConfigChange, rerenderWithConfig } = renderCanvas(config);
+    await flushAnimationFrame();
+
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [], edges: [dataWireEdge] });
+    });
+
+    expect(notifications.show).not.toHaveBeenCalled();
+
+    const next = lastEmittedConfig(onConfigChange);
+    act(() => {
+      rerenderWithConfig(next);
+    });
+    await flushAnimationFrame();
+
+    // The remaining data wire keeps `e1` stamped, so no structural remainder
+    // edge is emitted and nothing is auto-selected.
+    for (const e of getCapturedEdges()) {
+      expect(e.selected ?? false).toBe(false);
+    }
   });
 
   it("does not show the hint when other data wires between the pair remain", async () => {
