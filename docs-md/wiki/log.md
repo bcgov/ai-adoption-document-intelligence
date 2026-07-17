@@ -82,3 +82,7 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added new docs for previously-undocumented merged subsystems: `workflows/TEMPORAL_PAYLOAD_FOOTPRINT.md` (gzip codec + OCR payload refs) and `extraction/OCR_RESULT_VIEWS.md` (AI-1445); routed both from `graph-workflows.md` / `extraction.md` and registered the codec package in `sources.md`.
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
+
+## [2026-07-17] ingest | pgBackRest restore runbook
+
+- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, shutting down the PostgresCluster, patching for latest/PITR/named-backup restores, monitoring the restore job, removing the dataSource spec, and scaling back up.
