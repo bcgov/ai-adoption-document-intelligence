@@ -50,7 +50,13 @@ export function resolveInputPort(
 
   if (lockList.includes(port.name)) {
     const existing = consumer.inputs?.find((b) => b.port === port.name);
-    if (!existing || existing.ctxKey === "") {
+    // Any falsy ctxKey (missing/undefined or "") means the port has no real
+    // source — it's "pinned unbound" ("Disconnected by you"), NOT a bound
+    // "Pinned" row. A ctxKey-less input stub can slip into the in-memory
+    // config on a canvas edge-delete, and the two states render differently
+    // (locked-unbound offers "Pick a source"; locked shows a source), so the
+    // classifier must reject every falsy ctxKey, not just the empty string.
+    if (!existing || !existing.ctxKey) {
       return { status: "locked-unbound" };
     }
     return { status: "locked", ctxKey: existing.ctxKey };

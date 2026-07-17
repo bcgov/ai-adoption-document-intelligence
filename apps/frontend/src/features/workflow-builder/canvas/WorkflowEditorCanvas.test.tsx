@@ -11,6 +11,7 @@
 
 import "@testing-library/jest-dom";
 
+import { resolveBindings, resolveInputPort } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -3977,5 +3978,88 @@ describe("WorkflowEditorCanvas — kind-aware extend popover (§9)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Keyboard-delete of a data wire (§6.3, bug 6b regression)
+//   Selecting the blue auto-bound data wire and deleting it must disconnect
+//   the consumer input binding and pin the port UNBOUND ("Disconnected by
+//   you"), leaving `inputs: []` — never a ctxKey-less stub that would render
+//   the wrong "Pinned" state. Exercises the real `handleDelete` the canvas
+//   hands to ReactFlow's `onDelete`.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — data-wire delete (§6.3 / bug 6b)", () => {
+  function getOnDelete(): (args: { nodes: FlowNode[]; edges: Edge[] }) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onDelete");
+    }
+    return props.onDelete as (args: {
+      nodes: FlowNode[];
+      edges: Edge[];
+    }) => void;
+  }
+
+  function getCapturedEdges(): Edge[] {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    return (props.edges as Edge[]) ?? [];
+  }
+
+  // Real auto-wire chain: file.prepare → azureOcr.submit (`fileData`:
+  // Document), matching the "← Prepare · Auto" demo row.
+  const autoWiredChain = (): GraphWorkflowConfig =>
+    resolveBindings({
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: "prep",
+      ctx: {},
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          label: "Prepare",
+          activityType: "file.prepare",
+        },
+        submit: {
+          id: "submit",
+          type: "activity",
+          label: "Submit",
+          activityType: "azureOcr.submit",
+        },
+      },
+      edges: [{ id: "e0", source: "prep", target: "submit", type: "normal" }],
+    });
+
+  it("disconnects the binding and pins the port unbound — no ctxKey-less stub", () => {
+    const config = autoWiredChain();
+    // Precondition: the port auto-bound before the delete.
+    expect(config.nodes.submit.inputs).toEqual([
+      { port: "fileData", ctxKey: "__auto.prep.preparedData" },
+    ]);
+
+    const { onConfigChange } = renderCanvas(config);
+    const dataEdge = getCapturedEdges().find(
+      (e) => (e.data as WorkflowEdgeData | undefined)?.wire?.variant === "data",
+    );
+    if (!dataEdge) throw new Error("data wire edge not projected");
+
+    act(() => {
+      getOnDelete()({ nodes: [], edges: [dataEdge] });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.submit.inputs).toEqual([]);
+    expect(
+      (next.nodes.submit.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+    // The disconnected config resolves to locked-unbound, not locked.
+    expect(
+      resolveInputPort(next, "submit", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
   });
 });

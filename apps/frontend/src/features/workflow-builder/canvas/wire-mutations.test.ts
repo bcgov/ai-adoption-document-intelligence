@@ -5,6 +5,7 @@
  * "Change source" / "Revert to automatic" actions — all funneled through
  * this one module so they write bindings identically.
  */
+import { resolveBindings, resolveInputPort } from "@ai-di/graph-workflow";
 import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
@@ -145,6 +146,46 @@ describe("disconnectDataWire", () => {
       (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
         ?.lockedInputPorts,
     ).toEqual(["ocrResult"]);
+  });
+});
+
+describe("delete-wire pipeline (§6.3 regression for bug 6b)", () => {
+  // Real auto-wire chain: file.prepare (`preparedData`: Document) →
+  // azureOcr.submit (`fileData`: Document). Mirrors the "← Prepare · Auto"
+  // demo row. Deleting the data wire must land the consumer port in
+  // `locked-unbound` ("Disconnected by you"), NOT `locked` ("Pinned").
+  const autoWiredChain = (): GraphWorkflowConfig => ({
+    schemaVersion: "1.0",
+    metadata: { name: "t" },
+    entryNodeId: "A",
+    ctx: {},
+    nodes: {
+      A: activityNode("A", "file.prepare"),
+      B: activityNode("B", "azureOcr.submit"),
+    },
+    edges: [{ id: "e0", source: "A", target: "B", type: "normal" }],
+  });
+
+  it("disconnectDataWire + resolveBindings leaves inputs:[] and resolves to locked-unbound", () => {
+    const resolved = resolveBindings(autoWiredChain());
+    // Precondition: the port really auto-bound before the delete.
+    expect(resolved.nodes.B.inputs).toEqual([
+      { port: "fileData", ctxKey: "__auto.A.preparedData" },
+    ]);
+
+    const disconnected = disconnectDataWire(resolved, "B", "fileData");
+    // resolveBindings runs on every config the canvas dispatches — it must
+    // NOT re-inject a binding (ctxKey-less or otherwise) for the locked port.
+    const rebound = resolveBindings(disconnected);
+
+    expect(rebound.nodes.B.inputs).toEqual([]);
+    expect(
+      (rebound.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+    expect(
+      resolveInputPort(rebound, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
   });
 });
 

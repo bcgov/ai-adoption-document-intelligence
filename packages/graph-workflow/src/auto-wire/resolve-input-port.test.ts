@@ -241,6 +241,28 @@ describe("locked-unbound (port-wiring Phase 3, §6.3)", () => {
     ).toEqual({ status: "locked-unbound" });
   });
 
+  it("reports locked-unbound for a locked port whose binding has an undefined ctxKey", () => {
+    // A ctxKey-less input stub can slip into the in-memory config (e.g. a
+    // transient during a canvas edge-delete). The classifier must treat a
+    // missing ctxKey the same as an empty one — otherwise the row renders
+    // the wrong "Pinned" (locked) state instead of "Disconnected by you".
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      // Deliberately malformed: ctxKey absent at runtime despite the
+      // PortBinding type declaring it required.
+      inputs: [
+        { port: "fileData" } as unknown as { port: string; ctxKey: string },
+      ],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
+      { source: "A", target: "B" },
+    ]);
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+  });
+
   it("still reports locked (with ctxKey) when the locked port has a binding", () => {
     const node = {
       ...activity("B", "azureOcr.submit"),
