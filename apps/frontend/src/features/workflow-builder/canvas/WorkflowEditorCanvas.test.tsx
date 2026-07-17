@@ -4112,3 +4112,170 @@ describe("WorkflowEditorCanvas — item 6X: producer highlight emphasis", () => 
     expect(readNodeClass("switch_1")).not.toContain("wb-node-highlight");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Auto-wire supersession toast: drawing a node-level execution edge that
+// makes the resolver auto-bind the target's input to the source (a blue
+// data wire that supersedes the grey sequence edge) shows a one-off toast
+// naming the producer. Fires ONLY when a NEW auto data wire source→target
+// actually appears — never on no-op connects or port-to-port pins.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — auto-wire supersession toast", () => {
+  function getOnConnect(): (connection: Connection) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnect !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnect");
+    }
+    return props.onConnect as (connection: Connection) => void;
+  }
+
+  /**
+   * `file.prepare` (output `preparedData`: Document) + `azureOcr.submit`
+   * (input `fileData`: Document) with NO edge and NO bindings yet.
+   * Connecting prep→submit makes the resolver auto-bind fileData to prep's
+   * preparedData — a data wire that did not exist before the connect.
+   */
+  function makeAutoWirePairConfig(): GraphWorkflowConfig {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prepare File",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Auto-wire pair", version: "1.0.0" },
+      ctx: {},
+      nodes: { [prep.id]: prep, [submit.id]: submit },
+      edges: [],
+      entryNodeId: prep.id,
+    };
+  }
+
+  it("fires once naming the source when the connect creates a NEW auto data wire", () => {
+    const { onConfigChange } = renderCanvas(makeAutoWirePairConfig());
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    // Edge still added by the node-level path.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    expect(notifications.show).toHaveBeenCalledTimes(1);
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: 'Auto-wired — data now flows from "Prepare File".',
+      }),
+    );
+  });
+
+  it("does NOT fire when the connect creates no new auto-binding", () => {
+    // Two `data.transform` nodes: data.transform declares no input ports,
+    // so a prep→submit-style auto-bind can't happen. The edge is added as
+    // a plain sequence edge; no data wire → no toast.
+    const a: ActivityNode = {
+      id: "a1",
+      type: "activity",
+      label: "A",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const b: ActivityNode = {
+      id: "b1",
+      type: "activity",
+      label: "B",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "No auto-bind", version: "1.0.0" },
+      ctx: {},
+      nodes: { [a.id]: a, [b.id]: b },
+      edges: [],
+      entryNodeId: a.id,
+    };
+    const { onConfigChange } = renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "a1",
+        target: "b1",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("does NOT fire when the target input is already bound to the source", () => {
+    // prep→submit already wired (edge + fileData bound). A duplicate
+    // connect is dropped by the dedup guard, but even if it weren't, no
+    // NEW wire appears, so no toast.
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prepare File",
+      activityType: "file.prepare",
+      parameters: {},
+      outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit OCR",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Already bound", version: "1.0.0" },
+      ctx: {},
+      nodes: { [prep.id]: prep, [submit.id]: submit },
+      edges: [{ id: "e", source: "prep", target: "submit", type: "normal" }],
+      entryNodeId: prep.id,
+    };
+    renderCanvas(config);
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+
+  it("does NOT fire on the port-to-port pin path (early return before node-level)", () => {
+    renderCanvas(makeAutoWirePairConfig());
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out-preparedData",
+        targetHandle: "in-fileData",
+      });
+    });
+    expect(notifications.show).not.toHaveBeenCalled();
+  });
+});

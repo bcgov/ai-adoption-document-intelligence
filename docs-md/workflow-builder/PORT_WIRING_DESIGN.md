@@ -106,6 +106,10 @@ While dragging from an output of kind `K`: ports where `isAssignable(K, expected
 
 Dropping an edge on a node body (or using hover-to-extend / palette drop) keeps today's behavior — create edge, `resolveBindings` runs — but the result is now narrated: a transient popover on the new connection summarizes what auto-wire did: *"✓ fileData ← Prepare · ✓ apimRequestId ← Submit (name match) · ⚠ ocrResponse needs a source [Fix]"*. Fix reuses the existing badge deep-link into the `ProducerPicker`. This popover replaces silence — the single biggest trust problem with invisible auto-wiring.
 
+### 6.4a Auto-wire supersession toast
+
+When a node-level connect causes the target to auto-bind an input to the source — so the gray sequence edge the user just drew is visually superseded by a blue data wire — a toast fires: *"Auto-wired — data now flows from &lt;source&gt;."* Strictly gated: `handleConnect` re-derives data wires before vs after the new edge (`deriveWires` over `resolveBindings(configWithNewEdge)`) and shows the toast **only** when a NEW `auto` data wire `source→target` appears. It does NOT fire on port-to-port pins (explicit; the wire is its own feedback), on connects that produce no new binding, or on node drops. Complements the §6.4 summary popover — the popover lists all input states; the toast explains the specific wire-swap that just happened on canvas.
+
 ## 7. Auto-wire becomes explainable
 
 Resolver semantics are untouched (nearest kind-assignable; exact-unique name match for base-`Artifact` identifier ports; ambiguity never guessed). Additions:

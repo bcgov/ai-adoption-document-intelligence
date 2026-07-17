@@ -30,6 +30,7 @@ import {
   getLockedInputPorts,
   isAssignable,
   type KindRef,
+  resolveBindings,
 } from "@ai-di/graph-workflow";
 import { Badge, Modal, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
@@ -2555,8 +2556,51 @@ function WorkflowEditorCanvasInner({
         target: connection.target,
         type: edgeType,
       };
-      onConfigChange({ ...config, edges: [...config.edges, newEdge] });
+      const configWithNewEdge = {
+        ...config,
+        edges: [...config.edges, newEdge],
+      };
+      onConfigChange(configWithNewEdge);
       openConnectSummary(connection.target);
+
+      // §6.4a — auto-wire supersession toast. A node-level execution edge
+      // can make the resolver auto-bind the TARGET's input to this SOURCE,
+      // rendering a blue data wire that visually supersedes the grey
+      // sequence edge. That swap is unexplained for newcomers, so name the
+      // producer — but ONLY when it actually happens. Diff the derived DATA
+      // wires before vs after re-resolving the edge-added config: a NEW auto
+      // data wire (source, target, targetPort) that did not exist before
+      // means THIS connect created the binding. `resolveBindings` is
+      // idempotent and only ADDS auto-bindings, so re-running it on the
+      // already-resolved `config` is safe. No new wire (incompatible kinds,
+      // or the input was already bound) → no toast. The port-to-port pin
+      // path returned early above, so this never fires for explicit pins.
+      const dataWireSig = (wire: DataWire) =>
+        `${wire.source} ${wire.target} ${wire.targetPort}`;
+      const boundAutoWireSigsBefore = new Set(
+        deriveWires(config)
+          .filter((wire): wire is DataWire => wire.variant === "data")
+          .filter((wire) => wire.auto)
+          .map(dataWireSig),
+      );
+      const createdAutoWire = deriveWires(resolveBindings(configWithNewEdge))
+        .filter((wire): wire is DataWire => wire.variant === "data")
+        .some(
+          (wire) =>
+            wire.auto &&
+            wire.source === connection.source &&
+            wire.target === connection.target &&
+            !boundAutoWireSigsBefore.has(dataWireSig(wire)),
+        );
+      if (createdAutoWire) {
+        const sourceLabel =
+          config.nodes[connection.source]?.label ?? connection.source;
+        notifications.show({
+          color: "blue",
+          message: `Auto-wired — data now flows from "${sourceLabel}".`,
+          autoClose: 4000,
+        });
+      }
     },
     [config, onConfigChange, openConnectSummary],
   );
