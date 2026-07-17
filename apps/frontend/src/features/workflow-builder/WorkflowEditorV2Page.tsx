@@ -511,21 +511,22 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       if (!entry) return;
       const id = makeNodeId(config, activityType);
       const pos = position ?? defaultStaggerPosition(config);
-      const inputs = entry.inputs.map((p) => ({
-        port: p.name,
-        ctxKey: p.name,
-      }));
-      const outputs = entry.outputs.map((p) => ({
-        port: p.name,
-        ctxKey: p.name,
-      }));
+      // A freshly dropped node carries NO port bindings. The auto-wire
+      // resolver owns input binding: it auto-binds each typed input to the
+      // nearest compatible upstream producer (synthesising the producer's
+      // output binding on demand), or leaves the port honestly "unsatisfied"
+      // when none exists. Stamping placeholder bindings (`ctxKey = portName`)
+      // + matching ctx vars would defeat the resolver — a non-`__auto.*` ctx
+      // key reads as a user-authored override, so the node would never
+      // auto-wire and the settings panel would show a misleading "from
+      // <portname>" source. See input-row-resolution.ts.
       const newNode: ActivityNode = {
         id,
         type: "activity",
         label: entry.displayName ?? entry.activityType,
         activityType,
-        inputs,
-        outputs,
+        inputs: [],
+        outputs: [],
         parameters: {},
         metadata: {
           position: pos,
@@ -534,16 +535,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       setConfig((prev) => {
         const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
         const nextNodes = { ...prev.nodes, [id]: newNode };
-        const nextCtx = { ...prev.ctx };
-        for (const binding of [...inputs, ...outputs]) {
-          if (!nextCtx[binding.ctxKey]) {
-            nextCtx[binding.ctxKey] = { type: "string" };
-          }
-        }
         return {
           ...prev,
           nodes: nextNodes,
-          ctx: nextCtx,
           entryNodeId: nextEntryNodeId,
         };
       });
@@ -661,22 +655,17 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       if (!entry) return;
       const id = makeNodeId(config, activityType);
       const pos = position ?? defaultStaggerPosition(config);
-      const inputs = entry.inputs.map((p) => ({
-        port: p.name,
-        ctxKey: p.name,
-      }));
-      const outputs = entry.outputs.map((p) => ({
-        port: p.name,
-        ctxKey: p.name,
-      }));
       const parameters = materialiseParamDefaults(entry.paramsSchema);
+      // Like the static activity path, a freshly dropped dynamic node carries
+      // NO port bindings — the auto-wire resolver owns input binding and
+      // synthesises producer output bindings on demand. See `addActivity`.
       const newNode: ActivityNode = {
         id,
         type: "activity",
         label: entry.displayName ?? slug,
         activityType,
-        inputs,
-        outputs,
+        inputs: [],
+        outputs: [],
         parameters,
         metadata: {
           position: pos,
@@ -685,16 +674,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       setConfig((prev) => {
         const nextEntryNodeId = prev.entryNodeId === "" ? id : prev.entryNodeId;
         const nextNodes = { ...prev.nodes, [id]: newNode };
-        const nextCtx = { ...prev.ctx };
-        for (const binding of [...inputs, ...outputs]) {
-          if (!nextCtx[binding.ctxKey]) {
-            nextCtx[binding.ctxKey] = { type: "string" };
-          }
-        }
         return {
           ...prev,
           nodes: nextNodes,
-          ctx: nextCtx,
           entryNodeId: nextEntryNodeId,
         };
       });

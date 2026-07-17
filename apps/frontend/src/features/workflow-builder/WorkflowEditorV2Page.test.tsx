@@ -235,6 +235,7 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   }),
 }));
 
+import { resolveWireableInputRows } from "./settings/input-row-resolution";
 import type { WorkflowTemplate } from "./templates";
 // Now import the page under test. Must come AFTER the vi.mock calls so
 // the page picks up the mocked dependencies.
@@ -1929,5 +1930,78 @@ describe("WorkflowEditorV2Page — connect summary (§6.4) Fix deep-link", () =>
       nodeId: "b",
       port: "fileData",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// De-placeholdered activity drop — `addActivity` must NOT stamp a placeholder
+// input binding (`ctxKey = portName`) on every input port. A freshly dropped
+// node's typed inputs must surface the auto-wire resolver's honest state:
+// "unsatisfied" with no upstream producer (NEVER "ctx-bound" / "from
+// <portname>"), and the ctx-var auto-declaration must not invent port-named
+// ctx keys.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — de-placeholdered activity drop", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedPaletteProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+  });
+
+  function dispatchAddActivity(activityType: string) {
+    const onAddActivity = capturedPaletteProps.current?.onAddActivity as
+      | ((type: string) => void)
+      | undefined;
+    if (!onAddActivity) {
+      throw new Error("Palette stub did not capture onAddActivity");
+    }
+    act(() => {
+      onAddActivity(activityType);
+    });
+  }
+
+  function readConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  it("drops azureOcr.submit with no placeholder input binding", () => {
+    renderPage();
+    dispatchAddActivity("azureOcr.submit");
+    const config = readConfig();
+    const id = Object.keys(config.nodes)[0];
+    const node = config.nodes[id] as ActivityNode;
+    // No input binding should have been stamped — the resolver owns input
+    // binding for a freshly dropped node.
+    expect(node.inputs ?? []).toEqual([]);
+  });
+
+  it("does not auto-declare port-named ctx vars for a dropped activity", () => {
+    renderPage();
+    dispatchAddActivity("azureOcr.submit");
+    const config = readConfig();
+    // The old placeholder path declared ctx vars named after every port
+    // (fileData / apimRequestId / statusCode / headers). None of those may
+    // leak into ctx now that no binding references them.
+    expect(config.ctx.fileData).toBeUndefined();
+    expect(config.ctx.apimRequestId).toBeUndefined();
+    expect(config.ctx.statusCode).toBeUndefined();
+    expect(config.ctx.headers).toBeUndefined();
+  });
+
+  it("fileData resolves 'unsatisfied' (not ctx-bound) with no upstream producer", () => {
+    renderPage();
+    dispatchAddActivity("azureOcr.submit");
+    const config = readConfig();
+    const id = Object.keys(config.nodes)[0];
+    const rows = resolveWireableInputRows(config, id);
+    const fileData = rows.find((r) => r.port.name === "fileData");
+    expect(fileData).toBeDefined();
+    expect(fileData?.resolution.status).toBe("unsatisfied");
   });
 });
