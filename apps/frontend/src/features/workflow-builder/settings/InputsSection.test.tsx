@@ -525,4 +525,224 @@ describe("InputsSection", () => {
     );
     expect(screen.queryAllByTestId("producer-row-label")).toHaveLength(0);
   });
+
+  // -------------------------------------------------------------------------
+  // Item 6X — real-producer rows are interactive (jump on click, highlight on
+  // hover); rows with no real producer are not.
+  // -------------------------------------------------------------------------
+
+  function autoBoundConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare A",
+          outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+        },
+      },
+      edges: [{ id: "e", source: "A", target: "B", type: "normal" }],
+      entryNodeId: "A",
+      ctx: {},
+    };
+  }
+
+  it("an auto-bound row jumps to the producer on click and highlights it on hover/leave", async () => {
+    const user = userEvent.setup();
+    const onJumpToProducer = vi.fn();
+    const onHoverProducer = vi.fn();
+    mount(
+      <InputsSection
+        config={autoBoundConfig()}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={onJumpToProducer}
+        onHoverProducer={onHoverProducer}
+      />,
+    );
+    const row = screen.getByTestId("input-producer-row-fileData");
+    await user.hover(row);
+    expect(onHoverProducer).toHaveBeenLastCalledWith("A");
+    await user.unhover(row);
+    expect(onHoverProducer).toHaveBeenLastCalledWith(null);
+    await user.click(row);
+    expect(onJumpToProducer).toHaveBeenCalledWith("A");
+  });
+
+  it("clicking the auto-bound row's 'Change source' button does NOT jump to the producer", async () => {
+    const user = userEvent.setup();
+    const onJumpToProducer = vi.fn();
+    mount(
+      <InputsSection
+        config={autoBoundConfig()}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={onJumpToProducer}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /change source/i }));
+    expect(onJumpToProducer).not.toHaveBeenCalled();
+  });
+
+  it("a locked row bound to an __auto key jumps to the decoded producer", async () => {
+    const user = userEvent.setup();
+    const onJumpToProducer = vi.fn();
+    const onHoverProducer = vi.fn();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+          outputs: [
+            { port: "preparedData", ctxKey: "__auto.prep.preparedData" },
+          ],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [{ id: "e", source: "prep", target: "B", type: "normal" }],
+      entryNodeId: "prep",
+      ctx: {},
+    };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={onJumpToProducer}
+        onHoverProducer={onHoverProducer}
+      />,
+    );
+    const row = screen.getByTestId("input-producer-row-fileData");
+    await user.click(row);
+    expect(onJumpToProducer).toHaveBeenCalledWith("prep");
+    await user.hover(row);
+    expect(onHoverProducer).toHaveBeenLastCalledWith("prep");
+  });
+
+  it("an unsatisfied row is NOT interactive (no jump/hover, no interactive row)", async () => {
+    const user = userEvent.setup();
+    const onJumpToProducer = vi.fn();
+    const onHoverProducer = vi.fn();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="Z"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={onJumpToProducer}
+        onHoverProducer={onHoverProducer}
+      />,
+    );
+    // No interactive producer row rendered.
+    expect(screen.queryByTestId("input-producer-row-fileData")).toBeNull();
+    // Clicking the "Needs a source" affordance never triggers a jump/hover.
+    await user.click(screen.getByRole("button", { name: /needs a source/i }));
+    expect(onJumpToProducer).not.toHaveBeenCalled();
+    expect(onHoverProducer).not.toHaveBeenCalled();
+  });
+
+  it("a ctx-bound (non-auto) row is NOT interactive", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [
+            { port: "documentId", ctxKey: "documentId" },
+            { port: "blobKey", ctxKey: "blobKey" },
+          ],
+          metadata: { lockedInputPorts: ["blobKey"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {
+        documentId: { type: "string", isInput: true },
+        blobKey: { type: "string", isInput: true },
+      },
+    };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={vi.fn()}
+        onHoverProducer={vi.fn()}
+      />,
+    );
+    // The ctx-bound documentId row shows "from documentId" but is not a
+    // jump/highlight target (no producer node).
+    expect(screen.getByText("from documentId")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-producer-row-documentId")).toBeNull();
+  });
+
+  it("a locked row bound to a hand-authored (non-auto) ctx var is NOT interactive", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "myVar" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "B",
+      ctx: { myVar: { type: "string", isInput: true } },
+    };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="B"
+        onConfigChange={vi.fn()}
+        onJumpToProducer={vi.fn()}
+        onHoverProducer={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("from myVar")).toBeInTheDocument();
+    expect(screen.queryByTestId("input-producer-row-fileData")).toBeNull();
+  });
 });

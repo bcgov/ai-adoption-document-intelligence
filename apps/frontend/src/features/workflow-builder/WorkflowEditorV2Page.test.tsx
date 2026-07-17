@@ -43,6 +43,7 @@ const {
   capturedSettingsPanelProps,
   capturedValidationDrawerProps,
   fitViewMock,
+  setCenterMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
   return {
@@ -68,6 +69,9 @@ const {
       current: null as null | Record<string, unknown>,
     },
     fitViewMock: vi.fn(),
+    // Item 6X — the jump-to-producer handler pans via the live instance's
+    // `setCenter`; capture calls so the page test can assert the pan fired.
+    setCenterMock: vi.fn(),
     // US-121 Scenario 3 — let tests inject a fake existing workflow that
     // the page's `useWorkflow` mock will return, so edit-mode hydration
     // exercises the legacy-entryNodeId-preservation path.
@@ -86,13 +90,18 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
       const onReady = props.onReactFlowReady as
         | ((instance: {
             fitView: typeof fitViewMock;
+            setCenter: typeof setCenterMock;
             setNodes: (updater: (nodes: unknown[]) => unknown[]) => void;
             getNodes: () => unknown[];
+            getNode: (id: string) => unknown;
+            getZoom: () => number;
           }) => void)
         | undefined;
       React.useEffect(() => {
         onReady?.({
           fitView: fitViewMock,
+          // Item 6X — jump-to-producer pans via setCenter.
+          setCenter: setCenterMock,
           setNodes: () => {
             // No-op — the stub doesn't simulate xyflow's node-selection
             // side effects, only that `setNodes` exists as a callable.
@@ -101,6 +110,10 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
           // The stub reports none, so layoutGraph falls back to its default
           // width — the width-packing maths is covered in auto-layout.test.ts.
           getNodes: () => [],
+          // Item 6X — the stub reports no resolved node so the page falls
+          // back to reading the position from config (still calls setCenter).
+          getNode: () => undefined,
+          getZoom: () => 1,
         });
       }, [onReady]);
       return <div data-testid="canvas-stub" />;
@@ -1420,6 +1433,53 @@ describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
       "data-disabled",
       "true",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item 6X — interactive producer input rows: click jumps + pans to the
+// producer node; hover highlights it on the canvas.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — item 6X: jump/highlight producer", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedSettingsPanelProps.current = null;
+    fitViewMock.mockClear();
+    setCenterMock.mockClear();
+  });
+
+  it("onJumpToProducer selects the producer node and pans the canvas to it", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const onJump = capturedSettingsPanelProps.current?.onJumpToProducer as
+      | ((id: string) => void)
+      | undefined;
+    if (!onJump) throw new Error("panel stub did not capture onJumpToProducer");
+    act(() => {
+      onJump("b");
+    });
+    // Selection flows page → canvas.
+    expect(capturedCanvasProps.current?.selectedNodeId).toBe("b");
+    // And the page asked the live instance to pan/center the producer.
+    expect(setCenterMock).toHaveBeenCalled();
+  });
+
+  it("onHoverProducer drives the canvas highlightedNodeId prop (id → null)", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const onHover = capturedSettingsPanelProps.current?.onHoverProducer as
+      | ((id: string | null) => void)
+      | undefined;
+    if (!onHover) throw new Error("panel stub did not capture onHoverProducer");
+    // Nothing highlighted initially.
+    expect(capturedCanvasProps.current?.highlightedNodeId).toBeNull();
+    act(() => {
+      onHover("c");
+    });
+    expect(capturedCanvasProps.current?.highlightedNodeId).toBe("c");
+    act(() => {
+      onHover(null);
+    });
+    expect(capturedCanvasProps.current?.highlightedNodeId).toBeNull();
   });
 });
 

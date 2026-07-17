@@ -230,6 +230,12 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     nodeId: string;
     port: string;
   } | null>(null);
+  // Item 6X — the producer node currently highlighted because the user is
+  // hovering its input row in the settings panel. Passed to the canvas,
+  // which applies an emphasis outline. `null` = nothing highlighted.
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(
+    null,
+  );
   // Select a node so it STICKS: go through xyflow's own selection store via the
   // ReactFlow instance. A plain `setSelectedNodeId` alone doesn't hold — xyflow
   // reasserts its internal (empty) selection on the next change event and
@@ -252,6 +258,47 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     [selectNodeSticky],
   );
   const clearFocusInput = useCallback(() => setFocusInput(null), []);
+  // Item 6X — click a real-producer input row: select the producer so its
+  // selection sticks (same helper the problems deep-link uses) and pan/center
+  // it into view via the live ReactFlow instance. Prefer `setCenter` (keeps
+  // the current zoom, a gentle pan) using the node's measured center; fall
+  // back to `fitView` on the single node when the instance can't resolve it.
+  const handleJumpToProducer = useCallback(
+    (nodeId: string) => {
+      selectNodeSticky(nodeId);
+      const instance = reactFlowRef.current;
+      if (!instance) return;
+      const node = instance.getNode?.(nodeId);
+      const pos =
+        node?.position ??
+        (
+          configRef.current.nodes[nodeId]?.metadata as
+            | { position?: { x: number; y: number } }
+            | undefined
+        )?.position;
+      if (pos) {
+        const width = node?.measured?.width ?? node?.width ?? 0;
+        const height = node?.measured?.height ?? node?.height ?? 0;
+        const zoom = instance.getZoom?.() ?? 1;
+        instance.setCenter(pos.x + width / 2, pos.y + height / 2, {
+          zoom,
+          duration: 300,
+        });
+      } else {
+        instance.fitView({
+          padding: 0.2,
+          duration: 300,
+          nodes: [{ id: nodeId }],
+        });
+      }
+    },
+    [selectNodeSticky],
+  );
+  // Item 6X — hover a real-producer input row (node id) / leave it (`null`).
+  const handleHoverProducer = useCallback(
+    (nodeId: string | null) => setHighlightedNodeId(nodeId),
+    [],
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
@@ -1345,6 +1392,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               onGroupChipClick={setActiveGroupId}
               layoutNonce={layoutNonce}
               onFixNodeInput={handleFixNodeInput}
+              highlightedNodeId={highlightedNodeId}
             />
           </Box>
           <NodeSettingsPanel
@@ -1356,6 +1404,8 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
             workflowId={isEditMode ? workflowId : undefined}
             focusInput={focusInput}
             onFocusInputConsumed={clearFocusInput}
+            onJumpToProducer={handleJumpToProducer}
+            onHoverProducer={handleHoverProducer}
           />
         </Box>
       </Stack>

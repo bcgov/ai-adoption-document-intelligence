@@ -4063,3 +4063,52 @@ describe("WorkflowEditorCanvas — data-wire delete (§6.3 / bug 6b)", () => {
     ).toEqual({ status: "locked-unbound" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Item 6X — hover-highlight emphasis
+//   The page passes `highlightedNodeId` (a real producer being hovered in the
+//   settings panel); the canvas stamps the `wb-node-highlight` class onto that
+//   node's wrapper only, and clears it when the prop resets.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — item 6X: producer highlight emphasis", () => {
+  function readNodeClass(id: string): string {
+    const nodes =
+      (latestReactFlowProps.current?.nodes as
+        | Array<{ id: string; className?: string }>
+        | undefined) ?? [];
+    return nodes.find((n) => n.id === id)?.className ?? "";
+  }
+
+  it("applies wb-node-highlight to the highlighted node only, and clears it", () => {
+    const config = makeAllNodeTypesConfig();
+    const { rerender } = render(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={config}
+          selectedNodeId={null}
+          onConfigChange={vi.fn()}
+          onSelectNode={vi.fn()}
+          highlightedNodeId="switch_1"
+        />
+      </MantineProvider>,
+    );
+    expect(readNodeClass("switch_1")).toContain("wb-node-highlight");
+    // A non-highlighted node is untouched.
+    expect(readNodeClass("activity_1")).not.toContain("wb-node-highlight");
+
+    // Clearing the prop removes the emphasis.
+    rerender(
+      <MantineProvider>
+        <WorkflowEditorCanvas
+          config={config}
+          selectedNodeId={null}
+          onConfigChange={vi.fn()}
+          onSelectNode={vi.fn()}
+          highlightedNodeId={null}
+        />
+      </MantineProvider>,
+    );
+    expect(readNodeClass("switch_1")).not.toContain("wb-node-highlight");
+  });
+});

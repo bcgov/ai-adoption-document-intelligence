@@ -539,3 +539,58 @@ describe("NodeSettingsPanel — auto-wire UX", () => {
     ).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Item 6X: onJumpToProducer / onHoverProducer are threaded to InputsSection.
+// (Mirrors the focusInput threading — the panel forwards these callbacks so a
+// real-producer input row can select + highlight the producer on the canvas.)
+// ---------------------------------------------------------------------------
+
+describe("NodeSettingsPanel — item 6X: producer jump/highlight threading", () => {
+  function autoBoundConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "A",
+      ctx: {},
+      edges: [{ id: "e", source: "A", target: "B", type: "normal" }],
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          label: "Prepare A",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          label: "OCR",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+        },
+      },
+    };
+  }
+
+  it("forwards onJumpToProducer + onHoverProducer through to the auto-bound input row", async () => {
+    const user = userEvent.setup();
+    const onJumpToProducer = vi.fn();
+    const onHoverProducer = vi.fn();
+    renderPanel(
+      <NodeSettingsPanel
+        config={autoBoundConfig()}
+        selectedNodeId="B"
+        onConfigChange={vi.fn()}
+        onDeleteSelected={vi.fn()}
+        onJumpToProducer={onJumpToProducer}
+        onHoverProducer={onHoverProducer}
+      />,
+    );
+    const row = screen.getByTestId("input-producer-row-fileData");
+    await user.hover(row);
+    expect(onHoverProducer).toHaveBeenLastCalledWith("A");
+    await user.click(row);
+    expect(onJumpToProducer).toHaveBeenCalledWith("A");
+  });
+});

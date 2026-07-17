@@ -93,6 +93,16 @@ interface NodeSettingsPanelProps {
    */
   focusInput?: { nodeId: string; port: string } | null;
   onFocusInputConsumed?: () => void;
+  /**
+   * Item 6X — a real-producer input row was clicked; select + pan/center
+   * that producer node on the canvas. Threaded down to `InputsSection`.
+   */
+  onJumpToProducer?: (nodeId: string) => void;
+  /**
+   * Item 6X — a real-producer input row is hovered (node id) / unhovered
+   * (`null`); highlight that producer node on the canvas.
+   */
+  onHoverProducer?: (nodeId: string | null) => void;
 }
 
 export function NodeSettingsPanel({
@@ -104,6 +114,8 @@ export function NodeSettingsPanel({
   workflowId,
   focusInput,
   onFocusInputConsumed,
+  onJumpToProducer,
+  onHoverProducer,
 }: NodeSettingsPanelProps) {
   const node = selectedNodeId ? config.nodes[selectedNodeId] : null;
 
@@ -143,6 +155,8 @@ export function NodeSettingsPanel({
       workflowId={workflowId}
       focusPort={focusInput?.nodeId === node.id ? focusInput.port : null}
       onFocusConsumed={onFocusInputConsumed}
+      onJumpToProducer={onJumpToProducer}
+      onHoverProducer={onHoverProducer}
     />
   );
 }
@@ -160,6 +174,8 @@ interface NodeSettingsProps {
   workflowId?: string;
   focusPort?: string | null;
   onFocusConsumed?: () => void;
+  onJumpToProducer?: (nodeId: string) => void;
+  onHoverProducer?: (nodeId: string | null) => void;
 }
 
 function NodeSettings({
@@ -170,6 +186,8 @@ function NodeSettings({
   workflowId,
   focusPort,
   onFocusConsumed,
+  onJumpToProducer,
+  onHoverProducer,
 }: NodeSettingsProps) {
   const updateNode = (next: GraphNode) => {
     onConfigChange(replaceNode(config, node.id, next));
@@ -309,6 +327,8 @@ function NodeSettings({
             onConfigChange={onConfigChange}
             focusPort={focusPort}
             onFocusConsumed={onFocusConsumed}
+            onJumpToProducer={onJumpToProducer}
+            onHoverProducer={onHoverProducer}
           />
           <Divider />
           <AdvancedBindingsToggle

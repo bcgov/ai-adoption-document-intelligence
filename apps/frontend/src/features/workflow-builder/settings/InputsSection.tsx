@@ -16,6 +16,7 @@ import {
 } from "../canvas/wire-mutations";
 import { ProducerPicker } from "../graph-widgets/ProducerPicker";
 import {
+  decodeAutoProducerNodeId,
   type PinnedSource,
   type RowResolution,
   resolvePinnedSource,
@@ -35,6 +36,46 @@ interface InputsSectionProps {
   focusPort?: string | null;
   /** Called right after `focusPort` is applied so the caller can clear it. */
   onFocusConsumed?: () => void;
+  /**
+   * Item 6X — click a row that resolves to a REAL producer node to select
+   * + pan/center that producer on the canvas. Fired with the producer's
+   * node id. Only wired on interactive rows (see `producerNodeIdForRow`).
+   */
+  onJumpToProducer?: (nodeId: string) => void;
+  /**
+   * Item 6X — hover a real-producer row to highlight that producer on the
+   * canvas. Fired with the producer's node id on mouse-enter and `null` on
+   * mouse-leave.
+   */
+  onHoverProducer?: (nodeId: string | null) => void;
+}
+
+/**
+ * The producer node id a row jumps/highlights to, or `null` when the row
+ * has no real producer source (item 6X). A row is interactive ONLY when
+ * this returns a live node id:
+ *   - `auto-bound` → the resolver's `producerNodeId`.
+ *   - `locked` bound to an `__auto.*` key → the decoded producer node id,
+ *     guarded so a renamed/deleted producer (undecodable / missing node)
+ *     falls back to non-interactive.
+ * Every other status — `unsatisfied`, `ambiguous`, `locked-unbound`,
+ * `ctx-bound`, and `locked` bound to a hand-authored (non-auto) ctx var —
+ * has no producer node to point at, so returns `null`.
+ */
+function producerNodeIdForRow(
+  resolution: RowResolution,
+  config: GraphWorkflowConfig,
+): string | null {
+  if (resolution.status === "auto-bound") {
+    return config.nodes[resolution.producerNodeId]
+      ? resolution.producerNodeId
+      : null;
+  }
+  if (resolution.status === "locked") {
+    const decoded = decodeAutoProducerNodeId(resolution.ctxKey);
+    if (decoded && config.nodes[decoded]) return decoded;
+  }
+  return null;
 }
 
 export function InputsSection({
@@ -43,6 +84,8 @@ export function InputsSection({
   onConfigChange,
   focusPort,
   onFocusConsumed,
+  onJumpToProducer,
+  onHoverProducer,
 }: InputsSectionProps) {
   const [overrideOf, setOverrideOf] = useState<string | null>(null);
 
@@ -105,6 +148,7 @@ export function InputsSection({
       {rows.map(({ port, resolution }) => (
         <PortRow
           key={port.name}
+          portName={port.name}
           portLabel={port.label}
           resolution={resolution}
           producerLabel={
@@ -118,6 +162,9 @@ export function InputsSection({
               ? resolvePinnedSource(config, resolution.ctxKey)
               : null
           }
+          producerNodeId={producerNodeIdForRow(resolution, config)}
+          onJumpToProducer={onJumpToProducer}
+          onHoverProducer={onHoverProducer}
           onOverride={() => setOverrideOf(port.name)}
           onRevert={() => handleRevert(port.name)}
         />
@@ -154,23 +201,54 @@ export function InputsSection({
 }
 
 interface PortRowProps {
+  portName: string;
   portLabel: string;
   resolution: RowResolution;
   producerLabel: string | null;
   /** Friendly source for a `locked` (pinned) row; null for other statuses. */
   pinnedSource: PinnedSource | null;
+  /**
+   * The producer node id this row jumps/highlights to, or `null` when the
+   * row has no real producer source. Non-null makes the row interactive
+   * (item 6X).
+   */
+  producerNodeId: string | null;
+  onJumpToProducer?: (nodeId: string) => void;
+  onHoverProducer?: (nodeId: string | null) => void;
   onOverride: () => void;
   onRevert: () => void;
 }
 
 function PortRow({
+  portName,
   portLabel,
   resolution,
   producerLabel,
   pinnedSource,
+  producerNodeId,
+  onJumpToProducer,
+  onHoverProducer,
   onOverride,
   onRevert,
 }: PortRowProps) {
+  // Only rows that resolve to a live producer node become interactive: a
+  // click jumps to it, a hover highlights it. Rows without a producer stay
+  // inert (no pointer, no testid, no handlers) — see `producerNodeIdForRow`.
+  const interactive = producerNodeId !== null;
+  const handleRowClick =
+    interactive && onJumpToProducer
+      ? () => onJumpToProducer(producerNodeId)
+      : undefined;
+  const handleRowEnter =
+    interactive && onHoverProducer
+      ? () => onHoverProducer(producerNodeId)
+      : undefined;
+  const handleRowLeave =
+    interactive && onHoverProducer ? () => onHoverProducer(null) : undefined;
+  // Inner action buttons (Change source / Revert) must not also trigger the
+  // row-level jump — stop the click from bubbling to the row container.
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
   const renderBody = () => {
     switch (resolution.status) {
       case "auto-bound":
@@ -183,7 +261,14 @@ function PortRow({
                 Auto
               </Badge>
             </Tooltip>
-            <Button size="compact-xs" variant="subtle" onClick={onOverride}>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={(e) => {
+                stop(e);
+                onOverride();
+              }}
+            >
               Change source
             </Button>
           </Group>
@@ -232,7 +317,14 @@ function PortRow({
                 Pinned
               </Badge>
             </Tooltip>
-            <Button size="compact-xs" variant="subtle" onClick={onRevert}>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={(e) => {
+                stop(e);
+                onRevert();
+              }}
+            >
               Revert to automatic
             </Button>
           </Group>
@@ -269,7 +361,17 @@ function PortRow({
   };
 
   return (
-    <Group gap={8} wrap="nowrap" justify="space-between">
+    <Group
+      gap={8}
+      wrap="nowrap"
+      justify="space-between"
+      onClick={handleRowClick}
+      onMouseEnter={handleRowEnter}
+      onMouseLeave={handleRowLeave}
+      style={interactive ? { cursor: "pointer" } : undefined}
+      data-testid={interactive ? `input-producer-row-${portName}` : undefined}
+      data-interactive={interactive ? "true" : undefined}
+    >
       <Text size="xs" fw={500}>
         {portLabel}
       </Text>

@@ -39,3 +39,16 @@
 .wb-editor-canvas .react-flow__edge.wb-data-wire {
   pointer-events: all;
 }
+
+/*
+ * Item 6X — hover-highlight emphasis. Applied to the xyflow node wrapper
+ * when the user hovers the corresponding input row's real producer in the
+ * settings panel. A subtle blue ring sits OUTSIDE the card via outline +
+ * offset (like the handle array-outline cue) so it never disturbs the
+ * node's own border/layout and reads consistently across every node type.
+ */
+.wb-editor-canvas .react-flow__node.wb-node-highlight {
+  outline: 2px solid var(--mantine-color-blue-5, #4dabf7);
+  outline-offset: 3px;
+  border-radius: 12px;
+}

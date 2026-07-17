@@ -200,6 +200,14 @@ interface WorkflowEditorCanvasProps {
    * (nodeId, port) pair up.
    */
   onFixNodeInput?: (nodeId: string, port: string) => void;
+  /**
+   * Item 6X — the id of a node to visually emphasise (hover-highlight from
+   * a settings-panel input row's real producer). `null`/`undefined` clears
+   * the emphasis. Applied as the `wb-node-highlight` class on the matching
+   * xyflow node wrapper (see workflow-editor-canvas.css) so it composes with
+   * whatever the node's renderer already draws, for every node type.
+   */
+  highlightedNodeId?: string | null;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -1272,6 +1280,34 @@ function projectFlowNodes(
 const DATA_WIRE_CLASS = "wb-data-wire";
 
 /**
+ * xyflow class applied to the node currently hover-highlighted from a
+ * settings-panel input row (item 6X). Styled by the
+ * `.wb-editor-canvas .react-flow__node.wb-node-highlight` rule in
+ * workflow-editor-canvas.css. Applied via `className` (not per-renderer
+ * data) so a single hook emphasises ANY node type uniformly.
+ */
+const HIGHLIGHT_CLASS = "wb-node-highlight";
+
+/**
+ * Returns `node` with `HIGHLIGHT_CLASS` toggled on its `className` to match
+ * `shouldHighlight`, or the SAME reference when it already matches (so the
+ * emphasis effect can skip a no-op state update). Preserves any other
+ * classes xyflow / the projection stamped.
+ */
+function withHighlightClass<T extends { className?: string }>(
+  node: T,
+  shouldHighlight: boolean,
+): T {
+  const classes = (node.className ?? "").split(/\s+/).filter(Boolean);
+  const has = classes.includes(HIGHLIGHT_CLASS);
+  if (has === shouldHighlight) return node;
+  const next = shouldHighlight
+    ? [...classes, HIGHLIGHT_CLASS]
+    : classes.filter((c) => c !== HIGHLIGHT_CLASS);
+  return { ...node, className: next.join(" ") || undefined };
+}
+
+/**
  * True when `node`'s renderer actually mounts the bottom `error` source
  * handle — activity nodes and control-flow rectangles with
  * `errorPolicy.onError === "fallback"`. Switch nodes route via
@@ -1621,6 +1657,7 @@ function WorkflowEditorCanvasInner({
   onGroupChipClick,
   layoutNonce = 0,
   onFixNodeInput,
+  highlightedNodeId = null,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -1886,6 +1923,25 @@ function WorkflowEditorCanvasInner({
       }),
     );
   }, [errorsByNode, setInternalNodes]);
+
+  // Item 6X — hover-highlight sync. Patches ONLY the `wb-node-highlight`
+  // class on the matching node (and strips it from any previously-highlighted
+  // one) whenever `highlightedNodeId` changes. Kept separate from the
+  // structural projection so a hover doesn't trigger a full re-derive/re-
+  // project; `withHighlightClass` returns the same reference when a node
+  // already matches, so unaffected nodes are untouched and, when nothing
+  // changed at all, the setter returns `prev` to avoid a wasted render.
+  useEffect(() => {
+    setInternalNodes((prev) => {
+      let changed = false;
+      const next = prev.map((n): FlowNode => {
+        const patched = withHighlightClass(n, n.id === highlightedNodeId);
+        if (patched !== n) changed = true;
+        return patched;
+      });
+      return changed ? next : prev;
+    });
+  }, [highlightedNodeId, setInternalNodes]);
 
   // Resolve the edge set the canvas should actually render. Simplified
   // view substitutes the group-projected edges (intra-group edges dropped,
