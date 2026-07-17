@@ -83,6 +83,7 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
         | ((instance: {
             fitView: typeof fitViewMock;
             setNodes: (updater: (nodes: unknown[]) => unknown[]) => void;
+            getNodes: () => unknown[];
           }) => void)
         | undefined;
       React.useEffect(() => {
@@ -92,6 +93,10 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
             // No-op — the stub doesn't simulate xyflow's node-selection
             // side effects, only that `setNodes` exists as a callable.
           },
+          // Auto-arrange reads measured node widths off the live instance.
+          // The stub reports none, so layoutGraph falls back to its default
+          // width — the width-packing maths is covered in auto-layout.test.ts.
+          getNodes: () => [],
         });
       }, [onReady]);
       return <div data-testid="canvas-stub" />;

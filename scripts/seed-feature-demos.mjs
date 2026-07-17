@@ -82,6 +82,20 @@ const pos = (x, y) => ({
   metadata: { position: { x: Math.round(x * X_PITCH_SCALE), y } },
 });
 
+/**
+ * Stamp the presentation-only `metadata.arrangeOnLoad` hint so the visual
+ * editor runs its measured-width Auto-arrange once when the demo is opened —
+ * the demo lands in the tidy arranged view without the viewer clicking the
+ * button. The hand-placed `pos()` coordinates above remain as the pre-measure
+ * placeholder shown for the first frame before the arrange settles. The engine
+ * ignores this field (it's not part of config semantics); see
+ * apps/frontend/src/features/workflow-builder/arrange-on-load.ts.
+ */
+const withArrangeOnLoad = (config) => ({
+  ...config,
+  metadata: { ...(config.metadata ?? {}), arrangeOnLoad: true },
+});
+
 async function api(method, path, body) {
   const res = await fetch(`${BACKEND_URL}${path}`, {
     method,
@@ -1314,8 +1328,9 @@ async function seed() {
   const results = [];
   for (const demo of DEMOS) {
     const name = `${NAME_PREFIX}${demo.title}`;
-    const config =
-      typeof demo.config === "function" ? demo.config(name) : demo.config;
+    const config = withArrangeOnLoad(
+      typeof demo.config === "function" ? demo.config(name) : demo.config,
+    );
     const created = unwrap(
       await api("POST", "/api/workflows", {
         name,
@@ -1327,7 +1342,7 @@ async function seed() {
     if (demo.secondVersion) {
       await api("PUT", `/api/workflows/${created.id}`, {
         name,
-        config: demo.secondVersion(name),
+        config: withArrangeOnLoad(demo.secondVersion(name)),
         groupId: GROUP_ID,
       });
     }
@@ -1344,7 +1359,7 @@ async function seed() {
     const created = unwrap(
       await api("POST", "/api/workflows", {
         name,
-        config: dynamicNodeConfig(name, dynSlug),
+        config: withArrangeOnLoad(dynamicNodeConfig(name, dynSlug)),
         groupId: GROUP_ID,
       }),
     );
@@ -1627,7 +1642,7 @@ async function seedAgentDemos() {
         await api("POST", "/api/workflows", {
           name: fx.workflow.name,
           description: fx.workflow.description,
-          config: fx.workflow.config,
+          config: withArrangeOnLoad(fx.workflow.config),
           groupId: GROUP_ID,
         }),
       );

@@ -81,6 +81,7 @@ import type {
   GraphWorkflowConfig,
   SourceNode,
 } from "../../types/workflow";
+import { configWantsArrangeOnLoad, nodesAllMeasured } from "./arrange-on-load";
 import {
   layoutGraph,
   layoutGraphIfMissingPositions,
@@ -317,7 +318,20 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const [layoutNonce, setLayoutNonce] = useState(0);
 
   const handleAutoArrange = useCallback(() => {
-    setConfig((prev) => layoutGraph(prev));
+    // Feed dagre each card's REAL rendered width, read from the live xyflow
+    // instance, so a narrow card gets a narrow slot and the horizontal gap
+    // between adjacent cards collapses to ~ranksep instead of every card
+    // reserving the widest card's fixed footprint. Nodes xyflow hasn't
+    // measured yet are simply omitted — layoutGraph falls back to its default
+    // width for those.
+    const nodeWidths = new Map<string, number>();
+    for (const node of reactFlowRef.current?.getNodes() ?? []) {
+      const width = node.measured?.width ?? node.width;
+      if (typeof width === "number" && width > 0) {
+        nodeWidths.set(node.id, width);
+      }
+    }
+    setConfig((prev) => layoutGraph(prev, { nodeWidths }));
     // §4.2: the canvas's structural fingerprint excludes metadata.position,
     // so this config-only position change won't re-project on its own. Bump
     // the layout nonce so the canvas re-applies the new positions to its
@@ -331,6 +345,28 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
     }, 0);
   }, []);
+
+  // "Open demos in the auto-arranged view" (metadata.arrangeOnLoad). The
+  // measured-width Auto-arrange needs the cards to be mounted AND measured, so
+  // we can't run it during hydration — we poll the live instance across
+  // animation frames and fire once every node reports a width. `arrangedForRef`
+  // guards it to once per workflow id so the agent-chat refetch loop (§4.4)
+  // can't re-trigger it. Bounded so a never-settling measure can't spin.
+  const arrangedForRef = useRef<string | null>(null);
+  const scheduleArrangeOnLoad = useCallback(() => {
+    let frames = 0;
+    const MAX_FRAMES = 90; // ~1.5s at 60fps — give up if measurement stalls
+    const tick = () => {
+      if (nodesAllMeasured(reactFlowRef.current?.getNodes() ?? [])) {
+        handleAutoArrange();
+        return;
+      }
+      if (frames++ < MAX_FRAMES) {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  }, [handleAutoArrange]);
 
   /**
    * Handler for the "Group selected" top-bar action (US-041). Calls the
@@ -445,7 +481,18 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setName(existingWorkflow.name);
     setDescription(existingWorkflow.description ?? "");
     setConfig(incoming);
-  }, [existingWorkflow, isEditMode]);
+    // Demos ship with `metadata.arrangeOnLoad` so they open in the tidy
+    // measured-width Auto-arrange view without the viewer clicking the button.
+    // Fire once per workflow id, after the canvas measures the cards.
+    if (
+      workflowId &&
+      arrangedForRef.current !== workflowId &&
+      configWantsArrangeOnLoad(existingWorkflow.config)
+    ) {
+      arrangedForRef.current = workflowId;
+      scheduleArrangeOnLoad();
+    }
+  }, [existingWorkflow, isEditMode, workflowId, scheduleArrangeOnLoad]);
 
   // Both add handlers compute the new id from the current `config`
   // closure and call `setConfig` + `setSelectedNodeId` in the same

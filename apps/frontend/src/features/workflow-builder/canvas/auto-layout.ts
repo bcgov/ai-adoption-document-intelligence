@@ -17,9 +17,13 @@
  * Design choices:
  *   - Defaults: `rankdir: "LR"`, `nodesep: 60`, `ranksep: 80`. These
  *     match the visual editor's preferred orientation (LR flow).
- *   - Node sizes: fixed `width: DEFAULT_NODE_WIDTH` for every node (sized
- *     to the widest rendered activity card — see the constant's comment),
- *     but `height` is derived per node via `estimateNodeHeight` (which
+ *   - Node sizes: `width` is the caller-supplied measured width per node
+ *     (`options.nodeWidths`, from the live xyflow instance on Auto-arrange)
+ *     when available, else a fixed `DEFAULT_NODE_WIDTH` sized to the widest
+ *     rendered activity card — see the constant's comment. Measured widths
+ *     make the horizontal gap between adjacent cards a consistent ~`ranksep`
+ *     instead of every card reserving the widest card's footprint.
+ *     `height` is derived per node via `estimateNodeHeight` (which
  *     rolls up the node's real catalog port-row count) so tall,
  *     multi-port cards (e.g. `azureOcr.extract`'s 5 input rows) don't
  *     overlap same-rank neighbours. `DEFAULT_NODE_HEIGHT` (80) is a
@@ -78,13 +82,25 @@ export interface LayoutGraphOptions {
   rankdir?: "LR" | "TB";
   nodesep?: number;
   ranksep?: number;
+  /**
+   * Per-node rendered widths, keyed by node id. When a node id is present its
+   * measured width is used as the dagre box width instead of the fixed
+   * `DEFAULT_NODE_WIDTH` — so a narrow card gets a narrow slot and the
+   * horizontal gap between any two adjacent cards collapses to ~`ranksep`
+   * regardless of card width, instead of every card reserving the widest
+   * card's footprint. Ids absent from the map fall back to
+   * `DEFAULT_NODE_WIDTH`.
+   *
+   * The "Auto-arrange" button supplies this from the live xyflow instance's
+   * measured node sizes; non-DOM callers (template load, tests) omit it and
+   * keep the uniform-width behaviour.
+   */
+  nodeWidths?: ReadonlyMap<string, number>;
 }
 
-const DEFAULT_OPTIONS: Required<LayoutGraphOptions> = {
-  rankdir: "LR",
-  nodesep: 60,
-  ranksep: 80,
-};
+const DEFAULT_RANKDIR = "LR" as const;
+const DEFAULT_NODESEP = 60;
+const DEFAULT_RANKSEP = 80;
 
 /**
  * Activity cards render with `minWidth: 200` but NO max — the two-column
@@ -114,15 +130,23 @@ export function layoutGraph(
   config: GraphWorkflowConfig,
   options: LayoutGraphOptions = {},
 ): GraphWorkflowConfig {
-  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const rankdir = options.rankdir ?? DEFAULT_RANKDIR;
+  const nodesep = options.nodesep ?? DEFAULT_NODESEP;
+  const ranksep = options.ranksep ?? DEFAULT_RANKSEP;
+  // Per-node dagre box width: the caller's measured width when supplied, else
+  // the fixed default. Reused for both node registration and the
+  // centre→top-left conversion so the box dagre reasons about matches the box
+  // we report (a mismatch would shift the card off its slot centre).
+  const widthFor = (nodeId: string): number =>
+    options.nodeWidths?.get(nodeId) ?? DEFAULT_NODE_WIDTH;
   const hasGroups =
     !!config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
 
   const graph = new dagre.graphlib.Graph({ compound: hasGroups });
   graph.setGraph({
-    rankdir: opts.rankdir,
-    nodesep: opts.nodesep,
-    ranksep: opts.ranksep,
+    rankdir,
+    nodesep,
+    ranksep,
   });
   graph.setDefaultEdgeLabel(() => ({}));
 
@@ -141,7 +165,7 @@ export function layoutGraph(
   // Register every node.
   for (const node of Object.values(config.nodes)) {
     graph.setNode(node.id, {
-      width: DEFAULT_NODE_WIDTH,
+      width: widthFor(node.id),
       height: nodeHeights.get(node.id) ?? DEFAULT_NODE_HEIGHT,
     });
   }
@@ -183,7 +207,7 @@ export function layoutGraph(
       metadata: {
         ...(node.metadata ?? {}),
         position: {
-          x: centerX - DEFAULT_NODE_WIDTH / 2,
+          x: centerX - widthFor(nodeId) / 2,
           y: centerY - height / 2,
         },
       },

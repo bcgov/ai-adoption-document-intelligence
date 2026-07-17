@@ -253,6 +253,69 @@ describe("layoutGraph — Task 9: per-node heights avoid same-rank overlap", () 
 });
 
 // ---------------------------------------------------------------------------
+// Per-node measured widths — "Auto-arrange" horizontal packing.
+// ---------------------------------------------------------------------------
+
+describe("layoutGraph — per-node measured widths pack columns tighter", () => {
+  const NARROW = 200;
+  // DEFAULT_NODE_WIDTH in auto-layout.ts. Hard-coded on purpose: if that
+  // constant moves, the fallback-spacing expectation below should fail loudly.
+  const DEFAULT_WIDTH = 482;
+
+  function xOf(config: GraphWorkflowConfig, id: string): number {
+    return (config.nodes[id].metadata as { position: { x: number } }).position
+      .x;
+  }
+
+  it("spaces adjacent columns by suppliedWidth + ranksep, not the fixed default", () => {
+    const config = buildLinearConfig();
+    const nodeWidths = new Map([
+      ["a", NARROW],
+      ["b", NARROW],
+      ["c", NARROW],
+    ]);
+    const out = layoutGraph(config, { rankdir: "LR", ranksep: 80, nodeWidths });
+    // Equal widths ⇒ top-left delta === centre-to-centre delta ===
+    // w/2 + ranksep + w/2 === NARROW + ranksep.
+    expect(xOf(out, "b") - xOf(out, "a")).toBeCloseTo(NARROW + 80, 0);
+    expect(xOf(out, "c") - xOf(out, "b")).toBeCloseTo(NARROW + 80, 0);
+  });
+
+  it("is tighter than the default fixed-width layout for the same graph", () => {
+    const config = buildLinearConfig();
+    const nodeWidths = new Map([
+      ["a", NARROW],
+      ["b", NARROW],
+      ["c", NARROW],
+    ]);
+    const packed = layoutGraph(config, { rankdir: "LR", nodeWidths });
+    const fixed = layoutGraph(config, { rankdir: "LR" });
+    expect(xOf(packed, "b") - xOf(packed, "a")).toBeLessThan(
+      xOf(fixed, "b") - xOf(fixed, "a"),
+    );
+  });
+
+  it("falls back to the default width for node ids absent from the map", () => {
+    const config = buildLinearConfig();
+    // Only 'b' is measured narrow; 'a' and 'c' keep the default footprint.
+    const nodeWidths = new Map([["b", NARROW]]);
+    const out = layoutGraph(config, { rankdir: "LR", ranksep: 80, nodeWidths });
+    // Centre = top-left + width/2, using each node's effective width.
+    const centre = (id: string, width: number) => xOf(out, id) + width / 2;
+    // a(default) → b(narrow): default/2 + ranksep + narrow/2.
+    expect(centre("b", NARROW) - centre("a", DEFAULT_WIDTH)).toBeCloseTo(
+      DEFAULT_WIDTH / 2 + 80 + NARROW / 2,
+      0,
+    );
+    // b(narrow) → c(default): narrow/2 + ranksep + default/2 (symmetric).
+    expect(centre("c", DEFAULT_WIDTH) - centre("b", NARROW)).toBeCloseTo(
+      NARROW / 2 + 80 + DEFAULT_WIDTH / 2,
+      0,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 4 — Compound graph: group members cluster together.
 // ---------------------------------------------------------------------------
 
