@@ -280,7 +280,80 @@ describe("InputsSection", () => {
       <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
     );
     expect(screen.getByText(/needs a source/i)).toBeInTheDocument();
-    expect(screen.queryByText(/^from /)).not.toBeInTheDocument();
+    // The unbound documentId port must not read as sourced. (blobKey, the
+    // locked helper port, legitimately shows "from blobKey" — a pinned row.)
+    expect(screen.queryByText("from documentId")).not.toBeInTheDocument();
+  });
+
+  it("shows the producer label (not the raw __auto key) for a pinned auto-key row", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+          outputs: [
+            { port: "preparedData", ctxKey: "__auto.prep.preparedData" },
+          ],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [{ id: "e", source: "prep", target: "B", type: "normal" }],
+      entryNodeId: "prep",
+      ctx: {},
+    };
+    mount(
+      <InputsSection config={config} nodeId="B" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText("Prepare")).toBeInTheDocument();
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    expect(
+      screen.queryByText("__auto.prep.preparedData"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /revert to automatic/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows 'from <ctxKey>' (no producer arrow) for a pinned NON-auto ctx var", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "myVar" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "B",
+      ctx: { myVar: { type: "string", isInput: true } },
+    };
+    mount(
+      <InputsSection config={config} nodeId="B" onConfigChange={vi.fn()} />,
+    );
+    expect(screen.getByText("from myVar")).toBeInTheDocument();
+    // Still a pinned row (badge + revert), but never a producer arrow to a
+    // node that doesn't exist.
+    expect(screen.getByText("Pinned")).toBeInTheDocument();
+    expect(screen.queryByText("←")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /revert to automatic/i }),
+    ).toBeInTheDocument();
   });
 
   it("renders a 'Disconnected' badge with Pick-a-source and Revert-to-automatic buttons for a locked-unbound port", () => {

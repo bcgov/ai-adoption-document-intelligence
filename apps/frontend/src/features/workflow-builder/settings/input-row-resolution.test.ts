@@ -11,7 +11,11 @@
  */
 import { describe, expect, it } from "vitest";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
-import { resolveWireableInputRows } from "./input-row-resolution";
+import {
+  decodeAutoProducerNodeId,
+  resolvePinnedSource,
+  resolveWireableInputRows,
+} from "./input-row-resolution";
 
 /**
  * A single `azureOcr.submit` node shaped exactly as the de-placeholdered
@@ -96,6 +100,24 @@ describe("resolveWireableInputRows — de-placeholdered drop", () => {
     }
   });
 
+  it("resolves a locked auto-key row's producer via the shared resolveWireableInputRows path", () => {
+    const config = configWithUpstreamPrepare();
+    // Pin fileData to prep_1's auto key so the row resolves "locked".
+    const submit = config.nodes.submit_1;
+    if (submit.type === "activity") {
+      submit.inputs = [
+        { port: "fileData", ctxKey: "__auto.prep_1.preparedData" },
+      ];
+      submit.metadata = { lockedInputPorts: ["fileData"] };
+    }
+    const rows = resolveWireableInputRows(config, "submit_1");
+    const fileData = rows.find((r) => r.port.name === "fileData");
+    expect(fileData?.resolution.status).toBe("locked");
+    if (fileData?.resolution.status === "locked") {
+      expect(fileData.resolution.ctxKey).toBe("__auto.prep_1.preparedData");
+    }
+  });
+
   it("regression: a placeholder input binding (ctxKey=portName) would force the misleading ctx-bound state", () => {
     // This documents WHY the drop path must not stamp `ctxKey = portName`:
     // with such a binding + a matching ctx declaration, the honest
@@ -109,5 +131,62 @@ describe("resolveWireableInputRows — de-placeholdered drop", () => {
     const rows = resolveWireableInputRows(config, "submit_1");
     const fileData = rows.find((r) => r.port.name === "fileData");
     expect(fileData?.resolution.status).toBe("ctx-bound");
+  });
+});
+
+describe("decodeAutoProducerNodeId", () => {
+  it("returns the producer nodeId for a standard auto key", () => {
+    expect(decodeAutoProducerNodeId("__auto.prep.preparedData")).toBe("prep");
+  });
+
+  it("returns null for a non-auto (hand-authored) ctx key", () => {
+    expect(decodeAutoProducerNodeId("myVar")).toBeNull();
+  });
+
+  it("returns null for an auto key with no port segment", () => {
+    expect(decodeAutoProducerNodeId("__auto.prep")).toBeNull();
+  });
+
+  it("keeps a dotted nodeId intact (port is the last segment)", () => {
+    expect(decodeAutoProducerNodeId("__auto.a.b.preparedData")).toBe("a.b");
+  });
+});
+
+describe("resolvePinnedSource", () => {
+  function configWithProducer(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      ctx: {},
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          label: "Prepare",
+          activityType: "file.prepare",
+        },
+      },
+      edges: [],
+      entryNodeId: "prep",
+    };
+  }
+
+  it("names the producer label for an auto key whose producer exists", () => {
+    expect(
+      resolvePinnedSource(configWithProducer(), "__auto.prep.preparedData"),
+    ).toEqual({ via: "producer", label: "Prepare" });
+  });
+
+  it("falls back to the raw key (still an arrow) when the producer is gone", () => {
+    expect(
+      resolvePinnedSource(configWithProducer(), "__auto.gone.preparedData"),
+    ).toEqual({ via: "producer", label: "__auto.gone.preparedData" });
+  });
+
+  it("renders a hand-authored ctx var as 'from', not a fake producer arrow", () => {
+    expect(resolvePinnedSource(configWithProducer(), "myVar")).toEqual({
+      via: "ctx",
+      ctxKey: "myVar",
+    });
   });
 });

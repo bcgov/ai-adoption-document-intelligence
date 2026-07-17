@@ -16,7 +16,9 @@ import {
 } from "../canvas/wire-mutations";
 import { ProducerPicker } from "../graph-widgets/ProducerPicker";
 import {
+  type PinnedSource,
   type RowResolution,
+  resolvePinnedSource,
   resolveWireableInputRows,
 } from "./input-row-resolution";
 
@@ -111,6 +113,11 @@ export function InputsSection({
                 resolution.producerNodeId)
               : null
           }
+          pinnedSource={
+            resolution.status === "locked"
+              ? resolvePinnedSource(config, resolution.ctxKey)
+              : null
+          }
           onOverride={() => setOverrideOf(port.name)}
           onRevert={() => handleRevert(port.name)}
         />
@@ -150,6 +157,8 @@ interface PortRowProps {
   portLabel: string;
   resolution: RowResolution;
   producerLabel: string | null;
+  /** Friendly source for a `locked` (pinned) row; null for other statuses. */
+  pinnedSource: PinnedSource | null;
   onOverride: () => void;
   onRevert: () => void;
 }
@@ -158,6 +167,7 @@ function PortRow({
   portLabel,
   resolution,
   producerLabel,
+  pinnedSource,
   onOverride,
   onRevert,
 }: PortRowProps) {
@@ -207,7 +217,16 @@ function PortRow({
       case "locked":
         return (
           <Group gap={6} wrap="nowrap">
-            <Text size="xs">{resolution.ctxKey}</Text>
+            {pinnedSource?.via === "ctx" ? (
+              <Text size="xs">from {pinnedSource.ctxKey}</Text>
+            ) : (
+              <>
+                <Text size="xs">←</Text>
+                <Text size="xs">
+                  {pinnedSource?.label ?? resolution.ctxKey}
+                </Text>
+              </>
+            )}
             <Tooltip label="Pinned by you">
               <Badge size="xs" color="gray" variant="light">
                 Pinned

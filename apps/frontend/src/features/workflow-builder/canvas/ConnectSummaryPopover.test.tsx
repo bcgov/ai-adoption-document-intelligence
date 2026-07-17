@@ -80,7 +80,43 @@ describe("ConnectSummaryPopover", () => {
     expect(row).toHaveTextContent(/name/i);
   });
 
-  it("lists a pinned row for locked inputs with a binding", () => {
+  it("names the producer label in a pinned row bound to an auto key", () => {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      activityType: "file.prepare",
+      label: "PrepStep",
+      outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+    };
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Submit A",
+      inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const config = baseConfig({ prep, submit }, [
+      { id: "e", source: "prep", target: "submit", type: "normal" },
+    ]);
+    mount(
+      <ConnectSummaryPopover
+        opened
+        anchorPosition={{ x: 0, y: 0 }}
+        config={config}
+        nodeId="submit"
+        onClose={vi.fn()}
+      />,
+    );
+    const row = screen.getByTestId("connect-summary-row-fileData");
+    expect(row).toHaveTextContent("Prepared file data");
+    // Producer label, not the raw synthesised auto key.
+    expect(row).toHaveTextContent("PrepStep");
+    expect(row).not.toHaveTextContent("__auto.prep.preparedData");
+    expect(row).toHaveTextContent(/pinned by you/i);
+  });
+
+  it("names a hand-authored ctx var as the source of a pinned NON-auto row", () => {
     const submit: ActivityNode = {
       id: "submit",
       type: "activity",
@@ -103,6 +139,7 @@ describe("ConnectSummaryPopover", () => {
     );
     const row = screen.getByTestId("connect-summary-row-fileData");
     expect(row).toHaveTextContent("Prepared file data");
+    expect(row).toHaveTextContent("from manualDoc");
     expect(row).toHaveTextContent(/pinned by you/i);
   });
 

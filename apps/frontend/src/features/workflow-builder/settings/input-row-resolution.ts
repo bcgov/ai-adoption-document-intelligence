@@ -19,16 +19,50 @@ import type { GraphWorkflowConfig } from "../../../types/workflow";
 
 /**
  * Decode the producer node ID from an auto ctx key of the form
- * `__auto.{nodeId}.{port}`. Returns null if the key is not an auto key.
+ * `__auto.{nodeId}.{port}`. Returns null if the key is not an auto key or
+ * carries no port segment. `port` is the LAST segment, so a nodeId containing
+ * dots is preserved (everything between the prefix and the final dot).
  */
-function decodeAutoProducerNodeId(ctxKey: string): string | null {
+export function decodeAutoProducerNodeId(ctxKey: string): string | null {
   if (!ctxKey.startsWith(AUTO_CTX_KEY_PREFIX)) return null;
-  // "__auto.{nodeId}.{port}" — nodeId may contain dots, but port is the last
-  // segment. We at least need the first segment after the prefix.
   const withoutPrefix = ctxKey.slice(AUTO_CTX_KEY_PREFIX.length);
-  const dotIdx = withoutPrefix.indexOf(".");
+  const dotIdx = withoutPrefix.lastIndexOf(".");
   if (dotIdx === -1) return null;
   return withoutPrefix.slice(0, dotIdx);
+}
+
+/**
+ * The friendly source a PINNED (locked+bound) input row displays, derived
+ * from its ctxKey so a pinned row reads the same as the auto-bound row it
+ * replaced rather than exposing the raw `__auto.*` synthesised key
+ * (item 6a). Three cases:
+ *  - `producer`: an auto key whose producer node still exists — show its
+ *    label after a `←` arrow.
+ *  - `producer` with `label = ctxKey`: an auto key that no longer decodes to
+ *    a live producer (renamed/deleted/undecodable) — keep the arrow but show
+ *    the raw key so the row is never blank.
+ *  - `ctx`: a hand-authored (non-auto) ctx var — show `from <ctxKey>` with no
+ *    producer arrow (there is no producer node to name).
+ */
+export type PinnedSource =
+  | { via: "producer"; label: string }
+  | { via: "ctx"; ctxKey: string };
+
+export function resolvePinnedSource(
+  config: GraphWorkflowConfig,
+  ctxKey: string,
+): PinnedSource {
+  if (isAutoCtxKey(ctxKey)) {
+    const producerNodeId = decodeAutoProducerNodeId(ctxKey);
+    const producer = producerNodeId ? config.nodes[producerNodeId] : undefined;
+    if (producerNodeId && producer) {
+      return { via: "producer", label: producer.label ?? producerNodeId };
+    }
+    // Auto key, but the producer is gone or the key is undecodable: keep the
+    // producer-style arrow and fall back to the raw key rather than blank.
+    return { via: "producer", label: ctxKey };
+  }
+  return { via: "ctx", ctxKey };
 }
 
 /**
@@ -67,7 +101,7 @@ function effectiveResolution(
     if (producerNodeId && config.nodes[producerNodeId]) {
       // Determine the producer port from the ctxKey suffix
       const withoutPrefix = existingCtxKey.slice(AUTO_CTX_KEY_PREFIX.length);
-      const dotIdx = withoutPrefix.indexOf(".");
+      const dotIdx = withoutPrefix.lastIndexOf(".");
       const producerPort = dotIdx !== -1 ? withoutPrefix.slice(dotIdx + 1) : "";
       return {
         status: "auto-bound",

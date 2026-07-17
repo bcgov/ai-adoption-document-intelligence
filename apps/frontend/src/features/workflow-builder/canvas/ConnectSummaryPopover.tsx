@@ -25,6 +25,7 @@ import { Button, Group, Popover, Stack, Text } from "@mantine/core";
 import { useEffect, useRef } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
+  resolvePinnedSource,
   resolveWireableInputRows,
   type WireableInputRow,
 } from "../settings/input-row-resolution";
@@ -168,12 +169,20 @@ function SummaryRow({ row, config, nodeId, onFix, onClose }: SummaryRowProps) {
         </Group>
       );
     }
-    case "locked":
+    case "locked": {
+      const source = resolvePinnedSource(config, resolution.ctxKey);
+      const sourceText =
+        source.via === "producer"
+          ? `← ${source.label}`
+          : `— from ${source.ctxKey}`;
       return (
         <Group gap={6} wrap="nowrap" data-testid={testId}>
-          <Text size="xs">✓ {port.label} — pinned by you</Text>
+          <Text size="xs">
+            ✓ {port.label} {sourceText} · pinned by you
+          </Text>
         </Group>
       );
+    }
     case "ctx-bound":
       return (
         <Group gap={6} wrap="nowrap" data-testid={testId}>
