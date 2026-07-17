@@ -18,6 +18,27 @@ import { describe, expect, it, vi } from "vitest";
 import type { PortRowModel } from "./port-rows";
 import { PORT_ROW_HEIGHT } from "./port-rows";
 
+// Replace Mantine's Tooltip with a passthrough that stamps its `position` on a
+// wrapper element. Mantine 8 resolves tooltip placement through floating-ui at
+// hover time and never surfaces the requested `position` as a queryable DOM
+// attribute, so this is the only reliable way to assert placement in jsdom. The
+// wrapper renders children verbatim, so every other assertion (row divs,
+// handles, data-* attributes) is unaffected.
+vi.mock("@mantine/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@mantine/core")>();
+  return {
+    ...actual,
+    Tooltip: ({
+      children,
+      position,
+    }: {
+      children: React.ReactNode;
+      position?: string;
+      label?: React.ReactNode;
+    }) => <div data-tooltip-position={position}>{children}</div>,
+  };
+});
+
 vi.mock("@xyflow/react", () => ({
   Handle: ({
     type,
@@ -402,5 +423,74 @@ describe("PortRows — output-handle hover-extend callbacks (§9)", () => {
     fireEvent.mouseLeave(inputHandle);
     expect(onEnter).not.toHaveBeenCalled();
     expect(onLeave).not.toHaveBeenCalled();
+  });
+});
+
+describe("PortRows — tooltip trigger is scoped off the handle", () => {
+  // The hover-extend popover opens on an OUTPUT handle's hover. If the port
+  // tooltip also fired on that same hover the two would render on top of each
+  // other (overlap varies with canvas zoom). The tooltip must therefore wrap
+  // ONLY the label, never the handle — so a handle hover shows just the picker.
+  it("keeps the output handle outside the tooltip target, with the label inside it", () => {
+    const { container } = renderRows(
+      [makeRow({})],
+      [
+        makeRow({
+          name: "preparedData",
+          label: "Prepared",
+          kind: "Document",
+          direction: "output",
+          handleId: "out-preparedData",
+        }),
+      ],
+    );
+
+    const handle = container.querySelector(
+      "[data-handleid='out-preparedData']",
+    ) as HTMLElement;
+    // The handle must NOT be nested inside any tooltip target — otherwise its
+    // hover would open the tooltip on top of the extend popover.
+    expect(handle.closest("[data-tooltip-position]")).toBeNull();
+
+    // The label text, by contrast, IS inside the tooltip target.
+    const label = screen.getByText("Prepared");
+    expect(label.closest("[data-tooltip-position]")).not.toBeNull();
+  });
+
+  it("does the same for input rows (handle out, label in)", () => {
+    const { container } = renderRows([makeRow({ label: "Source" })], []);
+    const handle = container.querySelector(
+      "[data-handleid='in-source']",
+    ) as HTMLElement;
+    expect(handle.closest("[data-tooltip-position]")).toBeNull();
+    expect(
+      screen.getByText("Source").closest("[data-tooltip-position]"),
+    ).not.toBeNull();
+  });
+
+  it("points the tooltip outward: left for inputs, right for outputs", () => {
+    renderRows(
+      [makeRow({ label: "Source" })],
+      [
+        makeRow({
+          name: "preparedData",
+          label: "Prepared",
+          direction: "output",
+          handleId: "out-preparedData",
+        }),
+      ],
+    );
+    expect(
+      screen
+        .getByText("Source")
+        .closest("[data-tooltip-position]")
+        ?.getAttribute("data-tooltip-position"),
+    ).toBe("left");
+    expect(
+      screen
+        .getByText("Prepared")
+        .closest("[data-tooltip-position]")
+        ?.getAttribute("data-tooltip-position"),
+    ).toBe("right");
   });
 });

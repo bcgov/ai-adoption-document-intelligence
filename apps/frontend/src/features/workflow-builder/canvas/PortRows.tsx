@@ -165,83 +165,102 @@ function PortRow({
   };
 
   return (
-    <Tooltip
-      label={rowTooltip(row)}
-      withArrow
-      position={isInput ? "left" : "right"}
+    <div
+      data-testid={`port-row-${nodeId}-${row.handleId}`}
+      data-port-kind={row.kind ?? "Artifact"}
+      data-needs-source={row.needsSource ? "true" : "false"}
+      data-from-ctx={row.fromCtx}
+      {...(dropCompatible === null
+        ? {}
+        : { "data-drop-compatible": String(dropCompatible) })}
+      style={{
+        position: "relative",
+        gridColumn: isInput ? 1 : 2,
+        gridRow,
+        height: PORT_ROW_HEIGHT,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: isInput ? "flex-start" : "flex-end",
+        gap: 4,
+        minWidth: 0,
+        fontSize: 11,
+        color: "var(--mantine-color-dimmed, #9ca3af)",
+        ...(dropCompatible === false ? { opacity: 0.35 } : {}),
+      }}
     >
-      <div
-        data-testid={`port-row-${nodeId}-${row.handleId}`}
-        data-port-kind={row.kind ?? "Artifact"}
-        data-needs-source={row.needsSource ? "true" : "false"}
-        data-from-ctx={row.fromCtx}
-        {...(dropCompatible === null
+      {/*
+       * The handle sits OUTSIDE the tooltip target on purpose. Hovering an
+       * output handle already opens the kind-aware hover-extend popover (§9);
+       * if the handle were inside the tooltip, that same hover would ALSO open
+       * the port tooltip and the two would render on top of each other (the
+       * exact overlap varies with canvas zoom, since both are portalled at
+       * fixed screen px while their anchors scale). Scoping the tooltip to the
+       * label below means the handle's hover shows only the picker, and the
+       * port description shows only when hovering the label — they never
+       * coexist, at any zoom.
+       */}
+      <Handle
+        id={row.handleId}
+        type={isInput ? "target" : "source"}
+        position={isInput ? Position.Left : Position.Right}
+        isConnectable
+        style={handleStyle}
+        {...(isInput
           ? {}
-          : { "data-drop-compatible": String(dropCompatible) })}
-        style={{
-          position: "relative",
-          gridColumn: isInput ? 1 : 2,
-          gridRow,
-          height: PORT_ROW_HEIGHT,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: isInput ? "flex-start" : "flex-end",
-          gap: 4,
-          minWidth: 0,
-          fontSize: 11,
-          color: "var(--mantine-color-dimmed, #9ca3af)",
-          ...(dropCompatible === false ? { opacity: 0.35 } : {}),
-        }}
+          : {
+              onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
+                if (!onOutputHandleEnter) return;
+                // Right-centre of the handle dot — same anchor geometry as
+                // the node-level `out` handle (§9 / makeSourceHandleHoverHandlers).
+                const rect = event.currentTarget.getBoundingClientRect();
+                onOutputHandleEnter(nodeId, row.name, {
+                  x: rect.right,
+                  y: rect.top + rect.height / 2,
+                });
+              },
+              onMouseLeave: () => onOutputHandleLeave?.(),
+            })}
+      />
+      <Tooltip
+        label={rowTooltip(row)}
+        withArrow
+        position={isInput ? "left" : "right"}
       >
-        <Handle
-          id={row.handleId}
-          type={isInput ? "target" : "source"}
-          position={isInput ? Position.Left : Position.Right}
-          isConnectable
-          style={handleStyle}
-          {...(isInput
-            ? {}
-            : {
-                onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
-                  if (!onOutputHandleEnter) return;
-                  // Right-centre of the handle dot — same anchor geometry as
-                  // the node-level `out` handle (§9 / makeSourceHandleHoverHandlers).
-                  const rect = event.currentTarget.getBoundingClientRect();
-                  onOutputHandleEnter(nodeId, row.name, {
-                    x: rect.right,
-                    y: rect.top + rect.height / 2,
-                  });
-                },
-                onMouseLeave: () => onOutputHandleLeave?.(),
-              })}
-        />
         <span
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            minWidth: 0,
             overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
           }}
         >
-          {row.label}
-        </span>
-        {row.fromCtx !== undefined && (
           <span
             style={{
-              fontStyle: "italic",
-              whiteSpace: "nowrap",
-              // Shrinkable + ellipsized so a long ctx key can't overflow
-              // the row into the opposite column (the row div can't clip
-              // via `overflow: hidden` — that would cut off the handle
-              // dot positioned outside the card edge).
               overflow: "hidden",
               textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            · from {row.fromCtx}
+            {row.label}
           </span>
-        )}
-      </div>
-    </Tooltip>
+          {row.fromCtx !== undefined && (
+            <span
+              style={{
+                fontStyle: "italic",
+                whiteSpace: "nowrap",
+                // Shrinkable + ellipsized so a long ctx key can't overflow
+                // the row into the opposite column.
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              · from {row.fromCtx}
+            </span>
+          )}
+        </span>
+      </Tooltip>
+    </div>
   );
 }
 
