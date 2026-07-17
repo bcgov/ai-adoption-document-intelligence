@@ -14,6 +14,7 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import {
+  clearReconnectableLocks,
   disconnectDataWire,
   ensureEdgeBetween,
   pinPortBinding,
@@ -211,6 +212,103 @@ describe("revertPortToAutomatic", () => {
       (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
         ?.lockedInputPorts,
     ).toEqual(["b"]);
+  });
+});
+
+describe("clearReconnectableLocks", () => {
+  // Real auto-wire chain: file.prepare (`preparedData`: Document) →
+  // azureOcr.submit (`fileData`: Document). The consumer port `fileData` has
+  // been left locked-UNBOUND ("Disconnected by you") by a prior delete; a
+  // fresh execution edge now makes it auto-bindable again.
+  const chainWithLockedUnbound = (
+    edges: GraphWorkflowConfig["edges"],
+  ): GraphWorkflowConfig => ({
+    schemaVersion: "1.0",
+    metadata: { name: "t" },
+    entryNodeId: "A",
+    ctx: {},
+    nodes: {
+      A: activityNode("A", "file.prepare"),
+      B: {
+        ...activityNode("B", "azureOcr.submit"),
+        metadata: { lockedInputPorts: ["fileData"] },
+      } as GraphNode,
+    },
+    edges,
+  });
+
+  it("unlocks a locked-unbound port the new upstream edge makes auto-bindable, dropping the metadata field when the list empties", () => {
+    // Edge A→B is present, so A is upstream of B and its `preparedData`
+    // (Document) satisfies B's `fileData` (Document).
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Precondition: locked-unbound before the clear.
+    expect(
+      resolveInputPort(config, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).not.toBe(config);
+    expect(next.nodes.B.metadata).not.toHaveProperty("lockedInputPorts");
+    // Now the resolver would auto-bind it (host runs resolveBindings later).
+    expect(
+      resolveInputPort(next, "B", { name: "fileData", kind: "Document" }),
+    ).toMatchObject({ status: "auto-bound", producerNodeId: "A" });
+  });
+
+  it("keeps a preserved lock in the list while dropping the reconnectable one", () => {
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Add a second locked-unbound port with no possible producer.
+    config.nodes.B = {
+      ...config.nodes.B,
+      metadata: { lockedInputPorts: ["fileData", "ghostPort"] },
+    } as GraphNode;
+    const next = clearReconnectableLocks(config, "B");
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["ghostPort"]);
+  });
+
+  it("leaves a locked-unbound port locked when no upstream source satisfies it", () => {
+    // No edge — A is not upstream of B, so `fileData` stays unsatisfiable.
+    const config = chainWithLockedUnbound([]);
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).toBe(config);
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+  });
+
+  it("never clears a locked-BOUND (pinned) port even when a source is upstream", () => {
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Give the locked port a real binding → locked-BOUND ("Pinned").
+    config.nodes.B = {
+      ...config.nodes.B,
+      inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+    } as GraphNode;
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).toBe(config);
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+  });
+
+  it("returns the same config reference when the target has no locked ports", () => {
+    const config = baseConfig();
+    expect(clearReconnectableLocks(config, "consumer")).toBe(config);
+  });
+
+  it("returns the same config reference when the target node is missing", () => {
+    const config = baseConfig();
+    expect(clearReconnectableLocks(config, "ghost")).toBe(config);
   });
 });
 

@@ -138,6 +138,7 @@ import {
   wireTooltip,
 } from "./WorkflowEdge";
 import {
+  clearReconnectableLocks,
   disconnectDataWire,
   ensureEdgeBetween,
   makeEdgeId,
@@ -2641,7 +2642,18 @@ function WorkflowEditorCanvasInner({
         ...config,
         edges: [...config.edges, newEdge],
       };
-      onConfigChange(configWithNewEdge);
+      // §6.3/§7 "connect again = wire again": a fresh node-level execution
+      // edge makes the source upstream, so clear any `locked-unbound`
+      // ("Disconnected by you") lock on the target's port(s) that this edge
+      // now makes auto-bindable. Runs against the edge-INCLUDED config so the
+      // resolver sees the new source; only DECIDES which locks to drop — the
+      // host's resolveBindings pass writes the binding. Locked-BOUND (pinned)
+      // ports and still-unsatisfiable ports keep their lock.
+      const nextConfig = clearReconnectableLocks(
+        configWithNewEdge,
+        connection.target,
+      );
+      onConfigChange(nextConfig);
       openConnectSummary(connection.target);
 
       // §6.4a — auto-wire supersession toast. A node-level execution edge
@@ -2664,7 +2676,7 @@ function WorkflowEditorCanvasInner({
           .filter((wire) => wire.auto)
           .map(dataWireSig),
       );
-      const createdAutoWire = deriveWires(resolveBindings(configWithNewEdge))
+      const createdAutoWire = deriveWires(resolveBindings(nextConfig))
         .filter((wire): wire is DataWire => wire.variant === "data")
         .some(
           (wire) =>

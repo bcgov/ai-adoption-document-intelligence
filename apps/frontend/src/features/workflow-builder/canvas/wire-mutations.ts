@@ -11,7 +11,12 @@
  * identical producer/port, disconnecting an already-disconnected port)
  * still return a NEW, deep-equal config.
  */
-import { getLockedInputPorts, synthesiseCtxKey } from "@ai-di/graph-workflow";
+import {
+  getActivityCatalogEntry,
+  getLockedInputPorts,
+  resolveInputPort,
+  synthesiseCtxKey,
+} from "@ai-di/graph-workflow";
 import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
 
 export interface ProducerSelection {
@@ -140,6 +145,73 @@ export function revertPortToAutomatic(
       [nodeId]: { ...node, metadata: nextMetadata },
     },
   };
+}
+
+/**
+ * §6.3/§7 — "connect again = wire again". When the user draws a fresh
+ * node-level execution edge into `targetNodeId`, clear any `locked-unbound`
+ * ("Disconnected by you") lock on that node's port(s) that the new upstream
+ * edge now makes auto-bindable — so a re-drawn edge auto-wires just like the
+ * first connect did, instead of staying stuck behind a stale delete-lock.
+ *
+ * Only clears locked-UNBOUND ports (no `inputs[]` binding, or a binding with
+ * a falsy `ctxKey`). A locked-BOUND port is a source the user explicitly
+ * pinned (§6.1) — left untouched. For each candidate, a trial config with
+ * that single lock removed is run through `resolveInputPort`; the lock is
+ * dropped ONLY when the trial reports `auto-bound`. Ports that would still be
+ * `unsatisfied`/`ambiguous` keep their lock (the in-place delete behaviour is
+ * preserved — only an explicit connect that actually re-satisfies the port
+ * clears it). Returns the SAME config reference when nothing changes, so
+ * callers can `===`-skip.
+ *
+ * Must run against a config that ALREADY includes the new edge, so the new
+ * source counts as upstream when the resolver checks. It only DECIDES which
+ * locks to drop; the host's `resolveBindings` pass writes the actual binding.
+ */
+export function clearReconnectableLocks(
+  config: GraphWorkflowConfig,
+  targetNodeId: string,
+): GraphWorkflowConfig {
+  const target = config.nodes[targetNodeId];
+  if (!target) return config;
+  if (target.type !== "activity" && target.type !== "pollUntil") return config;
+
+  const lockedPorts = getLockedInputPorts(target);
+  if (lockedPorts.length === 0) return config;
+
+  const entry = getActivityCatalogEntry(target.activityType);
+  if (!entry) return config;
+
+  const portsToUnlock: string[] = [];
+  for (const portName of lockedPorts) {
+    // Locked-BOUND (pinned) ports carry a real binding — never clear those.
+    const existing = target.inputs?.find((b) => b.port === portName);
+    if (existing?.ctxKey) continue;
+
+    // Only catalog-declared input ports can auto-wire; the descriptor's kind
+    // is what the resolver matches against upstream producers.
+    const descriptor = entry.inputs.find((p) => p.name === portName);
+    if (!descriptor) continue;
+
+    // Trial: unlock just this port, then ask the resolver whether the new
+    // upstream now satisfies it.
+    const trial = revertPortToAutomatic(config, targetNodeId, portName);
+    const resolution = resolveInputPort(trial, targetNodeId, {
+      name: portName,
+      kind: descriptor.kind,
+    });
+    if (resolution.status === "auto-bound") {
+      portsToUnlock.push(portName);
+    }
+  }
+
+  if (portsToUnlock.length === 0) return config;
+
+  let next = config;
+  for (const portName of portsToUnlock) {
+    next = revertPortToAutomatic(next, targetNodeId, portName);
+  }
+  return next;
 }
 
 /**

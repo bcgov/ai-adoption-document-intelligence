@@ -1246,6 +1246,99 @@ describe("WorkflowEditorCanvas — US-025: handleConnect edge-type stamping", ()
 });
 
 // ---------------------------------------------------------------------------
+// §6.3/§7 "connect again = wire again": drawing a fresh node-level execution
+// edge into a node clears any `locked-unbound` ("Disconnected by you") lock on
+// the target's port(s) that the new upstream edge now makes auto-bindable — so
+// a re-drawn edge auto-wires just like the first connect. An incompatible
+// source leaves the lock in place.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — reconnect clears reconnectable locks (§6.3/§7)", () => {
+  function getOnConnect(): (connection: Connection) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onConnect !== "function") {
+      throw new Error("ReactFlow mock did not capture onConnect");
+    }
+    return props.onConnect as (connection: Connection) => void;
+  }
+
+  /**
+   * Target `azureOcr.submit` with `fileData` (Document) left locked-UNBOUND by
+   * a prior delete, no edges. The `source` node is the producer under test.
+   */
+  function makeLockedUnboundTarget(source: ActivityNode): GraphWorkflowConfig {
+    const submit: ActivityNode = {
+      id: "submit",
+      type: "activity",
+      label: "Submit",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 }, lockedInputPorts: ["fileData"] },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Reconnect", version: "1.0.0" },
+      ctx: {},
+      nodes: { [source.id]: source, submit },
+      edges: [],
+      entryNodeId: source.id,
+    };
+  }
+
+  it("clears the lock when a compatible source is connected into the port", () => {
+    const prep: ActivityNode = {
+      id: "prep",
+      type: "activity",
+      label: "Prep",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const { onConfigChange } = renderCanvas(makeLockedUnboundTarget(prep));
+    act(() => {
+      getOnConnect()({
+        source: "prep",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    // The lock list emptied → the metadata field is dropped entirely.
+    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
+    // And the new edge was still added.
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({ source: "prep", target: "submit" });
+  });
+
+  it("leaves the lock in place when an incompatible source is connected", () => {
+    // `data.transform` outputs `output` (Artifact) — not assignable to the
+    // Document `fileData` port, so the resolver cannot auto-bind it.
+    const xform: ActivityNode = {
+      id: "xform",
+      type: "activity",
+      label: "Transform",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const { onConfigChange } = renderCanvas(makeLockedUnboundTarget(xform));
+    act(() => {
+      getOnConnect()({
+        source: "xform",
+        target: "submit",
+        sourceHandle: "out",
+        targetHandle: null,
+      });
+    });
+    const next = lastEmittedConfig(onConfigChange);
+    const submit = next.nodes.submit as ActivityNode;
+    expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // US-025 wiring: WorkflowEdge registered as the custom xyflow edge type
 //   The canvas projects every edge with `type: "workflow-edge"` + a
 //   `data` payload carrying the `GraphEdge` (and source `SwitchNode`
