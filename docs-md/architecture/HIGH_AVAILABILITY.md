@@ -27,24 +27,24 @@ HPAs automatically scale deployments based on CPU and memory utilization.
 ### Backend Services HPA
 
 - **Min Replicas:** 2 (for HA)
-- **Max Replicas:** 5 (limited by database connection pool capacity)
-- **Scale Trigger:** CPU 75% or Memory 80%
-- **Scale Up:** Add up to 100% of current pods or 2 pods (whichever is higher) every 30s
+- **Max Replicas:** 3 (namespace quota constraint — see [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md))
+- **Scale Trigger:** CPU 80% or Memory 80%
+- **Scale Up:** Add up to 50% of current pods or 1 pod (whichever is higher) every 60s; 120 s stabilization window
 - **Scale Down:** Remove up to 50% of current pods every 60s, with 5 min stabilization window
 
 **Connection Pool Limit:**  
-Each backend-services pod uses `DB_POOL_MAX` connections (default **10**). With 5 pods at max HPA scale, that's 50 connections to PostgreSQL.
+Each backend-services pod uses `DB_POOL_MAX` connections (default **10**). With 3 pods at max HPA scale, that's 30 connections to PostgreSQL.
 
 ### Temporal Worker HPA
 
 - **Min Replicas:** 2 (for HA)
-- **Max Replicas:** 4 (limited by database connection pool capacity)
-- **Scale Trigger:** CPU 70% or Memory 75%
-- **Scale Up:** Add up to 50% of current pods or 1 pod (whichever is higher) every 60s
+- **Max Replicas:** 3 (namespace quota constraint — see [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md))
+- **Scale Trigger:** CPU 80% or Memory 80%
+- **Scale Up:** Add up to 50% of current pods or 1 pod (whichever is higher) every 60s; 180 s stabilization window
 - **Scale Down:** Remove up to 50% of current pods every 120s, with 10 min stabilization window
 
 **Connection Pool Limit:**  
-Each temporal-worker pod uses `DB_POOL_MAX=3` connections. With 4 pods max, that's 12 connections to PostgreSQL.
+Each temporal-worker pod uses `DB_POOL_MAX=3` connections. With 3 pods max, that's 9 connections to PostgreSQL.
 
 **Scale Behavior:**  
 Temporal workers scale more conservatively than backend-services because:
@@ -55,13 +55,13 @@ Temporal workers scale more conservatively than backend-services because:
 ### Frontend HPA
 
 - **Min Replicas:** 2 (for HA)
-- **Max Replicas:** 4
-- **Scale Trigger:** CPU 75% or Memory 80%
-- **Scale Up:** Add up to 100% of current pods or 1 pod (whichever is higher) every 30s
+- **Max Replicas:** 3 (namespace quota constraint — see [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md))
+- **Scale Trigger:** CPU 80% or Memory 80%
+- **Scale Up:** Add up to 50% of current pods or 1 pod (whichever is higher) every 60s; 120 s stabilization window
 - **Scale Down:** Remove up to 50% of current pods every 60s, with 5 min stabilization window
 
 **No Database Limit:**  
-Frontend is nginx serving static files, so no database connections are used. Max replicas can be increased if needed.
+Frontend is nginx serving static files, so no database connections are used. Max replicas can be increased if the namespace quota is expanded.
 
 ## Database Connection Pool Capacity
 
@@ -69,11 +69,11 @@ PostgreSQL default `max_connections` is 100. Our configuration uses:
 
 | Service | Pods (max) | Connections per Pod | Total Connections |
 |---------|------------|---------------------|-------------------|
-| backend-services | 5 | 10 | 50 |
-| temporal-worker | 4 | 3 | 12 |
-| **Total** | **9** | - | **62** |
+| backend-services | 3 | 10 | 30 |
+| temporal-worker | 3 | 3 | 9 |
+| **Total** | **6** | - | **39** |
 
-At HPA max scale this stays below Crunchy Postgres default `max_connections` (100) with headroom for migrations and admin tools. For single-replica load testing, override `DB_POOL_MAX=20` in the instance env to remove the ~7 req/s read ceiling documented in [LOAD_TEST_REPORT_2026-05.md](../archive/LOAD_TEST_REPORT_2026-05.md).
+At HPA max scale this stays well below Crunchy Postgres default `max_connections` (100) with headroom for migrations and admin tools. For single-replica load testing, override `DB_POOL_MAX=20` in the instance env to remove the ~7 req/s read ceiling documented in [LOAD_TEST_REPORT_2026-05.md](../archive/LOAD_TEST_REPORT_2026-05.md).
 
 This leaves headroom for:
 - Interactive queries (pgAdmin, psql)
@@ -105,11 +105,14 @@ All pods have resource requests and limits defined, which are required for HPA t
 
 | Service | CPU Request | Memory Request | CPU Limit | Memory Limit |
 |---------|-------------|----------------|-----------|--------------|
-| backend-services | 100m | 256Mi | 500m | 512Mi |
-| temporal-worker | 100m | 256Mi | 500m | 512Mi |
+| backend-services | 100m | 1Gi | 500m | 1.5Gi |
+| temporal-worker | 100m | 768Mi | 500m | 1Gi |
 | frontend | 50m | 128Mi | 200m | 256Mi |
 
-These values may need adjustment based on actual workload metrics.
+Memory requests are sized to production steady-state observations (backend ~740Mi, worker ~560Mi)
+so that HPA memory utilization sits at ~72% and ~73% respectively — below the 80% threshold.
+This prevents HPAs from pinning at max replicas under normal (non-peak) load.
+See [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md) for the full capacity model.
 
 ## Monitoring HPA
 
@@ -163,7 +166,7 @@ Each Temporal worker pod has concurrency limits to control parallel task executi
 ### Activity Concurrency
 
 **Per-pod limit:** 10 concurrent activities  
-**Total capacity with HPA:** 2-4 pods × 10 = **20-40 concurrent activities**
+**Total capacity with HPA:** 2-3 pods × 10 = **20-30 concurrent activities**
 
 **Rationale:**
 - Activities are I/O-bound (Azure AI API calls, database queries, blob storage)
@@ -173,13 +176,13 @@ Each Temporal worker pod has concurrency limits to control parallel task executi
 
 **Scaling behavior:**
 - Low load: 2 pods × 10 = 20 concurrent activities
-- High load: HPA scales to 4 pods × 10 = 40 concurrent activities
-- If all 40 slots are busy, new activities queue in Temporal server until a slot opens
+- High load: HPA scales to 3 pods × 10 = 30 concurrent activities
+- If all 30 slots are busy, new activities queue in Temporal server until a slot opens
 
 ### Workflow Task Concurrency
 
 **Per-pod limit:** 100 concurrent workflow decision tasks  
-**Total capacity with HPA:** 2-4 pods × 100 = **200-400 concurrent decision tasks**
+**Total capacity with HPA:** 2-3 pods × 100 = **200-300 concurrent decision tasks**
 
 **Rationale:**
 - Workflow tasks are lightweight in-memory operations (decision logic, conditional branching)
@@ -216,6 +219,6 @@ oc port-forward svc/temporal-ui 8080:8080
 ```bash
 # Each activity may hold a DB connection for its duration
 # Ensure: (max worker pods * activity concurrency) * DB usage per activity < DB_POOL_MAX * max pods
-# Example: 4 pods * 10 activities = 40, with DB_POOL_MAX=3 per pod = 12 total connections
+# Example: 3 pods * 10 activities = 30, with DB_POOL_MAX=3 per pod = 9 total connections
 # This is safe because not all activities use the DB simultaneously
 ```
