@@ -17,11 +17,22 @@ export {
 } from "./artifact-registry";
 export type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
 export { resolveKindFields } from "./kind-fields";
-export type { OcrPayloadRef, PreparedFileData } from "./kind-schemas";
+export type {
+  ClassifiedPageSegment,
+  DocumentSegment,
+  LabeledSegment,
+  OcrPayloadRef,
+  PreparedFileData,
+  SegmentWithType,
+} from "./kind-schemas";
 export {
+  ClassifiedPageSegmentSchema,
+  DocumentSegmentSchema,
   KIND_SCHEMAS,
+  LabeledSegmentSchema,
   OcrResultSchema,
   PreparedFileSchema,
+  TypedSegmentSchema,
 } from "./kind-schemas";
 export { isAssignable } from "./subtype-check";
 export type { KindSchemaMap } from "./zod-to-fields";

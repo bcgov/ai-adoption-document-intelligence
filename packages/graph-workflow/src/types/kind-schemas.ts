@@ -58,8 +58,63 @@ export const PreparedFileSchema = z.object({
  */
 export type PreparedFileData = z.infer<typeof PreparedFileSchema>;
 
+/** Shared page-range fragment. Deliberately NOT a registered kind: page
+ *  ranges are not artifacts, so drill-down stops at the object
+ *  (KIND_TAXONOMY_REFINEMENT_DESIGN.md §4). */
+const PageRangeSchema = z.object({ start: z.number(), end: z.number() });
+
+/**
+ * document.split's per-segment output. Field set verified against
+ * apps/temporal split-document.ts:18-23 (KIND_TAXONOMY_REFINEMENT_DESIGN.md §4).
+ */
+export const DocumentSegmentSchema = z.object({
+  segmentIndex: z.number(),
+  pageRange: PageRangeSchema,
+  blobKey: z.string(),
+  pageCount: z.number(),
+});
+export type DocumentSegment = z.infer<typeof DocumentSegmentSchema>;
+
+/**
+ * document.splitAndClassify's per-segment output — DocumentSegment plus
+ * classification results (runtime `SegmentWithType extends DocumentSegment`
+ * in split-and-classify-document.ts:17-20).
+ */
+export const TypedSegmentSchema = DocumentSegmentSchema.extend({
+  segmentType: z.string(),
+  keywordMatch: z.string().optional(),
+  confidence: z.number(),
+});
+export type SegmentWithType = z.infer<typeof TypedSegmentSchema>;
+
+/**
+ * document.selectClassifiedPages' per-segment output. Field set verified
+ * against apps/temporal select-classified-pages.ts:12-17.
+ */
+export const ClassifiedPageSegmentSchema = z.object({
+  pageRange: PageRangeSchema,
+  confidence: z.number(),
+});
+export type ClassifiedPageSegment = z.infer<typeof ClassifiedPageSegmentSchema>;
+
+/**
+ * document.flattenClassifiedDocuments' per-segment output. Field set
+ * verified against apps/temporal flatten-classified-documents.ts:15-22
+ * (runtime `ClassifiedSegment`, renamed `LabeledSegment` here per Task 13).
+ */
+export const LabeledSegmentSchema = z.object({
+  label: z.string(),
+  pageRange: PageRangeSchema,
+  confidence: z.number(),
+});
+export type LabeledSegment = z.infer<typeof LabeledSegmentSchema>;
+
 /** Identity map consumed by `zodToFields` to emit kind references. */
 export const KIND_SCHEMAS: KindSchemaMap = new Map<ZodType, KindRef>([
   [OcrResultSchema, "OcrResult"],
   [PreparedFileSchema, "PreparedFile"],
+  [DocumentSegmentSchema, "DocumentSegment"],
+  [TypedSegmentSchema, "TypedSegment"],
+  [ClassifiedPageSegmentSchema, "ClassifiedPageSegment"],
+  [LabeledSegmentSchema, "LabeledSegment"],
 ]);

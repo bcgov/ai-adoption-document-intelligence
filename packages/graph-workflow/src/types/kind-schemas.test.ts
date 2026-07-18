@@ -1,9 +1,13 @@
 import { ARTIFACT_REGISTRY, getArtifactKindMeta } from "./artifact-registry";
 import type { OcrPayloadRef } from "./kind-schemas";
 import {
+  ClassifiedPageSegmentSchema,
+  DocumentSegmentSchema,
   KIND_SCHEMAS,
+  LabeledSegmentSchema,
   OcrResultSchema,
   PreparedFileSchema,
+  TypedSegmentSchema,
 } from "./kind-schemas";
 import { zodToFields } from "./zod-to-fields";
 
@@ -64,5 +68,38 @@ describe("kind schemas", () => {
 
   it("KIND_SCHEMAS maps PreparedFileSchema to PreparedFile by identity", () => {
     expect(KIND_SCHEMAS.get(PreparedFileSchema)).toBe("PreparedFile");
+  });
+
+  it("DocumentSegmentSchema derives fields; anonymous pageRange stops drill-down", () => {
+    expect(zodToFields(DocumentSegmentSchema, KIND_SCHEMAS)).toEqual([
+      { name: "segmentIndex", type: "number", required: true },
+      { name: "pageRange", type: "object", required: true },
+      { name: "blobKey", type: "string", required: true },
+      { name: "pageCount", type: "number", required: true },
+    ]);
+  });
+
+  it("TypedSegmentSchema extends DocumentSegment with the classification fields", () => {
+    expect(zodToFields(TypedSegmentSchema, KIND_SCHEMAS)).toEqual([
+      { name: "segmentIndex", type: "number", required: true },
+      { name: "pageRange", type: "object", required: true },
+      { name: "blobKey", type: "string", required: true },
+      { name: "pageCount", type: "number", required: true },
+      { name: "segmentType", type: "string", required: true },
+      { name: "keywordMatch", type: "string", required: false },
+      { name: "confidence", type: "number", required: true },
+    ]);
+  });
+
+  it("ClassifiedPageSegment and LabeledSegment schemas derive their fields", () => {
+    expect(zodToFields(ClassifiedPageSegmentSchema, KIND_SCHEMAS)).toEqual([
+      { name: "pageRange", type: "object", required: true },
+      { name: "confidence", type: "number", required: true },
+    ]);
+    expect(zodToFields(LabeledSegmentSchema, KIND_SCHEMAS)).toEqual([
+      { name: "label", type: "string", required: true },
+      { name: "pageRange", type: "object", required: true },
+      { name: "confidence", type: "number", required: true },
+    ]);
   });
 });
