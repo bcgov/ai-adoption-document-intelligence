@@ -20,7 +20,7 @@ export const azureClassifySubmitCatalogEntry: ActivityCatalogEntry = {
       label: "Document blob key",
       description: "Storage key for the document to classify.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "groupId",
@@ -64,7 +64,7 @@ export const azureClassifySubmitCatalogEntry: ActivityCatalogEntry = {
       label: "Blob key (forwarded)",
       description: "Original blob key forwarded for downstream nodes.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "groupId",

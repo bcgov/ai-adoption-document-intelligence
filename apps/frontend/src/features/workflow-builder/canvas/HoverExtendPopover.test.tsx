@@ -121,12 +121,12 @@ describe("HoverExtendPopover", () => {
 
 describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
   it("with filterKind set, shows only activities accepting that kind, plus Flow Control", () => {
-    renderPopover({ filterKind: "Document" });
-    // azureOcr.submit.fileData: Document accepts a Document producer.
+    renderPopover({ filterKind: "PreparedFile" });
+    // azureOcr.submit.fileData: PreparedFile accepts a PreparedFile producer.
     expect(
       screen.getByTestId("hover-extend-activity-azureOcr.submit"),
     ).toBeInTheDocument();
-    // document.split.blobKey is MultiPageDocument — a plain Document is NOT
+    // document.split.blobKey is MultiPageDocument — a PreparedFile is NOT
     // assignable to it, so it is filtered out.
     expect(
       screen.queryByTestId("hover-extend-activity-document.split"),
@@ -154,7 +154,7 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
   });
 
   it("'Show all' (testid hover-extend-show-all) reveals the full catalog", () => {
-    renderPopover({ filterKind: "Document" });
+    renderPopover({ filterKind: "PreparedFile" });
     // Hidden while filtered.
     expect(
       screen.queryByTestId("hover-extend-activity-document.split"),
@@ -182,7 +182,7 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
 
   it("resets 'Show all' per gesture, so sliding to another same-kind port re-filters", () => {
     const { rerender } = renderPopover({
-      filterKind: "Document",
+      filterKind: "PreparedFile",
       gestureKey: "prep:preparedData",
     });
     // Expand to the full list on the first port.
@@ -192,7 +192,7 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
     ).toBeInTheDocument();
     // Slide to a DIFFERENT output port of the SAME kind: filterKind is
     // unchanged, but the gesture identity changes → the view re-filters.
-    rerender({ filterKind: "Document", gestureKey: "prep:otherDocPort" });
+    rerender({ filterKind: "PreparedFile", gestureKey: "prep:otherDocPort" });
     expect(
       screen.queryByTestId("hover-extend-activity-document.split"),
     ).not.toBeInTheDocument();

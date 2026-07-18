@@ -92,7 +92,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Prepare file",
       port: "preparedData",
       portLabel: "Prepared file data",
-      portKind: "Document",
+      portKind: "PreparedFile",
     });
   });
 
@@ -103,7 +103,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Prepare file",
       port: "preparedData",
       portLabel: "Prepared file data",
-      portKind: "Document",
+      portKind: "PreparedFile",
     });
   });
 
@@ -143,7 +143,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Second prep",
       port: "preparedData",
       portLabel: "Prepared file data",
-      portKind: "Document",
+      portKind: "PreparedFile",
     });
     // Without a consumerNodeId, ties fall back to node-record order → A.
     expect(resolveCtxKeyToProducer(config, "shared")).toEqual({
@@ -151,7 +151,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "First prep",
       port: "preparedData",
       portLabel: "Prepared file data",
-      portKind: "Document",
+      portKind: "PreparedFile",
     });
   });
 
@@ -171,7 +171,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Poll ready",
       port: "preparedData",
       portLabel: "Prepared file data",
-      portKind: "Document",
+      portKind: "PreparedFile",
     });
   });
 });

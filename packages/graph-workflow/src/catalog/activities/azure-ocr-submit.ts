@@ -52,7 +52,7 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
       label: "Prepared file data",
       description: "Output from `file.prepare`.",
       required: true,
-      kind: "Document",
+      kind: "PreparedFile",
     },
   ],
   outputs: [

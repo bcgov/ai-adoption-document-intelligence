@@ -47,7 +47,7 @@ export const documentExtractPageRangeCatalogEntry: ActivityCatalogEntry = {
       label: "Segment blob key",
       description: "Storage key for the extracted segment file.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "pageRange",

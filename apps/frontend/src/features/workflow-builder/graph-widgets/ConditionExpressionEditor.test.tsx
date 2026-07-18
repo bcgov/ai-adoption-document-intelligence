@@ -898,11 +898,12 @@ describe("ConditionExpressionEditor — field drill-down in step sub-mode", () =
   });
 
   it("shows no field picker for a producer port whose kind has no fields", () => {
-    // file.prepare's preparedData is kind Document — no field schema in v1.
+    // document.normalizeOrientation's correctedBlobKey is kind DocumentRef —
+    // a plain blob-key string, no field schema.
     function Harness() {
       const [expr, setExpr] = useState<ConditionExpression | undefined>({
         operator: "equals",
-        left: { ref: "__auto.A.preparedData" },
+        left: { ref: "__auto.A.correctedBlobKey" },
         right: { literal: "x" },
       });
       return (
@@ -910,7 +911,28 @@ describe("ConditionExpressionEditor — field drill-down in step sub-mode", () =
           <ConditionExpressionEditor
             value={expr}
             onChange={setExpr}
-            config={stepPickerConfig()}
+            config={{
+              schemaVersion: "1.0",
+              metadata: {},
+              entryNodeId: "A",
+              nodes: {
+                A: {
+                  id: "A",
+                  type: "activity",
+                  activityType: "document.normalizeOrientation",
+                  label: "Correct Orientation",
+                  outputs: [
+                    {
+                      port: "correctedBlobKey",
+                      ctxKey: "__auto.A.correctedBlobKey",
+                    },
+                  ],
+                },
+                SW: { id: "SW", type: "switch", label: "Branch", cases: [] },
+              },
+              edges: [{ id: "e", source: "A", target: "SW", type: "normal" }],
+              ctx: {},
+            }}
             currentNodeId="SW"
           />
         </MantineProvider>
@@ -918,10 +940,10 @@ describe("ConditionExpressionEditor — field drill-down in step sub-mode", () =
     }
     render(<Harness />);
     // The producer resolves (step mode caption shows) but no field picker,
-    // because Document carries no field schema.
+    // because DocumentRef carries no field schema.
     expect(
       screen.getByTestId("condition-expression-editor-left-resolved"),
-    ).toHaveTextContent("Prepare file → Prepared file data");
+    ).toHaveTextContent("Correct Orientation → Corrected blob key");
     expect(
       screen.queryByTestId("condition-expression-editor-left-field-input"),
     ).not.toBeInTheDocument();

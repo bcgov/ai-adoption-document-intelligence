@@ -56,7 +56,7 @@ describe("deriveWires — Scenario 1: linear chain with an __auto. key", () => {
       sourcePort: "preparedData",
       target: "B",
       targetPort: "fileData",
-      kind: "Document",
+      kind: "PreparedFile",
       pinned: false,
       auto: true,
       edgeId: "e1",
@@ -247,7 +247,7 @@ describe("deriveWires — Scenario 7: source node emitting its ctx key", () => {
       sourcePort: "documentUrl",
       target: "A",
       targetPort: "blobKey",
-      kind: "Document",
+      kind: "DocumentRef",
       ctxKey: "documentUrl",
     });
   });

@@ -25,7 +25,7 @@ describe("outputPortKind / inputPortKind", () => {
       },
     });
 
-    expect(outputPortKind(cfg, "A", "preparedData")).toBe("Document");
+    expect(outputPortKind(cfg, "A", "preparedData")).toBe("PreparedFile");
   });
 
   it("returns the catalog kind for an activity input port", () => {
@@ -39,7 +39,7 @@ describe("outputPortKind / inputPortKind", () => {
       },
     });
 
-    expect(inputPortKind(cfg, "B", "fileData")).toBe("Document");
+    expect(inputPortKind(cfg, "B", "fileData")).toBe("PreparedFile");
   });
 
   it("returns undefined for control-flow/source nodes, unknown ports, unknown node ids, and catalog-less activity types", () => {

@@ -41,7 +41,7 @@ describe("computePortRows — Scenario 1: azureOcr.submit with no bindings", () 
     expect(inputs[0]).toMatchObject({
       name: "fileData",
       handleId: "in-fileData",
-      kind: "Document",
+      kind: "PreparedFile",
       required: true,
       bound: false,
       needsSource: true,

@@ -63,7 +63,7 @@ export const filePrepareCatalogEntry: ActivityCatalogEntry = {
       label: "File reference (blob key)",
       description: "Storage key for the file to prepare.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "fileName",
@@ -93,7 +93,7 @@ export const filePrepareCatalogEntry: ActivityCatalogEntry = {
       label: "Prepared file data",
       description: "Object describing the validated file, ready for OCR submission.",
       required: true,
-      kind: "Document",
+      kind: "PreparedFile",
     },
   ],
   parametersSchema: filePrepareParametersSchema,

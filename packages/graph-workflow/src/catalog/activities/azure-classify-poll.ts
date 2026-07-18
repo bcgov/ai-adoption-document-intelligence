@@ -31,7 +31,7 @@ export const azureClassifyPollCatalogEntry: ActivityCatalogEntry = {
       label: "Blob key (forwarded)",
       description: "Original blob key.",
       required: false,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "groupId",
@@ -62,7 +62,7 @@ export const azureClassifyPollCatalogEntry: ActivityCatalogEntry = {
       label: "Original blob key",
       description: "Original blob key (echoed).",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "groupId",

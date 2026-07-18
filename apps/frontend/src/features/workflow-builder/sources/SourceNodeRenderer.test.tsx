@@ -121,11 +121,11 @@ describe("SourceNodeRenderer — Scenario 1: no input handle", () => {
 // ---------------------------------------------------------------------------
 
 describe("SourceNodeRenderer — Scenario 2: output handle colour per outputKind", () => {
-  it("colours the output handle blue for source.upload (Document)", () => {
+  it("colours the output handle blue for source.upload (DocumentRef)", () => {
     renderRenderer(makeSourceNode({ sourceType: "source.upload" }));
     const wrapper = screen.getByTestId("source-output-handle-wrapper-src_1");
     expect(wrapper.getAttribute("data-port-color")).toBe("blue");
-    expect(wrapper.getAttribute("data-port-tooltip")).toBe("Document");
+    expect(wrapper.getAttribute("data-port-tooltip")).toBe("DocumentRef");
     const handle = screen.getByTestId("handle-source-right");
     expect(handle).toBeInTheDocument();
     // The handle dot picks up the `--mantine-color-blue-6` CSS variable.

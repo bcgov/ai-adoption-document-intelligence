@@ -1726,7 +1726,7 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     expect(projected?.selectable).toBe(true);
     expect(projected?.className).toBe("wb-data-wire");
     expect(projected?.ariaLabel).toBe(
-      "Connected automatically — nearest Document producer",
+      "Connected automatically — nearest PreparedFile producer",
     );
   });
 
@@ -2896,7 +2896,8 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
     });
     expect(showMock).toHaveBeenCalledTimes(1);
     expect(showMock.mock.calls[0][0]).toMatchObject({
-      message: "This input needs Document — Segment (list) can't be used here",
+      message:
+        "This input needs PreparedFile — Segment (list) can't be used here",
     });
 
     showMock.mockClear();

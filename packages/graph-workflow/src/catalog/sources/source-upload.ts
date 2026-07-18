@@ -10,7 +10,7 @@
  * returns the corresponding JSON Schema 7 object that `/run-spec`
  * (US-111) and `/runs` body validation consume. The configured key
  * is what the Phase 3 binding-walk validator (US-110) treats as a
- * producer of `kind: "Document"`.
+ * producer of `kind: "DocumentRef"`.
  *
  * See docs-md/workflow-builder/DOCUMENT_SOURCES_DESIGN.md §3.2.
  */
@@ -96,7 +96,7 @@ function deriveOutputSchema(
   return {
     type: "object",
     properties: {
-      [parsed.ctxKey]: { type: "string", format: "uri" },
+      [parsed.ctxKey]: { type: "string" },
     },
     required: [parsed.ctxKey],
   };
@@ -107,11 +107,11 @@ export const sourceUploadCatalogEntry: SourceCatalogEntry = {
   category: "source",
   displayName: "File upload",
   description:
-    "Interactive intake — the canvas-side Dropzone uploads a file and the workflow runs against the resulting blob URL.",
+    "Interactive intake — the canvas-side Dropzone uploads a file and the workflow runs against the resulting stored blob.",
   iconHint: "file-upload",
   colorHint: "blue",
   parametersSchema: sourceUploadParametersSchema,
   runtime: "manual",
   deriveOutputSchema,
-  outputKind: "Document",
+  outputKind: "DocumentRef",
 };

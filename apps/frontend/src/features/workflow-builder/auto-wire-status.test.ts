@@ -154,7 +154,7 @@ describe("computeNodeInputIssues", () => {
       {
         port: "fileData",
         label: "Prepared file data",
-        kind: "Document",
+        kind: "PreparedFile",
         status: "unsatisfied",
       },
     ]);
@@ -193,7 +193,7 @@ describe("computeNodeInputIssues", () => {
       {
         port: "fileData",
         label: "Prepared file data",
-        kind: "Document",
+        kind: "PreparedFile",
         status: "ambiguous",
       },
     ]);
@@ -295,7 +295,7 @@ describe("computeNodeInputIssues", () => {
   });
 
   it("flags a REQUIRED locked-unbound port", () => {
-    // fileData (kind Document, required) is locked with no binding — the
+    // fileData (kind PreparedFile, required) is locked with no binding — the
     // user explicitly disconnected it.
     const cfg = makeConfig({
       Z: {
@@ -312,7 +312,7 @@ describe("computeNodeInputIssues", () => {
       {
         port: "fileData",
         label: "Prepared file data",
-        kind: "Document",
+        kind: "PreparedFile",
         status: "locked-unbound",
       },
     ]);

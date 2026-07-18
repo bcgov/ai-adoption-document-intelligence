@@ -41,10 +41,10 @@ describe("PROVIDER_CATALOG contents (Scenario 2)", () => {
     expect(ids).toEqual(["azure-ocr", "mistral-ocr"]);
   });
 
-  it("every entry is an ocr provider that maps Document → OcrResult", () => {
+  it("every entry is an ocr provider that maps PreparedFile → OcrResult", () => {
     for (const entry of PROVIDER_CATALOG) {
       expect(entry.category).toBe("ocr");
-      expect(entry.acceptsKind).toBe("Document");
+      expect(entry.acceptsKind).toBe("PreparedFile");
       expect(entry.returns).toBe("OcrResult");
     }
   });
@@ -63,20 +63,16 @@ describe("getProviderDescriptor (Scenario 3)", () => {
 });
 
 describe("listProvidersForKind (Scenario 3)", () => {
-  it("returns both providers when called with Document", () => {
-    const matches = listProvidersForKind("Document");
+  it("returns both providers when called with PreparedFile", () => {
+    const matches = listProvidersForKind("PreparedFile");
     expect(matches.map((p) => p.id).sort()).toEqual([
       "azure-ocr",
       "mistral-ocr",
     ]);
   });
 
-  it("returns both providers when called with MultiPageDocument (subtype of Document)", () => {
-    const matches = listProvidersForKind("MultiPageDocument");
-    expect(matches.map((p) => p.id).sort()).toEqual([
-      "azure-ocr",
-      "mistral-ocr",
-    ]);
+  it("returns an empty array for MultiPageDocument (a blob-key ref is not a PreparedFile)", () => {
+    expect(listProvidersForKind("MultiPageDocument")).toEqual([]);
   });
 
   it("returns both providers when called with undefined (Artifact wildcard)", () => {
@@ -108,6 +104,6 @@ describe("package-root barrel re-export (Scenario 4)", () => {
 
   it("re-exports listProvidersForKind", () => {
     expect(typeof packageRoot.listProvidersForKind).toBe("function");
-    expect(packageRoot.listProvidersForKind("Document")).toHaveLength(2);
+    expect(packageRoot.listProvidersForKind("PreparedFile")).toHaveLength(2);
   });
 });

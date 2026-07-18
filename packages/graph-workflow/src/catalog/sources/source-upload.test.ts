@@ -9,7 +9,7 @@
  *   3. `deriveOutputSchema` returns the ctxKey-keyed fixed shape for
  *      a custom ctxKey, and falls back to the default `"documentUrl"`
  *      when `ctxKey` is absent.
- *   4. `outputKind === "Document"`.
+ *   4. `outputKind === "DocumentRef"`.
  *   5. Per-entry catalog invariants: non-empty type/displayName/
  *      description, valid runtime enum, `outputKind` resolves via the
  *      Phase 3 registry, `deriveOutputSchema({})` is callable.
@@ -41,7 +41,7 @@ describe("source.upload catalog entry — Scenario 1 (registration)", () => {
     expect(sourceUploadCatalogEntry.category).toBe("source");
     expect(sourceUploadCatalogEntry.displayName).toBe("File upload");
     expect(sourceUploadCatalogEntry.runtime).toBe("manual");
-    expect(sourceUploadCatalogEntry.outputKind).toBe("Document");
+    expect(sourceUploadCatalogEntry.outputKind).toBe("DocumentRef");
     expect(sourceUploadCatalogEntry.iconHint).toBe("file-upload");
     expect(sourceUploadCatalogEntry.colorHint).toBe("blue");
   });
@@ -127,7 +127,7 @@ describe("source.upload catalog entry — Scenario 3 (deriveOutputSchema)", () =
     });
     expect(schema).toEqual({
       type: "object",
-      properties: { myFile: { type: "string", format: "uri" } },
+      properties: { myFile: { type: "string" } },
       required: ["myFile"],
     });
   });
@@ -136,7 +136,7 @@ describe("source.upload catalog entry — Scenario 3 (deriveOutputSchema)", () =
     const schema = sourceUploadCatalogEntry.deriveOutputSchema({});
     expect(schema).toEqual({
       type: "object",
-      properties: { documentUrl: { type: "string", format: "uri" } },
+      properties: { documentUrl: { type: "string" } },
       required: ["documentUrl"],
     });
   });
@@ -148,15 +148,15 @@ describe("source.upload catalog entry — Scenario 3 (deriveOutputSchema)", () =
     });
     expect(schema).toEqual({
       type: "object",
-      properties: { documentUrl: { type: "string", format: "uri" } },
+      properties: { documentUrl: { type: "string" } },
       required: ["documentUrl"],
     });
   });
 });
 
 describe("source.upload catalog entry — Scenario 4 (outputKind)", () => {
-  it("declares outputKind === 'Document'", () => {
-    expect(sourceUploadCatalogEntry.outputKind).toBe("Document");
+  it("declares outputKind === 'DocumentRef'", () => {
+    expect(sourceUploadCatalogEntry.outputKind).toBe("DocumentRef");
   });
 });
 
@@ -176,7 +176,7 @@ describe("source.upload catalog entry — Scenario 5 (per-entry invariants)", ()
   it("outputKind resolves via the Phase 3 registry (isAssignable round-trip)", () => {
     expect(
       isAssignable("Document", sourceUploadCatalogEntry.outputKind),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isAssignable(sourceUploadCatalogEntry.outputKind, "Document"),
     ).toBe(true);

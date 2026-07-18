@@ -169,8 +169,8 @@ describe("resolveProducerKindFor — source-node producers (Item 20)", () => {
     };
     const config = makeConfig([uploadNode]);
 
-    // source.upload's catalog entry declares outputKind = "Document".
-    expect(resolveProducerKindFor("myDoc", config)).toBe("Document");
+    // source.upload's catalog entry declares outputKind = "DocumentRef".
+    expect(resolveProducerKindFor("myDoc", config)).toBe("DocumentRef");
   });
 
   it("defaults the source.upload ctx key to 'documentUrl' when unset", () => {
@@ -183,7 +183,7 @@ describe("resolveProducerKindFor — source-node producers (Item 20)", () => {
     };
     const config = makeConfig([uploadNode]);
 
-    expect(resolveProducerKindFor("documentUrl", config)).toBe("Document");
+    expect(resolveProducerKindFor("documentUrl", config)).toBe("DocumentRef");
   });
 
   it("resolves a source.api field to its declared kind, keyed by field.name", () => {

@@ -17,7 +17,7 @@ export const mistralOcrProcessCatalogEntry: ActivityCatalogEntry = {
       label: "Prepared file data",
       description: "Output from Prepare File.",
       required: true,
-      kind: "Document",
+      kind: "PreparedFile",
     },
     {
       name: "templateModelId",

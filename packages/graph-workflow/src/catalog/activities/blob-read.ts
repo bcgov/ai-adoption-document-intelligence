@@ -17,7 +17,7 @@ export const blobReadCatalogEntry: ActivityCatalogEntry = {
       label: "Blob key",
       description: "Storage key for the blob to read.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
   ],
   outputs: [
@@ -26,7 +26,7 @@ export const blobReadCatalogEntry: ActivityCatalogEntry = {
       label: "Base64",
       description: "Base64-encoded file contents.",
       required: true,
-      kind: "Document",
+      kind: "DocumentContent",
     },
   ],
   parametersSchema: blobReadParametersSchema,

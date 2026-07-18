@@ -29,7 +29,7 @@ export const documentNormalizeOrientationCatalogEntry: ActivityCatalogEntry = {
       label: "Normalized PDF blob key",
       description: "Storage key for the PDF to inspect.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
   ],
   outputs: [
@@ -39,7 +39,7 @@ export const documentNormalizeOrientationCatalogEntry: ActivityCatalogEntry = {
       description:
         "Storage key of the possibly corrected PDF. Same as input when no corrections were needed.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "pageCorrections",

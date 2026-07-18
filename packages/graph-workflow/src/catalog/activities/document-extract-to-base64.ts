@@ -17,7 +17,7 @@ export const documentExtractToBase64CatalogEntry: ActivityCatalogEntry = {
       label: "Source blob key",
       description: "Storage key for the source PDF.",
       required: true,
-      kind: "Document",
+      kind: "DocumentRef",
     },
     {
       name: "startPage",

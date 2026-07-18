@@ -3,7 +3,7 @@
  * extend popover). Real catalog activity types throughout so the kind
  * lookups exercise the actual registry:
  *
- *   - azureOcr.submit         input fileData: Document     (typed, auto-wireable)
+ *   - azureOcr.submit         input fileData: PreparedFile (typed, auto-wireable)
  *   - azureOcr.extract        inputs all base-Artifact     (wildcard-only)
  *   - document.classify       input ocrResult: OcrResult   (first typed input)
  *   - document.split          input blobKey: MultiPageDocument (exact for MPD)
@@ -19,9 +19,9 @@ import {
 
 describe("entryAcceptsKind", () => {
   it("true when the activity has an auto-wireable input assignable from K", () => {
-    // azureOcr.submit.fileData is typed `Document`; a `Document` producer
-    // is assignable to it.
-    expect(entryAcceptsKind("azureOcr.submit", "Document")).toBe(true);
+    // azureOcr.submit.fileData is typed `PreparedFile`; a `PreparedFile`
+    // producer is assignable to it.
+    expect(entryAcceptsKind("azureOcr.submit", "PreparedFile")).toBe(true);
   });
 
   it("false when the activity's only assignable inputs are base-Artifact wildcards", () => {

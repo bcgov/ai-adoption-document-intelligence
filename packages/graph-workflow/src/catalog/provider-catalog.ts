@@ -47,14 +47,14 @@ export const PROVIDER_CATALOG: readonly ProviderDescriptor[] = Object.freeze([
     id: "azure-ocr",
     displayName: "Azure OCR",
     category: "ocr",
-    acceptsKind: "Document",
+    acceptsKind: "PreparedFile",
     returns: "OcrResult",
   },
   {
     id: "mistral-ocr",
     displayName: "Mistral OCR",
     category: "ocr",
-    acceptsKind: "Document",
+    acceptsKind: "PreparedFile",
     returns: "OcrResult",
   },
 ]);
