@@ -268,11 +268,30 @@ describe("shape-honest Document subkinds (KIND_TAXONOMY_REFINEMENT_DESIGN.md §3
 
 describe("shape-honest Classification subkinds", () => {
   it("label and map are not interchangeable", () => {
-    expect(isAssignable("ClassificationLabel", "LabeledDocumentMap")).toBe(false);
-    expect(isAssignable("LabeledDocumentMap", "ClassificationLabel")).toBe(false);
+    expect(isAssignable("ClassificationLabel", "LabeledDocumentMap")).toBe(
+      false,
+    );
+    expect(isAssignable("LabeledDocumentMap", "ClassificationLabel")).toBe(
+      false,
+    );
   });
   it("both satisfy family-level Classification", () => {
     expect(isAssignable("ClassificationLabel", "Classification")).toBe(true);
     expect(isAssignable("LabeledDocumentMap", "Classification")).toBe(true);
+  });
+});
+
+describe("shape-honest Segment subkinds", () => {
+  it("TypedSegment chains through DocumentSegment to Segment", () => {
+    expect(isAssignable("TypedSegment", "DocumentSegment")).toBe(true);
+    expect(isAssignable("TypedSegment", "Segment")).toBe(true);
+    expect(isAssignable("DocumentSegment", "TypedSegment")).toBe(false);
+  });
+  it("segment siblings are not interchangeable (array form too)", () => {
+    expect(isAssignable("DocumentSegment", "ClassifiedPageSegment")).toBe(
+      false,
+    );
+    expect(isAssignable("LabeledSegment[]", "DocumentSegment[]")).toBe(false);
+    expect(isAssignable("DocumentSegment[]", "Segment[]")).toBe(true);
   });
 });

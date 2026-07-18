@@ -47,4 +47,16 @@ describe("resolveKindFields", () => {
       { name: "baseOnly", type: "number", required: true },
     ]);
   });
+
+  it("TypedSegment resolves 7 unique fields through the DocumentSegment chain", () => {
+    expect(resolveKindFields("TypedSegment").map((f) => f.name)).toEqual([
+      "segmentIndex",
+      "pageRange",
+      "blobKey",
+      "pageCount",
+      "segmentType",
+      "keywordMatch",
+      "confidence",
+    ]);
+  });
 });

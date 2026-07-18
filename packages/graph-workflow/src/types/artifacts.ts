@@ -17,8 +17,12 @@
  *   │   ├── PreparedFile           (PreparedFileData object)
  *   │   └── DocumentContent        (base64 content string)
  *   ├── Segment
- *   │   └── Segment<Kind> where Kind ∈ { Text, Table, Figure, Form,
- *   │                                    KeyValue, Signature, Header }
+ *   │   ├── Segment<Kind> where Kind ∈ { Text, Table, Figure, Form,
+ *   │   │                                KeyValue, Signature, Header }
+ *   │   ├── DocumentSegment
+ *   │   │   └── TypedSegment
+ *   │   ├── ClassifiedPageSegment
+ *   │   └── LabeledSegment
  *   ├── OcrResult
  *   │   ├── OcrFields
  *   │   └── OcrTable
@@ -49,6 +53,10 @@ export type ArtifactKind =
   | "Segment<KeyValue>"
   | "Segment<Signature>"
   | "Segment<Header>"
+  | "DocumentSegment"
+  | "TypedSegment"
+  | "ClassifiedPageSegment"
+  | "LabeledSegment"
   | "OcrResult"
   | "OcrFields"
   | "OcrTable"

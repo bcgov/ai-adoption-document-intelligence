@@ -27,9 +27,13 @@
 import type { FieldDescriptor } from "../catalog/source-types";
 import type { ArtifactKind } from "./artifacts";
 import {
+  ClassifiedPageSegmentSchema,
+  DocumentSegmentSchema,
   KIND_SCHEMAS,
+  LabeledSegmentSchema,
   OcrResultSchema,
   PreparedFileSchema,
+  TypedSegmentSchema,
 } from "./kind-schemas";
 import { zodToFields } from "./zod-to-fields";
 
@@ -152,6 +156,36 @@ export const ARTIFACT_REGISTRY: Readonly<
     displayName: "Segment (Header)",
     color: "green",
     baseKind: "Segment",
+    isArray: false,
+  },
+  DocumentSegment: {
+    displayName: "Document segment",
+    color: "green",
+    baseKind: "Segment",
+    fields: zodToFields(DocumentSegmentSchema, KIND_SCHEMAS),
+    isArray: false,
+  },
+  TypedSegment: {
+    // fields from the extend-schema repeat DocumentSegment's four;
+    // resolveKindFields dedupes by name, so resolution stays 7 fields.
+    displayName: "Typed segment",
+    color: "green",
+    baseKind: "DocumentSegment",
+    fields: zodToFields(TypedSegmentSchema, KIND_SCHEMAS),
+    isArray: false,
+  },
+  ClassifiedPageSegment: {
+    displayName: "Classified page segment",
+    color: "green",
+    baseKind: "Segment",
+    fields: zodToFields(ClassifiedPageSegmentSchema, KIND_SCHEMAS),
+    isArray: false,
+  },
+  LabeledSegment: {
+    displayName: "Labeled segment",
+    color: "green",
+    baseKind: "Segment",
+    fields: zodToFields(LabeledSegmentSchema, KIND_SCHEMAS),
     isArray: false,
   },
 
