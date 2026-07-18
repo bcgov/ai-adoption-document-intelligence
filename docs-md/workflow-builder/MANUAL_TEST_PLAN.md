@@ -263,10 +263,11 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   2. Select **Store Results** → open its **OCR result** input binding picker.
   3. Also open a **Ref** value on a switch/pollUntil condition in manual-variable mode.
   **Pass:** the picker lists `ocrResult` **and** its fields (`ocrResult.documentId`, `.blobPath`, `.storage`, `.byteLength`, `.pageCount`, `.status`), each captioned with `type · optional`; picking a field stores the dotted ref. **`documents` / `currentDoc` (untyped trigger data) show NO field rows** — they stay free-typed. *(Resolution + expansion are unit-tested in `graph-widgets`; this is the visual spot-check.)*
-- [ ] **4.14 Segment field drill-down + sibling-kind rejection.** *The same drill-down applies to Segment map-items, and a sibling subkind under the same family is still rejected where the runtime shapes differ.*
-  1. In a map body iterating a `document.split`/`document.splitAndClassify` producer's `segments` output, open the map's item-consuming node's variable picker for the current-item ctx key.
-  2. **Pass:** the picker lists the item's fields (`currentSegment.segmentIndex`, `.blobKey`, `.segmentType`, etc.) the same way `ocrResult` does above.
-  3. Separately, drag `blob.read`'s `base64` output onto `document.extractToBase64`'s `blobKey` input (port-to-port drag-to-bind).
+- [ ] **4.14 Loop-item (Segment) field drill-down + sibling-kind rejection.** *A map's per-item variable now drills its fields inside the loop body, and a sibling subkind under the same family is still rejected where the runtime shapes differ.*
+  1. Load `multi-page-report-workflow` (3.7). Its map **`processSegments`** iterates `currentSegment` — a **Typed segment** (from `splitAndClassify`'s `segments` output); the map **body** starts at the **`segmentRouter`** switch, which routes each segment by type.
+  2. Select the **`segmentRouter`** switch → in its settings open a case **condition**'s left **Ref** value → click **"Enter a variable manually"**.
+  **Pass:** the picker shows a **"Loop variables"** group containing **`currentSegment`** *and its fields* — `currentSegment.segmentIndex`, `.pageRange`, `.blobKey`, `.pageCount`, `.segmentType`, `.keywordMatch` (optional), `.confidence` — each captioned with its type; picking `.segmentType` stores the dotted ref. **A node OUTSIDE the loop body (e.g. `prepareFileData`) does NOT see `currentSegment`.** *(The item key lives on the map node, so only body nodes are offered it — resolution + drill are unit-tested in `graph-widgets/variable-picker-scope`.)*
+  3. Separately, sibling-kind rejection: drag `blob.read`'s `base64` output onto `document.extractToBase64`'s `blobKey` input (port-to-port drag-to-bind).
   **Pass:** the drop is rejected with the "…can't be used here" notice — base64 content (`DocumentContent`) is a sibling of, not assignable to, a blob key (`DocumentRef`) — and no wire is created.
 
 ---
