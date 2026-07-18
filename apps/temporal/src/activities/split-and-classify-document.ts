@@ -1,5 +1,8 @@
+import type { SegmentWithType } from "@ai-di/graph-workflow";
 import type { OCRResult } from "../types";
-import { type DocumentSegment, splitDocument } from "./split-document";
+import { splitDocument } from "./split-document";
+
+export type { SegmentWithType };
 
 export interface KeywordPattern {
   pattern: string; // Regex pattern to match keyword text (capture group optional)
@@ -12,12 +15,6 @@ export interface SplitAndClassifyInput {
   ocrResult: OCRResult;
   documentId?: string;
   keywordPatterns?: KeywordPattern[];
-}
-
-export interface SegmentWithType extends DocumentSegment {
-  segmentType: string; // Classified document type
-  keywordMatch?: string; // The keyword text that triggered classification
-  confidence: number; // Classification confidence (0.9 for matched, 0.2 for unknown)
 }
 
 export interface SplitAndClassifyOutput {

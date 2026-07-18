@@ -8,30 +8,15 @@
  * to ensure the join node collects meaningful data instead of void/null.
  */
 
+import type { SegmentWithType } from "@ai-di/graph-workflow";
+
 export interface CombineSegmentResultInput {
-  currentSegment: {
-    segmentIndex: number;
-    pageRange: { start: number; end: number };
-    blobKey: string;
-    pageCount: number;
-    segmentType: string;
-    keywordMatch?: string;
-    confidence: number;
-  };
+  currentSegment: SegmentWithType;
   segmentOcrResult: unknown;
 }
 
 export interface CombineSegmentResultOutput {
-  combinedSegment: {
-    segmentIndex: number;
-    pageRange: { start: number; end: number };
-    blobKey: string;
-    pageCount: number;
-    segmentType: string;
-    keywordMatch?: string;
-    confidence: number;
-    ocrResult: unknown;
-  };
+  combinedSegment: SegmentWithType & { ocrResult: unknown };
 }
 
 export async function combineSegmentResult(

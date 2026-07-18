@@ -414,7 +414,7 @@ register({
   defaultTimeout: "30s",
   defaultRetry: { maximumAttempts: 1 },
   description:
-    "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
+    "Flatten all (or filtered) classifier labels into a single sorted LabeledSegment array for map node iteration",
 });
 
 // -- Page range extraction --------------------------------------------------

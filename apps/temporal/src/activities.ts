@@ -87,9 +87,9 @@ export type {
 } from "./activities/extract-page-range";
 export { extractPageRange } from "./activities/extract-page-range";
 export type {
-  ClassifiedSegment,
   FlattenClassifiedDocumentsInput,
   FlattenClassifiedDocumentsOutput,
+  LabeledSegment,
 } from "./activities/flatten-classified-documents";
 export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
 export { getDocumentStatus } from "./activities/get-document-status";
