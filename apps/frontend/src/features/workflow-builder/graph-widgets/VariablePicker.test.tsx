@@ -178,10 +178,11 @@ describe("VariablePicker — Scenario 3: no expectedKind → legacy flat render"
     expect(
       screen.queryByText("Incompatible with this port"),
     ).not.toBeInTheDocument();
-    // No row carries the dim marker.
+    // The option still renders (the legacy path now shows option rows so it
+    // can caption drilled fields), but no row carries the dim marker.
     expect(
-      screen.queryByTestId("variable-picker-option-docA"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("variable-picker-option-docA"),
+    ).not.toHaveAttribute("data-incompatible");
   });
 });
 
@@ -379,5 +380,126 @@ describe("VariablePicker — inline ctx-key creation", () => {
       expect(screen.queryByTestId("variable-picker-create")).toBeNull();
       unmount();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Field drill-down (KIND_FIELD_SCHEMAS_DESIGN.md §5)
+// ---------------------------------------------------------------------------
+
+function makeDrillConfig(): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "host",
+    nodes: {
+      host: {
+        id: "host",
+        type: "activity",
+        label: "Host",
+        activityType: "test.noop",
+      },
+    },
+    edges: [],
+    ctx: {
+      // Kind-tagged via ctx declaration → resolveProducerKindFor resolves it.
+      ocrResult: { type: "object", kind: "OcrResult" },
+      untyped: { type: "object" },
+    },
+  };
+}
+
+describe("VariablePicker — field drill-down", () => {
+  it("offers key.field rows for a kinded ctx key in the legacy path", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeDrillConfig()}
+        value=""
+        onChange={() => undefined}
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    expect(
+      screen.getByTestId("variable-picker-option-ocrResult.status"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("variable-picker-option-ocrResult.documentId"),
+    ).toBeInTheDocument();
+    // The kindless key gets NO drill rows.
+    expect(
+      screen.queryByTestId("variable-picker-option-untyped.foo"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("captions field rows with type · kind info", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeDrillConfig()}
+        value=""
+        onChange={() => undefined}
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    const caption = screen.getByTestId(
+      "variable-picker-caption-ocrResult.status",
+    );
+    // status is a string, optional → "string · optional".
+    expect(caption).toHaveTextContent("string");
+    expect(caption).toHaveTextContent("optional");
+  });
+
+  it("typed path: a drilled scalar option lands in the compatible bucket by its leaf kind (wildcard)", () => {
+    renderPicker(
+      <VariablePicker
+        config={makeDrillConfig()}
+        value=""
+        onChange={() => undefined}
+        expectedKind="OcrResult"
+        resolveProducerKind={(ctxKey) =>
+          ctxKey === "ocrResult" ? "OcrResult" : undefined
+        }
+        data-testid="picker"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("picker"));
+
+    // The base key is compatible.
+    expect(
+      screen.getByTestId("variable-picker-option-ocrResult"),
+    ).not.toHaveAttribute("data-incompatible");
+    // The drilled scalar (string leaf → no kind → Artifact wildcard) is also
+    // compatible, not dimmed.
+    const statusOption = screen.getByTestId(
+      "variable-picker-option-ocrResult.status",
+    );
+    expect(statusOption).not.toHaveAttribute("data-incompatible");
+  });
+
+  it("free-typing an arbitrary dotted path renders the value without crashing", () => {
+    const kindlessConfig: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "host",
+      nodes: {},
+      edges: [],
+      ctx: { currentDoc: { type: "object" } },
+    };
+    renderPicker(
+      <VariablePicker
+        config={kindlessConfig}
+        value="currentDoc.type"
+        onChange={() => undefined}
+        data-testid="picker"
+      />,
+    );
+    // The input keeps the free-typed value.
+    expect(screen.getByTestId("picker")).toHaveValue("currentDoc.type");
   });
 });

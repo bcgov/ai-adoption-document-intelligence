@@ -26,8 +26,15 @@ import type {
   ComboboxStringItem,
 } from "@mantine/core";
 import { Autocomplete, Button, Text, Tooltip } from "@mantine/core";
+import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
+import { resolveProducerKindFor } from "./resolve-producer-kind";
+import {
+  expandVariableOptions,
+  resolveValuePathKind,
+  type VariablePathInfo,
+} from "./variable-field-options";
 import {
   sortVariablesByCompatibility,
   type VariablePickerEntry,
@@ -151,9 +158,15 @@ export function VariablePicker({
   resolveProducerKind,
   onCreateCtxKey,
 }: VariablePickerProps) {
-  const groupedOptions = useMemo(
+  const baseGroups = useMemo(
     () => buildVariableOptions(config, currentNodeId),
     [config, currentNodeId],
+  );
+  // Field drill-down (KIND_FIELD_SCHEMAS_DESIGN.md §5): re-expands as the
+  // typed value establishes deeper drillable prefixes.
+  const { groups: groupedOptions, meta: pathMeta } = useMemo(
+    () => expandVariableOptions(baseGroups, config, value),
+    [baseGroups, config, value],
   );
 
   // Inline "+ Create variable" affordance — offered once the typed value is a
@@ -179,6 +192,44 @@ export function VariablePicker({
     </Button>
   ) : null;
 
+  // Caption text for a drilled field row ("string · optional", "object ·
+  // Segment"). Base keys (no dot) get no caption.
+  const captionFor = (optionValue: string): string | null => {
+    if (!optionValue.includes(".")) return null;
+    const info: VariablePathInfo | undefined = pathMeta.get(optionValue);
+    if (info === undefined) return null;
+    const parts: string[] = [];
+    if (info.type !== undefined) parts.push(info.type);
+    if (info.kind !== undefined) parts.push(info.kind);
+    if (info.required === false) parts.push("optional");
+    return parts.length > 0 ? parts.join(" · ") : null;
+  };
+
+  const renderFieldAwareOption = (
+    optionValue: string,
+    body?: ReactNode,
+  ): ReactNode => {
+    const caption = captionFor(optionValue);
+    return (
+      <div style={{ width: "100%" }}>
+        {body ?? (
+          <Text size="xs" data-testid={`variable-picker-option-${optionValue}`}>
+            {optionValue}
+          </Text>
+        )}
+        {caption !== null && (
+          <Text
+            size="10px"
+            c="dimmed"
+            data-testid={`variable-picker-caption-${optionValue}`}
+          >
+            {caption}
+          </Text>
+        )}
+      </div>
+    );
+  };
+
   // Legacy / Scenario 3 path: no `expectedKind` → render the existing
   // grouped flat list unchanged. No sort, no divider, no dimming.
   if (expectedKind === undefined) {
@@ -193,6 +244,7 @@ export function VariablePicker({
           value={value}
           data={groupedOptions}
           data-testid={testId}
+          renderOption={({ option }) => renderFieldAwareOption(option.value)}
           onChange={onChange}
         />
         {createButton}
@@ -205,11 +257,17 @@ export function VariablePicker({
   // the Autocomplete renders compatible options first followed by a
   // labelled `INCOMPATIBLE_GROUP_LABEL` divider group.
   const flatCtxKeys = flattenGroupedOptions(groupedOptions);
+  const knownBaseKeys = baseGroups.flatMap((g) => g.items);
   const entries: VariablePickerEntry[] = flatCtxKeys.map((ctxKey) => ({
     id: ctxKey,
     label: ctxKey,
     ctxKey,
-    producerKind: resolveProducerKind?.(ctxKey),
+    // Drilled rows (`key.field`) sort by their LEAF kind; bare keys keep the
+    // caller-supplied resolver, falling back to the config resolver.
+    producerKind: ctxKey.includes(".")
+      ? resolveValuePathKind(ctxKey, config, knownBaseKeys)
+      : (resolveProducerKind?.(ctxKey) ??
+        resolveProducerKindFor(ctxKey, config)),
   }));
   const { compatible, incompatible, reasons } = sortVariablesByCompatibility(
     entries,
@@ -237,14 +295,11 @@ export function VariablePicker({
   }: ComboboxLikeRenderOptionInput<ComboboxStringItem>) => {
     const isIncompatible = incompatibleIds.has(option.value);
     if (!isIncompatible) {
-      return (
-        <Text size="xs" data-testid={`variable-picker-option-${option.value}`}>
-          {option.value}
-        </Text>
-      );
+      return renderFieldAwareOption(option.value);
     }
     const reason = reasons.get(option.value) ?? "";
-    return (
+    return renderFieldAwareOption(
+      option.value,
       <Tooltip label={reason} withinPortal>
         <Text
           size="xs"
@@ -255,7 +310,7 @@ export function VariablePicker({
         >
           {option.value}
         </Text>
-      </Tooltip>
+      </Tooltip>,
     );
   };
 
