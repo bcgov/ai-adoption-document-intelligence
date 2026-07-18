@@ -16,6 +16,7 @@ export {
   registerArtifactKind,
 } from "./artifact-registry";
 export type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
+export { resolveKindFields } from "./kind-fields";
 export type { OcrPayloadRef } from "./kind-schemas";
 export { KIND_SCHEMAS, OcrResultSchema } from "./kind-schemas";
 export { isAssignable } from "./subtype-check";
