@@ -2897,7 +2897,7 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
     expect(showMock).toHaveBeenCalledTimes(1);
     expect(showMock.mock.calls[0][0]).toMatchObject({
       message:
-        "This input needs PreparedFile — Segment (list) can't be used here",
+        "This input needs PreparedFile — DocumentSegment (list) can't be used here",
     });
 
     showMock.mockClear();
@@ -2957,7 +2957,8 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
     });
     expect(showMock).toHaveBeenCalledTimes(1);
     expect(showMock.mock.calls[0][0]).toMatchObject({
-      message: "This input needs OcrResult — Segment (list) can't be used here",
+      message:
+        "This input needs OcrResult — DocumentSegment (list) can't be used here",
     });
   });
 

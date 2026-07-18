@@ -118,7 +118,7 @@ export const documentClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Segment metadata",
       description: "Segment metadata produced upstream.",
       required: true,
-      kind: "Segment",
+      kind: "DocumentSegment",
     },
   ],
   outputs: [

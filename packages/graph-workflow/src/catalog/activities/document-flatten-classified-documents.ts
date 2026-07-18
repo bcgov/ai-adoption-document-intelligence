@@ -35,7 +35,7 @@ export const documentFlattenClassifiedDocumentsCatalogEntry: ActivityCatalogEntr
         description:
           "Flat, page-ordered array of classified segments with their labels.",
         required: true,
-        kind: "Segment[]",
+        kind: "LabeledSegment[]",
       },
     ],
     parametersSchema: documentFlattenClassifiedDocumentsParametersSchema,

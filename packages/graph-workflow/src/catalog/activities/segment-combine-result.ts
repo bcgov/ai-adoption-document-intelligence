@@ -17,7 +17,7 @@ export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
       label: "Current segment",
       description: "Segment metadata produced upstream.",
       required: true,
-      kind: "Segment",
+      kind: "TypedSegment",
     },
     {
       name: "segmentOcrResult",
@@ -33,6 +33,7 @@ export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
       label: "Combined segment",
       description: "Merged segment object with ocrResult embedded.",
       required: true,
+      // stays family-level: payload embeds ocrResult (KIND_TAXONOMY_REFINEMENT_DESIGN.md §5)
       kind: "Segment",
     },
   ],

@@ -948,6 +948,71 @@ describe("ConditionExpressionEditor — field drill-down in step sub-mode", () =
       screen.queryByTestId("condition-expression-editor-left-field-input"),
     ).not.toBeInTheDocument();
   });
+
+  // NOTE (Task 14, kind taxonomy refinement): the spec for this task asked
+  // for a TypedSegment field-picker test mirroring the OcrResult case above.
+  // That isn't reachable with real catalog data: every Segment-family
+  // OUTPUT port in the catalog is an array kind (document.split →
+  // DocumentSegment[], document.splitAndClassify → TypedSegment[],
+  // document.selectClassifiedPages → ClassifiedPageSegment[],
+  // document.flattenClassifiedDocuments → LabeledSegment[]), and
+  // resolveKindFields hard-returns [] for any "X[]" kind — this component
+  // does not unwrap arrays. The only scalar Segment-subkind ports in the
+  // catalog are document.classify's `segment` input and
+  // segment.combineResult's `currentSegment` input; inputs are never
+  // producers, and ConditionExpressionEditor's step-mode field picker
+  // resolves only through activity/pollUntil catalog OUTPUT ports
+  // (condition-producer-binding.ts resolveCtxKeyToProducer has no map-item
+  // unwrap). The TypedSegment drill-down payoff IS covered end-to-end by
+  // variable-field-options.test.ts's "expands TypedSegment ctx keys with the
+  // full inherited field chain" case. This test instead documents that the
+  // retag doesn't regress this component: a real Segment-family array
+  // producer still correctly shows no field picker.
+  it("shows no field picker for a Segment-family array producer (arrays aren't drilled here)", () => {
+    function Harness() {
+      const [expr, setExpr] = useState<ConditionExpression | undefined>({
+        operator: "equals",
+        left: { ref: "segments" },
+        right: { literal: "x" },
+      });
+      return (
+        <MantineProvider>
+          <ConditionExpressionEditor
+            value={expr}
+            onChange={setExpr}
+            config={{
+              schemaVersion: "1.0",
+              metadata: {},
+              entryNodeId: "SC",
+              nodes: {
+                SC: {
+                  id: "SC",
+                  type: "activity",
+                  activityType: "document.splitAndClassify",
+                  label: "Split & Classify",
+                  outputs: [{ port: "segments", ctxKey: "segments" }],
+                },
+                SW: { id: "SW", type: "switch", label: "Branch", cases: [] },
+              },
+              edges: [{ id: "e", source: "SC", target: "SW", type: "normal" }],
+              ctx: {},
+            }}
+            currentNodeId="SW"
+          />
+        </MantineProvider>
+      );
+    }
+    render(<Harness />);
+    // The producer resolves (step mode caption shows) but no field picker,
+    // because TypedSegment[] is an array kind — resolveKindFields returns []
+    // for it without unwrapping to the element kind.
+    expect(
+      screen.getByTestId("condition-expression-editor-left-resolved"),
+    ).toHaveTextContent("Split & Classify → Segments with types");
+    expect(
+      screen.queryByTestId("condition-expression-editor-left-field-input"),
+    ).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -110,7 +110,7 @@ export const documentSplitCatalogEntry: ActivityCatalogEntry = {
       description:
         "List of produced segments — each with segmentIndex, pageRange, blobKey, and pageCount.",
       required: true,
-      kind: "Segment[]",
+      kind: "DocumentSegment[]",
     },
   ],
   parametersSchema: documentSplitParametersSchema,

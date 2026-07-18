@@ -70,7 +70,7 @@ export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {
       description:
         "Standard segment fields plus segmentType, keywordMatch, and confidence.",
       required: true,
-      kind: "Segment[]",
+      kind: "TypedSegment[]",
     },
   ],
   parametersSchema: documentSplitAndClassifyParametersSchema,

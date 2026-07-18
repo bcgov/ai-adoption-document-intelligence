@@ -34,7 +34,7 @@ export const documentSelectClassifiedPagesCatalogEntry: ActivityCatalogEntry = {
       description:
         "All detected segments for the target label, sorted by pageRange.start.",
       required: true,
-      kind: "Segment[]",
+      kind: "ClassifiedPageSegment[]",
     },
   ],
   parametersSchema: documentSelectClassifiedPagesParametersSchema,

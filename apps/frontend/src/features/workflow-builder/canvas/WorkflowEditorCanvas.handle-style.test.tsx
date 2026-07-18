@@ -465,7 +465,7 @@ describe("WorkflowEditorCanvas — document.classify port rows come from the rea
       screen
         .getByTestId("port-row-activity_1-in-segment")
         .getAttribute("data-port-kind"),
-    ).toBe("Segment");
+    ).toBe("DocumentSegment");
     expect(
       screen
         .getByTestId("port-row-activity_1-out-segmentType")

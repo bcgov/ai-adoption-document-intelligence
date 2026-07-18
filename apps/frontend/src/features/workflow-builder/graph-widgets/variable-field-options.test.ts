@@ -89,6 +89,36 @@ describe("expandVariableOptions", () => {
     );
     expect(out[0].items).toContain("ocrResult");
   });
+
+  it("expands TypedSegment ctx keys with the full inherited field chain", () => {
+    const segConfig = {
+      ctx: { currentSegment: { type: "object", kind: "TypedSegment" } },
+      nodes: {},
+      edges: [],
+    } as unknown as GraphWorkflowConfig;
+    const { groups: out, meta } = expandVariableOptions(
+      [{ group: "Workflow context", items: ["currentSegment"] }],
+      segConfig,
+      "",
+    );
+    expect(out[0]?.items).toEqual([
+      "currentSegment",
+      "currentSegment.segmentIndex",
+      "currentSegment.pageRange",
+      "currentSegment.blobKey",
+      "currentSegment.pageCount",
+      "currentSegment.segmentType",
+      "currentSegment.keywordMatch",
+      "currentSegment.confidence",
+    ]);
+    // Anonymous nested object: field row exists but has no kind, so typing
+    // deeper (pageRange.start) stays free-text with no drill rows.
+    expect(meta.get("currentSegment.pageRange")).toEqual({
+      type: "object",
+      kind: undefined,
+      required: true,
+    });
+  });
 });
 
 describe("resolveValuePathKind", () => {

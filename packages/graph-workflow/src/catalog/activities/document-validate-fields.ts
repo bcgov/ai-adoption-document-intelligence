@@ -113,6 +113,7 @@ export const documentValidateFieldsCatalogEntry: ActivityCatalogEntry = {
         "Array of segments (item 0 = primary, items 1+ = attachments).",
       required: true,
       // Array of segment artifacts — the rules walk per-segment field paths.
+      // stays family-level: runtime is untyped records (KIND_TAXONOMY_REFINEMENT_DESIGN.md §5)
       kind: "Segment[]",
     },
     {
