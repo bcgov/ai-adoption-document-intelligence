@@ -65,7 +65,7 @@ cd apps/temporal && npm run dev   # Temporal worker
 
 ### 1.5 Seed templates
 
-Eight workflow templates live in `docs-md/graph-workflows/templates/` and are loaded via the **Templates picker** on `/workflows/create` (not auto-seeded into the DB). `multi-page-report-workflow.json` is the 17-node “everything” template (switch with 4 branches, map/join, validateFields, 5 groups) — use it as the master exemplar for many tests below.
+Eight workflow templates live in `docs-md/graph-workflows/templates/` and are loaded via the **New from template** picker on the `/workflows` list page (not auto-seeded into the DB). `multi-page-report-workflow.json` is the 16-node “everything” template (switch with 4 branches, map/join, validateFields, 5 groups) — use it as the master exemplar for many tests below.
 
 ### 1.6 Known discrepancies to keep in mind (⚠️ not bugs)
 
@@ -187,10 +187,10 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 - [ ] **3.1 Add activity node.** `/workflows/create` → click an activity in the left palette. **Pass:** node appears and viewport auto-fits (~300ms animation) to center it.
 - [ ] **3.2 Auto-fit only on add.** Pan/zoom away, then drag an *existing* node. **Pass:** no re-fit. Add a new node → re-fits to the new node.
 - [ ] **3.3 Configure node.** Click a node → right **NodeSettingsPanel** renders a schema-driven form (label + parameters from the activity catalog). Edit label + a parameter. **Pass:** edits persist on the canvas.
-- [ ] **3.4 Connect nodes.** Add two activities — e.g. **Prepare File Data** then **Submit to Azure OCR** — and drag from the first node’s **right-edge handle** (the round execution handle on the node’s right border) to the second node’s **left-edge handle**. **Pass:** a solid grey `normal` edge connects them. *(Any two nodes work — this is an execution-order edge, independent of port typing; the pair above is just a known-good example. Per-port data wiring is Part 8.)*
+- [ ] **3.4 Connect nodes.** Add two activities — e.g. **Prepare File** then **Submit OCR** — and drag from the first node’s **right-edge handle** (the round execution handle on the node’s right border) to the second node’s **left-edge handle**. **Pass:** a solid grey `normal` edge connects them. *(Any two nodes work — this is an execution-order edge, independent of port typing; the pair above is just a known-good example. Per-port data wiring is Part 8.)*
 - [ ] **3.5 Add all six control-flow nodes.** Palette **“Flow Control”** section → add each: **Branch by condition** (switch), **Run for each item** (map), **Collect results** (join), **Sub-workflow** (childWorkflow), **Wait until condition** (pollUntil), **Wait for approval** (humanGate). **Pass:** all six add with distinct shapes (switch = **diamond**; map/join = rectangle + fan icon; others = rectangle + type icon) and sensible defaults (join strategy `all`, pollUntil interval `30s`, humanGate timeout `1h`/onTimeout `fail`).
 - [ ] **3.6 Save/load round-trip.** Build a small graph → **Save** (redirects to `/workflows/:id/edit`) → reload. **Pass:** canvas matches the saved config.
-- [ ] **3.7 Load master template.** On the **`/workflows`** list page click **New from template** → in the **“New workflow from template”** modal pick **Multi-Page Report Workflow (Keyword-Based Split)** (`multi-page-report-workflow`) → the editor opens at `/workflows/create` preloaded with the template → **More ▸ Auto-arrange** → Save → reload. **Pass:** 17 nodes load fully editable and round-trip.
+- [ ] **3.7 Load master template.** On the **`/workflows`** list page click **New from template** → in the **“New workflow from template”** modal pick **Multi-Page Report Workflow (Keyword-Based Split)** (`multi-page-report-workflow`) → the editor opens at `/workflows/create` preloaded with the template → **More ▸ Auto-arrange** → Save → reload. **Pass:** 16 nodes load fully editable and round-trip.
 
 ---
 
@@ -202,7 +202,7 @@ Select each node type and exercise its hand-rolled settings form:
 
 - [ ] **4.1 Switch.** Add cases (**Add Case**); per case set a condition (Condition editor) + pick an outgoing edge (EdgePicker, scoped to this switch’s `conditional` edges); set optional default edge. **Pass:** edge picker only lists this switch’s conditional edges; round-trips.
 - [ ] **4.2 Map.** Set `collectionCtxKey`, `itemCtxKey`, optional `indexCtxKey`, `maxConcurrency` (≥1), `bodyEntryNodeId`/`bodyExitNodeId` (NodePicker, excludes self). **Pass:** all editable.
-- [ ] **4.3 Join.** `sourceMapNodeId` NodePicker shows **only map nodes**; strategy `all/any`; `resultsCtxKey`. **Pass:** cannot pick a non-map source.
+- [ ] **4.3 Join.** `sourceMapNodeId` NodePicker (labeled **Source Map node**) shows **only map nodes**; `resultsCtxKey` (**Results ctx key**). **Pass:** cannot pick a non-map source. *(Join strategy is fixed to `all` and not exposed in settings.)*
 - [ ] **4.4 ChildWorkflow.** Toggle `library`/`inline`; inline shows read-only JSON preview; input/output mapping list editors. **Pass:** mode toggle works. (Inline variant + mapping list editors + port round-trip are `tier2-control-flow` e2e; the **library-picker modal** stays a manual spot-check.)
 - [ ] **4.5 PollUntil.** Pick `activityType` (renders its nested parametersSchema), condition, `interval` (e.g. `30s`), `maxAttempts`, optional `initialDelay`/`timeout`. **Pass:** invalid duration string shows an inline error; nested activity params render. (Interval round-trip + invalid-duration inline error + maxAttempts round-trip are `tier2-control-flow` e2e; the activity `parametersSchema` sub-form stays a manual spot-check.)
 - [ ] **4.6 HumanGate.** `signal.name`, read-only payload schema, required `timeout`, `onTimeout` (`fail/continue/fallback`), `fallbackEdgeId` (EdgePicker). **Pass:** fallback edge picker appears **only** when onTimeout = `fallback`.
@@ -253,7 +253,7 @@ Select each node type and exercise its hand-rolled settings form:
 
 Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`) — good picks to eyeball, but every catalog activity now works the same way (US-103: every port declares a `kind`).
 
-- [ ] **7.1 Per-port rows with colored handles.** Drop `document.split`. **Pass:** every input/output gets its own row (`port-row-<nodeId>-<in|out>-<port>`) with a kind-colored handle + human label — inputs down the left edge, outputs down the right. Palette: blue=Document, green=Segment, violet=OcrResult, amber=Classification/ValidationResult, teal=Reference, gray=Artifact (wildcard). Array kinds show a **doubled outline** on the row's handle. Multi-output nodes (e.g. `azureOcr.submit`) no longer collapse to one gray handle — each output is its own row.
+- [ ] **7.1 Per-port rows with colored handles.** Drop `document.split`. **Pass:** every input/output gets its own row (`port-row-<nodeId>-<in|out>-<port>`) with a kind-colored handle + human label — inputs down the left edge, outputs down the right. Palette: blue=Document, green=Segment, violet=OcrResult, yellow=Classification/ValidationResult, teal=Reference, gray=Artifact (wildcard). Array kinds show a **doubled outline** on the row's handle. Multi-output nodes (e.g. `azureOcr.submit`) no longer collapse to one gray handle — each output is its own row.
 - [ ] **7.2 Row tooltip.** Hover a port row (or its handle). **Pass:** tooltip reads `<name>: <Kind> — <description>` (e.g. `document.split`'s output: `segments: Segment[] — List of produced segments — each with segmentIndex, pageRange, blobKey, and pageCount.`). A **required input with no bound source** shows an **amber ring** around its handle. As of Phase 3, required base-`Artifact` identifier ports (e.g. `documentId`) wear the ring **and** count as a warning in the problems badge/drawer (still never blocking Save) — see 8.14; the Phase 2 ring-vs-badge divergence (PORT_WIRING_DESIGN §15) is closed.
 - [ ] **7.3 Port rows replace the type pill.** Click `document.classify` (3 outputs). **Pass:** the activity card itself lists all input+output ports as rows with kind-colored handles + labels — the below-node "type pill row" no longer appears anywhere in practice (see 16.3). Because every catalog port now declares a `kind` (US-103), there's no "all-untyped, no pill" case left for activities; a node with zero declared ports (rare) simply shows no port-row block.
 - [ ] **7.4 Draw-time mismatch allowed (node-to-node only).** ⚠️ Wire `document.split` (Segment) output → `mistral-ocr.process` (Document) input by dragging **node-to-node** (drop on the node body, not on a specific port). **Pass:** wire is created (no rejection) — intended behavior; the node-to-node draw gesture only creates a control edge, it never validates kinds at drop time. Contrast with a **port-to-port** drag of the same pair, which now *is* kind-validated and rejected — see 8.10.
@@ -317,7 +317,7 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 **▶ Demo:** [Library workflow](http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10/edit)
 
-- [ ] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); success toast with **View library** link.
+- [ ] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); a **“Saved as library”** success toast appears (plain message pointing to the library picker on any childWorkflow node — no link).
 - [ ] **10.2 Kind filter (list page).** `/workflows` SegmentedControl `Workflows / Libraries / All`. **Pass:** switching changes the row set; libraries appear under Libraries/All only.
 - [ ] **10.3 Kind filter (API).**
   ```bash
@@ -334,7 +334,7 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 **▶ Demo:** [Workflow-as-API — trigger URL & schema](http://localhost:3000/workflows/by-slug/demo-workflow-as-api-trigger-url-schema-part-11/edit)
 
-- [ ] **11.1 Mark inputs.** **More ▸ Settings** → ctx list → per-row **Input** checkbox. **Pass:** sets `ctx[key].isInput`; only flagged entries enter the derived input schema.
+- [ ] **11.1 Mark inputs.** **More ▸ Workflow settings** → ctx list → per-row **Input** checkbox. **Pass:** sets `ctx[key].isInput`; only flagged entries enter the derived input schema.
 - [ ] **11.2 Run drawer.** Top-bar **Run this workflow** (disabled in create mode). **Pass:** drawer shows Trigger URL (+copy), input schema field list, sample curl (+copy), auth notes, Paste-JSON + Run.
 - [ ] **11.3 run-spec API.**
   ```bash
@@ -366,7 +366,7 @@ Prereq: a workflow **saved 2+ times**.
   curl -s 'http://localhost:3002/api/workflows/<ID>/versions' -H "x-api-key: <KEY>"
   curl -s 'http://localhost:3002/api/workflows/<ID>/versions/<VERSION_ID>' -H "x-api-key: <KEY>"
   ```
-  **Pass:** list returns summaries; `/versions/:id` returns full config; unknown/cross-lineage version → 404/400.
+  **Pass:** list returns summaries; `/versions/:id` returns full config; unknown **or** cross-lineage version → 404 (the `/versions/:id` GET returns 404 for both).
 
 ---
 
@@ -384,7 +384,7 @@ One `source.api` and one `source.upload` max per workflow.
   curl -X POST "http://localhost:3002/api/workflows/<WF>/sources/<SOURCE_NODE>/upload" \
     -H "x-api-key: <KEY>" -F "file=@/path/to/test.pdf"
   ```
-  **Pass:** `200 {"<ctxKey>":"<blob-url>"}` (default key `documentUrl`). Negative: wrong subtype / MIME mismatch / oversize / unknown ids → 4xx.
+  **Pass:** `200 {"<ctxKey>":"<blobKey>", documentId, runId, workflowVersionId}` (default ctxKey `documentUrl`; the value is a blob **storage key**, not a URL). Note the upload also creates a Document and starts a Try run (hence `runId`). Negative: wrong subtype / MIME mismatch / oversize / unknown ids → 4xx.
 - [ ] **13.5 run-spec upload block.** `GET /api/workflows/<WF>/run-spec` with a source.upload node. **Pass:** response includes `uploadSpec:{sourceNodeId, uploadUrl, allowedMimeTypes, maxFileSizeMB, ctxKey}`.
 - [ ] **13.6 Run drawer sections.** **Pass:** source.api → API section (schema table, sample curl, JSON input); source.upload → Dropzone honoring MIME/size + Upload triggers upload-then-run; both present → both render.
 - [ ] **13.7 Single-source validator.** Add a **second** source.api (or second source.upload) → Save. **Pass:** validator **error** (single-source restriction). source.api + legacy `isInput` together → **warning** (not a blocker). Kind mismatch from a source field to a downstream consumer → typed error anchored at the consumer port.
@@ -411,11 +411,11 @@ One `source.api` and one `source.upload` max per workflow.
 - [ ] **14.4 List / detail.** `GET /api/dynamic-nodes` (+ `/:slug`). **Pass:** list sorted by slug, excludes soft-deleted, includes `headVersion`, `versionCount`, `usedInWorkflowCount`.
 - [ ] **14.5 Soft-delete.** `DELETE /api/dynamic-nodes/uppercase-url`. **Pass:** `200 {slug, deletedAt}`, idempotent, returns used-in-N count.
 - [ ] **14.6 Merged catalog.** `GET /api/activity-catalog`. **Pass:** includes `dyn.uppercase-url` with `dynamicNodeSlug/Version` + `colorHint:"dyn"` after static entries. A different group’s key does **not** see it (30s cache — allow a moment).
-- [ ] **14.14 Restore-on-republish.** Publish `uppercase-url` (v1) → **14.5 soft-delete** it → `POST /api/dynamic-nodes` with the **same** `@name`. **Pass:** `201` and the lineage is **restored** — `version` continues the history (`v2`, not a fresh v1), `GET /:slug` is live again (`deletedAt:null`) with both versions. Re-POST once more while live → `409 DUPLICATE_SLUG` (the guard still fires for a genuine live clash). In the UI: delete a custom node, then **+ New custom node** with the same name — it re-appears instead of dead-ending. (`@infra` e2e: `tier1-dynamic-node`.)
+- [ ] **14.14 Restore-on-republish.** Publish `uppercase-url` (v1) → **14.5 soft-delete** it → `POST /api/dynamic-nodes` with the **same** `@name`. **Pass:** `201` and the lineage is **restored** — `version` continues the history (`v2`, not a fresh v1), `GET /:slug` is live again (`deletedAt:null`) with both versions. Re-POST once more while live → `409 DUPLICATE_SLUG` (the guard still fires for a genuine live clash). In the UI: delete a custom node, then **New custom node** with the same name — it re-appears instead of dead-ending. (`@infra` e2e: `tier1-dynamic-node`.)
 
 ### Editor UI
-- [ ] **14.7 Management page.** Top-bar **Dynamic nodes** → `/dynamic-nodes` list → **+ New** → editor with prefilled boilerplate → edit → watch the **live parse strip** (300ms debounce) show green “Signature OK” or red line-anchored errors → Publish. **Pass:** on success the palette/catalog refresh **without a Vite restart**; on `400`, errors also show as Monaco gutter squiggles and clicking jumps to the line.
-- [ ] **14.8 In-canvas custom node.** Palette **Custom** section → **+ New custom node** modal → publish → node auto-drops as `dyn.<slug>` with a grape **DYN** badge. Right-click a `dyn.*` node → **Edit script**. **Pass:** deleted-lineage node shows a red **Deleted** badge, settings Alert, Try disabled.
+- [ ] **14.7 Management page.** Left-nav **Dynamic nodes** → `/dynamic-nodes` list → **New dynamic node** → editor with prefilled boilerplate → edit → watch the **live parse strip** (300ms debounce) show green “Signature OK” or red line-anchored errors → Publish. **Pass:** on success the palette/catalog refresh **without a Vite restart**; on `400`, errors also show as Monaco gutter squiggles and clicking jumps to the line.
+- [ ] **14.8 In-canvas custom node.** Palette **Custom** section → **New custom node** modal → publish → node auto-drops as `dyn.<slug>` with a grape **DYN** badge. Right-click a `dyn.*` node → **Edit script**. **Pass:** deleted-lineage node shows a red **Deleted** badge, settings Alert, Try disabled.
 
 ### Execute + security
 - [ ] **14.9 Execute (Try).** Build `source.api → dyn.uppercase-url`, wire `document`, Save → **Try** with `{"documentUrl":"https://example.com/foo.pdf"}`. **Pass:** node goes blue→green; preview shows the uppercased URL. Publish v2 (reverse) → Try → cache miss → preview shows reversed URL.
@@ -446,7 +446,7 @@ Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At
 | `AZURE_OPENAI_API_KEY` ☁️ | enable Azure | — |
 | `AZURE_OPENAI_ENDPOINT` ☁️ | Azure/APIM base URL | — |
 | `AZURE_OPENAI_DEPLOYMENT` | deployment name | `gpt-4o` |
-| `AGENT_MAX_STEPS` | max tool-call turns | `30` |
+| `AGENT_MAX_STEPS` | max tool-call turns | `50` |
 | `AGENT_MAX_CONVERSATION_TOKENS` | cost ceiling per conversation | `500000` |
 | `AGENT_MAX_TOOL_RESULT_CHARS` | tool-result truncation (context + injection guard) | `20000` |
 
