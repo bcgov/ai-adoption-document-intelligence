@@ -198,20 +198,66 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 **▶ Demos:** [Control-flow forms & condition editor](http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit) · [Conditions from node outputs — step picker](http://localhost:3000/workflows/by-slug/demo-conditions-from-node-outputs-step-picker-part-4/edit)
 
-Select each node type and exercise its hand-rolled settings form:
+Each item is one control-flow node's settings form. **4.1–4.7** use the **first** demo above (all six control-flow node types on one canvas); **4.8–4.12** use the **second** demo (**Conditions from node outputs — step picker**). Click a node to open its form in the right-hand panel.
 
-- [ ] **4.1 Switch.** Add cases (**Add Case**); per case set a condition (Condition editor) + pick an outgoing edge (EdgePicker, scoped to this switch’s `conditional` edges); set optional default edge. **Pass:** edge picker only lists this switch’s conditional edges; round-trips.
-- [ ] **4.2 Map.** Set `collectionCtxKey`, `itemCtxKey`, optional `indexCtxKey`, `maxConcurrency` (≥1), `bodyEntryNodeId`/`bodyExitNodeId` (NodePicker, excludes self). **Pass:** all editable.
-- [ ] **4.3 Join.** `sourceMapNodeId` NodePicker (labeled **Source Map node**) shows **only map nodes**; `resultsCtxKey` (**Results ctx key**). **Pass:** cannot pick a non-map source. *(Join strategy is fixed to `all` and not exposed in settings.)*
-- [ ] **4.4 ChildWorkflow.** Toggle `library`/`inline`; inline shows read-only JSON preview; input/output mapping list editors. **Pass:** mode toggle works. (Inline variant + mapping list editors + port round-trip are `tier2-control-flow` e2e; the **library-picker modal** stays a manual spot-check.)
-- [ ] **4.5 PollUntil.** Pick `activityType` (renders its nested parametersSchema), condition, `interval` (e.g. `30s`), `maxAttempts`, optional `initialDelay`/`timeout`. **Pass:** invalid duration string shows an inline error; nested activity params render. (Interval round-trip + invalid-duration inline error + maxAttempts round-trip are `tier2-control-flow` e2e; the activity `parametersSchema` sub-form stays a manual spot-check.)
-- [ ] **4.6 HumanGate.** `signal.name`, read-only payload schema, required `timeout`, `onTimeout` (`fail/continue/fallback`), `fallbackEdgeId` (EdgePicker). **Pass:** fallback edge picker appears **only** when onTimeout = `fallback`.
-- [ ] **4.7 Condition editor (recursive).** In a switch or pollUntil, build a 3–4 level nested expression, e.g. `AND(OR(EQ(ctx.a,5), NOT(IS-NULL(ctx.b))), CONTAINS(ctx.c,"x"))`. Toggle a value between **Ref** (variable autocomplete) and **Literal**. **Pass:** nesting renders with indents; deep expression round-trips on save/reload.
-- [ ] **4.8 Condition Ref defaults to the step-picker.** Open a **switch** (or **pollUntil**) node that has an **upstream activity**; open a case condition (or the termination condition) and put a value field in **Ref** mode. **Pass:** the field defaults to the **step→port picker** (not a raw-key field) and lists the upstream step's output as **"Node → Port"** (kind shown as a hint, `"any"` for a kind-less port; no kind filter — every upstream output port is offered).
-- [ ] **4.9 Pick a step output → resolved caption persists.** In the same field, pick a step's output port. **Pass:** the field shows the resolved **"Node → Port"** caption. **Save + reload** the workflow → the ref persists and still displays resolved (not the raw ctx key).
-- [ ] **4.10 Manual escape + back.** In a Ref field, click **"Enter a variable manually"**. **Pass:** the raw-key **autocomplete** appears; clicking **"Back to steps"** returns to the step-picker.
-- [ ] **4.11 Unresolved hand-typed key opens manual.** In manual mode, type a ctx key that matches **no** producer, then re-open the field. **Pass:** it opens in **manual mode** (not stranded on an empty step-picker).
-- [ ] **4.12 Condition reads a step output at run time.** Set a condition to reference a step output (4.9), then run the workflow (Part 9 **Run** tab). **Pass:** the referenced producer's output is written to `ctx` (its `outputs[]` binding was materialised on commit) and the condition evaluates against a real value — the branch/termination behaves as if the value were present, not undefined.
+- [ ] **4.1 Switch — route each item down one edge.** *A switch tests its cases top-to-bottom; the first match sends the item down that case's edge, else the default edge.*
+  1. Click **Branch by condition** (the yellow diamond) → its settings open on the right.
+  2. Click **Add Case** → a new empty case row appears.
+  3. Click the case's **condition** → in the editor build a test (e.g. `currentDoc.type` **equals** `"invoice"`).
+  4. Open the case's **Edge** dropdown → it offers **only this switch's** conditional edges (not normal/error edges, not other switches').
+  5. Optionally set a **Default edge** (taken when no case matches).
+  **Pass:** the Edge dropdown lists only this switch's conditional edges; **Save + reload** keeps every case and its edge.
+- [ ] **4.2 Map — run a body once per item.** *A map iterates a collection and runs its "body" sub-graph for each element; the body is delimited by an entry and exit node (the dashed green box on the canvas).*
+  1. Click **Run for each document** → its settings open.
+  2. Set **collection ctx key** (`documents`), **item ctx key** (`currentDoc`), optional **index ctx key**, and **max concurrency** (≥ 1).
+  3. Set **body entry node** and **body exit node** via their pickers (each excludes the map node itself).
+  **Pass:** all fields are editable; the green **body box** wraps the nodes between the entry and exit you chose.
+- [ ] **4.3 Join — collect a map's results.** *A join gathers the per-item outputs a map produced back into one array.*
+  1. Click **Collect results** → its settings open.
+  2. Open the **Source Map node** picker → it lists **only map nodes** (not activities/switches).
+  3. Set the **Results ctx key** (where the collected array is written).
+  **Pass:** only map nodes are selectable as the source. *(Join strategy is fixed to `all` and isn't shown in the form.)*
+- [ ] **4.4 Sub-workflow (childWorkflow) — call another graph.** *Runs a whole other workflow — either a saved Library workflow or an inline graph shipped with this node.*
+  1. Click **Sub-workflow (inline OCR)** → its settings open.
+  2. Toggle **Library / Inline**. In **Inline** mode a read-only JSON preview of the embedded child graph shows.
+  3. Edit the **input** and **output mapping** lists (which parent ctx keys feed the child, and where its outputs land).
+  **Pass:** the Library/Inline toggle switches modes; inline shows the JSON preview. *(Library-picker modal is a manual spot-check; inline round-trip is `tier2-control-flow` e2e.)*
+- [ ] **4.5 Wait until condition (pollUntil) — poll until true.** *Re-runs an activity on an interval until a condition holds (or it times out).*
+  1. Click **Wait until condition** → its settings open.
+  2. Pick an **activity type** → its own parameters sub-form renders below.
+  3. Set the **condition**, an **interval** (e.g. `30s`), **max attempts**, and optional **initial delay** / **timeout**.
+  4. Type an invalid duration (e.g. `30` with no unit) in a duration field.
+  **Pass:** the invalid duration shows an inline error; the picked activity's nested params render. *(Interval / invalid-duration / maxAttempts round-trips are `tier2-control-flow` e2e; the activity sub-form is a manual spot-check.)*
+- [ ] **4.6 Wait for approval (humanGate) — pause for a human.** *Suspends the run until a named signal arrives, with a timeout fallback.*
+  1. Click **Wait for approval** → its settings open.
+  2. Note the **signal name**, the read-only **payload schema**, and the required **timeout**.
+  3. Set **On timeout** to `fail`, then `continue`, then `fallback`.
+  **Pass:** the **fallback edge** picker appears **only** when On timeout = `fallback` (gone for `fail`/`continue`).
+- [ ] **4.7 Condition editor — nested expressions.** *Builds boolean trees (AND/OR/NOT + comparisons) to any depth; each value is a **Ref** (a variable) or a **Literal**.*
+  1. On **Branch by condition**, open the **second case**'s condition — this demo ships a 3-level tree `AND( OR(EQ, GTE), NOT(IS-NULL) )`.
+  2. Confirm the nesting renders indented per level.
+  3. Pick a leaf value and toggle it **Ref** ↔ **Literal** (Ref = variable autocomplete; Literal = plain input).
+  **Pass:** the deep expression renders indented; **Save + reload** round-trips the whole tree.
+- [ ] **4.8 Ref defaults to the step-picker.** *(second demo)* *When a condition value references another node's output, the editor offers a "step → port" picker instead of a raw ctx key.*
+  1. Click **Route by prepared data** (the switch) → open the first case's **condition**.
+  2. Put the value field in **Ref** mode.
+  **Pass:** the field defaults to the **step → port picker** (not a raw-key box) and lists the upstream producer as a **"Node → Port"** row — here **Prepare file → Prepared file data** — with the port kind as a hint (`any` for a kind-less port; no kind filter, every upstream output is offered).
+- [ ] **4.9 Pick a step output → caption persists.** *Selecting a producer's port binds the ref to that output and shows a friendly caption that survives save/reload.*
+  1. In the same Ref field, pick **Prepare file → Prepared file data**.
+  2. **Save + reload** the workflow.
+  **Pass:** the field shows the resolved **"Node → Port"** caption both before and after reload (not the raw ctx key).
+- [ ] **4.10 Manual escape + back.** *You can bypass the step-picker to type a raw ctx key, and return.*
+  1. In a Ref field, click **"Enter a variable manually"** → a raw-key autocomplete replaces the picker.
+  2. Click **"Back to steps"**.
+  **Pass:** manual mode shows the autocomplete; "Back to steps" returns to the step-picker.
+- [ ] **4.11 Unresolved hand-typed key re-opens in manual.** *A ref to a key no node produces can't resolve to a step, so the field remembers it's manual.*
+  1. In manual mode, type a ctx key that **no** node produces (e.g. `notAProducer`).
+  2. Close and re-open the field.
+  **Pass:** it re-opens in **manual mode** (not stranded on an empty step-picker).
+- [ ] **4.12 Condition reads a step output at run time.** *A step-ref condition evaluates against the producer's real output at run time, because committing the ref materialises the producer's output binding.*
+  1. Set a condition to reference a step output (as in 4.9).
+  2. Run the workflow (Part 9 **Run** tab).
+  **Pass:** the referenced producer's output is written to `ctx` and the condition evaluates against the real value — the branch behaves as if the value is present, not undefined.
 
 ---
 
