@@ -9,10 +9,10 @@
  * not an inline copy. An anonymous nested object stays `{ type: "object" }`
  * with no kind, where picker drill-down stops (spec open question 5).
  *
- * Deliberately narrow: accepts string/number/boolean/literal/object/array/
- * optional and THROWS on anything else (union, record, transform, …) so an
- * unsupported construct fails loudly at module load instead of deriving a
- * schema that lies to the picker.
+ * Deliberately narrow: accepts string/number/boolean/literal/enum/object/
+ * array/optional and THROWS on anything else (union, record, transform, …)
+ * so an unsupported construct fails loudly at module load instead of
+ * deriving a schema that lies to the picker.
  */
 import type { ZodType } from "zod/v4";
 import type { FieldDescriptor } from "../catalog/source-types";
@@ -81,6 +81,10 @@ function fieldToDescriptor(
       }
       return { name, type: literalType, required };
     }
+    case "enum":
+      // zod/v4 enums are string-valued (def.entries is a name→value record);
+      // the picker only needs the primitive category, not the member list.
+      return { name, type: "string", required };
     case "object": {
       const kind = kindSchemas.get(current);
       return kind !== undefined

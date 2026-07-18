@@ -60,6 +60,17 @@ describe("zodToFields", () => {
     ]);
   });
 
+  it("maps z.enum to a string field", () => {
+    const schema = z.object({
+      fileType: z.enum(["pdf", "image"]),
+      outputFormat: z.enum(["text", "markdown"]).optional(),
+    });
+    expect(zodToFields(schema, new Map())).toEqual([
+      { name: "fileType", type: "string", required: true },
+      { name: "outputFormat", type: "string", required: false },
+    ]);
+  });
+
   it("throws on unsupported constructs instead of mis-deriving", () => {
     const schema = z.object({ u: z.union([z.string(), z.number()]) });
     expect(() => zodToFields(schema, EMPTY)).toThrow(
