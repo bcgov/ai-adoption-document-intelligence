@@ -258,6 +258,11 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   1. Set a condition to reference a step output (as in 4.9).
   2. Run the workflow (Part 9 **Run** tab).
   **Pass:** the referenced producer's output is written to `ctx` and the condition evaluates against the real value — the branch behaves as if the value is present, not undefined.
+- [ ] **4.13 Field drill-down for typed values.** *(first demo — Part 4)* *A variable picker enumerates an object value's fields when its kind has a schema, so you pick `ocrResult.status` instead of typing (and guessing) the path.*
+  1. On the part-4 demo, the receipt branch runs a real OCR chain: **Wait until condition** (`azureOcr.poll`) → **Extract OCR result** (`azureOcr.extract`), which writes `ocrResult` of kind **OCR result**.
+  2. Select **Store Results** → open its **OCR result** input binding picker.
+  3. Also open a **Ref** value on a switch/pollUntil condition in manual-variable mode.
+  **Pass:** the picker lists `ocrResult` **and** its fields (`ocrResult.documentId`, `.blobPath`, `.storage`, `.byteLength`, `.pageCount`, `.status`), each captioned with `type · optional`; picking a field stores the dotted ref. **`documents` / `currentDoc` (untyped trigger data) show NO field rows** — they stay free-typed. *(Resolution + expansion are unit-tested in `graph-widgets`; this is the visual spot-check.)*
 
 ---
 

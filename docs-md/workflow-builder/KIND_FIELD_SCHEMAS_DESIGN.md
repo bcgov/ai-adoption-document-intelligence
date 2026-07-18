@@ -1,6 +1,6 @@
 # Kind field schemas — design
 
-**Status:** Draft for review (2026-07-17)
+**Status:** Implemented (2026-07-18)
 **Scope:** `packages/graph-workflow` (artifact registry + resolution) and the frontend variable pickers.
 **Extends:** [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md), [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md), [DATAFLOW_CONCEPTS.md](DATAFLOW_CONCEPTS.md).
 
@@ -110,7 +110,7 @@ So there is exactly one definition of "what a Document is." The **compiler** kee
 Given a ctx key the author is picking a value for, resolve in this order:
 
 1. **ctx key → kind.** Reuse/extend the existing resolver [`resolveProducerKind(ctxKey) → KindRef | undefined`](../../apps/frontend/src/features/workflow-builder/graph-widgets/VariablePicker.tsx#L71) (already used for typed-I/O sorting). A ctx key's kind comes from, in precedence:
-   - the map-item unwrap — [`resolveMapElementKind`](../../packages/graph-workflow/src/auto-wire/resolve-input-port.ts#L230) already maps `currentDoc` (element of `Document[]`) → `Document`. It is currently a private function in `resolve-input-port.ts`; this feature exports it;
+   - the map-item unwrap — a map node's `itemCtxKey` gets the ELEMENT kind of its collection. **Implemented** in the frontend `resolveProducerKindFor` as a recursive first-precedence step (not by exporting the package's `resolveMapElementKind`, which only sees catalog producers): it walks its own precedence chain on the map's `collectionCtxKey` with a visited-set cycle guard, so ctx-declared and source-fed collections unwrap too;
    - the producing node's output port `kind`;
    - the `config.ctx[key].kind` declaration (for caller inputs).
 2. **kind → fields.** `getArtifactKindMeta(kind)` then walk `baseKind` up the chain, merging inherited fields with own fields (own wins on name collision). Array suffix (`Document[]`) is stripped first (a value is drilled as its element type once unwrapped; direct `[]` drill-down is out of scope — §7).
@@ -141,11 +141,11 @@ Resolution is a pure function over `(config, ctxKey, registry)` so it is unit-te
 - **Direct array-element drill-down** on an array-typed ctx key (`documents[].x`). The map-item case (`currentDoc`, already unwrapped to `Document`) is covered; direct `[]` drill-down is a later add.
 - **`source.api` inline fields.** Left as-is; a later pass could have it emit a named kind, but that is not required here.
 
-## 8. Open questions
+## 8. Open questions — resolutions (v1 shipped 2026-07-18)
 
-1. **Which built-in kinds get field schemas in v1**, and their exact fields (matched to runtime shapes). Enumerated in the plan. Because value needs both halves (§2.6), the plan should also pick a small set of values to **kind-tag** so v1 has at least one visibly working drill-down path end-to-end.
-2. **Recursion depth guard** — largely answered by §5's prefix-driven generation (depth only grows on author action, so the UI cannot loop). Remaining: whether the pure resolution function (§4) also wants a hard depth cap as a belt-and-suspenders bound for non-picker callers.
-3. **Do we surface required/optional** in the picker caption, and does it matter before validation exists? (Lean: show it, cheap.)
-4. **Parameterized kinds** (`Segment<Table>`) and their fields — inherit the base (`Segment`) schema via `baseKind`, or carry their own? (Lean: inherit, override where needed.)
-5. **`type` vs `kind` stop rule** — a field `{ type: "object" }` with no `kind` is a known object of *unknown* shape → drilling stops there; a field carrying a `kind` recurses. Confirm this is the intended boundary.
-6. **`zodToFields` scope** — the kind-reference mechanism is settled (§3.4: schema-identity lookup against the named-schema map). Remaining: which *other* Zod constructs the converter accepts (primitives, `z.array`, `z.optional` → `required: false`) vs. rejects loudly (`z.union`, `z.record`, transforms, …). Keep it to the subset the picker needs; reject the rest with an explicit error rather than mis-deriving.
+1. **Which built-in kinds get field schemas in v1** — **`OcrResult` only.** Runtime research showed `Document` and `Classification` are polymorphic (a "Document" is sometimes `PreparedFileData`, sometimes a bare blob-key string; a "Classification" is a bare label string from `document.classify` but a label→segments map from `azureClassify.poll`) — a schema for either would lie, and an honest wildcard beats a lying type (§2 principle 3). `OcrResult` is the one consistent shape (`OcrPayloadRef`). The part-4 demo was made **functional** (real `azureOcr.poll → azureOcr.extract` chain producing an `ocrResult` of kind `OcrResult`) rather than kind-tagging fabricated data, so v1 has a genuine end-to-end drill-down path. Refining the `Document`/`Classification` families into shape-honest subkinds is the agreed next wave.
+2. **Recursion depth guard** — **both.** Prefix-driven generation (§5) bounds the UI, and the pure resolvers carry hard caps (`MAX_DRILL_DEPTH = 8` in `variable-field-options`, `MAX_BASE_CHAIN = 16` in `resolveKindFields`, plus a visited-set guard in the map-item unwrap).
+3. **required/optional caption** — **yes.** Field rows caption as `type · kind · optional` (kind and the `optional` marker appear only when applicable).
+4. **Parameterized kinds** (`Segment<Table>`) — **inherit via `baseKind`.** Moot in v1 (no `Segment` schema seeded); the merge in `resolveKindFields` walks `baseKind` so a parameterized kind inherits its base's fields when one is added.
+5. **`type` vs `kind` stop rule** — **confirmed.** A field `{ type: "object" }` with no `kind` stops drilling; a field carrying a `kind` recurses. Implemented in `variable-field-options.fieldsAtPath` and the condition editor's field picker.
+6. **`zodToFields` scope** — accepts `string | number | boolean | literal | object | array | optional`; **throws** on anything else (`union`, `record`, transforms, …) rather than mis-derive. Kind references are recovered by schema identity against the `KindSchemaMap` (§3.4).
