@@ -5,6 +5,13 @@
  * picker's typed-compatibility check agrees with what save-time validation
  * will report:
  *
+ *   0. Map-item unwrap — a map node's `itemCtxKey` has the ELEMENT kind of
+ *      its collection (KIND_FIELD_SCHEMAS_DESIGN.md §4 step 1). The item key
+ *      exists only inside the map body and shadows any same-named producer,
+ *      so it goes first. The collection's kind is resolved recursively
+ *      through this same precedence walk (NOT the package's
+ *      `resolveMapElementKind`, which only sees catalog producers —
+ *      collections declared on ctx or fed by sources must unwrap too).
  *   1. Activity catalog `PortDescriptor.kind` (when an activity / pollUntil
  *      node writes the ctx key via one of its declared outputs).
  *   1b. Source-node synthetic producers — `source.upload` (catalog
@@ -30,6 +37,7 @@ import {
 import type {
   ActivityNode,
   GraphWorkflowConfig,
+  MapNode,
   PollUntilNode,
   SourceNode,
 } from "../../../types/workflow";
@@ -134,6 +142,38 @@ function resolveSourceProducerKind(
 }
 
 /**
+ * Map-item unwrap (KIND_FIELD_SCHEMAS_DESIGN.md §4 step 1, first in
+ * precedence): a map node's `itemCtxKey` has the ELEMENT kind of its
+ * collection. The collection's kind is resolved recursively through this
+ * module's own precedence walk (NOT the package's `resolveMapElementKind`,
+ * which only sees catalog producers — collections declared on ctx or fed by
+ * sources must unwrap too). `visitedMaps` breaks self-referential cycles.
+ */
+function resolveMapItemKind(
+  ctxKey: string,
+  config: GraphWorkflowConfig,
+  visitedMaps: Set<string>,
+): KindRef | undefined {
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "map") continue;
+    const mapNode = node as MapNode;
+    if (mapNode.itemCtxKey !== ctxKey) continue;
+    if (!mapNode.collectionCtxKey) continue;
+    if (visitedMaps.has(nodeId)) continue;
+    visitedMaps.add(nodeId);
+    const collectionKind = resolveInner(
+      mapNode.collectionCtxKey,
+      config,
+      visitedMaps,
+    );
+    if (collectionKind?.endsWith("[]")) {
+      return collectionKind.slice(0, -2) as KindRef;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Resolve the kind of the variable's producer for the given ctx key.
  * See module docstring for the precedence walk.
  */
@@ -141,6 +181,21 @@ export function resolveProducerKindFor(
   ctxKey: string,
   config: GraphWorkflowConfig,
 ): KindRef | undefined {
+  return resolveInner(ctxKey, config, new Set());
+}
+
+function resolveInner(
+  ctxKey: string,
+  config: GraphWorkflowConfig,
+  visitedMaps: Set<string>,
+): KindRef | undefined {
+  // 0. Map-item unwrap — the item key exists only inside the map body and
+  // shadows any same-named producer, so it goes first (spec §4).
+  const mapItemKind = resolveMapItemKind(ctxKey, config, visitedMaps);
+  if (mapItemKind !== undefined) {
+    return mapItemKind;
+  }
+
   // 1. Catalog-declared output kind on a producing activity / pollUntil node.
   const catalogKind = resolveCatalogProducerKind(ctxKey, config);
   if (catalogKind !== undefined) {

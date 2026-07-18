@@ -232,3 +232,100 @@ describe("resolveProducerKindFor — source-node producers (Item 20)", () => {
     expect(resolveProducerKindFor("otherKey", config)).toBeUndefined();
   });
 });
+
+describe("resolveProducerKindFor — map-item unwrap", () => {
+  it("resolves a map itemCtxKey to the element kind of a ctx-declared collection", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "loop",
+      nodes: {
+        loop: {
+          id: "loop",
+          type: "map",
+          label: "Loop",
+          collectionCtxKey: "documents",
+          itemCtxKey: "currentDoc",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+      },
+      edges: [],
+      ctx: { documents: { type: "array", kind: "Document[]" } },
+    };
+
+    expect(resolveProducerKindFor("currentDoc", config)).toBe("Document");
+  });
+
+  it("resolves through a catalog-produced collection", () => {
+    // `azureClassify.poll` — no array-kind output in the static catalog, so
+    // the ctx-declared variant above is the canonical path. A catalog
+    // producer whose output kind ends in `[]` would unwrap the same way.
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "loop",
+      nodes: {
+        loop: {
+          id: "loop",
+          type: "map",
+          label: "Loop",
+          collectionCtxKey: "segments",
+          itemCtxKey: "currentSeg",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+      },
+      edges: [],
+      ctx: { segments: { type: "array", kind: "Segment[]" } },
+    };
+
+    expect(resolveProducerKindFor("currentSeg", config)).toBe("Segment");
+  });
+
+  it("returns undefined for a kindless collection", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "loop",
+      nodes: {
+        loop: {
+          id: "loop",
+          type: "map",
+          label: "Loop",
+          collectionCtxKey: "documents",
+          itemCtxKey: "currentDoc",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+      },
+      edges: [],
+      ctx: { documents: { type: "array" } },
+    };
+
+    expect(resolveProducerKindFor("currentDoc", config)).toBeUndefined();
+  });
+
+  it("terminates on a self-referential map (collection = its own item key)", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "loop",
+      nodes: {
+        loop: {
+          id: "loop",
+          type: "map",
+          label: "Loop",
+          collectionCtxKey: "currentDoc",
+          itemCtxKey: "currentDoc",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+      },
+      edges: [],
+      ctx: {},
+    };
+
+    expect(resolveProducerKindFor("currentDoc", config)).toBeUndefined();
+  });
+});
