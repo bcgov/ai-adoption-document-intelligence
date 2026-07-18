@@ -396,6 +396,14 @@ function controlFlowConfig(name) {
       currentDoc: { type: "object" },
       documentId: { type: "string" },
       apimRequestId: { type: "string" },
+      // The inline child produces a prepared Document (not an OCR result);
+      // name the key honestly rather than mislabelling it "ocrResult".
+      preparedDoc: { type: "object" },
+      // Real Azure OCR poll outputs — the pollUntil condition reads ocrStatus.
+      ocrStatus: { type: "string" },
+      ocrResponse: { type: "object" },
+      // Produced by the azureOcr.extract node (kind OcrResult from the
+      // catalog), so the variable picker can drill into ocrResult.* fields.
       ocrResult: { type: "object" },
       results: { type: "array" },
     },
@@ -409,7 +417,7 @@ function controlFlowConfig(name) {
         indexCtxKey: "docIndex",
         maxConcurrency: 5,
         bodyEntryNodeId: "routeByType",
-        bodyExitNodeId: "pollOcr",
+        bodyExitNodeId: "extractOcr",
         ...pos(120, 80),
       },
       routeByType: {
@@ -467,7 +475,7 @@ function controlFlowConfig(name) {
         label: "Sub-workflow (inline OCR)",
         workflowRef: { type: "inline", graph: inlineChild },
         inputMappings: [{ port: "blobKey", ctxKey: "currentDoc.blobKey" }],
-        outputMappings: [{ port: "preparedData", ctxKey: "ocrResult" }],
+        outputMappings: [{ port: "preparedData", ctxKey: "preparedDoc" }],
         ...pos(460, 200),
       },
       pollOcr: {
@@ -477,7 +485,7 @@ function controlFlowConfig(name) {
         activityType: "azureOcr.poll",
         condition: {
           operator: "not-equals",
-          left: { ref: "ctx.ocrResult.status" },
+          left: { ref: "ctx.ocrStatus" },
           right: { literal: "running" },
         },
         interval: "10s",
@@ -487,7 +495,28 @@ function controlFlowConfig(name) {
         // Bind the poll activity's required input so the node doesn't carry
         // a red "unsatisfied" dot in a demo about control-flow forms.
         inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        // Bind the poll's real outputs — the condition polls ocrStatus, and
+        // ocrResponse feeds the downstream extract node.
+        outputs: [
+          { port: "status", ctxKey: "ocrStatus" },
+          { port: "ocrResponse", ctxKey: "ocrResponse" },
+        ],
         ...pos(460, 360),
+      },
+      // Real OcrResult producer: consumes the poll's apimRequestId +
+      // ocrResponse and emits ocrResult (kind "OcrResult" from the catalog).
+      // This is the map body's exit node.
+      extractOcr: {
+        id: "extractOcr",
+        type: "activity",
+        label: "Extract OCR result",
+        activityType: "azureOcr.extract",
+        inputs: [
+          { port: "apimRequestId", ctxKey: "apimRequestId" },
+          { port: "ocrResponse", ctxKey: "ocrResponse" },
+        ],
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(460, 680),
       },
       approve: {
         id: "approve",
@@ -538,6 +567,13 @@ function controlFlowConfig(name) {
         target: "pollOcr",
         type: "conditional",
         condition: "receipt",
+      },
+      // Receipt path continues poll → extract (the map body's exit node).
+      {
+        id: "poll-extract",
+        source: "pollOcr",
+        target: "extractOcr",
+        type: "normal",
       },
       {
         id: "route-default",
