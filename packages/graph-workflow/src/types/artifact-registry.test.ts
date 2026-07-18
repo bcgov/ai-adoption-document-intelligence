@@ -14,20 +14,23 @@
  * registry is restored to the v1 snapshot between tests.
  */
 
-import type { ArtifactKind } from "./artifacts";
 import {
   ARTIFACT_REGISTRY,
   type ArtifactKindMeta,
   getArtifactKindMeta,
   registerArtifactKind,
 } from "./artifact-registry";
+import type { ArtifactKind } from "./artifacts";
 
 // The closed list of v1 kinds, type-checked against the union.
 const ALL_KINDS = [
   "Artifact",
   "Document",
+  "DocumentRef",
   "MultiPageDocument",
   "SinglePageDocument",
+  "PreparedFile",
+  "DocumentContent",
   "Segment",
   "Segment<Text>",
   "Segment<Table>",
@@ -100,8 +103,11 @@ describe("ARTIFACT_REGISTRY (v1 snapshot)", () => {
 
   it("matches TYPED_IO_DESIGN.md §1 hierarchy (baseKind spot-checks)", () => {
     expect(ARTIFACT_REGISTRY.Document.baseKind).toBe("Artifact");
-    expect(ARTIFACT_REGISTRY.MultiPageDocument.baseKind).toBe("Document");
-    expect(ARTIFACT_REGISTRY.SinglePageDocument.baseKind).toBe("Document");
+    expect(ARTIFACT_REGISTRY.DocumentRef.baseKind).toBe("Document");
+    expect(ARTIFACT_REGISTRY.MultiPageDocument.baseKind).toBe("DocumentRef");
+    expect(ARTIFACT_REGISTRY.SinglePageDocument.baseKind).toBe("DocumentRef");
+    expect(ARTIFACT_REGISTRY.PreparedFile.baseKind).toBe("Document");
+    expect(ARTIFACT_REGISTRY.DocumentContent.baseKind).toBe("Document");
 
     expect(ARTIFACT_REGISTRY.Segment.baseKind).toBe("Artifact");
     expect(ARTIFACT_REGISTRY["Segment<Text>"].baseKind).toBe("Segment");
@@ -287,5 +293,20 @@ describe("getArtifactKindMeta", () => {
     expect(getArtifactKindMeta("NotARealKind")).toBeUndefined();
     expect(getArtifactKindMeta("")).toBeUndefined();
     expect(getArtifactKindMeta("document")).toBeUndefined(); // case-sensitive
+  });
+
+  it("PreparedFile carries schema-derived fields; string subkinds carry none", () => {
+    expect(
+      getArtifactKindMeta("PreparedFile")?.fields?.map((f) => f.name),
+    ).toEqual([
+      "fileName",
+      "fileType",
+      "contentType",
+      "blobKey",
+      "modelId",
+      "outputFormat",
+    ]);
+    expect(getArtifactKindMeta("DocumentRef")?.fields).toBeUndefined();
+    expect(getArtifactKindMeta("DocumentContent")?.fields).toBeUndefined();
   });
 });

@@ -14,8 +14,8 @@
  * fail at that branch).
  */
 
-import type { ArtifactKind } from "./artifacts";
 import { ARTIFACT_REGISTRY } from "./artifact-registry";
+import type { ArtifactKind } from "./artifacts";
 import { isAssignable } from "./subtype-check";
 
 const ALL_KINDS = [
@@ -209,36 +209,59 @@ describe("isAssignable — Scenario 5: Artifact is the universal target", () => 
 });
 
 describe("isAssignable — parametric matrix over the v1 registry", () => {
-  it.each(ALL_KINDS)(
-    "every v1 kind is assignable to Artifact (%s → Artifact)",
-    (kind) => {
-      expect(isAssignable(kind, "Artifact")).toBe(true);
-    },
-  );
-
-  it.each(ALL_KINDS.filter((k) => k !== "Artifact"))(
-    "Artifact is not assignable to any other v1 kind (Artifact → %s)",
-    (kind) => {
-      expect(isAssignable("Artifact", kind)).toBe(false);
-    },
-  );
+  it.each(
+    ALL_KINDS,
+  )("every v1 kind is assignable to Artifact (%s → Artifact)", (kind) => {
+    expect(isAssignable(kind, "Artifact")).toBe(true);
+  });
 
   it.each(
-    ALL_KINDS.filter(
-      (k) => ARTIFACT_REGISTRY[k].baseKind !== undefined,
-    ).map((k) => [k, ARTIFACT_REGISTRY[k].baseKind as ArtifactKind] as const),
+    ALL_KINDS.filter((k) => k !== "Artifact"),
+  )("Artifact is not assignable to any other v1 kind (Artifact → %s)", (kind) => {
+    expect(isAssignable("Artifact", kind)).toBe(false);
+  });
+
+  it.each(
+    ALL_KINDS.filter((k) => ARTIFACT_REGISTRY[k].baseKind !== undefined).map(
+      (k) => [k, ARTIFACT_REGISTRY[k].baseKind as ArtifactKind] as const,
+    ),
   )("every kind with a baseKind is assignable to it (%s → %s)", (kind, base) => {
     expect(isAssignable(kind, base)).toBe(true);
   });
 
   it.each(
-    ALL_KINDS.filter(
-      (k) => ARTIFACT_REGISTRY[k].baseKind !== undefined,
-    ).map((k) => [k, ARTIFACT_REGISTRY[k].baseKind as ArtifactKind] as const),
-  )(
-    "every kind with a baseKind is assignable to it across arrays (%s[] → %s[])",
-    (kind, base) => {
-      expect(isAssignable(`${kind}[]`, `${base}[]`)).toBe(true);
-    },
-  );
+    ALL_KINDS.filter((k) => ARTIFACT_REGISTRY[k].baseKind !== undefined).map(
+      (k) => [k, ARTIFACT_REGISTRY[k].baseKind as ArtifactKind] as const,
+    ),
+  )("every kind with a baseKind is assignable to it across arrays (%s[] → %s[])", (kind, base) => {
+    expect(isAssignable(`${kind}[]`, `${base}[]`)).toBe(true);
+  });
+});
+
+describe("shape-honest Document subkinds (KIND_TAXONOMY_REFINEMENT_DESIGN.md §3)", () => {
+  it("sibling subkinds are not interchangeable", () => {
+    expect(isAssignable("DocumentContent", "DocumentRef")).toBe(false);
+    expect(isAssignable("DocumentRef", "DocumentContent")).toBe(false);
+    expect(isAssignable("PreparedFile", "DocumentRef")).toBe(false);
+    expect(isAssignable("DocumentRef", "PreparedFile")).toBe(false);
+    expect(isAssignable("DocumentContent", "PreparedFile")).toBe(false);
+  });
+
+  it("every subkind satisfies a family-level Document port", () => {
+    expect(isAssignable("DocumentRef", "Document")).toBe(true);
+    expect(isAssignable("PreparedFile", "Document")).toBe(true);
+    expect(isAssignable("DocumentContent", "Document")).toBe(true);
+  });
+
+  it("re-parented page-count kinds chain through DocumentRef", () => {
+    expect(isAssignable("MultiPageDocument", "DocumentRef")).toBe(true);
+    expect(isAssignable("SinglePageDocument", "DocumentRef")).toBe(true);
+    expect(isAssignable("MultiPageDocument", "Document")).toBe(true);
+    expect(isAssignable("DocumentRef", "MultiPageDocument")).toBe(false);
+  });
+
+  it("array cardinality carries through for the new kinds", () => {
+    expect(isAssignable("DocumentRef[]", "Document[]")).toBe(true);
+    expect(isAssignable("DocumentContent[]", "DocumentRef[]")).toBe(false);
+  });
 });

@@ -26,7 +26,11 @@
 
 import type { FieldDescriptor } from "../catalog/source-types";
 import type { ArtifactKind } from "./artifacts";
-import { KIND_SCHEMAS, OcrResultSchema } from "./kind-schemas";
+import {
+  KIND_SCHEMAS,
+  OcrResultSchema,
+  PreparedFileSchema,
+} from "./kind-schemas";
 import { zodToFields } from "./zod-to-fields";
 
 /**
@@ -67,14 +71,33 @@ export const ARTIFACT_REGISTRY: Readonly<
     baseKind: "Artifact",
     isArray: false,
   },
-  MultiPageDocument: {
-    displayName: "Multi-page document",
+  DocumentRef: {
+    displayName: "Document ref",
     color: "blue",
     baseKind: "Document",
     isArray: false,
   },
+  MultiPageDocument: {
+    displayName: "Multi-page document",
+    color: "blue",
+    baseKind: "DocumentRef",
+    isArray: false,
+  },
   SinglePageDocument: {
     displayName: "Single-page document",
+    color: "blue",
+    baseKind: "DocumentRef",
+    isArray: false,
+  },
+  PreparedFile: {
+    displayName: "Prepared file",
+    color: "blue",
+    baseKind: "Document",
+    fields: zodToFields(PreparedFileSchema, KIND_SCHEMAS),
+    isArray: false,
+  },
+  DocumentContent: {
+    displayName: "Document content",
     color: "blue",
     baseKind: "Document",
     isArray: false,

@@ -10,12 +10,15 @@
 import type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
 
 describe("ArtifactKind union", () => {
-  it("has exactly 18 members per TYPED_IO_DESIGN.md §1", () => {
+  it("has exactly 21 members per TYPED_IO_DESIGN.md §1 / KIND_TAXONOMY_REFINEMENT_DESIGN.md §3", () => {
     const allKinds = [
       "Artifact",
       "Document",
+      "DocumentRef",
       "MultiPageDocument",
       "SinglePageDocument",
+      "PreparedFile",
+      "DocumentContent",
       "Segment",
       "Segment<Text>",
       "Segment<Table>",
@@ -32,8 +35,8 @@ describe("ArtifactKind union", () => {
       "Reference",
     ] as const satisfies readonly ArtifactKind[];
 
-    expect(allKinds.length).toBe(18);
-    expect(new Set(allKinds).size).toBe(18);
+    expect(allKinds.length).toBe(21);
+    expect(new Set(allKinds).size).toBe(21);
   });
 
   it("enumerates all seven Segment<Kind> parameterised entries", () => {

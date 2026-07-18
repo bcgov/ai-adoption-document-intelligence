@@ -11,8 +11,11 @@
  *
  *   Artifact (base)
  *   ├── Document
- *   │   ├── MultiPageDocument
- *   │   └── SinglePageDocument
+ *   │   ├── DocumentRef            (blob-key string)
+ *   │   │   ├── MultiPageDocument
+ *   │   │   └── SinglePageDocument
+ *   │   ├── PreparedFile           (PreparedFileData object)
+ *   │   └── DocumentContent        (base64 content string)
  *   ├── Segment
  *   │   └── Segment<Kind> where Kind ∈ { Text, Table, Figure, Form,
  *   │                                    KeyValue, Signature, Header }
@@ -31,8 +34,11 @@
 export type ArtifactKind =
   | "Artifact"
   | "Document"
+  | "DocumentRef"
   | "MultiPageDocument"
   | "SinglePageDocument"
+  | "PreparedFile"
+  | "DocumentContent"
   | "Segment"
   | "Segment<Text>"
   | "Segment<Table>"
