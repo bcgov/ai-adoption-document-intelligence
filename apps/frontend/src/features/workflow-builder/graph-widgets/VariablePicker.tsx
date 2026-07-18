@@ -21,6 +21,7 @@
  */
 
 import type { KindRef } from "@ai-di/graph-workflow";
+import { upstreamNodesWithDistance } from "@ai-di/graph-workflow";
 import type {
   ComboboxLikeRenderOptionInput,
   ComboboxStringItem,
@@ -28,7 +29,7 @@ import type {
 import { Autocomplete, Button, Text, Tooltip } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
-import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type { GraphWorkflowConfig, MapNode } from "../../../types/workflow";
 import { resolveProducerKindFor } from "./resolve-producer-kind";
 import {
   expandVariableOptions,
@@ -91,10 +92,43 @@ export interface VariablePickerProps {
 const NEW_CTX_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
+ * Loop variables (a map's item / index ctx key) that are in scope for
+ * `currentNodeId` — i.e. that node sits inside the map's body. A node is in
+ * the body when the body entry is an ancestor of it AND it is an ancestor of
+ * the body exit (or it IS the entry/exit). These keys are declared on the map
+ * node, never on `config.ctx` or an activity output binding, so the picker
+ * would otherwise never offer them — and the item's fields (e.g. a
+ * `TypedSegment` map item's `.confidence`) would never drill.
+ */
+function loopVariablesInScope(
+  config: GraphWorkflowConfig,
+  currentNodeId: string,
+): string[] {
+  const keys: string[] = [];
+  const ancestorsOfCurrent = upstreamNodesWithDistance(config, currentNodeId);
+  for (const node of Object.values(config.nodes)) {
+    if (node.type !== "map") continue;
+    const mapNode = node as MapNode;
+    const inBody =
+      currentNodeId === mapNode.bodyEntryNodeId ||
+      currentNodeId === mapNode.bodyExitNodeId ||
+      (ancestorsOfCurrent.has(mapNode.bodyEntryNodeId) &&
+        upstreamNodesWithDistance(config, mapNode.bodyExitNodeId).has(
+          currentNodeId,
+        ));
+    if (!inBody) continue;
+    if (mapNode.itemCtxKey) keys.push(mapNode.itemCtxKey);
+    if (mapNode.indexCtxKey) keys.push(mapNode.indexCtxKey);
+  }
+  return keys;
+}
+
+/**
  * Build grouped Autocomplete suggestions for variable bindings.
  * Group 1: workflow-level ctx declarations.
- * Group 2: ctxKeys other nodes write to via their output bindings,
- * minus anything already listed in group 1.
+ * Group 2: loop variables (map item / index) in scope for the current node.
+ * Group 3: ctxKeys other nodes write to via their output bindings,
+ * minus anything already listed in earlier groups.
  */
 export function buildVariableOptions(
   config: GraphWorkflowConfig,
@@ -102,12 +136,22 @@ export function buildVariableOptions(
 ): { group: string; items: string[] }[] {
   const ctxDeclared = Object.keys(config.ctx).sort();
   const declaredSet = new Set(ctxDeclared);
+  const loopVars = currentNodeId
+    ? [...new Set(loopVariablesInScope(config, currentNodeId))]
+        .filter((k) => !declaredSet.has(k))
+        .sort()
+    : [];
+  const loopSet = new Set(loopVars);
   const otherOutputs = new Set<string>();
   for (const [id, n] of Object.entries(config.nodes)) {
     if (currentNodeId && id === currentNodeId) continue;
     if (n.type !== "activity") continue;
     for (const binding of n.outputs ?? []) {
-      if (binding.ctxKey && !declaredSet.has(binding.ctxKey)) {
+      if (
+        binding.ctxKey &&
+        !declaredSet.has(binding.ctxKey) &&
+        !loopSet.has(binding.ctxKey)
+      ) {
         otherOutputs.add(binding.ctxKey);
       }
     }
@@ -115,6 +159,9 @@ export function buildVariableOptions(
   const groups: { group: string; items: string[] }[] = [];
   if (ctxDeclared.length > 0) {
     groups.push({ group: "Workflow context", items: ctxDeclared });
+  }
+  if (loopVars.length > 0) {
+    groups.push({ group: "Loop variables", items: loopVars });
   }
   if (otherOutputs.size > 0) {
     groups.push({
