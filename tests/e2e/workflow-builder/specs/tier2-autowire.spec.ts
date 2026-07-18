@@ -18,9 +18,13 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  * the "Inputs" section in the settings panel ([data-testid="inputs-section"]).
  *
  * Typed catalog kinds used (from /api/activity-catalog):
- *   - file.prepare               OUT[preparedData:Document]
- *   - document.normalizeOrientation OUT[correctedBlobKey:Document, …]
- *   - azureOcr.submit            IN[fileData:Document]
+ *   - file.prepare               OUT[preparedData:PreparedFile]
+ *   - azureOcr.submit            IN[fileData:PreparedFile]
+ *
+ * The ambiguity fixture uses two file.prepare producers because PreparedFile
+ * is the only shape azureOcr.submit's fileData accepts — after the kind
+ * taxonomy refinement, a DocumentRef producer (e.g. normalizeOrientation's
+ * blob key) is correctly NOT a competing source for a PreparedFile input.
  */
 
 const pos = (x: number, y: number) => ({ metadata: { position: { x, y } } });
@@ -79,8 +83,9 @@ function buildAmbiguousConfig(): GraphConfig {
       normB: {
         id: "normB",
         type: "activity",
-        label: "Normalize B",
-        activityType: "document.normalizeOrientation",
+        label: "Prepare B",
+        activityType: "file.prepare",
+        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
         ...pos(80, 320),
       },
       sink: {
