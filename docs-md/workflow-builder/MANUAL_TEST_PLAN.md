@@ -7,6 +7,8 @@ End-to-end manual testing script for everything shipped in the `feature/visual-w
 > **Legend:** 🔑 = requires logged-in UI session · ☁️ = requires cloud credentials · ⚙️ = requires a specific service/migration · ⚠️ = known discrepancy or gotcha, not a bug.
 >
 > **Just want to see one feature quickly?** Run `npm run seed:demos` and open [FEATURE_DEMO_GUIDE.md](FEATURE_DEMO_GUIDE.md) — it seeds a pre-built workflow per feature and gives you a direct editor link + a few steps, so you can spot-check something without walking the whole plan. See [FEATURE_DEMO_SEEDER.md](FEATURE_DEMO_SEEDER.md) for how the seeder works (prereqs, env, extending it).
+>
+> **▶ Demo shortcut.** Most Parts below open with a **▶ Demo** link to a pre-seeded workflow. Run `npm run seed:demos` once, then for each Part open its demo and run that Part's checks against it instead of building from scratch. (Links 404 until the seeder has run; slugs are stable across reseeds.) New to the dataflow model the builder assumes — ctx keys, wires, inputs — read [DATAFLOW_CONCEPTS.md](DATAFLOW_CONCEPTS.md) first.
 
 ---
 
@@ -180,6 +182,8 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 ## Part 3 — Canvas & Node Basics (Foundation)
 
+**▶ Demo:** [Node settings & canvas basics](http://localhost:3000/workflows/by-slug/demo-node-settings-panel-canvas-basics-part-3/edit)
+
 - [ ] **3.1 Add activity node.** `/workflows/create` → click an activity in the left palette. **Pass:** node appears and viewport auto-fits (~300ms animation) to center it.
 - [ ] **3.2 Auto-fit only on add.** Pan/zoom away, then drag an *existing* node. **Pass:** no re-fit. Add a new node → re-fits to the new node.
 - [ ] **3.3 Configure node.** Click a node → right **NodeSettingsPanel** renders a schema-driven form (label + parameters from the activity catalog). Edit label + a parameter. **Pass:** edits persist on the canvas.
@@ -191,6 +195,8 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 ---
 
 ## Part 4 — Control-Flow Settings Forms & Condition Editor
+
+**▶ Demos:** [Control-flow forms & condition editor](http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit) · [Conditions from node outputs — step picker](http://localhost:3000/workflows/by-slug/demo-conditions-from-node-outputs-step-picker-part-4/edit)
 
 Select each node type and exercise its hand-rolled settings form:
 
@@ -211,6 +217,8 @@ Select each node type and exercise its hand-rolled settings form:
 
 ## Part 5 — Switch/Error Edges & Validation
 
+**▶ Demos:** [Switch/error edges & validateFields editor](http://localhost:3000/workflows/by-slug/demo-switch-error-edges-validatefields-editor-part-5/edit) · [Validation surfacing — warning badge & drawer](http://localhost:3000/workflows/by-slug/demo-validation-surfacing-warning-badge-drawer-5-4/edit)
+
 - [ ] **5.1 Conditional edge visuals.** Load `multi-page-report-workflow` → inspect the 4 edges leaving the `segmentRouter` switch. **Pass:** distinct conditional stroke + labels `case[0]…`, `case[1]…`, `case[2]…`, `default`. Drawing a *new* edge from a switch source handle auto-stamps `type: conditional`.
 - [ ] **5.2 Error edges.** On a node with `errorPolicy.onError = "fallback"`, a second bottom source handle (`error`) appears; draw from it. **Pass:** new edge is red `type: error` with an **`on error`** label; normal edges stay grey.
 - [ ] **5.3 validateFields rich editor.** Open the `document.validateFields` node in the master template → 4 editable rules (arithmetic + field-match + array-match), not an “Unsupported field schema” stub. Change a rule’s `type`. **Pass:** type switch preserves `name`, edits round-trip.
@@ -227,6 +235,8 @@ Select each node type and exercise its hand-rolled settings form:
 
 ## Part 6 — Rich Widgets, Grouping, Layout, Node Swap
 
+**▶ Demo:** [Grouping, simplified view & node swap](http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit)
+
 - [ ] **6.1 Rich parameter widgets.** Confirm each renders a dedicated editor (no “Unsupported field schema” stub): page-range editor (`document.split` custom-ranges, start ≤ end), confusion-map editor (`ocr.characterConfusion`, duplicate-key warning), keyword-pattern editor (`document.splitAndClassify`, invalid-regex error), classification-rule editor (`document.classify`). **Pass:** all 8 templates load fully editable.
 - [ ] **6.2 Create a group.** Marquee/shift-select 2+ nodes → **More ▸ Group selected** → right rail shows **GroupNodeSettings** (label, description, icon, color, exposed-params editor). **Pass:** `nodeGroups[<id>]` created; a node can be in only one group (moving it prunes empty old groups).
 - [ ] **6.3 Simplified view.** **More ▸ Simplified view** on a grouped workflow. **Pass:** each group collapses to a single chip (master template → 5 chips); toggling back reveals nodes; round-trips.
@@ -238,6 +248,8 @@ Select each node type and exercise its hand-rolled settings form:
 ---
 
 ## Part 7 — Typed I/O Artifacts
+
+**▶ Demo:** [Typed I/O — coloured port rows](http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit)
 
 Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.process`, `document.validateFields`, `tables.lookup`) — good picks to eyeball, but every catalog activity now works the same way (US-103: every port declares a `kind`).
 
@@ -253,6 +265,8 @@ Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.p
 ---
 
 ## Part 8 — Auto-Wire
+
+**▶ Demos:** [Auto-wire — typed input binding states](http://localhost:3000/workflows/by-slug/demo-auto-wire-typed-input-binding-states-part-8/edit) · [Auto-wire — ambiguous source picker](http://localhost:3000/workflows/by-slug/demo-auto-wire-ambiguous-source-picker-part-8/edit)
 
 > **Canvas note (Phase 3 shipped).** Auto-wire results render directly on canvas as colored port-to-port **data wires** (stroke = producer's kind), each hoverable with a provenance tooltip — *"Connected automatically — matched by name \"apimRequestId\""* / *"Connected automatically — nearest Document producer"* / *"Pinned by you"*. A `normal` edge between a pair with no data riding it renders as a thin dashed gray **sequence** wire. Data wires are now **deletable and selectable**, and can be created directly by a port-to-port drag (drag-to-bind) — see 8.9–8.14 below. Node-to-node drag still creates a control edge and triggers auto-wire underneath it, unchanged.
 
@@ -275,6 +289,8 @@ Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.p
 ---
 
 ## Part 9 — Try-in-Place, Previews, Caching, Run History ⚙️
+
+**▶ Demo:** [Try-in-place — run a workflow & see previews](http://localhost:3000/workflows/by-slug/demo-try-in-place-run-a-workflow-see-previews-part-9/edit)
 
 Requires Temporal server + **worker** + visibility store + `activity_output_cache` migration.
 
@@ -299,6 +315,8 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 ## Part 10 — Library Workflows
 
+**▶ Demo:** [Library workflow](http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10/edit)
+
 - [ ] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); success toast with **View library** link.
 - [ ] **10.2 Kind filter (list page).** `/workflows` SegmentedControl `Workflows / Libraries / All`. **Pass:** switching changes the row set; libraries appear under Libraries/All only.
 - [ ] **10.3 Kind filter (API).**
@@ -313,6 +331,8 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 ---
 
 ## Part 11 — Workflow-as-API
+
+**▶ Demo:** [Workflow-as-API — trigger URL & schema](http://localhost:3000/workflows/by-slug/demo-workflow-as-api-trigger-url-schema-part-11/edit)
 
 - [ ] **11.1 Mark inputs.** **More ▸ Settings** → ctx list → per-row **Input** checkbox. **Pass:** sets `ctx[key].isInput`; only flagged entries enter the derived input schema.
 - [ ] **11.2 Run drawer.** Top-bar **Run this workflow** (disabled in create mode). **Pass:** drawer shows Trigger URL (+copy), input schema field list, sample curl (+copy), auth notes, Paste-JSON + Run.
@@ -332,6 +352,8 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 ## Part 12 — Versioning
 
+**▶ Demo:** [Versioning — history & revert](http://localhost:3000/workflows/by-slug/demo-versioning-history-revert-part-12/edit)
+
 Prereq: a workflow **saved 2+ times**.
 
 - [ ] **12.1 History drawer.** **More ▸ History** (disabled in create mode). **Pass:** versions newest-first with `v{n}` badge + timestamp; head row shows **head** badge; per-row **Revert** / **Compare to head** (disabled on head).
@@ -349,6 +371,8 @@ Prereq: a workflow **saved 2+ times**.
 ---
 
 ## Part 13 — Document Sources ⚙️ (minio)
+
+**▶ Demo:** [Document sources — file upload](http://localhost:3000/workflows/by-slug/demo-document-sources-file-upload-part-13/edit)
 
 One `source.api` and one `source.upload` max per workflow.
 
@@ -368,6 +392,8 @@ One `source.api` and one `source.upload` max per workflow.
 ---
 
 ## Part 14 — Dynamic (Custom-Code) Nodes ⚙️ (deno-runner)
+
+**▶ Demo:** [Dynamic (custom-code) node — DYN pill & script editor](http://localhost:3000/workflows/by-slug/demo-dynamic-custom-code-node-dyn-pill-script-editor-part-14/edit)
 
 ### Setup note
 `DYNAMIC_NODE_ALLOW_NET` must be set **identically on both the backend and the Temporal worker** (read at startup — restart both to change). Unset = only the API base host is auto-granted.
@@ -408,6 +434,8 @@ One `source.api` and one `source.upload` max per workflow.
 
 ## Part 15 — AI Agent ☁️ 🔑
 
+**▶ Demo (canvas + chat replay):** [Agent — Invoice OCR pipeline](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit?agentChat=demo-agent-ocr-pipeline) — opens for the seeded user (`SEED_USER_SUB`); re-seed as your identity if the drawer is empty.
+
 Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At least one provider must be configured or `AgentModule` throws at startup.
 
 | Var | Purpose | Default |
@@ -438,6 +466,8 @@ Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At
 ---
 
 ## Part 16 — Workflow-Builder UX Polish
+
+**▶ Demo:** no dedicated workflow — the polish items (three-zone top bar, switch **diamond**, hover-to-extend popover) are showcased on the [Control-flow forms & condition editor](http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit) demo.
 
 - [ ] **16.1 Three-zone top bar.** Confirm `topbar-zone-left/center/right` render without overlap at narrow widths. **More** menu items: History, Run history, Save as library, Auto-arrange, Group selected, Simplified view, Workflow settings, Form preview.
 - [ ] **16.2 Simplified view / map-body grouping.** Build a map node with body nodes → toggle **Simplified view**. **Pass:** normal view draws a background container behind the map body (`map-body-container-<groupId>`); simplified view collapses to a group chip.
