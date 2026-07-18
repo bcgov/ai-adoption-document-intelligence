@@ -17,7 +17,8 @@
 1. **OQ1 — v1 seeds fields for `OcrResult` ONLY.** Runtime research showed `Document` and `Classification` are polymorphic and a schema would lie (spec §2 principle 3):
    - "Document"-kind values are sometimes `PreparedFileData` (`apps/temporal/src/types.ts:205`), sometimes a bare blob-key/base64 **string** (`blob.read`, `source.upload`), and the demo's `currentDoc` (`{type, confidence, blobKey}`) is trigger-supplied and matches no activity.
    - "Classification"-kind values are a bare string from `document.classify` but a `Record<string, ClassifiedDocument[]>` map from `azureClassify.poll`.
-   - `OcrResult` is consistent: both `azureOcr.extract` and `mistral.ocr` put an `OcrPayloadRef` (`apps/temporal/src/ocr-payload-ref-types.ts:6-14`) in ctx: `{ documentId, blobPath, storage: "blob", byteLength?, pageCount?, status? }`. The part-4 demo's pollUntil already reads `ctx.ocrResult.status` — the end-to-end demo path.
+   - `OcrResult` is consistent: both `azureOcr.extract` and `mistral.ocr` put an `OcrPayloadRef` (`apps/temporal/src/ocr-payload-ref-types.ts:6-14`) in ctx: `{ documentId, blobPath, storage: "blob", byteLength?, pageCount?, status? }`.
+   User approved this scope on 2026-07-18 ("we should only model the types we actually have") and directed that the demo carry a **functional** OCR chain rather than fabricated data — Task 9 adds a real `azureOcr.extract` producer for `ocrResult`, so the demo's kind resolution flows through the catalog (precedence 1) with no ctx tag.
 2. **OQ2 — cycle guard:** prefix-driven option generation (depth grows only on author action) + a hard `MAX_DRILL_DEPTH = 8` / `MAX_BASE_CHAIN = 16` cap in the pure functions.
 3. **OQ3 — captions:** yes; field rows show a dimmed `type · kind` caption.
 4. **OQ4 — parameterized kinds:** moot in v1 (no `Segment` schema seeded); inheritance via `baseKind` works unchanged when one is added.
@@ -47,8 +48,8 @@
 - Modify `src/features/workflow-builder/graph-widgets/ConditionExpressionEditor.tsx` (+ test) — field picker in step sub-mode.
 
 **Other:**
-- Modify `scripts/seed-feature-demos.mjs:399` — `ocrResult` ctx declaration gains `kind: "OcrResult"`.
-- Modify `docs-md/workflow-builder/KIND_FIELD_SCHEMAS_DESIGN.md` + `docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md` — Task 10.
+- Modify `scripts/seed-feature-demos.mjs` (`controlFlowConfig`, lines 370-551) — replace the fabricated `ocrResult` plumbing with the real `azureOcr.poll` → `azureOcr.extract` chain (Task 9; user directive: no made-up artifacts in demos).
+- Modify `docs-md/workflow-builder/KIND_FIELD_SCHEMAS_DESIGN.md`, `docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md`, `docs-md/workflow-builder/MANUAL_TEST_PLAN.md` — Task 10.
 
 **Conventions for every commit:** lefthook pre-commit runs Biome lint + tsc per workspace. Before each commit run `npx @biomejs/biome check --write <changed files>` from the repo root. Commit messages end with:
 `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
@@ -1482,52 +1483,98 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-### Task 9: Demo seed kind-tag + browser verification
+### Task 9: Make the part-4 demo's OCR chain functional + browser verification
+
+**User directive (2026-07-18):** no fabricated artifacts in demos — "setup that demo with a functional example instead of making stuff up". The part-4 demo (`controlFlowConfig`, `scripts/seed-feature-demos.mjs:370-551`) currently fakes its OCR data: the inline child's `preparedData` output (a *Document*-kind `PreparedFileData`) is mapped into a ctx key named `ocrResult`, and the pollUntil condition reads `ctx.ocrResult.status` — a field that object never has. Replace the fake with the real catalog chain (`azureOcr.poll` outputs `status`/`ocrResponse`, both `Artifact`; `azureOcr.extract` consumes `apimRequestId`+`ocrResponse` and outputs `ocrResult` of kind `OcrResult`). Consequence: **no ctx `kind` tag is needed at all** — `ocrResult` gets its kind from a genuine catalog producer (resolver precedence step 1), which is the stronger demo of this feature.
+
+`documents`/`currentDoc` stay untagged and free-typed (their trigger-supplied shape matches no registered kind — user-approved). The demo's *intentional* fixtures stay: `childOcr` and `approve` remain dead-end branches (the map-body dead-end-warning demo), and the nested switch condition is untouched.
 
 **Files:**
-- Modify: `scripts/seed-feature-demos.mjs:399`
+- Modify: `scripts/seed-feature-demos.mjs` (`controlFlowConfig`, lines 370-551)
 
-- [ ] **Step 1: Kind-tag the demo's `ocrResult`**
+- [ ] **Step 1: Honest ctx key for the child workflow's output**
 
-In `controlFlowConfig`'s ctx block (lines 394-401), change:
-
-```js
-  ocrResult: { type: "object" },
-```
-
-to:
+In `childOcr` (line ~464), change `outputMappings: [{ port: "preparedData", ctxKey: "ocrResult" }]` to:
 
 ```js
-  // Kind-tagged so the condition editor's variable picker can drill into
-  // OcrPayloadRef fields (ocrResult.status etc.). The value is written by
-  // the childWorkflow's outputMappings, which the frontend kind resolver
-  // does not walk — the ctx declaration is the authoritative tag here.
-  ocrResult: { type: "object", kind: "OcrResult" },
+        outputMappings: [{ port: "preparedData", ctxKey: "preparedDoc" }],
 ```
 
-Leave `documents`/`currentDoc` untagged: their trigger-supplied shape (`{type, confidence, blobKey}`) matches no registered kind, and a lying schema is worse than free-typing (spec §2 principles 3 & 6). The summary to the user must state this explicitly.
+and add to the ctx block (lines 394-401):
 
-- [ ] **Step 2: Re-seed (backend must be running on :3002)**
+```js
+      preparedDoc: { type: "object" },
+```
+
+- [ ] **Step 2: Poll on the poll activity's own output**
+
+In `pollOcr` (line ~474), bind the activity's real outputs and point the condition at them — replace the `condition` and add `outputs`:
+
+```js
+        condition: {
+          operator: "not-equals",
+          left: { ref: "ctx.ocrStatus" },
+          right: { literal: "running" },
+        },
+        outputs: [
+          { port: "status", ctxKey: "ocrStatus" },
+          { port: "ocrResponse", ctxKey: "ocrResponse" },
+        ],
+```
+
+(keep the existing `inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }]`, interval/timeout fields, and position). Add to the ctx block:
+
+```js
+      ocrStatus: { type: "string" },
+      ocrResponse: { type: "object" },
+```
+
+- [ ] **Step 3: Real `ocrResult` producer + new body exit**
+
+Add an `azureOcr.extract` node after the poll and make it the map-body exit:
+
+```js
+      extractOcr: {
+        id: "extractOcr",
+        type: "activity",
+        label: "Extract OCR result",
+        activityType: "azureOcr.extract",
+        inputs: [
+          { port: "apimRequestId", ctxKey: "apimRequestId" },
+          { port: "ocrResponse", ctxKey: "ocrResponse" },
+        ],
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(460, 680),
+      },
+```
+
+Change the map node's `bodyExitNodeId: "pollOcr"` to `bodyExitNodeId: "extractOcr"` and add the edge:
+
+```js
+      { id: "poll-extract", source: "pollOcr", target: "extractOcr", type: "normal" },
+```
+
+If save-time validation reports further required `azureOcr.extract` inputs (`fileName`/`fileType`/`modelId`), bind them to same-named declared ctx keys (add `fileName`/`fileType`/`modelId` as `{ type: "string" }` declarations) — honest caller-supplied inputs, not fabrications. The `ocrResult: { type: "object" }` declaration stays exactly as it is — NO `kind` tag.
+
+- [ ] **Step 4: Re-seed and check validation** (backend must be running on :3002)
 
 Run: `cd /home/alstruk/GitHub/ai-adoption-document-intelligence && node scripts/seed-feature-demos.mjs`
-Expected: script reports the demos upserted, including the part-4 control-flow demo.
+Expected: demos upserted with no new validation errors on the part-4 demo; the dead-end warning still names "Sub-workflow (inline OCR)" and "Wait for approval" (childOcr/approve remain intentionally unwired to the exit).
 
-- [ ] **Step 3: Browser-verify end-to-end** (frontend on :3000; follow the `app-browser-auth` skill, Approach A — origin-agnostic `**/api/**` route globs, run from the REPO ROOT, never install anything). Inline playwright script outline:
+- [ ] **Step 5: Browser-verify end-to-end** (frontend on :3000; follow the `app-browser-auth` skill, Approach A — origin-agnostic `**/api/**` route globs, run from the REPO ROOT, never install anything). Inline playwright script outline:
 
 1. Auth-bypass routes per the skill, then `page.goto("http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit")`.
-2. Click the "Wait until condition" (pollUntil) node; open its condition value editor; switch the left value to manual variable mode if step mode is shown.
-3. Clear the input and assert the dropdown lists `ocrResult.status` with a dimmed caption, and does NOT list `untyped`-style drill rows for `documents`.
-4. Pick `ocrResult.status`; assert the stored ref renders and no console/page errors occurred.
+2. Select the "Store Results" node; open its `ocrResult` input binding picker (typed path, `expectedKind: "OcrResult"`). Assert the dropdown lists `ocrResult` under Compatible AND drill rows `ocrResult.status` / `ocrResult.blobPath` with dimmed captions — kind resolved from the `extractOcr` catalog producer, no ctx tag.
+3. Open the pollUntil node's condition value editor in manual variable mode; assert `ocrResult.status` rows appear there too, and that `documents`/`currentDoc` show NO drill rows.
+4. Pick `ocrResult.status`; assert the value sticks and zero pageerrors occurred.
 5. Screenshot to the scratchpad directory for the summary.
 
-Expected: drill-down rows visible; picking works; zero pageerrors.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 cd /home/alstruk/GitHub/ai-adoption-document-intelligence
 git add scripts/seed-feature-demos.mjs
-git commit -m "feat(demos): kind-tag ocrResult in control-flow demo for field drill-down
+git commit -m "fix(demos): functional Azure OCR chain in control-flow demo (no fabricated ocrResult)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
@@ -1546,7 +1593,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 2. §8 Open questions: mark each resolved with one-line outcomes per Key decisions 1-6 (OQ1: OcrResult only + why Document/Classification stay schema-free; OQ2: prefix-driven + caps; OQ3: yes, `type · kind · optional` captions; OQ4: moot v1; OQ5: confirmed; OQ6: accepted subset + throw).
 3. Status line → `**Status:** Implemented (2026-07-18)` (adjust date to the actual completion date).
 
-- [ ] **Step 2: FEATURE_DEMO_GUIDE.md** — in the part-4 control-flow demo section, add a short "Field drill-down" bullet: open the pollUntil condition, manual variable mode, observe `ocrResult.*` rows with captions; note that `currentDoc` intentionally stays free-typed (untyped trigger data).
+- [ ] **Step 2: FEATURE_DEMO_GUIDE.md + MANUAL_TEST_PLAN.md** — in the part-4 control-flow demo sections:
+  1. Update every reference to the demo's structure that Task 9 changed: the map body exit is now "Extract OCR result" (`extractOcr`), not "Wait until condition"; the pollUntil condition reads `ctx.ocrStatus` (its own `status` output binding); the inline child writes `preparedDoc`, not `ocrResult`. Grep both docs for `Wait until condition`, `ocrResult`, and `bodyExit` mentions and reconcile.
+  2. Add a short "Field drill-down" bullet: select Store Results → `ocrResult` binding picker shows `ocrResult.*` drill rows with captions (kind from the real `azureOcr.extract` producer); same rows in the pollUntil condition's manual variable mode; `documents`/`currentDoc` intentionally stay free-typed (untyped trigger data).
+- [ ] **Step 2b: SESSION_HANDOFF.md** — if it describes the part-4 demo's body-exit/pollUntil wiring (grep `bodyExit` / `pollOcr`), reconcile those mentions too.
 
 - [ ] **Step 3: Full regression pass**
 
@@ -1572,6 +1622,8 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ## Summary notes for the final report (spec-gap disclosures required by CLAUDE.md)
 
-- v1 seeds a field schema for **OcrResult only**; `Document`/`Classification` stay schema-free because their runtime shapes are polymorphic (evidence in Key decisions §1). The original motivating case `currentDoc.type` therefore stays free-typed in v1 — it lights up if/when trigger-supplied documents get an honest kind.
+- v1 seeds a field schema for **OcrResult only**; `Document`/`Classification` stay schema-free because their runtime shapes are polymorphic (evidence in Key decisions §1). The original motivating case `currentDoc.type` therefore stays free-typed in v1 — it lights up if/when trigger-supplied documents get an honest kind. (User approved 2026-07-18.)
+- The part-4 demo's OCR chain was made functional (Task 9) per the user's no-fabricated-artifacts directive; the dead-end-warning fixtures (`childOcr`, `approve`) are intentionally kept as dead ends.
 - The spec's `resolveMapElementKind` export was superseded by the frontend recursive unwrap (Key decision 7); the spec is updated in Task 10.
 - No backend controllers/APIs were added or changed — no Swagger work applies. The executor evaluates drilled refs already.
+- **Follow-up (separate effort, after this plan):** audit ALL demo workflows in `scripts/seed-feature-demos.mjs` for fabricated/hypothetical artifacts (made-up ctx shapes, mislabeled outputs, conditions on fields nothing produces) — user request 2026-07-18; tracked in memory.
