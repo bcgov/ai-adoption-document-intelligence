@@ -421,4 +421,52 @@ test.describe("port wiring gestures", () => {
 
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
+
+  test("base64 content is rejected by a blob-key port (taxonomy sibling rejection)", async ({
+    page,
+    request,
+  }, testInfo) => {
+    const config: GraphConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "e2e sibling rejection" },
+      entryNodeId: "readBlob",
+      ctx: {},
+      nodes: {
+        readBlob: {
+          id: "readBlob",
+          type: "activity",
+          label: "Read Blob",
+          activityType: "blob.read",
+          ...pos(80, 120),
+        },
+        extract: {
+          id: "extract",
+          type: "activity",
+          label: "Extract Page Range",
+          activityType: "document.extractToBase64",
+          ...pos(560, 420),
+        },
+      },
+      edges: [],
+    };
+    const created = await createWorkflow(request, {
+      name: `e2e sibling rejection ${testInfo.testId}`,
+      config,
+    });
+    createdId = created.id;
+
+    const editor = new WorkflowEditorPage(page);
+    await editor.openExisting(createdId, 2);
+
+    // readBlob.base64 is DocumentContent; extract.blobKey is DocumentRef.
+    // Siblings under Document are not interchangeable — before the taxonomy
+    // wave this drop was accepted (both were "Document") and failed at run
+    // time; now the builder rejects it at draw time.
+    await dragConnectPorts(page, "readBlob", "base64", "extract", "blobKey");
+
+    await expect(edgeLocator(page, "wire:extract:blobKey")).toHaveCount(0);
+    await expect(page.getByText("can't be used here")).toBeVisible();
+
+    expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
+  });
 });
