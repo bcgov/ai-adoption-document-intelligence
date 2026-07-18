@@ -697,6 +697,38 @@ describe("WorkflowEditorCanvas — Scenario 5: validation badges on control-flow
     activityBadge.click();
     expect(onNodeBadgeClick).toHaveBeenCalledWith("activity_1");
   });
+
+  it("keeps the fan-indicator in the top-left corner when the node has no validation badge", () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    // No issues → no badge; the fan glyph sits in its home corner.
+    expect(screen.queryByTestId("node-badge-map_1")).toBeNull();
+    expect(screen.getByTestId("fan-indicator-map")).toHaveStyle({
+      left: "-7px",
+    });
+  });
+
+  it("shifts the fan-indicator aside when a validation badge occupies the top-left corner (no overlap)", () => {
+    const config = makeAllNodeTypesConfig();
+    const errorsByNode = new Map<string, GraphValidationError[]>([
+      [
+        "map_1",
+        [
+          {
+            path: "nodes.map_1.collectionCtxKey",
+            message: "collectionCtxKey is required",
+            severity: "error",
+          },
+        ],
+      ],
+    ]);
+    renderCanvas(config, { errorsByNode });
+    // Both render, and the fan glyph is shifted right so it no longer sits on
+    // top of the badge (which owns left:-7).
+    expect(screen.getByTestId("node-badge-map_1")).toBeInTheDocument();
+    expect(screen.getByTestId("fan-indicator-map")).toHaveStyle({
+      left: "18px",
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

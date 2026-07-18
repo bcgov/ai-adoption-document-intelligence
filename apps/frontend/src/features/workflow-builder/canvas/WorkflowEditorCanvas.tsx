@@ -898,7 +898,10 @@ function renderControlFlowHeader(ctx: ControlFlowRenderContext) {
   );
 }
 
-function renderFanIndicator(hints: ControlFlowVisualHints) {
+function renderFanIndicator(
+  hints: ControlFlowVisualHints,
+  offsetForBadge: boolean,
+) {
   const FanIcon = hints.fanIndicator;
   if (!FanIcon) return null;
   return (
@@ -908,7 +911,12 @@ function renderFanIndicator(hints: ControlFlowVisualHints) {
       style={{
         position: "absolute",
         top: -7,
-        left: -7,
+        // Home is the top-left corner, but the per-node ValidationBadge also
+        // lives there (top:-7, left:-7). When this node shows a validation
+        // badge, slide the fan glyph right so the two small circles sit
+        // side-by-side instead of overlapping (map/join only — they're the
+        // types that carry a fan indicator).
+        left: offsetForBadge ? 18 : -7,
         background: hints.color,
         color: "#fff",
         borderRadius: 9,
@@ -963,7 +971,10 @@ const ControlFlowRectangleRenderer = memo(
           position: "relative",
         }}
       >
-        {renderFanIndicator(hints)}
+        {renderFanIndicator(
+          hints,
+          (data.errorCount ?? 0) > 0 || (data.warningCount ?? 0) > 0,
+        )}
         <ValidationBadge
           nodeId={id}
           errorCount={data.errorCount ?? 0}
