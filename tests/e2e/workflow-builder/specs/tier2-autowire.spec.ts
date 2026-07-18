@@ -169,12 +169,15 @@ test.describe("auto-wire", () => {
 
     const inputs = page.getByTestId("inputs-section");
     await expect(inputs).toBeVisible();
-    // auto-bound row: producer label + "Auto" badge + Change source.
+    // auto-bound row: producer label + "Auto" badge; "Change source" is a
+    // secondary action behind the row's ⋯ menu.
     await expect(inputs.getByText("Prepare", { exact: true })).toBeVisible();
     await expect(inputs.getByText("Auto", { exact: true })).toBeVisible();
+    await inputs.getByTestId("input-row-menu-fileData").click();
     await expect(
-      inputs.getByRole("button", { name: "Change source" }),
+      page.getByTestId("input-row-menu-fileData-change"),
     ).toBeVisible();
+    await page.keyboard.press("Escape");
     // satisfied node → NO problems badge (auto-wire issues fold into the same
     // per-node validation badge, which only renders when something's wrong).
     await expect(page.getByTestId("node-badge-submit")).toHaveCount(0);
@@ -243,15 +246,27 @@ test.describe("auto-wire", () => {
     await editor.openExisting(createdId, 3);
 
     // The ambiguous input surfaces on the unified problems badge; clicking it
-    // selects the node AND opens the source picker for that input — one click
-    // to the exact fix.
+    // opens the node-scoped Validation drawer, whose input row deep-links to
+    // the source picker — one click to the exact fix.
     const badge = page.getByTestId("node-badge-sink");
     await expect(badge).toBeVisible();
-    await badge.click();
+    // The badge sits inside the transformed React-Flow node; in headless the
+    // node/pane overlay intercepts a positional click, so dispatch the click
+    // straight to the badge to exercise its deep-link handler.
+    await badge.dispatchEvent("click");
 
-    const picker = page.getByRole("dialog");
-    await expect(picker).toBeVisible();
-    // Both competing producers are offered to disambiguate.
+    // Node-scoped drawer titled "Problems on <label>" (the global drawer is
+    // titled "Validation"); it lists the ambiguous `fileData` input.
+    const drawer = page.getByRole("dialog", { name: /Problems on Submit OCR/ });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByTestId("validation-entry-sink")).toBeVisible();
+    // The input row carries the "Pick a source →" deep-link fix.
+    await drawer.getByText("Pick a source →").click();
+
+    // The source picker opens for that input, offering both competing producers.
+    const picker = page
+      .getByRole("dialog")
+      .filter({ hasText: "Choose a source" });
     await expect(picker.getByTestId("producer-row-label")).toHaveCount(2);
   });
 
@@ -270,25 +285,24 @@ test.describe("auto-wire", () => {
     await editor.selectNode("submit");
 
     const inputs = page.getByTestId("inputs-section");
-    // Change source → pick the sole compatible producer in the modal.
-    await inputs.getByRole("button", { name: "Change source" }).click();
+    // Change source (behind the auto-bound row's ⋯ menu) → pick the sole
+    // compatible producer in the modal.
+    await inputs.getByTestId("input-row-menu-fileData").click();
+    await page.getByTestId("input-row-menu-fileData-change").click();
     const modal = page.getByRole("dialog");
     await expect(modal).toContainText("Choose a source");
     await modal.getByTestId("producer-row-label").first().click();
 
-    // Now locked: ctxKey shown, "Pinned" badge, "Revert to automatic".
+    // Now locked: "Pinned" badge. The ⋯ menu offers both Change source and
+    // Revert to automatic.
     await expect(inputs.getByText("Pinned", { exact: true })).toBeVisible();
-    const revert = inputs.getByRole("button", { name: "Revert to automatic" });
-    await expect(revert).toBeVisible();
+    await inputs.getByTestId("input-row-menu-fileData").click();
     await expect(
-      inputs.getByRole("button", { name: "Change source" }),
-    ).toHaveCount(0);
-
-    // Revert → back to automatic.
-    await revert.click();
-    await expect(
-      inputs.getByRole("button", { name: "Change source" }),
+      page.getByTestId("input-row-menu-fileData-change"),
     ).toBeVisible();
+    // Revert → back to automatic.
+    await page.getByTestId("input-row-menu-fileData-revert").click();
+    await expect(inputs.getByText("Auto", { exact: true })).toBeVisible();
     await expect(inputs.getByText("Pinned", { exact: true })).toHaveCount(0);
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
@@ -311,8 +325,10 @@ test.describe("auto-wire", () => {
     // Locked binding surfaces its ctx key verbatim (not rewritten to __auto.*).
     await expect(inputs.getByText("manualDoc")).toBeVisible();
     await expect(inputs.getByText("Pinned", { exact: true })).toBeVisible();
+    // "Revert to automatic" is behind the locked row's ⋯ menu.
+    await inputs.getByTestId("input-row-menu-fileData").click();
     await expect(
-      inputs.getByRole("button", { name: "Revert to automatic" }),
+      page.getByTestId("input-row-menu-fileData-revert"),
     ).toBeVisible();
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });

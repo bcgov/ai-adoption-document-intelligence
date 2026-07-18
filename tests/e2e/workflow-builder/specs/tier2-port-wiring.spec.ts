@@ -279,11 +279,13 @@ test.describe("port wiring gestures", () => {
       page.getByTestId("port-row-clean-in-ocrResult"),
     ).toHaveAttribute("data-needs-source", "true");
 
-    // Revert to automatic — select the node, open Inputs, click Revert.
+    // Revert to automatic — select the node, open Inputs, and pick Revert
+    // from the disconnected row's ⋯ menu (secondary actions live there).
     await editor.selectNode("clean");
     const inputsSection = page.getByTestId("inputs-section");
     await expect(inputsSection).toBeVisible();
-    await inputsSection.getByRole("button", { name: "Revert to automatic" }).click();
+    await inputsSection.getByTestId("input-row-menu-ocrResult").click();
+    await page.getByTestId("input-row-menu-ocrResult-revert").click();
 
     const revertedWire = wireGroup(page, "wire:clean:ocrResult");
     await expect(revertedWire).toBeVisible();
