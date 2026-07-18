@@ -87,7 +87,10 @@ export function WorkflowSettingsDrawer({
       opened={opened}
       onClose={onClose}
       position="right"
-      size={420}
+      // Wide + responsive so the multi-column Context declarations table
+      // (Name / Type / Description / Kind / Input) has room to render legibly;
+      // clamps to the viewport on narrow screens.
+      size="clamp(480px, 60vw, 900px)"
       title="Workflow settings"
       overlayProps={{ opacity: 0.3 }}
       withinPortal
