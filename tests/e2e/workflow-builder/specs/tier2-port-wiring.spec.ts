@@ -19,13 +19,13 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  * hover-extend popover (§9).
  *
  * Real catalog kinds used (packages/graph-workflow/src/catalog/activities):
- *   - file.prepare        out preparedData: Document
- *   - azureOcr.submit     in  fileData: Document (compatible with prepare)
+ *   - file.prepare        out preparedData: PreparedFile
+ *   - azureOcr.submit     in  fileData: PreparedFile (compatible with prepare)
  *   - azureOcr.extract    in  apimRequestId: Artifact (required, name-match
  *                         only — NOT kind-satisfied by a Document producer)
  *                         out ocrResult: OcrResult
  *   - ocr.cleanup         in  ocrResult: OcrResult
- *   - document.split      in  blobKey: MultiPageDocument — Document is NOT
+ *   - document.split      in  blobKey: MultiPageDocument — PreparedFile is NOT
  *                         assignable to MultiPageDocument (isAssignable walks
  *                         MultiPageDocument's baseKind chain UP to Document,
  *                         not the reverse), so prep→split is the incompatible

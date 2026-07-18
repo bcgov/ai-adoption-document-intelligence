@@ -222,7 +222,7 @@ test.describe("try-in-place previews @infra", () => {
       });
       await expect(uploadPreview).toHaveAttribute(
         "data-output-kind",
-        "Document",
+        "DocumentRef",
       );
     },
   );

@@ -39,13 +39,13 @@ function apiSourceConfig(name: string): GraphConfig {
         label: "API endpoint",
         parameters: {
           fields: [
-            // kind Document so the derived output is assignable to prep's
-            // typed Document input — otherwise creation 400s.
+            // kind DocumentRef so the derived output is assignable to prep's
+            // typed DocumentRef input — otherwise creation 400s.
             {
               name: "documentUrl",
               type: "string",
               required: true,
-              kind: "Document",
+              kind: "DocumentRef",
             },
             { name: "priority", type: "number", required: false },
           ],

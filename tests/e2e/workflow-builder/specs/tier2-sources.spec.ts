@@ -79,15 +79,15 @@ function apiSourceConfig(name: string, withIsInputCtx: boolean): GraphConfig {
         sourceType: "source.api",
         label: "API endpoint",
         parameters: {
-          // kind Document so the derived output is assignable to prep's typed
-          // Document input — otherwise a real typed-binding error would mask the
-          // isInput warning this test is about.
+          // kind DocumentRef so the derived output is assignable to prep's
+          // typed DocumentRef input — otherwise a real typed-binding error
+          // would mask the isInput warning this test is about.
           fields: [
             {
               name: "documentUrl",
               type: "string",
               required: true,
-              kind: "Document",
+              kind: "DocumentRef",
             },
           ],
         },

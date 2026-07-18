@@ -971,7 +971,7 @@ function apiSourceConfig(name) {
               name: "documentUrl",
               type: "string",
               required: true,
-              kind: "Document",
+              kind: "DocumentRef",
               description: "Blob URL of the document to process",
             },
             {
