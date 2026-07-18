@@ -10,7 +10,7 @@
 import type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
 
 describe("ArtifactKind union", () => {
-  it("has exactly 21 members per TYPED_IO_DESIGN.md §1 / KIND_TAXONOMY_REFINEMENT_DESIGN.md §3", () => {
+  it("has exactly 23 members per TYPED_IO_DESIGN.md §1 / KIND_TAXONOMY_REFINEMENT_DESIGN.md §3", () => {
     const allKinds = [
       "Artifact",
       "Document",
@@ -31,12 +31,14 @@ describe("ArtifactKind union", () => {
       "OcrFields",
       "OcrTable",
       "Classification",
+      "ClassificationLabel",
+      "LabeledDocumentMap",
       "ValidationResult",
       "Reference",
     ] as const satisfies readonly ArtifactKind[];
 
-    expect(allKinds.length).toBe(21);
-    expect(new Set(allKinds).size).toBe(21);
+    expect(allKinds.length).toBe(23);
+    expect(new Set(allKinds).size).toBe(23);
   });
 
   it("enumerates all seven Segment<Kind> parameterised entries", () => {

@@ -23,6 +23,8 @@
  *   │   ├── OcrFields
  *   │   └── OcrTable
  *   ├── Classification
+ *   │   ├── ClassificationLabel     (bare label string)
+ *   │   └── LabeledDocumentMap      (label → segments record)
  *   ├── ValidationResult
  *   └── Reference
  *
@@ -51,6 +53,8 @@ export type ArtifactKind =
   | "OcrFields"
   | "OcrTable"
   | "Classification"
+  | "ClassificationLabel"
+  | "LabeledDocumentMap"
   | "ValidationResult"
   | "Reference";
 

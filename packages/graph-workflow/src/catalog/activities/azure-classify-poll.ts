@@ -55,7 +55,7 @@ export const azureClassifyPollCatalogEntry: ActivityCatalogEntry = {
       description:
         "Map of classifier label → array of detected documents with page ranges.",
       required: true,
-      kind: "Classification",
+      kind: "LabeledDocumentMap",
     },
     {
       name: "originalBlobKey",

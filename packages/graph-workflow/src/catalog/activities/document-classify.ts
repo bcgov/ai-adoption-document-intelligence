@@ -86,9 +86,10 @@ export const documentClassifyParametersSchema = z.object({
  * per-row selection type pill (US-096).
  *
  * Output kind rationale:
- *   - `segmentType: Classification` — the typed output that actually
- *     names a taxonomy kind; downstream nodes consume it as a
- *     `Classification` artifact.
+ *   - `segmentType: ClassificationLabel` — the typed output that actually
+ *     names a taxonomy kind; a bare label string, distinct from the
+ *     label→segments map produced by `azureClassify.poll`
+ *     (KIND_TAXONOMY_REFINEMENT_DESIGN.md §3).
  *   - `confidence: Artifact` + `matchedRule: Artifact` — scalar /
  *     structural metadata that doesn't belong to the artifact
  *     taxonomy. Using the `Artifact` wildcard per the all-or-nothing
@@ -126,7 +127,7 @@ export const documentClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Detected segment type",
       description: "Document type assigned by the matched rule.",
       required: true,
-      kind: "Classification",
+      kind: "ClassificationLabel",
     },
     {
       name: "confidence",

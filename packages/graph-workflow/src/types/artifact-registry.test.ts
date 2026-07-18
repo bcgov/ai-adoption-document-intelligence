@@ -43,6 +43,8 @@ const ALL_KINDS = [
   "OcrFields",
   "OcrTable",
   "Classification",
+  "ClassificationLabel",
+  "LabeledDocumentMap",
   "ValidationResult",
   "Reference",
 ] as const satisfies readonly ArtifactKind[];

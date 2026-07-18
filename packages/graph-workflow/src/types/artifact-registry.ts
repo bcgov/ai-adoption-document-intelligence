@@ -184,6 +184,21 @@ export const ARTIFACT_REGISTRY: Readonly<
     baseKind: "Artifact",
     isArray: false,
   },
+  ClassificationLabel: {
+    displayName: "Classification label",
+    color: "yellow",
+    baseKind: "Classification",
+    isArray: false,
+  },
+  LabeledDocumentMap: {
+    // Dynamic-key record (label → classified documents) — deliberately
+    // schema-free; zodToFields refuses records and drill-down does not
+    // apply (KIND_TAXONOMY_REFINEMENT_DESIGN.md §3).
+    displayName: "Labeled documents",
+    color: "yellow",
+    baseKind: "Classification",
+    isArray: false,
+  },
   ValidationResult: {
     displayName: "Validation result",
     color: "yellow",

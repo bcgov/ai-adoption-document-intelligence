@@ -265,3 +265,14 @@ describe("shape-honest Document subkinds (KIND_TAXONOMY_REFINEMENT_DESIGN.md §3
     expect(isAssignable("DocumentContent[]", "DocumentRef[]")).toBe(false);
   });
 });
+
+describe("shape-honest Classification subkinds", () => {
+  it("label and map are not interchangeable", () => {
+    expect(isAssignable("ClassificationLabel", "LabeledDocumentMap")).toBe(false);
+    expect(isAssignable("LabeledDocumentMap", "ClassificationLabel")).toBe(false);
+  });
+  it("both satisfy family-level Classification", () => {
+    expect(isAssignable("ClassificationLabel", "Classification")).toBe(true);
+    expect(isAssignable("LabeledDocumentMap", "Classification")).toBe(true);
+  });
+});

@@ -17,7 +17,7 @@ export const documentSelectClassifiedPagesCatalogEntry: ActivityCatalogEntry = {
       label: "Labeled documents",
       description: "Output from azureClassify.poll (keyed by label).",
       required: true,
-      kind: "Classification",
+      kind: "LabeledDocumentMap",
     },
     {
       name: "targetLabel",
