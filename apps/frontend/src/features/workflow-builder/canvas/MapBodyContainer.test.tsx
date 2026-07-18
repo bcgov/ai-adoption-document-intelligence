@@ -63,7 +63,7 @@ describe("MapBodyContainer", () => {
     expect(el).toHaveStyle({ width: "600px", height: "300px" });
   });
 
-  it("invokes onClick when clicked", () => {
+  it("invokes onClick when the label is clicked", () => {
     let clicks = 0;
     const data = {
       ...makeNode().data,
@@ -72,7 +72,12 @@ describe("MapBodyContainer", () => {
       },
     };
     renderContainer(data);
-    screen.getByTestId("map-body-container-__map_body_mapNode").click();
+    // The interactive target is the label chip; the box body itself is
+    // pointer-events:none so clicks fall through to nodes / the canvas pane.
+    const box = screen.getByTestId("map-body-container-__map_body_mapNode");
+    const label = box.querySelector("button");
+    expect(label).not.toBeNull();
+    label?.click();
     expect(clicks).toBe(1);
   });
 });

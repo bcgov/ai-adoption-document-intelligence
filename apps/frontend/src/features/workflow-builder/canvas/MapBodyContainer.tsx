@@ -32,15 +32,6 @@ export const MapBodyContainer = memo(function MapBodyContainer({
     <div
       data-testid={`map-body-container-${data.groupId}`}
       data-synthetic-group="true"
-      onClick={data.onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          data.onClick();
-        }
-      }}
-      role="button"
-      tabIndex={0}
       style={{
         width: data.width,
         height: data.height,
@@ -49,10 +40,17 @@ export const MapBodyContainer = memo(function MapBodyContainer({
         borderRadius: 12,
         padding: 4,
         position: "relative",
-        cursor: "pointer",
+        // The box itself is a passive backdrop: let clicks/drags fall through
+        // to the member nodes and the canvas pane behind it. Only the label
+        // chip is interactive (below). Without this the box would swallow pans
+        // started inside it.
+        pointerEvents: "none",
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={data.onClick}
+        title="Open the map node's settings"
         style={{
           position: "absolute",
           top: 6,
@@ -66,11 +64,15 @@ export const MapBodyContainer = memo(function MapBodyContainer({
           padding: "0 4px",
           border: `1px solid ${accent}`,
           borderRadius: 4,
+          cursor: "pointer",
+          // Re-enable interaction on just the label so it's clickable even
+          // though the surrounding box is pointer-events:none.
+          pointerEvents: "auto",
           ...(selected ? { boxShadow: `0 0 0 2px ${accent}55` } : {}),
         }}
       >
         {data.label}
-      </div>
+      </button>
     </div>
   );
 });

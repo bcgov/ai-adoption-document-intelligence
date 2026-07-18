@@ -38,6 +38,7 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import { mergeNodeGroups, synthesizeMapBodyGroups } from "./map-body-groups";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
 import {
   DETACH_FULLY_TOAST_ID,
@@ -306,6 +307,7 @@ function renderCanvas(
     selectedNodeId?: string | null;
     simplifiedView?: boolean;
     onGroupChipClick?: (groupId: string) => void;
+    onSelectMapBodyNode?: (nodeId: string) => void;
     onFixNodeInput?: (nodeId: string, port: string) => void;
   } = {},
 ) {
@@ -325,6 +327,7 @@ function renderCanvas(
         onNodeBadgeClick={options.onNodeBadgeClick}
         simplifiedView={currentSimplified}
         onGroupChipClick={options.onGroupChipClick}
+        onSelectMapBodyNode={options.onSelectMapBodyNode}
         onFixNodeInput={options.onFixNodeInput}
       />
     </MantineProvider>,
@@ -543,6 +546,67 @@ describe("WorkflowEditorCanvas — Scenario 2: map / join fan overlays", () => {
     expect(joinEl).toHaveAttribute("data-shape", "rectangle");
     expect(joinEl).toHaveAttribute("data-node-type", "join");
     expect(screen.getByTestId("fan-indicator-join")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Map-body container: clicking the box selects the owning map node (mirrors
+// the host, which merges the synthetic map-body groups into config.nodeGroups
+// via displayConfig before handing the config to the canvas).
+// ---------------------------------------------------------------------------
+
+function makeMapWithBodyDisplayConfig(): GraphWorkflowConfig {
+  const mapNode: MapNode = {
+    id: "m",
+    type: "map",
+    label: "Run for each",
+    collectionCtxKey: "items",
+    itemCtxKey: "item",
+    bodyEntryNodeId: "b1",
+    bodyExitNodeId: "b2",
+    metadata: { position: { x: 0, y: 0 } },
+  };
+  const b1: ActivityNode = {
+    id: "b1",
+    type: "activity",
+    label: "B1",
+    activityType: "data.transform",
+    parameters: {},
+    metadata: { position: { x: 200, y: 0 } },
+  };
+  const b2: ActivityNode = {
+    id: "b2",
+    type: "activity",
+    label: "B2",
+    activityType: "data.transform",
+    parameters: {},
+    metadata: { position: { x: 400, y: 0 } },
+  };
+  const base: GraphWorkflowConfig = {
+    schemaVersion: "1.0",
+    metadata: { name: "map-body", version: "1.0.0" },
+    ctx: {},
+    nodes: { m: mapNode, b1, b2 } as Record<string, GraphNode>,
+    edges: [{ id: "e1", source: "b1", target: "b2", type: "normal" }],
+    entryNodeId: "m",
+  };
+  const synthetic = synthesizeMapBodyGroups(base);
+  return {
+    ...base,
+    nodeGroups: mergeNodeGroups(base.nodeGroups ?? {}, synthetic),
+  };
+}
+
+describe("WorkflowEditorCanvas — map-body container selects its map node", () => {
+  it("clicking the body box calls onSelectMapBodyNode with the owning map node id", () => {
+    const onSelectMapBodyNode = vi.fn();
+    renderCanvas(makeMapWithBodyDisplayConfig(), { onSelectMapBodyNode });
+    const box = screen.getByTestId("map-body-container-__map_body_m");
+    // Only the label chip is interactive (the box body is pointer-events:none).
+    const label = box.querySelector("button");
+    expect(label).not.toBeNull();
+    label?.click();
+    expect(onSelectMapBodyNode).toHaveBeenCalledWith("m");
   });
 });
 

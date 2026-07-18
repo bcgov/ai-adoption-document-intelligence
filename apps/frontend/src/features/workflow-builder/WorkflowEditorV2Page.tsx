@@ -1393,6 +1393,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               onReactFlowReady={handleReactFlowReady}
               simplifiedView={simplifiedView}
               onGroupChipClick={setActiveGroupId}
+              onSelectMapBodyNode={selectNodeSticky}
               layoutNonce={layoutNonce}
               onFixNodeInput={handleFixNodeInput}
               highlightedNodeId={highlightedNodeId}

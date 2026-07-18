@@ -16,6 +16,15 @@ export function isSyntheticMapBodyGroupId(groupId: string): boolean {
 }
 
 /**
+ * Decode the owning map node's id from a synthetic map-body group id
+ * (`__map_body_<mapNodeId>` → `<mapNodeId>`). Inverse of the key built in
+ * `synthesizeMapBodyGroups`.
+ */
+export function mapNodeIdFromSyntheticGroupId(groupId: string): string {
+  return groupId.slice(SYNTHETIC_MAP_BODY_PREFIX.length);
+}
+
+/**
  * Walks every `map` node with both `bodyEntryNodeId` and `bodyExitNodeId`
  * set, BFS-traverses the edges from entry to exit, and returns one
  * synthetic `NodeGroup` per map keyed by `__map_body_<mapNodeId>`. The

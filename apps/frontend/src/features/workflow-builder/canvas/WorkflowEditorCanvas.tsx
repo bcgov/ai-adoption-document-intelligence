@@ -108,7 +108,10 @@ import {
   MapBodyContainer,
   type MapBodyContainerFlowNode,
 } from "./MapBodyContainer";
-import { isSyntheticMapBodyGroupId } from "./map-body-groups";
+import {
+  isSyntheticMapBodyGroupId,
+  mapNodeIdFromSyntheticGroupId,
+} from "./map-body-groups";
 import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
@@ -186,6 +189,13 @@ interface WorkflowEditorCanvasProps {
    * host can mount `GroupNodeSettings` in the right rail.
    */
   onGroupChipClick?: (groupId: string) => void;
+  /**
+   * Fires when the user clicks a map-body container box. Carries the owning
+   * map node's id so the host can select it (opening the map's settings, where
+   * the body entry/exit that define the box live). Distinct from
+   * `onGroupChipClick` — a map-body box is not an editable user group.
+   */
+  onSelectMapBodyNode?: (nodeId: string) => void;
   /**
    * Monotonic counter the host bumps when it stamps new `metadata.position`
    * values without any structural change — e.g. "Auto-arrange" (§4.2). The
@@ -1512,13 +1522,14 @@ function projectChipFlowNodes(
 
 /**
  * Project one `MapBodyContainerFlowNode` per synthetic map-body group. Size
- * is the bounding box of the member nodes' positions (padded). Clicks call
- * `onGroupChipClick(groupId)` so the host's right-rail focuses the group.
+ * is the bounding box of the member nodes' positions (padded). Clicking the
+ * box selects the owning map node (decoded from the synthetic group id) so its
+ * settings open — that's where the body entry/exit that define this box live.
  */
 function projectMapBodyContainerNodes(
   syntheticGroups: Record<string, NodeGroup>,
   config: GraphWorkflowConfig,
-  onGroupChipClick?: (groupId: string) => void,
+  onSelectMapNode?: (nodeId: string) => void,
 ): MapBodyContainerFlowNode[] {
   const out: MapBodyContainerFlowNode[] = [];
   for (const [groupId, group] of Object.entries(syntheticGroups)) {
@@ -1553,10 +1564,15 @@ function projectMapBodyContainerNodes(
         color: group.color,
         width: maxX - minX + nodeFootprintW + pad * 2,
         height: maxY - minY + nodeFootprintH + pad * 2,
-        onClick: () => onGroupChipClick?.(groupId),
+        onClick: () =>
+          onSelectMapNode?.(mapNodeIdFromSyntheticGroupId(groupId)),
       },
-      // Render BEHIND member nodes so clicks on member nodes still hit them.
-      zIndex: -1,
+      // zIndex 0 (not -1) keeps the box ABOVE the canvas pane so its label
+      // chip is clickable; it still renders behind member nodes because the
+      // container nodes are prepended to the node array (earlier = lower in
+      // the same stacking level). The box body is pointer-events:none, so
+      // member-node clicks and canvas pans still pass through it.
+      zIndex: 0,
       selectable: false,
       draggable: false,
     });
@@ -1675,6 +1691,7 @@ function WorkflowEditorCanvasInner({
   onSelectionChangeMany,
   simplifiedView = false,
   onGroupChipClick,
+  onSelectMapBodyNode,
   layoutNonce = 0,
   onFixNodeInput,
   highlightedNodeId = null,
@@ -1858,7 +1875,7 @@ function WorkflowEditorCanvasInner({
       const containerNodes = projectMapBodyContainerNodes(
         syntheticGroups,
         config,
-        onGroupChipClick,
+        onSelectMapBodyNode,
       );
       const normalNodes = projectFlowNodes(
         config,
@@ -1883,6 +1900,7 @@ function WorkflowEditorCanvasInner({
     setInternalNodes,
     simplifiedView,
     onGroupChipClick,
+    onSelectMapBodyNode,
   ]);
 
   // Auto-arrange position sync (§4.2). The structural fingerprint above
@@ -1910,7 +1928,7 @@ function WorkflowEditorCanvasInner({
       projectMapBodyContainerNodes(
         syntheticGroups,
         config,
-        onGroupChipClick,
+        onSelectMapBodyNode,
       ).map((c) => [c.id, c] as const),
     );
     setInternalNodes((prev) =>
@@ -1925,7 +1943,7 @@ function WorkflowEditorCanvasInner({
         return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
       }),
     );
-  }, [layoutNonce, config, onGroupChipClick, setInternalNodes]);
+  }, [layoutNonce, config, onSelectMapBodyNode, setInternalNodes]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
