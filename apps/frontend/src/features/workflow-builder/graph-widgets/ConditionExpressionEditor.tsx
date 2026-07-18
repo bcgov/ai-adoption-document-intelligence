@@ -14,9 +14,11 @@
  * and pollUntil termination criteria.
  */
 
+import { resolveKindFields } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Anchor,
+  Autocomplete,
   Box,
   Button,
   Group,
@@ -930,8 +932,39 @@ function ValueRefEditor({
             {resolved && (
               <Text size="10px" c="dimmed" data-testid={`${testId}-resolved`}>
                 {resolved.nodeLabel} → {resolved.portLabel}
+                {resolved.fieldPath !== undefined
+                  ? ` · ${resolved.fieldPath}`
+                  : ""}
               </Text>
             )}
+            {resolved?.portKind !== undefined &&
+              (() => {
+                // Drill into the producer port's kind fields (e.g.
+                // ocrResult.status). Only rendered when the kind has a schema
+                // (KIND_FIELD_SCHEMAS_DESIGN.md §5).
+                const fields = resolveKindFields(resolved.portKind);
+                if (fields.length === 0) return null;
+                const baseKey = producerCtxKey(
+                  config,
+                  resolved.producerNodeId,
+                  resolved.port,
+                );
+                return (
+                  <Autocomplete
+                    size="xs"
+                    label="Field (optional)"
+                    placeholder="Whole value"
+                    value={resolved.fieldPath ?? ""}
+                    data={fields.map((f) => f.name)}
+                    data-testid={`${testId}-field-input`}
+                    onChange={(next) =>
+                      onChange({
+                        ref: next === "" ? baseKey : `${baseKey}.${next}`,
+                      })
+                    }
+                  />
+                );
+              })()}
             <ConditionProducerPicker
               config={config}
               currentNodeId={currentNodeId ?? ""}

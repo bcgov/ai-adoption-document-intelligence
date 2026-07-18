@@ -797,6 +797,138 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
 });
 
 // ---------------------------------------------------------------------------
+// Field drill-down in step sub-mode (KIND_FIELD_SCHEMAS_DESIGN.md §5)
+// ocr(azureOcr.extract: ocrResult, kind OcrResult) → SW(switch).
+// ---------------------------------------------------------------------------
+
+function ocrStepConfig(): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "ocr",
+    nodes: {
+      ocr: {
+        id: "ocr",
+        type: "activity",
+        activityType: "azureOcr.extract",
+        label: "Extract OCR",
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+      },
+      SW: { id: "SW", type: "switch", label: "Branch", cases: [] },
+    },
+    edges: [{ id: "e", source: "ocr", target: "SW", type: "normal" }],
+    ctx: {},
+  };
+}
+
+describe("ConditionExpressionEditor — field drill-down in step sub-mode", () => {
+  function renderWithOcr(initial: ConditionExpression | undefined) {
+    function Harness() {
+      const [expr, setExpr] = useState(initial);
+      return (
+        <MantineProvider>
+          <ConditionExpressionEditor
+            value={expr}
+            onChange={setExpr}
+            config={ocrStepConfig()}
+            currentNodeId="SW"
+          />
+        </MantineProvider>
+      );
+    }
+    render(<Harness />);
+  }
+
+  it("offers a field picker when the selected producer port's kind has fields", () => {
+    renderWithOcr({
+      operator: "not-equals",
+      left: { ref: "ocrResult" },
+      right: { literal: "running" },
+    });
+    const fieldInput = screen.getByTestId(
+      "condition-expression-editor-left-field-input",
+    );
+    expect(fieldInput).toBeInTheDocument();
+    fireEvent.focus(fieldInput);
+    fireEvent.click(fieldInput);
+    expect(screen.getByText("status")).toBeInTheDocument();
+  });
+
+  it("selecting a field appends it to the stored ref; clearing restores the bare ref", () => {
+    renderWithOcr({
+      operator: "not-equals",
+      left: { ref: "ocrResult" },
+      right: { literal: "running" },
+    });
+    const fieldInput = screen.getByTestId(
+      "condition-expression-editor-left-field-input",
+    ) as HTMLInputElement;
+    fireEvent.change(fieldInput, { target: { value: "status" } });
+    // The resolved caption now shows the drilled fieldPath. Scope to the
+    // caption testid — ConditionProducerPicker rows render the bare
+    // "node → port" string too.
+    const resolvedCaption = screen.getByTestId(
+      "condition-expression-editor-left-resolved",
+    );
+    expect(resolvedCaption).toHaveTextContent(
+      "Extract OCR → OCR result · status",
+    );
+    // Clearing the field restores the bare ref (no fieldPath suffix).
+    fireEvent.change(fieldInput, { target: { value: "" } });
+    expect(
+      screen.getByTestId("condition-expression-editor-left-resolved"),
+    ).not.toHaveTextContent("status");
+  });
+
+  it("renders step sub-mode (not manual) for a drilled stored ref", () => {
+    renderWithOcr({
+      operator: "not-equals",
+      left: { ref: "ocrResult.status" },
+      right: { literal: "running" },
+    });
+    // Resolved caption with the fieldPath is shown (step mode), and the field
+    // input reflects the drilled field.
+    expect(
+      screen.getByText("Extract OCR → OCR result · status"),
+    ).toBeInTheDocument();
+    const fieldInput = screen.getByTestId(
+      "condition-expression-editor-left-field-input",
+    ) as HTMLInputElement;
+    expect(fieldInput.value).toBe("status");
+  });
+
+  it("shows no field picker for a producer port whose kind has no fields", () => {
+    // file.prepare's preparedData is kind Document — no field schema in v1.
+    function Harness() {
+      const [expr, setExpr] = useState<ConditionExpression | undefined>({
+        operator: "equals",
+        left: { ref: "__auto.A.preparedData" },
+        right: { literal: "x" },
+      });
+      return (
+        <MantineProvider>
+          <ConditionExpressionEditor
+            value={expr}
+            onChange={setExpr}
+            config={stepPickerConfig()}
+            currentNodeId="SW"
+          />
+        </MantineProvider>
+      );
+    }
+    render(<Harness />);
+    // The producer resolves (step mode caption shows) but no field picker,
+    // because Document carries no field schema.
+    expect(
+      screen.getByTestId("condition-expression-editor-left-resolved"),
+    ).toHaveTextContent("Prepare file → Prepared file data");
+    expect(
+      screen.queryByTestId("condition-expression-editor-left-field-input"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Group summaries (humanised, shown under every group at every depth)
 // ---------------------------------------------------------------------------
 

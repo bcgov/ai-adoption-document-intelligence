@@ -92,6 +92,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Prepare file",
       port: "preparedData",
       portLabel: "Prepared file data",
+      portKind: "Document",
     });
   });
 
@@ -102,6 +103,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Prepare file",
       port: "preparedData",
       portLabel: "Prepared file data",
+      portKind: "Document",
     });
   });
 
@@ -141,6 +143,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Second prep",
       port: "preparedData",
       portLabel: "Prepared file data",
+      portKind: "Document",
     });
     // Without a consumerNodeId, ties fall back to node-record order → A.
     expect(resolveCtxKeyToProducer(config, "shared")).toEqual({
@@ -148,6 +151,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "First prep",
       port: "preparedData",
       portLabel: "Prepared file data",
+      portKind: "Document",
     });
   });
 
@@ -167,6 +171,7 @@ describe("resolveCtxKeyToProducer", () => {
       nodeLabel: "Poll ready",
       port: "preparedData",
       portLabel: "Prepared file data",
+      portKind: "Document",
     });
   });
 });
@@ -278,5 +283,83 @@ describe("ensureConditionProducerBindings", () => {
     const config = makeConfig([prepare("A", "Prepare file"), sw]);
 
     expect(ensureConditionProducerBindings(config, "SW")).toBe(config);
+  });
+});
+
+// azureOcr.extract emits port "ocrResult" of kind "OcrResult" (has a field
+// schema), so drilled refs like "ocrResult.status" resolve against it.
+const extractOcr = (
+  id: string,
+  label: string,
+  outputs: { port: string; ctxKey: string }[] = [],
+): ActivityNode => ({
+  id,
+  type: "activity",
+  label,
+  activityType: "azureOcr.extract",
+  outputs,
+});
+
+describe("resolveCtxKeyToProducer — drilled refs", () => {
+  it("reverse-resolves a drilled ctx key to producer + fieldPath + portKind", () => {
+    const config = makeConfig([
+      extractOcr("ocr", "Extract OCR", [
+        { port: "ocrResult", ctxKey: "ocrResult" },
+      ]),
+    ]);
+    expect(resolveCtxKeyToProducer(config, "ocrResult.status")).toMatchObject({
+      producerNodeId: "ocr",
+      port: "ocrResult",
+      fieldPath: "status",
+      portKind: "OcrResult",
+    });
+  });
+
+  it("exact (non-drilled) keys resolve with fieldPath undefined", () => {
+    const config = makeConfig([
+      extractOcr("ocr", "Extract OCR", [
+        { port: "ocrResult", ctxKey: "ocrResult" },
+      ]),
+    ]);
+    const resolved = resolveCtxKeyToProducer(config, "ocrResult");
+    expect(resolved?.fieldPath).toBeUndefined();
+    expect(resolved?.producerNodeId).toBe("ocr");
+  });
+
+  it("does not prefix-match across a non-dot boundary", () => {
+    const config = makeConfig([
+      extractOcr("ocr", "Extract OCR", [
+        { port: "ocrResult", ctxKey: "ocrResult" },
+      ]),
+    ]);
+    expect(resolveCtxKeyToProducer(config, "ocrResultX")).toBeNull();
+  });
+
+  it("ensureConditionProducerBindings materialises the binding for a drilled ref", () => {
+    const sw: SwitchNode = {
+      id: "SW",
+      type: "switch",
+      label: "Branch",
+      cases: [
+        {
+          condition: {
+            operator: "not-equals",
+            left: { ref: "__auto.ocr.ocrResult.status" },
+            right: { literal: "running" },
+          },
+          edgeId: "",
+        },
+      ],
+    };
+    const config: GraphWorkflowConfig = {
+      ...makeConfig([extractOcr("ocr", "Extract OCR"), sw]),
+      edges: [{ id: "ocr-SW", source: "ocr", target: "SW", type: "normal" }],
+    };
+
+    const next = ensureConditionProducerBindings(config, "SW");
+    expect(next.nodes.ocr.outputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "__auto.ocr.ocrResult",
+    });
   });
 });

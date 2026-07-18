@@ -9,6 +9,7 @@
  */
 import {
   getActivityCatalogEntry,
+  type KindRef,
   synthesiseCtxKey,
   upstreamNodesWithDistance,
 } from "@ai-di/graph-workflow";
@@ -66,6 +67,10 @@ export interface ResolvedProducerRef {
   nodeLabel: string;
   port: string;
   portLabel: string;
+  /** Catalog kind of the producing port, when declared. */
+  portKind?: KindRef;
+  /** Field path AFTER the producer's ctx key ("status", "a.b") for drilled refs. */
+  fieldPath?: string;
 }
 
 /**
@@ -87,21 +92,34 @@ export function resolveCtxKeyToProducer(
     : null;
   let best: ResolvedProducerRef | null = null;
   let bestOrder = Number.MAX_SAFE_INTEGER;
+  let bestIsExact = false;
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type !== "activity" && node.type !== "pollUntil") continue;
     const entry = getActivityCatalogEntry(node.activityType);
     if (!entry) continue;
     for (const out of entry.outputs) {
-      if (producerCtxKey(config, nodeId, out.name) !== ctxKey) continue;
+      const key = producerCtxKey(config, nodeId, out.name);
+      const isExact = key === ctxKey;
+      // Drilled ref: the ctx key is `<producerKey>.<field...>`. Match only on
+      // a dot boundary so `ocrResultX` never resolves to the `ocrResult` port.
+      const isDrilled = !isExact && ctxKey.startsWith(`${key}.`);
+      if (!isExact && !isDrilled) continue;
+      // Prefer an exact producer over a drilled one; among equals, nearer wins.
+      if (best !== null && bestIsExact && !isExact) continue;
       const order = distances?.get(nodeId) ?? Number.MAX_SAFE_INTEGER;
-      if (best === null || order < bestOrder) {
+      const beatsBest =
+        best === null || (isExact && !bestIsExact) || order < bestOrder;
+      if (beatsBest) {
         best = {
           producerNodeId: nodeId,
           nodeLabel: node.label || nodeId,
           port: out.name,
           portLabel: out.label,
+          portKind: out.kind,
+          fieldPath: isDrilled ? ctxKey.slice(key.length + 1) : undefined,
         };
         bestOrder = order;
+        bestIsExact = isExact;
       }
     }
   }
