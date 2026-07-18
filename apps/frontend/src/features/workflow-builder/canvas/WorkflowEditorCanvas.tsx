@@ -1896,8 +1896,27 @@ function WorkflowEditorCanvasInner({
   useEffect(() => {
     if (prevLayoutNonceRef.current === layoutNonce) return;
     prevLayoutNonceRef.current = layoutNonce;
+    // Map-body container nodes aren't in `config.nodes`, so the position copy
+    // below can't move OR resize them — their geometry is the bounding box of
+    // the member positions that Auto-arrange just changed. Project them fresh
+    // so the box tracks its members; otherwise it stays at the pre-arrange
+    // bounds (displaced, no longer wrapping the body). Only REPLACES existing
+    // container nodes — in simplified view (no containers) this is a no-op.
+    const syntheticGroups: Record<string, NodeGroup> = {};
+    for (const [k, v] of Object.entries(config.nodeGroups ?? {})) {
+      if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
+    }
+    const freshContainers = new Map(
+      projectMapBodyContainerNodes(
+        syntheticGroups,
+        config,
+        onGroupChipClick,
+      ).map((c) => [c.id, c] as const),
+    );
     setInternalNodes((prev) =>
       prev.map((n): FlowNode => {
+        const fresh = freshContainers.get(n.id);
+        if (fresh) return fresh;
         const pos = (
           config.nodes[n.id]?.metadata as
             | { position?: { x: number; y: number } }
@@ -1906,7 +1925,7 @@ function WorkflowEditorCanvasInner({
         return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
       }),
     );
-  }, [layoutNonce, config.nodes, setInternalNodes]);
+  }, [layoutNonce, config, onGroupChipClick, setInternalNodes]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
