@@ -1,6 +1,11 @@
 import { ARTIFACT_REGISTRY, getArtifactKindMeta } from "./artifact-registry";
 import type { OcrPayloadRef } from "./kind-schemas";
-import { KIND_SCHEMAS, OcrResultSchema } from "./kind-schemas";
+import {
+  KIND_SCHEMAS,
+  OcrResultSchema,
+  PreparedFileSchema,
+} from "./kind-schemas";
+import { zodToFields } from "./zod-to-fields";
 
 describe("kind schemas", () => {
   it("OcrResultSchema derives the same shape the Temporal runtime constructs", () => {
@@ -44,5 +49,20 @@ describe("kind schemas", () => {
     // The wildcard cannot acquire fields at runtime either: the duplicate-name
     // guard rejects re-registration of "Artifact".
     expect(getArtifactKindMeta("Artifact")?.fields).toBeUndefined();
+  });
+
+  it("PreparedFileSchema derives the six PreparedFileData fields", () => {
+    expect(zodToFields(PreparedFileSchema, KIND_SCHEMAS)).toEqual([
+      { name: "fileName", type: "string", required: true },
+      { name: "fileType", type: "string", required: true },
+      { name: "contentType", type: "string", required: true },
+      { name: "blobKey", type: "string", required: true },
+      { name: "modelId", type: "string", required: true },
+      { name: "outputFormat", type: "string", required: false },
+    ]);
+  });
+
+  it("KIND_SCHEMAS maps PreparedFileSchema to PreparedFile by identity", () => {
+    expect(KIND_SCHEMAS.get(PreparedFileSchema)).toBe("PreparedFile");
   });
 });

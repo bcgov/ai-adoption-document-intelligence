@@ -2,12 +2,10 @@
  * Zod source-of-truth schemas for built-in kinds that carry field schemas
  * (KIND_FIELD_SCHEMAS_DESIGN.md §3.3–§3.4).
  *
- * v1 seeds OcrResult ONLY. Document and Classification are deliberately
- * schema-free: their runtime shapes are polymorphic (a "Document" is
- * sometimes PreparedFileData, sometimes a bare blob-key string; a
- * "Classification" is a string from document.classify but a label→segments
- * map from azureClassify.poll) and an honest wildcard beats a lying type
- * (spec §2 principle 3).
+ * `Document` and `Classification` stay schema-free ANCESTORS: they remain
+ * wildcards for the family, and shape-honest SUBKINDS (e.g. `PreparedFile`)
+ * carry the schemas instead. See
+ * docs-md/workflow-builder/KIND_TAXONOMY_REFINEMENT_DESIGN.md.
  *
  * Kinds compose by referencing each other's schema OBJECT (identity), so a
  * referenced kind's schema must be declared before schemas that embed it.
@@ -38,7 +36,30 @@ export const OcrResultSchema = z.object({
  */
 export type OcrPayloadRef = z.infer<typeof OcrResultSchema>;
 
+/**
+ * The PreparedFile-kind value: file.prepare's output, consumed verbatim by
+ * azureOcr.submit and mistralOcr.process. Field set verified against
+ * apps/temporal prepare-file-data.ts (KIND_TAXONOMY_REFINEMENT_DESIGN.md §4).
+ */
+export const PreparedFileSchema = z.object({
+  fileName: z.string(),
+  fileType: z.enum(["pdf", "image"]),
+  contentType: z.string(),
+  blobKey: z.string(),
+  /** Azure Document Intelligence model ID. */
+  modelId: z.string(),
+  /** Azure outputContentFormat: "text" (default) or "markdown". */
+  outputFormat: z.enum(["text", "markdown"]).optional(),
+});
+
+/**
+ * Single-source runtime type for PreparedFile-kind values; apps/temporal
+ * re-exports this as its `PreparedFileData`.
+ */
+export type PreparedFileData = z.infer<typeof PreparedFileSchema>;
+
 /** Identity map consumed by `zodToFields` to emit kind references. */
 export const KIND_SCHEMAS: KindSchemaMap = new Map<ZodType, KindRef>([
   [OcrResultSchema, "OcrResult"],
+  [PreparedFileSchema, "PreparedFile"],
 ]);
