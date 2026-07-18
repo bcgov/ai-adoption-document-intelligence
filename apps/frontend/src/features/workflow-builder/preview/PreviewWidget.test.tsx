@@ -220,9 +220,70 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(cls));
   });
 
+  // -----------------------------------------------------------------
+  // Family-aware dispatch — kind-taxonomy-refinement wave retagged
+  // catalog ports to shape-honest subkinds (`baseKind` → family).
+  // The ctx-slot resolution must follow the family root, not the
+  // exact `outputKind` string, or these fall through to no preview.
+  // -----------------------------------------------------------------
+
+  const SUBKIND_DOC_CASES: Array<ActivityOutputPreview["outputKind"]> = [
+    "PreparedFile",
+    "DocumentRef",
+    "DocumentContent",
+  ];
+
+  for (const kind of SUBKIND_DOC_CASES) {
+    it(`routes outputKind=${kind} (baseKind → Document) to DocumentPreview with ctx.document`, async () => {
+      const doc = { blob: { storage_key: "abc" }, pageCount: 1 };
+      fetchSpy.mockResolvedValue(
+        rowResponse(buildRow(kind, { document: doc })),
+      );
+
+      renderWithProviders(
+        <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      );
+
+      const stub = await screen.findByTestId("stub-document-preview");
+      expect(stub).toBeInTheDocument();
+      expect(stub.getAttribute("data-value")).toBe(JSON.stringify(doc));
+    });
+  }
+
+  it("routes outputKind=LabeledDocumentMap (baseKind → Classification) to ClassificationPreview with ctx.classification", async () => {
+    const cls = { label: "invoice", confidence: 0.92 };
+    fetchSpy.mockResolvedValue(
+      rowResponse(buildRow("LabeledDocumentMap", { classification: cls })),
+    );
+
+    renderWithProviders(
+      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+    );
+    const stub = await screen.findByTestId("stub-classification-preview");
+    expect(stub.getAttribute("data-value")).toBe(JSON.stringify(cls));
+  });
+
+  // `OcrTable`'s `baseKind` is `OcrResult` in the live registry, so
+  // family-aware dispatch now routes it to `OcrResultPreview` (it IS-A
+  // OcrResult) rather than falling through to null. No catalog port
+  // currently emits `OcrTable`, so this is a latent behavior change,
+  // not an observed regression — documented here rather than left in
+  // `UNKNOWN_KINDS` below.
+  it("routes outputKind=OcrTable (baseKind → OcrResult) to OcrResultPreview with ctx.ocrResult", async () => {
+    const ocr = { fields: { foo: "bar" } };
+    fetchSpy.mockResolvedValue(
+      rowResponse(buildRow("OcrTable", { ocrResult: ocr })),
+    );
+
+    renderWithProviders(
+      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+    );
+    const stub = await screen.findByTestId("stub-ocr-result-preview");
+    expect(stub.getAttribute("data-value")).toBe(JSON.stringify(ocr));
+  });
+
   const UNKNOWN_KINDS: Array<ActivityOutputPreview["outputKind"]> = [
     "Artifact",
-    "OcrTable",
     "ValidationResult",
     "Reference",
     "Segment",

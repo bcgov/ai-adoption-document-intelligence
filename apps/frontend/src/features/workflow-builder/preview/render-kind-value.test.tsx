@@ -78,4 +78,78 @@ describe("renderKindValue", () => {
     expect(renderKindValue("Artifact", "some-id")).toBeNull();
     expect(renderKindValue(null, 42)).toBeNull();
   });
+
+  // -------------------------------------------------------------------
+  // Family-aware dispatch — shape-honest subkinds retagged onto catalog
+  // ports by the kind-taxonomy-refinement wave must still resolve to
+  // their family's widget via `baseKind` (walked through the live
+  // registry), not exact-string match.
+  // -------------------------------------------------------------------
+
+  it("maps DocumentRef (baseKind → Document) to DocumentPreview", () => {
+    wrap(renderKindValue("DocumentRef", { blobKey: "b1", pageCount: 1 }));
+    expect(screen.getByTestId("document-preview")).toBeInTheDocument();
+  });
+
+  it("maps PreparedFile (baseKind → Document) to DocumentPreview", () => {
+    wrap(renderKindValue("PreparedFile", { blobKey: "b1", pageCount: 1 }));
+    expect(screen.getByTestId("document-preview")).toBeInTheDocument();
+  });
+
+  it("maps DocumentContent (baseKind → Document) to DocumentPreview", () => {
+    wrap(renderKindValue("DocumentContent", { blobKey: "b1", pageCount: 1 }));
+    expect(screen.getByTestId("document-preview")).toBeInTheDocument();
+  });
+
+  it("maps MultiPageDocument (baseKind → DocumentRef → Document) to DocumentPreview", () => {
+    wrap(renderKindValue("MultiPageDocument", { blobKey: "b1", pageCount: 3 }));
+    expect(screen.getByTestId("document-preview")).toBeInTheDocument();
+  });
+
+  it("maps SinglePageDocument (baseKind → DocumentRef → Document) to DocumentPreview", () => {
+    wrap(
+      renderKindValue("SinglePageDocument", { blobKey: "b1", pageCount: 1 }),
+    );
+    expect(screen.getByTestId("document-preview")).toBeInTheDocument();
+  });
+
+  it("maps ClassificationLabel (baseKind → Classification) to ClassificationPreview", () => {
+    wrap(
+      renderKindValue("ClassificationLabel", {
+        label: "invoice",
+        confidence: 0.92,
+      }),
+    );
+    expect(screen.getByTestId("classification-preview")).toBeInTheDocument();
+  });
+
+  it("maps LabeledDocumentMap (baseKind → Classification) to ClassificationPreview", () => {
+    wrap(
+      renderKindValue("LabeledDocumentMap", {
+        label: "invoice",
+        confidence: 0.92,
+      }),
+    );
+    expect(screen.getByTestId("classification-preview")).toBeInTheDocument();
+  });
+
+  it("still maps OcrResult to OcrResultPreview (regression guard)", () => {
+    wrap(renderKindValue("OcrResult", { foo: "bar" }));
+    expect(screen.getByTestId("ocr-preview-root")).toBeInTheDocument();
+  });
+
+  it("still maps Segment[] to SegmentArrayPreview (regression guard)", () => {
+    wrap(
+      renderKindValue("Segment[]", [
+        { parentDocId: "d1", polygon: [0, 0, 10, 0, 10, 10, 0, 10] },
+      ]),
+    );
+    expect(screen.getByTestId("segment-array-preview")).toBeInTheDocument();
+  });
+
+  it("returns null for an unknown kind or null (regression guard)", () => {
+    expect(renderKindValue("Artifact", "some-id")).toBeNull();
+    expect(renderKindValue("Reference", "some-id")).toBeNull();
+    expect(renderKindValue(null, 42)).toBeNull();
+  });
 });

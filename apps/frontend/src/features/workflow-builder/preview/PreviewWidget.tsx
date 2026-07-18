@@ -33,7 +33,7 @@ import type { ReactNode } from "react";
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
 import type { ActivityOutputPreview } from "./preview.types";
-import { renderKindValue } from "./render-kind-value";
+import { familyRoot, renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
 
 /**
@@ -141,33 +141,41 @@ export function PreviewWidget({
 }
 
 /**
- * Pure dispatch — switches on `outputKind` and forwards the
- * appropriate ctx slot to the matching widget. Kept as a separate
- * helper so the widget stories (US-142 → US-145) can drop in their
- * components by replacing the corresponding `case` body (or the
- * widget file's body) without touching the loading / error branches.
+ * Pure dispatch — resolves `outputKind` to its `baseKind` family root
+ * and forwards the appropriate ctx slot to the matching widget. Kept
+ * as a separate helper so the widget stories (US-142 → US-145) can
+ * drop in their components by replacing the corresponding `case` body
+ * (or the widget file's body) without touching the loading / error
+ * branches.
  *
- * The ctx-slot key per `outputKind` mirrors the design doc's §4.1
- * example.
+ * Family-based (not exact-string) so shape-honest subkinds retagged
+ * onto catalog ports by the kind-taxonomy-refinement wave (e.g.
+ * `PreparedFile`, `DocumentRef`, `ClassificationLabel`,
+ * `LabeledDocumentMap`) still resolve to the right ctx slot — mirrors
+ * `render-kind-value.tsx`'s `familyRoot` resolution so this dispatch
+ * and `renderKindValue`'s widget dispatch can never drift apart.
+ *
+ * The ctx-slot key per family mirrors the design doc's §4.1 example.
  */
 function renderForOutputKind(data: ActivityOutputPreview): ReactNode {
   const { outputKind, outputCtx } = data;
   const slot = ((): unknown => {
-    switch (outputKind) {
+    if (!outputKind) return undefined;
+    const isArray = outputKind.endsWith("[]");
+    const root = familyRoot(isArray ? outputKind.slice(0, -2) : outputKind);
+    if (isArray) {
+      return root === "Segment" ? outputCtx.segments : undefined;
+    }
+    switch (root) {
       case "Document":
-      case "MultiPageDocument":
-      case "SinglePageDocument":
         return outputCtx.document;
-      case "Segment[]":
-        return outputCtx.segments;
       case "OcrResult":
-      case "OcrFields":
         return outputCtx.ocrResult;
       case "Classification":
         return outputCtx.classification;
       default:
-        // null `outputKind` OR an unsupported kind (`Segment` singular,
-        // `OcrTable`, `ValidationResult`, `Reference`, `Artifact`, …).
+        // null `outputKind` OR an unsupported family (`Segment`
+        // singular, `ValidationResult`, `Reference`, `Artifact`, …).
         // `renderKindValue` returns null for these — Phase 4.x adds
         // further widgets to the shared dispatch.
         return undefined;
