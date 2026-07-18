@@ -16,6 +16,8 @@ npm run seed:demos
 
 > How the seeder works (prereqs, env, extending it): see [FEATURE_DEMO_SEEDER.md](FEATURE_DEMO_SEEDER.md).
 
+> **New to the builder?** [DATAFLOW_CONCEPTS.md](DATAFLOW_CONCEPTS.md) explains how data moves between nodes — ctx keys, why a wire is just two ports sharing a key, auto vs hand-authored keys, and when to declare a variable. Worth reading before Part 3.
+
 ## Contents
 
 - [Typed I/O — coloured port rows (Part 7)](#typed-io-coloured-port-rows-part-7)
@@ -87,10 +89,12 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-node-settings-panel-canvas-basics-part-3/edit](http://localhost:3000/workflows/by-slug/demo-node-settings-panel-canvas-basics-part-3/edit)
 
-1. Click **Submit to Azure OCR** → the settings panel shows the editable label + a type badge.
-1. Edit the label and blur — the node updates live.
-1. Toggle **Advanced** to reveal the raw port bindings.
-1. In an input binding, type a **new** variable name (e.g. `myNewVar`) → a **+ Create variable "myNewVar"** button appears beneath the field. Click it → the variable is declared and the node binds to it. Without this, saving a binding to an undeclared ctx key fails validation — the button removes the detour to Workflow Settings.
+1. Click **Submit to Azure OCR** → the right-hand **settings panel** opens with the node's editable **label** and a **type badge** (its activity type).
+1. Edit the label and click away (blur) — the node on the canvas updates live.
+1. Toggle **Show advanced** to reveal the node's raw **port bindings** — two lists, **Input bindings** and **Output bindings**. Every activity has typed **ports** (this OCR node has one input port `fileData` and one output port `apimRequestId`), and a *binding* wires a port to a **ctx key** — a named variable in the workflow's shared `ctx` bag. Inputs *read from* a ctx key; outputs *write to* one. That's how data moves between nodes: **Prepare File Data** writes `preparedFileData`, and this node's `fileData` input reads it back.
+1. Change the `fileData` input's ctx key from `preparedFileData` to a brand-new name, e.g. `myNewVar`. On the node card the input row now reads **`fileData · from myNewVar`** — the *“from <ctxKey>”* suffix is simply the variable that port currently reads from.
+1. Because `myNewVar` isn't declared yet, a **+ Create variable "myNewVar"** button appears beneath the field. Binding a port to an *undeclared* ctx key is a save-blocking validation error (*“references undeclared ctx key”*); the button declares it inline (adds it to the workflow's `ctx`) so you skip the detour to **Workflow Settings**. Click it → the variable is declared, the binding becomes valid, and the error clears.
+1. Note there's **no error even though nothing produces `myNewVar`**. The validator only requires a bound ctx key to be *declared* (and that producer/consumer **kinds** match *when* a producer exists) — it does **not** require every consumed variable to have a producing node, since `ctx` can also be filled by the run's trigger/input. A declared-but-unproduced variable is intentionally valid.
 
 ---
 
