@@ -24,7 +24,10 @@
  * Mantine's palette (more saturated than `orange`), so we use that here.
  */
 
+import type { FieldDescriptor } from "../catalog/source-types";
 import type { ArtifactKind } from "./artifacts";
+import { KIND_SCHEMAS, OcrResultSchema } from "./kind-schemas";
+import { zodToFields } from "./zod-to-fields";
 
 /**
  * Per-kind UI metadata. `isArray` is always `false` on registry entries
@@ -36,6 +39,13 @@ export interface ArtifactKindMeta {
   displayName: string;
   color: string;
   baseKind?: ArtifactKind;
+  /**
+   * The kind's OWN field schema (excludes inherited — resolution walks
+   * `baseKind`; see kind-fields.ts). Derived from the kind's Zod schema via
+   * `zodToFields`, never hand-written, so it cannot drift from the runtime
+   * type (KIND_FIELD_SCHEMAS_DESIGN.md §3.4). Absent = no drill-down.
+   */
+  fields?: FieldDescriptor[];
   isArray: false;
 }
 
@@ -45,125 +55,127 @@ export interface ArtifactKindMeta {
  * below. The hierarchy declared via `baseKind` matches TYPED_IO_DESIGN.md
  * §1; the palette matches §4.
  */
-export const ARTIFACT_REGISTRY: Readonly<Record<ArtifactKind, ArtifactKindMeta>> =
-  Object.freeze({
-    Artifact: { displayName: "Artifact", color: "gray", isArray: false },
+export const ARTIFACT_REGISTRY: Readonly<
+  Record<ArtifactKind, ArtifactKindMeta>
+> = Object.freeze({
+  Artifact: { displayName: "Artifact", color: "gray", isArray: false },
 
-    // Document family → blue
-    Document: {
-      displayName: "Document",
-      color: "blue",
-      baseKind: "Artifact",
-      isArray: false,
-    },
-    MultiPageDocument: {
-      displayName: "Multi-page document",
-      color: "blue",
-      baseKind: "Document",
-      isArray: false,
-    },
-    SinglePageDocument: {
-      displayName: "Single-page document",
-      color: "blue",
-      baseKind: "Document",
-      isArray: false,
-    },
+  // Document family → blue
+  Document: {
+    displayName: "Document",
+    color: "blue",
+    baseKind: "Artifact",
+    isArray: false,
+  },
+  MultiPageDocument: {
+    displayName: "Multi-page document",
+    color: "blue",
+    baseKind: "Document",
+    isArray: false,
+  },
+  SinglePageDocument: {
+    displayName: "Single-page document",
+    color: "blue",
+    baseKind: "Document",
+    isArray: false,
+  },
 
-    // Segment family → green
-    Segment: {
-      displayName: "Segment",
-      color: "green",
-      baseKind: "Artifact",
-      isArray: false,
-    },
-    "Segment<Text>": {
-      displayName: "Segment (Text)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<Table>": {
-      displayName: "Segment (Table)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<Figure>": {
-      displayName: "Segment (Figure)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<Form>": {
-      displayName: "Segment (Form)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<KeyValue>": {
-      // Sentence-cased rendering of the camelCase `KeyValue` parameter
-      // so the UI label doesn't leak camelCase per Scenario 2.
-      displayName: "Segment (Key/value)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<Signature>": {
-      displayName: "Segment (Signature)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
-    "Segment<Header>": {
-      displayName: "Segment (Header)",
-      color: "green",
-      baseKind: "Segment",
-      isArray: false,
-    },
+  // Segment family → green
+  Segment: {
+    displayName: "Segment",
+    color: "green",
+    baseKind: "Artifact",
+    isArray: false,
+  },
+  "Segment<Text>": {
+    displayName: "Segment (Text)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<Table>": {
+    displayName: "Segment (Table)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<Figure>": {
+    displayName: "Segment (Figure)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<Form>": {
+    displayName: "Segment (Form)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<KeyValue>": {
+    // Sentence-cased rendering of the camelCase `KeyValue` parameter
+    // so the UI label doesn't leak camelCase per Scenario 2.
+    displayName: "Segment (Key/value)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<Signature>": {
+    displayName: "Segment (Signature)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
+  "Segment<Header>": {
+    displayName: "Segment (Header)",
+    color: "green",
+    baseKind: "Segment",
+    isArray: false,
+  },
 
-    // OcrResult family → violet
-    OcrResult: {
-      displayName: "OCR result",
-      color: "violet",
-      baseKind: "Artifact",
-      isArray: false,
-    },
-    OcrFields: {
-      displayName: "OCR fields",
-      color: "violet",
-      baseKind: "OcrResult",
-      isArray: false,
-    },
-    OcrTable: {
-      displayName: "OCR table",
-      color: "violet",
-      baseKind: "OcrResult",
-      isArray: false,
-    },
+  // OcrResult family → violet
+  OcrResult: {
+    displayName: "OCR result",
+    color: "violet",
+    baseKind: "Artifact",
+    fields: zodToFields(OcrResultSchema, KIND_SCHEMAS),
+    isArray: false,
+  },
+  OcrFields: {
+    displayName: "OCR fields",
+    color: "violet",
+    baseKind: "OcrResult",
+    isArray: false,
+  },
+  OcrTable: {
+    displayName: "OCR table",
+    color: "violet",
+    baseKind: "OcrResult",
+    isArray: false,
+  },
 
-    // Classification + ValidationResult → "amber" per design doc; using
-    // `"yellow"` as the closest match in Mantine v7's default palette.
-    Classification: {
-      displayName: "Classification",
-      color: "yellow",
-      baseKind: "Artifact",
-      isArray: false,
-    },
-    ValidationResult: {
-      displayName: "Validation result",
-      color: "yellow",
-      baseKind: "Artifact",
-      isArray: false,
-    },
+  // Classification + ValidationResult → "amber" per design doc; using
+  // `"yellow"` as the closest match in Mantine v7's default palette.
+  Classification: {
+    displayName: "Classification",
+    color: "yellow",
+    baseKind: "Artifact",
+    isArray: false,
+  },
+  ValidationResult: {
+    displayName: "Validation result",
+    color: "yellow",
+    baseKind: "Artifact",
+    isArray: false,
+  },
 
-    // Reference → teal
-    Reference: {
-      displayName: "Reference",
-      color: "teal",
-      baseKind: "Artifact",
-      isArray: false,
-    },
-  } as const satisfies Record<ArtifactKind, ArtifactKindMeta>);
+  // Reference → teal
+  Reference: {
+    displayName: "Reference",
+    color: "teal",
+    baseKind: "Artifact",
+    isArray: false,
+  },
+} as const satisfies Record<ArtifactKind, ArtifactKindMeta>);
 
 /**
  * Live mutable map seeded from `ARTIFACT_REGISTRY`. `registerArtifactKind`

@@ -9,11 +9,15 @@
  * function `isAssignable` (US-091). See TYPED_IO_DESIGN.md §1, §6.
  */
 
-export type { ArtifactKind, ArrayKind, KindRef, Segment } from "./artifacts";
 export type { ArtifactKindMeta } from "./artifact-registry";
 export {
   ARTIFACT_REGISTRY,
-  registerArtifactKind,
   getArtifactKindMeta,
+  registerArtifactKind,
 } from "./artifact-registry";
+export type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
+export type { OcrPayloadRef } from "./kind-schemas";
+export { KIND_SCHEMAS, OcrResultSchema } from "./kind-schemas";
 export { isAssignable } from "./subtype-check";
+export type { KindSchemaMap } from "./zod-to-fields";
+export { zodToFields } from "./zod-to-fields";
