@@ -191,7 +191,7 @@ describe("WorkflowEdge — Scenario 1: normal edge", () => {
 });
 
 describe("WorkflowEdge — Scenario 2: conditional edge from switch with matching case", () => {
-  it("renders switch accent stroke and `case[i]: <predicate>` label", () => {
+  it("renders switch accent stroke and `if <predicate>` label", () => {
     const condition: ComparisonExpression = {
       operator: "equals",
       left: { ref: "ctx.requiresReview" },
@@ -216,7 +216,7 @@ describe("WorkflowEdge — Scenario 2: conditional edge from switch with matchin
       }),
     );
     const label = screen.getByTestId("edge-label");
-    expect(label).toHaveTextContent("case[0]: ctx.requiresReview == true");
+    expect(label).toHaveTextContent("if ctx.requiresReview is true");
     // SWITCH_ACCENT is "#facc15" → rgb(250, 204, 21) once jsdom
     // normalises the CSSOM colour.
     expectBaseEdgeStroke("rgb(250, 204, 21)");
@@ -231,7 +231,7 @@ describe("WorkflowEdge — Scenario 2: conditional edge from switch with matchin
 });
 
 describe("WorkflowEdge — Scenario 3: conditional edge bound to switch.defaultEdge", () => {
-  it("renders the literal `default` label", () => {
+  it("renders the literal `otherwise` label", () => {
     const sourceSwitch = makeSwitchNode({
       id: "s1",
       defaultEdge: "e-default",
@@ -250,12 +250,12 @@ describe("WorkflowEdge — Scenario 3: conditional edge bound to switch.defaultE
         data: { graphEdge, sourceSwitch },
       }),
     );
-    expect(screen.getByTestId("edge-label")).toHaveTextContent("default");
+    expect(screen.getByTestId("edge-label")).toHaveTextContent("otherwise");
   });
 });
 
 describe("WorkflowEdge — Scenario 4: orphan conditional edge", () => {
-  it("renders `case[?]` when the edge id is not in cases or defaultEdge", () => {
+  it("renders `(unmatched)` when the edge id is not in cases or defaultEdge", () => {
     const sourceSwitch = makeSwitchNode({
       id: "s1",
       cases: [
@@ -284,7 +284,7 @@ describe("WorkflowEdge — Scenario 4: orphan conditional edge", () => {
         data: { graphEdge, sourceSwitch },
       }),
     );
-    expect(screen.getByTestId("edge-label")).toHaveTextContent("case[?]");
+    expect(screen.getByTestId("edge-label")).toHaveTextContent("(unmatched)");
   });
 });
 
@@ -676,7 +676,7 @@ describe("WorkflowEdge — Scenario 6: registered xyflow edge contract", () => {
     expect(baseEdge.getAttribute("data-edge-id")).toBe("e-routed");
     expect(screen.getByTestId("edge-label-renderer")).toBeInTheDocument();
     expect(screen.getByTestId("edge-label")).toHaveTextContent(
-      "case[0]: ctx.flag == true",
+      "if ctx.flag is true",
     );
   });
 });

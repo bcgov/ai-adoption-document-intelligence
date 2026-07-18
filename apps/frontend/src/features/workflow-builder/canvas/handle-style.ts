@@ -110,7 +110,20 @@ export function computeHandleStyle(opts: ComputeHandleStyleOpts): HandleStyle {
     };
   }
 
-  // Zero typed ports OR two-or-more typed ports collapse to gray.
+  // Zero typed ports OR two-or-more typed ports collapse to a gray wildcard
+  // handle. The tooltip distinguishes the two: a node with NO typed ports
+  // (e.g. a map/join whose data flow is via ctx keys, not ports) shouldn't
+  // claim it has "multiple" — that misrepresents the cardinality.
+  if (typedKinds.length === 0) {
+    return {
+      color: GRAY_COLOR,
+      isArray: false,
+      isMultiPort: true,
+      tooltipText:
+        direction === "input" ? "No typed inputs" : "No typed outputs",
+    };
+  }
+
   const tooltipText =
     direction === "input"
       ? "Multiple inputs — select node to view all"

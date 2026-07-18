@@ -11,10 +11,10 @@
  *   - `variant: "sequence"`→ grey DASHED stroke, no label — execution
  *                            order only, no data flows on this hop.
  *   - `variant: "conditional"` → switch accent stroke, label is either
- *                            `case[i]: <predicate>` (when the edge id is
+ *                            `if <predicate>` (when the edge id is
  *                            referenced by `switch.cases[i].edgeId`),
- *                            `default` (when the edge id is the
- *                            switch's `defaultEdge`), or `case[?]`
+ *                            `otherwise` (when the edge id is the
+ *                            switch's `defaultEdge`), or `(unmatched)`
  *                            otherwise.
  *   - `variant: "error"`   → red stroke, label `on error`.
  *
@@ -54,7 +54,7 @@ import { WirePeekPopover } from "./WirePeekPopover";
  * `wire` carries the derived wire this edge renders. Structural wires
  * (sequence / conditional / error) ALSO carry `graphEdge` (and, for
  * switch sources, `sourceSwitch` so the renderer can resolve
- * `cases[i].edgeId` → `case[i]: <label>` without holding a reference to
+ * `cases[i].edgeId` → `if <label>` without holding a reference to
  * the entire graph); data wires carry `wire` only. Legacy projections
  * (simplified view) supply `graphEdge` without `wire`.
  *
@@ -135,7 +135,7 @@ function computeConditionalLabel(
 ): LabelComputation {
   const accent = SWITCH_ACCENT;
   if (!sourceSwitch) {
-    return { text: "case[?]", accent };
+    return { text: "(unmatched)", accent };
   }
   if (sourceSwitch.defaultEdge === graphEdge.id) {
     return { text: formatCaseLabel({ kind: "default" }), accent };
@@ -144,7 +144,7 @@ function computeConditionalLabel(
     (c) => c.edgeId === graphEdge.id,
   );
   if (caseIndex < 0) {
-    return { text: "case[?]", accent };
+    return { text: "(unmatched)", accent };
   }
   const expression = sourceSwitch.cases[caseIndex].condition;
   return {

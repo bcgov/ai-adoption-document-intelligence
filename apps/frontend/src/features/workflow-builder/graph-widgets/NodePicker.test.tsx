@@ -359,3 +359,29 @@ describe("NodePicker — §4.1: Autocomplete typing does not clobber the value",
     expect(onChange).toHaveBeenCalledWith("n7");
   });
 });
+
+describe("NodePicker — restrictToIds", () => {
+  it("lists only nodes whose id is in the restrict set", () => {
+    const config = makeConfig([
+      activity("a1", "Alpha"),
+      activity("a2", "Bravo"),
+      activity("a3", "Charlie"),
+    ]);
+    renderPicker(
+      <NodePicker
+        config={config}
+        value={null}
+        onChange={vi.fn()}
+        restrictToIds={new Set(["a1", "a3"])}
+        data-testid="picker"
+      />,
+    );
+    const input = screen.getByTestId("picker");
+    fireEvent.focus(input);
+    fireEvent.click(input);
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Charlie").length).toBeGreaterThan(0);
+    // `a2` is excluded by the restrict set.
+    expect(screen.queryByText("Bravo")).not.toBeInTheDocument();
+  });
+});

@@ -420,6 +420,23 @@ describe("WorkflowEditorCanvas — Scenario 1: switch renders as a diamond", () 
     expect(visualLayer).toBeInTheDocument();
     expect(visualLayer.style.transform).toContain("rotate(45deg)");
   });
+
+  it("draws a strong diamond-shaped halo when the switch is selected", () => {
+    renderCanvas(makeAllNodeTypesConfig(), { selectedNodeId: "switch_1" });
+    const visualLayer = screen.getByTestId("switch-diamond-visual-switch_1");
+    // The halo must be large enough to survive the 0.7071 scale — a 5px
+    // accent ring + glow, plus a 3px border. A faint 2px ring here would
+    // shrink to ~1.4px and read as unselected (the reported bug).
+    expect(visualLayer.style.boxShadow).toContain("5px");
+    expect(visualLayer.style.border).toContain("3px");
+  });
+
+  it("draws only a resting drop-shadow (no halo) when unselected", () => {
+    renderCanvas(makeAllNodeTypesConfig(), { selectedNodeId: null });
+    const visualLayer = screen.getByTestId("switch-diamond-visual-switch_1");
+    expect(visualLayer.style.boxShadow).not.toContain("5px");
+    expect(visualLayer.style.border).toContain("2px");
+  });
 });
 
 describe("WorkflowEditorCanvas — switch diamond polish (Task 1)", () => {
@@ -1543,7 +1560,7 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     ).toBe(undefined);
 
     // Switch source → sourceSwitch is the source SwitchNode so the
-    // WorkflowEdge renderer can resolve `case[i]: <predicate>` labels.
+    // WorkflowEdge renderer can resolve `if <predicate>` labels.
     expect(conditionalEdge?.data).toMatchObject({
       graphEdge: { id: "edge_conditional", type: "conditional" },
       sourceSwitch: { id: "switch_1", type: "switch" },

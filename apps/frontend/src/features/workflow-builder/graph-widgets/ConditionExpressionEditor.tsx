@@ -26,7 +26,11 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { IconTrash } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ComparisonExpression,
@@ -38,6 +42,7 @@ import type {
   NullCheckExpression,
   ValueRef,
 } from "../../../types/workflow";
+import { formatConditionExpanded } from "../canvas/edge-labels";
 import { ConditionProducerPicker } from "./ConditionProducerPicker";
 import {
   producerCtxKey,
@@ -534,58 +539,103 @@ function LogicalBody({
     onChange({ ...expr, operands });
   };
 
+  // Groups start expanded; collapsing hides the operand form. The one-line
+  // humanised summary sits under EVERY group's header at every depth — so you
+  // can always read what a group represents without collapsing it, and every
+  // group (top-level or nested) is displayed consistently. Collapsing just
+  // hides the operand editors, leaving the summary as the group's compact form.
+  const [collapsed, setCollapsed] = useState(false);
+  const verb =
+    expr.operator === "and"
+      ? "ALL of these must be true"
+      : "ANY of these can be true";
+  const summary = formatConditionExpanded(expr).trim();
+
   return (
     <Stack
       gap="xs"
       data-testid={`${testId}-body-logical`}
       data-operator={expr.operator}
     >
-      <Text size="10px" c="dimmed">
-        All {expr.operator === "and" ? "AND" : "OR"} operands below:
-      </Text>
-      <Stack gap="xs">
-        {expr.operands.map((operand, index) => (
-          <Group
-            key={`operand-${index}`}
-            gap="xs"
-            align="flex-start"
-            wrap="nowrap"
-            data-testid={`${testId}-operand-${index}`}
-          >
-            <Box style={{ flex: 1, minWidth: 0 }}>
-              <ConditionExpressionEditor
-                value={operand}
-                onChange={(next) => setOperandAt(index, next)}
-                config={config}
-                onCreateCtxKey={onCreateCtxKey}
-                currentNodeId={currentNodeId}
-                depth={depth + 1}
-                data-testid={`${testId}-operand-${index}-editor`}
-              />
-            </Box>
-            <ActionIcon
-              size="sm"
-              variant="subtle"
-              color="red"
-              onClick={() => removeOperandAt(index)}
-              aria-label={`Remove operand ${index}`}
-              data-testid={`${testId}-operand-${index}-remove`}
-            >
-              <IconTrash size={14} />
-            </ActionIcon>
-          </Group>
-        ))}
-      </Stack>
-      <Group justify="flex-start">
-        <Button
-          size="compact-xs"
-          variant="light"
-          onClick={addOperand}
-          data-testid={`${testId}-add-operand`}
+      <Group gap={6} align="center" wrap="nowrap">
+        <ActionIcon
+          size="sm"
+          variant="subtle"
+          color="gray"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? "Expand group" : "Collapse group"}
+          data-testid={`${testId}-collapse-toggle`}
         >
-          Add operand
-        </Button>
+          {collapsed ? (
+            <IconChevronRight size={14} />
+          ) : (
+            <IconChevronDown size={14} />
+          )}
+        </ActionIcon>
+        <Text
+          size="10px"
+          c="dimmed"
+          fw={600}
+          style={{ textTransform: "uppercase", letterSpacing: 0.4 }}
+        >
+          {verb}
+        </Text>
       </Group>
+      <Text
+        size="xs"
+        c="dimmed"
+        data-testid={`${testId}-group-summary`}
+        style={{ paddingLeft: 28, wordBreak: "break-word" }}
+      >
+        {summary || "empty group"}
+      </Text>
+      {collapsed ? null : (
+        <>
+          <Stack gap="xs">
+            {expr.operands.map((operand, index) => (
+              <Group
+                key={`operand-${index}`}
+                gap="xs"
+                align="flex-start"
+                wrap="nowrap"
+                data-testid={`${testId}-operand-${index}`}
+              >
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  <ConditionExpressionEditor
+                    value={operand}
+                    onChange={(next) => setOperandAt(index, next)}
+                    config={config}
+                    onCreateCtxKey={onCreateCtxKey}
+                    currentNodeId={currentNodeId}
+                    depth={depth + 1}
+                    data-testid={`${testId}-operand-${index}-editor`}
+                  />
+                </Box>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="red"
+                  onClick={() => removeOperandAt(index)}
+                  aria-label={`Remove operand ${index}`}
+                  data-testid={`${testId}-operand-${index}-remove`}
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Group>
+            ))}
+          </Stack>
+          <Group justify="flex-start">
+            <Button
+              size="compact-xs"
+              variant="light"
+              onClick={addOperand}
+              data-testid={`${testId}-add-operand`}
+            >
+              Add operand
+            </Button>
+          </Group>
+        </>
+      )}
     </Stack>
   );
 }

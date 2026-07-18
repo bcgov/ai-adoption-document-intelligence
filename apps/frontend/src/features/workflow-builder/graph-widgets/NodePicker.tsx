@@ -50,6 +50,13 @@ export interface NodePickerProps {
    */
   filterType?: NodeType;
   /**
+   * When provided, only nodes whose id is in this set are listed (applied on
+   * top of `filterType`). Example: restrict a map's body-exit picker to nodes
+   * reachable from the body-entry, since an unreachable node can never be a
+   * valid exit. Omit to list every node.
+   */
+  restrictToIds?: ReadonlySet<string>;
+  /**
    * The id of the node currently being edited. The picker excludes this
    * id from its options so a node can never reference itself.
    */
@@ -77,6 +84,7 @@ export function NodePicker({
   value,
   onChange,
   filterType,
+  restrictToIds,
   currentNodeId,
   label,
   description,
@@ -94,6 +102,7 @@ export function NodePicker({
       .filter(([id, node]) => {
         if (currentNodeId && id === currentNodeId) return false;
         if (filterType && node.type !== filterType) return false;
+        if (restrictToIds && !restrictToIds.has(id)) return false;
         return true;
       })
       .map(([id, node]) => ({
@@ -101,7 +110,7 @@ export function NodePicker({
         label: node.label && node.label.length > 0 ? node.label : id,
         nodeType: node.type,
       }));
-  }, [allEntries, currentNodeId, filterType]);
+  }, [allEntries, currentNodeId, filterType, restrictToIds]);
 
   const missingReference = useMemo(() => {
     if (!value) return false;

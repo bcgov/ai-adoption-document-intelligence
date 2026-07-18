@@ -208,8 +208,8 @@ describe("MapNodeSettings — Scenario 2: maxConcurrency is optional integer Num
 // nodes (no filterType applied).
 // ---------------------------------------------------------------------------
 
-describe("MapNodeSettings — Scenario 3: body pickers list all nodes", () => {
-  it("opens either body picker and shows all other nodes (no filterType applied)", () => {
+describe("MapNodeSettings — Scenario 3: body pickers list nodes", () => {
+  it("entry picker lists all nodes; exit picker lists nodes reachable from the entry", () => {
     const initial = mapNode("m1", "Per-Item");
     const config = makeConfig([
       initial,
@@ -217,6 +217,12 @@ describe("MapNodeSettings — Scenario 3: body pickers list all nodes", () => {
       activity("a2", "Middle"),
       activity("a3", "Body Exit"),
     ]);
+    // A linear body a1 → a2 → a3 so, once a1 is the entry, a2 and a3 are
+    // reachable and therefore offered as exit candidates.
+    config.edges = [
+      { id: "e0", source: "a1", target: "a2", type: "normal" },
+      { id: "e1", source: "a2", target: "a3", type: "normal" },
+    ];
 
     const { spy } = mountWithSpy(config, "m1");
 
@@ -314,5 +320,125 @@ describe("MapNodeSettings — Scenario 4: edits propagate a typed update", () =>
     expect(updated.bodyEntryNodeId).toBe("a1");
     expect(updated.bodyExitNodeId).toBe("a3");
     expect(updated.label).toBe("Per-Item");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Body reachability warnings (surface the runtime single-exit constraint)
+// ---------------------------------------------------------------------------
+
+describe("MapNodeSettings — body reachability warnings", () => {
+  /**
+   * A branching body: switch `sw` fans to three leaves; only `poll` is the
+   * designated exit. `child` and `approve` dead-end before the exit.
+   */
+  function branchingConfig(exit: string): GraphWorkflowConfig {
+    const m = mapNode("m1", "Per-Item", {
+      bodyEntryNodeId: "sw",
+      bodyExitNodeId: exit,
+    });
+    const nodes: GraphNode[] = [
+      m,
+      { id: "sw", type: "switch", label: "Route", cases: [] },
+      activity("child", "Child OCR"),
+      activity("poll", "Wait until condition"),
+      activity("approve", "Approve"),
+    ];
+    const config = makeConfig(nodes);
+    config.edges = [
+      { id: "e0", source: "sw", target: "child", type: "conditional" },
+      { id: "e1", source: "sw", target: "poll", type: "conditional" },
+      { id: "e2", source: "sw", target: "approve", type: "conditional" },
+    ];
+    return config;
+  }
+
+  it("warns that branches dead-end before the exit, naming them", () => {
+    const config = branchingConfig("poll");
+    renderSettings(
+      <MapNodeSettings
+        node={config.nodes.m1 as MapNode}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+    const warning = screen.getByTestId("map-body-deadend-warning");
+    expect(warning).toHaveTextContent("Child OCR");
+    expect(warning).toHaveTextContent("Approve");
+    // Not the unreachable-exit variant.
+    expect(
+      screen.queryByTestId("map-body-exit-unreachable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no warning when every branch reconverges on the exit", () => {
+    const m = mapNode("m1", "Per-Item", {
+      bodyEntryNodeId: "sw",
+      bodyExitNodeId: "merge",
+    });
+    const config = makeConfig([
+      m,
+      { id: "sw", type: "switch", label: "Route", cases: [] },
+      activity("left", "Left"),
+      activity("right", "Right"),
+      activity("merge", "Merge"),
+    ]);
+    config.edges = [
+      { id: "e0", source: "sw", target: "left", type: "conditional" },
+      { id: "e1", source: "sw", target: "right", type: "conditional" },
+      { id: "e2", source: "left", target: "merge", type: "normal" },
+      { id: "e3", source: "right", target: "merge", type: "normal" },
+    ];
+    renderSettings(
+      <MapNodeSettings
+        node={config.nodes.m1 as MapNode}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+    expect(
+      screen.queryByTestId("map-body-deadend-warning"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("map-body-exit-unreachable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restricts the body-exit picker to nodes reachable from the entry", () => {
+    // `store` is unreachable from the switch entry, so it must not be offered
+    // as an exit. `poll` (reachable) must be.
+    const m = mapNode("m1", "Per-Item", {
+      bodyEntryNodeId: "sw",
+      bodyExitNodeId: "",
+    });
+    const config = makeConfig([
+      m,
+      { id: "sw", type: "switch", label: "Route", cases: [] },
+      activity("poll", "Wait until condition"),
+      activity("store", "Store Results"),
+    ]);
+    config.edges = [
+      { id: "e0", source: "sw", target: "poll", type: "conditional" },
+    ];
+    renderSettings(
+      <MapNodeSettings
+        node={config.nodes.m1 as MapNode}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+    const exitPicker = screen.getByTestId("map-node-settings-body-exit");
+    fireEvent.click(exitPicker);
+    // Scope to the open exit dropdown's options (closed pickers keep their
+    // option text in the DOM, so a bare text query would match the unrestricted
+    // entry picker).
+    const exitLabels = screen
+      .getAllByRole("option")
+      .map((o) => o.textContent ?? "");
+    expect(exitLabels.some((t) => t.includes("Wait until condition"))).toBe(
+      true,
+    );
+    // `store` is not reachable from the entry → not offered as an exit.
+    expect(exitLabels.some((t) => t.includes("Store Results"))).toBe(false);
   });
 });

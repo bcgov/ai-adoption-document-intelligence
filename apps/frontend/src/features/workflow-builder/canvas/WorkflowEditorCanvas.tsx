@@ -1049,8 +1049,13 @@ const SwitchNodeRenderer = memo(
             borderRadius: 0,
             border: selected ? `3px solid ${accent}` : `2px solid ${accent}`,
             background: "var(--mantine-color-body, #fff)",
+            // The visual layer is rotated + scaled by 0.7071, which shrinks any
+            // box-shadow spread by the same factor. The selected halo is drawn
+            // deliberately large (and higher-opacity) so that AFTER scaling it
+            // still reads as a clear diamond-shaped ring — a `2px` ring here
+            // collapsed to ~1.4px at 20% opacity and looked unselected.
             boxShadow: selected
-              ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+              ? `0 0 0 5px ${accent}80, 0 0 14px ${accent}66, 0 8px 20px rgba(0,0,0,0.30)`
               : "0 6px 12px rgba(0,0,0,0.18)",
             transform: "rotate(45deg) scale(0.7071)",
             transformOrigin: "50% 50%",

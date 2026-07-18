@@ -174,21 +174,21 @@ describe("computeHandleStyle — Scenario 4: multi/gray tooltip explains the ind
     expect(style.tooltipText).toBe("Multiple inputs — select node to view all");
   });
 
-  it("legacy untyped (zero kinds) on output → same multi-output tooltip", () => {
+  it("zero typed kinds on output → 'No typed outputs' (not 'Multiple')", () => {
     const style = computeHandleStyle({
       portKinds: [undefined, undefined],
       direction: "output",
     });
-    expect(style.tooltipText).toBe(
-      "Multiple outputs — select node to view all",
-    );
+    expect(style.tooltipText).toBe("No typed outputs");
+    expect(style.isMultiPort).toBe(true);
   });
 
-  it("legacy untyped (zero kinds) on input → same multi-input tooltip", () => {
+  it("zero typed kinds on input → 'No typed inputs' (not 'Multiple')", () => {
     const style = computeHandleStyle({
       portKinds: [],
       direction: "input",
     });
-    expect(style.tooltipText).toBe("Multiple inputs — select node to view all");
+    expect(style.tooltipText).toBe("No typed inputs");
+    expect(style.isMultiPort).toBe(true);
   });
 });

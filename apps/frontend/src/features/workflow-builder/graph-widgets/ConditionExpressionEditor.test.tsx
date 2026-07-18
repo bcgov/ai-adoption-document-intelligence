@@ -795,3 +795,174 @@ describe("ConditionExpressionEditor — conditions from node outputs (§11)", ()
     ).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Group summaries (humanised, shown under every group at every depth)
+// ---------------------------------------------------------------------------
+
+describe("ConditionExpressionEditor — group summaries", () => {
+  it("renders the top-level group's summary as a humanised sentence", () => {
+    const expr: LogicalExpression = {
+      operator: "and",
+      operands: [
+        {
+          operator: "or",
+          operands: [
+            {
+              operator: "equals",
+              left: { ref: "ctx.currentDoc.type" },
+              right: { literal: "receipt" },
+            },
+            {
+              operator: "gte",
+              left: { ref: "ctx.currentDoc.confidence" },
+              right: { literal: 0.8 },
+            },
+          ],
+        },
+        {
+          operator: "not",
+          operand: {
+            operator: "is-null",
+            value: { ref: "ctx.currentDoc.blobKey" },
+          },
+        },
+      ],
+    };
+    renderEditor(
+      <ConditionExpressionEditor
+        value={expr}
+        onChange={() => undefined}
+        config={makeConfig()}
+      />,
+    );
+    expect(
+      screen.getByTestId("condition-expression-editor-group-summary"),
+    ).toHaveTextContent(
+      '(ctx.currentDoc.type is "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (ctx.currentDoc.blobKey is null)',
+    );
+  });
+
+  it("shows a summary under every logical group — top-level and nested — consistently", () => {
+    const expr: LogicalExpression = {
+      operator: "and",
+      operands: [
+        {
+          operator: "or",
+          operands: [
+            {
+              operator: "equals",
+              left: { ref: "ctx.a" },
+              right: { literal: 1 },
+            },
+            {
+              operator: "equals",
+              left: { ref: "ctx.b" },
+              right: { literal: 2 },
+            },
+          ],
+        },
+        { operator: "equals", left: { ref: "ctx.c" }, right: { literal: 3 } },
+      ],
+    };
+    renderEditor(
+      <ConditionExpressionEditor
+        value={expr}
+        onChange={() => undefined}
+        config={makeConfig()}
+      />,
+    );
+    // Top-level AND group has its summary shown inline (no collapse needed).
+    expect(
+      screen.getByTestId("condition-expression-editor-group-summary"),
+    ).toHaveTextContent("(ctx.a is 1 or ctx.b is 2) and ctx.c is 3");
+    // Nested OR group has its own summary shown inline too.
+    expect(
+      screen.getByTestId(
+        "condition-expression-editor-operand-0-editor-group-summary",
+      ),
+    ).toHaveTextContent("ctx.a is 1 or ctx.b is 2");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Logical group verbs + collapse
+// ---------------------------------------------------------------------------
+
+describe("ConditionExpressionEditor — logical group verbs + collapse", () => {
+  const AND_EXPR: LogicalExpression = {
+    operator: "and",
+    operands: [
+      { operator: "equals", left: { ref: "ctx.a" }, right: { literal: 1 } },
+      { operator: "equals", left: { ref: "ctx.b" }, right: { literal: 2 } },
+    ],
+  };
+
+  it("labels an AND group 'ALL of these must be true'", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={AND_EXPR}
+        onChange={() => undefined}
+        config={makeConfig()}
+      />,
+    );
+    expect(
+      screen.getByTestId("condition-expression-editor-body-logical"),
+    ).toHaveTextContent("ALL of these must be true");
+  });
+
+  it("labels an OR group 'ANY of these can be true'", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={{ ...AND_EXPR, operator: "or" }}
+        onChange={() => undefined}
+        config={makeConfig()}
+      />,
+    );
+    expect(
+      screen.getByTestId("condition-expression-editor-body-logical"),
+    ).toHaveTextContent("ANY of these can be true");
+  });
+
+  it("collapses the operand form to a one-line summary and expands again", () => {
+    renderEditor(
+      <ConditionExpressionEditor
+        value={AND_EXPR}
+        onChange={() => undefined}
+        config={makeConfig()}
+      />,
+    );
+    // Expanded by default: operand rows + Add operand present.
+    expect(
+      screen.getByTestId("condition-expression-editor-operand-0"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("condition-expression-editor-add-operand"),
+    ).toBeInTheDocument();
+
+    // Collapse → operand rows disappear, summary appears.
+    fireEvent.click(
+      screen.getByTestId("condition-expression-editor-collapse-toggle"),
+    );
+    expect(
+      screen.queryByTestId("condition-expression-editor-operand-0"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("condition-expression-editor-add-operand"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("condition-expression-editor-group-summary"),
+    ).toHaveTextContent("ctx.a is 1 and ctx.b is 2");
+
+    // Expand again → operand rows return (summary stays visible throughout).
+    fireEvent.click(
+      screen.getByTestId("condition-expression-editor-collapse-toggle"),
+    );
+    expect(
+      screen.getByTestId("condition-expression-editor-operand-0"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("condition-expression-editor-group-summary"),
+    ).toBeInTheDocument();
+  });
+});

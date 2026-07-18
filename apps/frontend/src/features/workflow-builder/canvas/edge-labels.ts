@@ -30,13 +30,18 @@ export interface FormatConditionLabelOptions {
 const DEFAULT_MAX_LENGTH = 60;
 const ELLIPSIS = "…";
 
-const COMPARISON_GLYPHS: Record<ComparisonExpression["operator"], string> = {
-  equals: "==",
-  "not-equals": "!=",
+/**
+ * Humanised comparison operators. Equality reads as "is" / "is not" and the
+ * relational operators keep the compact unicode glyphs (`≥` / `≤`) so labels
+ * stay short against the truncation budget. `contains` is already a word.
+ */
+const COMPARISON_WORDS: Record<ComparisonExpression["operator"], string> = {
+  equals: "is",
+  "not-equals": "is not",
   gt: ">",
-  gte: ">=",
+  gte: "≥",
   lt: "<",
-  lte: "<=",
+  lte: "≤",
   contains: "contains",
 };
 
@@ -53,12 +58,19 @@ function formatValueRef(value: ValueRef): string {
 }
 
 function formatComparison(expression: ComparisonExpression): string {
-  const glyph = COMPARISON_GLYPHS[expression.operator];
-  return `${formatValueRef(expression.left)} ${glyph} ${formatValueRef(expression.right)}`;
+  const word = COMPARISON_WORDS[expression.operator];
+  return `${formatValueRef(expression.left)} ${word} ${formatValueRef(expression.right)}`;
 }
 
+/**
+ * Compact (space-constrained) rendering of a logical group used on canvas
+ * edges: `all of (2)` / `any of (3)` — the operands themselves are omitted so
+ * the edge label stays short. The settings-panel preview uses
+ * `formatConditionExpanded` instead, which spells the operands out in full.
+ */
 function formatLogical(expression: LogicalExpression): string {
-  return `${expression.operator} (${expression.operands.length})`;
+  const verb = expression.operator === "and" ? "all of" : "any of";
+  return `${verb} (${expression.operands.length})`;
 }
 
 function formatNot(expression: NotExpression): string {
@@ -71,7 +83,7 @@ function formatNullCheck(expression: NullCheckExpression): string {
 }
 
 function formatListMembership(expression: ListMembershipExpression): string {
-  const verb = expression.operator === "in" ? "in" : "not in";
+  const verb = expression.operator === "in" ? "is one of" : "is not one of";
   const list = expression.list;
   const listLabel =
     "literal" in list && Array.isArray(list.literal)
@@ -137,12 +149,56 @@ export type CaseLabelInput =
   | { kind: "error" };
 
 /**
- * Composes the string rendered on a switch case-routed edge: either
- * `case[i]: <predicate>`, `default`, or `on error`.
+ * Composes the string rendered on a switch case-routed edge: `if <predicate>`
+ * for a matched case, `otherwise` for the default edge, or `on error`.
  */
 export function formatCaseLabel(input: CaseLabelInput): string {
   if ("kind" in input) {
-    return input.kind === "default" ? "default" : "on error";
+    return input.kind === "default" ? "otherwise" : "on error";
   }
-  return `case[${input.caseIndex}]: ${formatConditionLabel(input.expression)}`;
+  return `if ${formatConditionLabel(input.expression)}`;
+}
+
+/**
+ * True for the infix logical groups (`and` / `or`) that need parentheses when
+ * nested inside another group. `not` is excluded — it already renders with its
+ * own `not (...)` parentheses, so wrapping it again would double up.
+ */
+function needsGrouping(expression: ConditionExpression): boolean {
+  return expression.operator === "and" || expression.operator === "or";
+}
+
+/**
+ * Fully-expanded, un-truncated rendering of a condition tree — spells logical
+ * groups out (`a is "receipt" or b ≥ 0.8`) instead of collapsing them to
+ * `any of (2)`. Compound operands are parenthesised so grouping is preserved.
+ *
+ * Used by the condition editor's live preview (where space is not constrained)
+ * so an author can read the whole boolean logic as a sentence while building
+ * deeply-nested cases. Leaf rendering (comparisons, refs/literals, null checks,
+ * membership) is shared with the compact edge-label path.
+ */
+export function formatConditionExpanded(
+  expression: ConditionExpression,
+): string {
+  switch (expression.operator) {
+    case "and":
+    case "or": {
+      const joiner = expression.operator === "and" ? " and " : " or ";
+      return expression.operands
+        .map((operand) => {
+          const inner = formatConditionExpanded(operand);
+          return needsGrouping(operand) ? `(${inner})` : inner;
+        })
+        .join(joiner);
+    }
+    case "not": {
+      const inner = formatConditionExpanded(expression.operand);
+      return `not (${inner})`;
+    }
+    default:
+      // Comparison / null-check / membership leaves reuse the compact path —
+      // those never collapse, so their output is already fully expanded.
+      return formatConditionLabelRaw(expression);
+  }
 }

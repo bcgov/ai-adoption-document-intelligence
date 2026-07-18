@@ -131,7 +131,7 @@ outputs: [
 
 The gray-for-multi-port rule keeps the handle colour honest. Picking a "primary" output port to colour the handle would mislead users into thinking it's the only output.
 
-Hover-tooltip text on a single-port-coloured handle: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string is the `kind` declaration verbatim. Hover on a gray multi-port handle: `"Multiple outputs — select node to view all"`.
+Hover-tooltip text on a single-port-coloured handle: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string is the `kind` declaration verbatim. Hover on a gray handle with **two or more** typed ports: `"Multiple outputs — select node to view all"`. Hover on a gray handle with **zero** typed ports (e.g. a map/join whose data flow is via ctx keys, not ports): `"No typed outputs"` (`"No typed inputs"` on the input side) — the zero case must not claim "multiple", which would misrepresent the cardinality.
 
 **On selected nodes**, a type pill renders next to the handle for accessibility AND as the discovery surface for multi-port type info. For single-port nodes the pill is a one-line badge (`SEGMENT[]`). For multi-port nodes the pill expands to a small list of all declared ports with their kinds:
 

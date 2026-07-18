@@ -52,3 +52,14 @@
   outline-offset: 3px;
   border-radius: 12px;
 }
+
+/*
+ * The switch node draws its OWN diamond-shaped selection halo on its rotated
+ * visual layer (see SwitchNodeRenderer). Suppress any default rectangular
+ * selection outline/shadow on its wrapper so a rectangle is never painted
+ * around the diamond when it is selected.
+ */
+.wb-editor-canvas .react-flow__node.selected:has([data-node-type="switch"]) {
+  box-shadow: none;
+  outline: none;
+}

@@ -15,10 +15,12 @@
  * this component renders only the map-specific body.
  */
 
-import { Box, NumberInput, Stack, Title } from "@mantine/core";
+import { Alert, Box, NumberInput, Stack, Text, Title } from "@mantine/core";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import type { GraphWorkflowConfig, MapNode } from "../../../../types/workflow";
 import { declareCtxKey, NodePicker, VariablePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
+import { analyzeMapBody, nodesReachableFrom } from "./map-body-analysis";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -95,6 +97,18 @@ export function MapNodeSettings({
   const setBodyExitNodeId = (next: string | null) =>
     updateNode({ ...node, bodyExitNodeId: next ?? "" });
 
+  const entryId = node.bodyEntryNodeId || undefined;
+  const exitId = node.bodyExitNodeId || undefined;
+  // The exit must be reachable from the entry, so restrict the exit picker to
+  // the entry's reachable set once an entry is chosen (no entry → no filter).
+  const exitCandidates = entryId
+    ? nodesReachableFrom(config, entryId)
+    : undefined;
+  const bodyAnalysis = analyzeMapBody(config, entryId, exitId);
+  const deadEndLabels = bodyAnalysis.deadEndNodeIds.map(
+    (id) => config.nodes[id]?.label || id,
+  );
+
   return (
     <Stack gap="md" data-testid="map-node-settings" data-node-id={node.id}>
       <Box>
@@ -169,14 +183,45 @@ export function MapNodeSettings({
           <NodePicker
             config={config}
             currentNodeId={node.id}
+            restrictToIds={exitCandidates}
             value={node.bodyExitNodeId === "" ? null : node.bodyExitNodeId}
             onChange={setBodyExitNodeId}
             label="Body exit node"
-            description="Last node of each iteration; its output is collected by the matching Join."
+            description="Last node of each iteration; its output is collected by the matching Join. Every branch of the body must reach it."
             placeholder="Pick the exit node…"
             required
             data-testid="map-node-settings-body-exit"
           />
+
+          {bodyAnalysis.computed && !bodyAnalysis.exitReachable ? (
+            <Alert
+              variant="light"
+              color="red"
+              icon={<IconAlertTriangle size={16} />}
+              title="Body exit is unreachable"
+              data-testid="map-body-exit-unreachable"
+            >
+              <Text size="xs">
+                No path leads from the body-entry node to the exit. Every
+                iteration must reach the exit node, or it will stall at runtime.
+              </Text>
+            </Alert>
+          ) : bodyAnalysis.computed && deadEndLabels.length > 0 ? (
+            <Alert
+              variant="light"
+              color="yellow"
+              icon={<IconAlertTriangle size={16} />}
+              title="Some branches never reach the exit"
+              data-testid="map-body-deadend-warning"
+            >
+              <Text size="xs">
+                These body branches end before the exit node:{" "}
+                <strong>{deadEndLabels.join(", ")}</strong>. An iteration that
+                follows one of them will stall at runtime, because the exit
+                never completes. Make every branch lead to the exit node.
+              </Text>
+            </Alert>
+          ) : null}
         </Stack>
       </Box>
     </Stack>
