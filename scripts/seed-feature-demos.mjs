@@ -1127,6 +1127,7 @@ const DEMOS = [
       "In that switch's first case, expand the **condition** — the second case holds a 3-level nested expression `AND( OR(EQ, GTE), NOT(IS-NULL) )` so you can watch the **recursive condition editor** render and toggle a leaf between **Ref** and **Literal**.",
       "**Collect results** (join) → the source-map picker lists **only map nodes**; **Wait until condition** (pollUntil) → activity picker + interval; **Wait for approval** (humanGate) → signal name, timeout, and the **On timeout** control (switch it to *Fallback* to reveal the fallback-edge picker).",
       "**Sub-workflow** (childWorkflow) → toggle **Library / Inline**; this demo ships an inline child graph.",
+      "**Field drill-down (typed I/O):** the receipt branch runs a real Azure OCR chain — **Wait until condition** (pollUntil, `azureOcr.poll`) → **Extract OCR result** (`azureOcr.extract`), which produces `ocrResult` of kind **OCR result**. Select **Store Results** and open its **OCR result** input binding: the picker lists `ocrResult` **plus its fields** — `ocrResult.documentId`, `.blobPath`, `.storage`, `.byteLength`, `.pageCount`, `.status` — each captioned with its `type · optional`. You pick a field instead of typing (and guessing) the path. By contrast, `documents` / `currentDoc` are **untyped** trigger data and stay free-typed — no drill rows, because inventing a schema for data the system can't vouch for would be dishonest. The same drill-down applies to other typed producers now that they carry Zod-derived field schemas too — e.g. `preparedData` (a **Prepared file**) and a map body's segment item (a **Typed segment**) enumerate their fields in the picker the same way.",
       "UX polish (Part 16): note the **three-zone top bar** and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.",
       "**Kind-aware extend popover:** hover a **typed output port handle** and click the **➕** to extend — the popover is **filtered + ranked** to catalog activities that accept that port's kind (matching consumers float to the top), with a **Show all** escape back to the unfiltered list. Picking a filtered entry drops the node **pre-wired** — it lands with a pinned data wire already connected (drag-to-bind semantics).",
     ],
@@ -1137,7 +1138,7 @@ const DEMOS = [
     config: edgesValidateConfig,
     steps: [
       "The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.",
-      "**Route by review flag** (switch) draws **conditional** edges with `case[0]…` / `default` labels.",
+      '**Route by review flag** (switch) draws **conditional** edges with humanised labels — `if <predicate>` for each case (e.g. `if ctx.status is "approved"`) and `otherwise` for the default edge. Comparison operators read as words (`is`, `is not`, `contains`, `≥`, `≤`); logical groups collapse to `all of (N)` / `any of (N)`.',
       "Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.",
     ],
   },
@@ -1150,6 +1151,7 @@ const DEMOS = [
       'The picker lists **every upstream output port** as a **"Node → Port"** row with the kind as a hint — there\'s **no kind filter** here (a condition can compare any value). This graph has one upstream producer, so you see the single *Prepare file → Prepared file data* row.',
       'Click **"Enter a variable manually"** → the raw-key autocomplete appears (the escape hatch for a ctx key no step produces, 4.10/4.11); click **"Back to steps"** to return to the step picker.',
       "The resolution round-trips: because *Prepare file* carries the matching `preparedData` output binding and sits upstream of the switch, the caption resolves on **load** — no Save needed. Saving + reloading keeps it resolved (not the raw `__auto.prep.preparedData` key), and at run time the producer's output is materialised into `ctx` so the condition evaluates against a real value (4.12).",
+      '**Reading a complex condition.** Every `and`/`or` group is headed by a verb — **“ALL of these must be true”** (AND) / **“ANY of these can be true”** (OR) — with a **humanised one-line summary shown directly under it at every level** (e.g. the outer group reads `(type is "receipt" or confidence ≥ 0.8) and not (blobKey is null)`, the nested group reads `type is "receipt" or confidence ≥ 0.8`), so you can read the boolean logic without re-assembling the nested form. A **chevron** collapses each group to just that summary, keeping deep trees navigable.',
     ],
   },
   {
