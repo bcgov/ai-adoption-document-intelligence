@@ -202,15 +202,13 @@ export interface OCRResult {
 // Activity Results
 export type OcrOutputFormat = "text" | "markdown";
 
-export interface PreparedFileData {
-  fileName: string;
-  fileType: "pdf" | "image";
-  contentType: string;
-  blobKey: string;
-  modelId: string; // Azure Document Intelligence model ID
-  /** Azure outputContentFormat: "text" (default) or "markdown". */
-  outputFormat?: OcrOutputFormat;
-}
+/**
+ * PreparedFileData now derives from the PreparedFile kind's Zod schema in
+ * @ai-di/graph-workflow (`z.infer<typeof PreparedFileSchema>`), so the
+ * activities constructing it and the builder's field drill-down share one
+ * definition (KIND_TAXONOMY_REFINEMENT_DESIGN.md §4).
+ */
+export type { PreparedFileData } from "@ai-di/graph-workflow";
 
 export interface SubmissionResult {
   statusCode: number;
