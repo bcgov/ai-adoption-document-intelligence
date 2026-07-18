@@ -49,6 +49,11 @@ import type { graphlib } from "dagre";
 // eslint-disable-next-line import/extensions
 import dagreLib from "dagre-esm/dist/dagre.esm.js";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
+import {
+  mergeNodeGroups,
+  stripSyntheticMapBodyGroups,
+  synthesizeMapBodyGroups,
+} from "./map-body-groups";
 import { estimateNodeHeight } from "./port-rows";
 
 // ---------------------------------------------------------------------------
@@ -218,6 +223,38 @@ export function layoutGraph(
     ...config,
     nodes: nextNodes,
   };
+}
+
+/**
+ * `layoutGraph`, but first merges the render-time synthetic map-body groups
+ * into the config so a map's body members cluster together under dagre (real
+ * user groups already cluster). Then strips those synthetic groups back out of
+ * the result so they never persist — they're re-derived at render time.
+ *
+ * Without this, `layoutGraph` only sees `config.nodeGroups` (which never
+ * contains the synthetic map-body groups), so a map's body scatters on
+ * Auto-arrange and its derived body-container box sprawls over non-member
+ * nodes. Use this from every Auto-arrange entry point.
+ */
+export function layoutGraphWithMapBodies(
+  config: GraphWorkflowConfig,
+  options: LayoutGraphOptions = {},
+): GraphWorkflowConfig {
+  const synthetic = synthesizeMapBodyGroups(config);
+  const forLayout =
+    Object.keys(synthetic).length === 0
+      ? config
+      : {
+          ...config,
+          nodeGroups: mergeNodeGroups(config.nodeGroups ?? {}, synthetic),
+        };
+  const laidOut = layoutGraph(forLayout, options);
+  return laidOut.nodeGroups
+    ? {
+        ...laidOut,
+        nodeGroups: stripSyntheticMapBodyGroups(laidOut.nodeGroups),
+      }
+    : laidOut;
 }
 
 /**

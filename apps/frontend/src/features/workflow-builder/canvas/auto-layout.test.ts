@@ -13,13 +13,16 @@ import multiPageReportTemplate from "../../../../../../docs-md/graph-workflows/t
 import type {
   ActivityNode,
   GraphEdge,
+  GraphNode,
   GraphWorkflowConfig,
+  MapNode,
   SwitchNode,
 } from "../../../types/workflow";
 import {
   configHasAnyPosition,
   layoutGraph,
   layoutGraphIfMissingPositions,
+  layoutGraphWithMapBodies,
 } from "./auto-layout";
 import { estimateNodeHeight } from "./port-rows";
 
@@ -457,5 +460,71 @@ describe("layoutGraphIfMissingPositions — US-050", () => {
       (out.nodes.a.metadata as { position: { x: number; y: number } }).position,
     ).toEqual({ x: 999, y: 999 });
     expect(out.nodes.b.metadata).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// layoutGraphWithMapBodies — clusters a map's body members under dagre (so the
+// derived body-container box wraps just its members) and strips the synthetic
+// groups back out so they never persist. Regression for the arrange-on-load
+// bug where a map's body scattered because the synthetic groups never reached
+// the layout.
+// ---------------------------------------------------------------------------
+
+function buildMapBodyConfig(): GraphWorkflowConfig {
+  const map: MapNode = {
+    id: "m",
+    type: "map",
+    label: "Run for each",
+    collectionCtxKey: "items",
+    itemCtxKey: "item",
+    bodyEntryNodeId: "b1",
+    bodyExitNodeId: "b2",
+  };
+  const nodes: Record<string, GraphNode> = {
+    m: map,
+    b1: buildActivity("b1"),
+    b2: buildActivity("b2"),
+    outside: buildActivity("outside"),
+  };
+  const edges: GraphEdge[] = [
+    { id: "e1", source: "m", target: "b1", type: "normal" },
+    { id: "e2", source: "b1", target: "b2", type: "normal" },
+    { id: "e3", source: "b2", target: "outside", type: "normal" },
+  ];
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "map-body" },
+    nodes,
+    edges,
+    entryNodeId: "m",
+    ctx: {},
+  };
+}
+
+describe("layoutGraphWithMapBodies — clusters map bodies, strips synthetic groups", () => {
+  it("does not persist synthetic map-body groups in the output", () => {
+    const out = layoutGraphWithMapBodies(buildMapBodyConfig());
+    const keys = Object.keys(out.nodeGroups ?? {});
+    expect(keys.some((k) => k.startsWith("__map_body_"))).toBe(false);
+  });
+
+  it("feeds the synthetic map-body cluster to dagre — layout differs from the un-clustered layoutGraph", () => {
+    const config = buildMapBodyConfig();
+    const clustered = layoutGraphWithMapBodies(config);
+    const plain = layoutGraph(config);
+    const pos = (c: GraphWorkflowConfig, id: string) =>
+      (c.nodes[id].metadata as { position: { x: number; y: number } }).position;
+    const differs = ["m", "b1", "b2", "outside"].some((id) => {
+      const a = pos(clustered, id);
+      const b = pos(plain, id);
+      return a.x !== b.x || a.y !== b.y;
+    });
+    expect(differs).toBe(true);
+  });
+
+  it("is a no-op wrapper when the config has no map body", () => {
+    const linear = buildLinearConfig();
+    expect(layoutGraphWithMapBodies(linear)).toEqual(layoutGraph(linear));
   });
 });

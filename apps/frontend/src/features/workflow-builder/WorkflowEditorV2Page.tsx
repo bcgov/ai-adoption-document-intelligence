@@ -83,8 +83,8 @@ import type {
 } from "../../types/workflow";
 import { configWantsArrangeOnLoad, nodesAllMeasured } from "./arrange-on-load";
 import {
-  layoutGraph,
   layoutGraphIfMissingPositions,
+  layoutGraphWithMapBodies,
 } from "./canvas/auto-layout";
 import {
   mergeNodeGroups,
@@ -383,7 +383,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
         nodeWidths.set(node.id, width);
       }
     }
-    setConfig((prev) => layoutGraph(prev, { nodeWidths }));
+    // Cluster each map's body members under dagre (and strip the synthetic
+    // groups back out) so the body-container box wraps just its members
+    // instead of sprawling after arrange. See layoutGraphWithMapBodies.
+    setConfig((prev) => layoutGraphWithMapBodies(prev, { nodeWidths }));
     // §4.2: the canvas's structural fingerprint excludes metadata.position,
     // so this config-only position change won't re-project on its own. Bump
     // the layout nonce so the canvas re-applies the new positions to its
