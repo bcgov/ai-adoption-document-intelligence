@@ -26,17 +26,17 @@ import {
   Badge,
   Box,
   Button,
-  Code,
   Divider,
   Group,
   SegmentedControl,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
 import { IconBook2, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useWorkflow,
   useWorkflowVersion,
@@ -88,17 +88,14 @@ function freshLibraryRef(): ChildWorkflowNode["workflowRef"] {
   return { type: "library", workflowId: "" };
 }
 
-function freshInlineRef(): ChildWorkflowNode["workflowRef"] {
+function emptyGraph(): GraphWorkflowConfig {
   return {
-    type: "inline",
-    graph: {
-      schemaVersion: "1.0",
-      metadata: {},
-      nodes: {},
-      edges: [],
-      entryNodeId: "",
-      ctx: {},
-    },
+    schemaVersion: "1.0",
+    metadata: {},
+    nodes: {},
+    edges: [],
+    entryNodeId: "",
+    ctx: {},
   };
 }
 
@@ -119,14 +116,64 @@ export function ChildWorkflowNodeSettings({
     onConfigChange(replaceNode(config, node.id, next));
   };
 
+  // Stash whichever ref we're leaving so toggling Library↔Inline↔Library
+  // restores the previous graph / library selection instead of resetting to
+  // an empty ref (data-loss bug). Refs, not state, so the handler reads the
+  // latest stash without a re-render dependency.
+  const stashedInlineGraph = useRef<GraphWorkflowConfig | null>(null);
+  const stashedLibraryRef = useRef<ChildWorkflowNode["workflowRef"] | null>(
+    null,
+  );
+
   const setRefType = (value: string) => {
     // SegmentedControl's data is locked to the workflowRef.type literals,
     // but its onChange signature is `(value: string) => void`. Narrow back
     // before forwarding so the rest of the form keeps the strict union.
     if (value !== "library" && value !== "inline") return;
     if (value === node.workflowRef.type) return;
-    const nextRef = value === "library" ? freshLibraryRef() : freshInlineRef();
+    // Stash the ref we're leaving.
+    if (node.workflowRef.type === "inline") {
+      stashedInlineGraph.current = node.workflowRef.graph;
+    } else {
+      stashedLibraryRef.current = node.workflowRef;
+    }
+    // Restore the ref we're entering (if we've seen it before), else a fresh
+    // empty one.
+    const nextRef: ChildWorkflowNode["workflowRef"] =
+      value === "library"
+        ? (stashedLibraryRef.current ?? freshLibraryRef())
+        : { type: "inline", graph: stashedInlineGraph.current ?? emptyGraph() };
     updateNode({ ...node, workflowRef: nextRef });
+  };
+
+  // ── inline graph JSON editor (editable draft) ──────────────────────────
+  const [inlineDraft, setInlineDraft] = useState("");
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  // Re-seed the draft only when we ENTER inline mode or the node changes —
+  // NOT on every keystroke (which would fight the user's typing).
+  useEffect(() => {
+    if (node.workflowRef.type === "inline") {
+      setInlineDraft(JSON.stringify(node.workflowRef.graph, null, 2));
+      setInlineError(null);
+    }
+  }, [node.id, node.workflowRef.type]);
+
+  const commitInlineDraft = (raw: string) => {
+    setInlineDraft(raw);
+    if (node.workflowRef.type !== "inline") return;
+    let parsed: GraphWorkflowConfig;
+    try {
+      // User-authored JSON; the full graph validator runs on Save. Here we
+      // only guard against a parse error so a half-typed brace doesn't crash.
+      parsed = JSON.parse(raw) as GraphWorkflowConfig;
+    } catch (err) {
+      setInlineError(
+        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+    setInlineError(null);
+    updateNode({ ...node, workflowRef: { type: "inline", graph: parsed } });
   };
 
   const setLibraryRef = (selection: {
@@ -206,12 +253,21 @@ export function ChildWorkflowNodeSettings({
       ) : (
         <Box data-testid="child-workflow-node-settings-inline-body">
           <Text size="xs" c="dimmed" mb="xs">
-            Inline graph editing is not yet supported in V2; switch to JSON
-            editor to author.
+            Edit the inline child graph as JSON. It's validated (with the rest
+            of the workflow) on Save; a parse error here just blocks the update
+            until the JSON is well-formed.
           </Text>
-          <Code block data-testid="child-workflow-node-settings-inline-preview">
-            {JSON.stringify(node.workflowRef.graph, null, 2)}
-          </Code>
+          <Textarea
+            autosize
+            minRows={8}
+            maxRows={24}
+            size="xs"
+            styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
+            value={inlineDraft}
+            error={inlineError}
+            onChange={(event) => commitInlineDraft(event.currentTarget.value)}
+            data-testid="child-workflow-node-settings-inline-editor"
+          />
         </Box>
       )}
 

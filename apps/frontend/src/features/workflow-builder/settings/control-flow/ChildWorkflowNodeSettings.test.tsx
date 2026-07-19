@@ -325,11 +325,12 @@ describe("ChildWorkflowNodeSettings — Scenario 2 (US-063): library mode shows 
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 3: Inline mode shows read-only JSON preview + advisory hint.
+// Scenario 3: Inline mode shows an EDITABLE JSON textarea that commits valid
+// edits and surfaces a parse error on malformed JSON.
 // ---------------------------------------------------------------------------
 
-describe("ChildWorkflowNodeSettings — Scenario 3: inline mode shows read-only JSON preview + hint", () => {
-  it("renders the inline graph as read-only JSON and surfaces a dimmed advisory hint", () => {
+describe("ChildWorkflowNodeSettings — Scenario 3: inline mode is an editable JSON textarea", () => {
+  it("seeds the textarea with the graph, commits valid edits, and errors on bad JSON", () => {
     const initial = childWorkflowNode("c1", "Child", {
       workflowRef: {
         type: "inline",
@@ -344,40 +345,77 @@ describe("ChildWorkflowNodeSettings — Scenario 3: inline mode shows read-only 
       },
     });
     const config = makeConfig([initial]);
+    const { spy } = mountWithSpy(config, "c1");
 
-    renderSettings(
-      <ChildWorkflowNodeSettings
-        node={initial}
-        config={config}
-        onConfigChange={() => undefined}
-      />,
+    const editor = screen.getByTestId(
+      "child-workflow-node-settings-inline-editor",
+    ) as HTMLTextAreaElement;
+    // It IS an editable textarea (not a read-only Code block) seeded with the
+    // serialised graph.
+    expect(editor.tagName).toBe("TEXTAREA");
+    expect(editor.value).toContain('"schemaVersion": "1.0"');
+    expect(editor.value).toContain('"name": "Nested"');
+
+    // A valid edit commits the parsed graph back to the node.
+    fireEvent.change(editor, {
+      target: {
+        value:
+          '{"schemaVersion":"1.0","metadata":{"name":"Renamed"},"nodes":{},"edges":[],"entryNodeId":"","ctx":{}}',
+      },
+    });
+    const committed = spy.mock.calls[spy.mock.calls.length - 1]?.[0];
+    const ref = (committed?.nodes.c1 as ChildWorkflowNode).workflowRef;
+    expect(ref.type).toBe("inline");
+    if (ref.type === "inline") {
+      expect(ref.graph.metadata?.name).toBe("Renamed");
+    }
+
+    // A malformed edit surfaces an inline error and does NOT commit further.
+    const callsBefore = spy.mock.calls.length;
+    fireEvent.change(editor, { target: { value: "{ not json" } });
+    expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
+    expect(spy.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3b: toggling Inline → Library → Inline preserves the inline graph
+// (no data-loss reset).
+// ---------------------------------------------------------------------------
+
+describe("ChildWorkflowNodeSettings — Scenario 3b: ref-type toggle preserves the stashed ref", () => {
+  it("restores the inline graph after switching to Library and back", () => {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: {
+        type: "inline",
+        graph: {
+          schemaVersion: "1.0",
+          metadata: { name: "KeepMe" },
+          nodes: {},
+          edges: [],
+          entryNodeId: "",
+          ctx: {},
+        },
+      },
+    });
+    const config = makeConfig([initial]);
+    const { spy } = mountWithSpy(config, "c1");
+
+    const segmented = screen.getByTestId(
+      "child-workflow-node-settings-ref-type",
     );
+    // Inline → Library.
+    fireEvent.click(within(segmented).getByText("Library"));
+    // Library → Inline.
+    fireEvent.click(within(segmented).getByText("Inline"));
 
-    // Inline body is rendered.
-    const inlineBody = screen.getByTestId(
-      "child-workflow-node-settings-inline-body",
-    );
-    expect(inlineBody).toBeInTheDocument();
-
-    // Read-only JSON preview is present and contains the serialised graph.
-    const preview = screen.getByTestId(
-      "child-workflow-node-settings-inline-preview",
-    );
-    expect(preview).toBeInTheDocument();
-    // The preview is a Mantine <Code block>, which is not an interactive
-    // input — there's no value to mutate; the textContent must contain the
-    // serialised JSON.
-    expect(preview.tagName).not.toBe("INPUT");
-    expect(preview.tagName).not.toBe("TEXTAREA");
-    expect(preview.textContent ?? "").toContain('"schemaVersion": "1.0"');
-    expect(preview.textContent ?? "").toContain('"name": "Nested"');
-
-    // Advisory hint text is present and uses the dimmed text style.
-    expect(
-      within(inlineBody).getByText(
-        "Inline graph editing is not yet supported in V2; switch to JSON editor to author.",
-      ),
-    ).toBeInTheDocument();
+    const committed = spy.mock.calls[spy.mock.calls.length - 1]?.[0];
+    const ref = (committed?.nodes.c1 as ChildWorkflowNode).workflowRef;
+    expect(ref.type).toBe("inline");
+    if (ref.type === "inline") {
+      // The original graph came back — not an empty reset.
+      expect(ref.graph.metadata?.name).toBe("KeepMe");
+    }
   });
 });
 

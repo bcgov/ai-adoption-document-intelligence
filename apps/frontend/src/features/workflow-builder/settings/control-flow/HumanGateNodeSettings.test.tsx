@@ -145,64 +145,67 @@ describe("HumanGateNodeSettings — Scenario 1: signal.name is a required TextIn
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 2: signal.payloadSchema renders as read-only JSON preview
+// Scenario 2: signal.payloadSchema is an editable JSON textarea + guidance
 // ---------------------------------------------------------------------------
 
-describe("HumanGateNodeSettings — Scenario 2: signal.payloadSchema is read-only", () => {
-  it("renders the payloadSchema as JSON and shows an advisory hint about V2 schema authoring", () => {
-    const payloadSchema = {
-      type: "object",
-      properties: {
-        approver: { type: "string" },
-        notes: { type: "string" },
-      },
-    };
+describe("HumanGateNodeSettings — Scenario 2: payloadSchema is editable JSON", () => {
+  it("seeds the editor from the schema, commits valid edits, and errors on bad JSON", () => {
+    const payloadSchema = { approved: "boolean", reviewer: "string" };
     const initial = humanGateNode("hg1", "Approve gate", {
       signal: { name: "approve", payloadSchema },
     });
     const config = makeConfig([initial]);
+    const { spy } = mountWithSpy(config, "hg1");
 
-    renderSettings(
-      <HumanGateNodeSettings
-        node={initial}
-        config={config}
-        onConfigChange={() => undefined}
-      />,
+    const editor = screen.getByTestId(
+      "human-gate-node-settings-payload-schema-editor",
+    ) as HTMLTextAreaElement;
+    expect(editor.tagName).toBe("TEXTAREA");
+    expect(editor.value).toContain('"approved": "boolean"');
+
+    // Valid edit commits the parsed schema.
+    fireEvent.change(editor, {
+      target: { value: '{"approved":"boolean","note":"string"}' },
+    });
+    const committed = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((committed.nodes.hg1 as HumanGateNode).signal.payloadSchema).toEqual(
+      {
+        approved: "boolean",
+        note: "string",
+      },
     );
 
-    // The payload schema block is rendered.
-    const schemaBlock = screen.getByTestId(
-      "human-gate-node-settings-payload-schema",
-    );
-    expect(schemaBlock).toBeInTheDocument();
-
-    // The schema is shown as a JSON preview matching the serialized value.
-    const preview = within(schemaBlock).getByTestId(
-      "human-gate-node-settings-payload-schema-preview",
-    );
-    expect(preview.textContent).toBe(JSON.stringify(payloadSchema, null, 2));
-
-    // The advisory hint about V2 schema authoring is present.
-    expect(
-      within(schemaBlock).getByText(/not yet supported in V2/i),
-    ).toBeInTheDocument();
+    // Bad JSON surfaces an error and does not commit further.
+    const before = spy.mock.calls.length;
+    fireEvent.change(editor, { target: { value: "{ oops" } });
+    expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
+    expect(spy.mock.calls.length).toBe(before);
   });
 
-  it("omits the payload schema block when no payloadSchema is set", () => {
+  it("shows the how-it-works guidance and an (empty) editable schema when none is set", () => {
     const initial = humanGateNode("hg1", "Approve gate");
     const config = makeConfig([initial]);
+    const { spy } = mountWithSpy(config, "hg1");
 
-    renderSettings(
-      <HumanGateNodeSettings
-        node={initial}
-        config={config}
-        onConfigChange={() => undefined}
-      />,
-    );
-
+    // Guidance callout is present.
     expect(
-      screen.queryByTestId("human-gate-node-settings-payload-schema"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("human-gate-node-settings-how-it-works"),
+    ).toBeInTheDocument();
+
+    // The schema block is now ALWAYS present (editable), just empty.
+    const editor = screen.getByTestId(
+      "human-gate-node-settings-payload-schema-editor",
+    ) as HTMLTextAreaElement;
+    expect(editor.value).toBe("");
+
+    // Typing a schema sets payloadSchema on the node.
+    fireEvent.change(editor, { target: { value: '{"approved":"boolean"}' } });
+    const committed = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    expect((committed.nodes.hg1 as HumanGateNode).signal.payloadSchema).toEqual(
+      {
+        approved: "boolean",
+      },
+    );
   });
 });
 

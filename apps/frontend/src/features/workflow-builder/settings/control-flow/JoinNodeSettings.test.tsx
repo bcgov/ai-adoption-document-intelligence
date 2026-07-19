@@ -169,6 +169,54 @@ describe("JoinNodeSettings — Scenario 1: sourceMapNodeId picker filters to map
 });
 
 // ---------------------------------------------------------------------------
+// Auto-wire: picking the source Map derives + declares a results ctx key.
+// ---------------------------------------------------------------------------
+
+describe("JoinNodeSettings — auto-wire results on source-map pick", () => {
+  it("derives + declares an array results key when none is set", () => {
+    const initial = joinNode("j1", "Join"); // resultsCtxKey: ""
+    const config = makeConfig([initial, mapNode("eachDoc", "Per-Doc Map")]);
+    const { spy } = mountWithSpy(config, "j1");
+
+    fireEvent.click(
+      screen.getByTestId("join-node-settings-source-map-node-id"),
+    );
+    fireEvent.click(
+      screen
+        .getAllByRole("option")
+        .find((o) => /Per-Doc Map/.test(o.textContent ?? ""))!,
+    );
+
+    const next = spy.mock.calls[spy.mock.calls.length - 1]?.[0];
+    const join = next?.nodes.j1 as JoinNode;
+    expect(join.sourceMapNodeId).toBe("eachDoc");
+    expect(join.resultsCtxKey).toBe("eachDocResults");
+    expect(next?.ctx?.eachDocResults).toEqual({ type: "array" });
+  });
+
+  it("does NOT overwrite an author-set results key", () => {
+    const initial = joinNode("j1", "Join", { resultsCtxKey: "myResults" });
+    const config = makeConfig([initial, mapNode("eachDoc", "Per-Doc Map")], {
+      myResults: { type: "array" },
+    });
+    const { spy } = mountWithSpy(config, "j1");
+
+    fireEvent.click(
+      screen.getByTestId("join-node-settings-source-map-node-id"),
+    );
+    fireEvent.click(
+      screen
+        .getAllByRole("option")
+        .find((o) => /Per-Doc Map/.test(o.textContent ?? ""))!,
+    );
+
+    const join = spy.mock.calls[spy.mock.calls.length - 1]?.[0]?.nodes
+      .j1 as JoinNode;
+    expect(join.resultsCtxKey).toBe("myResults");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // §5.1: the unimplemented "any" strategy was removed — only "all" exists, so
 // there is no strategy control to render.
 // ---------------------------------------------------------------------------

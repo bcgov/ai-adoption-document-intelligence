@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { autoWireIssuesToValidationErrors } from "../auto-wire-validation";
 import { useActivityCatalog } from "../dynamic-nodes/useActivityCatalog";
+import { mapBodyIssuesToValidationErrors } from "./map-body-validation";
 
 const validateActivityParameters = createCatalogParameterValidator();
 
@@ -74,6 +75,7 @@ export function useGraphValidation(
       setErrors([
         ...result.errors,
         ...autoWireIssuesToValidationErrors(config),
+        ...mapBodyIssuesToValidationErrors(config),
       ]);
       setIsPending(false);
     }, debounceMs);

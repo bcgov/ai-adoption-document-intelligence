@@ -23,15 +23,18 @@
  */
 
 import {
+  Alert,
+  Autocomplete,
   Box,
-  Code,
   Divider,
   SegmentedControl,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
+import { IconInfoCircle } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import type {
   GraphWorkflowConfig,
@@ -78,6 +81,19 @@ function isOnTimeoutValue(value: string): value is HumanGateNode["onTimeout"] {
   return value === "fail" || value === "continue" || value === "fallback";
 }
 
+/**
+ * Common signal names offered as autocomplete suggestions. The name is
+ * author-chosen (any string works) — these are just conventional starting
+ * points so authors don't have to invent one blind. `humanApproval` is what
+ * the HITL Review flow sends.
+ */
+const SIGNAL_NAME_PRESETS = [
+  "humanApproval",
+  "approve",
+  "review",
+  "reject",
+] as const;
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -100,6 +116,52 @@ export function HumanGateNodeSettings({
     updateNode({
       ...node,
       signal: { ...node.signal, name: raw },
+    });
+  };
+
+  // ── signal.payloadSchema (editable JSON draft) ─────────────────────────
+  // The schema is a small `{ field: type }` map describing the approval
+  // payload a reviewer sends. Edit it as JSON; commit on valid parse.
+  const [schemaDraft, setSchemaDraft] = useState("");
+  const [schemaError, setSchemaError] = useState<string | null>(null);
+  // Reseed the draft only when the selected node changes (not on every
+  // keystroke, which would fight the user's typing).
+  useEffect(() => {
+    setSchemaDraft(
+      node.signal.payloadSchema
+        ? JSON.stringify(node.signal.payloadSchema, null, 2)
+        : "",
+    );
+    setSchemaError(null);
+  }, [node.id]);
+
+  const commitSchemaDraft = (raw: string) => {
+    setSchemaDraft(raw);
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+      // Cleared → drop the schema from the node.
+      setSchemaError(null);
+      const cleared: HumanGateNode = {
+        ...node,
+        signal: { ...node.signal },
+      };
+      delete cleared.signal.payloadSchema;
+      updateNode(cleared);
+      return;
+    }
+    let parsed: Record<string, string>;
+    try {
+      parsed = JSON.parse(trimmed) as Record<string, string>;
+    } catch (err) {
+      setSchemaError(
+        `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
+    setSchemaError(null);
+    updateNode({
+      ...node,
+      signal: { ...node.signal, payloadSchema: parsed },
     });
   };
 
@@ -157,11 +219,6 @@ export function HumanGateNodeSettings({
     updateNode({ ...node, fallbackEdgeId: edgeId });
   };
 
-  // ── signal.payloadSchema preview ───────────────────────────────────────
-  const hasPayloadSchema =
-    node.signal.payloadSchema !== undefined &&
-    Object.keys(node.signal.payloadSchema).length > 0;
-
   return (
     <Stack
       gap="md"
@@ -173,34 +230,56 @@ export function HumanGateNodeSettings({
           Signal
         </Title>
         <Stack gap="xs">
-          <TextInput
+          <Alert
+            variant="light"
+            color="blue"
+            icon={<IconInfoCircle size={16} />}
+            data-testid="human-gate-node-settings-how-it-works"
+          >
+            <Text size="xs">
+              This node <strong>pauses the run</strong> until a matching signal
+              arrives. A reviewer approves it from the{" "}
+              <strong>HITL Review</strong> screen (or any caller that sends this
+              signal) and the run resumes. The <strong>signal name</strong> is a
+              label you choose — it just has to match what the sender uses; the
+              HITL flow sends <code>humanApproval</code>.
+            </Text>
+          </Alert>
+          <Autocomplete
             label="Signal name"
-            description="Name of the Temporal signal that resumes the workflow."
-            placeholder="e.g. approve"
+            description="The Temporal signal that resumes the run. Pick a common name or type your own."
+            placeholder="e.g. humanApproval"
             size="xs"
             withAsterisk
+            data={[...SIGNAL_NAME_PRESETS]}
             value={node.signal.name}
             error={signalNameError}
-            onChange={(event) => setSignalName(event.currentTarget.value)}
+            onChange={setSignalName}
             data-testid="human-gate-node-settings-signal-name"
           />
-          {hasPayloadSchema && (
-            <Box data-testid="human-gate-node-settings-payload-schema">
-              <Text size="xs" fw={600} mb={4}>
-                Payload schema
-              </Text>
-              <Text size="10px" c="dimmed" mb={4}>
-                Advanced: schema authoring is not yet supported in V2. Switch to
-                the JSON editor to modify this schema.
-              </Text>
-              <Code
-                block
-                data-testid="human-gate-node-settings-payload-schema-preview"
-              >
-                {JSON.stringify(node.signal.payloadSchema, null, 2)}
-              </Code>
-            </Box>
-          )}
+          <Box data-testid="human-gate-node-settings-payload-schema">
+            <Text size="xs" fw={600} mb={4}>
+              Payload schema (optional)
+            </Text>
+            <Text size="10px" c="dimmed" mb={4}>
+              The shape of the approval payload a reviewer sends, as a JSON{" "}
+              <code>{`{ "field": "type" }`}</code> map (e.g.{" "}
+              <code>{`{ "approved": "boolean", "reviewer": "string" }`}</code>).
+              Leave empty for no declared payload.
+            </Text>
+            <Textarea
+              autosize
+              minRows={3}
+              maxRows={12}
+              size="xs"
+              placeholder={`{ "approved": "boolean" }`}
+              styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
+              value={schemaDraft}
+              error={schemaError}
+              onChange={(event) => commitSchemaDraft(event.currentTarget.value)}
+              data-testid="human-gate-node-settings-payload-schema-editor"
+            />
+          </Box>
         </Stack>
       </Box>
 

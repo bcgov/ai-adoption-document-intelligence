@@ -36,6 +36,27 @@ export interface JoinNodeSettingsProps {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive a sensible, unique results-ctx-key from the source Map's id — e.g.
+ * `eachDoc` → `eachDocResults`. Node ids are already identifier-safe, so no
+ * slugging is needed; we only de-collide against existing ctx keys.
+ */
+function defaultResultsKey(
+  config: GraphWorkflowConfig,
+  mapNodeId: string,
+): string {
+  const base = `${mapNodeId}Results`;
+  const existing = new Set(Object.keys(config.ctx ?? {}));
+  if (!existing.has(base)) return base;
+  let n = 2;
+  while (existing.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -48,8 +69,24 @@ export function JoinNodeSettings({
     onConfigChange(replaceNode(config, node.id, next));
   };
 
-  const setSourceMapNodeId = (next: string | null) =>
-    updateNode({ ...node, sourceMapNodeId: next ?? "" });
+  const setSourceMapNodeId = (next: string | null) => {
+    const sourceMapNodeId = next ?? "";
+    // Auto-wire the results: when the author picks the source Map and hasn't
+    // set a results key yet, derive one from the map's id, declare it as an
+    // array in ctx, and bind it — so picking the Map is enough to collect the
+    // fan-out (no separate "declare a variable" detour).
+    if (sourceMapNodeId && !node.resultsCtxKey) {
+      const key = defaultResultsKey(config, sourceMapNodeId);
+      const withNode = replaceNode(config, node.id, {
+        ...node,
+        sourceMapNodeId,
+        resultsCtxKey: key,
+      });
+      onConfigChange(declareCtxKey(withNode, key, "array"));
+      return;
+    }
+    updateNode({ ...node, sourceMapNodeId });
+  };
 
   const setResultsCtxKey = (next: string) =>
     updateNode({ ...node, resultsCtxKey: next });
