@@ -113,6 +113,16 @@
       "timeout": { "startToClose": "2m" },
       "retry": { "maximumAttempts": 3 }
     },
+    "normalizeFields": {
+      "id": "normalizeFields",
+      "type": "activity",
+      "label": "Normalize Fields",
+      "activityType": "ocr.normalizeFields",
+      "inputs": [{ "port": "ocrResult", "ctxKey": "cleanedResultRef" }],
+      "outputs": [{ "port": "normalizedResult", "ctxKey": "cleanedResultRef" }],
+      "timeout": { "startToClose": "1m" },
+      "retry": { "maximumAttempts": 3 }
+    },
     "checkConfidence": {
       "id": "checkConfidence",
       "type": "activity",
@@ -182,7 +192,8 @@
     { "id": "e4", "source": "updateApimRequestId", "target": "pollOcrResults", "type": "normal" },
     { "id": "e5", "source": "pollOcrResults", "target": "extractResults", "type": "normal" },
     { "id": "e6", "source": "extractResults", "target": "postOcrCleanup", "type": "normal" },
-    { "id": "e7", "source": "postOcrCleanup", "target": "checkConfidence", "type": "normal" },
+    { "id": "e7", "source": "postOcrCleanup", "target": "normalizeFields", "type": "normal" },
+    { "id": "e7b", "source": "normalizeFields", "target": "checkConfidence", "type": "normal" },
     { "id": "e8", "source": "checkConfidence", "target": "reviewSwitch", "type": "normal" },
     { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
     { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
@@ -209,7 +220,7 @@
       "description": "Clean and normalize OCR results",
       "icon": "cleanup",
       "color": "#22c55e",
-      "nodeIds": ["postOcrCleanup"]
+      "nodeIds": ["postOcrCleanup", "normalizeFields"]
     },
     "quality-gate": {
       "label": "Quality Gate",
