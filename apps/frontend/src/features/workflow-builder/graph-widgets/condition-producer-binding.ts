@@ -87,6 +87,11 @@ export function resolveCtxKeyToProducer(
   consumerNodeId?: string,
 ): ResolvedProducerRef | null {
   if (ctxKey === "") return null;
+  // Refs are stored in the canonical `ctx.<key>` namespace (the evaluator's
+  // form, and what the seeds and the editor write); producer output bindings
+  // are bare ctx keys. Strip the prefix before matching so `ctx.ocrStatus`
+  // resolves to the `ocrStatus` producer (mirrors `splitKnownBase`).
+  if (ctxKey.startsWith("ctx.")) ctxKey = ctxKey.slice(4);
   const distances = consumerNodeId
     ? upstreamNodesWithDistance(config, consumerNodeId)
     : null;
@@ -101,8 +106,14 @@ export function resolveCtxKeyToProducer(
       const key = producerCtxKey(config, nodeId, out.name);
       const isExact = key === ctxKey;
       // Drilled ref: the ctx key is `<producerKey>.<field...>`. Match only on
-      // a dot boundary so `ocrResultX` never resolves to the `ocrResult` port.
-      const isDrilled = !isExact && ctxKey.startsWith(`${key}.`);
+      // a dot boundary so `ocrResultX` never resolves to the `ocrResult` port,
+      // and require a non-empty field remainder so a trailing-dot ref
+      // (`ocrResult.`) does not resolve to an empty `fieldPath` (which the
+      // runtime evaluator reads as null).
+      const isDrilled =
+        !isExact &&
+        ctxKey.startsWith(`${key}.`) &&
+        ctxKey.length > key.length + 1;
       if (!isExact && !isDrilled) continue;
       // Prefer an exact producer over a drilled one; among equals, nearer wins.
       if (best !== null && bestIsExact && !isExact) continue;

@@ -294,3 +294,27 @@ export function getArtifactKindMeta(
 ): ArtifactKindMeta | undefined {
   return liveRegistry.get(kind);
 }
+
+/** Belt-and-suspenders bound on the `baseKind` walk (matches kind-fields.ts). */
+const MAX_FAMILY_CHAIN = 16;
+
+/**
+ * Walk the live-registry `baseKind` chain to a kind's FAMILY ROOT — the direct
+ * child of `Artifact` (e.g. `PreparedFile` → `Document`, `TypedSegment` →
+ * `Segment`, re-parented `MultiPageDocument` → `DocumentRef` → `Document`).
+ * Returns the input unchanged for unknown kinds or a kind whose base is
+ * `Artifact`/absent. Pass an ELEMENT kind (strip `[]` first).
+ *
+ * Single source of truth for family classification so preview dispatch, kind
+ * selects, canvas grouping, etc. never re-implement the walk and drift on
+ * dynamically-registered kinds or deeper hierarchies.
+ */
+export function resolveKindFamilyRoot(kind: string): string {
+  let current = kind;
+  for (let i = 0; i < MAX_FAMILY_CHAIN; i++) {
+    const base = getArtifactKindMeta(current)?.baseKind;
+    if (base === undefined || base === "Artifact") return current;
+    current = base;
+  }
+  return current;
+}

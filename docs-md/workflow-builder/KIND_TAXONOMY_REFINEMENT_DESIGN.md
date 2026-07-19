@@ -201,7 +201,7 @@ Every kind-tagged port traced to its Temporal implementation
 | `document.selectClassifiedPages` `segments` | out | Segment[] | **ClassifiedPageSegment[]** | `ClassifiedPageSegment[]` |
 | `document.flattenClassifiedDocuments` output | out | Segment[] | **LabeledSegment[]** | `ClassifiedSegment[]` (renamed) |
 | `document.classify` `segment` | in | Segment | **DocumentSegment** | `segment: DocumentSegment` (accepts `TypedSegment` via baseKind) |
-| `segment.combineResult` `currentSegment` | in | Segment | **TypedSegment** | inline duplicate of `SegmentWithType` shape |
+| `segment.combineResult` `currentSegment` | in | Segment | *(stays `Segment`)* | activity spreads any segment shape, reads no subkind field — narrowing to `TypedSegment` wrongly rejected `document.split`→map→combine loops. Corrected in the 2026-07-18 post-review (§13). |
 | `segment.combineResult` `combinedSegment` | out | Segment | *(stays `Segment`)* | payload embeds `ocrResult: unknown` — principle 2 |
 | `document.validateFields` `processedSegments` | in | Segment[] | *(stays `Segment[]`)* | runtime `Array<Record<string, unknown>>` — untyped, principle 2 |
 
@@ -218,7 +218,10 @@ the runtime shapes are confirmed.
    not base64. The catalog entry is corrected to the real contract
    (`pageBlobPath` tagged **DocumentRef**, plus the three number outputs).
    Renaming the misleading activity id itself (`document.extractToBase64`) is
-   **out of scope** — it is a persisted identifier in saved workflows.
+   **out of scope** — it is a persisted identifier in saved workflows. Its
+   `displayName`, however, was set to "Extract Page Range" — byte-identical to
+   `document.extractPageRange`, making the two palette entries indistinguishable;
+   corrected to "Extract Page to Blob" in the 2026-07-18 post-review (§13).
 2. **`source.upload`'s derived output schema says `format: "uri"`** but the
    stored value is a blob key. The `format` annotation is removed. The default
    `ctxKey` name `"documentUrl"` is likewise misleading but is user-visible
@@ -268,10 +271,19 @@ demos and e2e fixtures. The review is per-narrowed-input:
    means the shape assessment in §5 is wrong — **fix the table (and tag),
    not the demo**; this blocks the merge.
 
-Existing saved workflows with now-invalid edges: they keep running (see §7);
-the builder's existing validation surfaces the edge as invalid on next edit,
-which is the desired honest behavior — no migration, per the no-backwards-
-compat project rule.
+Existing saved workflows with now-invalid edges: they keep **running** at
+runtime (kinds are builder metadata the executor ignores, see §7). Editing is
+a different story, and the original text here understated it — corrected in the
+2026-07-18 post-review: `updateWorkflow` re-validates the whole config and
+throws `BadRequestException` on ANY `severity:"error"` finding
+(`workflow.service.ts`), and a kind mismatch is such an error
+(`validator.ts` `walkCtxKeyBindings`). So a pre-wave workflow whose wiring is
+now sibling-mismatched **cannot be saved at all** — including unrelated edits —
+until the edge is rewired. This is the intended, honest behavior under the
+no-backwards-compat project rule (a downgrade-to-warning-on-update would BE a
+backwards-compat shim and is rejected). The hard block is only correct while
+the §5 tags are correct — see the F1 correction in §13, which removed a false
+positive that was blocking valid `combineResult` loops.
 
 ## 10. Testing
 
@@ -319,3 +331,45 @@ Each phase ends with the §9 protocol and its own commits.
 - **Catalog honesty fixes shipped:** `document.extractToBase64`'s stale `base64` output replaced with its real `pageBlobPath` (`DocumentRef`)/`pageIndex`/`byteLength`/`pageCount` outputs; `source.upload` dropped its misleading `format: "uri"` (it stores a blob key) and its `outputKind` is now `DocumentRef`.
 - **Verification:** graph-workflow 932 Jest, temporal 1069 Jest + clean tsc, frontend 1369 Vitest all green; e2e sibling-rejection + typed-io + sources + control-flow green; browser walkthrough of the OCR/multi-page demos shows subkinds rendering with zero page errors and zero invalid edges.
 - **Pre-existing failures (NOT caused by this wave):** five tier2 e2e checks in the `InputsSection` settings panel fail because they query `⋯`-dropdown menu actions ("Change source"/"Revert to automatic") as directly-visible buttons, plus one canvas badge-click timeout. `InputsSection.tsx` is untouched by this wave (verified via git log). Flagged for separate triage.
+
+## 13. Post-implementation review corrections (2026-07-18)
+
+A recall-biased review of the two typing waves surfaced ten verified issues;
+all were fixed (see the fix log [TYPING_WAVES_REVIEW_20260718.md](TYPING_WAVES_REVIEW_20260718.md)).
+The taxonomy-relevant ones and their design impact:
+
+- **F1 — `segment.combineResult.currentSegment` un-narrowed to `Segment`.** The
+  runtime spreads any segment shape and reads no subkind field, so the
+  `TypedSegment` tag violated the §2 accepts-rule and rejected the documented
+  `document.split → map → combineResult` and `flatten → map → combineResult`
+  loops (a `DocumentSegment`/`LabeledSegment` item is not assignable into a
+  `TypedSegment` input). Tag and the Temporal `CombineSegmentResultInput` type
+  are now family-level. §5 table row updated.
+- **F4 — reserved-namespace guard.** The runtime evaluator reroutes a bare
+  ref whose first segment is `param`/`row`/`ctx`/`doc`/`segment`
+  (`doc.*`→`documentMetadata`, `segment.*`→`currentSegment`). A ctx key that IS
+  one of those words is therefore unreachable by conditions. `validateGraphConfig`
+  now errors on such output-binding / map item-index / ctx-declaration keys.
+  (Considered but rejected: rewriting the editor to emit `ctx.`-prefixed refs —
+  higher ripple through the picker/seeds; the guard closes the collision at the
+  source.)
+- **F8 — `document.extractToBase64` displayName** de-duplicated (§6).
+- **Frontend consolidation (C1/C3):** the family-root `baseKind` walk the
+  preview dispatch relies on is now a single package export
+  `resolveKindFamilyRoot` (next to `getArtifactKindMeta`); the preview
+  surfaces reuse `splitKindRef` for `[]` parsing. This removes the divergent
+  copies the wave had introduced (design §7's "no frontend changes" assumption
+  had already been broken by the dc6529c9 preview-dispatch fix).
+- **F2 — node-card preview** now reads the value at the producer's bound ctxKey
+  via `resolveCtxBinding` (mirroring the wire-peek fix), not fixed
+  `outputCtx.document`/`.segments` slots — see §12's preview note, which only
+  held for ctxKeys literally named after a family.
+- **F7 — save-block behavior** documented accurately in §9 (hard block on
+  edit, by design).
+
+Not taxonomy-specific but fixed in the same pass: loop-variable body membership
+(F5, now shares `analyzeMapBody`), scope-blind map-item kind resolution (F6, now
+takes a consumer node), condition-ref `ctx.`-prefix resolution + trailing-dot
+handling (F3/C7), and picker base-vs-drilled discrimination (C5/C6). The stale
+`scripts/agent-demo-fixtures/scenario-1.json` snapshot (C8) is left to the
+demo-fabrication audit to regenerate.

@@ -19,6 +19,7 @@ import {
   type ArtifactKindMeta,
   getArtifactKindMeta,
   registerArtifactKind,
+  resolveKindFamilyRoot,
 } from "./artifact-registry";
 import type { ArtifactKind } from "./artifacts";
 
@@ -314,5 +315,27 @@ describe("getArtifactKindMeta", () => {
     ]);
     expect(getArtifactKindMeta("DocumentRef")?.fields).toBeUndefined();
     expect(getArtifactKindMeta("DocumentContent")?.fields).toBeUndefined();
+  });
+});
+
+describe("resolveKindFamilyRoot", () => {
+  it("returns the direct child of Artifact for a deep subkind chain", () => {
+    // PreparedFile -> Document; TypedSegment -> DocumentSegment -> Segment.
+    expect(resolveKindFamilyRoot("PreparedFile")).toBe("Document");
+    expect(resolveKindFamilyRoot("TypedSegment")).toBe("Segment");
+  });
+
+  it("resolves a re-parented kind through its intermediate base", () => {
+    // MultiPageDocument -> DocumentRef -> Document.
+    expect(resolveKindFamilyRoot("MultiPageDocument")).toBe("Document");
+  });
+
+  it("returns a family root unchanged", () => {
+    expect(resolveKindFamilyRoot("Document")).toBe("Document");
+    expect(resolveKindFamilyRoot("Segment")).toBe("Segment");
+  });
+
+  it("returns unknown kinds unchanged (fail-safe)", () => {
+    expect(resolveKindFamilyRoot("NotARealKind")).toBe("NotARealKind");
   });
 });

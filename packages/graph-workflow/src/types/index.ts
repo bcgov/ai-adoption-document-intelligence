@@ -14,6 +14,7 @@ export {
   ARTIFACT_REGISTRY,
   getArtifactKindMeta,
   registerArtifactKind,
+  resolveKindFamilyRoot,
 } from "./artifact-registry";
 export type { ArrayKind, ArtifactKind, KindRef, Segment } from "./artifacts";
 export { resolveKindFields } from "./kind-fields";

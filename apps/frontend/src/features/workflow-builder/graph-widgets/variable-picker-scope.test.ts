@@ -83,7 +83,8 @@ describe("buildVariableOptions — loop variables in scope", () => {
 describe("expandVariableOptions — a body node drills the TypedSegment item", () => {
   it("enumerates the item's fields through the map-item unwrap", () => {
     const base = buildVariableOptions(config, "mid");
-    const { groups, meta } = expandVariableOptions(base, config, "");
+    // "mid" is inside the map body, so the item key unwraps to TypedSegment.
+    const { groups, meta } = expandVariableOptions(base, config, "", "mid");
     const items = groups.flatMap((g) => g.items);
     expect(items).toEqual(
       expect.arrayContaining([

@@ -41,6 +41,8 @@ import type {
   PollUntilNode,
   SourceNode,
 } from "../../../types/workflow";
+import { splitKindRef } from "../canvas/artifact-kind-colour";
+import { analyzeMapBody } from "../settings/control-flow/map-body-analysis";
 
 /**
  * Library port path may be `"ctx.<key>"` or bare `"<key>"`. Matches either
@@ -153,21 +155,36 @@ function resolveMapItemKind(
   ctxKey: string,
   config: GraphWorkflowConfig,
   visitedMaps: Set<string>,
+  consumerNodeId: string | undefined,
 ): KindRef | undefined {
+  // The item key only exists INSIDE the owning map's body. Without a consumer
+  // node we cannot tell whether the caller sits in that body, so we do not
+  // unwrap — otherwise a same-named producer elsewhere in the graph would be
+  // shadowed graph-wide, and two maps sharing an itemCtxKey would resolve by
+  // node order. Scoping to the consumer's body fixes both.
+  if (consumerNodeId === undefined) return undefined;
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type !== "map") continue;
     const mapNode = node as MapNode;
     if (mapNode.itemCtxKey !== ctxKey) continue;
     if (!mapNode.collectionCtxKey) continue;
     if (visitedMaps.has(nodeId)) continue;
+    const { bodyNodeIds } = analyzeMapBody(
+      config,
+      mapNode.bodyEntryNodeId,
+      mapNode.bodyExitNodeId,
+    );
+    if (!bodyNodeIds.includes(consumerNodeId)) continue;
     visitedMaps.add(nodeId);
     const collectionKind = resolveInner(
       mapNode.collectionCtxKey,
       config,
       visitedMaps,
+      consumerNodeId,
     );
-    if (collectionKind?.endsWith("[]")) {
-      return collectionKind.slice(0, -2) as KindRef;
+    if (collectionKind !== undefined) {
+      const { baseKind, isArray } = splitKindRef(collectionKind);
+      if (isArray) return baseKind as KindRef;
     }
   }
   return undefined;
@@ -180,18 +197,26 @@ function resolveMapItemKind(
 export function resolveProducerKindFor(
   ctxKey: string,
   config: GraphWorkflowConfig,
+  consumerNodeId?: string,
 ): KindRef | undefined {
-  return resolveInner(ctxKey, config, new Set());
+  return resolveInner(ctxKey, config, new Set(), consumerNodeId);
 }
 
 function resolveInner(
   ctxKey: string,
   config: GraphWorkflowConfig,
   visitedMaps: Set<string>,
+  consumerNodeId: string | undefined,
 ): KindRef | undefined {
-  // 0. Map-item unwrap — the item key exists only inside the map body and
-  // shadows any same-named producer, so it goes first (spec §4).
-  const mapItemKind = resolveMapItemKind(ctxKey, config, visitedMaps);
+  // 0. Map-item unwrap — the item key exists only inside the OWNING map's body
+  // and shadows any same-named producer THERE, so it goes first — but only when
+  // the consumer node is actually inside that body (spec §4; scope fix).
+  const mapItemKind = resolveMapItemKind(
+    ctxKey,
+    config,
+    visitedMaps,
+    consumerNodeId,
+  );
   if (mapItemKind !== undefined) {
     return mapItemKind;
   }

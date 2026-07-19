@@ -5,7 +5,10 @@ export const documentExtractToBase64ParametersSchema = z.object({});
 
 export const documentExtractToBase64CatalogEntry: ActivityCatalogEntry = {
   activityType: "document.extractToBase64",
-  displayName: "Extract Page Range",
+  // NB: NOT "Extract Page Range" — that is document.extractPageRange's name.
+  // The persisted activityType keeps the legacy "toBase64" id, but this writes
+  // one page range to a NEW blob and returns its blob path.
+  displayName: "Extract Page to Blob",
   category: "File Handling",
   description:
     "Extracts a page range from a PDF blob and writes it to blob storage, returning the new blob path.",

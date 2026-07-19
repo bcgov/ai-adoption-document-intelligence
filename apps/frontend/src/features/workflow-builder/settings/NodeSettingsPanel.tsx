@@ -876,7 +876,7 @@ function PortBindingsEditor({
                 onCreateCtxKey={onCreateCtxKey}
                 expectedKind={port.kind}
                 resolveProducerKind={(ctxKey) =>
-                  resolveProducerKindFor(ctxKey, config)
+                  resolveProducerKindFor(ctxKey, config, currentNodeId)
                 }
               />
             );

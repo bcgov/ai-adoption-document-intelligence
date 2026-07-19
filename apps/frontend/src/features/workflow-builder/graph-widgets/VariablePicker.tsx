@@ -21,7 +21,6 @@
  */
 
 import type { KindRef } from "@ai-di/graph-workflow";
-import { upstreamNodesWithDistance } from "@ai-di/graph-workflow";
 import type {
   ComboboxLikeRenderOptionInput,
   ComboboxStringItem,
@@ -30,6 +29,7 @@ import { Autocomplete, Button, Text, Tooltip } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { GraphWorkflowConfig, MapNode } from "../../../types/workflow";
+import { analyzeMapBody } from "../settings/control-flow/map-body-analysis";
 import { resolveProducerKindFor } from "./resolve-producer-kind";
 import {
   expandVariableOptions,
@@ -93,30 +93,30 @@ const NEW_CTX_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * Loop variables (a map's item / index ctx key) that are in scope for
- * `currentNodeId` — i.e. that node sits inside the map's body. A node is in
- * the body when the body entry is an ancestor of it AND it is an ancestor of
- * the body exit (or it IS the entry/exit). These keys are declared on the map
- * node, never on `config.ctx` or an activity output binding, so the picker
- * would otherwise never offer them — and the item's fields (e.g. a
- * `TypedSegment` map item's `.confidence`) would never drill.
+ * `currentNodeId` — i.e. that node sits inside the map's body. Body membership
+ * uses the SAME forward entry→exit reachability as the canvas body group and
+ * the runtime (`analyzeMapBody`), so a node visually inside the green body box
+ * — including dead-end branch nodes that never reach the exit — is offered the
+ * loop variables. (A prior ancestor-of-exit test silently excluded dead-end
+ * branches, disagreeing with the canvas and the runtime.) These keys are
+ * declared on the map node, never on `config.ctx` or an activity output
+ * binding, so the picker would otherwise never offer them — and the item's
+ * fields (e.g. a `TypedSegment` map item's `.confidence`) would never drill.
  */
 function loopVariablesInScope(
   config: GraphWorkflowConfig,
   currentNodeId: string,
 ): string[] {
   const keys: string[] = [];
-  const ancestorsOfCurrent = upstreamNodesWithDistance(config, currentNodeId);
   for (const node of Object.values(config.nodes)) {
     if (node.type !== "map") continue;
     const mapNode = node as MapNode;
-    const inBody =
-      currentNodeId === mapNode.bodyEntryNodeId ||
-      currentNodeId === mapNode.bodyExitNodeId ||
-      (ancestorsOfCurrent.has(mapNode.bodyEntryNodeId) &&
-        upstreamNodesWithDistance(config, mapNode.bodyExitNodeId).has(
-          currentNodeId,
-        ));
-    if (!inBody) continue;
+    const { bodyNodeIds } = analyzeMapBody(
+      config,
+      mapNode.bodyEntryNodeId,
+      mapNode.bodyExitNodeId,
+    );
+    if (!bodyNodeIds.includes(currentNodeId)) continue;
     if (mapNode.itemCtxKey) keys.push(mapNode.itemCtxKey);
     if (mapNode.indexCtxKey) keys.push(mapNode.indexCtxKey);
   }
@@ -209,11 +209,18 @@ export function VariablePicker({
     () => buildVariableOptions(config, currentNodeId),
     [config, currentNodeId],
   );
+  // Base ctx keys (bare producers/ctx/loop vars), as opposed to drilled
+  // `key.field` rows. Membership — not "contains a dot" — is the correct
+  // discriminator: `__auto.<node>.<port>` base keys legitimately contain dots.
+  const knownBaseKeys = useMemo(
+    () => baseGroups.flatMap((g) => g.items),
+    [baseGroups],
+  );
   // Field drill-down (KIND_FIELD_SCHEMAS_DESIGN.md §5): re-expands as the
   // typed value establishes deeper drillable prefixes.
   const { groups: groupedOptions, meta: pathMeta } = useMemo(
-    () => expandVariableOptions(baseGroups, config, value),
-    [baseGroups, config, value],
+    () => expandVariableOptions(baseGroups, config, value, currentNodeId),
+    [baseGroups, config, value, currentNodeId],
   );
 
   // Inline "+ Create variable" affordance — offered once the typed value is a
@@ -240,9 +247,10 @@ export function VariablePicker({
   ) : null;
 
   // Caption text for a drilled field row ("string · optional", "object ·
-  // Segment"). Base keys (no dot) get no caption.
+  // Segment"). Base keys get no caption — tested by membership, not by "has a
+  // dot", so dotted base keys (`__auto.<node>.<port>`) stay caption-free.
   const captionFor = (optionValue: string): string | null => {
-    if (!optionValue.includes(".")) return null;
+    if (knownBaseKeys.includes(optionValue)) return null;
     const info: VariablePathInfo | undefined = pathMeta.get(optionValue);
     if (info === undefined) return null;
     const parts: string[] = [];
@@ -304,17 +312,17 @@ export function VariablePicker({
   // the Autocomplete renders compatible options first followed by a
   // labelled `INCOMPATIBLE_GROUP_LABEL` divider group.
   const flatCtxKeys = flattenGroupedOptions(groupedOptions);
-  const knownBaseKeys = baseGroups.flatMap((g) => g.items);
   const entries: VariablePickerEntry[] = flatCtxKeys.map((ctxKey) => ({
     id: ctxKey,
     label: ctxKey,
     ctxKey,
-    // Drilled rows (`key.field`) sort by their LEAF kind; bare keys keep the
-    // caller-supplied resolver, falling back to the config resolver.
-    producerKind: ctxKey.includes(".")
-      ? resolveValuePathKind(ctxKey, config, knownBaseKeys)
-      : (resolveProducerKind?.(ctxKey) ??
-        resolveProducerKindFor(ctxKey, config)),
+    // Base keys (incl. dotted `__auto.*` ones) keep the caller-supplied
+    // resolver, falling back to the config resolver; drilled `key.field` rows
+    // sort by their LEAF kind. Discriminate on membership, not on "has a dot".
+    producerKind: knownBaseKeys.includes(ctxKey)
+      ? (resolveProducerKind?.(ctxKey) ??
+        resolveProducerKindFor(ctxKey, config, currentNodeId))
+      : resolveValuePathKind(ctxKey, config, knownBaseKeys, currentNodeId),
   }));
   const { compatible, incompatible, reasons } = sortVariablesByCompatibility(
     entries,

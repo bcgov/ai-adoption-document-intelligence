@@ -1,35 +1,11 @@
-import { getArtifactKindMeta } from "@ai-di/graph-workflow";
+import { type KindRef, resolveKindFamilyRoot } from "@ai-di/graph-workflow";
 import type { ReactNode } from "react";
 
+import { splitKindRef } from "../canvas/artifact-kind-colour";
 import { ClassificationPreview } from "./ClassificationPreview";
 import { DocumentPreview } from "./DocumentPreview";
 import { OcrResultPreview } from "./OcrResultPreview";
 import { SegmentArrayPreview } from "./SegmentArrayPreview";
-
-/**
- * Walks the live-registry `baseKind` chain to the family root (the
- * direct child of `Artifact`), so shape-honest subkinds retagged onto
- * catalog ports by the kind-taxonomy-refinement wave (`DocumentRef`,
- * `PreparedFile`, `DocumentContent`, `ClassificationLabel`,
- * `LabeledDocumentMap`, …) dispatch to their family's preview widget
- * instead of falling through to `null`.
- *
- * Uses `getArtifactKindMeta` (the LIVE registry), not the frozen
- * `ARTIFACT_REGISTRY`, so dynamically-registered kinds resolve too —
- * mirrors `canvas/handle-style.ts`'s pattern.
- *
- * Returns the input unchanged for unknown kinds (fail-safe → default
- * `null` widget).
- */
-function familyRoot(kind: string): string {
-  let current = kind;
-  for (let i = 0; i < 16; i++) {
-    const base = getArtifactKindMeta(current)?.baseKind;
-    if (base === undefined || base === "Artifact") return current;
-    current = base;
-  }
-  return current;
-}
 
 /**
  * Shared kind→widget dispatch. Given an artifact-kind literal and the
@@ -50,8 +26,8 @@ export function renderKindValue(
   value: unknown,
 ): ReactNode | null {
   if (!kind) return null;
-  const isArray = kind.endsWith("[]");
-  const root = familyRoot(isArray ? kind.slice(0, -2) : kind);
+  const { baseKind, isArray } = splitKindRef(kind as KindRef);
+  const root = resolveKindFamilyRoot(baseKind);
   if (isArray) {
     return root === "Segment" ? <SegmentArrayPreview value={value} /> : null;
   }
@@ -66,5 +42,3 @@ export function renderKindValue(
       return null;
   }
 }
-
-export { familyRoot };

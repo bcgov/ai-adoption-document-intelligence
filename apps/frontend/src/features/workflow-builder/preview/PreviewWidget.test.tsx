@@ -160,12 +160,14 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   for (const kind of DOC_CASES) {
     it(`routes outputKind=${kind} to DocumentPreview with ctx.document`, async () => {
       const doc = { blob: { storage_key: "abc" }, pageCount: 1 };
-      fetchSpy.mockResolvedValue(
-        rowResponse(buildRow(kind, { document: doc })),
-      );
+      fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, { nodeOut: doc })));
 
       renderWithProviders(
-        <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+        <PreviewWidget
+          workflowId={WORKFLOW_ID}
+          nodeId={NODE_ID}
+          outputCtxKey="nodeOut"
+        />,
       );
 
       const stub = await screen.findByTestId("stub-document-preview");
@@ -177,11 +179,15 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=Segment[] to SegmentArrayPreview with ctx.segments", async () => {
     const segs = [{ parentDocId: "doc-1" }];
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("Segment[]", { segments: segs })),
+      rowResponse(buildRow("Segment[]", { nodeOut: segs })),
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
     const stub = await screen.findByTestId("stub-segment-array-preview");
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(segs));
@@ -195,12 +201,14 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   for (const kind of OCR_CASES) {
     it(`routes outputKind=${kind} to OcrResultPreview with ctx.ocrResult`, async () => {
       const ocr = { fields: { foo: "bar" } };
-      fetchSpy.mockResolvedValue(
-        rowResponse(buildRow(kind, { ocrResult: ocr })),
-      );
+      fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, { nodeOut: ocr })));
 
       renderWithProviders(
-        <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+        <PreviewWidget
+          workflowId={WORKFLOW_ID}
+          nodeId={NODE_ID}
+          outputCtxKey="nodeOut"
+        />,
       );
       const stub = await screen.findByTestId("stub-ocr-result-preview");
       expect(stub.getAttribute("data-value")).toBe(JSON.stringify(ocr));
@@ -210,11 +218,15 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=Classification to ClassificationPreview with ctx.classification", async () => {
     const cls = { label: "invoice", confidence: 0.92 };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("Classification", { classification: cls })),
+      rowResponse(buildRow("Classification", { nodeOut: cls })),
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
     const stub = await screen.findByTestId("stub-classification-preview");
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(cls));
@@ -236,12 +248,14 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   for (const kind of SUBKIND_DOC_CASES) {
     it(`routes outputKind=${kind} (baseKind → Document) to DocumentPreview with ctx.document`, async () => {
       const doc = { blob: { storage_key: "abc" }, pageCount: 1 };
-      fetchSpy.mockResolvedValue(
-        rowResponse(buildRow(kind, { document: doc })),
-      );
+      fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, { nodeOut: doc })));
 
       renderWithProviders(
-        <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+        <PreviewWidget
+          workflowId={WORKFLOW_ID}
+          nodeId={NODE_ID}
+          outputCtxKey="nodeOut"
+        />,
       );
 
       const stub = await screen.findByTestId("stub-document-preview");
@@ -253,11 +267,15 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=LabeledDocumentMap (baseKind → Classification) to ClassificationPreview with ctx.classification", async () => {
     const cls = { label: "invoice", confidence: 0.92 };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("LabeledDocumentMap", { classification: cls })),
+      rowResponse(buildRow("LabeledDocumentMap", { nodeOut: cls })),
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
     const stub = await screen.findByTestId("stub-classification-preview");
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(cls));
@@ -272,11 +290,15 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
   it("routes outputKind=OcrTable (baseKind → OcrResult) to OcrResultPreview with ctx.ocrResult", async () => {
     const ocr = { fields: { foo: "bar" } };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("OcrTable", { ocrResult: ocr })),
+      rowResponse(buildRow("OcrTable", { nodeOut: ocr })),
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
     const stub = await screen.findByTestId("stub-ocr-result-preview");
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(ocr));
@@ -295,7 +317,11 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
       fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, {})));
 
       renderWithProviders(
-        <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+        <PreviewWidget
+          workflowId={WORKFLOW_ID}
+          nodeId={NODE_ID}
+          outputCtxKey="nodeOut"
+        />,
       );
 
       // Wait for the query to resolve out of the loading state. The
@@ -329,7 +355,11 @@ describe("Scenario 5 — loading + error states", () => {
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
 
     const wrapper = screen.getByTestId(`preview-widget-${NODE_ID}`);
@@ -344,7 +374,11 @@ describe("Scenario 5 — loading + error states", () => {
     );
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
 
     const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
@@ -396,7 +430,11 @@ describe("Scenario 5 — loading + error states", () => {
     fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
-      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} />,
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+      />,
     );
 
     // Wait until the resolved-data null branch has unmounted the wrapper.
@@ -415,7 +453,7 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
   it("forwards workflowId + activeRunId to PreviewWidget", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("Document", { document: doc })),
+      rowResponse(buildRow("Document", { nodeOut: doc })),
     );
 
     renderWithProviders(<NodePreviewOverlay nodeId={NODE_ID} />, {
@@ -435,7 +473,7 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
   it("omits runId when there is no activeRunId in context", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("Document", { document: doc })),
+      rowResponse(buildRow("Document", { nodeOut: doc })),
     );
 
     renderWithProviders(<NodePreviewOverlay nodeId={NODE_ID} />, {

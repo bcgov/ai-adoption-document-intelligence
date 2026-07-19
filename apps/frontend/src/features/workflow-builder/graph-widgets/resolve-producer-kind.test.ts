@@ -233,9 +233,16 @@ describe("resolveProducerKindFor — source-node producers (Item 20)", () => {
   });
 });
 
-describe("resolveProducerKindFor — map-item unwrap", () => {
-  it("resolves a map itemCtxKey to the element kind of a ctx-declared collection", () => {
-    const config: GraphWorkflowConfig = {
+describe("resolveProducerKindFor — map-item unwrap (scoped to the body)", () => {
+  // A single-node body (`body` IS both entry and exit) whose map iterates a
+  // ctx-declared collection. The item key only unwraps for a consumer INSIDE
+  // that body — passing the body node id.
+  function mapConfig(
+    collectionKind: string | undefined,
+    itemCtxKey = "currentDoc",
+    collectionCtxKey = "documents",
+  ): GraphWorkflowConfig {
+    return {
       schemaVersion: "1.0",
       metadata: {},
       entryNodeId: "loop",
@@ -244,88 +251,76 @@ describe("resolveProducerKindFor — map-item unwrap", () => {
           id: "loop",
           type: "map",
           label: "Loop",
-          collectionCtxKey: "documents",
-          itemCtxKey: "currentDoc",
-          bodyEntryNodeId: "",
-          bodyExitNodeId: "",
+          collectionCtxKey,
+          itemCtxKey,
+          bodyEntryNodeId: "body",
+          bodyExitNodeId: "body",
+        },
+        body: {
+          id: "body",
+          type: "activity",
+          label: "Body",
+          activityType: "noop.activity",
         },
       },
       edges: [],
-      ctx: { documents: { type: "array", kind: "Document[]" } },
+      ctx:
+        collectionKind === undefined
+          ? { [collectionCtxKey]: { type: "array" } }
+          : {
+              [collectionCtxKey]: {
+                type: "array",
+                kind: collectionKind as never,
+              },
+            },
     };
+  }
 
-    expect(resolveProducerKindFor("currentDoc", config)).toBe("Document");
+  it("resolves a map itemCtxKey to the collection element kind for a body node", () => {
+    const config = mapConfig("Document[]");
+    expect(resolveProducerKindFor("currentDoc", config, "body")).toBe(
+      "Document",
+    );
   });
 
-  it("resolves through a catalog-produced collection", () => {
-    // `azureClassify.poll` — no array-kind output in the static catalog, so
-    // the ctx-declared variant above is the canonical path. A catalog
-    // producer whose output kind ends in `[]` would unwrap the same way.
-    const config: GraphWorkflowConfig = {
-      schemaVersion: "1.0",
-      metadata: {},
-      entryNodeId: "loop",
-      nodes: {
-        loop: {
-          id: "loop",
-          type: "map",
-          label: "Loop",
-          collectionCtxKey: "segments",
-          itemCtxKey: "currentSeg",
-          bodyEntryNodeId: "",
-          bodyExitNodeId: "",
-        },
-      },
-      edges: [],
-      ctx: { segments: { type: "array", kind: "Segment[]" } },
-    };
+  it("resolves through a catalog-produced collection for a body node", () => {
+    const config = mapConfig("Segment[]", "currentSeg", "segments");
+    expect(resolveProducerKindFor("currentSeg", config, "body")).toBe(
+      "Segment",
+    );
+  });
 
-    expect(resolveProducerKindFor("currentSeg", config)).toBe("Segment");
+  it("does NOT unwrap the item key for a node OUTSIDE the map body", () => {
+    // Scope fix: a node that is not in the body must not see the item key as
+    // the collection element — it would shadow real producers graph-wide.
+    const config = mapConfig("Document[]");
+    config.nodes.outside = {
+      id: "outside",
+      type: "activity",
+      label: "Outside",
+      activityType: "noop.activity",
+    };
+    expect(
+      resolveProducerKindFor("currentDoc", config, "outside"),
+    ).toBeUndefined();
+  });
+
+  it("does NOT unwrap without a consumer node (cannot prove body membership)", () => {
+    const config = mapConfig("Document[]");
+    expect(resolveProducerKindFor("currentDoc", config)).toBeUndefined();
   });
 
   it("returns undefined for a kindless collection", () => {
-    const config: GraphWorkflowConfig = {
-      schemaVersion: "1.0",
-      metadata: {},
-      entryNodeId: "loop",
-      nodes: {
-        loop: {
-          id: "loop",
-          type: "map",
-          label: "Loop",
-          collectionCtxKey: "documents",
-          itemCtxKey: "currentDoc",
-          bodyEntryNodeId: "",
-          bodyExitNodeId: "",
-        },
-      },
-      edges: [],
-      ctx: { documents: { type: "array" } },
-    };
-
-    expect(resolveProducerKindFor("currentDoc", config)).toBeUndefined();
+    const config = mapConfig(undefined);
+    expect(
+      resolveProducerKindFor("currentDoc", config, "body"),
+    ).toBeUndefined();
   });
 
   it("terminates on a self-referential map (collection = its own item key)", () => {
-    const config: GraphWorkflowConfig = {
-      schemaVersion: "1.0",
-      metadata: {},
-      entryNodeId: "loop",
-      nodes: {
-        loop: {
-          id: "loop",
-          type: "map",
-          label: "Loop",
-          collectionCtxKey: "currentDoc",
-          itemCtxKey: "currentDoc",
-          bodyEntryNodeId: "",
-          bodyExitNodeId: "",
-        },
-      },
-      edges: [],
-      ctx: {},
-    };
-
-    expect(resolveProducerKindFor("currentDoc", config)).toBeUndefined();
+    const config = mapConfig(undefined, "currentDoc", "currentDoc");
+    expect(
+      resolveProducerKindFor("currentDoc", config, "body"),
+    ).toBeUndefined();
   });
 });

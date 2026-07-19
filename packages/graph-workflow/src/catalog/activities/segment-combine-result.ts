@@ -17,7 +17,11 @@ export const segmentCombineResultCatalogEntry: ActivityCatalogEntry = {
       label: "Current segment",
       description: "Segment metadata produced upstream.",
       required: true,
-      kind: "TypedSegment",
+      // family-level: the activity spreads whatever segment shape it is given
+      // (DocumentSegment / TypedSegment / LabeledSegment) without reading any
+      // subkind-specific field, so narrowing to a subkind would falsely reject
+      // valid split→map→combine loops (KIND_TAXONOMY_REFINEMENT_DESIGN.md §2/§9).
+      kind: "Segment",
     },
     {
       name: "segmentOcrResult",

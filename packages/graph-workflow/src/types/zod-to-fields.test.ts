@@ -84,3 +84,24 @@ describe("zodToFields", () => {
     );
   });
 });
+
+describe("primitive-shaped kind references (schema identity)", () => {
+  it("emits a kind ref for a string field whose schema is registered", () => {
+    const DocumentRefSchema = z.string();
+    const Prepared = z.object({ blobKey: DocumentRefSchema, size: z.number() });
+    const kindSchemas: KindSchemaMap = new Map<z.ZodType, KindRef>([
+      [DocumentRefSchema, "DocumentRef"],
+    ]);
+    expect(zodToFields(Prepared, kindSchemas)).toEqual([
+      { name: "blobKey", type: "string", kind: "DocumentRef", required: true },
+      { name: "size", type: "number", required: true },
+    ]);
+  });
+
+  it("leaves an unregistered primitive as an untyped field", () => {
+    const schema = z.object({ name: z.string() });
+    expect(zodToFields(schema, EMPTY)).toEqual([
+      { name: "name", type: "string", required: true },
+    ]);
+  });
+});

@@ -93,6 +93,15 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
   const outputKind: KindRef = entry?.outputKind ?? "Artifact";
   const handleColor = colorForKind(outputKind);
 
+  // The ctx key this source writes its output to — where the preview value
+  // lives in the cached `outputCtx` delta. Only `source.upload` writes a single
+  // configurable key; `source.api` fans out per-field, so no single primary.
+  const outputCtxKey =
+    data.sourceType === "source.upload"
+      ? ((data.parameters as { ctxKey?: string } | undefined)?.ctxKey ??
+        "documentUrl")
+      : undefined;
+
   // Phase 3 type pill — source nodes have a SINGLE typed output so the
   // pill always renders the one-line shape. For source.api a small
   // dimmed footnote sits under the pill (Scenario 3: "see Settings →
@@ -173,7 +182,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
           {labelOverride}
         </div>
       )}
-      <NodePreviewOverlay nodeId={id} />
+      <NodePreviewOverlay nodeId={id} outputCtxKey={outputCtxKey} />
       {/*
         Output handle — coloured by the catalog entry's `outputKind`.
         Hover tooltip reads the kind literal verbatim ("Document" /

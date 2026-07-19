@@ -47,21 +47,33 @@ describe("catalog invariants", () => {
     expect(Array.isArray(entry.outputs)).toBe(true);
   });
 
+  it("has no duplicate displayNames (two identically-named palette entries are indistinguishable)", () => {
+    const byName = new Map<string, string[]>();
+    for (const t of types) {
+      const name = getActivityCatalogEntry(t)?.displayName;
+      if (name === undefined) continue;
+      byName.set(name, [...(byName.get(name) ?? []), t]);
+    }
+    const collisions = [...byName.entries()].filter(
+      ([, ids]) => ids.length > 1,
+    );
+    expect(collisions).toEqual([]);
+  });
+
   // Phase 6 (US-161) — every entry must carry AT LEAST ONE of `parametersSchema`
   // (Zod, preferred for static entries) or `paramsSchema` (JSON Schema 7, used
   // by dynamic entries). Both may be absent on a malformed entry — catch that
   // case explicitly here.
-  it.each(types)(
-    "entry for %s declares at least one of parametersSchema or paramsSchema",
-    (activityType) => {
-      const entry = getActivityCatalogEntry(activityType);
-      expect(entry).toBeDefined();
-      if (!entry) return;
-      const hasZod = entry.parametersSchema !== undefined;
-      const hasJsonSchema = entry.paramsSchema !== undefined;
-      expect(hasZod || hasJsonSchema).toBe(true);
-    },
-  );
+  it.each(
+    types,
+  )("entry for %s declares at least one of parametersSchema or paramsSchema", (activityType) => {
+    const entry = getActivityCatalogEntry(activityType);
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    const hasZod = entry.parametersSchema !== undefined;
+    const hasJsonSchema = entry.paramsSchema !== undefined;
+    expect(hasZod || hasJsonSchema).toBe(true);
+  });
 
   it.each(types)("parameter schema for %s emits valid JSON Schema", (t) => {
     const schema = getActivityParametersJsonSchema(t);
@@ -69,22 +81,21 @@ describe("catalog invariants", () => {
     expect(typeof schema).toBe("object");
   });
 
-  it.each(types)(
-    "parameter schema for %s accepts a valid empty / minimal value where applicable",
-    (t) => {
-      const entry = ACTIVITY_CATALOG[t];
-      // Dynamic entries (Phase 6) carry only `paramsSchema` (JSON Schema 7) —
-      // there's no Zod parser to round-trip. Skip the safeParse smoke check
-      // for those; the JSON-Schema-side validation lives in the publish-time
-      // pipeline (US-159 semantics stage).
-      if (!entry.parametersSchema) return;
-      const minimal = minimalValueForSchema(entry.parametersSchema);
-      // No schema should crash on safeParse, even with an empty object.
-      // Some schemas will reject because of required fields — that's fine,
-      // but parsing itself must not throw.
-      expect(() => entry.parametersSchema!.safeParse(minimal)).not.toThrow();
-    },
-  );
+  it.each(
+    types,
+  )("parameter schema for %s accepts a valid empty / minimal value where applicable", (t) => {
+    const entry = ACTIVITY_CATALOG[t];
+    // Dynamic entries (Phase 6) carry only `paramsSchema` (JSON Schema 7) —
+    // there's no Zod parser to round-trip. Skip the safeParse smoke check
+    // for those; the JSON-Schema-side validation lives in the publish-time
+    // pipeline (US-159 semantics stage).
+    if (!entry.parametersSchema) return;
+    const minimal = minimalValueForSchema(entry.parametersSchema);
+    // No schema should crash on safeParse, even with an empty object.
+    // Some schemas will reject because of required fields — that's fine,
+    // but parsing itself must not throw.
+    expect(() => entry.parametersSchema!.safeParse(minimal)).not.toThrow();
+  });
 
   // Phase 6 (US-161) — dynamic-entry sanity assertion.
   // If an entry sets `dynamicNodeSlug`, it must also set `dynamicNodeVersion`
@@ -92,18 +103,17 @@ describe("catalog invariants", () => {
   // trusts the "DYN" colour hint to flag dynamic-flavoured entries on the
   // canvas. Static entries pass this check vacuously (`dynamicNodeSlug` is
   // never set on them).
-  it.each(types)(
-    "entry for %s — if dynamicNodeSlug set, dynamicNodeVersion + colorHint=dyn also set",
-    (activityType) => {
-      const entry = getActivityCatalogEntry(activityType);
-      expect(entry).toBeDefined();
-      if (!entry) return;
-      if (entry.dynamicNodeSlug !== undefined) {
-        expect(typeof entry.dynamicNodeVersion).toBe("number");
-        expect(entry.colorHint).toBe("dyn");
-      }
-    },
-  );
+  it.each(
+    types,
+  )("entry for %s — if dynamicNodeSlug set, dynamicNodeVersion + colorHint=dyn also set", (activityType) => {
+    const entry = getActivityCatalogEntry(activityType);
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    if (entry.dynamicNodeSlug !== undefined) {
+      expect(typeof entry.dynamicNodeVersion).toBe("number");
+      expect(entry.colorHint).toBe("dyn");
+    }
+  });
 
   // Phase 4 (US-134) — sanity assertion for the `nonCacheable` opt-out flag.
   // Every entry must either declare `nonCacheable: true` explicitly OR leave
@@ -111,17 +121,16 @@ describe("catalog invariants", () => {
   // `noncacheable` (wrong casing) or `nonCachable` (missing `e`) which would
   // silently appear on the entry as a stray property but fail to opt the
   // activity out of caching. See TRY_IN_PLACE_DESIGN.md §2.6.
-  it.each(types)(
-    "entry for %s declares nonCacheable: true or leaves it undefined",
-    (activityType) => {
-      const entry = getActivityCatalogEntry(activityType);
-      expect(entry).toBeDefined();
-      if (!entry) return;
-      expect(
-        entry.nonCacheable === true || entry.nonCacheable === undefined,
-      ).toBe(true);
-    },
-  );
+  it.each(
+    types,
+  )("entry for %s declares nonCacheable: true or leaves it undefined", (activityType) => {
+    const entry = getActivityCatalogEntry(activityType);
+    expect(entry).toBeDefined();
+    if (!entry) return;
+    expect(
+      entry.nonCacheable === true || entry.nonCacheable === undefined,
+    ).toBe(true);
+  });
 });
 
 /**
@@ -233,17 +242,16 @@ describe("Phase 3 — kind annotation all-or-nothing invariant (US-103)", () => 
 });
 
 describe("port copy invariant (port-wiring Phase 1)", () => {
-  it.each(listActivityTypes())(
-    "%s: every port declares a non-empty label and description",
-    (activityType) => {
-      const entry = getActivityCatalogEntry(activityType);
-      expect(entry).toBeDefined();
-      for (const port of [...entry!.inputs, ...entry!.outputs]) {
-        // Labels/descriptions are the only strings the new canvas shows for a
-        // port — the raw port name is demoted to tooltips (PORT_WIRING_DESIGN §12).
-        expect(port.label?.trim() ?? "").not.toEqual("");
-        expect(port.description?.trim() ?? "").not.toEqual("");
-      }
-    },
-  );
+  it.each(
+    listActivityTypes(),
+  )("%s: every port declares a non-empty label and description", (activityType) => {
+    const entry = getActivityCatalogEntry(activityType);
+    expect(entry).toBeDefined();
+    for (const port of [...entry!.inputs, ...entry!.outputs]) {
+      // Labels/descriptions are the only strings the new canvas shows for a
+      // port — the raw port name is demoted to tooltips (PORT_WIRING_DESIGN §12).
+      expect(port.label?.trim() ?? "").not.toEqual("");
+      expect(port.description?.trim() ?? "").not.toEqual("");
+    }
+  });
 });

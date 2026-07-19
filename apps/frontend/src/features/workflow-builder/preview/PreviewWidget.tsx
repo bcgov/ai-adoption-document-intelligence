@@ -27,13 +27,14 @@
  *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §4.1 + §4.6
  */
 
+import { resolveCtxBinding } from "@ai-di/graph-workflow";
 import { Alert, Box, Skeleton } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
 import type { ActivityOutputPreview } from "./preview.types";
-import { familyRoot, renderKindValue } from "./render-kind-value";
+import { renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
 
 /**
@@ -59,6 +60,13 @@ export interface PreviewWidgetProps {
    * the preview-cache, which is normal, not an eviction.
    */
   isReplay?: boolean;
+  /**
+   * The ctx key the previewed node binds its (first) output to — the key the
+   * value lives under inside the nested `outputCtx` delta. Supplied by the
+   * mounting renderer, which has the node's output bindings. When absent, no
+   * value is read (nothing to preview).
+   */
+  outputCtxKey?: string;
 }
 
 /**
@@ -74,6 +82,7 @@ export function PreviewWidget({
   nodeId,
   runId,
   isReplay = false,
+  outputCtxKey,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -123,7 +132,7 @@ export function PreviewWidget({
     return null;
   }
 
-  const content = renderForOutputKind(data);
+  const content = renderForOutputKind(data, outputCtxKey);
   if (content === null) {
     return null;
   }
@@ -141,51 +150,35 @@ export function PreviewWidget({
 }
 
 /**
- * Pure dispatch — resolves `outputKind` to its `baseKind` family root
- * and forwards the appropriate ctx slot to the matching widget. Kept
- * as a separate helper so the widget stories (US-142 → US-145) can
- * drop in their components by replacing the corresponding `case` body
- * (or the widget file's body) without touching the loading / error
- * branches.
- *
- * Family-based (not exact-string) so shape-honest subkinds retagged
- * onto catalog ports by the kind-taxonomy-refinement wave (e.g.
- * `PreparedFile`, `DocumentRef`, `ClassificationLabel`,
- * `LabeledDocumentMap`) still resolve to the right ctx slot — mirrors
- * `render-kind-value.tsx`'s `familyRoot` resolution so this dispatch
- * and `renderKindValue`'s widget dispatch can never drift apart.
- *
- * The ctx-slot key per family mirrors the design doc's §4.1 example.
+ * Pure dispatch — reads the previewed value out of the nested `outputCtx`
+ * delta at the producing port's bound `ctxKey` (via `resolveCtxBinding`, the
+ * SAME read the runtime and the wire-peek use), then hands it to
+ * `renderKindValue`, which resolves the kind's `baseKind` family root and picks
+ * the widget. Reading by ctxKey — not by a fixed family slot name — is what
+ * lets a producer bound to any ctxKey (`preparedFileData`, `__auto.<node>.<port>`,
+ * a namespaced `doc.*` key, …) render; the old fixed `outputCtx.document` /
+ * `.segments` slots only ever matched ctxKeys literally named that.
  */
-function renderForOutputKind(data: ActivityOutputPreview): ReactNode {
-  const { outputKind, outputCtx } = data;
-  const slot = ((): unknown => {
-    if (!outputKind) return undefined;
-    const isArray = outputKind.endsWith("[]");
-    const root = familyRoot(isArray ? outputKind.slice(0, -2) : outputKind);
-    if (isArray) {
-      return root === "Segment" ? outputCtx.segments : undefined;
-    }
-    switch (root) {
-      case "Document":
-        return outputCtx.document;
-      case "OcrResult":
-        return outputCtx.ocrResult;
-      case "Classification":
-        return outputCtx.classification;
-      default:
-        // null `outputKind` OR an unsupported family (`Segment`
-        // singular, `ValidationResult`, `Reference`, `Artifact`, …).
-        // `renderKindValue` returns null for these — Phase 4.x adds
-        // further widgets to the shared dispatch.
-        return undefined;
-    }
-  })();
-  return renderKindValue(outputKind, slot);
+function renderForOutputKind(
+  data: ActivityOutputPreview,
+  outputCtxKey: string | undefined,
+): ReactNode {
+  const value =
+    outputCtxKey !== undefined && outputCtxKey !== ""
+      ? resolveCtxBinding(outputCtxKey, data.outputCtx)
+      : undefined;
+  return renderKindValue(data.outputKind, value);
 }
 
 export interface NodePreviewOverlayProps {
   nodeId: string;
+  /**
+   * The ctx key the node binds its (first) output to — where the previewed
+   * value lives inside the cached `outputCtx` delta. The mounting renderer
+   * resolves it from the node's own output bindings (it holds the node data;
+   * the overlay only knows the id). Absent → nothing to read.
+   */
+  outputCtxKey?: string;
 }
 
 /**
@@ -197,6 +190,7 @@ export interface NodePreviewOverlayProps {
  */
 export function NodePreviewOverlay({
   nodeId,
+  outputCtxKey,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
   if (!ctx) {
@@ -218,6 +212,7 @@ export function NodePreviewOverlay({
       nodeId={nodeId}
       runId={ctx.activeRunId ?? undefined}
       isReplay={ctx.isReplay}
+      outputCtxKey={outputCtxKey}
     />
   );
 }

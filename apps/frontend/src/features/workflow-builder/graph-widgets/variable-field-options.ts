@@ -68,8 +68,9 @@ function fieldsAtPath(
   config: GraphWorkflowConfig,
   base: string,
   segments: readonly string[],
+  consumerNodeId: string | undefined,
 ): FieldDescriptor[] {
-  const baseKind = resolveProducerKindFor(base, config);
+  const baseKind = resolveProducerKindFor(base, config, consumerNodeId);
   if (baseKind === undefined) return [];
   let fields = resolveKindFields(baseKind);
   for (const segment of segments) {
@@ -93,6 +94,7 @@ export function expandVariableOptions(
   groups: { group: string; items: string[] }[],
   config: GraphWorkflowConfig,
   inputValue: string,
+  consumerNodeId?: string,
 ): ExpandedVariableOptions {
   const knownKeys = groups.flatMap((g) => g.items);
   const meta = new Map<string, VariablePathInfo>();
@@ -110,7 +112,12 @@ export function expandVariableOptions(
       ? split.rest.filter((s) => s !== "")
       : split.rest.slice(0, -1);
     if (drillPath.length >= 1 && drillPath.length < MAX_DRILL_DEPTH) {
-      const fields = fieldsAtPath(config, split.base, drillPath);
+      const fields = fieldsAtPath(
+        config,
+        split.base,
+        drillPath,
+        consumerNodeId,
+      );
       if (fields.length > 0) {
         const prefix = `${split.base}.${drillPath.join(".")}`;
         deep.set(
@@ -131,7 +138,7 @@ export function expandVariableOptions(
       if (emitted.has(key)) continue;
       emitted.add(key);
       items.push(key);
-      const baseKind = resolveProducerKindFor(key, config);
+      const baseKind = resolveProducerKindFor(key, config, consumerNodeId);
       meta.set(key, {
         type: config.ctx?.[key]?.type,
         kind: baseKind,
@@ -171,16 +178,19 @@ export function resolveValuePathKind(
   input: string,
   config: GraphWorkflowConfig,
   knownKeys: readonly string[],
+  consumerNodeId?: string,
 ): KindRef | undefined {
   const split = splitKnownBase(input, knownKeys);
-  if (split === null) return resolveProducerKindFor(input, config);
+  if (split === null)
+    return resolveProducerKindFor(input, config, consumerNodeId);
   if (split.rest.length === 0) {
-    return resolveProducerKindFor(split.base, config);
+    return resolveProducerKindFor(split.base, config, consumerNodeId);
   }
   const parentFields = fieldsAtPath(
     config,
     split.base,
     split.rest.slice(0, -1),
+    consumerNodeId,
   );
   const leaf = parentFields.find(
     (f) => f.name === split.rest[split.rest.length - 1],

@@ -76,6 +76,7 @@ describe("renderKindValue", () => {
 
   it("returns null for a kind with no widget", () => {
     expect(renderKindValue("Artifact", "some-id")).toBeNull();
+    expect(renderKindValue("Reference", "some-id")).toBeNull();
     expect(renderKindValue(null, 42)).toBeNull();
   });
 
@@ -131,25 +132,5 @@ describe("renderKindValue", () => {
       }),
     );
     expect(screen.getByTestId("classification-preview")).toBeInTheDocument();
-  });
-
-  it("still maps OcrResult to OcrResultPreview (regression guard)", () => {
-    wrap(renderKindValue("OcrResult", { foo: "bar" }));
-    expect(screen.getByTestId("ocr-preview-root")).toBeInTheDocument();
-  });
-
-  it("still maps Segment[] to SegmentArrayPreview (regression guard)", () => {
-    wrap(
-      renderKindValue("Segment[]", [
-        { parentDocId: "d1", polygon: [0, 0, 10, 0, 10, 10, 0, 10] },
-      ]),
-    );
-    expect(screen.getByTestId("segment-array-preview")).toBeInTheDocument();
-  });
-
-  it("returns null for an unknown kind or null (regression guard)", () => {
-    expect(renderKindValue("Artifact", "some-id")).toBeNull();
-    expect(renderKindValue("Reference", "some-id")).toBeNull();
-    expect(renderKindValue(null, 42)).toBeNull();
   });
 });

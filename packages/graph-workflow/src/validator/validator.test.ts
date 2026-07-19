@@ -24,6 +24,7 @@ import type {
   GraphWorkflowConfig,
   HumanGateNode,
   JoinNode,
+  MapNode,
   PollUntilNode,
   SwitchNode,
   ValidateGraphConfigOptions,
@@ -407,7 +408,10 @@ describe("US-052 Scenario 3: pre-existing pollUntil templates raise zero new err
     "templates",
   );
 
-  function loadTemplates(): Array<{ name: string; config: GraphWorkflowConfig }> {
+  function loadTemplates(): Array<{
+    name: string;
+    config: GraphWorkflowConfig;
+  }> {
     const entries = readdirSync(templatesDir);
     return entries
       .filter((name) => name.endsWith(".json"))
@@ -426,28 +430,25 @@ describe("US-052 Scenario 3: pre-existing pollUntil templates raise zero new err
     loadTemplates()
       .filter(({ config }) => hasPollUntilNode(config))
       .map(({ name, config }) => [name, config] as const),
-  )(
-    "template %s: pollUntil nodes raise no `parameters.*` errors under the no-op param validator",
-    (_name, config) => {
-      // ALWAYS_REGISTERED_OPTIONS' `validateActivityParameters` is a
-      // no-op — so the only way a `nodes.<pollId>.parameters.*` error
-      // could appear is if the validator itself were synthesizing one.
-      // The US-052 change is purely a delegation hook; templates must
-      // remain clean.
-      const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+  )("template %s: pollUntil nodes raise no `parameters.*` errors under the no-op param validator", (_name, config) => {
+    // ALWAYS_REGISTERED_OPTIONS' `validateActivityParameters` is a
+    // no-op — so the only way a `nodes.<pollId>.parameters.*` error
+    // could appear is if the validator itself were synthesizing one.
+    // The US-052 change is purely a delegation hook; templates must
+    // remain clean.
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
-      const pollUntilNodeIds = Object.entries(config.nodes)
-        .filter(([, n]) => n.type === "pollUntil")
-        .map(([id]) => id);
+    const pollUntilNodeIds = Object.entries(config.nodes)
+      .filter(([, n]) => n.type === "pollUntil")
+      .map(([id]) => id);
 
-      const newParamErrors = result.errors.filter((e) =>
-        pollUntilNodeIds.some((id) =>
-          e.path.startsWith(`nodes.${id}.parameters.`),
-        ),
-      );
-      expect(newParamErrors).toEqual([]);
-    },
-  );
+    const newParamErrors = result.errors.filter((e) =>
+      pollUntilNodeIds.some((id) =>
+        e.path.startsWith(`nodes.${id}.parameters.`),
+      ),
+    );
+    expect(newParamErrors).toEqual([]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -492,7 +493,7 @@ function makePollConfig(node: PollUntilNode): GraphWorkflowConfig {
 }
 
 describe("US-051 Scenario 3: validator surfaces invalid duration at the field path", () => {
-  it("emits an error at `nodes.<id>.interval` for `interval: \"5\"`", () => {
+  it('emits an error at `nodes.<id>.interval` for `interval: "5"`', () => {
     const config = makePollConfig(makePollNode({ interval: "5" }));
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
@@ -525,9 +526,7 @@ describe("US-051 Scenario 4: coverage across the four duration fields", () => {
   });
 
   it("flags `pollUntil.initialDelay` when invalid", () => {
-    const config = makePollConfig(
-      makePollNode({ initialDelay: "1.5s" }),
-    );
+    const config = makePollConfig(makePollNode({ initialDelay: "1.5s" }));
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
     expect(result.errors).toEqual(
       expect.arrayContaining([
@@ -590,9 +589,11 @@ describe("US-051 Scenario 4: coverage across the four duration fields", () => {
     const config = makePollConfig(makePollNode({}));
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
     const durationErrors = result.errors.filter((e) =>
-      ["nodes.poll1.interval", "nodes.poll1.initialDelay", "nodes.poll1.timeout"].includes(
-        e.path,
-      ),
+      [
+        "nodes.poll1.interval",
+        "nodes.poll1.initialDelay",
+        "nodes.poll1.timeout",
+      ].includes(e.path),
     );
     expect(durationErrors).toEqual([]);
   });
@@ -889,9 +890,7 @@ describe("US-092 Scenario 3: LibraryPortDescriptor.kind is accepted by the valid
             kind: "Document",
           },
         ],
-        outputs: [
-          { label: "Fields", path: "ctx.fields", type: "object" },
-        ],
+        outputs: [{ label: "Fields", path: "ctx.fields", type: "object" }],
       },
       entryNodeId: "noop",
       ctx: {
@@ -942,9 +941,7 @@ describe("US-093 Scenario 1: producer → consumer kind mismatch surfaces an err
       iconHint: "doc",
       colorHint: "blue",
       inputs: [],
-      outputs: [
-        { name: "doc", label: "Doc", kind: "Document" as const },
-      ],
+      outputs: [{ name: "doc", label: "Doc", kind: "Document" as const }],
       parametersSchema: { _def: {}, parse: () => ({}) } as never,
     };
     const readerEntry = {
@@ -954,9 +951,7 @@ describe("US-093 Scenario 1: producer → consumer kind mismatch surfaces an err
       description: "synthetic test consumer",
       iconHint: "seg",
       colorHint: "green",
-      inputs: [
-        { name: "seg", label: "Seg", kind: "Segment" as const },
-      ],
+      inputs: [{ name: "seg", label: "Seg", kind: "Segment" as const }],
       outputs: [],
       parametersSchema: { _def: {}, parse: () => ({}) } as never,
     };
@@ -1017,9 +1012,7 @@ describe("US-093 Scenario 2: multi-producer mismatch — only the offending prod
       iconHint: "doc",
       colorHint: "blue",
       inputs: [],
-      outputs: [
-        { name: "out", label: "Out", kind: "Document" as const },
-      ],
+      outputs: [{ name: "out", label: "Out", kind: "Document" as const }],
       parametersSchema: { _def: {}, parse: () => ({}) } as never,
     };
     const producerRefEntry = {
@@ -1030,9 +1023,7 @@ describe("US-093 Scenario 2: multi-producer mismatch — only the offending prod
       iconHint: "ref",
       colorHint: "orange",
       inputs: [],
-      outputs: [
-        { name: "out", label: "Out", kind: "Reference" as const },
-      ],
+      outputs: [{ name: "out", label: "Out", kind: "Reference" as const }],
       parametersSchema: { _def: {}, parse: () => ({}) } as never,
     };
     const consumerDocEntry = {
@@ -1042,9 +1033,7 @@ describe("US-093 Scenario 2: multi-producer mismatch — only the offending prod
       description: "doc consumer",
       iconHint: "doc",
       colorHint: "blue",
-      inputs: [
-        { name: "in", label: "In", kind: "Document" as const },
-      ],
+      inputs: [{ name: "in", label: "In", kind: "Document" as const }],
       outputs: [],
       parametersSchema: { _def: {}, parse: () => ({}) } as never,
     };
@@ -1184,7 +1173,9 @@ describe("US-093 Scenario 3: kind resolves through all three sources interchange
         e.message.includes("not assignable"),
       );
       expect(mismatch).toHaveLength(1);
-      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+      expect(mismatch[0].message).toContain(
+        "Document not assignable to Segment",
+      );
 
       // Now flip the consumer to expect Document → passes silently
       readerEntry.inputs[0] = { name: "in", label: "In", kind: "Document" };
@@ -1249,7 +1240,9 @@ describe("US-093 Scenario 3: kind resolves through all three sources interchange
         e.message.includes("not assignable"),
       );
       expect(mismatch).toHaveLength(1);
-      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+      expect(mismatch[0].message).toContain(
+        "Document not assignable to Segment",
+      );
 
       // Flip CtxDeclaration kind to match the consumer → passes.
       config.ctx.k = { type: "object", kind: "Segment" };
@@ -1325,7 +1318,9 @@ describe("US-093 Scenario 3: kind resolves through all three sources interchange
         e.message.includes("not assignable"),
       );
       expect(mismatch).toHaveLength(1);
-      expect(mismatch[0].message).toContain("Document not assignable to Segment");
+      expect(mismatch[0].message).toContain(
+        "Document not assignable to Segment",
+      );
     } finally {
       delete ACTIVITY_CATALOG[consumerEntry.activityType];
     }
@@ -1574,7 +1569,9 @@ describe("US-094 Scenario 1a: library input path resolving to a declared ctx key
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toEqual([]);
   });
@@ -1613,7 +1610,9 @@ describe("US-094 Scenario 1b: library output path resolving to an existing node'
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toEqual([]);
   });
@@ -1647,7 +1646,9 @@ describe("US-094 Scenario 2: library input path referencing a non-existent ctx k
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toHaveLength(1);
     expect(depthErrors[0]).toEqual({
@@ -1692,7 +1693,9 @@ describe("US-094 Scenario 3: library output path referencing a missing node id f
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toHaveLength(1);
     expect(depthErrors[0]).toEqual({
@@ -1736,7 +1739,9 @@ describe("US-094 Scenario 3: library output path referencing a missing node id f
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toHaveLength(1);
     expect(depthErrors[0]).toEqual({
@@ -1774,7 +1779,9 @@ describe("US-094 Scenario 4: regression-safe for non-library and empty-inputs ca
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toEqual([]);
     expect(result.valid).toBe(true);
@@ -1805,7 +1812,9 @@ describe("US-094 Scenario 4: regression-safe for non-library and empty-inputs ca
     const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
 
     const depthErrors = result.errors.filter((e) =>
-      e.message.includes("does not resolve to a declared ctx key or node output"),
+      e.message.includes(
+        "does not resolve to a declared ctx key or node output",
+      ),
     );
     expect(depthErrors).toEqual([]);
     expect(result.valid).toBe(true);
@@ -2004,5 +2013,95 @@ describe("condition-expression structural completeness", () => {
       ALWAYS_REGISTERED_OPTIONS,
     );
     expect(conditionErrors(result.errors)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reserved expression namespaces — a ctx key that IS a bare evaluator
+// namespace word (`param`/`row`/`ctx`/`doc`/`segment`) is unreachable by a
+// condition ref (the runtime remaps it), so producing one is an error.
+// (KIND_TAXONOMY / expression-evaluator collision.)
+// ---------------------------------------------------------------------------
+
+describe("reserved ctx-namespace guard", () => {
+  function configWithMapItemKey(itemCtxKey: string): GraphWorkflowConfig {
+    const body: ActivityNode = {
+      id: "body",
+      type: "activity",
+      label: "Body",
+      activityType: "noop.activity",
+    };
+    const mapNode: MapNode = {
+      id: "m",
+      type: "map",
+      label: "Map",
+      collectionCtxKey: "items",
+      itemCtxKey,
+      bodyEntryNodeId: "body",
+      bodyExitNodeId: "body",
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "m",
+      ctx: { items: { type: "array", kind: "Segment[]" } },
+      nodes: { m: mapNode, body },
+      edges: [],
+    };
+  }
+
+  it("flags a map itemCtxKey that shadows the `segment` namespace", () => {
+    const result = validateGraphConfig(
+      configWithMapItemKey("segment"),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.m.itemCtxKey",
+          severity: "error",
+          message: expect.stringContaining("reserved expression namespace"),
+        }),
+      ]),
+    );
+  });
+
+  it("flags an output binding ctx key named `doc`", () => {
+    const producer: ActivityNode = {
+      id: "p",
+      type: "activity",
+      label: "P",
+      activityType: "noop.activity",
+      outputs: [{ port: "result", ctxKey: "doc" }],
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "p",
+      ctx: {},
+      nodes: { p: producer },
+      edges: [],
+    };
+    const result = validateGraphConfig(config, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "nodes.p.outputs.result",
+          severity: "error",
+        }),
+      ]),
+    );
+  });
+
+  it("does NOT flag a non-reserved key that merely contains a reserved word", () => {
+    const result = validateGraphConfig(
+      configWithMapItemKey("currentSegment"),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+    const reserved = result.errors.filter((e) =>
+      e.message.includes("reserved expression namespace"),
+    );
+    expect(reserved).toEqual([]);
   });
 });

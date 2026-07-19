@@ -2,8 +2,6 @@ import type { SegmentWithType } from "@ai-di/graph-workflow";
 import type { OCRResult } from "../types";
 import { splitDocument } from "./split-document";
 
-export type { SegmentWithType };
-
 export interface KeywordPattern {
   pattern: string; // Regex pattern to match keyword text (capture group optional)
   segmentType: string; // Document type to assign when pattern matches

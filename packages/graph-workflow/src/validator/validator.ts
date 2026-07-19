@@ -176,6 +176,7 @@ export function validateGraphConfig(
   validateDynamicNodeReferences(config, errors, options);
   walkCtxKeyBindings(config, errors, options);
   walkLibraryPaths(config, errors);
+  validateReservedCtxNamespaces(config, errors);
 
   return {
     valid: errors.filter((e) => e.severity === "error").length === 0,
@@ -1481,6 +1482,69 @@ function walkCtxKeyBindings(
           message: `Input port \`${consumer.port}\` (${consumerKindLabel}) on node \`${consumer.node.id}\` reads from ctx key \`${ctxKey}\`, written by node \`${producer.node.id}\` (${producerKindLabel}) — ${producerKindLabel} not assignable to ${consumerKindLabel}`,
           severity: "error",
         });
+      }
+    }
+  }
+}
+
+/**
+ * The runtime expression evaluator (`apps/temporal/src/expression-evaluator.ts`)
+ * reserves the first dotted segment of a bare reference as a namespace:
+ * `param.*` / `row.*` (table-lookup contexts), `ctx.*` (explicit ctx), and the
+ * `doc.*` → `ctx.documentMetadata.*` / `segment.*` → `ctx.currentSegment.*`
+ * shortcuts. A ctx key that is EXACTLY one of these words therefore cannot be
+ * addressed as a plain ctx entry: a bare ref `segment` resolves to
+ * `ctx.currentSegment` (not `ctx["segment"]`), and drilling it (`segment.type`)
+ * silently reads a different object. So a producer/map/declaration that writes
+ * such a key is unreachable by conditions — flag it. (Namespaced *paths* like
+ * `doc.field` are the intended remap and are NOT flagged; only the bare word.)
+ */
+const RESERVED_CTX_NAMESPACES = new Set([
+  "param",
+  "row",
+  "ctx",
+  "doc",
+  "segment",
+]);
+
+function validateReservedCtxNamespaces(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  const flag = (ctxKey: string, path: string, what: string): void => {
+    if (!RESERVED_CTX_NAMESPACES.has(ctxKey)) return;
+    errors.push({
+      path,
+      message: `${what} \`${ctxKey}\` collides with a reserved expression namespace — a condition ref \`${ctxKey}\` resolves to \`${ctxKey === "doc" ? "ctx.documentMetadata" : ctxKey === "segment" ? "ctx.currentSegment" : ctxKey}\`, not this value. Rename it (e.g. \`${ctxKey}Value\`).`,
+      severity: "error",
+    });
+  };
+
+  for (const key of Object.keys(config.ctx ?? {})) {
+    flag(key, `ctx.${key}`, "Ctx declaration key");
+  }
+
+  for (const node of Object.values(config.nodes)) {
+    for (const binding of node.outputs ?? []) {
+      flag(
+        binding.ctxKey,
+        `nodes.${node.id}.outputs.${binding.port}`,
+        "Output binding ctx key",
+      );
+    }
+    if (node.type === "map") {
+      const mapNode = node as MapNode;
+      flag(
+        mapNode.itemCtxKey,
+        `nodes.${node.id}.itemCtxKey`,
+        "Map item ctx key",
+      );
+      if (mapNode.indexCtxKey !== undefined) {
+        flag(
+          mapNode.indexCtxKey,
+          `nodes.${node.id}.indexCtxKey`,
+          "Map index ctx key",
+        );
       }
     }
   }

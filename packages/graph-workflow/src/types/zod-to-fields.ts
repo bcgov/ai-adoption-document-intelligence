@@ -66,8 +66,17 @@ function fieldToDescriptor(
   switch (def.type) {
     case "string":
     case "number":
-    case "boolean":
-      return { name, type: def.type, required };
+    case "boolean": {
+      // A primitive-shaped kind (e.g. `DocumentRef` = `z.string()`) recovered
+      // by schema identity becomes a field-level kind reference, so drilling a
+      // `blobKey: DocumentRef` field sorts compatible-first against a
+      // DocumentRef port instead of an untyped string. Registering such a
+      // schema in `kindSchemas` is what opts a primitive field into typing.
+      const kind = kindSchemas.get(current);
+      return kind !== undefined
+        ? { name, type: def.type, kind, required }
+        : { name, type: def.type, required };
+    }
     case "literal": {
       const literalType = typeof def.values?.[0];
       if (
