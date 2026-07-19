@@ -419,6 +419,11 @@ function controlFlowConfig(name) {
     ctx: {
       documents: { type: "array" },
       currentDoc: { type: "object" },
+      // The map's loop index (0,1,2…). Declared here so the map form's
+      // "index ctx key" field doesn't prompt "+ Create variable docIndex"
+      // (the map provides the value at run time; declaring it just keeps the
+      // form clean, mirroring how currentDoc is declared).
+      docIndex: { type: "number" },
       documentId: { type: "string" },
       apimRequestId: { type: "string" },
       // Real Azure OCR poll outputs — the pollUntil condition reads ocrStatus.
