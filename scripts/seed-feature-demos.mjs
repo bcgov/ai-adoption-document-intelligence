@@ -219,15 +219,21 @@ function ambiguousConfig(name) {
         ],
         ...pos(80, 80),
       },
-      normB: {
-        id: "normB",
+      prepB: {
+        id: "prepB",
         type: "activity",
-        label: "Normalize B",
-        activityType: "document.normalizeOrientation",
-        // Root node reading a workflow ctx-input — an explicit binding to a
-        // declared ctx key counts as a source, so this node surfaces no
-        // problem; the only issue in this demo is the sink's ambiguous input.
-        inputs: [{ port: "blobKey", ctxKey: "blobKey" }],
+        label: "Prepare B",
+        activityType: "file.prepare",
+        // A SECOND PreparedFile producer. `azureOcr.submit`'s `fileData` only
+        // accepts PreparedFile, so after the kind-taxonomy refinement a
+        // DocumentRef producer (e.g. normalizeOrientation's blob key) is
+        // correctly NOT a competing source — genuine ambiguity needs two
+        // producers of the same kind. Both required inputs bound so prepB's
+        // only surfaced issue is the reachability warning (second root).
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
         ...pos(80, 320),
       },
       sink: {
@@ -240,7 +246,7 @@ function ambiguousConfig(name) {
     },
     edges: [
       { id: "a", source: "prepA", target: "sink", type: "normal" },
-      { id: "b", source: "normB", target: "sink", type: "normal" },
+      { id: "b", source: "prepB", target: "sink", type: "normal" },
     ],
   };
 }
@@ -281,23 +287,42 @@ function linearConfig(name, submitLabel = "Submit to Azure OCR") {
         outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
         ...pos(420, 80),
       },
+      // Real OcrResult producer: extract turns the submitted OCR job into an
+      // `ocrResult` (kind OcrResult). Without it, `store` below would "store"
+      // an OCR result that no node ever produced.
+      extract: {
+        id: "extract",
+        type: "activity",
+        label: "Extract OCR Result",
+        activityType: "azureOcr.extract",
+        inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(720, 80),
+      },
       store: {
         id: "store",
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
-        // Both required inputs bound so the node doesn't carry a red
-        // "unsatisfied" auto-wire dot in demos that showcase other features.
+        // Both required inputs bound to their honest sources — the document's
+        // own id and the real OcrResult produced by `extract` (not, as before,
+        // the APIM request id mislabelled as a document id).
         inputs: [
-          { port: "documentId", ctxKey: "apimRequestId" },
+          { port: "documentId", ctxKey: "documentId" },
           { port: "ocrResult", ctxKey: "ocrResult" },
         ],
-        ...pos(720, 80),
+        ...pos(1020, 80),
       },
     },
     edges: [
       { id: "prep-submit", source: "prep", target: "submit", type: "normal" },
-      { id: "submit-store", source: "submit", target: "store", type: "normal" },
+      {
+        id: "submit-extract",
+        source: "submit",
+        target: "extract",
+        type: "normal",
+      },
+      { id: "extract-store", source: "extract", target: "store", type: "normal" },
     ],
   };
 }
@@ -396,9 +421,6 @@ function controlFlowConfig(name) {
       currentDoc: { type: "object" },
       documentId: { type: "string" },
       apimRequestId: { type: "string" },
-      // The inline child produces a prepared Document (not an OCR result);
-      // name the key honestly rather than mislabelling it "ocrResult".
-      preparedDoc: { type: "object" },
       // Real Azure OCR poll outputs — the pollUntil condition reads ocrStatus.
       ocrStatus: { type: "string" },
       ocrResponse: { type: "object" },
@@ -475,7 +497,9 @@ function controlFlowConfig(name) {
         label: "Sub-workflow (inline OCR)",
         workflowRef: { type: "inline", graph: inlineChild },
         inputMappings: [{ port: "blobKey", ctxKey: "currentDoc.blobKey" }],
-        outputMappings: [{ port: "preparedData", ctxKey: "preparedDoc" }],
+        // No outputMappings: this branch is a teaching stub for the
+        // childWorkflow FORM (Library/Inline toggle + input mapping); it
+        // deliberately dead-ends rather than mapping an output nothing reads.
         ...pos(460, 200),
       },
       pollOcr: {
@@ -599,10 +623,17 @@ function edgesValidateConfig(name) {
       blobKey: { type: "string" },
       fileName: { type: "string" },
       documentId: { type: "string" },
+      preparedFileData: { type: "object" },
+      apimRequestId: { type: "string" },
+      ocrResult: { type: "object" },
+      averageConfidence: { type: "number" },
+      requiresReview: { type: "boolean" },
+      rejectionReason: { type: "string" },
+      // The one honest trigger-supplied input: producing real Segments needs
+      // the whole split/classify/combine chain, out of scope for this demo,
+      // so `processedSegments` arrives from the run's trigger input.
       processedSegments: { type: "array" },
       validationResults: { type: "object" },
-      requiresReview: { type: "boolean" },
-      ocrResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -615,6 +646,7 @@ function edgesValidateConfig(name) {
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
         ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
         // Opt into an error edge (5.2): fall back to a handler on failure.
         errorPolicy: {
           onError: "fallback",
@@ -626,18 +658,56 @@ function edgesValidateConfig(name) {
       fallback: {
         id: "fallback",
         type: "activity",
-        label: "Fallback handler",
-        activityType: "ocr.cleanup",
-        // No OcrResult producer upstream (prep emits a Document) — bind
-        // explicitly so the demo's fallback node doesn't show a red dot.
-        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        label: "Reject document",
+        // A real failure handler: record why the document was rejected. (The
+        // old fallback ran `ocr.cleanup` on an OcrResult that nothing upstream
+        // produced — nonsensical for a *file-prepare* failure.)
+        activityType: "document.storeRejection",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "reason", ctxKey: "rejectionReason" },
+        ],
         ...pos(120, 360),
+      },
+      submit: {
+        id: "submit",
+        type: "activity",
+        label: "Submit to Azure OCR",
+        activityType: "azureOcr.submit",
+        inputs: [{ port: "fileData", ctxKey: "preparedFileData" }],
+        outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        ...pos(460, 120),
+      },
+      extract: {
+        id: "extract",
+        type: "activity",
+        label: "Extract OCR Result",
+        activityType: "azureOcr.extract",
+        inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        ...pos(800, 120),
+      },
+      checkConfidence: {
+        id: "checkConfidence",
+        type: "activity",
+        label: "Check Confidence",
+        // Real producer of `requiresReview` — so the switch below routes on a
+        // value a node actually computes, not a phantom ctx key.
+        activityType: "ocr.checkConfidence",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
+        outputs: [
+          { port: "requiresReview", ctxKey: "requiresReview" },
+          { port: "averageConfidence", ctxKey: "averageConfidence" },
+        ],
+        ...pos(1140, 120),
       },
       reviewSwitch: {
         id: "reviewSwitch",
         type: "switch",
         label: "Route by review flag",
-        inputs: [{ port: "requiresReview", ctxKey: "requiresReview" }],
         cases: [
           {
             condition: {
@@ -649,14 +719,17 @@ function edgesValidateConfig(name) {
           },
         ],
         defaultEdge: "to-store",
-        ...pos(460, 120),
+        ...pos(1480, 120),
       },
       validateFields: {
         id: "validateFields",
         type: "activity",
         label: "Validate Fields",
         activityType: "document.validateFields",
-        inputs: [{ port: "processedSegments", ctxKey: "processedSegments" }],
+        inputs: [
+          { port: "processedSegments", ctxKey: "processedSegments" },
+          { port: "documentId", ctxKey: "documentId" },
+        ],
         outputs: [{ port: "validationResults", ctxKey: "validationResults" }],
         parameters: {
           rules: [
@@ -693,29 +766,45 @@ function edgesValidateConfig(name) {
             },
           ],
         },
-        ...pos(820, 120),
+        ...pos(1820, 40),
       },
       store: {
         id: "store",
         type: "activity",
         label: "Store Results",
         activityType: "ocr.storeResults",
-        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
-        ...pos(820, 360),
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "ocrResult", ctxKey: "ocrResult" },
+        ],
+        ...pos(1820, 260),
       },
     },
     edges: [
-      {
-        id: "prep-switch",
-        source: "prep",
-        target: "reviewSwitch",
-        type: "normal",
-      },
+      { id: "prep-submit", source: "prep", target: "submit", type: "normal" },
       {
         id: "prep-fallback",
         source: "prep",
         target: "fallback",
         type: "error",
+      },
+      {
+        id: "submit-extract",
+        source: "submit",
+        target: "extract",
+        type: "normal",
+      },
+      {
+        id: "extract-check",
+        source: "extract",
+        target: "checkConfidence",
+        type: "normal",
+      },
+      {
+        id: "check-switch",
+        source: "checkConfidence",
+        target: "reviewSwitch",
+        type: "normal",
       },
       {
         id: "to-validate",
@@ -759,7 +848,7 @@ function conditionStepRefConfig(name) {
     ctx: {
       documentUrl: { type: "string" },
       documentId: { type: "string" },
-      ocrResult: { type: "object" },
+      rejectionReason: { type: "string" },
     },
     nodes: {
       upload1: {
@@ -805,17 +894,26 @@ function conditionStepRefConfig(name) {
       whenReady: {
         id: "whenReady",
         type: "activity",
-        label: "When prepared",
-        activityType: "ocr.cleanup",
-        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        label: "Submit to OCR",
+        // The "ready" branch genuinely consumes the prepared file: its
+        // `fileData` (Prepared file) auto-binds to `prep`'s `preparedData`
+        // output upstream — reinforcing the demo's own story (the condition
+        // points at the prepared data; the ready branch uses it).
+        activityType: "azureOcr.submit",
         ...pos(1160, 160),
       },
       whenMissing: {
         id: "whenMissing",
         type: "activity",
-        label: "When missing (default)",
-        activityType: "ocr.storeResults",
-        inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        label: "Reject document (default)",
+        // The default branch records a rejection reason — a real handler for
+        // "prepared data missing", instead of the old `ocr.storeResults` that
+        // read an OcrResult nothing produced.
+        activityType: "document.storeRejection",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "reason", ctxKey: "rejectionReason" },
+        ],
         ...pos(1160, 460),
       },
     },
@@ -847,9 +945,12 @@ function conditionStepRefConfig(name) {
 }
 
 /**
- * A linear chain pre-organised into two groups with exposed parameters, so
- * grouping (6.2), exposed params (6.4), simplified view (6.3), node-type swap
- * (6.6) and auto-arrange (6.7) can all be exercised from one workflow.
+ * A real OCR chain pre-organised into two groups, so grouping (6.2), exposed
+ * params (6.4), simplified view (6.3), node-type swap (6.6) and auto-arrange
+ * (6.7) can all be exercised from one workflow. The OCR Extraction group
+ * exposes one parameter that a member node genuinely consumes (`prep`'s
+ * `modelId`) — the exposed-param editor edits `nodes.prep.parameters.modelId`,
+ * not a decorative ctx default nothing reads.
  */
 function groupingConfig(name) {
   return {
@@ -862,9 +963,8 @@ function groupingConfig(name) {
       documentId: { type: "string" },
       preparedFileData: { type: "object" },
       apimRequestId: { type: "string" },
-      modelId: { type: "string", defaultValue: "prebuilt-layout" },
-      confidenceThreshold: { type: "number", defaultValue: 0.7 },
       ocrResult: { type: "object" },
+      cleanedResult: { type: "object" },
     },
     nodes: {
       prep: {
@@ -877,6 +977,9 @@ function groupingConfig(name) {
           { port: "blobKey", ctxKey: "blobKey" },
           { port: "fileName", ctxKey: "fileName" },
         ],
+        // A real node parameter — the OCR model that rides inside the prepared
+        // file. This is what the "OCR Model" exposed param below edits.
+        parameters: { modelId: "prebuilt-layout" },
         outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
         ...pos(120, 80),
       },
@@ -889,15 +992,13 @@ function groupingConfig(name) {
         outputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
         ...pos(420, 80),
       },
-      store: {
-        id: "store",
+      extract: {
+        id: "extract",
         type: "activity",
-        label: "Store Results",
-        activityType: "ocr.storeResults",
-        inputs: [
-          { port: "documentId", ctxKey: "apimRequestId" },
-          { port: "ocrResult", ctxKey: "ocrResult" },
-        ],
+        label: "Extract OCR Result",
+        activityType: "azureOcr.extract",
+        inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
+        outputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
         ...pos(720, 80),
       },
       cleanup: {
@@ -906,13 +1007,28 @@ function groupingConfig(name) {
         label: "Cleanup",
         activityType: "ocr.cleanup",
         inputs: [{ port: "ocrResult", ctxKey: "ocrResult" }],
+        outputs: [{ port: "cleanedResult", ctxKey: "cleanedResult" }],
         ...pos(1020, 80),
+      },
+      store: {
+        id: "store",
+        type: "activity",
+        label: "Store Results",
+        activityType: "ocr.storeResults",
+        // The document's own id + the CLEANED OcrResult — an honest end of the
+        // chain (was: documentId mislabelled onto the APIM request id).
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "ocrResult", ctxKey: "cleanedResult" },
+        ],
+        ...pos(1320, 80),
       },
     },
     edges: [
       { id: "e1", source: "prep", target: "submit", type: "normal" },
-      { id: "e2", source: "submit", target: "store", type: "normal" },
-      { id: "e3", source: "store", target: "cleanup", type: "normal" },
+      { id: "e2", source: "submit", target: "extract", type: "normal" },
+      { id: "e3", source: "extract", target: "cleanup", type: "normal" },
+      { id: "e4", source: "cleanup", target: "store", type: "normal" },
     ],
     nodeGroups: {
       ocr: {
@@ -920,25 +1036,19 @@ function groupingConfig(name) {
         description: "Prepare the file and submit it to Azure OCR.",
         icon: "scan",
         color: "#3b82f6",
-        nodeIds: ["prep", "submit"],
+        nodeIds: ["prep", "submit", "extract"],
         exposedParams: [
           {
             label: "OCR Model",
-            path: "ctx.modelId.defaultValue",
+            nodeId: "prep",
+            path: "nodes.prep.parameters.modelId",
             type: "string",
           },
         ],
       },
       finalize: {
         label: "Finalize",
-        nodeIds: ["store", "cleanup"],
-        exposedParams: [
-          {
-            label: "Confidence Threshold",
-            path: "ctx.confidenceThreshold.defaultValue",
-            type: "number",
-          },
-        ],
+        nodeIds: ["cleanup", "store"],
       },
     },
   };
@@ -1063,9 +1173,9 @@ const DEMOS = [
     config: typedChainConfig,
     steps: [
       "Look at the node cards: every catalog port now gets its own **row** with a kind-coloured handle + label — inputs down the left edge, outputs down the right. **Submit OCR**'s several same-kind outputs each get their own row instead of collapsing into one grey handle.",
-      "Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResponse: OcrResult — …`).",
+      "Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResult: OcrResult — …` on **Extract**'s output).",
       'Click **Extract** — all 5 of its input rows are visible directly on the card; the old below-node "stacked pill" is gone.',
-      'Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill. Here the `ocrResponse` input is auto-satisfied from **Extract** upstream, so its handle stays clean — the amber unsatisfied-ring appears in the Auto-wire demos below (e.g. *Lone Submit*), not here.',
+      'Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill. Here the `ocrResult` input is auto-satisfied from **Extract** upstream, so its handle stays clean — the amber unsatisfied-ring appears in the Auto-wire demos below (e.g. *Lone Submit*), not here.',
     ],
   },
   {
@@ -1075,7 +1185,7 @@ const DEMOS = [
     steps: [
       "Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **Auto** badge and a **Change source** button. No problems badge.",
       "**Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.",
-      "**Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).",
+      '**Click the badge** → it selects the node and opens the node-scoped **“Problems on Lone Submit”** drawer; the unsatisfied `fileData` row carries a **“Pick a source →”** deep-link that opens the source picker (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).',
       "On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.",
       "On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*'s output port to *Submit OCR (auto-bound)*'s input port — hover it for the same provenance text as the Inputs section (e.g. *\"Connected automatically — nearest Document producer\"*). *Lone Submit*'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.",
       '**Drag-to-bind:** drag from *Prepare*\'s `preparedData` **output port handle** to a compatible **input port handle** on another node — one gesture pins the data binding **and** the execution-order edge (the new wire hovers as *"Pinned by you"*). Incompatible ports dim during the drag and reject the drop with a yellow *"…can\'t be used here"* notice. Right-click a data wire → **Disconnect** / **Revert to automatic** to hand the port back to the resolver.',
@@ -1086,10 +1196,10 @@ const DEMOS = [
     title: "Auto-wire — ambiguous source picker (Part 8)",
     config: ambiguousConfig,
     steps: [
-      "Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.",
+      "Two **Prepared file** producers (*Prepare A*, *Prepare B*) both feed **Submit OCR** — the resolver can't choose. (Both are `file.prepare`: `azureOcr.submit`'s `fileData` only accepts a **Prepared file**, so genuine ambiguity needs two producers of that same kind — a *Document reference* producer wouldn't compete.)",
       '**Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input "Prepared file data" has multiple possible sources — pick one”*.',
-      "**Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.",
-      "*Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.",
+      '**Click the badge** → it selects the node and opens the node-scoped **“Problems on Submit OCR”** drawer; its `fileData` row carries a **“Pick a source →”** deep-link. Click it → the producer picker opens listing both *Prepare A* and *Prepare B*. Pick one — the badge clears.',
+      "*Prepare B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.",
       "Before you pick, **no data wire** renders into Submit OCR's `fileData` port — the resolver hasn't chosen, so there's nothing to draw; the port row just shows its amber ring. After you pick a producer in step 3, a colored wire appears from that producer's port to Submit OCR.",
     ],
   },
@@ -1110,7 +1220,7 @@ const DEMOS = [
     steps: [
       "Click **Submit to Azure OCR** → the right-hand **settings panel** opens with the node's editable **label** and a **type badge** (its activity type).",
       "Edit the label and click away (blur) — the node on the canvas updates live.",
-      "Toggle **Show advanced** to reveal the node's raw **port bindings** — two lists, **Input bindings** and **Output bindings**. Every activity has typed **ports** (this OCR node has one input port `fileData` and one output port `apimRequestId`), and a *binding* wires a port to a **ctx key** — a named variable in the workflow's shared `ctx` bag. Inputs *read from* a ctx key; outputs *write to* one. That's how data moves between nodes: **Prepare File Data** writes `preparedFileData`, and this node's `fileData` input reads it back.",
+      "Toggle **Show advanced** to reveal the node's raw **port bindings** — two lists, **Input bindings** and **Output bindings**. Every activity has typed **ports** (this OCR node has one input port `fileData` and three output ports — `apimRequestId`, `statusCode`, `headers`), and a *binding* wires a port to a **ctx key** — a named variable in the workflow's shared `ctx` bag. A port only needs a binding when you want to read/write it; here just `apimRequestId` is bound. Inputs *read from* a ctx key; outputs *write to* one. That's how data moves between nodes: **Prepare File Data** writes `preparedFileData`, and this node's `fileData` input reads it back.",
       "Change the `fileData` input's ctx key from `preparedFileData` to a brand-new name, e.g. `myNewVar`. On the node card the input row now reads **`fileData · from myNewVar`** — the *“from <ctxKey>”* suffix is simply the variable that port currently reads from.",
       'Because `myNewVar` isn\'t declared yet, a **+ Create variable "myNewVar"** button appears beneath the field. Binding a port to an *undeclared* ctx key is a save-blocking validation error (*“references undeclared ctx key”*); the button declares it inline (adds it to the workflow\'s `ctx`) so you skip the detour to **Workflow Settings**. Click it → the variable is declared, the binding becomes valid, and the error clears.',
       "Note there's **no error even though nothing produces `myNewVar`**. The validator only requires a bound ctx key to be *declared* (and that producer/consumer **kinds** match *when* a producer exists) — it does **not** require every consumed variable to have a producing node, since `ctx` can also be filled by the run's trigger/input. A declared-but-unproduced variable is intentionally valid.",
@@ -1121,7 +1231,7 @@ const DEMOS = [
     title: "Control-flow forms & condition editor (Part 4)",
     config: controlFlowConfig,
     steps: [
-      "This graph contains **all six** control-flow nodes. Click each to see its hand-rolled settings form:",
+      "This graph exists to show **all six** control-flow node types and their hand-rolled settings forms in one place — so some branches deliberately **dead-end** (the invoice sub-workflow, the approval gate) and the receipt branch **assumes** `apimRequestId` was supplied by the trigger rather than submitting a fresh OCR job. It's a forms showcase, not a runnable pipeline. Click each node to see its form:",
       "**Run for each document** (map) → collection/item/index ctx keys, max-concurrency, and body entry/exit node pickers.",
       "**Branch by condition** (switch, a yellow **diamond**) → its **cases** list + per-case **Edge** picker (only *conditional* edges are offered) + a **Default edge**.",
       "In that switch's first case, expand the **condition** — the second case holds a 3-level nested expression `AND( OR(EQ, GTE), NOT(IS-NULL) )` so you can watch the **recursive condition editor** render and toggle a leaf between **Ref** and **Literal**.",
@@ -1137,9 +1247,10 @@ const DEMOS = [
     title: "Switch/error edges & validateFields editor (Part 5)",
     config: edgesValidateConfig,
     steps: [
-      "The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.",
-      '**Route by review flag** (switch) draws **conditional** edges with humanised labels — `if <predicate>` for each case (e.g. `if ctx.status is "approved"`) and `otherwise` for the default edge. Comparison operators read as words (`is`, `is not`, `contains`, `≥`, `≤`); logical groups collapse to `all of (N)` / `any of (N)`.',
-      "Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.",
+      "This graph is a real chain: **Prepare File Data → Submit to Azure OCR → Extract OCR Result → Check Confidence → Route by review flag**, then either **Validate Fields** or **Store Results**.",
+      "The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Reject document** (which records a rejection reason); normal edges stay grey.",
+      '**Route by review flag** (switch) routes on `ctx.requiresReview`, which **Check Confidence** actually produces. It draws **conditional** edges with humanised labels — `if <predicate>` for the case (here `if ctx.requiresReview is true`) and `otherwise` for the default edge. Comparison operators read as words (`is`, `is not`, `contains`, `≥`, `≤`); logical groups collapse to `all of (N)` / `any of (N)`.',
+      "Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved. (Its `processedSegments` input is a trigger-supplied value — producing real segments would need the full split/classify chain, which this demo leaves out to stay focused on the rule editor.)",
     ],
   },
   {
@@ -1159,9 +1270,9 @@ const DEMOS = [
     title: "Grouping, simplified view & node swap (Part 6)",
     config: groupingConfig,
     steps: [
-      "This chain ships pre-organised into two groups — **OCR Extraction** and **Finalize** — each with an **exposed parameter**.",
-      "Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type).",
-      "In the exposed-params editor, remove a member node from the group → any exposed param that referenced it is **pruned** with a toast.",
+      "This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.",
+      "Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.",
+      "In the exposed-params editor, remove **Prepare File Data** from the group → the *OCR Model* param that referenced it is **pruned** with a toast.",
       "Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.",
       "**More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.",
     ],
@@ -1239,16 +1350,18 @@ function demoDynamicNodeScript() {
 /**
  * @workflow-node
  * @name ${DYN_DEMO_NAME}
- * @description Uppercases the documentUrl field.
+ * @description Uppercases the prepared file's fileName.
  * @inputs { document: { kind: "Document", required: true } }
  * @outputs { result: { kind: "Artifact" } }
  */
 export default async function dynamicNode(
   ctx: { document: Document },
   _params: Record<string, unknown>,
-): Promise<{ result: { url: string } }> {
-  const url = String((ctx.document as { url?: string }).url ?? "");
-  return { result: { url: url.toUpperCase() } };
+): Promise<{ result: { fileName: string } }> {
+  // Bound to a Prepared file (a Document subkind), whose shape carries
+  // fileName — not a bare url.
+  const fileName = String((ctx.document as { fileName?: string }).fileName ?? "");
+  return { result: { fileName: fileName.toUpperCase() } };
 }`;
 }
 
@@ -1310,7 +1423,7 @@ function dynamicNodeConfig(name, slugName) {
       dynNode: {
         id: "dynNode",
         type: "activity",
-        label: "Uppercase URL (custom)",
+        label: "Uppercase filename (custom)",
         activityType: `dyn.${slugName}`,
         // The dynamic-node binding walk requires the required `document`
         // input to be explicitly bound (auto-wire doesn't cover dyn nodes).

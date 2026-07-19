@@ -44,9 +44,9 @@ npm run seed:demos
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit](http://localhost:3000/workflows/by-slug/demo-typed-i-o-coloured-handles-type-pills-part-7/edit)
 
 1. Look at the node cards: every catalog port now gets its own **row** with a kind-coloured handle + label — inputs down the left edge, outputs down the right. **Submit OCR**'s several same-kind outputs each get their own row instead of collapsing into one grey handle.
-1. Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResponse: OcrResult — …`).
+1. Hover a row (or its handle) to see `<name>: <Kind> — <description>` (e.g. `ocrResult: OcrResult — …` on **Extract**'s output).
 1. Click **Extract** — all 5 of its input rows are visible directly on the card; the old below-node "stacked pill" is gone.
-1. Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill. Here the `ocrResponse` input is auto-satisfied from **Extract** upstream, so its handle stays clean — the amber unsatisfied-ring appears in the Auto-wire demos below (e.g. *Lone Submit*), not here.
+1. Click **Cleanup** — its single input row and single output row replace the old "arrow" type pill. Here the `ocrResult` input is auto-satisfied from **Extract** upstream, so its handle stays clean — the amber unsatisfied-ring appears in the Auto-wire demos below (e.g. *Lone Submit*), not here.
 
 ---
 
@@ -56,7 +56,7 @@ npm run seed:demos
 
 1. Select **Submit OCR (auto-bound)** → the Inputs section shows its `fileData` auto-bound to *Prepare* with an **Auto** badge and a **Change source** button. No problems badge.
 1. **Lone Submit (unsatisfied)** carries a **problems badge** (top-left corner, amber) — the unbound input folds into the same per-node validation badge (no separate status dot). The top-bar count reflects it too.
-1. **Click the badge** → it selects the node and opens the input's source picker directly (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).
+1. **Click the badge** → it selects the node and opens the node-scoped **“Problems on Lone Submit”** drawer; the unsatisfied `fileData` row carries a **“Pick a source →”** deep-link that opens the source picker (here it shows the *“add a producer”* guidance, since nothing upstream emits the needed kind).
 1. On the auto-bound node, click **Change source** → the binding locks; click **Revert to automatic** to restore it.
 1. On canvas, that bound `fileData` input now renders as a colored **data wire** running from *Prepare*'s output port to *Submit OCR (auto-bound)*'s input port — hover it for the same provenance text as the Inputs section (e.g. *"Connected automatically — nearest Document producer"*). *Lone Submit*'s unbound `fileData` shows no wire at all, matching its amber-ringed, unsatisfied port row.
 1. **Drag-to-bind:** drag from *Prepare*'s `preparedData` **output port handle** to a compatible **input port handle** on another node — one gesture pins the data binding **and** the execution-order edge (the new wire hovers as *"Pinned by you"*). Incompatible ports dim during the drag and reject the drop with a yellow *"…can't be used here"* notice. Right-click a data wire → **Disconnect** / **Revert to automatic** to hand the port back to the resolver.
@@ -67,10 +67,10 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-auto-wire-ambiguous-source-picker-part-8/edit](http://localhost:3000/workflows/by-slug/demo-auto-wire-ambiguous-source-picker-part-8/edit)
 
-1. Two Document producers (*Prepare A*, *Normalize B*) both feed **Submit OCR** — the resolver can't choose.
+1. Two **Prepared file** producers (*Prepare A*, *Prepare B*) both feed **Submit OCR** — the resolver can't choose. (Both are `file.prepare`: `azureOcr.submit`'s `fileData` only accepts a **Prepared file**, so genuine ambiguity needs two producers of that same kind — a *Document reference* producer wouldn't compete.)
 1. **Submit OCR** carries a **problems badge** (top-left, amber). It also shows in the top-bar count and, via **More ▸** the Validation drawer, as *“Input "Prepared file data" has multiple possible sources — pick one”*.
-1. **Click the badge** → it selects the node and opens the producer picker straight away, listing both *Prepare A* and *Normalize B*. Pick one — the badge clears.
-1. *Normalize B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.
+1. **Click the badge** → it selects the node and opens the node-scoped **“Problems on Submit OCR”** drawer; its `fileData` row carries a **“Pick a source →”** deep-link. Click it → the producer picker opens listing both *Prepare A* and *Prepare B*. Pick one — the badge clears.
+1. *Prepare B* carries its own badge — a **reachability** warning (it's a second root, not reachable from the entry node). One unified badge per node now folds in auto-wire **and** validation issues; the run-status circle stays in the top-right corner, so they never overlap.
 1. Before you pick, **no data wire** renders into Submit OCR's `fileData` port — the resolver hasn't chosen, so there's nothing to draw; the port row just shows its amber ring. After you pick a producer in step 3, a colored wire appears from that producer's port to Submit OCR.
 
 ---
@@ -91,7 +91,7 @@ npm run seed:demos
 
 1. Click **Submit to Azure OCR** → the right-hand **settings panel** opens with the node's editable **label** and a **type badge** (its activity type).
 1. Edit the label and click away (blur) — the node on the canvas updates live.
-1. Toggle **Show advanced** to reveal the node's raw **port bindings** — two lists, **Input bindings** and **Output bindings**. Every activity has typed **ports** (this OCR node has one input port `fileData` and one output port `apimRequestId`), and a *binding* wires a port to a **ctx key** — a named variable in the workflow's shared `ctx` bag. Inputs *read from* a ctx key; outputs *write to* one. That's how data moves between nodes: **Prepare File Data** writes `preparedFileData`, and this node's `fileData` input reads it back.
+1. Toggle **Show advanced** to reveal the node's raw **port bindings** — two lists, **Input bindings** and **Output bindings**. Every activity has typed **ports** (this OCR node has one input port `fileData` and three output ports — `apimRequestId`, `statusCode`, `headers`), and a *binding* wires a port to a **ctx key** — a named variable in the workflow's shared `ctx` bag. A port only needs a binding when you want to read/write it; here just `apimRequestId` is bound. Inputs *read from* a ctx key; outputs *write to* one. That's how data moves between nodes: **Prepare File Data** writes `preparedFileData`, and this node's `fileData` input reads it back.
 1. Change the `fileData` input's ctx key from `preparedFileData` to a brand-new name, e.g. `myNewVar`. On the node card the input row now reads **`fileData · from myNewVar`** — the *“from <ctxKey>”* suffix is simply the variable that port currently reads from.
 1. Because `myNewVar` isn't declared yet, a **+ Create variable "myNewVar"** button appears beneath the field. Binding a port to an *undeclared* ctx key is a save-blocking validation error (*“references undeclared ctx key”*); the button declares it inline (adds it to the workflow's `ctx`) so you skip the detour to **Workflow Settings**. Click it → the variable is declared, the binding becomes valid, and the error clears.
 1. Note there's **no error even though nothing produces `myNewVar`**. The validator only requires a bound ctx key to be *declared* (and that producer/consumer **kinds** match *when* a producer exists) — it does **not** require every consumed variable to have a producing node, since `ctx` can also be filled by the run's trigger/input. A declared-but-unproduced variable is intentionally valid.
@@ -102,7 +102,7 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit](http://localhost:3000/workflows/by-slug/demo-control-flow-forms-condition-editor-part-4/edit)
 
-1. This graph contains **all six** control-flow nodes. Click each to see its hand-rolled settings form:
+1. This graph exists to show **all six** control-flow node types and their hand-rolled settings forms in one place — so some branches deliberately **dead-end** (the invoice sub-workflow, the approval gate) and the receipt branch **assumes** `apimRequestId` was supplied by the trigger rather than submitting a fresh OCR job. It's a forms showcase, not a runnable pipeline. Click each node to see its form:
 1. **Run for each document** (map) → collection/item/index ctx keys, max-concurrency, and body entry/exit node pickers.
 1. **Branch by condition** (switch, a yellow **diamond**) → its **cases** list + per-case **Edge** picker (only *conditional* edges are offered) + a **Default edge**.
 1. In that switch's first case, expand the **condition** — the second case holds a 3-level nested expression `AND( OR(EQ, GTE), NOT(IS-NULL) )` so you can watch the **recursive condition editor** render and toggle a leaf between **Ref** and **Literal**.
@@ -118,9 +118,10 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-switch-error-edges-validatefields-editor-part-5/edit](http://localhost:3000/workflows/by-slug/demo-switch-error-edges-validatefields-editor-part-5/edit)
 
-1. The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Fallback handler**; normal edges stay grey.
-1. **Route by review flag** (switch) draws **conditional** edges with humanised labels — `if <predicate>` for each case (e.g. `if ctx.status is "approved"`) and `otherwise` for the default edge. Comparison operators read as words (`is`, `is not`, `contains`, `≥`, `≤`); logical groups collapse to `all of (N)` / `any of (N)`.
-1. Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved.
+1. This graph is a real chain: **Prepare File Data → Submit to Azure OCR → Extract OCR Result → Check Confidence → Route by review flag**, then either **Validate Fields** or **Store Results**.
+1. The **Prepare File Data** node has an `errorPolicy` fallback → a red **error edge** (`on error`) runs to **Reject document** (which records a rejection reason); normal edges stay grey.
+1. **Route by review flag** (switch) routes on `ctx.requiresReview`, which **Check Confidence** actually produces. It draws **conditional** edges with humanised labels — `if <predicate>` for the case (here `if ctx.requiresReview is true`) and `otherwise` for the default edge. Comparison operators read as words (`is`, `is not`, `contains`, `≥`, `≤`); logical groups collapse to `all of (N)` / `any of (N)`.
+1. Click **Validate Fields** → the rich rule editor shows three rule types — **arithmetic**, **field-match** and **array-match** — not an “Unsupported field schema” stub. Change a rule's **type** and confirm `name` is preserved. (Its `processedSegments` input is a trigger-supplied value — producing real segments would need the full split/classify chain, which this demo leaves out to stay focused on the rule editor.)
 
 ---
 
@@ -140,9 +141,9 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit](http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit)
 
-1. This chain ships pre-organised into two groups — **OCR Extraction** and **Finalize** — each with an **exposed parameter**.
-1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type).
-1. In the exposed-params editor, remove a member node from the group → any exposed param that referenced it is **pruned** with a toast.
+1. This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.
+1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.
+1. In the exposed-params editor, remove **Prepare File Data** from the group → the *OCR Model* param that referenced it is **pruned** with a toast.
 1. Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.
 1. **More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.
 

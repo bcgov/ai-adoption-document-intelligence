@@ -11,6 +11,10 @@
         "documentUrl": {
           "kind": "Document",
           "description": "Blob key produced by the upload source for the uploaded PDF."
+        },
+        "documentId": {
+          "type": "string",
+          "description": "Document identifier injected into initialCtx by the upload endpoint at run time."
         }
       },
       "edges": [
@@ -158,6 +162,10 @@
             {
               "port": "blobKey",
               "ctxKey": "documentUrl"
+            },
+            {
+              "port": "documentId",
+              "ctxKey": "documentId"
             }
           ],
           "outputs": [
