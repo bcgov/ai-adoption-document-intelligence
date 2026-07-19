@@ -45,6 +45,22 @@ export const ACTIVITY_BASE_HEIGHT = 177;
 export const CONTROL_FLOW_NODE_HEIGHT = 180;
 /** Source cards (e.g. `source.upload`) render a slimmer fixed card: 165px. */
 export const SOURCE_NODE_HEIGHT = 165;
+
+// --- Width estimates (mirror the height constants above) --------------------
+// Cards vary in width by type. These are the RENDERED footprints the map-body
+// container box uses to enclose its members; a slight over-estimate is safe
+// (a marginally roomier box), an under-estimate clips a card outside the box.
+/**
+ * Activity cards render a per-port row grid up to ~522px wide (the same
+ * card-width the Auto-arrange rank spacing is tuned to — see
+ * `auto-layout.ts` DEFAULT_NODE_WIDTH). Row-less activities are narrower, but
+ * over-estimating only pads the box.
+ */
+export const ACTIVITY_NODE_WIDTH = 522;
+/** Source cards render narrower than a port-row activity card. */
+export const SOURCE_NODE_WIDTH = 320;
+/** Control-flow rectangles/diamonds render ~180px wide. */
+export const CONTROL_FLOW_NODE_WIDTH = 180;
 /**
  * `marginTop` the `<PortRows>` grid renders above its rows (see
  * `PortRows.tsx`). Only applies when the node has at least one row — the
@@ -226,4 +242,20 @@ export function estimateNodeHeight(
   const rows = Math.max(inputs.length, outputs.length);
   if (rows === 0) return ACTIVITY_BASE_HEIGHT;
   return ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
+}
+
+/**
+ * Estimated rendered WIDTH of a node's card, by type. Mirrors
+ * `estimateNodeHeight`; used to enclose a map body's members in the container
+ * box. Width is not row-count-dependent (rows add height, not width), so this
+ * is a per-type lookup.
+ */
+export function estimateNodeWidth(
+  config: GraphWorkflowConfig,
+  nodeId: string,
+): number {
+  const node = config.nodes[nodeId];
+  if (node?.type === "activity") return ACTIVITY_NODE_WIDTH;
+  if (node?.type === "source") return SOURCE_NODE_WIDTH;
+  return CONTROL_FLOW_NODE_WIDTH;
 }

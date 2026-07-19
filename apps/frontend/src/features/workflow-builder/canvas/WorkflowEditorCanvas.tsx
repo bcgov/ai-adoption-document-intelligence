@@ -126,6 +126,8 @@ import {
 } from "./port-kinds";
 import {
   computePortRows,
+  estimateNodeHeight,
+  estimateNodeWidth,
   inputHandleId,
   outputHandleId,
   type PortRowModel,
@@ -1538,10 +1540,14 @@ function projectMapBodyContainerNodes(
 ): MapBodyContainerFlowNode[] {
   const out: MapBodyContainerFlowNode[] = [];
   for (const [groupId, group] of Object.entries(syntheticGroups)) {
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
+    // Enclose each member's FULL footprint: `position` is the card's top-left,
+    // so the box's right/bottom edge must reach `position + card size`. Using
+    // per-node width/height (not a flat footprint) stops wide port-row cards —
+    // e.g. a map body's exit `azureOcr.extract` — from spilling out of the box.
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
     let any = false;
     for (const nodeId of group.nodeIds) {
       const meta = config.nodes[nodeId]?.metadata as
@@ -1550,25 +1556,25 @@ function projectMapBodyContainerNodes(
       const pos = meta?.position;
       if (!pos) continue;
       any = true;
-      if (pos.x < minX) minX = pos.x;
-      if (pos.y < minY) minY = pos.y;
-      if (pos.x > maxX) maxX = pos.x;
-      if (pos.y > maxY) maxY = pos.y;
+      const w = estimateNodeWidth(config, nodeId);
+      const h = estimateNodeHeight(config, nodeId);
+      if (pos.x < left) left = pos.x;
+      if (pos.y < top) top = pos.y;
+      if (pos.x + w > right) right = pos.x + w;
+      if (pos.y + h > bottom) bottom = pos.y + h;
     }
     if (!any) continue;
     const pad = 40;
-    const nodeFootprintW = 220;
-    const nodeFootprintH = 100;
     out.push({
       id: `container-${groupId}`,
       type: "map-body-container",
-      position: { x: minX - pad, y: minY - pad },
+      position: { x: left - pad, y: top - pad },
       data: {
         groupId,
         label: group.label,
         color: group.color,
-        width: maxX - minX + nodeFootprintW + pad * 2,
-        height: maxY - minY + nodeFootprintH + pad * 2,
+        width: right - left + pad * 2,
+        height: bottom - top + pad * 2,
         onClick: () =>
           onSelectMapNode?.(mapNodeIdFromSyntheticGroupId(groupId)),
       },

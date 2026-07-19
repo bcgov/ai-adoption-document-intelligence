@@ -14,13 +14,17 @@ import { config, node } from "./__test-utils__/config-fixtures";
 import { deriveWires } from "./derive-wires";
 import {
   ACTIVITY_BASE_HEIGHT,
+  ACTIVITY_NODE_WIDTH,
   CONTROL_FLOW_NODE_HEIGHT,
+  CONTROL_FLOW_NODE_WIDTH,
   computePortRows,
   estimateNodeHeight,
+  estimateNodeWidth,
   PORT_ROW_HEIGHT,
   PORT_ROWS_TOP_MARGIN,
   rendersPerPortHandle,
   SOURCE_NODE_HEIGHT,
+  SOURCE_NODE_WIDTH,
 } from "./port-rows";
 
 describe("computePortRows — Scenario 1: azureOcr.submit with no bindings", () => {
@@ -157,6 +161,38 @@ describe("computePortRows — Scenario 5: estimateNodeHeight scales with the wid
       ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + 5 * PORT_ROW_HEIGHT,
     );
     expect(estimateNodeHeight(cfg, "E")).toBe(293);
+  });
+});
+
+describe("estimateNodeWidth — per-type card footprint (map-body box enclosure)", () => {
+  it("returns the wide activity width for an activity card (so port-row cards aren't clipped)", () => {
+    const cfg = config({
+      nodes: {
+        E: node<ActivityNode>({
+          id: "E",
+          type: "activity",
+          activityType: "azureOcr.extract",
+        }),
+      },
+    });
+    expect(estimateNodeWidth(cfg, "E")).toBe(ACTIVITY_NODE_WIDTH);
+  });
+
+  it("returns the source width for a source node and the control-flow width otherwise", () => {
+    const cfg = config({
+      nodes: {
+        Up: node<SourceNode>({
+          id: "Up",
+          type: "source",
+          sourceType: "source.upload",
+        }),
+        Sw: node<SwitchNode>({ id: "Sw", type: "switch", cases: [] }),
+      },
+    });
+    expect(estimateNodeWidth(cfg, "Up")).toBe(SOURCE_NODE_WIDTH);
+    expect(estimateNodeWidth(cfg, "Sw")).toBe(CONTROL_FLOW_NODE_WIDTH);
+    // Unknown id falls back to the compact control-flow width.
+    expect(estimateNodeWidth(cfg, "missing")).toBe(CONTROL_FLOW_NODE_WIDTH);
   });
 });
 
