@@ -87,6 +87,7 @@ export class DocumentDbService {
           normalized_file_path: data.normalized_file_path ?? null,
           file_type: data.file_type,
           file_size: data.file_size,
+          content_hash: data.content_hash ?? null,
           metadata:
             data.metadata != null
               ? (data.metadata as Prisma.InputJsonValue)
@@ -157,6 +158,7 @@ export class DocumentDbService {
       sortBy?: string;
       sortDir?: "asc" | "desc";
       source?: string;
+      contentHash?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<{
@@ -192,13 +194,19 @@ export class DocumentDbService {
       where.source = options.source;
     }
 
-    // Search filter (title or filename)
+    // Content hash filter (exact match within group scope)
+    if (options?.contentHash?.trim()) {
+      where.content_hash = options.contentHash.trim();
+    }
+
+    // Search filter (title, filename, or content hash)
     if (options?.search?.trim()) {
       where.OR = [
         { title: { contains: options.search, mode: "insensitive" } },
         {
           original_filename: { contains: options.search, mode: "insensitive" },
         },
+        { content_hash: { contains: options.search, mode: "insensitive" } },
       ];
     }
 

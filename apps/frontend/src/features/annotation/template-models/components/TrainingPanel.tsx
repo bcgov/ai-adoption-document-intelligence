@@ -67,7 +67,7 @@ export function TrainingPanel({
             : undefined,
       });
       notifications.show({
-        title: "Training Started",
+        title: "Training started",
         message: "Training has been initiated.",
         color: "green",
         icon: <IconCheck />,
@@ -75,7 +75,7 @@ export function TrainingPanel({
       setDescription("");
     } catch (error: unknown) {
       notifications.show({
-        title: "Training Failed",
+        title: "Training failed",
         message:
           error instanceof Error ? error.message : "Failed to start training",
         color: "red",
@@ -88,13 +88,13 @@ export function TrainingPanel({
     try {
       await cancelJob(jobId);
       notifications.show({
-        title: "Job Cancelled",
+        title: "Job cancelled",
         message: "Training job has been cancelled",
         color: "blue",
       });
     } catch (error: unknown) {
       notifications.show({
-        title: "Cancel Failed",
+        title: "Cancel failed",
         message:
           error instanceof Error ? error.message : "Failed to cancel job",
         color: "red",
@@ -145,7 +145,7 @@ export function TrainingPanel({
       {/* Validation */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Training Readiness
+          Training readiness
         </Title>
         {isValidating ? (
           <Loader size="sm" />
@@ -153,7 +153,7 @@ export function TrainingPanel({
           validation.valid ? (
             <Alert
               color="green"
-              title="Ready for Training"
+              title="Ready for training"
               icon={<IconCheck />}
             >
               Template model has {validation.labeledDocumentsCount} labeled
@@ -162,7 +162,7 @@ export function TrainingPanel({
           ) : (
             <Alert
               color="red"
-              title="Not Ready for Training"
+              title="Not ready for training"
               icon={<IconAlertCircle />}
             >
               <Stack gap="xs">
@@ -186,16 +186,16 @@ export function TrainingPanel({
         ) : null}
       </Paper>
 
-      {/* Start Training */}
+      {/* Start training */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Start Training
+          Start training
         </Title>
         <Stack gap="md">
           {templateModelModelId && (
             <Group gap="xs">
               <Text size="sm" fw={500}>
-                Template Model ID:
+                Template model ID:
               </Text>
               <Code>{templateModelModelId}</Code>
               <Text size="xs" c="dimmed">
@@ -297,7 +297,7 @@ export function TrainingPanel({
             loading={isStarting}
             leftSection={isStarting ? <Loader size="xs" /> : null}
           >
-            {isStarting ? "Starting Training..." : "Train"}
+            {isStarting ? "starting training..." : "train"}
           </Button>
         </Stack>
       </Paper>
@@ -306,9 +306,9 @@ export function TrainingPanel({
       {latestSucceededJob && (
         <Paper p="md" withBorder>
           <Title order={4} mb="md">
-            Model Status
+            Model status
           </Title>
-          <Alert color="green" title="Model Trained" icon={<IconCheck />}>
+          <Alert color="green" title="Model trained" icon={<IconCheck />}>
             <Text size="sm">
               Last successful training completed on{" "}
               {formatDate(
@@ -322,7 +322,7 @@ export function TrainingPanel({
       {/* Jobs table */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Training Jobs
+          Training jobs
         </Title>
         {isLoadingJobs ? (
           <Loader size="sm" />

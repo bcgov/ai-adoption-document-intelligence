@@ -76,7 +76,7 @@ After the plan is confirmed, create stacked branches and draft PRs.
 
    > - a self-review of my code
    > - commented code particularly in hard-to-understand areas
-   > - corresponding changes to the documentation where required
+   > - documentation updated where required (`docs-md/`, READMEs, and/or public `docs/` site), including the repo wiki (`docs-md/wiki/`) when boundaries, routing, or contributor guidance changed — or confirmed not needed
    > - changes tested to the best of my ability
    > - no new errors or non-functional code
    EOF

@@ -110,7 +110,11 @@ export class TrainingController {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.trainingService.startTraining(modelId, dto);
+    return this.trainingService.startTraining(
+      modelId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   /**
@@ -180,7 +184,10 @@ export class TrainingController {
       job.templateModelId,
     );
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    await this.trainingService.cancelTrainingJob(jobId);
+    await this.trainingService.cancelTrainingJob(
+      jobId,
+      req.resolvedIdentity.actorId,
+    );
     return { success: true, message: "Training job cancelled" };
   }
 
@@ -266,7 +273,11 @@ export class TrainingController {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.trainingService.setActiveTrainedVersion(modelId, versionId);
+    return this.trainingService.setActiveTrainedVersion(
+      modelId,
+      versionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   /**
@@ -298,6 +309,10 @@ export class TrainingController {
     const templateModel =
       await this.templateModelService.getTemplateModel(modelId);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.trainingService.deleteTrainedVersion(modelId, versionId);
+    return this.trainingService.deleteTrainedVersion(
+      modelId,
+      versionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 }

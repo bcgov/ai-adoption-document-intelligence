@@ -4,6 +4,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
 import { AzureService } from "@/azure/azure.service";
+import { computeContentHash } from "@/document/content-hash.util";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -149,6 +150,7 @@ describe("TemplateModelOcrService", () => {
           source: "labeling",
           status: DocumentStatus.ongoing_ocr,
           model_id: "prebuilt-layout",
+          content_hash: computeContentHash(Buffer.from("test")),
           file_path: expect.stringMatching(
             /labeling-documents\/[^/]+\/original\.pdf$/,
           ),

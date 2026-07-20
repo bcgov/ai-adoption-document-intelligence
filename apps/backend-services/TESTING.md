@@ -12,7 +12,7 @@
    ```env
    PORT=3002
    NODE_ENV=development
-   FRONTEND_URL=http://localhost:5173
+   FRONTEND_URL=http://localhost:3000
    DATABASE_API_URL=http://localhost:3001/api/documents
    ```
 
@@ -23,7 +23,7 @@
 npm run start:dev
 
 # Or from the root directory
-npm run dev:backend-services
+npm run dev:backend
 ```
 
 The service will start on `http://localhost:3002` (or the port specified in `.env`).

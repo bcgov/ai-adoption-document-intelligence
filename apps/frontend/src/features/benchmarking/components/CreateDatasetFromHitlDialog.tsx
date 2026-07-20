@@ -175,8 +175,8 @@ export function CreateDatasetFromHitlDialog({
       onClose={handleClose}
       title={
         isAddingVersion
-          ? "Add Version from Verified Documents"
-          : "Create Dataset from Verified Documents"
+          ? "Add version from verified documents"
+          : "Create dataset from verified documents"
       }
       size="xl"
     >
@@ -196,7 +196,7 @@ export function CreateDatasetFromHitlDialog({
         {step === "info" && (
           <>
             <TextInput
-              label="Dataset Name"
+              label="Dataset name"
               placeholder="Enter dataset name"
               value={name}
               onChange={(e) => {
@@ -346,7 +346,7 @@ export function CreateDatasetFromHitlDialog({
                 variant="subtle"
                 onClick={isAddingVersion ? handleClose : handleBack}
               >
-                {isAddingVersion ? "Cancel" : "Back"}
+                {isAddingVersion ? "cancel" : "back"}
               </Button>
               <Button
                 onClick={handleNextFromSelect}
@@ -400,7 +400,7 @@ export function CreateDatasetFromHitlDialog({
                 Back
               </Button>
               <Button onClick={handleSubmit} loading={isSubmitting}>
-                {isAddingVersion ? "Add Version" : "Create Dataset"}
+                {isAddingVersion ? "add version" : "create dataset"}
               </Button>
             </Group>
           </>

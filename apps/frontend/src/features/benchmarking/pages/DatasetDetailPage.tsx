@@ -296,7 +296,7 @@ export function DatasetDetailPage() {
                 onClick={() => setHitlVersionDialogOpen(true)}
                 data-testid="add-version-from-hitl-btn"
               >
-                From Verified Documents
+                From verified documents
               </Button>
               <Button
                 leftSection={<IconPlus size={16} />}
@@ -304,7 +304,7 @@ export function DatasetDetailPage() {
                 loading={isCreatingVersion}
                 data-testid="new-version-btn"
               >
-                New Version
+                New version
               </Button>
             </Group>
           </Group>
@@ -349,7 +349,7 @@ export function DatasetDetailPage() {
                 value={selectedVersionId}
                 data-testid="sample-preview-tab"
               >
-                Sample Preview
+                Sample preview
               </Tabs.Tab>
             )}
             {selectedVersionId && (
@@ -365,7 +365,7 @@ export function DatasetDetailPage() {
                 value={`gt-${selectedVersionId}`}
                 data-testid="ground-truth-tab"
               >
-                Ground Truth
+                Ground truth
               </Tabs.Tab>
             )}
           </Tabs.List>
@@ -379,7 +379,7 @@ export function DatasetDetailPage() {
                       No versions yet
                     </Text>
                     <Text size="sm" c="dimmed">
-                      Click &quot;New Version&quot; to create a version and
+                      Click &quot;New version&quot; to create a version and
                       upload files
                     </Text>
                   </Stack>
@@ -393,7 +393,7 @@ export function DatasetDetailPage() {
                     <DataTable.Th>Name</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>
                     <DataTable.Th>Documents</DataTable.Th>
-                    <DataTable.Th>Storage Prefix</DataTable.Th>
+                    <DataTable.Th>Storage prefix</DataTable.Th>
                     <DataTable.Th>Created</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
@@ -483,7 +483,7 @@ export function DatasetDetailPage() {
                             version.frozen ? <IconLock size={12} /> : undefined
                           }
                         >
-                          {version.frozen ? "Frozen" : "Editable"}
+                          {version.frozen ? "Frozen" : "editable"}
                         </Badge>
                       </DataTable.Td>
                       <DataTable.Td>{version.documentCount}</DataTable.Td>
@@ -516,7 +516,7 @@ export function DatasetDetailPage() {
                               }}
                               data-testid={`view-samples-menu-item-${version.id}`}
                             >
-                              View Samples
+                              View samples
                             </Menu.Item>
                             <Menu.Item
                               leftSection={<IconUpload size={16} />}
@@ -524,7 +524,7 @@ export function DatasetDetailPage() {
                               disabled={version.frozen}
                               data-testid={`upload-files-menu-item-${version.id}`}
                             >
-                              Upload Files
+                              Upload files
                             </Menu.Item>
                             <Menu.Item
                               leftSection={<IconShieldCheck size={16} />}
@@ -540,7 +540,7 @@ export function DatasetDetailPage() {
                                 disabled={isFreezingVersion}
                                 data-testid={`freeze-version-menu-item-${version.id}`}
                               >
-                                Freeze Version
+                                Freeze version
                               </Menu.Item>
                             )}
                             <Menu.Divider />
@@ -556,7 +556,7 @@ export function DatasetDetailPage() {
                               disabled={version.frozen || isDeletingVersion}
                               data-testid={`delete-version-menu-item-${version.id}`}
                             >
-                              Delete Version
+                              Delete version
                             </Menu.Item>
                           </Menu.Dropdown>
                         </Menu>
@@ -579,7 +579,7 @@ export function DatasetDetailPage() {
                       onClick={() => handleUploadToVersion(selectedVersionId)}
                       data-testid="sample-preview-upload-btn"
                     >
-                      Upload Files
+                      Upload files
                     </Button>
                   )}
                   {selectedVersion?.frozen && (
@@ -614,8 +614,8 @@ export function DatasetDetailPage() {
                       <DataTable.Thead>
                         <DataTable.Tr>
                           <DataTable.Th>Sample ID</DataTable.Th>
-                          <DataTable.Th>Input Files</DataTable.Th>
-                          <DataTable.Th>Ground Truth</DataTable.Th>
+                          <DataTable.Th>Input files</DataTable.Th>
+                          <DataTable.Th>Ground truth</DataTable.Th>
                           <DataTable.Th>Metadata</DataTable.Th>
                           <DataTable.Th>Actions</DataTable.Th>
                         </DataTable.Tr>
@@ -759,7 +759,7 @@ export function DatasetDetailPage() {
       <Modal
         opened={deleteVersionDialogOpen}
         onClose={handleDeleteVersionCancel}
-        title="Delete Version"
+        title="Delete version"
         centered
         data-testid="delete-version-confirm-dialog"
       >
@@ -791,7 +791,7 @@ export function DatasetDetailPage() {
       <Modal
         opened={validationDialogOpen}
         onClose={() => setValidationDialogOpen(false)}
-        title="Dataset Validation Report"
+        title="Dataset validation report"
         size="xl"
       >
         {isValidating ? (
@@ -808,7 +808,7 @@ export function DatasetDetailPage() {
       <Modal
         opened={newVersionDialogOpen}
         onClose={() => setNewVersionDialogOpen(false)}
-        title="New Version"
+        title="New version"
         centered
         data-testid="new-version-dialog"
       >

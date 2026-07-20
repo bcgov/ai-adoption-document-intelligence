@@ -63,14 +63,14 @@ export function SplitManagement({
     <Stack gap="md" data-testid="split-management-container">
       <Group justify="space-between">
         <Title order={3} data-testid="splits-title">
-          Dataset Splits
+          Dataset splits
         </Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => setCreateDialogOpen(true)}
           data-testid="create-split-btn"
         >
-          Create Split
+          Create split
         </Button>
       </Group>
 
@@ -120,7 +120,7 @@ export function SplitManagement({
                       color={split.frozen ? "gray" : "green"}
                       data-testid={`split-status-badge-${split.id}`}
                     >
-                      {split.frozen ? "Frozen" : "Editable"}
+                      {split.frozen ? "Frozen" : "editable"}
                     </Badge>
                   </DataTable.Td>
                   <DataTable.Td data-testid={`split-created-${split.id}`}>
@@ -164,7 +164,7 @@ export function SplitManagement({
               onClick={() => setCreateDialogOpen(true)}
               data-testid="create-first-split-btn"
             >
-              Create First Split
+              Create first split
             </Button>
           </Stack>
         </PanelCard>
@@ -270,7 +270,7 @@ function CreateSplitDialog({
     <Modal
       opened={open}
       onClose={onClose}
-      title="Create Split"
+      title="Create split"
       size="lg"
       closeOnClickOutside={false}
       closeOnEscape={false}
@@ -278,7 +278,7 @@ function CreateSplitDialog({
     >
       <Stack gap="md">
         <TextInput
-          label="Split Name"
+          label="Split name"
           placeholder="e.g., train-v1, golden-regression"
           value={name}
           onChange={(e) => {
@@ -298,21 +298,21 @@ function CreateSplitDialog({
         />
 
         <Select
-          label="Split Type"
+          label="Split type"
           value={type}
           onChange={(value) => setType((value as SplitType) || "train")}
           data={[
             { value: "train", label: "Train" },
             { value: "val", label: "Validation" },
             { value: "test", label: "Test" },
-            { value: "golden", label: "Golden Regression" },
+            { value: "golden", label: "Golden regression" },
           ]}
           required
           data-testid="split-type-select"
         />
 
         <MultiSelect
-          label="Select Samples"
+          label="Select samples"
           placeholder="Choose samples for this split"
           data={sampleOptions}
           value={selectedSampleIds}
@@ -355,7 +355,7 @@ function CreateSplitDialog({
             loading={createMutation.isPending}
             data-testid="create-split-submit-btn"
           >
-            Create Split
+            Create split
           </Button>
         </Group>
       </Stack>
@@ -429,7 +429,7 @@ function EditSplitDialog({
     <Modal
       opened={open}
       onClose={onClose}
-      title={`Edit Split: ${split.name}`}
+      title={`Edit split: ${split.name}`}
       size="lg"
       data-testid="edit-split-dialog"
     >
@@ -455,7 +455,7 @@ function EditSplitDialog({
         </Group>
 
         <MultiSelect
-          label="Update Sample Selection"
+          label="Update sample selection"
           placeholder="Choose samples for this split"
           data={sampleOptions}
           value={selectedSampleIds}
@@ -494,7 +494,7 @@ function EditSplitDialog({
             loading={updateMutation.isPending}
             data-testid="edit-split-submit-btn"
           >
-            Update Split
+            Update split
           </Button>
         </Group>
       </Stack>

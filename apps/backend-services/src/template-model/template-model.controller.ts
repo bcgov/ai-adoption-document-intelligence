@@ -167,7 +167,11 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.updateTemplateModel(id, dto);
+    return this.templateModelService.updateTemplateModel(
+      id,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Delete(":id")
@@ -183,7 +187,10 @@ export class TemplateModelController {
   async deleteTemplateModel(@Param("id") id: string, @Req() req: Request) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.deleteTemplateModel(id);
+    return this.templateModelService.deleteTemplateModel(
+      id,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   // ========== FIELD SCHEMA ENDPOINTS ==========
@@ -221,7 +228,11 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.addField(id, dto);
+    return this.templateModelService.addField(
+      id,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Put(":id/fields/:fieldId")
@@ -243,7 +254,12 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.updateField(id, fieldId, dto);
+    return this.templateModelService.updateField(
+      id,
+      fieldId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Delete(":id/fields/:fieldId")
@@ -264,7 +280,11 @@ export class TemplateModelController {
   ) {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.templateModelService.deleteField(id, fieldId);
+    return this.templateModelService.deleteField(
+      id,
+      fieldId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   // ========== DOCUMENT ENDPOINTS ==========
@@ -327,7 +347,11 @@ export class TemplateModelController {
       );
     }
     identityCanAccessGroup(req.resolvedIdentity, labelingDoc.group_id);
-    return this.templateModelService.addDocumentToTemplateModel(id, dto);
+    return this.templateModelService.addDocumentToTemplateModel(
+      id,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post(":id/upload")
@@ -362,7 +386,11 @@ export class TemplateModelController {
     @Req() req: Request,
   ) {
     identityCanAccessGroup(req.resolvedIdentity, dto.group_id);
-    return this.templateModelService.uploadLabelingDocument(id, dto);
+    return this.templateModelService.uploadLabelingDocument(
+      id,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get(":id/documents/:docId")
@@ -537,6 +565,7 @@ export class TemplateModelController {
     return this.templateModelService.removeDocumentFromTemplateModel(
       id,
       documentId,
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -607,7 +636,12 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.saveDocumentLabels(id, documentId, dto);
+    return this.templateModelService.saveDocumentLabels(
+      id,
+      documentId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Delete(":id/documents/:docId/labels/:labelId")
@@ -636,7 +670,12 @@ export class TemplateModelController {
       req.resolvedIdentity,
       labeledDoc.labeling_document.group_id,
     );
-    return this.templateModelService.deleteLabel(id, documentId, labelId);
+    return this.templateModelService.deleteLabel(
+      id,
+      documentId,
+      labelId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   // ========== OCR ENDPOINTS ==========

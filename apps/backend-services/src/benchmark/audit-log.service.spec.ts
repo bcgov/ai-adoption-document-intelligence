@@ -47,13 +47,16 @@ describe("AuditLogService", () => {
       });
 
       expect(result).toEqual(mockLog);
-      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        actorId: "user-1",
-        action: AuditAction.dataset_created,
-        entityType: "Dataset",
-        entityId: "dataset-1",
-        metadata: { name: "Test Dataset" },
-      });
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith(
+        {
+          actorId: "user-1",
+          action: AuditAction.dataset_created,
+          entityType: "Dataset",
+          entityId: "dataset-1",
+          metadata: { name: "Test Dataset" },
+        },
+        undefined,
+      );
     });
   });
 
@@ -78,16 +81,19 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        actorId: "user-1",
-        action: AuditAction.version_published,
-        entityType: "DatasetVersion",
-        entityId: "version-1",
-        metadata: {
-          versionId: "version-1",
-          datasetId: "dataset-1",
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith(
+        {
+          actorId: "user-1",
+          action: AuditAction.version_published,
+          entityType: "DatasetVersion",
+          entityId: "version-1",
+          metadata: {
+            versionId: "version-1",
+            datasetId: "dataset-1",
+          },
         },
-      });
+        undefined,
+      );
     });
   });
 
@@ -113,16 +119,19 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        actorId: "user-1",
-        action: AuditAction.run_started,
-        entityType: "BenchmarkRun",
-        entityId: "run-1",
-        metadata: {
-          definitionId: "def-1",
-          projectId: "proj-1",
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith(
+        {
+          actorId: "user-1",
+          action: AuditAction.run_started,
+          entityType: "BenchmarkRun",
+          entityId: "run-1",
+          metadata: {
+            definitionId: "def-1",
+            projectId: "proj-1",
+          },
         },
-      });
+        undefined,
+      );
     });
   });
 
@@ -154,16 +163,19 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        actorId: "user-1",
-        action: AuditAction.run_completed,
-        entityType: "BenchmarkRun",
-        entityId: "run-1",
-        metadata: {
-          status: "completed",
-          metrics: { accuracy: 0.95, f1Score: 0.92 },
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith(
+        {
+          actorId: "user-1",
+          action: AuditAction.run_completed,
+          entityType: "BenchmarkRun",
+          entityId: "run-1",
+          metadata: {
+            status: "completed",
+            metrics: { accuracy: 0.95, f1Score: 0.92 },
+          },
         },
-      });
+        undefined,
+      );
     });
   });
 
@@ -188,15 +200,18 @@ describe("AuditLogService", () => {
       );
 
       expect(result).toEqual(mockLog);
-      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith({
-        actorId: "user-1",
-        action: AuditAction.baseline_promoted,
-        entityType: "BenchmarkRun",
-        entityId: "run-1",
-        metadata: {
-          projectId: "proj-1",
+      expect(mockAuditLogDbService.createAuditLog).toHaveBeenCalledWith(
+        {
+          actorId: "user-1",
+          action: AuditAction.baseline_promoted,
+          entityType: "BenchmarkRun",
+          entityId: "run-1",
+          metadata: {
+            projectId: "proj-1",
+          },
         },
-      });
+        undefined,
+      );
     });
   });
 
