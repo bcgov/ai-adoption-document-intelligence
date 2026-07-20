@@ -15,7 +15,10 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            storage: 1.5Gi # Adjust the storage size as per your requirement
+            # 5Gi: matches production size. 1.5Gi was too small to restore a
+            # production pg_dump (data files exceeded PVC capacity mid-restore).
+            # PVCs cannot shrink, so base and prod must agree on a floor.
+            storage: 5Gi
       sidecars:
         replicaCertCopy:
           resources:
