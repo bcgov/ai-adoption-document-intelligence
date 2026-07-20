@@ -52,8 +52,8 @@ PLG-specific variables are configured in the same environment profile files used
 |----------|---------|-------------|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
 | `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
-| `LOKI_PVC_SIZE` | `10Gi` | Persistent volume size for Loki data |
-| `PROMETHEUS_PVC_SIZE` | `10Gi` | Persistent volume size for Prometheus TSDB |
+| `LOKI_PVC_SIZE` | `2Gi` | Persistent volume size for Loki data |
+| `PROMETHEUS_PVC_SIZE` | `2Gi` | Persistent volume size for Prometheus TSDB |
 | `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 | `ALERTMANAGER_NOTIFICATION_CHANNEL` | `ches` | Active notification channel: `ches` or `teams` |
 | `ALERTMANAGER_NOTIFICATIONS_ENABLED` | `false` | Whether Alertmanager routes alerts externally |
