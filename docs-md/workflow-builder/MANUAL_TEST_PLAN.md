@@ -240,13 +240,13 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   3. Pick a leaf value and toggle it **Ref** ↔ **Literal** (Ref = variable autocomplete; Literal = plain input).
   **Pass:** the deep expression renders indented; **Save + reload** round-trips the whole tree.
 - [ ] **4.8 Ref defaults to the step-picker.** *(second demo)* *When a condition value references another node's output, the editor offers a "step → port" picker instead of a raw ctx key.*
-  1. Click **Route by prepared data** (the switch) → open the first case's **condition**.
-  2. Put the value field in **Ref** mode.
-  **Pass:** the field defaults to the **step → port picker** (not a raw-key box) and lists the upstream producer as a **"Node → Port"** row — here **Prepare file → Prepared file data** — with the port kind as a hint (`any` for a kind-less port; no kind filter, every upstream output is offered).
-- [ ] **4.9 Pick a step output → caption persists.** *Selecting a producer's port binds the ref to that output and shows a friendly caption that survives save/reload.*
-  1. In the same Ref field, pick **Prepare file → Prepared file data**.
+  1. Click **Route by prepared data** (the switch) → open the first case's **condition** (an `is-not-null` check, so it has a single **Value** field).
+  2. The Value field **ships already in Ref mode** — nothing to toggle. Confirm it renders the **step → port picker** (a list of clickable **"Node → Port"** rows), not a raw-key box.
+  **Pass:** the field shows the **step → port picker** (not a raw-key box) and lists the upstream producer as a **"Node → Port"** row — here **Prepare file → Prepared file data** — with the port kind as a hint (`any` for a kind-less port; no kind filter, every upstream output is offered). Because this graph has one upstream producer, you see exactly one row; a graph with more upstream steps would list one row per output port. (The row **is** the source selector — clicking a different row re-points the ref; the separate **Field (optional)** box drills into the port's sub-fields.)
+- [ ] **4.9 Step output caption persists.** *A producer-port ref shows a friendly caption that survives save/reload.*
+  1. The Value already references **Prepare file → Prepared file data** (that row renders **selected/highlighted** — the demo ships pre-wired; clicking it just re-selects the same output).
   2. **Save + reload** the workflow.
-  **Pass:** the field shows the resolved **"Node → Port"** caption both before and after reload (not the raw ctx key).
+  **Pass:** the field shows the resolved **"Node → Port"** caption both before and after reload (not the raw `__auto.prep.preparedData` key) — it resolves on load from the producer's output binding, no Save needed to see it.
 - [ ] **4.10 Manual escape + back.** *You can bypass the step-picker to type a raw ctx key, and return.*
   1. In a Ref field, click **"Enter a variable manually"** → a raw-key autocomplete replaces the picker.
   2. Click **"Back to steps"**.
@@ -256,9 +256,9 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   2. Close and re-open the field.
   **Pass:** it re-opens in **manual mode** (not stranded on an empty step-picker).
 - [ ] **4.12 Condition reads a step output at run time.** *A step-ref condition evaluates against the producer's real output at run time, because committing the ref materialises the producer's output binding.*
-  1. Set a condition to reference a step output (as in 4.9).
-  2. Run the workflow (Part 9 **Run** tab).
-  **Pass:** the referenced producer's output is written to `ctx` and the condition evaluates against the real value — the branch behaves as if the value is present, not undefined.
+  1. No setup — the condition **already** references a step output (`is-not-null` on **Prepare file → Prepared file data**, from 4.9).
+  2. Run the workflow (upload a file via the **Try** / upload dropzone — this demo is `source.upload`) and watch the canvas. *Needs the live Temporal worker actually executing the run.*
+  **Pass:** the referenced producer's output is materialised into `ctx` and the condition evaluates against the real value — with prepared data present the switch takes the **ready** branch (not-null → true), not the default/reject branch, i.e. it does **not** behave as if the value were undefined.
 - [ ] **4.13 Field drill-down for typed values.** *(first demo — Part 4)* *A variable picker enumerates an object value's fields when its kind has a schema, so you pick `ocrResult.status` instead of typing (and guessing) the path.*
   1. On the part-4 demo, the receipt branch runs a real OCR chain: **Wait until condition** (`azureOcr.poll`) → **Extract OCR result** (`azureOcr.extract`), which writes `ocrResult` of kind **OCR result**.
   2. Select **Store Results** → open its **OCR result** input binding picker.

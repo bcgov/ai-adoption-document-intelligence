@@ -277,6 +277,7 @@ export function useWorkflowRunSpec(
 }
 
 export function useStartWorkflowRun() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       workflowId,
@@ -293,6 +294,15 @@ export function useStartWorkflowRun() {
         throw new Error(response.message || "Failed to start workflow run");
       }
       return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      // Surface the just-started run in the run-history drawer without a
+      // manual page refresh. The runs list is keyed
+      // `["workflow-runs", workflowId, filters]`; invalidating the
+      // `workflowId` prefix refetches every filter view.
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-runs", variables.workflowId],
+      });
     },
   });
 }

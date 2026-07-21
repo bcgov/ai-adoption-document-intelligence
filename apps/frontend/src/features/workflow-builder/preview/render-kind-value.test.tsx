@@ -32,18 +32,34 @@ const wrap = (node: ReactNode): ReturnType<typeof render> =>
 
 describe("renderKindValue", () => {
   it("maps Document to DocumentPreview", () => {
-    wrap(renderKindValue("Document", { blobKey: "b1", pageCount: 1 }));
+    wrap(
+      renderKindValue("Document", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps MultiPageDocument to DocumentPreview", () => {
-    wrap(renderKindValue("MultiPageDocument", { blobKey: "b1", pageCount: 3 }));
+    wrap(
+      renderKindValue("MultiPageDocument", {
+        blobKey: "b1",
+        pageCount: 3,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps SinglePageDocument to DocumentPreview", () => {
     wrap(
-      renderKindValue("SinglePageDocument", { blobKey: "b1", pageCount: 1 }),
+      renderKindValue("SinglePageDocument", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
     );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
@@ -88,28 +104,56 @@ describe("renderKindValue", () => {
   // -------------------------------------------------------------------
 
   it("maps DocumentRef (baseKind → Document) to DocumentPreview", () => {
-    wrap(renderKindValue("DocumentRef", { blobKey: "b1", pageCount: 1 }));
+    wrap(
+      renderKindValue("DocumentRef", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps PreparedFile (baseKind → Document) to DocumentPreview", () => {
-    wrap(renderKindValue("PreparedFile", { blobKey: "b1", pageCount: 1 }));
+    wrap(
+      renderKindValue("PreparedFile", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps DocumentContent (baseKind → Document) to DocumentPreview", () => {
-    wrap(renderKindValue("DocumentContent", { blobKey: "b1", pageCount: 1 }));
+    wrap(
+      renderKindValue("DocumentContent", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps MultiPageDocument (baseKind → DocumentRef → Document) to DocumentPreview", () => {
-    wrap(renderKindValue("MultiPageDocument", { blobKey: "b1", pageCount: 3 }));
+    wrap(
+      renderKindValue("MultiPageDocument", {
+        blobKey: "b1",
+        pageCount: 3,
+        url: "https://x/y.png",
+      }),
+    );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });
 
   it("maps SinglePageDocument (baseKind → DocumentRef → Document) to DocumentPreview", () => {
     wrap(
-      renderKindValue("SinglePageDocument", { blobKey: "b1", pageCount: 1 }),
+      renderKindValue("SinglePageDocument", {
+        blobKey: "b1",
+        pageCount: 1,
+        url: "https://x/y.png",
+      }),
     );
     expect(screen.getByTestId("document-preview")).toBeInTheDocument();
   });

@@ -271,6 +271,16 @@ interface ActivityNodeData extends CommonNodeData {
    * no rows.
    */
   portRows: { inputs: PortRowModel[]; outputs: PortRowModel[] };
+  /**
+   * The ctx key this activity's primary (first) output is bound to — where the
+   * previewed value lives inside the cached `outputCtx` delta. Forwarded to the
+   * preview overlay so `renderForOutputKind` can resolve the value via
+   * `resolveCtxBinding` (mirrors what the source renderer does with its single
+   * output). Without it the preview reads `undefined` and every document/object
+   * preview falls back to its "unavailable" placeholder. Undefined when the node
+   * has no output binding yet.
+   */
+  primaryOutputCtxKey?: string;
 }
 
 interface ControlFlowNodeData extends CommonNodeData {
@@ -855,7 +865,10 @@ const ActivityNodeRenderer = memo(
           onOutputHandleEnter={data.onOutputHandleEnter}
           onOutputHandleLeave={data.onOutputHandleLeave}
         />
-        <NodePreviewOverlay nodeId={id} />
+        <NodePreviewOverlay
+          nodeId={id}
+          outputCtxKey={data.primaryOutputCtxKey}
+        />
       </div>
     );
   },
@@ -996,7 +1009,7 @@ const ControlFlowRectangleRenderer = memo(
         <NodeStatusBadgeOverlay nodeId={id} />
         {renderControlFlowHeader({ id, data, selected, hints })}
         <div style={{ fontWeight: 600 }}>{data.label}</div>
-        <NodePreviewOverlay nodeId={id} />
+        <NodePreviewOverlay nodeId={id} producesOutput={false} />
         <NodeHandles
           nodeId={id}
           errorPolicy={data.errorPolicy}
@@ -1133,7 +1146,7 @@ const SwitchNodeRenderer = memo(
             zIndex: 1,
           }}
         >
-          <NodePreviewOverlay nodeId={id} />
+          <NodePreviewOverlay nodeId={id} producesOutput={false} />
         </div>
         <NodeHandles
           nodeId={id}
@@ -1253,6 +1266,7 @@ function projectFlowNodes(
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           portRows: computePortRows(config, node.id, wires),
+          primaryOutputCtxKey: node.outputs?.[0]?.ctxKey,
         },
       };
       return flowNode;

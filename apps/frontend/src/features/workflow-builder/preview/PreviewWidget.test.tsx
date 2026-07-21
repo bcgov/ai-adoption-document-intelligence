@@ -388,10 +388,35 @@ describe("Scenario 5 — loading + error states", () => {
     expect(wrapper).toHaveTextContent("Preview unavailable");
   });
 
-  it("renders the cache-evicted Alert when data === null AND runId is set in REPLAY mode", async () => {
+  it("renders the cache-evicted Alert when data === null in REPLAY mode AND the node succeeded (genuine TTL eviction)", async () => {
     fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
+      // The node produced output (succeeded), so a missing cache row IS a
+      // genuine TTL eviction — offer the Re-run recovery.
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+        isReplay
+        nodeStatus="succeeded"
+      />,
+    );
+
+    const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(wrapper.getAttribute("data-state")).toBe("evicted");
+    });
+    expect(wrapper).toHaveTextContent("Preview unavailable");
+  });
+
+  it("renders an honest 'didn't run' Alert (NOT cache-evicted) when data === null in REPLAY mode AND the node never produced output", async () => {
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
+
+    renderWithProviders(
+      // A branch not taken / never reached: node status is absent (undefined).
+      // A missing row is NOT an eviction here — re-running wouldn't repopulate
+      // it — so we explain rather than blame the cache.
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
@@ -402,9 +427,53 @@ describe("Scenario 5 — loading + error states", () => {
 
     const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
     await waitFor(() => {
-      expect(wrapper.getAttribute("data-state")).toBe("evicted");
+      expect(wrapper.getAttribute("data-state")).toBe("not-run");
     });
-    expect(wrapper).toHaveTextContent("Preview unavailable");
+    expect(wrapper).toHaveTextContent("didn't run in this run");
+    // Not the cache-evicted recovery copy.
+    expect(wrapper).not.toHaveTextContent("cache evicted");
+  });
+
+  it("stays silent in REPLAY mode for a control-flow node (producesOutput=false) even when it succeeded — no misleading 'cache evicted'", async () => {
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
+
+    renderWithProviders(
+      // A switch that succeeded (evaluated its condition) but never wrote an
+      // output-cache row. A missing row is not an eviction — render nothing.
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+        isReplay
+        nodeStatus="succeeded"
+        producesOutput={false}
+      />,
+    );
+
+    // The wrapper never mounts — silent.
+    await waitFor(() => {
+      expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
+    });
+  });
+
+  it("renders a 'step failed' Alert (NOT cache-evicted) when data === null in REPLAY mode AND the node failed", async () => {
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+        isReplay
+        nodeStatus="failed"
+      />,
+    );
+
+    const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(wrapper.getAttribute("data-state")).toBe("not-run");
+    });
+    expect(wrapper).toHaveTextContent("This step failed in this run");
   });
 
   it("§4.7: stays silent for a not-yet-run node during a LIVE Try (runId set, isReplay false)", async () => {
@@ -470,7 +539,7 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
     expect(url).toContain(`runId=${RUN_ID}`);
   });
 
-  it("omits runId when there is no activeRunId in context", async () => {
+  it("renders nothing and does NOT fetch when there is no activeRunId (idle suppression)", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
       rowResponse(buildRow("Document", { nodeOut: doc })),
@@ -481,10 +550,12 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
       activeRunId: null,
     });
 
-    await screen.findByTestId("stub-document-preview");
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const url = fetchSpy.mock.calls[0][0] as string;
-    expect(url).not.toContain("runId");
+    // Idle (no run selected): the overlay stays empty and never queries the
+    // preview cache — matching the status badges, which are also suppressed at
+    // idle. Previews only appear once a Try/replay sets an active run.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
+    expect(screen.queryByTestId("stub-document-preview")).toBeNull();
   });
 
   it("renders null when mounted outside <RunStateProvider> (legacy unit tests)", () => {

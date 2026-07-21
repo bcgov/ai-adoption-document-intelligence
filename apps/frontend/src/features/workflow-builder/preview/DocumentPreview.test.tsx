@@ -30,42 +30,61 @@ function renderWithMantine(ui: ReactNode): ReturnType<typeof render> {
 // ---------------------------------------------------------------------------
 
 describe("Scenario 1 — component signature + base render", () => {
-  it("renders the placeholder when value is `null`", () => {
+  const expectsNothing = () => {
+    expect(screen.queryByTestId("document-preview")).toBeNull();
+    expect(screen.queryByTestId("document-preview-meta")).toBeNull();
+    expect(screen.queryByTestId("document-preview-placeholder")).toBeNull();
+  };
+
+  it("renders nothing when value is `null`", () => {
     renderWithMantine(<DocumentPreview value={null} />);
-    const placeholder = screen.getByTestId("document-preview-placeholder");
-    expect(placeholder).toBeInTheDocument();
-    expect(placeholder).toHaveTextContent("Document unavailable");
+    expectsNothing();
   });
 
-  it("renders the placeholder when value is `undefined`", () => {
+  it("renders nothing when value is `undefined`", () => {
     renderWithMantine(<DocumentPreview value={undefined} />);
-    expect(
-      screen.getByTestId("document-preview-placeholder"),
-    ).toBeInTheDocument();
+    expectsNothing();
   });
 
-  it("renders the placeholder when blobKey is missing", () => {
+  it("renders nothing when the value carries no identifying fields (mimeType only)", () => {
     renderWithMantine(
       <DocumentPreview value={{ mimeType: "application/pdf" }} />,
     );
-    expect(
-      screen.getByTestId("document-preview-placeholder"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("document-preview")).toBeNull();
+    expectsNothing();
   });
 
-  it("renders the placeholder when blobKey is an empty string", () => {
+  it("renders nothing when blobKey is an empty string and nothing else identifies it", () => {
     renderWithMantine(<DocumentPreview value={{ blobKey: "" }} />);
-    expect(
-      screen.getByTestId("document-preview-placeholder"),
-    ).toBeInTheDocument();
+    expectsNothing();
   });
 
-  it("renders the placeholder when value is a primitive", () => {
-    renderWithMantine(<DocumentPreview value="not-a-document" />);
-    expect(
-      screen.getByTestId("document-preview-placeholder"),
-    ).toBeInTheDocument();
+  it("renders nothing when value is a non-string primitive", () => {
+    renderWithMantine(<DocumentPreview value={42} />);
+    expectsNothing();
+  });
+
+  it("renders a metadata summary (not a thumbnail) for a bare storage-path string", () => {
+    renderWithMantine(<DocumentPreview value="group/uploads/report.png" />);
+    const meta = screen.getByTestId("document-preview-meta");
+    expect(meta).toHaveTextContent("report.png");
+    expect(screen.queryByTestId("document-preview-large")).toBeNull();
+  });
+
+  it("renders a metadata summary for a PreparedFile shape (fileName + contentType, no url)", () => {
+    renderWithMantine(
+      <DocumentPreview
+        value={{
+          blobKey: "group/uploads/abc-report.png",
+          fileName: "report.png",
+          contentType: "image/png",
+          fileType: "image",
+        }}
+      />,
+    );
+    const meta = screen.getByTestId("document-preview-meta");
+    expect(meta).toHaveTextContent("report.png");
+    expect(meta).toHaveTextContent("image/png");
+    expect(screen.queryByTestId("document-preview-large")).toBeNull();
   });
 
   it("renders the document when blobKey is a non-empty string", () => {
@@ -223,15 +242,22 @@ describe("Scenario 4 — thumbnails carry blobKey + page", () => {
     }
   });
 
-  it("surfaces an unavailable state when url is missing", () => {
+  it("shows a metadata summary (not a broken thumbnail) when url is missing", () => {
     renderWithMantine(
       <DocumentPreview
-        value={{ blobKey: "abc", mimeType: "application/pdf", pageCount: 1 }}
+        value={{
+          blobKey: "docs/abc.pdf",
+          mimeType: "application/pdf",
+          pageCount: 3,
+        }}
       />,
     );
-    const large = screen.getByTestId("document-preview-large");
-    expect(large.getAttribute("data-state")).toBe("unavailable");
-    expect(large).toHaveTextContent("Unavailable");
+    // No renderable URL → the thumbnail path is skipped entirely.
+    expect(screen.queryByTestId("document-preview-large")).toBeNull();
+    const meta = screen.getByTestId("document-preview-meta");
+    expect(meta).toHaveTextContent("abc.pdf");
+    expect(meta).toHaveTextContent("application/pdf");
+    expect(meta).toHaveTextContent("3");
   });
 });
 

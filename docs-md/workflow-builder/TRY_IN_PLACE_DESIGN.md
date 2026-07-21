@@ -556,6 +556,15 @@ If a historical run's cache rows have been TTL-evicted (24h after run), the prev
 
 The historical input ctx is captured in `RunSummaryDto.inputCtxSummary` (compact form for display) AND fetched in full from the existing `GET /api/workflows/:id/runs/:runId/input-ctx` endpoint (new, Phase 4 — small) when the user clicks Re-run.
 
+**A missing cache row is not always an eviction — the copy must be honest.** A 404 in replay can mean the node never produced an output row in the first place, which is NOT a TTL eviction and re-running wouldn't "repopulate" it. `PreviewWidget` disambiguates using the replayed node's status (from the same node-statuses map the badges use) plus a `producesOutput` flag from the renderer:
+
+- **`succeeded` / `skipped` (cache-hit)** — the node produced output but its row is gone → the genuine "Cache evicted — re-run to repopulate" recovery alert (above).
+- **`failed`** — "This step failed in this run — no output was produced to preview." (No Re-run-to-repopulate framing.)
+- **`pending` / not-reached / branch-not-taken** — "This step didn't run in this run, so there's no output to preview."
+- **Control-flow nodes** (switch / map / join / humanGate / childWorkflow / pollUntil, mounted with `producesOutput={false}`) — silent: they never write an output-cache row, so a missing row is expected, not an eviction.
+
+This mirrors what `PreviewWidget` reads for a live Try: activity nodes surface their output via `outputCtxKey` (the node's primary output binding, threaded through the projection as `ActivityNodeData.primaryOutputCtxKey`; the source renderer supplies its own single key). Without that key the preview resolves `undefined` and every value renders its "unavailable" placeholder — so the key must be passed for the preview to render at all.
+
 ### 6.5 Run-count badge on version rows
 
 `VersionHistoryDrawer` (Phase 2 Track 3) grows a small gray `<Badge>` per row showing the run count for that version. Data sourced from a new `GET /api/workflows/:id/versions/:versionId/run-count` endpoint (or piggy-backed onto the existing per-version endpoint as a `runCount` field — TBD by implementer; both have low cost).

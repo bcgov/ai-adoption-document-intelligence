@@ -573,6 +573,82 @@ describe("RunWorkflowDrawer", () => {
     ).toBeInTheDocument();
   });
 
+  it("§5.1 step 4: a successful upload sets the run as the canvas's active run (LIVE, not replay) and closes the drawer", async () => {
+    mockRunSpec(apiMock, {
+      ...sampleSpec,
+      inputSchema: { type: "object", properties: {}, required: [] },
+      uploadSpec,
+    });
+    sourceUploadMutateAsync.mockResolvedValue({
+      runId: "graph-upload-try-777",
+      workflowVersionId: HEAD_VERSION_ID,
+      documentUrl: "https://blob.example/xyz-789",
+    });
+
+    const setActiveRunId = vi.fn();
+    const setIsReplay = vi.fn();
+    const onClose = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const value = buildRunStateContextValue({
+      workflowId: "wf-1",
+      setActiveRunId,
+      setIsReplay,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MantineProvider>
+          <RunStateTestProvider value={value}>
+            <RunWorkflowDrawer
+              opened={true}
+              onClose={onClose}
+              workflowId="wf-1"
+              headVersionId={HEAD_VERSION_ID}
+            />
+          </RunStateTestProvider>
+        </MantineProvider>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByTestId("run-drawer-upload-section");
+
+    const file = new File(["pdf bytes"], "doc.pdf", {
+      type: "application/pdf",
+    });
+    const fileInput = document
+      .querySelector('[data-testid="run-drawer-upload-dropzone"]')
+      ?.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(fileInput).not.toBeNull();
+    if (fileInput) {
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [file] } });
+      });
+    }
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("run-drawer-upload-run-button"),
+      ).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("run-drawer-upload-run-button"));
+    });
+
+    await waitFor(() => {
+      expect(setActiveRunId).toHaveBeenCalledWith("graph-upload-try-777");
+    });
+    // A fresh upload is a LIVE run — replay must be cleared so the status
+    // poller stays armed.
+    expect(setIsReplay).toHaveBeenCalledWith(false);
+    // Hands off to the canvas as the result surface.
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("US-123 Scenario 3: BOTH source.api + source.upload → both sections render", async () => {
     mockRunSpec(apiMock, { ...sampleSpec, uploadSpec });
 

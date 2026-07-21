@@ -59,34 +59,139 @@ export interface DocumentPreviewProps {
  * preserved as unknown — we only consume the fields below.
  */
 interface DocumentLike {
+  /** Storage path (blob key). May be empty for a bare reference. */
   blobKey: string;
+  /** Only a directly-renderable image URL (`http(s):` / `data:`). */
   url?: string;
   mimeType?: string;
   pageCount?: number;
+  /** Original file name, when the value carries one (e.g. PreparedFile). */
+  fileName?: string;
+  /** Coarse file type (e.g. `image`, `pdf`), when present. */
+  fileType?: string;
+  /** Document record id, when the value is a DocumentRef. */
+  documentId?: string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function firstString(
+  obj: Record<string, unknown>,
+  keys: string[],
+): string | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v !== "") return v;
+  }
+  return undefined;
+}
+
+/** A directly-renderable image URL — NOT a bare storage path / blob key. */
+function isRenderableUrl(u: string | undefined): u is string {
+  return u !== undefined && /^(https?:|data:)/i.test(u);
+}
+
+/**
+ * Parse a Document-family ctx value into the fields we can display. The
+ * cache stores different shapes across the family:
+ *   - `PreparedFile`  → `{ blobKey, fileName, contentType, fileType, ... }`
+ *   - `DocumentRef`   → `{ documentId, documentUrl }`, or (when a single
+ *                        output binding points at the URL key) the bare
+ *                        `documentUrl` string
+ *   - `Document`      → `{ blobKey, url, mimeType, pageCount }` (the shape the
+ *                        thumbnail path renders)
+ * We read a storage path from `blobKey` / `documentUrl`, but only treat a value
+ * as a renderable `url` when it's an actual `http(s):` / `data:` URL — a bare
+ * blob key is a path, not something an `<img>` can load. Returns `null` only
+ * when there is nothing identifying at all (render silently in that case).
+ */
 function asDocument(value: unknown): DocumentLike | null {
+  // A bare string binding (e.g. a source's `documentUrl`) is a storage path.
+  if (typeof value === "string") {
+    if (value === "") return null;
+    return isRenderableUrl(value)
+      ? { blobKey: "", url: value }
+      : { blobKey: value };
+  }
   if (!isPlainObject(value)) {
     return null;
   }
-  if (typeof value.blobKey !== "string" || value.blobKey === "") {
+  const blobKey = firstString(value, ["blobKey", "documentUrl", "storageKey"]);
+  const rawUrl = firstString(value, ["url"]);
+  const mimeType = firstString(value, ["mimeType", "contentType"]);
+  const fileName = firstString(value, ["fileName", "name"]);
+  const fileType = firstString(value, ["fileType"]);
+  const documentId = firstString(value, ["documentId"]);
+  const pageCount =
+    typeof value.pageCount === "number" && Number.isFinite(value.pageCount)
+      ? value.pageCount
+      : undefined;
+
+  // Nothing identifying → let the caller render nothing.
+  if (
+    blobKey === undefined &&
+    !isRenderableUrl(rawUrl) &&
+    fileName === undefined &&
+    documentId === undefined
+  ) {
     return null;
   }
-  const doc: DocumentLike = { blobKey: value.blobKey };
-  if (typeof value.url === "string") {
-    doc.url = value.url;
-  }
-  if (typeof value.mimeType === "string") {
-    doc.mimeType = value.mimeType;
-  }
-  if (typeof value.pageCount === "number" && Number.isFinite(value.pageCount)) {
-    doc.pageCount = value.pageCount;
-  }
+
+  const doc: DocumentLike = { blobKey: blobKey ?? "" };
+  if (isRenderableUrl(rawUrl)) doc.url = rawUrl;
+  if (mimeType !== undefined) doc.mimeType = mimeType;
+  if (fileName !== undefined) doc.fileName = fileName;
+  if (fileType !== undefined) doc.fileType = fileType;
+  if (documentId !== undefined) doc.documentId = documentId;
+  if (pageCount !== undefined) doc.pageCount = pageCount;
   return doc;
+}
+
+/**
+ * Compact, honest summary shown when the value has no directly-renderable
+ * image URL (the common case today — the worker stores a blob key / document
+ * reference, not a presigned URL). Rendering the actual page image needs a
+ * group-scoped blob-serving endpoint (see "Gaps / follow-ups" below); until
+ * that lands we surface the file's real metadata instead of a dead
+ * "unavailable" box.
+ */
+function DocumentMetaSummary({ doc }: { doc: DocumentLike }): ReactNode {
+  const basename =
+    doc.fileName ??
+    (doc.blobKey !== "" ? doc.blobKey.split("/").pop() : undefined);
+  const typeLabel = doc.mimeType ?? doc.fileType;
+  const rows: Array<{ label: string; value: string }> = [];
+  if (basename) rows.push({ label: "File", value: basename });
+  if (typeLabel) rows.push({ label: "Type", value: typeLabel });
+  if (doc.pageCount !== undefined)
+    rows.push({ label: "Pages", value: String(doc.pageCount) });
+  if (doc.documentId) rows.push({ label: "Document", value: doc.documentId });
+
+  return (
+    <Box
+      data-testid="document-preview-meta"
+      p={8}
+      style={{
+        border: "1px solid var(--mantine-color-default-border, #2c2e33)",
+        borderRadius: 6,
+      }}
+    >
+      <Stack gap={2}>
+        {rows.map((r) => (
+          <Group key={r.label} gap={6} wrap="nowrap" align="baseline">
+            <Text size="10px" c="dimmed" style={{ minWidth: 54 }}>
+              {r.label}
+            </Text>
+            <Text size="xs" style={{ wordBreak: "break-all" }}>
+              {r.value}
+            </Text>
+          </Group>
+        ))}
+      </Stack>
+    </Box>
+  );
 }
 
 /**
@@ -276,17 +381,18 @@ export function DocumentPreview({ value }: DocumentPreviewProps): ReactNode {
   const [modalOpened, modalHandlers] = useDisclosure(false);
   const doc = asDocument(value);
 
+  // Nothing identifying in the value → render nothing (no dead "unavailable"
+  // box cluttering the canvas).
   if (doc === null) {
-    return (
-      <Alert
-        color="gray"
-        variant="light"
-        data-testid="document-preview-placeholder"
-        p={6}
-      >
-        <Text size="xs">Document unavailable</Text>
-      </Alert>
-    );
+    return null;
+  }
+
+  // No directly-renderable image URL (the common case — the cache stores a blob
+  // key / document reference, not a presigned URL). Show the file's real
+  // metadata instead of a broken thumbnail. Rendering the actual page image
+  // needs a blob-serving endpoint (see "Gaps / follow-ups").
+  if (!isRenderableUrl(doc.url)) {
+    return <DocumentMetaSummary doc={doc} />;
   }
 
   const singlePage = isSinglePage(doc);

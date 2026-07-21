@@ -248,6 +248,7 @@ export function RunWorkflowDrawer({
               workflowId={workflowId}
               selectedVersionId={selectedVersionId}
               isHeadSelected={isHeadSelected}
+              onClose={onClose}
             />
           )}
         </Stack>
@@ -437,8 +438,11 @@ function ApiSourceSection({
 
 // ---------------------------------------------------------------------------
 // Upload source section (Phase 8 — US-123). Dropzone constrained by the
-// source.upload's MIME / size config; Run uploads then chains the result
-// into `/runs` as `initialCtx[<ctxKey>] = storageUrl`.
+// source.upload's MIME / size config. The upload endpoint itself starts the
+// run (US-146), so — per TRY_IN_PLACE_DESIGN §5.1 step 4 — this section IS the
+// Try affordance for `source.upload` workflows: on success it sets the run as
+// the canvas's active run (`setActiveRunId`) and closes the drawer so the
+// canvas animates as the result surface, exactly like the `source.api` Try tab.
 // ---------------------------------------------------------------------------
 
 interface UploadSourceSectionProps {
@@ -446,6 +450,7 @@ interface UploadSourceSectionProps {
   workflowId: string;
   selectedVersionId: string | null;
   isHeadSelected: boolean;
+  onClose: () => void;
 }
 
 function UploadSourceSection({
@@ -453,8 +458,13 @@ function UploadSourceSection({
   workflowId,
   selectedVersionId,
   isHeadSelected,
+  onClose,
 }: UploadSourceSectionProps) {
   const upload = useSourceUpload(workflowId, uploadSpec.sourceNodeId);
+  // Soft-fail outside a `<RunStateProvider>` — keeps drawer-only unit tests
+  // rendering without the provider. Production callers always sit beneath the
+  // provider mounted by `WorkflowEditorV2Page`.
+  const runState = useOptionalRunState();
   const [file, setFile] = useState<File | null>(null);
   const [lastWorkflowId, setLastWorkflowId] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -493,6 +503,15 @@ function UploadSourceSection({
       // ctx. Use the run the upload already started.
       const uploadResult = await upload.mutateAsync(file);
       setLastWorkflowId(uploadResult.runId);
+      // §5.1 step 4 — make the upload's run the canvas's ACTIVE run so the
+      // per-node status badges + active-edge animation + preview peek start
+      // polling it. Clear replay mode first (a fresh upload is a LIVE run —
+      // mirrors the source.api Try tab), then set the run id BEFORE closing so
+      // the polling loop is armed before the drawer unmounts. Without this the
+      // upload was fire-and-forget: it returned a run reference but never drove
+      // the canvas, which is the whole point of Try-in-place for uploads.
+      runState?.setIsReplay(false);
+      runState?.setActiveRunId(uploadResult.runId);
       // The upload endpoint always runs the head version; a non-head
       // selection can't be honored here, so tell the user rather than
       // silently running head.
@@ -514,6 +533,9 @@ function UploadSourceSection({
           color: "green",
         });
       }
+      // Hand off to the canvas as the result surface — close the drawer so the
+      // node badges/edges are visible as they progress (matches the Try tab).
+      onClose();
     } catch (e) {
       setRunError(e instanceof Error ? e.message : String(e));
     }

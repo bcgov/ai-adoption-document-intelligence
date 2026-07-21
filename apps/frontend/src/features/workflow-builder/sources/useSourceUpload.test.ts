@@ -136,6 +136,46 @@ describe("Scenario 2 — response shape (ctxKey-keyed dict)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Run-history invalidation — a successful upload starts a run (US-146), so the
+// run-history list must refetch without a manual page refresh.
+// ---------------------------------------------------------------------------
+
+describe("run-history invalidation on success", () => {
+  it("invalidates the workflow-runs query for this workflow after a successful upload", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse({
+        myFile: "https://blob/abc",
+        runId: "run-xyz",
+        workflowVersionId: "ver-1",
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+
+    const { result } = renderHook(
+      () => useSourceUpload(WORKFLOW_ID, SOURCE_NODE_ID),
+      { wrapper },
+    );
+
+    await result.current.mutateAsync(makeFile());
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ["workflow-runs", WORKFLOW_ID],
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 3 — 4xx surfaces as a typed ApiError (400 path)
 // ---------------------------------------------------------------------------
 

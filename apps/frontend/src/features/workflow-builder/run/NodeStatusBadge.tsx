@@ -25,7 +25,7 @@
  *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.5
  */
 
-import { Box, Loader, ThemeIcon } from "@mantine/core";
+import { Box, Loader, ThemeIcon, Tooltip } from "@mantine/core";
 import {
   IconBolt,
   IconCircle,
@@ -68,6 +68,13 @@ const STATUS_STYLES: Record<NodeStatusBadgeStatus, BadgeStyle> = {
 
 export interface NodeStatusBadgeProps {
   status: NodeStatusBadgeStatus;
+  /**
+   * The failed node's error message (from `NodeRunStatus.errorMessage`). When
+   * present on a `failed` badge it's surfaced as a hover tooltip so the user
+   * can see WHY a node failed directly on the canvas, instead of only learning
+   * it "failed" and having to dig into run history.
+   */
+  errorMessage?: string;
 }
 
 /**
@@ -78,7 +85,10 @@ export interface NodeStatusBadgeProps {
  * match the small absolute-positioned corner overlay used by every
  * renderer.
  */
-export function NodeStatusBadge({ status }: NodeStatusBadgeProps): ReactNode {
+export function NodeStatusBadge({
+  status,
+  errorMessage,
+}: NodeStatusBadgeProps): ReactNode {
   const style = STATUS_STYLES[status];
   const inner: ReactNode = style.Icon ? (
     <style.Icon size={12} />
@@ -86,7 +96,7 @@ export function NodeStatusBadge({ status }: NodeStatusBadgeProps): ReactNode {
     <Loader size={10} color="white" />
   );
 
-  return (
+  const badge = (
     <ThemeIcon
       data-testid="node-status-badge"
       data-status={status}
@@ -95,10 +105,32 @@ export function NodeStatusBadge({ status }: NodeStatusBadgeProps): ReactNode {
       variant="filled"
       size="xs"
       radius="xl"
+      style={
+        status === "failed" && errorMessage ? { cursor: "help" } : undefined
+      }
     >
       {inner}
     </ThemeIcon>
   );
+
+  // Surface the failure reason on hover so it's visible on the canvas, not
+  // buried in run history.
+  if (status === "failed" && errorMessage) {
+    return (
+      <Tooltip
+        label={errorMessage}
+        multiline
+        w={300}
+        withArrow
+        events={{ hover: true, focus: true, touch: true }}
+        data-testid="node-status-badge-error-tooltip"
+      >
+        {badge}
+      </Tooltip>
+    );
+  }
+
+  return badge;
 }
 
 /**
@@ -119,17 +151,21 @@ export function NodeStatusBadgeOverlay({
   // canvas isn't littered with gray "pending" dots that collide with the
   // validation badge in the same corner.
   if (!ctx?.activeRunId) return null;
-  const status: NodeStatusBadgeStatus =
-    ctx.nodeStatuses[nodeId]?.status ?? "pending";
+  const entry = ctx.nodeStatuses[nodeId];
+  const status: NodeStatusBadgeStatus = entry?.status ?? "pending";
+  const errorMessage = entry?.errorMessage;
+  const hoverable = status === "failed" && !!errorMessage;
   return (
     <Box
       pos="absolute"
       top={-6}
       right={-6}
-      style={{ zIndex: 3, pointerEvents: "none" }}
+      // Allow pointer events only when there's a failure tooltip to hover;
+      // otherwise stay click-through so the badge never blocks the node.
+      style={{ zIndex: 3, pointerEvents: hoverable ? "auto" : "none" }}
       data-testid={`node-status-badge-wrapper-${nodeId}`}
     >
-      <NodeStatusBadge status={status} />
+      <NodeStatusBadge status={status} errorMessage={errorMessage} />
     </Box>
   );
 }

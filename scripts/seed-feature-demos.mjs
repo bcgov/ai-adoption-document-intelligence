@@ -26,6 +26,17 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Materialise auto-wired port bindings BEFORE persisting, exactly as the editor
+// (AUTO_WIRE_DESIGN §31 — resolveBindings runs on save) and the agent tools
+// (`resolveBindings(normaliseLocks(config))`) do. The seed POSTs raw hand-built
+// configs, so without this an input the resolver would auto-bind (e.g.
+// `azureOcr.submit`'s `fileData` ← the upstream `file.prepare`) is left UNBOUND
+// in the persisted JSON. The editor hides that (it re-resolves on load), but the
+// Temporal engine reads `node.inputs` verbatim — an unbound required input
+// arrives at the activity as `undefined` and crashes it. Resolving here makes
+// the seeded configs identical to what an editor "Save" would persist.
+const { resolveBindings, normaliseLocks } = await import("@ai-di/graph-workflow");
+
 // Load the backend .env so we authenticate with the SAME key the DB was seeded
 // with: `seed.ts` (`prisma db seed`) reads `TEST_API_KEY` from this file via
 // `dotenv/config`, and the backend validates `x-api-key` against that seeded
@@ -91,10 +102,16 @@ const pos = (x, y) => ({
  * ignores this field (it's not part of config semantics); see
  * apps/frontend/src/features/workflow-builder/arrange-on-load.ts.
  */
-const withArrangeOnLoad = (config) => ({
-  ...config,
-  metadata: { ...(config.metadata ?? {}), arrangeOnLoad: true },
-});
+const withArrangeOnLoad = (config) => {
+  // Resolve auto-wire bindings first (see the import note above), then stamp the
+  // arrange-on-load hint. `normaliseLocks` → `resolveBindings` is the canonical
+  // editor/agent sequence.
+  const resolved = resolveBindings(normaliseLocks(config));
+  return {
+    ...resolved,
+    metadata: { ...(resolved.metadata ?? {}), arrangeOnLoad: true },
+  };
+};
 
 async function api(method, path, body) {
   const res = await fetch(`${BACKEND_URL}${path}`, {

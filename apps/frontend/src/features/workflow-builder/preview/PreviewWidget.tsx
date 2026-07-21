@@ -28,14 +28,41 @@
  */
 
 import { resolveCtxBinding } from "@ai-di/graph-workflow";
-import { Alert, Box, Skeleton } from "@mantine/core";
+import { Alert, Box, Skeleton, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
+import type { NodeRunStatusValue } from "../run/node-status.types";
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
 import type { ActivityOutputPreview } from "./preview.types";
 import { renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
+
+/**
+ * Whether a node in the given run status could have written an output-cache
+ * row. Only nodes that actually produced output — `succeeded` (ran fresh) or
+ * `skipped` (served from a cache hit) — ever had a row to evict. A `failed`,
+ * `pending`, `running`, `cancelled`, or absent (undefined) node never wrote
+ * one, so a missing row in replay is NOT a TTL eviction for those.
+ */
+function producedOutput(status: NodeRunStatusValue | undefined): boolean {
+  return status === "succeeded" || status === "skipped";
+}
+
+/**
+ * Honest copy for a replayed node whose cache row is absent because the node
+ * never produced output in that run (as opposed to a genuine TTL eviction).
+ * Re-running the workflow wouldn't "repopulate" anything here, so we don't
+ * offer the cache-evicted Re-run recovery — we explain what actually happened.
+ */
+function notRunMessage(status: NodeRunStatusValue | undefined): string {
+  if (status === "failed") {
+    return "This step failed in this run — no output was produced to preview.";
+  }
+  // pending / running / cancelled / absent — the branch was not taken or the
+  // run never reached this node.
+  return "This step didn't run in this run, so there's no output to preview.";
+}
 
 /**
  * Max height of the preview pane (px). Constrains every widget so the
@@ -67,6 +94,23 @@ export interface PreviewWidgetProps {
    * value is read (nothing to preview).
    */
   outputCtxKey?: string;
+  /**
+   * The node's run status in the active run. Used only in replay mode to tell
+   * a genuine cache eviction (`succeeded` / `skipped` — the node produced
+   * output, but its row was TTL-evicted) apart from a node that never produced
+   * output (`failed` / not-run), so the empty-preview copy is honest instead of
+   * always blaming the cache. Absent → treated as "didn't run".
+   */
+  nodeStatus?: NodeRunStatusValue;
+  /**
+   * Whether this node produces a cacheable activity output. Control-flow nodes
+   * (switch / map / join / humanGate / childWorkflow / pollUntil) never write an
+   * output-cache row, so a missing row for them is neither a TTL eviction nor a
+   * "didn't run" — there's simply nothing to preview. Defaults to `true`
+   * (activity / source nodes); the canvas passes `false` for control-flow nodes
+   * so they stay silent instead of showing a misleading "cache evicted" alert.
+   */
+  producesOutput?: boolean;
 }
 
 /**
@@ -83,6 +127,8 @@ export function PreviewWidget({
   runId,
   isReplay = false,
   outputCtxKey,
+  nodeStatus,
+  producesOutput = true,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -109,6 +155,11 @@ export function PreviewWidget({
   }
 
   if (data === null) {
+    // Control-flow nodes (switch / map / join / humanGate / childWorkflow /
+    // pollUntil) never write an output-cache row, so a missing row is neither
+    // an eviction nor a "didn't run" — there's nothing to preview. Stay silent
+    // rather than showing a misleading "cache evicted" alert on them.
+    if (!producesOutput) return null;
     // Cache row gone (404). §4.7: only surface the cache-evicted recovery
     // Alert + Re-run button (US-155) in REPLAY mode, where a missing row
     // genuinely means the TTL evicted it. During a live Try, `runId` is also
@@ -117,13 +168,29 @@ export function PreviewWidget({
     // "cache evicted" alerts (clicking Re-run there would duplicate/cancel the
     // in-flight Try).
     if (isReplay && runId !== undefined && runId !== "") {
+      // A missing cache row in replay has two very different causes. Only when
+      // the node actually PRODUCED output (succeeded / cache-hit) is a missing
+      // row a genuine TTL eviction — offer the Re-run-to-repopulate recovery.
+      // Otherwise the node never wrote a row (branch not taken, never reached,
+      // or it failed before producing output), so re-running wouldn't
+      // repopulate anything — say what actually happened instead of blaming the
+      // cache (the misleading "cache evicted" the user hit on a fresh run).
+      if (producedOutput(nodeStatus)) {
+        return (
+          <Box data-testid={`preview-widget-${nodeId}`} data-state="evicted">
+            <CacheEvictedAlert
+              workflowId={workflowId}
+              runId={runId}
+              nodeId={nodeId}
+            />
+          </Box>
+        );
+      }
       return (
-        <Box data-testid={`preview-widget-${nodeId}`} data-state="evicted">
-          <CacheEvictedAlert
-            workflowId={workflowId}
-            runId={runId}
-            nodeId={nodeId}
-          />
+        <Box data-testid={`preview-widget-${nodeId}`} data-state="not-run">
+          <Alert color="gray" variant="light">
+            <Text size="xs">{notRunMessage(nodeStatus)}</Text>
+          </Alert>
         </Box>
       );
     }
@@ -179,6 +246,13 @@ export interface NodePreviewOverlayProps {
    * the overlay only knows the id). Absent → nothing to read.
    */
   outputCtxKey?: string;
+  /**
+   * Whether this node produces a cacheable output. Passed `false` by the
+   * control-flow / switch renderers so their overlays stay silent in replay
+   * instead of showing a misleading "cache evicted" alert (they never write an
+   * output-cache row). Defaults to `true`.
+   */
+  producesOutput?: boolean;
 }
 
 /**
@@ -191,6 +265,7 @@ export interface NodePreviewOverlayProps {
 export function NodePreviewOverlay({
   nodeId,
   outputCtxKey,
+  producesOutput = true,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
   if (!ctx) {
@@ -206,6 +281,14 @@ export function NodePreviewOverlay({
   if (!ctx.workflowId) {
     return null;
   }
+  // Idle suppression — mirror `NodeStatusBadgeOverlay`. A per-node preview is
+  // meaningful only while a run (Try) or replay is active. With no active run,
+  // the hook would fetch the most-recent cached row from a PRIOR run and show
+  // it as if it were current state — confusing, and inconsistent with the
+  // status badges (also idle-suppressed). Stay empty until a run is selected.
+  if (!ctx.activeRunId) {
+    return null;
+  }
   return (
     <PreviewWidget
       workflowId={ctx.workflowId}
@@ -213,6 +296,8 @@ export function NodePreviewOverlay({
       runId={ctx.activeRunId ?? undefined}
       isReplay={ctx.isReplay}
       outputCtxKey={outputCtxKey}
+      nodeStatus={ctx.nodeStatuses[nodeId]?.status}
+      producesOutput={producesOutput}
     />
   );
 }

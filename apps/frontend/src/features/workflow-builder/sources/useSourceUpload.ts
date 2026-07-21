@@ -35,7 +35,11 @@
  * uploads; the consumer is responsible for chaining the run start.
  */
 
-import { type UseMutationResult, useMutation } from "@tanstack/react-query";
+import {
+  type UseMutationResult,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
 
@@ -99,6 +103,7 @@ export function useSourceUpload(
   workflowId: string,
   sourceNodeId: string,
 ): UseMutationResult<SourceUploadResponse, ApiError, File> {
+  const queryClient = useQueryClient();
   return useMutation<SourceUploadResponse, ApiError, File>({
     mutationFn: async (file: File): Promise<SourceUploadResponse> => {
       const formData = new FormData();
@@ -129,6 +134,15 @@ export function useSourceUpload(
       }
 
       return (await response.json()) as SourceUploadResponse;
+    },
+    onSuccess: () => {
+      // The upload endpoint starts a Temporal run (US-146), so a successful
+      // upload adds a run to history. Refetch the run-history list (keyed
+      // `["workflow-runs", workflowId, filters]`) so it appears without a
+      // manual page refresh.
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-runs", workflowId],
+      });
     },
   });
 }

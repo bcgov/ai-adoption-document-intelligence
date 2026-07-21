@@ -85,6 +85,37 @@ describe("NodeStatusBadge — Scenario 1: icon + color per status", () => {
     });
   }
 
+  it("shows the failure reason as a hover tooltip on a failed badge", async () => {
+    const { default: userEventDefault } = await import(
+      "@testing-library/user-event"
+    );
+    const user = userEventDefault.setup();
+    render(
+      <MantineProvider>
+        <NodeStatusBadge
+          status="failed"
+          errorMessage="Blob not found: seeddefaultgroup/uploads/x.png"
+        />
+      </MantineProvider>,
+    );
+    const badge = screen.getByTestId("node-status-badge");
+    expect(badge.getAttribute("data-status")).toBe("failed");
+    await user.hover(badge);
+    // Tooltip renders the message into a portal on hover.
+    expect(
+      await screen.findByText(/Blob not found/, {}, { timeout: 2000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not attach an error tooltip to a succeeded badge", () => {
+    render(
+      <MantineProvider>
+        <NodeStatusBadge status="succeeded" errorMessage="ignored" />
+      </MantineProvider>,
+    );
+    expect(screen.queryByText("ignored")).toBeNull();
+  });
+
   it("renders running as a Mantine Loader in blue (no Tabler icon)", () => {
     renderBadge("running");
     const badge = screen.getByTestId("node-status-badge");
