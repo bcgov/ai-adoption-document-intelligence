@@ -28,7 +28,7 @@ spec:
   backups:
     pgbackrest:
       global:
-        repo1-retention-full: '30' # Retain backups for 30 days. All full and incremental after this will be removed.
+        repo1-retention-full: '14' # Retain backups for 14 days. All full and incremental after this will be removed.
         repo1-retention-full-type: time
         # Block incremental: back up only the changed blocks within a file rather
         # than re-copying the whole changed file segment. Prevents backup/WAL
