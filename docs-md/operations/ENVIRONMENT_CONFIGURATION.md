@@ -156,6 +156,8 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 |----------|---------|-------------|
 | `PG_BACKUP_STORAGE_SIZE` | `10Gi` | Backup PVC size for both `app-pg` and `temporal-pg` PostgresCluster resources. Reduce for test instances to stay within namespace backup storage quotas (e.g., `2Gi`). |
 
+pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
+
 ### Database SSL
 
 | Variable | Description |
