@@ -1,0 +1,327 @@
+name: pgBackRest Database Restore
+
+# Restores a PostgreSQL database from an automated pgBackRest backup.
+# Automates the steps in docs-md/operations/PGBACKREST_RESTORE.md.
+#
+# The annotation-based restore mechanism is used: the operator triggers
+# pgbackrest restore in-place without requiring a full cluster shutdown.
+#
+# Two restore options:
+#   latest      — Restore to the most recent backup point (no options needed).
+#   backup-set  — Restore from a specific named backup label. Run
+#                 `pgbackrest info --stanza=db` from the repo-host pod to list
+#                 available labels (see docs-md/operations/PGBACKREST_RESTORE.md,
+#                 Step 1).
+#
+# WARNING: This operation is destructive. All data written to the target
+# database after the selected backup point will be permanently lost.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+      database:
+        description: 'Database cluster to restore'
+        required: true
+        type: choice
+        options:
+          - backend
+          - temporal
+      restore_type:
+        description: 'Restore type'
+        required: true
+        type: choice
+        options:
+          - latest
+          - backup-set
+      backup_set:
+        description: 'Backup set label (required when restore_type=backup-set, e.g. 20260716-020002F). Run pgbackrest info to find labels.'
+        required: false
+        type: string
+
+jobs:
+  restore:
+    name: Restore ${{ inputs.database }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      # -----------------------------------------------------------------------
+      # Step 1: Validate inputs and compute resource names
+      # -----------------------------------------------------------------------
+      - name: Validate inputs
+        run: |
+          if [[ "${{ inputs.restore_type }}" == "backup-set" && -z "${{ inputs.backup_set }}" ]]; then
+            echo "Error: backup_set is required when restore_type=backup-set"
+            exit 1
+          fi
+
+      - name: Compute resource names
+        id: names
+        run: |
+          set -euo pipefail
+
+          ENV="${{ inputs.environment }}"
+          DB="${{ inputs.database }}"
+
+          if [[ "$ENV" == "prod" ]]; then
+            NAMESPACE="fd34fb-prod"
+            INSTANCE_PREFIX="bcgov-di"
+          else
+            NAMESPACE="fd34fb-test"
+            INSTANCE_PREFIX="bcgov-di-test"
+          fi
+
+          if [[ "$DB" == "backend" ]]; then
+            CLUSTER="${INSTANCE_PREFIX}-app-pg"
+          else
+            CLUSTER="${INSTANCE_PREFIX}-temporal-pg"
+          fi
+
+          echo "namespace=$NAMESPACE"             >> $GITHUB_OUTPUT
+          echo "cluster=$CLUSTER"                 >> $GITHUB_OUTPUT
+          echo "instance_prefix=$INSTANCE_PREFIX" >> $GITHUB_OUTPUT
+
+          echo "Namespace:       $NAMESPACE"
+          echo "Cluster:         $CLUSTER"
+          echo "Instance prefix: $INSTANCE_PREFIX"
+
+      # -----------------------------------------------------------------------
+      # Step 2: Log in to OpenShift
+      # -----------------------------------------------------------------------
+      - name: Log in to OpenShift
+        run: |
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
+            --token="${{ secrets.OPENSHIFT_API_TOKEN }}" \
+            --insecure-skip-tls-verify=true
+          oc project "${{ steps.names.outputs.namespace }}"
+
+      # -----------------------------------------------------------------------
+      # Step 3: Show available backups (informational)
+      # -----------------------------------------------------------------------
+      - name: Show available backups
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+
+          REPO_HOST=$(oc get pods -n "$NAMESPACE" \
+            -l "postgres-operator.crunchydata.com/cluster=${CLUSTER},postgres-operator.crunchydata.com/pgbackrest-dedicated" \
+            -o jsonpath='{.items[0].metadata.name}')
+
+          echo "Repo-host pod: $REPO_HOST"
+          echo ""
+          echo "Available backups:"
+          oc exec -n "$NAMESPACE" "$REPO_HOST" -c pgbackrest -- \
+            pgbackrest info --stanza=db
+
+      # -----------------------------------------------------------------------
+      # Step 4: Scale down application pods
+      # -----------------------------------------------------------------------
+      - name: Capture current replica counts
+        id: replicas
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          PREFIX="${{ steps.names.outputs.instance_prefix }}"
+
+          BS=$(oc get deployment "${PREFIX}-backend-services" -n "$NAMESPACE" \
+            -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+          TMP=$(oc get deployment "${PREFIX}-temporal" -n "$NAMESPACE" \
+            -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+          TW=$(oc get deployment "${PREFIX}-temporal-worker" -n "$NAMESPACE" \
+            -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+
+          echo "backend_services=$BS" >> $GITHUB_OUTPUT
+          echo "temporal=$TMP"        >> $GITHUB_OUTPUT
+          echo "temporal_worker=$TW"  >> $GITHUB_OUTPUT
+
+          echo "Current replicas — backend-services: $BS, temporal: $TMP, temporal-worker: $TW"
+
+      - name: Scale down application pods
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          PREFIX="${{ steps.names.outputs.instance_prefix }}"
+
+          # Both backend and temporal databases require temporal to be stopped
+          # since Temporal server connects to temporal-pg.
+          oc scale deployment "${PREFIX}-backend-services" --replicas=0 -n "$NAMESPACE" || true
+          oc scale deployment "${PREFIX}-temporal-worker"  --replicas=0 -n "$NAMESPACE" || true
+          oc scale deployment "${PREFIX}-temporal"         --replicas=0 -n "$NAMESPACE" || true
+
+          echo "Waiting for application pods to stop..."
+          oc wait --for=delete pod \
+            -l "app.kubernetes.io/instance=${PREFIX}" \
+            -n "$NAMESPACE" \
+            --timeout=120s 2>/dev/null || true
+
+          echo "Application pods stopped."
+
+      # -----------------------------------------------------------------------
+      # Step 5: Apply restore spec and trigger restore
+      # -----------------------------------------------------------------------
+      - name: Build restore options
+        id: opts
+        run: |
+          TYPE="${{ inputs.restore_type }}"
+          SET="${{ inputs.backup_set }}"
+
+          if [[ "$TYPE" == "backup-set" ]]; then
+            OPTIONS="[\"--set=${SET}\"]"
+          else
+            OPTIONS="[]"
+          fi
+
+          echo "options=$OPTIONS" >> $GITHUB_OUTPUT
+          echo "Restore options: $OPTIONS"
+
+      - name: Apply restore spec
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+          OPTIONS="${{ steps.opts.outputs.options }}"
+
+          oc patch postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+            --type=merge \
+            -p "{\"spec\":{\"backups\":{\"pgbackrest\":{\"restore\":{\"enabled\":true,\"repoName\":\"repo1\",\"options\":${OPTIONS}}}}}}"
+
+      - name: Trigger restore
+        id: trigger
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+          RESTORE_ID="restore-$(date '+%Y%m%d-%H%M%S')"
+
+          oc annotate postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+            --overwrite \
+            "postgres-operator.crunchydata.com/pgbackrest-restore=${RESTORE_ID}"
+
+          echo "restore_id=$RESTORE_ID" >> $GITHUB_OUTPUT
+          echo "Restore triggered with ID: $RESTORE_ID"
+
+      # -----------------------------------------------------------------------
+      # Step 6: Wait for restore completion
+      # -----------------------------------------------------------------------
+      - name: Wait for restore to complete
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+          RESTORE_ID="${{ steps.trigger.outputs.restore_id }}"
+          TIMEOUT=1200
+
+          echo "Waiting for restore ID '$RESTORE_ID' to complete (up to ${TIMEOUT}s)..."
+
+          while [ $TIMEOUT -gt 0 ]; do
+            STATUS=$(oc get postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+              -o jsonpath='{.status.pgbackrest.restore}' 2>/dev/null || echo "")
+
+            if [ -n "$STATUS" ]; then
+              echo "Current restore status: $STATUS"
+
+              CURRENT_ID=$(echo "$STATUS" | jq -r '.id // empty')
+              FINISHED=$(echo "$STATUS"   | jq -r '.finished // empty')
+
+              if [[ "$CURRENT_ID" == "$RESTORE_ID" ]]; then
+                if [[ "$FINISHED" == "true" ]]; then
+                  echo "Restore completed successfully."
+                  exit 0
+                fi
+              fi
+            else
+              echo "Waiting for restore to start..."
+            fi
+
+            sleep 10
+            TIMEOUT=$((TIMEOUT - 10))
+          done
+
+          echo "Error: restore timed out after 20 minutes."
+          exit 1
+
+      # -----------------------------------------------------------------------
+      # Step 7: Remove restore spec (mandatory — prevents re-restore on reconcile)
+      # -----------------------------------------------------------------------
+      - name: Remove restore spec
+        if: always()
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+
+          # Disable the restore spec
+          oc patch postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+            --type=merge \
+            -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":false}}}}}' \
+            || true
+
+          # Remove the trigger annotation
+          oc annotate postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+            "postgres-operator.crunchydata.com/pgbackrest-restore-" \
+            || true
+
+          echo "Restore spec removed."
+
+      # -----------------------------------------------------------------------
+      # Step 8: Verify the database is healthy
+      # -----------------------------------------------------------------------
+      - name: Verify database health
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+
+          echo "Waiting for primary pod to become ready..."
+          oc wait pod \
+            -l "postgres-operator.crunchydata.com/cluster=${CLUSTER},postgres-operator.crunchydata.com/role=master" \
+            -n "$NAMESPACE" \
+            --for=condition=Ready \
+            --timeout=180s
+
+          PG_POD=$(oc get pods -n "$NAMESPACE" \
+            -l "postgres-operator.crunchydata.com/cluster=${CLUSTER},postgres-operator.crunchydata.com/role=master" \
+            -o jsonpath='{.items[0].metadata.name}')
+
+          echo "Primary pod: $PG_POD"
+
+          RESULT=$(oc exec -n "$NAMESPACE" "$PG_POD" -c database -- \
+            psql -U postgres -tAc "SELECT pg_is_in_recovery();")
+
+          echo "pg_is_in_recovery: $RESULT"
+
+          if [[ "$RESULT" == "f" ]]; then
+            echo "Database is healthy and running as primary."
+          else
+            echo "Error: database is not running as primary (pg_is_in_recovery=$RESULT)."
+            exit 1
+          fi
+
+      # -----------------------------------------------------------------------
+      # Step 9: Scale application pods back up
+      # -----------------------------------------------------------------------
+      - name: Scale application pods back up
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          PREFIX="${{ steps.names.outputs.instance_prefix }}"
+          BS="${{ steps.replicas.outputs.backend_services }}"
+          TMP="${{ steps.replicas.outputs.temporal }}"
+          TW="${{ steps.replicas.outputs.temporal_worker }}"
+
+          # Restore to at least 1 replica even if the captured count was 0
+          # (e.g. if pods were already down before this run).
+          [[ "$BS"  -gt 0 ]] || BS=1
+          [[ "$TMP" -gt 0 ]] || TMP=1
+          [[ "$TW"  -gt 0 ]] || TW=1
+
+          oc scale deployment "${PREFIX}-backend-services" --replicas="$BS"  -n "$NAMESPACE"
+          oc scale deployment "${PREFIX}-temporal"         --replicas="$TMP" -n "$NAMESPACE"
+          oc scale deployment "${PREFIX}-temporal-worker"  --replicas="$TW"  -n "$NAMESPACE"
+
+          echo "Scaled up — backend-services: $BS, temporal: $TMP, temporal-worker: $TW"
