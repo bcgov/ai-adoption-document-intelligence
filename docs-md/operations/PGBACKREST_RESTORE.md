@@ -133,26 +133,21 @@ stanza: db
 Note the backup label (e.g. `20260716-020002F`) and the timestamps. You will
 use these in the next steps to pick your recovery point.
 
-> **Tip:** pgBackRest can recover to any point in time within the WAL archive
-> window, not just to the exact moment a backup completed. Any timestamp
-> between the earliest WAL archive and the most recent backup is valid.
-
 ---
 
 ## Step 2 — Scale down application pods
 
-A restore replaces all data in the database. You must stop all application
-pods that write to the database **before** initiating a restore, to prevent
-them from attempting to reconnect to a cluster that is about to be torn down.
+A restore replaces all data in the database. Stop all application pods that
+write to the database before triggering a restore so they do not attempt
+reconnections while the cluster is being restored.
 
 ```bash
-# For the backend database (app-pg), scale down these deployments:
+# Scale down all pods that connect to either database.
+# Temporal connects to both app-pg and temporal-pg, so it must be stopped
+# regardless of which database you are restoring.
 oc scale deployment <instance>-backend-services --replicas=0 -n <namespace>
 oc scale deployment <instance>-temporal-worker  --replicas=0 -n <namespace>
 oc scale deployment <instance>-temporal         --replicas=0 -n <namespace>
-
-# For the temporal database (temporal-pg), the same deployments apply
-# since Temporal server also connects to temporal-pg.
 ```
 
 Replace `<instance>` with the instance prefix (e.g. `bcgov-di` for prod,
@@ -167,180 +162,126 @@ oc get pods -n <namespace> | grep -E 'backend-services|temporal'
 
 ---
 
-## Step 3 — Shut down the PostgresCluster
+## Step 3 — Apply the restore spec
 
-The Crunchy operator needs the cluster to be fully stopped before it can
-restore into it. Set `spec.shutdown: true` on the `PostgresCluster` resource.
-
-```bash
-oc patch postgrescluster <cluster> -n <namespace> \
-  --type=merge \
-  -p '{"spec":{"shutdown":true}}'
-```
-
-Example for the production backend database:
-
-```bash
-oc patch postgrescluster bcgov-di-app-pg -n fd34fb-prod \
-  --type=merge \
-  -p '{"spec":{"shutdown":true}}'
-```
-
-Wait for the primary database pod to stop:
-
-```bash
-# Watch the primary data pod. The repo-host pod will stay Running — that is normal
-# and expected; it manages WAL archiving and is intentionally kept up by the operator.
-# You are only waiting for the primary instance pod (the one named *-00-*-0 or similar)
-# to disappear.
-oc get pods -n <namespace> -w \
-  -l "postgres-operator.crunchydata.com/cluster=<cluster>,postgres-operator.crunchydata.com/instance"
-# Press Ctrl+C once the primary pod disappears.
-```
-
-> **Note:** The `repo-host` pod will remain `Running` throughout this process. Do not
-> wait for it to go down — it never will during a normal shutdown.
-
----
-
-## Step 4 — Patch the PostgresCluster to request a restore
-
-Add a `spec.dataSource.postgresCluster` block to the cluster resource. This
-tells the Crunchy operator to perform a pgBackRest restore when the cluster
-starts back up.
+Add `spec.backups.pgbackrest.restore` to the `PostgresCluster` resource.
+This tells the operator which backup to restore from when the annotation
+trigger fires in the next step.
 
 ### Option A — Restore to the latest available backup
 
-Use this when you want to recover everything up to the most recent backup point.
+```bash
+oc patch postgrescluster <cluster> -n <namespace> \
+  --type=merge \
+  -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":true,"repoName":"repo1","options":[]}}}}}'
+```
+
+### Option B — Restore from a specific named backup
+
+Use the backup label from the `pgbackrest info` output in Step 1. Pick the
+label whose **stop timestamp** is just before the event you are recovering
+from. Incremental backup labels (e.g. `20260716-020002F_20260716-060001I`)
+are valid and restore to the end of that incremental.
 
 ```bash
 oc patch postgrescluster <cluster> -n <namespace> \
   --type=merge \
-  -p '{
-    "spec": {
-      "dataSource": {
-        "postgresCluster": {
-          "clusterName": "<cluster>",
-          "clusterNamespace": "<namespace>",
-          "repoName": "repo1"
-        }
-      }
-    }
-  }'
+  -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":true,"repoName":"repo1","options":["--set=20260716-020002F"]}}}}}'
 ```
 
-### Option B — Restore from a specific named backup (closest to a target time)
+Replace `20260716-020002F` with the actual label from your `pgbackrest info`
+output.
 
-Use this when you need to recover to a point before a specific event (e.g. an
-accidental deletion). From the `pgbackrest info` output in Step 1, pick the
-backup label whose **stop timestamp** is just before the event you are
-recovering from.
-
-```bash
-oc patch postgrescluster <cluster> -n <namespace> \
-  --type=merge \
-  -p '{
-    "spec": {
-      "dataSource": {
-        "postgresCluster": {
-          "clusterName": "<cluster>",
-          "clusterNamespace": "<namespace>",
-          "repoName": "repo1",
-          "options": ["--set=20260716-020002F"]
-        }
-      }
-    }
-  }'
-```
-
-Replace `20260716-020002F` with the label from `pgbackrest info`. Include
-incremental backup labels (e.g. `20260716-020002F_20260716-060001I`) if you
-need to recover to a point between two full backups.
-
-> **Why not timestamp-based PITR?** pgBackRest requires a space between the
-> date and time in `--target` values (`YYYY-MM-DD HH:MM:SS`), but PGO joins
-> the `options` array into a shell variable that gets word-split on expansion.
-> This makes it impossible to pass a timestamp with a space through this
-> mechanism. Use `--set` with the nearest backup label instead.
+> **Note on PITR:** Timestamp-based point-in-time recovery (`--type=time
+> --target=...`) does not work through the PGO options array because
+> pgBackRest requires a space in the timestamp value (`YYYY-MM-DD HH:MM:SS`)
+> and the shell word-splits it into two arguments. Use `--set` with the
+> nearest backup label instead.
 
 ---
 
-## Step 5 — Start the cluster and wait for restore
+## Step 4 — Trigger the restore
 
-Set `spec.shutdown: false` to bring the cluster back up. The operator will
-see the `spec.dataSource` block and trigger the pgBackRest restore before
-starting the primary.
-
-```bash
-oc patch postgrescluster <cluster> -n <namespace> \
-  --type=merge \
-  -p '{"spec":{"shutdown":false}}'
-```
-
-Monitor the restore progress by watching the pods and the operator events:
+Annotate the `PostgresCluster` with a unique restore ID. The operator watches
+for this annotation and immediately begins the restore. The cluster does **not**
+need to be shut down first.
 
 ```bash
-# Watch pods come up
-oc get pods -n <namespace> -w \
-  -l "postgres-operator.crunchydata.com/cluster=<cluster>"
+RESTORE_ID="restore-$(date '+%Y%m%d-%H%M%S')"
+
+oc annotate postgrescluster <cluster> -n <namespace> \
+  --overwrite \
+  "postgres-operator.crunchydata.com/pgbackrest-restore=${RESTORE_ID}"
+
+echo "Restore triggered with ID: ${RESTORE_ID}"
 ```
 
-You will see a restore job pod appear (named something like
-`<cluster>-pgbackrest-restore-<hash>`). It runs to completion, then the
-normal database pod starts.
-
-```bash
-# Check restore job pod logs for progress
-oc logs -n <namespace> \
-  -l "postgres-operator.crunchydata.com/pgbackrest-restore,postgres-operator.crunchydata.com/cluster=<cluster>" \
-  --tail=50
-```
-
-A successful restore will show pgBackRest output ending with:
-```
-P00   INFO: restore command end: completed successfully
-```
-
-The primary database pod (`<cluster>-<set>-0`) should eventually reach
-`Running` with `2/2` containers ready. This can take several minutes
-depending on database size.
+The operator spawns a short-lived restore pod, runs `pgbackrest restore`,
+then restarts the primary. The restore pod completes quickly (seconds to
+minutes depending on database size) and is automatically cleaned up.
 
 ---
 
-## Step 6 — Remove the dataSource spec
+## Step 5 — Wait for restore completion
 
-**This step is mandatory.** Leaving `spec.dataSource` in place will cause
-the operator to re-trigger the restore the next time the cluster reconciles
-(e.g. after a pod restart), destroying your data again.
+Poll the `PostgresCluster` status until `finished` is `true` for your restore ID:
 
 ```bash
-oc patch postgrescluster <cluster> -n <namespace> \
-  --type=json \
-  -p '[{"op":"remove","path":"/spec/dataSource"}]'
+RESTORE_ID="<the ID you used above>"
+CLUSTER="<cluster>"
+NAMESPACE="<namespace>"
+
+while true; do
+  STATUS=$(oc get postgrescluster "$CLUSTER" -n "$NAMESPACE" \
+    -o jsonpath='{.status.pgbackrest.restore}')
+  echo "$(date -u '+%H:%M:%S') $STATUS"
+
+  FINISHED=$(echo "$STATUS" | jq -r '.finished // empty' 2>/dev/null)
+  ID=$(echo "$STATUS"       | jq -r '.id // empty'       2>/dev/null)
+
+  if [[ "$ID" == "$RESTORE_ID" && "$FINISHED" == "true" ]]; then
+    echo "Restore completed."
+    break
+  fi
+  sleep 10
+done
 ```
 
-Confirm it was removed:
+A completed restore looks like:
+```json
+{"completionTime":"2026-07-21T20:52:25Z","finished":true,"id":"restore-20260721-135006","startTime":"2026-07-21T20:52:05Z","succeeded":1}
+```
+
+---
+
+## Step 6 — Remove the restore spec
+
+**This step is mandatory.** Leaving `restore.enabled: true` in place will
+cause the operator to re-trigger the restore on the next reconcile, destroying
+your data again.
 
 ```bash
-oc get postgrescluster <cluster> -n <namespace> -o jsonpath='{.spec.dataSource}'
-# Should return nothing (empty output).
+# Disable the restore spec
+oc patch postgrescluster <cluster> -n <namespace> \
+  --type=merge \
+  -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":false}}}}}'
+
+# Remove the trigger annotation
+oc annotate postgrescluster <cluster> -n <namespace> \
+  "postgres-operator.crunchydata.com/pgbackrest-restore-"
 ```
 
 ---
 
 ## Step 7 — Verify the database is healthy
 
-Connect to the database pod and run a quick sanity check:
-
 ```bash
-# Find the primary pod
 PG_POD=$(oc get pods -n <namespace> \
   -l "postgres-operator.crunchydata.com/cluster=<cluster>,postgres-operator.crunchydata.com/role=master" \
   -o jsonpath='{.items[0].metadata.name}')
 
 echo "Primary pod: ${PG_POD}"
 
-# Run a connection test
 oc exec -n <namespace> "${PG_POD}" -c database -- \
   psql -U postgres -c "SELECT now(), pg_is_in_recovery();"
 ```
@@ -349,11 +290,11 @@ Expected output:
 ```
               now              | pg_is_in_recovery
 -------------------------------+-------------------
- 2026-07-17 03:15:42.123456+00 | f
+ 2026-07-21 20:53:20.383044+00 | f
 ```
 
 `pg_is_in_recovery()` returning `f` (false) confirms the database is running
-as a primary, not a standby.
+as a primary, not a replica in recovery.
 
 For the backend database, also verify the application schema is present:
 
@@ -372,12 +313,6 @@ oc scale deployment <instance>-temporal         --replicas=1 -n <namespace>
 oc scale deployment <instance>-temporal-worker  --replicas=1 -n <namespace>
 ```
 
-Watch the pods start:
-
-```bash
-oc get pods -n <namespace> -w | grep -E 'backend-services|temporal'
-```
-
 Once all pods show `Running` and pass their readiness checks, the restore is
 complete.
 
@@ -388,8 +323,8 @@ complete.
 The Temporal database (`temporal-pg`) follows the exact same procedure.
 Substitute the temporal cluster name where the app cluster name appears.
 
-| Step | Backend (app-pg) | Temporal (temporal-pg) |
-|------|-----------------|------------------------|
+| | Backend (app-pg) | Temporal (temporal-pg) |
+|---|---|---|
 | Cluster name (prod) | `bcgov-di-app-pg` | `bcgov-di-temporal-pg` |
 | Cluster name (test) | `bcgov-di-test-app-pg` | `bcgov-di-test-temporal-pg` |
 | Deployments to scale down | `backend-services`, `temporal`, `temporal-worker` | `temporal`, `temporal-worker` |
@@ -399,80 +334,76 @@ Substitute the temporal cluster name where the app cluster name appears.
 
 ---
 
+## GitHub Actions workflow
+
+Both restore operations are also available as GitHub Actions workflows, which
+automate all steps above including scale-down, restore, verification, and
+scale-back-up:
+
+- **pgBackRest List Backups** — lists available backup labels for a cluster
+  (run this first to find a label for a specific-point restore)
+- **pgBackRest Database Restore** — triggers the full restore workflow
+
+---
+
 ## Troubleshooting
 
-### Restore job pod does not appear
+### Restore pod completes instantly and is already gone
 
-After patching `spec.shutdown: false`, if no restore job pod appears within
-2–3 minutes, the operator may not have picked up the `dataSource` change.
-Force a reconcile by adding a meaningless annotation to the `PostgresCluster`:
+This is normal. The restore pod is short-lived and the operator cleans it up
+immediately after completion. Check the `PostgresCluster` status instead:
+
+```bash
+oc get postgrescluster <cluster> -n <namespace> \
+  -o jsonpath='{.status.pgbackrest.restore}'
+```
+
+`"finished":true,"succeeded":1` means the restore succeeded.
+
+### Restore does not start after annotating
+
+Confirm the annotation is present:
+
+```bash
+oc get postgrescluster <cluster> -n <namespace> \
+  -o jsonpath='{.metadata.annotations.postgres-operator\.crunchydata\.com/pgbackrest-restore}'
+```
+
+If it is present but no restore starts within 2–3 minutes, re-annotate with
+a new unique value:
 
 ```bash
 oc annotate postgrescluster <cluster> -n <namespace> \
-  "restore-trigger=$(date +%s)" --overwrite
+  --overwrite \
+  "postgres-operator.crunchydata.com/pgbackrest-restore=restore-$(date +%s)"
 ```
-
-### Restore pods keep erroring and then stop appearing
-
-After multiple consecutive failures the operator's Job controller hits its
-backoff limit and stops spawning new pods. Delete the failed Jobs to clear
-the backoff, then force a reconcile:
-
-```bash
-oc delete jobs -n <namespace> \
-  -l "postgres-operator.crunchydata.com/pgbackrest-restore,postgres-operator.crunchydata.com/cluster=<cluster>"
-
-oc annotate postgrescluster <cluster> -n <namespace> \
-  "restore-trigger=$(date +%s)" --overwrite
-```
-
-A new restore pod will appear within a minute or two.
 
 ### Restore pod shows an error
 
-Check the full logs of the most recent restore pod:
+If a restore pod does appear with `Error` status, check its logs:
 
 ```bash
-# List restore pods to find the most recent one
 oc get pods -n <namespace> \
   -l "postgres-operator.crunchydata.com/pgbackrest-restore,postgres-operator.crunchydata.com/cluster=<cluster>"
 
-# Read its logs
 oc logs -n <namespace> <pod-name>
 ```
 
 Common causes:
-- **`unable to find stanza`** — the stanza name is wrong. It is always `db` for
-  both clusters in this project.
-- **`no backup found`** / **`automatic backup set selection cannot be performed`**
-  — the backup label in `--set=` does not exist in `pgbackrest info` output,
-  or a malformed timestamp was passed. Verify the label against `pgbackrest info`
-  output from Step 1.
-- **`command does not allow parameters`** — a value containing a space was split
-  into two arguments by the shell. This happens when using `--type=time` with a
-  timestamp. Use `--set=<label>` instead (see Step 4, Option B).
-
-### Database pod stays in `Pending` after restore
-
-Check for PVC issues:
-
-```bash
-oc get pvc -n <namespace> | grep <cluster>
-oc describe pvc <pvc-name> -n <namespace>
-```
-
-If a PVC is stuck in `Terminating` from the old cluster instance, you may
-need to wait for it to be released before the new one binds.
+- **`backup set ... is not valid`** — the label passed to `--set=` does not
+  exist. Run `pgbackrest info --stanza=db` from the repo-host pod (Step 1) to
+  list valid labels.
+- **`command does not allow parameters`** — a space inside a `--target=` value
+  was split by the shell. Use `--set=<label>` instead.
 
 ### Application pods crash-loop after restore
 
-If backend-services pods crash immediately after scaling up, the schema may
-be at a different migration level than the code expects. Check the pod logs:
+The schema may be at a different migration level than the application code
+expects. Check the pod logs:
 
 ```bash
 oc logs -n <namespace> deployment/<instance>-backend-services --previous
 ```
 
-This is expected if you restored to a point before a recent migration was
-applied. Either roll the application image back to match the restored schema
-version, or apply missing migrations manually.
+Either roll the application image back to match the restored schema version,
+or apply missing migrations manually.
