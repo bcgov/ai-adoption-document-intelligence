@@ -227,11 +227,17 @@ jobs:
           SHA_TAG: ${{ needs.metadata.outputs.sha-tag }}
         run: |
           set -euo pipefail
+          source scripts/lib/retry.sh
           AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
           DOCKER_API="https://${ARTIFACTORY_URL}/artifactory/api/docker/kfd3-fd34fb-local/v2"
           SERVICES=(backend-services frontend temporal ches-adapter)
-          for svc in "${SERVICES[@]}"; do
-            echo "Checking ${svc}:${SHA_TAG}..."
+
+          # Returns 0 only on HTTP 200. A transient failure (curl error -> 000,
+          # or a 5xx) is retried by with_retries so an intermittent registry
+          # timeout doesn't fail the deploy; a persistent non-200 (e.g. 404 for a
+          # genuinely-missing image) still fails after the attempts are exhausted.
+          check_manifest() {
+            local svc="$1" code
             code=$(curl --connect-timeout 30 --max-time 120 -s -o /dev/null -w "%{http_code}" \
               -u "${AUTH}" -I \
               -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
@@ -239,8 +245,17 @@ jobs:
               -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
               -H "Accept: application/vnd.oci.image.index.v1+json" \
               "${DOCKER_API}/${svc}/manifests/${SHA_TAG}" || echo "000")
-            if [[ "${code}" != "200" ]]; then
-              echo "::error::Missing staged image ${svc}:${SHA_TAG} (HTTP ${code})"
+            if [[ "${code}" == "200" ]]; then
+              return 0
+            fi
+            echo "[WARN] ${svc}:${SHA_TAG} not confirmed (HTTP ${code})" >&2
+            return 1
+          }
+
+          for svc in "${SERVICES[@]}"; do
+            echo "Checking ${svc}:${SHA_TAG}..."
+            if ! with_retries 3 15 check_manifest "${svc}"; then
+              echo "::error::Missing staged image ${svc}:${SHA_TAG}"
               exit 1
             fi
           done
@@ -546,13 +561,14 @@ jobs:
         run: |
           set -euo pipefail
           source scripts/lib/artifactory-login.sh
+          source scripts/lib/retry.sh
           artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
 
           REGISTRY="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
           SERVICES=(backend-services frontend temporal ches-adapter)
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
-            docker buildx imagetools create \
+            with_retries 3 15 docker buildx imagetools create \
               "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done

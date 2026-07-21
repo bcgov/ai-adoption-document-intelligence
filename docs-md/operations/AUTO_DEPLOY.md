@@ -52,9 +52,14 @@ The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. I
 | Prod (`main`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
 | Manual (`workflow_dispatch`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | Keep 10 most recent SHA tags |
 
-## Artifactory login retries
+## Artifactory retries
 
-The build and promote steps retry `docker login` up to three times with a 15-second backoff (`scripts/lib/artifactory-login.sh`) to handle intermittent `Client.Timeout exceeded` errors against the registry.
+To handle intermittent `Client.Timeout exceeded` errors against the registry, registry operations retry up to three times with a 15-second backoff:
+
+- `docker login` in the build and promote steps (`scripts/lib/artifactory-login.sh`).
+- The deploy job's staged-image existence check and the `docker buildx imagetools create` promotion, via a shared `with_retries` helper (`scripts/lib/retry.sh`). The existence check only accepts HTTP 200, so a transient timeout (`000`) or `5xx` is retried while a genuinely-missing image still fails after the attempts are exhausted.
+
+All Artifactory REST/registry `curl` calls additionally use `--connect-timeout 30 --max-time 120`.
 
 ## Rollout failure handling
 

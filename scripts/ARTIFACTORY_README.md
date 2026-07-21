@@ -129,4 +129,4 @@ After successful prod deploys, CI keeps the 3 most recent `bcgov-di-????????????
 ./scripts/artifactory-cleanup.sh --env prod --delete --keep 3 --match 'bcgov-di-????????????'
 ```
 
-All Artifactory API calls use `--connect-timeout 30 --max-time 120`. Docker login retries up to 3 times via `scripts/lib/artifactory-login.sh`.
+All Artifactory API calls use `--connect-timeout 30 --max-time 120`. Docker login retries up to 3 times via `scripts/lib/artifactory-login.sh`, and the CI staged-image existence check and `imagetools create` tag promotion retry via `scripts/lib/retry.sh` (`with_retries`).

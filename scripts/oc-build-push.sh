@@ -18,6 +18,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/lib/config-loader.sh"
 source "${SCRIPT_DIR}/lib/image-tag.sh"
 source "${SCRIPT_DIR}/lib/artifactory-login.sh"
+source "${SCRIPT_DIR}/lib/retry.sh"
 
 usage() {
   cat <<EOF
@@ -228,7 +229,7 @@ if [[ "${PROMOTE}" == true ]]; then
   else
     echo "[INFO] Promoting ${PUSH_TAG} -> ${FLOATING_TAG} for all built services..."
     for svc in "${SERVICES[@]}"; do
-      docker buildx imagetools create \
+      with_retries 3 15 docker buildx imagetools create \
         "${IMAGE_BASE}/${svc}:${FLOATING_TAG}" \
         "${IMAGE_BASE}/${svc}:${PUSH_TAG}"
     done
