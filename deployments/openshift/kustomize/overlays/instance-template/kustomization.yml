@@ -350,6 +350,11 @@ patches:
                   labels:
                     service: backend-services
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"level":"(debug|verbose)"'
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
       name: frontend-promtail
@@ -375,6 +380,11 @@ patches:
                   labels:
                     service: frontend
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"level":"(debug|verbose)"'
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
       name: temporal-server-promtail
@@ -400,6 +410,11 @@ patches:
                   labels:
                     service: temporal-server
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"level":"(debug|verbose)"'
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
       name: temporal-worker-promtail
@@ -425,6 +440,11 @@ patches:
                   labels:
                     service: temporal-worker
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"level":"(debug|verbose)"'
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
 
   # --- NetworkPolicy patches: scope ingress to instance label ---
   - target:
