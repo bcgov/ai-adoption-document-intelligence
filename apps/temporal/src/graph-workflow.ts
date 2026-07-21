@@ -75,7 +75,9 @@ function redactCtxForQuery(
         ];
       }
       const valueStr = JSON.stringify(value);
-      if (valueStr.length > 1000) {
+      // JSON.stringify(undefined) returns undefined, not a string — guard so a
+      // ctx key holding `undefined` doesn't crash the getStatus query handler.
+      if (valueStr !== undefined && valueStr.length > 1000) {
         return [key, "<redacted: large value>"];
       }
       return [key, value];
