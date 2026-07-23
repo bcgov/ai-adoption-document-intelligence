@@ -27,6 +27,9 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
+  # Document retention: permanently delete terminal documents (and their blobs/OCR results)
+  # older than this many days. Leave empty to disable cleanup entirely.
+  DOCUMENT_RETENTION_DAYS: ""
   # Database Connection Pool (Prisma/pg via DB_POOL_MAX; default 10 — safe at HPA max scale)
   DB_POOL_MAX: "10"
   # Request body limit

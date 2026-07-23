@@ -8,7 +8,7 @@ import {
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 import {
-  DOCUMENT_RETENTION_DAYS,
+  DOCUMENT_RETENTION_ENV_VAR,
   DocumentRetentionService,
 } from "./document-retention.service";
 
@@ -36,6 +36,8 @@ describe("DocumentRetentionService", () => {
   let service: DocumentRetentionService;
 
   beforeEach(async () => {
+    process.env[DOCUMENT_RETENTION_ENV_VAR] = "90";
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DocumentRetentionService,
@@ -47,6 +49,40 @@ describe("DocumentRetentionService", () => {
 
     service = module.get<DocumentRetentionService>(DocumentRetentionService);
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env[DOCUMENT_RETENTION_ENV_VAR];
+  });
+
+  it("skips and warns when DOCUMENT_RETENTION_DAYS is not set", async () => {
+    delete process.env[DOCUMENT_RETENTION_ENV_VAR];
+
+    await service.deleteExpiredDocuments();
+
+    expect(mockDocumentDb.findExpiredDocuments).not.toHaveBeenCalled();
+    expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(DOCUMENT_RETENTION_ENV_VAR),
+      expect.objectContaining({ value: undefined }),
+    );
+  });
+
+  it.each([
+    "0",
+    "-1",
+    "abc",
+    "",
+  ])("skips and warns when DOCUMENT_RETENTION_DAYS is invalid (%s)", async (value) => {
+    process.env[DOCUMENT_RETENTION_ENV_VAR] = value;
+
+    await service.deleteExpiredDocuments();
+
+    expect(mockDocumentDb.findExpiredDocuments).not.toHaveBeenCalled();
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(DOCUMENT_RETENTION_ENV_VAR),
+      expect.any(Object),
+    );
   });
 
   it("queries expired documents with terminal statuses and batch size and does nothing when empty", async () => {
@@ -68,7 +104,8 @@ describe("DocumentRetentionService", () => {
     expect(mockLogger.log).not.toHaveBeenCalled();
   });
 
-  it("passes a cutoff date approximately DOCUMENT_RETENTION_DAYS days ago", async () => {
+  it("passes a cutoff date based on the DOCUMENT_RETENTION_DAYS env var", async () => {
+    process.env[DOCUMENT_RETENTION_ENV_VAR] = "90";
     mockDocumentDb.findExpiredDocuments.mockResolvedValue([]);
     const before = Date.now();
 
@@ -80,7 +117,7 @@ describe("DocumentRetentionService", () => {
       ...unknown[],
     ];
     const cutoffMs = cutoff.getTime();
-    const expectedMs = DOCUMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const expectedMs = 90 * 24 * 60 * 60 * 1000;
     expect(cutoffMs).toBeGreaterThanOrEqual(before - expectedMs - 1000);
     expect(cutoffMs).toBeLessThanOrEqual(after - expectedMs + 1000);
   });
