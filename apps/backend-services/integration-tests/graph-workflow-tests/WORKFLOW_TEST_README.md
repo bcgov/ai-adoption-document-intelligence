@@ -185,7 +185,7 @@ When running successfully, you'll see output like:
 
 - Re-seed: `npx tsx ../shared/prisma/seed.ts` from `apps/backend-services`
 - List slugs in DB or check seed: `standard-ocr`, `multi-page-report`
-- Canonical JSON templates: `docs-md/graph-workflows/templates/standard-ocr-workflow.json`
+- Canonical JSON templates: `docs-md/workflows/templates/standard-ocr-workflow.json`
 
 ### "Test file not found"
 
@@ -194,8 +194,8 @@ When running successfully, you'll see output like:
 ## Test Data
 
 - **Workflow slugs (seed)**:
-  - `standard-ocr` (default) — template `docs-md/graph-workflows/templates/standard-ocr-workflow.json`
-  - `multi-page-report` — template `docs-md/graph-workflows/templates/multi-page-report-workflow.json`
+  - `standard-ocr` (default) — template `docs-md/workflows/templates/standard-ocr-workflow.json`
+  - `multi-page-report` — template `docs-md/workflows/templates/multi-page-report-workflow.json`
 - **Test Documents**:
   - `apps/backend-services/integration-tests/test-document.jpg` (default)
   - You can add your own test files and reference them via `TEST_FILE` env var

@@ -4,7 +4,7 @@
  * Thin wrapper around the shared @ai-di/graph-workflow validateGraphConfig,
  * supplying the backend's own activity registry.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 9.2
  */
 
 import type {
