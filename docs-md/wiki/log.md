@@ -82,3 +82,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added new docs for previously-undocumented merged subsystems: `workflows/TEMPORAL_PAYLOAD_FOOTPRINT.md` (gzip codec + OCR payload refs) and `extraction/OCR_RESULT_VIEWS.md` (AI-1445); routed both from `graph-workflows.md` / `extraction.md` and registered the codec package in `sources.md`.
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
+
+## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
+
+- Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
+- Added `billing.md` topic page routing to it and the `packages/billing/` + backend/temporal billing source areas; linked from `index.md` and registered in `sources.md` (routing row, stable-docs entry, code-adjacent sources).
+- Recorded the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift in `open-questions.md`.
