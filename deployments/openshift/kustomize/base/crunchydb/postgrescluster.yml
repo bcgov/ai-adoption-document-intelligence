@@ -5,7 +5,7 @@ metadata:
 spec:
   shutdown: false
   instances:
-    - replicas: 1
+    - replicas: 2
       resources:
         requests:
           cpu: '125m'
@@ -15,10 +15,11 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            # 5Gi: matches production size. 1.5Gi was too small to restore a
-            # production pg_dump (data files exceeded PVC capacity mid-restore).
+            # 10Gi: matches production size. Increased from 5Gi after backup repo
+            # filled (10Gi), stalling WAL archiving and causing unarchived WAL to
+            # accumulate on the data PVC until it hit capacity.
             # PVCs cannot shrink, so base and prod must agree on a floor.
-            storage: 5Gi
+            storage: 10Gi
       sidecars:
         replicaCertCopy:
           resources:
@@ -49,7 +50,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 10Gi # Adjust as needed
+                  storage: 15Gi # Increased from 10Gi after repo filled and stalled WAL archiving
       repoHost:
         resources:
           requests:
