@@ -179,6 +179,12 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
 
+### Document Retention
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. Leave unset or empty to disable the janitor entirely. A positive integer is required to enable it (e.g. `90`). |
+
 ### Database Connection Pool
 
 | Variable | Default | Description |

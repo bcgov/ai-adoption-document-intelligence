@@ -14,11 +14,11 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 
 /**
- * Number of days after which a terminal document (and its OCR results) are
- * permanently deleted from the database and blob storage.
- * Change this single constant to adjust the system-wide retention window.
+ * Environment variable that controls the retention window.
+ * Set to a positive integer (number of days). If absent or invalid the janitor
+ * is disabled and no documents are deleted.
  */
-export const DOCUMENT_RETENTION_DAYS = 90;
+export const DOCUMENT_RETENTION_ENV_VAR = "DOCUMENT_RETENTION_DAYS";
 
 /** Maximum documents deleted per janitor run to avoid long-running transactions. */
 const BATCH_SIZE = 100;
@@ -60,11 +60,26 @@ export class DocumentRetentionService {
   /**
    * Runs daily at 02:00: permanently deletes expired terminal documents and
    * their associated blobs and OCR results.
+   *
+   * Requires `DOCUMENT_RETENTION_DAYS` to be set to a positive integer.
+   * If the variable is absent or invalid the run is skipped and a warning is
+   * logged — no documents are deleted.
    */
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async deleteExpiredDocuments(): Promise<void> {
+    const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
+    const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
+
+    if (!raw || Number.isNaN(retentionDays) || retentionDays <= 0) {
+      this.logger.warn(
+        `Document retention cleanup skipped: ${DOCUMENT_RETENTION_ENV_VAR} is not set or is not a positive integer`,
+        { value: raw },
+      );
+      return;
+    }
+
     const olderThan = new Date(
-      Date.now() - DOCUMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+      Date.now() - retentionDays * 24 * 60 * 60 * 1000,
     );
 
     let documents: Awaited<
@@ -104,7 +119,7 @@ export class DocumentRetentionService {
     }
 
     this.logger.log("Document retention cleanup run complete", {
-      olderThanDays: DOCUMENT_RETENTION_DAYS,
+      olderThanDays: retentionDays,
       candidates: documents.length,
       deleted,
       errors,
