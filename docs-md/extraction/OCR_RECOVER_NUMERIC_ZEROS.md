@@ -18,7 +18,9 @@ Both shapes lose information: the user wrote `0`, the model emits "nothing." Thi
 
 ## Where it sits in the workflow
 
-Between `azureOcr.extract` and `ocr.cleanup` in [docs-md/workflows/templates/standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → postOcrCleanup`).
+Between `azureOcr.extract` and `ocr.cleanup` in the SDPR variant template [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → postOcrCleanup`). The node reads and writes the `ocrResultRef` ctx key in place (matching the other correction nodes), so `postOcrCleanup` — which reads `ocrResultRef` — consumes the recovered result.
+
+The base [standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) is deliberately kept generic and does **not** include this node: its per-table config is form-specific, so it lives only in form-specific variants (seeded as workflow `seed-workflow-standard-ocr-sdpr`, slug `standard-ocr-sdpr`).
 
 Like every correction activity it is **blob-backed** (see the correction-tool contract in `apps/temporal/src/ocr-activity-ref-utils.ts`): it resolves the input OCR result from its blob ref via `resolveOcrResultInput`, applies recoveries to a deep copy (**the input is never mutated**), and returns a new blob-backed `OcrPayloadRef` via `finalizeCorrectionResult`. Downstream nodes (`ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, benchmark prediction flattening) consume the corrected ref and see real numeric values.
 
@@ -169,7 +171,7 @@ Remaining cases are out of "checkbox-as-zero" scope: samples where Azure didn't 
 2. Identify the table by `firstCellTextContains` (the text in cell r0c0 — usually the section heading).
 3. List every value column with its `prefix` (matching your schema's field-key naming) and the column-header text.
 4. List every row with its `suffix` (the rest of the schema field-key) and the row-label text exactly as it appears in cell r*c0.
-5. Drop the JSON into `parameters.tables` on the `recoverNumericZeros` workflow node.
+5. Drop the JSON into `parameters.tables` on the `recoverNumericZeros` workflow node in a form-specific variant template (e.g. copy `standard-ocr-workflow-sdpr.json`). Wire the node in place on the `ocrResultRef` ctx key (`inputs`/`outputs` both `{ "port": "ocrResult", "ctxKey": "ocrResultRef" }`) between `extractResults` and `postOcrCleanup`. Keep it out of the generic base template.
 6. **Optionally** enable the fallbacks for forms where Azure OCR sometimes mangles the section title or drops the row-label column:
    - Add `fallbackTableFinder.shape` with the candidate's rowCount and columnCount ranges.
    - Add `fallbackTableFinder.labelAnchor.minLabelMatches` (typically `~⅔ of row count`) to enable Group A.
@@ -196,4 +198,5 @@ If renaming or removing the activity, update all of these:
 - [apps/backend-services/src/workflow/activity-registry.ts](../../apps/backend-services/src/workflow/activity-registry.ts) — backend-side type list
 - [apps/backend-services/src/workflow/activity-registry.spec.ts](../../apps/backend-services/src/workflow/activity-registry.spec.ts) — `EXPECTED_ACTIVITY_TYPES`
 - [apps/backend-services/src/hitl/tool-manifest.service.ts](../../apps/backend-services/src/hitl/tool-manifest.service.ts) — backend-side tool manifest and `getAiRecommendableTools()` exclusion
-- [docs-md/workflows/templates/standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) — workflow JSON (node + edges + nodeGroups)
+- [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) — SDPR variant workflow JSON (node + edges + nodeGroups); the generic base template does not carry the node
+- [apps/shared/prisma/seed.ts](../../apps/shared/prisma/seed.ts) — seeds the SDPR variant as workflow `seed-workflow-standard-ocr-sdpr`
