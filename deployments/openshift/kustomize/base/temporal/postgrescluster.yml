@@ -20,7 +20,7 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            storage: 5Gi
+            storage: 1.5Gi
       sidecars:
         replicaCertCopy:
           resources:
@@ -30,8 +30,13 @@ spec:
   backups:
     pgbackrest:
       global:
-        repo1-retention-full: '7'
+        repo1-retention-full: '14'
         repo1-retention-full-type: time
+        # Block incremental: back up only the changed blocks within a file rather
+        # than re-copying the whole changed file segment, preventing backup/WAL
+        # bloat. Requires bundling. (pgBackRest 2.46+)
+        repo1-block: 'y'
+        repo1-bundle: 'y'
       repos:
         - name: repo1
           schedules:
@@ -44,7 +49,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 22Gi
+                  storage: 10Gi
       repoHost:
         resources:
           requests:
