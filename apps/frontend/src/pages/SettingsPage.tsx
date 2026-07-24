@@ -1,18 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Code,
-  CopyButton,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconCopy,
@@ -28,6 +14,23 @@ import {
   useGenerateApiKey,
   useRegenerateApiKey,
 } from "../data/hooks/useApiKey";
+import {
+  Alert,
+  Badge,
+  Button,
+  Code,
+  ConfirmActionModal,
+  CopyButton,
+  Group,
+  Modal,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Paper,
+  Stack,
+  Text,
+  Title,
+} from "../ui";
 
 export function SettingsPage() {
   const { activeGroup } = useGroup();
@@ -38,6 +41,7 @@ export function SettingsPage() {
 
   const [newKey, setNewKey] = useState<GeneratedApiKey | null>(null);
   const [showKeyModal, setShowKeyModal] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
 
   const handleGenerateKey = async () => {
     try {
@@ -71,7 +75,7 @@ export function SettingsPage() {
     }
   };
 
-  const handleDeleteKey = async () => {
+  const handleDeleteKey = async (): Promise<boolean> => {
     try {
       await deleteMutation.mutateAsync(apiKey!.id);
       notifications.show({
@@ -79,6 +83,7 @@ export function SettingsPage() {
         message: "API key deleted successfully",
         color: "green",
       });
+      return true;
     } catch (error) {
       notifications.show({
         title: "Error",
@@ -86,6 +91,14 @@ export function SettingsPage() {
           error instanceof Error ? error.message : "Failed to delete API key",
         color: "red",
       });
+      return false;
+    }
+  };
+
+  const handleConfirmDeleteKey = async () => {
+    const success = await handleDeleteKey();
+    if (success) {
+      setShowDeleteConfirmModal(false);
     }
   };
 
@@ -99,30 +112,26 @@ export function SettingsPage() {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between">
-        <Stack gap={2}>
-          <Title order={2}>Settings</Title>
-          <Text c="dimmed" size="sm">
-            Manage your API key for programmatic access
-            {activeGroup && (
-              <>
-                {" "}
-                — currently scoped to the group{" "}
-                <strong>{activeGroup.name}</strong>
-              </>
-            )}
-          </Text>
-        </Stack>
-        <Badge variant="outline" size="lg">
-          API Configuration
-        </Badge>
-      </Group>
+      <PageHeader
+        title="Settings"
+        description={
+          activeGroup
+            ? `Manage your API key for programmatic access — scoped to ${activeGroup.name}`
+            : "Manage your API key for programmatic access"
+        }
+        showDateBadge={false}
+        actions={
+          <Badge variant="outline" size="lg">
+            API configuration
+          </Badge>
+        }
+      />
 
-      <Paper shadow="sm" radius="md" p="lg" withBorder>
+      <PanelCard>
         <Stack gap="md">
           <Group>
             <IconKey size={24} />
-            <Title order={3}>API Key</Title>
+            <Title order={3}>API key</Title>
           </Group>
 
           <Text c="dimmed" size="sm">
@@ -138,7 +147,7 @@ export function SettingsPage() {
                 <Group justify="space-between">
                   <Stack gap={4}>
                     <Text size="sm" fw={600}>
-                      API Key for {activeGroup?.name}
+                      API key for {activeGroup?.name}
                     </Text>
                     <Group gap="xs">
                       <Code>{apiKey.keyPrefix}...</Code>
@@ -168,16 +177,16 @@ export function SettingsPage() {
                   onClick={handleRegenerateKey}
                   loading={regenerateMutation.isPending}
                 >
-                  Regenerate Key
+                  Regenerate key
                 </Button>
                 <Button
                   variant="outline"
                   color="red"
                   leftSection={<IconTrash size={16} />}
-                  onClick={handleDeleteKey}
+                  onClick={() => setShowDeleteConfirmModal(true)}
                   loading={deleteMutation.isPending}
                 >
-                  Delete Key
+                  Delete key
                 </Button>
               </Group>
             </Stack>
@@ -188,15 +197,15 @@ export function SettingsPage() {
               loading={generateMutation.isPending}
               disabled={!activeGroup}
             >
-              Generate API Key
+              Generate API key
             </Button>
           )}
         </Stack>
-      </Paper>
+      </PanelCard>
 
-      <Paper shadow="sm" radius="md" p="lg" withBorder>
+      <PanelCard>
         <Stack gap="md">
-          <Title order={3}>API Usage</Title>
+          <Title order={3}>API usage</Title>
           <Text c="dimmed" size="sm">
             Use the following endpoint with your API key to upload documents:
           </Text>
@@ -207,7 +216,7 @@ export function SettingsPage() {
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -d '{
-    "title": "Document Title",
+    "title": "Document title",
     "file": "BASE64_ENCODED_FILE",
     "file_type": "image",
     "model_id": "prebuilt-layout"
@@ -215,15 +224,15 @@ export function SettingsPage() {
             </Code>
           </Paper>
         </Stack>
-      </Paper>
+      </PanelCard>
 
       <Modal
         opened={showKeyModal}
         onClose={closeKeyModal}
-        title={`API Key Generated for ${activeGroup?.name}`}
+        title={`API key generated for ${activeGroup?.name}`}
         size="lg"
       >
-        <Stack gap="md">
+        <Stack gap="md" align="flex-start">
           <Alert
             icon={<IconAlertCircle size={16} />}
             title="Important"
@@ -236,7 +245,7 @@ export function SettingsPage() {
           <Paper withBorder p="md" radius="sm">
             <Stack gap="xs">
               <Text size="sm" fw={600}>
-                Your API Key:
+                Your API key:
               </Text>
               <Group gap="xs">
                 <Code style={{ flex: 1, wordBreak: "break-all" }}>
@@ -255,7 +264,7 @@ export function SettingsPage() {
                         )
                       }
                     >
-                      {copied ? "Copied" : "Copy"}
+                      {copied ? "copied" : "copy"}
                     </Button>
                   )}
                 </CopyButton>
@@ -268,6 +277,16 @@ export function SettingsPage() {
           </Button>
         </Stack>
       </Modal>
+
+      <ConfirmActionModal
+        opened={showDeleteConfirmModal}
+        onClose={() => setShowDeleteConfirmModal(false)}
+        onConfirm={handleConfirmDeleteKey}
+        title="Delete API key"
+        message="Are you sure you want to delete this API key? Integrations using it will stop working until you generate a new key."
+        confirmLabel="Delete key"
+        confirmLoading={deleteMutation.isPending}
+      />
     </Stack>
   );
 }

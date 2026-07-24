@@ -358,11 +358,19 @@ export class TrainingDbService {
   async replaceActiveTrainedModel(
     templateModelId: string,
     data: TrainedModelCreateData,
+    tx?: Prisma.TransactionClient,
   ): Promise<TrainedModel> {
-    return this.prisma.$transaction(async (tx) => {
-      await this.demoteActiveTrainedModels(templateModelId, tx);
-      return this.createTrainedModel(data, tx);
-    });
+    const run = async (
+      client: Prisma.TransactionClient | PrismaClient,
+    ): Promise<TrainedModel> => {
+      await this.demoteActiveTrainedModels(templateModelId, client);
+      return this.createTrainedModel(data, client);
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((txClient) => run(txClient));
   }
 
   /**
@@ -431,11 +439,22 @@ export class TrainingDbService {
    * template models. Used to populate the OCR model picker.
    */
   async findAllTrainedModelIds(
+    groupIds: string[] | undefined,
     tx?: Prisma.TransactionClient,
   ): Promise<string[]> {
     const client = tx ?? this.prisma;
+    // `groupIds === undefined` means an unrestricted (system-admin) caller, so
+    // no group filter is applied. Otherwise the result is constrained to models
+    // whose owning template model belongs to one of the caller's groups,
+    // preventing cross-group disclosure of trained model IDs. An empty array
+    // therefore matches nothing (fail-closed).
     const results = await client.trainedModel.findMany({
-      where: { deleted_at: null },
+      where: {
+        deleted_at: null,
+        ...(groupIds === undefined
+          ? {}
+          : { template_model: { group_id: { in: groupIds } } }),
+      },
       select: { model_id: true },
       distinct: ["model_id"],
     });

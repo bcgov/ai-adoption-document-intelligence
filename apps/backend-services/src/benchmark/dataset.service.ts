@@ -21,6 +21,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import Ajv from "ajv";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -31,6 +32,7 @@ import {
   OperationCategory,
   validateBlobPrefixPath,
 } from "@/blob-storage/storage-path-builder";
+import { PrismaService } from "@/database/prisma.service";
 import { AuditLogDbService } from "./audit-log-db.service";
 import { DatasetDbService } from "./dataset-db.service";
 import {
@@ -60,6 +62,8 @@ export class DatasetService {
     private readonly datasetDbService: DatasetDbService,
     private readonly auditLogDbService: AuditLogDbService,
     private readonly groundTruthJobDb: GroundTruthJobDbService,
+    private readonly prismaService: PrismaService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE) private blobStorage: BlobStorageInterface,
   ) {}
 
@@ -77,35 +81,46 @@ export class DatasetService {
     }
 
     try {
-      // Create dataset record in database
-      const dataset = await this.datasetDbService.createDataset({
-        name: createDto.name,
-        description: createDto.description || null,
-        metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
-        storagePath: "", // Will be set after we have the ID
-        createdBy: actorId,
-        group_id: createDto.groupId,
-      });
+      const dataset = await this.prismaService.transaction(async (tx) => {
+        const created = await this.datasetDbService.createDataset(
+          {
+            name: createDto.name,
+            description: createDto.description || null,
+            metadata: (createDto.metadata || {}) as Prisma.InputJsonValue,
+            storagePath: "",
+            createdBy: actorId,
+            group_id: createDto.groupId,
+          },
+          tx,
+        );
 
-      // Set storage path based on dataset ID
-      const storagePath = `datasets/${dataset.id}`;
-      await this.datasetDbService.updateDataset(dataset.id, { storagePath });
+        const storagePath = `datasets/${created.id}`;
+        const updated = await this.datasetDbService.updateDataset(
+          created.id,
+          { storagePath },
+          tx,
+        );
 
-      // Create audit log entry
-      await this.auditLogDbService.createAuditLog({
-        actorId: actorId,
-        action: AuditAction.dataset_created,
-        entityType: "Dataset",
-        entityId: dataset.id,
-        metadata: {
-          name: dataset.name,
-          storagePath,
-        },
+        await this.auditLogDbService.createAuditLog(
+          {
+            actorId: actorId,
+            action: AuditAction.dataset_created,
+            entityType: "Dataset",
+            entityId: created.id,
+            metadata: {
+              name: created.name,
+              storagePath,
+            },
+          },
+          tx,
+        );
+
+        return { ...updated, storagePath };
       });
 
       this.logger.log(`Dataset created successfully: ${dataset.id}`);
 
-      return this.mapToResponseDto({ ...dataset, storagePath });
+      return this.mapToResponseDto(dataset);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -192,7 +207,7 @@ export class DatasetService {
   /**
    * Delete a dataset by ID
    */
-  async deleteDataset(id: string): Promise<void> {
+  async deleteDataset(id: string, actorId: string): Promise<void> {
     this.logger.debug(`Deleting dataset with ID: ${id}`);
 
     const dataset = await this.datasetDbService.findDatasetForDeletion(id);
@@ -201,33 +216,40 @@ export class DatasetService {
       throw new NotFoundException(`Dataset with ID ${id} not found`);
     }
 
-    // Manually cascade delete to handle foreign key constraints
-    for (const version of dataset.versions) {
-      for (const definition of version.benchmarkDefinitions) {
-        await this.datasetDbService.deleteManyBenchmarkRuns({
-          definitionId: definition.id,
-        });
-      }
-      await this.datasetDbService.deleteManyBenchmarkDefinitions({
-        datasetVersionId: version.id,
-      });
-      await this.datasetDbService.deleteManySplits({
-        datasetVersionId: version.id,
-      });
-    }
-
-    // Remove ground-truth jobs and the Documents they reference before the
-    // version cascade fires. The DatasetVersion → DatasetGroundTruthJob
-    // relation cascades, but DatasetGroundTruthJob → Document does not, so
-    // skipping this leaves orphaned Documents that would surface in the
-    // regular HITL queue (its filter is `groundTruthJob: null`).
     const versionIds = dataset.versions.map((v) => v.id);
-    const { documentIds: orphanedDocumentIds } =
-      await this.groundTruthJobDb.deleteJobsForVersions(versionIds);
 
-    await this.datasetDbService.deleteManyDatasetVersions({ datasetId: id });
+    const orphanedDocumentIds = await this.prismaService.transaction(
+      async (tx) => {
+        for (const version of dataset.versions) {
+          for (const definition of version.benchmarkDefinitions) {
+            await this.datasetDbService.deleteManyBenchmarkRuns(
+              { definitionId: definition.id },
+              tx,
+            );
+          }
+          await this.datasetDbService.deleteManyBenchmarkDefinitions(
+            { datasetVersionId: version.id },
+            tx,
+          );
+          await this.datasetDbService.deleteManySplits(
+            { datasetVersionId: version.id },
+            tx,
+          );
+        }
 
-    await this.datasetDbService.deleteDataset(id);
+        const { documentIds } =
+          await this.groundTruthJobDb.deleteJobsForVersions(versionIds, tx);
+
+        await this.datasetDbService.deleteManyDatasetVersions(
+          { datasetId: id },
+          tx,
+        );
+
+        await this.datasetDbService.deleteDataset(id, tx);
+
+        return documentIds;
+      },
+    );
 
     // Best-effort cleanup of OCR-side blobs for those documents (they live
     // outside the dataset's storagePath).
@@ -258,6 +280,18 @@ export class DatasetService {
       }
     }
 
+    await this.auditService.recordEvent({
+      event_type: "dataset_deleted",
+      resource_type: "dataset",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: dataset.group_id,
+      payload: {
+        name: dataset.name,
+        version_count: dataset.versions.length,
+      },
+    });
+
     this.logger.log(`Dataset deleted successfully: ${id}`);
   }
 
@@ -267,7 +301,8 @@ export class DatasetService {
   async createVersion(
     datasetId: string,
     createDto: CreateVersionDto,
-    _actorId: string, // TODO: Why isn't this used?
+    actorId: string,
+    options?: { id?: string; storagePrefix?: string | null },
   ): Promise<VersionResponseDto> {
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -286,15 +321,29 @@ export class DatasetService {
     const manifestPath = createDto.manifestPath || "dataset-manifest.json";
 
     const version = await this.datasetDbService.createDatasetVersion({
+      ...(options?.id ? { id: options.id } : {}),
       datasetId: datasetId,
       version: versionLabel,
       name: createDto.name || null,
-      storagePrefix: null,
+      storagePrefix: options?.storagePrefix ?? null,
       manifestPath: manifestPath,
       documentCount: 0,
       groundTruthSchema: createDto.groundTruthSchema
         ? (createDto.groundTruthSchema as Prisma.InputJsonValue)
         : undefined,
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_created",
+      resource_type: "dataset_version",
+      resource_id: version.id,
+      actor_id: actorId,
+      group_id: dataset.group_id,
+      payload: {
+        dataset_id: datasetId,
+        version: versionLabel,
+        name: version.name,
+      },
     });
 
     this.logger.log(
@@ -368,6 +417,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
     name: string,
+    actorId: string,
   ): Promise<VersionResponseDto> {
     const version = await this.datasetDbService.findDatasetVersion(
       versionId,
@@ -393,6 +443,19 @@ export class DatasetService {
       datasetId,
     );
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_updated",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        name: name || null,
+      },
+    });
+
     return this.mapToVersionResponseDto(updated!, updated!.splits);
   }
 
@@ -411,16 +474,16 @@ export class DatasetService {
       buffer: Buffer;
       size: number;
     }>,
-    _actorId: string, // TODO: Why isn't this used?
+    actorId: string,
     groupId: string,
   ): Promise<UploadResponseDto> {
-    this.logger.log(
-      `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
-    );
-
     if (!Array.isArray(files)) {
       throw new BadRequestException("Invalid files payload");
     }
+
+    this.logger.log(
+      `Uploading ${files.length} files to dataset ${datasetId}, version ${versionId}`,
+    );
 
     const dataset = await this.datasetDbService.findDataset(datasetId);
 
@@ -593,6 +656,19 @@ export class DatasetService {
         `Upload complete: ${uploadedFiles.length} files added to version ${version.version} (${versionId})`,
       );
 
+      await this.auditService.recordEvent({
+        event_type: "dataset_files_uploaded",
+        resource_type: "dataset_version",
+        resource_id: versionId,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          dataset_id: datasetId,
+          file_count: uploadedFiles.length,
+          document_count: updatedVersion.documentCount,
+        },
+      });
+
       return {
         datasetId: datasetId,
         uploadedFiles: uploadedFiles,
@@ -638,6 +714,7 @@ export class DatasetService {
     versionId: string,
     sampleId: string,
     groupId: string,
+    actorId: string,
   ): Promise<void> {
     this.logger.log(
       `Deleting sample ${sampleId} from dataset ${datasetId}, version ${versionId}`,
@@ -739,42 +816,49 @@ export class DatasetService {
         Buffer.from(JSON.stringify(manifest, null, 2)),
       );
 
-      // Update version record
-      await this.datasetDbService.updateDatasetVersion(versionId, {
-        documentCount: manifest.samples.length,
-      });
-
-      // Remove the sample ID from any splits that reference it
+      // Update version record and related DB rows atomically
       const splits =
         await this.datasetDbService.findAllSplitsForVersion(versionId);
 
-      for (const split of splits) {
-        const currentSampleIds = Array.isArray(split.sampleIds)
-          ? (split.sampleIds as string[])
-          : [];
-        if (currentSampleIds.includes(sampleId)) {
-          const updatedSampleIds = currentSampleIds.filter(
-            (id) => id !== sampleId,
+      const orphanedDocumentIds = await this.prismaService.transaction(
+        async (tx) => {
+          await this.datasetDbService.updateDatasetVersion(
+            versionId,
+            { documentCount: manifest.samples.length },
+            tx,
           );
-          await this.datasetDbService.updateSplit(split.id, {
-            sampleIds: updatedSampleIds,
-          });
-        }
-      }
 
-      // Remove ground-truth-generation jobs and their documents for this sample.
-      // Without this, the deleted sample lingers in the HITL ground-truth review
-      // queue (jobs survive because the job→document FK has no cascade, and the
-      // queue filter only checks status + datasetVersionId).
-      const { documentIds } = await this.groundTruthJobDb.deleteJobsForSample(
-        versionId,
-        sampleId,
+          for (const split of splits) {
+            const currentSampleIds = Array.isArray(split.sampleIds)
+              ? (split.sampleIds as string[])
+              : [];
+            if (currentSampleIds.includes(sampleId)) {
+              const updatedSampleIds = currentSampleIds.filter(
+                (id) => id !== sampleId,
+              );
+              await this.datasetDbService.updateSplit(
+                split.id,
+                { sampleIds: updatedSampleIds },
+                tx,
+              );
+            }
+          }
+
+          const { documentIds } =
+            await this.groundTruthJobDb.deleteJobsForSample(
+              versionId,
+              sampleId,
+              tx,
+            );
+
+          return documentIds;
+        },
       );
 
       // Best-effort blob cleanup for any OCR-side artifacts the document
       // produced (e.g., normalized PDF). Failures are logged but not fatal —
       // the user-visible HITL queue entry is already gone.
-      for (const documentId of documentIds) {
+      for (const documentId of orphanedDocumentIds) {
         try {
           const documentPrefix = buildBlobPrefixPath(
             groupId,
@@ -788,6 +872,18 @@ export class DatasetService {
           );
         }
       }
+
+      await this.auditService.recordEvent({
+        event_type: "dataset_sample_deleted",
+        resource_type: "dataset_version",
+        resource_id: versionId,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          dataset_id: datasetId,
+          sample_id: sampleId,
+        },
+      });
 
       this.logger.log(`Sample ${sampleId} deleted from version ${versionId}`);
     } catch (error) {
@@ -809,7 +905,11 @@ export class DatasetService {
    * Delete a dataset version.
    * Blocked if any benchmark definitions reference this version.
    */
-  async deleteVersion(datasetId: string, versionId: string): Promise<void> {
+  async deleteVersion(
+    datasetId: string,
+    versionId: string,
+    actorId: string,
+  ): Promise<void> {
     this.logger.log(`Deleting version ${versionId} for dataset ${datasetId}`);
 
     const version = await this.datasetDbService.findDatasetVersionForDeletion(
@@ -832,19 +932,21 @@ export class DatasetService {
       );
     }
 
-    // Delete splits for the version first
-    await this.datasetDbService.deleteManySplits({
-      datasetVersionId: versionId,
-    });
+    const orphanedDocumentIds = await this.prismaService.transaction(
+      async (tx) => {
+        await this.datasetDbService.deleteManySplits(
+          { datasetVersionId: versionId },
+          tx,
+        );
 
-    // Remove ground-truth jobs and their Documents before the version cascade
-    // fires (job→document has no onDelete cascade). See deleteSample for the
-    // same reasoning.
-    const { documentIds: orphanedDocumentIds } =
-      await this.groundTruthJobDb.deleteJobsForVersions([versionId]);
+        const { documentIds } =
+          await this.groundTruthJobDb.deleteJobsForVersions([versionId], tx);
 
-    // Delete the version record
-    await this.datasetDbService.deleteDatasetVersion(versionId);
+        await this.datasetDbService.deleteDatasetVersion(versionId, tx);
+
+        return documentIds;
+      },
+    );
 
     // Delete files from object storage
     const dataset = await this.datasetDbService.findDataset(version.datasetId);
@@ -886,6 +988,18 @@ export class DatasetService {
         }
       }
     }
+
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_deleted",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: groupId,
+      payload: {
+        dataset_id: datasetId,
+        version: version.version,
+      },
+    });
 
     this.logger.log(`Version ${versionId} deleted successfully`);
   }
@@ -1850,6 +1964,7 @@ export class DatasetService {
       sampleIds: string[];
       stratificationRules?: Record<string, unknown>;
     },
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -1895,6 +2010,22 @@ export class DatasetService {
         ? (createDto.stratificationRules as Prisma.InputJsonValue)
         : Prisma.DbNull,
       frozen: false,
+    });
+
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_created",
+      resource_type: "dataset_split",
+      resource_id: split.id,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        name: split.name,
+        type: split.type,
+        sample_count: createDto.sampleIds.length,
+      },
     });
 
     return {
@@ -2021,6 +2152,7 @@ export class DatasetService {
     versionId: string,
     splitId: string,
     updateDto: { sampleIds: string[] },
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -2059,6 +2191,20 @@ export class DatasetService {
       sampleIds: updateDto.sampleIds as Prisma.InputJsonValue,
     });
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_updated",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        sample_count: updateDto.sampleIds.length,
+      },
+    });
+
     return {
       id: updated.id,
       datasetVersionId: updated.datasetVersionId,
@@ -2076,6 +2222,7 @@ export class DatasetService {
   async freezeVersion(
     datasetId: string,
     versionId: string,
+    actorId: string,
   ): Promise<{
     id: string;
     datasetId: string;
@@ -2098,6 +2245,19 @@ export class DatasetService {
       frozen: true,
     });
 
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_version_frozen",
+      resource_type: "dataset_version",
+      resource_id: versionId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        version: frozen.version,
+      },
+    });
+
     return {
       id: frozen.id,
       datasetId: frozen.datasetId,
@@ -2114,6 +2274,7 @@ export class DatasetService {
     datasetId: string,
     versionId: string,
     splitId: string,
+    actorId: string,
   ): Promise<{
     id: string;
     datasetVersionId: string;
@@ -2142,6 +2303,20 @@ export class DatasetService {
 
     const frozen = await this.datasetDbService.updateSplit(splitId, {
       frozen: true,
+    });
+
+    const dataset = await this.datasetDbService.findDataset(datasetId);
+    await this.auditService.recordEvent({
+      event_type: "dataset_split_frozen",
+      resource_type: "dataset_split",
+      resource_id: splitId,
+      actor_id: actorId,
+      group_id: dataset?.group_id,
+      payload: {
+        dataset_id: datasetId,
+        dataset_version_id: versionId,
+        name: frozen.name,
+      },
     });
 
     return {

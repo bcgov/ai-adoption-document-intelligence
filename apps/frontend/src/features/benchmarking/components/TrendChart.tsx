@@ -1,13 +1,3 @@
-import {
-  Card,
-  Center,
-  Loader,
-  MultiSelect,
-  Select,
-  Stack,
-  Text,
-} from "@mantine/core";
-import { useSessionStorage } from "@mantine/hooks";
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -19,6 +9,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import {
+  Card,
+  Center,
+  Loader,
+  MultiSelect,
+  Select,
+  Stack,
+  Text,
+  useSessionStorage,
+} from "../../../ui";
 import type { HistoricalRunData, MetricComparison } from "../hooks/useRuns";
 
 interface TrendChartProps {
@@ -311,7 +311,7 @@ export function TrendChart({
       <div style={{ display: "flex", gap: 16, alignItems: "flex-end" }}>
         <MultiSelect
           data-testid="metric-selector"
-          label="Select Metrics"
+          label="Select metrics"
           placeholder="Choose metrics to visualize"
           data={availableMetrics}
           value={selectedMetrics}
@@ -322,7 +322,7 @@ export function TrendChart({
         />
         <Select
           data-testid="date-range-selector"
-          label="Date Range"
+          label="Date range"
           value={dateRange}
           onChange={(value) => setDateRange(value || "last_20")}
           data={[
@@ -358,7 +358,7 @@ export function TrendChart({
             <YAxis
               tick={{ fontSize: 12 }}
               label={{
-                value: "Metric Value",
+                value: "Metric value",
                 angle: -90,
                 position: "insideLeft",
               }}

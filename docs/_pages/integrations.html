@@ -237,13 +237,13 @@ curl -X POST /api/upload \
     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem; font-family: monospace; font-size: 0.9rem;">
         <span class="badge badge-blue">ongoing_ocr</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
-        <span class="badge badge-gold">completed_ocr</span>
+        <span class="badge badge-gold">extracted</span>
         <span style="color: var(--text-secondary);">or</span>
         <span class="badge" style="background: #fee2e2; color: #991b1b;">failed</span>
     </div>
     <p style="margin-top: 0.75rem;">If the workflow includes a human review step, documents may enter:</p>
     <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-family: monospace; font-size: 0.9rem;">
-        <span class="badge badge-gold">completed_ocr</span>
+        <span class="badge badge-gold">extracted</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
         <span class="badge" style="background: #e0f2fe; color: #0c4a6e;">needs_validation</span>
         <span style="color: var(--text-secondary);">&rarr;</span>
@@ -279,7 +279,7 @@ curl -X POST /api/upload \
     "original_filename": "invoice.pdf",
     "file_type": "pdf",
     "file_size": 245782,
-    "status": "completed_ocr",
+    "status": "extracted",
     "created_at": "2026-02-19T10:30:00.000Z",
     "updated_at": "2026-02-19T10:31:15.000Z"
   }
@@ -290,7 +290,7 @@ curl -X POST /api/upload \
 
 <h3>Retrieving OCR Results</h3>
 
-<p>Once a document reaches <code>completed_ocr</code> status, retrieve the structured extraction data.</p>
+<p>Once a document reaches <code>extracted</code> status, retrieve the structured extraction data.</p>
 
 <div class="accordion-group">
     <details>
@@ -301,7 +301,7 @@ curl -X POST /api/upload \
             <p>Response:</p>
 <pre>{
   "document_id": "ef2dd8b2-cbed-4b30-a958-3c2484479ca4",
-  "status": "completed_ocr",
+  "status": "extracted",
   "title": "Invoice Q1-2026",
   "original_filename": "invoice.pdf",
   "file_type": "pdf",

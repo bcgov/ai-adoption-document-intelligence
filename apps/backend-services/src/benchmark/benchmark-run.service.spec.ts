@@ -8,14 +8,18 @@
 import { Prisma } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import { PrismaService } from "@/database/prisma.service";
+import { computeConfigHash } from "../workflow/config-hash";
+import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunService } from "./benchmark-run.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
 import { BenchmarkTemporalService } from "./benchmark-temporal.service";
 import { DatasetService } from "./dataset.service";
+import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 const ACTOR_ID = "actor-test";
 
@@ -181,6 +185,10 @@ describe("BenchmarkRunService", () => {
             logRunStarted: jest.fn().mockResolvedValue({}),
             logBaselinePromoted: jest.fn().mockResolvedValue({}),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
         {
           provide: BLOB_STORAGE,
@@ -535,6 +543,7 @@ describe("BenchmarkRunService", () => {
       (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
         id: "wv-cand-1",
         config: candidateConfig,
+        lineage: { group_id: "test-group" },
       });
       (prisma.benchmarkRun.create as jest.Mock).mockResolvedValue({
         ...mockRun,
@@ -569,13 +578,15 @@ describe("BenchmarkRunService", () => {
 
       expect(prisma.workflowVersion.findUnique).toHaveBeenCalledWith({
         where: { id: "wv-cand-1" },
-        select: { config: true },
+        select: { config: true, lineage: { select: { group_id: true } } },
       });
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           workflowVersionId: "wv-cand-1",
-          workflowConfig: candidateConfig,
+          workflowConfigHash: computeConfigHash(
+            candidateConfig as unknown as GraphWorkflowConfig,
+          ),
         }),
       );
     });
@@ -592,6 +603,30 @@ describe("BenchmarkRunService", () => {
           "def-1",
           {
             candidateWorkflowVersionId: "missing-wv",
+          },
+          ACTOR_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects a candidate workflow version owned by another group (cross-group reference blocked)", async () => {
+      (prisma.benchmarkDefinition.findFirst as jest.Mock).mockResolvedValue(
+        mockDefinition,
+      );
+      // Candidate exists but its lineage belongs to a different group than the
+      // run's project (mockProject is "test-group").
+      (prisma.workflowVersion.findUnique as jest.Mock).mockResolvedValue({
+        id: "wv-cand-1",
+        config: {},
+        lineage: { group_id: "other-group" },
+      });
+
+      await expect(
+        service.startRun(
+          "project-1",
+          "def-1",
+          {
+            candidateWorkflowVersionId: "wv-cand-1",
           },
           ACTOR_ID,
         ),
@@ -866,17 +901,24 @@ describe("BenchmarkRunService", () => {
 
       await service.startRun("project-1", "def-1", {}, ACTOR_ID);
 
-      // Verify the workflow config passed to Temporal has the override applied
+      const baseConfig = definitionWithOverrides.workflowVersion
+        .config as GraphWorkflowConfig;
+      const mergedConfig = applyWorkflowConfigOverrides(
+        baseConfig,
+        definitionWithOverrides.workflowConfigOverrides as Record<
+          string,
+          unknown
+        >,
+      );
+
+      // Slim Temporal start: versionId + hash + overrides for load-time merge
       expect(benchmarkTemporal.startBenchmarkRunWorkflow).toHaveBeenCalledWith(
         "run-1",
         expect.objectContaining({
-          workflowConfig: expect.objectContaining({
-            ctx: expect.objectContaining({
-              modelId: expect.objectContaining({
-                defaultValue: "prebuilt-read",
-              }),
-            }),
-          }),
+          workflowConfigHash: computeConfigHash(mergedConfig),
+          workflowConfigOverrides: {
+            "ctx.modelId.defaultValue": "prebuilt-read",
+          },
         }),
       );
 
@@ -1951,6 +1993,10 @@ describe("BenchmarkRunService", () => {
             },
           },
           {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
+          {
             provide: BLOB_STORAGE,
             useValue: {
               read: jest.fn().mockResolvedValue(
@@ -2041,6 +2087,10 @@ describe("BenchmarkRunService", () => {
               logRunStarted: jest.fn(),
               logBaselinePromoted: jest.fn(),
             },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
           },
           {
             provide: BLOB_STORAGE,
@@ -2142,6 +2192,10 @@ describe("BenchmarkRunService", () => {
               logRunStarted: jest.fn(),
               logBaselinePromoted: jest.fn(),
             },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
           },
           {
             provide: BLOB_STORAGE,

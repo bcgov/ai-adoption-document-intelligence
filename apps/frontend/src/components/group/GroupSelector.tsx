@@ -1,9 +1,8 @@
-import type { ComboboxItem } from "@mantine/core";
-import { Anchor, Select, Tooltip } from "@mantine/core";
 import type { JSX } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { useAllGroups } from "@/data/hooks/useGroups";
 import { useGroup } from "../../auth/GroupContext";
+import { Anchor, type ComboboxItem, Select, Tooltip } from "../../ui";
 
 /**
  * A searchable dropdown that lets the authenticated user switch their active group.
@@ -52,18 +51,19 @@ export function GroupSelector(): JSX.Element {
   };
 
   return (
-    <Tooltip label="Active Group" position="bottom" withArrow>
-      <Select
-        data={data}
-        value={activeGroup?.id ?? null}
-        onChange={handleChange}
-        searchable
-        placeholder="Select a group"
-        size="sm"
-        w={180}
-        aria-label="Active group"
-        data-testid="group-selector"
-      />
+    <Tooltip label="Active group" position="bottom" withArrow>
+      <span style={{ display: "inline-flex", width: 176 }}>
+        <Select
+          data={data}
+          value={activeGroup?.id ?? null}
+          onChange={handleChange}
+          searchable
+          placeholder="Select a group"
+          size="sm"
+          aria-label="Active group"
+          data-testid="group-selector"
+        />
+      </span>
     </Tooltip>
   );
 }

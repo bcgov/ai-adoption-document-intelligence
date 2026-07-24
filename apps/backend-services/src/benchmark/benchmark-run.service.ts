@@ -22,12 +22,13 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   type BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
-import { computeConfigHash } from "@/workflow/config-hash";
 import type { GraphWorkflowConfig } from "@/workflow/graph-workflow-types";
+import { computeConfigHashWithOverrides } from "../workflow/config-hash";
 import { AuditLogService } from "./audit-log.service";
 import { BenchmarkErrorDetectionService } from "./benchmark-error-detection.service";
 import { BenchmarkRunDbService } from "./benchmark-run-db.service";
@@ -52,7 +53,6 @@ import {
   RunSummaryDto,
   SampleFailureDto,
 } from "./dto";
-import { applyWorkflowConfigOverrides } from "./workflow-config-overrides";
 
 @Injectable()
 export class BenchmarkRunService {
@@ -63,6 +63,7 @@ export class BenchmarkRunService {
     private benchmarkTemporal: BenchmarkTemporalService,
     private datasetService: DatasetService,
     private readonly auditLogService: AuditLogService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly errorDetectionService: BenchmarkErrorDetectionService,
@@ -258,15 +259,6 @@ export class BenchmarkRunService {
     return digest;
   }
 
-  /**
-   * Same canonical hash as benchmark definitions and Temporal graph runs
-   * ({@link computeConfigHash}): defaults + key order normalization so an
-   * in-memory config matches JSON loaded from `workflow_version.config`.
-   */
-  private hashWorkflowConfigJson(config: unknown): string {
-    return computeConfigHash(config as GraphWorkflowConfig);
-  }
-
   private async assertOcrCacheBaselineRun(
     projectId: string,
     datasetVersionId: string,
@@ -381,7 +373,6 @@ export class BenchmarkRunService {
 
     const runTags = dto.tags || {};
 
-    let workflowConfigUsed: Record<string, unknown>;
     let workflowConfigHashUsed: string;
 
     // Apply workflow config overrides from the definition
@@ -392,27 +383,29 @@ export class BenchmarkRunService {
       const candidateRow = await this.runDb.findWorkflowVersionConfig(
         dto.candidateWorkflowVersionId,
       );
-      if (!candidateRow) {
+      // The candidate must belong to the run's project group; a version owned
+      // by another group is reported as not found so its config cannot be
+      // executed or its hash disclosed cross-group.
+      if (
+        !candidateRow ||
+        candidateRow.lineage.group_id !== definition.project.group_id
+      ) {
         throw new BadRequestException(
           `candidateWorkflowVersionId "${dto.candidateWorkflowVersionId}" not found`,
         );
       }
-      workflowConfigUsed = candidateRow.config as Record<string, unknown>;
-      workflowConfigHashUsed = this.hashWorkflowConfigJson(candidateRow.config);
+      workflowConfigHashUsed = computeConfigHashWithOverrides(
+        candidateRow.config as unknown as GraphWorkflowConfig,
+      );
     } else {
-      const baseConfig = definition.workflowVersion.config as Record<
-        string,
-        unknown
-      >;
-      if (Object.keys(workflowConfigOverrides).length > 0) {
-        workflowConfigUsed = applyWorkflowConfigOverrides(
-          baseConfig as unknown as GraphWorkflowConfig,
-          workflowConfigOverrides,
-        ) as unknown as Record<string, unknown>;
-      } else {
-        workflowConfigUsed = baseConfig;
-      }
-      workflowConfigHashUsed = definition.workflowConfigHash;
+      const baseConfig = definition.workflowVersion
+        .config as unknown as GraphWorkflowConfig;
+      workflowConfigHashUsed = computeConfigHashWithOverrides(
+        baseConfig,
+        Object.keys(workflowConfigOverrides).length > 0
+          ? workflowConfigOverrides
+          : undefined,
+      );
     }
 
     const runParams: Record<string, unknown> = {
@@ -467,7 +460,6 @@ export class BenchmarkRunService {
             : undefined,
           workflowVersionId:
             dto.candidateWorkflowVersionId ?? definition.workflowVersionId,
-          workflowConfig: workflowConfigUsed,
           workflowConfigHash: workflowConfigHashUsed,
           evaluatorType: definition.evaluatorType,
           evaluatorConfig: definition.evaluatorConfig as Record<
@@ -483,6 +475,10 @@ export class BenchmarkRunService {
           workerImageDigest: workerImageDigest ?? undefined,
           persistOcrCache: effectivePersistOcrCache,
           ocrCacheBaselineRunId: dto.ocrCacheBaselineRunId,
+          workflowConfigOverrides:
+            Object.keys(workflowConfigOverrides).length > 0
+              ? workflowConfigOverrides
+              : undefined,
         });
 
       await this.runDb.postTemporalStartTransaction(
@@ -529,7 +525,11 @@ export class BenchmarkRunService {
   /**
    * Cancel a running benchmark
    */
-  async cancelRun(projectId: string, runId: string): Promise<RunDetailsDto> {
+  async cancelRun(
+    projectId: string,
+    runId: string,
+    actorId?: string,
+  ): Promise<RunDetailsDto> {
     this.logger.log(`Cancelling benchmark run ${runId}`);
 
     // Get the run
@@ -565,6 +565,17 @@ export class BenchmarkRunService {
       completedAt: new Date(),
     });
 
+    await this.auditService.recordEvent({
+      event_type: "benchmark_run_cancelled",
+      resource_type: "benchmark_run",
+      resource_id: runId,
+      actor_id: actorId,
+      payload: {
+        project_id: projectId,
+        definition_id: run.definitionId,
+      },
+    });
+
     this.logger.log(`Benchmark run ${runId} cancelled`);
 
     return this.getRunById(projectId, runId);
@@ -581,7 +592,11 @@ export class BenchmarkRunService {
    * @throws NotFoundException if the run does not exist
    * @throws BadRequestException if the run is still active
    */
-  async deleteRun(projectId: string, runId: string): Promise<void> {
+  async deleteRun(
+    projectId: string,
+    runId: string,
+    actorId?: string,
+  ): Promise<void> {
     const run = await this.runDb.findBenchmarkRun(runId, projectId);
 
     if (!run) {
@@ -596,43 +611,61 @@ export class BenchmarkRunService {
       );
     }
 
-    await this.runDb.deleteBenchmarkRun(runId);
+    await this.runDb.transaction(async (tx) => {
+      await this.runDb.deleteBenchmarkRun(runId, tx);
 
-    // If no runs remain for this definition, reset immutability
-    const remainingRuns = await this.runDb.countRunsByDefinition(
-      run.definitionId,
-    );
-
-    if (remainingRuns === 0) {
-      await this.runDb.resetDefinitionImmutability(run.definitionId);
-      this.logger.log(
-        `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
+      // If no runs remain for this definition, reset immutability and unfreeze
+      const remainingRuns = await this.runDb.countRunsByDefinition(
+        run.definitionId,
+        tx,
       );
 
-      // Unfreeze dataset version if no other definitions with runs reference it
-      const { datasetVersionId, splitId } = run.definition;
-      const otherDefsUsingVersion =
-        await this.runDb.countRunsByDatasetVersion(datasetVersionId);
-
-      if (otherDefsUsingVersion === 0) {
-        await this.runDb.unfreezeDatasetVersion(datasetVersionId);
+      if (remainingRuns === 0) {
+        await this.runDb.resetDefinitionImmutability(run.definitionId, tx);
         this.logger.log(
-          `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
+          `Reset immutability for definition ${run.definitionId} (no remaining runs)`,
         );
-      }
 
-      // Unfreeze split if no other definitions with runs reference it
-      if (splitId) {
-        const otherDefsUsingSplit = await this.runDb.countRunsBySplit(splitId);
+        const { datasetVersionId, splitId } = run.definition;
+        const otherDefsUsingVersion =
+          await this.runDb.countRunsByDatasetVersion(datasetVersionId, tx);
 
-        if (otherDefsUsingSplit === 0) {
-          await this.runDb.unfreezeSplit(splitId);
+        if (otherDefsUsingVersion === 0) {
+          await this.runDb.unfreezeDatasetVersion(datasetVersionId, tx);
           this.logger.log(
-            `Unfroze split ${splitId} (no remaining runs reference it)`,
+            `Unfroze dataset version ${datasetVersionId} (no remaining runs reference it)`,
           );
         }
+
+        if (splitId) {
+          const otherDefsUsingSplit = await this.runDb.countRunsBySplit(
+            splitId,
+            tx,
+          );
+
+          if (otherDefsUsingSplit === 0) {
+            await this.runDb.unfreezeSplit(splitId, tx);
+            this.logger.log(
+              `Unfroze split ${splitId} (no remaining runs reference it)`,
+            );
+          }
+        }
       }
-    }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "benchmark_run_deleted",
+          resource_type: "benchmark_run",
+          resource_id: runId,
+          actor_id: actorId,
+          payload: {
+            project_id: projectId,
+            definition_id: run.definitionId,
+          },
+        },
+        tx,
+      );
+    });
 
     this.logger.log(`Deleted benchmark run ${runId} from project ${projectId}`);
   }

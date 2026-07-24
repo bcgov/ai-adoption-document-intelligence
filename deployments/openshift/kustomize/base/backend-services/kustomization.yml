@@ -6,11 +6,12 @@ resources:
   - route.yml
   - configmap.yml
   - secret.yml
-  - pvc.yml
   - pvc-logs.yml
   - logrotate-configmap.yml
   - promtail-configmap.yml
   - networkpolicy.yml
+  - poddisruptionbudget.yml
+  - horizontalpodautoscaler.yml
 commonLabels:
   app: backend-services
   env: tools

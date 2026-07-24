@@ -1,23 +1,4 @@
 import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Button,
-  Code,
-  Group,
-  Loader,
-  NumberInput,
-  Paper,
-  SegmentedControl,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconCheck,
   IconInfoCircle,
@@ -25,6 +6,25 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Code,
+  DataTable,
+  Group,
+  Loader,
+  NumberInput,
+  notifications,
+  Paper,
+  SegmentedControl,
+  Stack,
+  Text,
+  Textarea,
+  Title,
+  Tooltip,
+} from "../../../../ui";
 import { useTraining } from "../hooks/useTraining";
 import { useTrainingInfo } from "../hooks/useTrainingInfo";
 import { BuildMode, TrainingStatus } from "../types/training.types";
@@ -67,7 +67,7 @@ export function TrainingPanel({
             : undefined,
       });
       notifications.show({
-        title: "Training Started",
+        title: "Training started",
         message: "Training has been initiated.",
         color: "green",
         icon: <IconCheck />,
@@ -75,7 +75,7 @@ export function TrainingPanel({
       setDescription("");
     } catch (error: unknown) {
       notifications.show({
-        title: "Training Failed",
+        title: "Training failed",
         message:
           error instanceof Error ? error.message : "Failed to start training",
         color: "red",
@@ -88,13 +88,13 @@ export function TrainingPanel({
     try {
       await cancelJob(jobId);
       notifications.show({
-        title: "Job Cancelled",
+        title: "Job cancelled",
         message: "Training job has been cancelled",
         color: "blue",
       });
     } catch (error: unknown) {
       notifications.show({
-        title: "Cancel Failed",
+        title: "Cancel failed",
         message:
           error instanceof Error ? error.message : "Failed to cancel job",
         color: "red",
@@ -145,7 +145,7 @@ export function TrainingPanel({
       {/* Validation */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Training Readiness
+          Training readiness
         </Title>
         {isValidating ? (
           <Loader size="sm" />
@@ -153,7 +153,7 @@ export function TrainingPanel({
           validation.valid ? (
             <Alert
               color="green"
-              title="Ready for Training"
+              title="Ready for training"
               icon={<IconCheck />}
             >
               Template model has {validation.labeledDocumentsCount} labeled
@@ -162,7 +162,7 @@ export function TrainingPanel({
           ) : (
             <Alert
               color="red"
-              title="Not Ready for Training"
+              title="Not ready for training"
               icon={<IconAlertCircle />}
             >
               <Stack gap="xs">
@@ -186,16 +186,16 @@ export function TrainingPanel({
         ) : null}
       </Paper>
 
-      {/* Start Training */}
+      {/* Start training */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Start Training
+          Start training
         </Title>
         <Stack gap="md">
           {templateModelModelId && (
             <Group gap="xs">
               <Text size="sm" fw={500}>
-                Template Model ID:
+                Template model ID:
               </Text>
               <Code>{templateModelModelId}</Code>
               <Text size="xs" c="dimmed">
@@ -297,7 +297,7 @@ export function TrainingPanel({
             loading={isStarting}
             leftSection={isStarting ? <Loader size="xs" /> : null}
           >
-            {isStarting ? "Starting Training..." : "Train"}
+            {isStarting ? "starting training..." : "train"}
           </Button>
         </Stack>
       </Paper>
@@ -306,9 +306,9 @@ export function TrainingPanel({
       {latestSucceededJob && (
         <Paper p="md" withBorder>
           <Title order={4} mb="md">
-            Model Status
+            Model status
           </Title>
-          <Alert color="green" title="Model Trained" icon={<IconCheck />}>
+          <Alert color="green" title="Model trained" icon={<IconCheck />}>
             <Text size="sm">
               Last successful training completed on{" "}
               {formatDate(
@@ -322,7 +322,7 @@ export function TrainingPanel({
       {/* Jobs table */}
       <Paper p="md" withBorder>
         <Title order={4} mb="md">
-          Training Jobs
+          Training jobs
         </Title>
         {isLoadingJobs ? (
           <Loader size="sm" />
@@ -331,21 +331,21 @@ export function TrainingPanel({
             No training jobs yet. Start your first training above.
           </Text>
         ) : (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Mode</Table.Th>
-                <Table.Th>Started</Table.Th>
-                <Table.Th>Duration</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          <DataTable striped highlightOnHover>
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Status</DataTable.Th>
+                <DataTable.Th>Mode</DataTable.Th>
+                <DataTable.Th>Started</DataTable.Th>
+                <DataTable.Th>Duration</DataTable.Th>
+                <DataTable.Th>Actions</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {jobs.map((job) => (
-                <Table.Tr key={job.id}>
-                  <Table.Td>{getStatusBadge(job.status)}</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr key={job.id}>
+                  <DataTable.Td>{getStatusBadge(job.status)}</DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">
                       {job.buildMode}
                       {job.buildMode === BuildMode.neural &&
@@ -353,16 +353,16 @@ export function TrainingPanel({
                         ? ` · ${job.maxTrainingHours}h budget`
                         : ""}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">{formatDate(job.startedAt)}</Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm">
                       {getDuration(job.startedAt, job.completedAt)}
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     {job.status === TrainingStatus.TRAINING ||
                     job.status === TrainingStatus.UPLOADING ||
                     job.status === TrainingStatus.UPLOADED ? (
@@ -383,11 +383,11 @@ export function TrainingPanel({
                         </ActionIcon>
                       </Tooltip>
                     ) : null}
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         )}
       </Paper>
     </Stack>

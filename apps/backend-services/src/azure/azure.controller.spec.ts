@@ -4,9 +4,11 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
+  PayloadTooLargeException,
 } from "@nestjs/common";
 import { Request } from "express";
 import type { AuditService } from "@/audit/audit.service";
+import { IDENTITY_KEY, type IdentityOptions } from "@/auth/identity.decorator";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -61,6 +63,42 @@ describe("AzureController", () => {
       mockAppLogger,
       { recordEvent: jest.fn() } as unknown as AuditService,
     );
+  });
+
+  describe("classifier document route auth", () => {
+    it("should allow API keys for blob-backed classifier document routes", () => {
+      const routeHandlers = [
+        AzureController.prototype.uploadClassifierDocuments,
+        AzureController.prototype.getClassifierDocuments,
+        AzureController.prototype.deleteClassifierDocuments,
+      ];
+
+      for (const handler of routeHandlers) {
+        const metadata = Reflect.getMetadata(
+          IDENTITY_KEY,
+          handler,
+        ) as IdentityOptions;
+        expect(metadata.allowApiKey).toBe(true);
+        expect(metadata.minimumRole).toBe(GroupRole.MEMBER);
+        expect(metadata.groupIdFrom).toEqual({ query: "group_id" });
+      }
+    });
+
+    it("should allow API keys for classifier list and create (load-test provisioning)", () => {
+      const getMeta = Reflect.getMetadata(
+        IDENTITY_KEY,
+        AzureController.prototype.getClassifiers,
+      ) as IdentityOptions;
+      expect(getMeta.allowApiKey).toBe(true);
+
+      const createMeta = Reflect.getMetadata(
+        IDENTITY_KEY,
+        AzureController.prototype.createClassifier,
+      ) as IdentityOptions;
+      expect(createMeta.allowApiKey).toBe(true);
+      expect(createMeta.minimumRole).toBe(GroupRole.MEMBER);
+      expect(createMeta.groupIdFrom).toEqual({ body: "group_id" });
+    });
   });
 
   describe("getClassifiers", () => {
@@ -174,6 +212,22 @@ describe("AzureController", () => {
           "g1",
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+    it("should throw PayloadTooLargeException when a file exceeds 100MB", async () => {
+      classifierService.findClassifierModel.mockResolvedValue({ id: "1" });
+      const oversizedFile = {
+        ...mockFile,
+        originalname: "large.pdf",
+        size: 100 * 1024 * 1024 + 1,
+      };
+      await expect(
+        controller.uploadClassifierDocuments(
+          [oversizedFile],
+          { name: "c1", label: "l1" },
+          "g1",
+        ),
+      ).rejects.toThrow(PayloadTooLargeException);
+      expect(storageService.write).not.toHaveBeenCalled();
     });
   });
 

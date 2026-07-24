@@ -1,5 +1,3 @@
-import { Button, Group, Modal, Stack, Text, Textarea } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { type JSX, useState } from "react";
 import {
   type GroupRequest,
@@ -7,6 +5,15 @@ import {
   useDenyMembershipRequest,
   useGroupRequests,
 } from "../../data/hooks/useGroups";
+import {
+  Button,
+  Group,
+  Modal,
+  notifications,
+  Stack,
+  Text,
+  Textarea,
+} from "../../ui";
 import { makeGroupRequestColumns, RequestsTable } from "./RequestsTable";
 
 interface RequestsTabProps {
@@ -125,7 +132,7 @@ export function GroupRequestsTab({
       <Modal
         opened={approveModalOpen}
         onClose={() => setApproveModalOpen(false)}
-        title="Approve Membership Request"
+        title="Approve membership request"
         data-testid="approve-modal"
       >
         <Stack gap="md">
@@ -163,7 +170,7 @@ export function GroupRequestsTab({
       <Modal
         opened={denyModalOpen}
         onClose={() => setDenyModalOpen(false)}
-        title="Deny Membership Request"
+        title="Deny membership request"
         data-testid="deny-modal"
       >
         <Stack gap="md">

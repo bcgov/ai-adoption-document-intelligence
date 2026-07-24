@@ -1,5 +1,5 @@
-import { Stack, Text } from "@mantine/core";
 import { FC } from "react";
+import { Stack, Text } from "../../../../ui";
 
 interface TableFieldViewProps {
   value?: string;

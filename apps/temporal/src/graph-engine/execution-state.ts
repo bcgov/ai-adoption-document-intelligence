@@ -18,6 +18,7 @@ export interface ExecutionState {
   ctx: Record<string, unknown>;
   selectedEdges: Map<string, string>; // nodeId -> selected edgeId for switch nodes
   mapBranchResults: Map<string, unknown[]>; // mapNodeId -> array of branch results
+  workflowVersionId?: string;
   configHash: string;
   runnerVersion: string;
   requestId?: string;
@@ -26,6 +27,7 @@ export interface ExecutionState {
   // the workflow JSON. Lives outside ctx so graph-workflow authors cannot
   // forge or override it via ctx defaults.
   groupId?: string | null;
+  workflowConfigOverrides?: Record<string, unknown>;
   lastError: {
     current?: {
       nodeId: string;

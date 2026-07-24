@@ -5,11 +5,13 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { lastValueFrom } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
+import { AzureService } from "@/azure/azure.service";
 import {
   buildBlobFilePath,
   OperationCategory,
   validateBlobFilePath,
 } from "@/blob-storage/storage-path-builder";
+import { computeContentHash } from "@/document/content-hash.util";
 import { extensionForOriginalBlob } from "@/document/original-blob-key.util";
 import {
   PdfNormalizationError,
@@ -24,12 +26,18 @@ import type { AnalysisResponse } from "../ocr/azure-types";
 import { LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import type { LabelingDocumentData } from "./labeling-document-db.types";
+import { mockLabelingOcrAnalysisResponse } from "./mock-labeling-ocr-response";
 
 type JsonValue = Prisma.JsonValue;
 
 export type CreateLabelingDocumentResult =
   | { kind: "success"; labelingDocument: LabelingDocumentData }
   | { kind: "conversion_failed"; labelingDocument: LabelingDocumentData };
+
+export type PreparedLabelingDocument = {
+  kind: "success" | "conversion_failed";
+  data: Omit<LabelingDocumentData, "id" | "created_at" | "updated_at">;
+};
 
 @Injectable()
 export class TemplateModelOcrService {
@@ -38,6 +46,7 @@ export class TemplateModelOcrService {
 
   constructor(
     private readonly labelingDocumentDb: LabelingDocumentDbService,
+    private readonly azureService: AzureService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
     @Inject(BLOB_STORAGE)
@@ -53,9 +62,13 @@ export class TemplateModelOcrService {
     )!;
   }
 
-  async createLabelingDocument(
+  /**
+   * Upload blobs and build labeling-document row data without writing to the DB.
+   * Callers that need atomic multi-row inserts should persist via a transaction.
+   */
+  async prepareLabelingDocument(
     dto: LabelingUploadDto,
-  ): Promise<CreateLabelingDocumentResult> {
+  ): Promise<PreparedLabelingDocument> {
     const base64Data = dto.file.includes(",")
       ? dto.file.split(",")[1]
       : dto.file;
@@ -64,6 +77,8 @@ export class TemplateModelOcrService {
       dto.original_filename || `${dto.title}.${dto.file_type}`;
 
     await this.pdfNormalization.validateForUpload(fileBuffer, dto.file_type);
+
+    const contentHash = computeContentHash(fileBuffer);
 
     const documentId = uuidv4();
     const extension = extensionForOriginalBlob(originalFilename, dto.file_type);
@@ -98,14 +113,16 @@ export class TemplateModelOcrService {
         });
       }
 
-      const labelingDocument =
-        await this.labelingDocumentDb.createLabelingDocument({
+      return {
+        kind: "conversion_failed",
+        data: {
           title: dto.title,
           original_filename: originalFilename,
           file_path: blobKey,
           normalized_file_path: null,
           file_type: dto.file_type,
           file_size: fileBuffer.length,
+          content_hash: contentHash,
           metadata: dto.metadata,
           source: "labeling",
           status: DocumentStatus.conversion_failed,
@@ -113,19 +130,20 @@ export class TemplateModelOcrService {
           model_id: "prebuilt-layout",
           ocr_result: null,
           group_id: dto.group_id,
-        });
-
-      return { kind: "conversion_failed", labelingDocument };
+        },
+      };
     }
 
-    const labelingDocument =
-      await this.labelingDocumentDb.createLabelingDocument({
+    return {
+      kind: "success",
+      data: {
         title: dto.title,
         original_filename: originalFilename,
         file_path: blobKey,
         normalized_file_path: normalizedKey,
         file_type: dto.file_type,
         file_size: fileBuffer.length,
+        content_hash: contentHash,
         metadata: dto.metadata,
         source: "labeling",
         status: DocumentStatus.ongoing_ocr,
@@ -133,9 +151,17 @@ export class TemplateModelOcrService {
         model_id: "prebuilt-layout",
         ocr_result: null,
         group_id: dto.group_id,
-      });
+      },
+    };
+  }
 
-    return { kind: "success", labelingDocument };
+  async createLabelingDocument(
+    dto: LabelingUploadDto,
+  ): Promise<CreateLabelingDocumentResult> {
+    const prepared = await this.prepareLabelingDocument(dto);
+    const labelingDocument =
+      await this.labelingDocumentDb.createLabelingDocument(prepared.data);
+    return { kind: prepared.kind, labelingDocument };
   }
 
   async processOcrForLabelingDocument(
@@ -170,7 +196,7 @@ export class TemplateModelOcrService {
       const analysisResponse = await this.waitForOcrCompletion(apimRequestId);
 
       await this.labelingDocumentDb.updateLabelingDocument(labelingDocumentId, {
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
         ocr_result: analysisResponse as unknown as JsonValue,
       });
     } catch (error) {
@@ -184,6 +210,10 @@ export class TemplateModelOcrService {
   }
 
   private async requestOcr(blobKey: string): Promise<string> {
+    if (this.azureService.isMockMode()) {
+      return "mock-apim-request-id";
+    }
+
     const fileBuffer = await this.blobStorage.read(
       validateBlobFilePath(blobKey),
     );
@@ -215,6 +245,10 @@ export class TemplateModelOcrService {
     maxAttempts = 30,
     delayMs = 2000,
   ): Promise<AnalysisResponse> {
+    if (this.azureService.isMockMode()) {
+      return mockLabelingOcrAnalysisResponse();
+    }
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       const response = await lastValueFrom(
         this.httpService.get(

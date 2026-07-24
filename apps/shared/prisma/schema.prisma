@@ -30,11 +30,16 @@ model Document {
   normalized_file_path  String?
   file_type             String
   file_size             Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash          String?
   metadata              Json?
   source                String
   status                DocumentStatus         @default(pre_ocr)
   created_at            DateTime               @default(now())
   updated_at            DateTime               @updatedAt
+  /// Set by the ephemeral-document cleanup janitor once the document's blobs
+  /// and Temporal execution record have been purged. Null = not yet purged.
+  purged_at             DateTime?
   apim_request_id       String?
   workflow_id           String? // @deprecated: Use workflow_config_id and workflow_execution_id instead
   workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
@@ -49,7 +54,22 @@ model Document {
   workflowVersion       WorkflowVersion?       @relation(fields: [workflow_config_id], references: [id], onDelete: SetNull)
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@index([workflow_config_id])
+  // Supports the documents list endpoint's common access pattern:
+  // filter by group_id, order by created_at DESC, limit/offset. Lets Postgres
+  // serve the default sort from the index instead of sorting the group's rows.
+  @@index([group_id, created_at(sort: Desc)])
+  // Partial index `documents_purge_scan_idx` on (workflow_config_id, status)
+  // WHERE purged_at IS NULL supports the ephemeral-cleanup janitor. Prisma
+  // cannot express partial indexes, so it is managed via the raw SQL migration
+  // 20260624000000_add_documents_purge_index. Do not let `migrate dev` drop it.
+  //
+  // Trigram GIN indexes `documents_title_trgm_idx` /
+  // `documents_original_filename_trgm_idx` back the list endpoint's ILIKE
+  // search. Prisma cannot express GIN/trigram indexes, so they are managed via
+  // the raw SQL migration 20260626000000_add_documents_list_indexes. Do not let
+  // `migrate dev` drop them.
   @@map("documents")
 }
 
@@ -62,6 +82,8 @@ model LabelingDocument {
   normalized_file_path String?
   file_type         String
   file_size         Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash      String?
   metadata          Json?
   source            String
   status            DocumentStatus    @default(pre_ocr)
@@ -75,6 +97,7 @@ model LabelingDocument {
   group             Group             @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@map("labeling_documents")
 }
 
@@ -574,7 +597,12 @@ enum ClassifierStatus {
 enum DocumentStatus {
   pre_ocr
   ongoing_ocr
-  completed_ocr
+  /// OCR extraction complete; workflow may continue (e.g. HITL review).
+  extracted
+  /// OCR complete; document paused awaiting human review.
+  awaiting_review
+  /// Entire process complete (OCR + optional HITL review).
+  complete
   failed
   /// Original stored but image/PDF could not be normalized to a display/OCR PDF.
   conversion_failed

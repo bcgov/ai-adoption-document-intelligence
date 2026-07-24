@@ -1,0 +1,9 @@
+.bcds-panel-card {
+  background-color: var(--surface-color-background-white);
+  border-color: var(--surface-color-border-default);
+}
+
+.bcds-stat-card {
+  background-color: var(--surface-color-background-white);
+  border-color: var(--surface-color-border-default);
+}

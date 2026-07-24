@@ -20,6 +20,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { GroupRole } from "@/generated";
@@ -39,6 +40,7 @@ export class UploadController {
     private readonly queueService: QueueService,
     private readonly workflowService: WorkflowService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Post()
@@ -68,24 +70,10 @@ export class UploadController {
     this.logger.debug("=== UploadController.uploadDocument ===");
 
     try {
-      // Validate base64 file data
-      if (!uploadDto.file || uploadDto.file.trim().length === 0) {
-        throw new BadRequestException("File data is required");
-      }
-
-      // Use original_filename from DTO or default to title
-      const originalFilename =
-        uploadDto.original_filename ||
-        `${uploadDto.title}.${uploadDto.file_type}`;
-
-      // Resolve group: explicit body > API key's group. Reject mismatches.
+      // Authorize first (fail-closed): resolve group and check access before input
+      // validation so invalid payloads cannot bypass membership checks.
       const apiKeyGroupId = req.apiKey?.groupId;
       const groupId = uploadDto.group_id ?? apiKeyGroupId;
-      if (!groupId) {
-        throw new BadRequestException(
-          "group_id is required when not authenticating with an API key",
-        );
-      }
       if (
         apiKeyGroupId &&
         uploadDto.group_id &&
@@ -95,7 +83,22 @@ export class UploadController {
           "group_id does not match the API key's group",
         );
       }
+      if (!groupId) {
+        throw new BadRequestException(
+          "group_id is required when not authenticating with an API key",
+        );
+      }
       identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.MEMBER);
+
+      // Validate base64 file data
+      if (!uploadDto.file || uploadDto.file.trim().length === 0) {
+        throw new BadRequestException("File data is required");
+      }
+
+      // Use original_filename from DTO or default to title
+      const originalFilename =
+        uploadDto.original_filename ||
+        `${uploadDto.title}.${uploadDto.file_type}`;
 
       // Resolve workflow → WorkflowVersion.id. Accept slug (+ optional version)
       // or a workflow_config_id (Version.id or Lineage.id).
@@ -111,8 +114,10 @@ export class UploadController {
       let modelId: string | undefined = uploadDto.model_id;
       if (!modelId && workflowConfigId) {
         modelId =
-          (await this.workflowService.getModelIdDefault(workflowConfigId)) ??
-          undefined;
+          (await this.workflowService.getModelIdDefault(
+            workflowConfigId,
+            groupId,
+          )) ?? undefined;
       }
       if (!modelId) {
         throw new BadRequestException(
@@ -138,13 +143,13 @@ export class UploadController {
       if (uploadResult.kind === "conversion_failed") {
         const doc = uploadResult.document;
         this.logger.warn(
-          `Document ${doc.id} stored but PDF normalization failed`,
+          `Document ${doc.id} stored but PDF normalization failed (${uploadResult.code})`,
         );
         throw new HttpException(
           {
             success: false,
-            code: "conversion_failed",
-            message: "Document could not be converted to PDF",
+            code: uploadResult.code,
+            message: uploadResult.reason,
             document: {
               id: doc.id,
               title: doc.title,
@@ -165,6 +170,20 @@ export class UploadController {
       this.logger.debug(
         `Document uploaded successfully: ${uploadedDocument.id}`,
       );
+
+      await this.auditService.recordEvent({
+        event_type: "document_uploaded",
+        resource_type: "document",
+        resource_id: uploadedDocument.id,
+        actor_id: req.resolvedIdentity.actorId,
+        document_id: uploadedDocument.id,
+        group_id: groupId,
+        payload: {
+          title: uploadedDocument.title,
+          file_type: uploadedDocument.file_type,
+          status: uploadedDocument.status,
+        },
+      });
 
       void this.queueService
         .processOcrForDocument({

@@ -1,3 +1,5 @@
+import { IconAlertCircle } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -6,9 +8,7 @@ import {
   Stack,
   Text,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 
 interface MetricThreshold {
   metricName: string;
@@ -130,7 +130,7 @@ export function BaselineThresholdDialog({
       opened={opened}
       onClose={onClose}
       title={
-        isEditing ? "Edit Baseline Thresholds" : "Configure Baseline Thresholds"
+        isEditing ? "Edit baseline thresholds" : "Configure baseline thresholds"
       }
       size="lg"
       data-testid="baseline-threshold-dialog"
@@ -188,6 +188,7 @@ export function BaselineThresholdDialog({
                       )
                     }
                     style={{ width: "140px" }}
+                    aria-label="Threshold type"
                     data-testid={`threshold-type-${threshold.metricName}`}
                   />
                   <TextInput
@@ -239,7 +240,7 @@ export function BaselineThresholdDialog({
             loading={isPromoting}
             data-testid="submit-threshold-btn"
           >
-            {isEditing ? "Update Thresholds" : "Promote to Baseline"}
+            {isEditing ? "update thresholds" : "promote to baseline"}
           </Button>
         </div>
       </Stack>

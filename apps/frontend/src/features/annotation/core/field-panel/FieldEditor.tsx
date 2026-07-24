@@ -1,5 +1,5 @@
-import { TextInput } from "@mantine/core";
 import { FC } from "react";
+import { TextInput } from "../../../../ui";
 import type { FieldDefinition } from "../types/field";
 
 interface FieldEditorProps {

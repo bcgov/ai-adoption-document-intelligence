@@ -1,5 +1,5 @@
-import { Stack, Text } from "@mantine/core";
 import { FC } from "react";
+import { Stack, Text } from "../../../../ui";
 import type { FieldDefinition } from "../types/field";
 import { FieldItem } from "./FieldItem";
 
@@ -34,7 +34,7 @@ export const FieldPanel: FC<FieldPanelProps> = ({
     return (
       <Stack gap="xs">
         <Text size="sm" c="dimmed">
-          {emptyMessage ?? "No fields to display."}
+          {emptyMessage ?? "no fields to display."}
         </Text>
       </Stack>
     );

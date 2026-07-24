@@ -253,6 +253,7 @@ describe("BenchmarkRunController", () => {
 
     it("uses source workflow owner as actorId when resolvedIdentity.actorId is absent", async () => {
       const sourceWorkflow: WorkflowInfo = {
+        configHash: "hash-1",
         id: "workflow-1",
         workflowVersionId: "wv-workflow-1",
         slug: "wf",
@@ -390,7 +391,11 @@ describe("BenchmarkRunController", () => {
 
       const result = await controller.cancelRun(projectId, "run-1", mockReq);
 
-      expect(mockRunService.cancelRun).toHaveBeenCalledWith(projectId, "run-1");
+      expect(mockRunService.cancelRun).toHaveBeenCalledWith(
+        projectId,
+        "run-1",
+        "actor-for-user-1",
+      );
       expect(result).toEqual(expected);
     });
 
@@ -723,7 +728,11 @@ describe("BenchmarkRunController", () => {
 
       await controller.deleteRun(projectId, "run-1", mockReq);
 
-      expect(mockRunService.deleteRun).toHaveBeenCalledWith(projectId, "run-1");
+      expect(mockRunService.deleteRun).toHaveBeenCalledWith(
+        projectId,
+        "run-1",
+        "actor-for-user-1",
+      );
     });
 
     it("throws when run is still active", async () => {

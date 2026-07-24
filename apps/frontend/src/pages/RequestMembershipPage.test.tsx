@@ -1,7 +1,8 @@
-import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GroupInfo } from "../data/hooks/useGroups";
+import { changeFieldValue } from "../test/fieldHelpers";
+import { MantineProvider } from "../ui";
 import { RequestMembershipPage } from "./RequestMembershipPage";
 
 // ---------------------------------------------------------------------------
@@ -155,9 +156,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("groups-search"), {
-        target: { value: "Alpha" },
-      });
+      changeFieldValue("groups-search", "Alpha");
 
       expect(screen.getByText("Group Alpha")).toBeInTheDocument();
       expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
@@ -172,9 +171,7 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      fireEvent.change(screen.getByTestId("groups-search"), {
-        target: { value: "zzznomatch" },
-      });
+      changeFieldValue("groups-search", "zzznomatch");
 
       expect(screen.queryByText("Group Alpha")).not.toBeInTheDocument();
       expect(screen.queryByText("Group Beta")).not.toBeInTheDocument();
@@ -233,7 +230,7 @@ describe("RequestMembershipPage", () => {
       expect(screen.getByTestId("request-success")).toBeInTheDocument();
     });
 
-    it("shows 'Request Pending' and disables the button for the joined group", () => {
+    it("shows 'Request pending' and disables the button for the joined group", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -260,10 +257,10 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      // group-a button is disabled and shows "Request Pending"
+      // group-a button is disabled and shows "Request pending"
       expect(screen.getByTestId("join-btn-group-a")).toBeDisabled();
       expect(screen.getByTestId("join-btn-group-a")).toHaveTextContent(
-        "Request Pending",
+        "Request pending",
       );
       // group-b button is still joinable
       expect(screen.getByTestId("join-btn-group-b")).not.toBeDisabled();
@@ -288,8 +285,9 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      expect(screen.getByTestId("request-error")).toBeInTheDocument();
-      expect(screen.getByText("Request failed")).toBeInTheDocument();
+      const errorAlert = screen.getByTestId("request-error");
+      expect(errorAlert).toBeInTheDocument();
+      expect(errorAlert).toHaveTextContent("Request failed");
     });
   });
 

@@ -1,16 +1,3 @@
-import {
-  Button,
-  FileInput,
-  Group,
-  List,
-  Modal,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
 import { useEffect, useState } from "react";
 import { useGroup } from "@/auth/GroupContext";
 import { ConflictingWorkflow, useClassifier } from "@/data/hooks/useClassifier";
@@ -18,6 +5,19 @@ import {
   ClassifierSource,
   RESERVED_CLASSIFIER_LABELS,
 } from "@/shared/types/classifier";
+import {
+  Button,
+  FileInput,
+  Group,
+  List,
+  Modal,
+  notifications,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  useForm,
+} from "../../ui";
 
 interface DeleteClassifierModalProps {
   isOpen: boolean;
@@ -37,7 +37,7 @@ export const DeleteClassifierModal = ({
   <Modal
     opened={isOpen}
     onClose={() => setIsOpen(false)}
-    title="Delete Classifier Files"
+    title="Delete classifier files"
     centered
   >
     <Stack gap="md">
@@ -126,7 +126,7 @@ export const UploadClassifierFilesModal = ({
     <Modal
       opened={isOpen}
       onClose={() => setIsOpen(false)}
-      title="Upload Files to Classifier"
+      title="Upload files to classifier"
       centered
     >
       <form onSubmit={form.onSubmit(handleSubmit)}>
@@ -215,7 +215,7 @@ export const DeleteClassifierConfirmationModal = ({
       {
         onSuccess: () => {
           notifications.show({
-            title: "Classifier Deleted",
+            title: "Classifier deleted",
             message: `"${classifierName}" has been permanently deleted.`,
             color: "green",
           });
@@ -243,7 +243,7 @@ export const DeleteClassifierConfirmationModal = ({
     <Modal
       opened={isOpen}
       onClose={handleClose}
-      title="Delete Classifier"
+      title="Delete classifier"
       centered
     >
       <Stack gap="md">
@@ -361,7 +361,7 @@ export const CreateClassifierModal = (props: CreateClassifierModalProps) => {
       >
         <Stack gap="md">
           <TextInput
-            label="Classifier Name"
+            label="Classifier name"
             placeholder="Enter classifier name"
             {...form.getInputProps("name")}
             required

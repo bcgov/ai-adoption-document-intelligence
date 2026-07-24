@@ -5,17 +5,11 @@
 
 import type { EnrichResultsParams } from "../activities";
 import type {
-  AnalyzeResult,
-  EnrichmentResult,
   EnrichmentSummary,
-  OCRResponse,
   OCRResult,
-  Page,
   PollResult,
   PreparedFileData,
-  Span,
   SubmissionResult,
-  Word,
 } from "../types";
 
 interface OCRWorkflowInput {
@@ -25,46 +19,6 @@ interface OCRWorkflowInput {
   fileType?: string;
   contentType?: string;
   modelId?: string;
-}
-
-const MINIMAL_SPAN: Span = { offset: 0, length: 1 };
-const MINIMAL_WORD: Word = {
-  content: "test",
-  polygon: [],
-  confidence: 0.99,
-  span: MINIMAL_SPAN,
-};
-const MINIMAL_PAGE: Page = {
-  pageNumber: 1,
-  width: 612,
-  height: 792,
-  unit: "inch",
-  words: [MINIMAL_WORD],
-  lines: [],
-  spans: [MINIMAL_SPAN],
-};
-
-function createMinimalOCRResult(
-  apimRequestId: string,
-  fileName: string,
-  fileType: string,
-): OCRResult {
-  return {
-    success: true,
-    status: "succeeded",
-    apimRequestId,
-    fileName,
-    fileType,
-    modelId: "prebuilt-document",
-    extractedText: "test",
-    pages: [MINIMAL_PAGE],
-    tables: [],
-    paragraphs: [],
-    keyValuePairs: [],
-    sections: [],
-    figures: [],
-    processedAt: new Date().toISOString(),
-  };
 }
 
 export const mockActivities = {
@@ -98,43 +52,62 @@ export const mockActivities = {
     _apimRequestId: string,
     _modelId: string,
   ): Promise<PollResult> {
-    const analyzeResult: AnalyzeResult = {
-      apiVersion: "1.0",
-      modelId: "prebuilt-layout",
-      content: "test",
-      pages: [MINIMAL_PAGE],
-      paragraphs: [],
-      tables: [],
-      keyValuePairs: [],
-      sections: [],
-      figures: [],
-    };
-    const response: OCRResponse = {
-      status: "succeeded",
-      analyzeResult,
-    };
     return {
       status: "succeeded",
-      response,
+      response: {
+        documentId: "mock-doc",
+        blobPath: "mock/azure-response.json",
+        storage: "blob" as const,
+        status: "succeeded",
+      },
     };
   },
 
   async extractOCRResults(
-    apimRequestId: string,
-    fileName: string,
-    fileType: string,
+    _apimRequestId: string,
+    _fileName: string,
+    _fileType: string,
     _modelId: string,
-    _ocrResponse?: OCRResponse,
-  ): Promise<OCRResult> {
-    return createMinimalOCRResult(apimRequestId, fileName, fileType);
+    _ocrResponse?: unknown,
+  ): Promise<{
+    ocrResult: { documentId: string; blobPath: string; storage: "blob" };
+  }> {
+    return {
+      ocrResult: {
+        documentId: "mock-doc",
+        blobPath: "mock/ocr-result.json",
+        storage: "blob",
+      },
+    };
   },
 
-  async postOcrCleanup(ocrResult: OCRResult): Promise<OCRResult> {
-    return ocrResult;
+  async postOcrCleanup(_params: {
+    ocrResult: unknown;
+    documentId: string;
+  }): Promise<{
+    cleanedResult: { documentId: string; blobPath: string; storage: "blob" };
+  }> {
+    return {
+      cleanedResult: {
+        documentId: "mock-doc",
+        blobPath: "mock/cleaned-result.json",
+        storage: "blob",
+      },
+    };
   },
 
-  async enrichResults(params: EnrichResultsParams): Promise<EnrichmentResult> {
-    return { ocrResult: params.ocrResult, summary: null };
+  async enrichResults(params: EnrichResultsParams): Promise<{
+    ocrResult: { documentId: string; blobPath: string; storage: "blob" };
+    summary: null;
+  }> {
+    return {
+      ocrResult: {
+        documentId: params.documentId,
+        blobPath: "mock/ocr-result.json",
+        storage: "blob",
+      },
+      summary: null,
+    };
   },
 
   async checkOcrConfidence(

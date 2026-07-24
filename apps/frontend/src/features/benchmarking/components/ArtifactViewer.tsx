@@ -1,21 +1,21 @@
+import { IconAlertCircle, IconDownload } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { apiService } from "@/data/services/api.service";
 import {
   Alert,
   Button,
-  Card,
   Center,
   Code,
   Drawer,
   Group,
   JsonInput,
   Loader,
+  PanelCard,
   ScrollArea,
   Stack,
   Text,
   Textarea,
-} from "@mantine/core";
-import { IconAlertCircle, IconDownload } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
-import { apiService } from "@/data/services/api.service";
+} from "../../../ui";
 
 interface ArtifactViewerProps {
   artifact: {
@@ -88,7 +88,7 @@ export function ArtifactViewer({
             }
           } catch (err) {
             throw new Error(
-              `Failed to create image URL: ${err instanceof Error ? err.message : "Unknown error"}`,
+              `Failed to create image URL: ${err instanceof Error ? err.message : "unknown error"}`,
             );
           }
         }
@@ -218,7 +218,7 @@ export function ArtifactViewer({
         <Group justify="space-between" style={{ flex: 1, marginRight: 16 }}>
           <Stack gap={0}>
             <Text fw={600} size="lg" data-testid="artifact-viewer-title">
-              Artifact Viewer
+              Artifact viewer
             </Text>
             <Code fz="xs" data-testid="artifact-path-display">
               {artifact.path}
@@ -228,8 +228,8 @@ export function ArtifactViewer({
       }
     >
       <Stack gap="md" h="calc(100vh - 80px)">
-        {/* Artifact Metadata */}
-        <Card withBorder data-testid="artifact-metadata-card">
+        {/* Artifact metadata */}
+        <PanelCard data-testid="artifact-metadata-card">
           <Stack gap="xs">
             <Group>
               <Text size="sm" fw={500}>
@@ -241,7 +241,7 @@ export function ArtifactViewer({
             </Group>
             <Group>
               <Text size="sm" fw={500}>
-                MIME Type:
+                MIME type:
               </Text>
               <Code fz="sm" data-testid="artifact-mime-type-value">
                 {artifact.mimeType}
@@ -268,7 +268,7 @@ export function ArtifactViewer({
               </Group>
             )}
           </Stack>
-        </Card>
+        </PanelCard>
 
         {/* Actions */}
         <Group>
@@ -282,9 +282,8 @@ export function ArtifactViewer({
           </Button>
         </Group>
 
-        {/* Content Viewer */}
-        <Card
-          withBorder
+        {/* Content viewer */}
+        <PanelCard
           style={{ flex: 1, overflow: "hidden" }}
           data-testid="artifact-content-card"
         >
@@ -295,7 +294,7 @@ export function ArtifactViewer({
           ) : error ? (
             <Alert
               color="red"
-              title="Error Loading Artifact"
+              title="Error loading artifact"
               icon={<IconAlertCircle />}
               data-testid="artifact-error-alert"
             >
@@ -341,7 +340,7 @@ export function ArtifactViewer({
           ) : isPdf ? (
             <Alert
               color="blue"
-              title="PDF Viewer"
+              title="PDF viewer"
               icon={<IconAlertCircle />}
               data-testid="artifact-pdf-alert"
             >
@@ -351,7 +350,7 @@ export function ArtifactViewer({
           ) : (
             <Alert
               color="blue"
-              title="Preview Not Available"
+              title="Preview not available"
               icon={<IconAlertCircle />}
               data-testid="artifact-unsupported-alert"
             >
@@ -359,7 +358,7 @@ export function ArtifactViewer({
               download the file to view it.
             </Alert>
           )}
-        </Card>
+        </PanelCard>
       </Stack>
     </Drawer>
   );

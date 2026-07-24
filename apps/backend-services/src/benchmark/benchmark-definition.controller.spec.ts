@@ -51,7 +51,7 @@ describe("BenchmarkDefinitionController", () => {
 
   const mockReq = {
     user: { sub: "user-1" },
-    resolvedIdentity: { userId: "user-1" },
+    resolvedIdentity: { userId: "user-1", actorId: "actor-1" },
   } as unknown as Request;
 
   const projectId = "project-1";
@@ -138,6 +138,7 @@ describe("BenchmarkDefinitionController", () => {
       expect(mockDefinitionService.createDefinition).toHaveBeenCalledWith(
         projectId,
         createDto,
+        "actor-1",
       );
       expect(result).toEqual(expected);
     });
@@ -279,6 +280,7 @@ describe("BenchmarkDefinitionController", () => {
         projectId,
         "def-1",
         updateDto,
+        "actor-1",
       );
       expect(result).toEqual(expected);
     });
@@ -324,6 +326,7 @@ describe("BenchmarkDefinitionController", () => {
         projectId,
         "def-1",
         scheduleDto,
+        "actor-1",
       );
       expect(result).toEqual(expected);
     });
@@ -449,6 +452,7 @@ describe("BenchmarkDefinitionController", () => {
       expect(mockDefinitionService.deleteDefinition).toHaveBeenCalledWith(
         projectId,
         "def-1",
+        "actor-1",
       );
     });
 

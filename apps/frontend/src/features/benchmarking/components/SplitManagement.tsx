@@ -5,24 +5,24 @@
  * See US-033: Split Management UI
  */
 
+import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Button,
-  Card,
   Center,
+  DataTable,
   Group,
   Loader,
   Modal,
   MultiSelect,
+  PanelCard,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
-} from "@mantine/core";
-import { IconLock, IconLockOpen, IconPlus } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+} from "../../../ui";
 import type { ManifestSample } from "../hooks/useDatasetVersions";
 import { useAllSamples } from "../hooks/useDatasetVersions";
 import {
@@ -63,37 +63,40 @@ export function SplitManagement({
     <Stack gap="md" data-testid="split-management-container">
       <Group justify="space-between">
         <Title order={3} data-testid="splits-title">
-          Dataset Splits
+          Dataset splits
         </Title>
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => setCreateDialogOpen(true)}
           data-testid="create-split-btn"
         >
-          Create Split
+          Create split
         </Button>
       </Group>
 
       {splits && splits.length > 0 ? (
-        <Card withBorder data-testid="splits-table-card">
-          <Table striped highlightOnHover data-testid="splits-table">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Samples</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Created</Table.Th>
-                <Table.Th>Actions</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+        <PanelCard data-testid="splits-table-card">
+          <DataTable striped highlightOnHover data-testid="splits-table">
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Name</DataTable.Th>
+                <DataTable.Th>Type</DataTable.Th>
+                <DataTable.Th>Samples</DataTable.Th>
+                <DataTable.Th>Status</DataTable.Th>
+                <DataTable.Th>Created</DataTable.Th>
+                <DataTable.Th>Actions</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {splits.map((split: Split) => (
-                <Table.Tr key={split.id} data-testid={`split-row-${split.id}`}>
-                  <Table.Td data-testid={`split-name-${split.id}`}>
+                <DataTable.Tr
+                  key={split.id}
+                  data-testid={`split-row-${split.id}`}
+                >
+                  <DataTable.Td data-testid={`split-name-${split.id}`}>
                     {split.name}
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Badge
                       color={
                         split.type === "train"
@@ -108,22 +111,22 @@ export function SplitManagement({
                     >
                       {split.type}
                     </Badge>
-                  </Table.Td>
-                  <Table.Td data-testid={`split-sample-count-${split.id}`}>
+                  </DataTable.Td>
+                  <DataTable.Td data-testid={`split-sample-count-${split.id}`}>
                     {split.sampleCount}
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Badge
                       color={split.frozen ? "gray" : "green"}
                       data-testid={`split-status-badge-${split.id}`}
                     >
-                      {split.frozen ? "Frozen" : "Editable"}
+                      {split.frozen ? "Frozen" : "editable"}
                     </Badge>
-                  </Table.Td>
-                  <Table.Td data-testid={`split-created-${split.id}`}>
+                  </DataTable.Td>
+                  <DataTable.Td data-testid={`split-created-${split.id}`}>
                     {new Date(split.createdAt).toLocaleDateString()}
-                  </Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                  <DataTable.Td>
                     <Group gap="xs">
                       {!split.frozen && (
                         <Button
@@ -143,14 +146,14 @@ export function SplitManagement({
                         />
                       )}
                     </Group>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               ))}
-            </Table.Tbody>
-          </Table>
-        </Card>
+            </DataTable.Tbody>
+          </DataTable>
+        </PanelCard>
       ) : (
-        <Card withBorder data-testid="splits-empty-state">
+        <PanelCard data-testid="splits-empty-state">
           <Stack align="center" gap="md" py="xl">
             <IconLockOpen size={48} style={{ opacity: 0.5 }} />
             <Text c="dimmed" data-testid="no-splits-message">
@@ -161,10 +164,10 @@ export function SplitManagement({
               onClick={() => setCreateDialogOpen(true)}
               data-testid="create-first-split-btn"
             >
-              Create First Split
+              Create first split
             </Button>
           </Stack>
-        </Card>
+        </PanelCard>
       )}
 
       <CreateSplitDialog
@@ -267,7 +270,7 @@ function CreateSplitDialog({
     <Modal
       opened={open}
       onClose={onClose}
-      title="Create Split"
+      title="Create split"
       size="lg"
       closeOnClickOutside={false}
       closeOnEscape={false}
@@ -275,7 +278,7 @@ function CreateSplitDialog({
     >
       <Stack gap="md">
         <TextInput
-          label="Split Name"
+          label="Split name"
           placeholder="e.g., train-v1, golden-regression"
           value={name}
           onChange={(e) => {
@@ -295,21 +298,21 @@ function CreateSplitDialog({
         />
 
         <Select
-          label="Split Type"
+          label="Split type"
           value={type}
           onChange={(value) => setType((value as SplitType) || "train")}
           data={[
             { value: "train", label: "Train" },
             { value: "val", label: "Validation" },
             { value: "test", label: "Test" },
-            { value: "golden", label: "Golden Regression" },
+            { value: "golden", label: "Golden regression" },
           ]}
           required
           data-testid="split-type-select"
         />
 
         <MultiSelect
-          label="Select Samples"
+          label="Select samples"
           placeholder="Choose samples for this split"
           data={sampleOptions}
           value={selectedSampleIds}
@@ -352,7 +355,7 @@ function CreateSplitDialog({
             loading={createMutation.isPending}
             data-testid="create-split-submit-btn"
           >
-            Create Split
+            Create split
           </Button>
         </Group>
       </Stack>
@@ -426,7 +429,7 @@ function EditSplitDialog({
     <Modal
       opened={open}
       onClose={onClose}
-      title={`Edit Split: ${split.name}`}
+      title={`Edit split: ${split.name}`}
       size="lg"
       data-testid="edit-split-dialog"
     >
@@ -452,7 +455,7 @@ function EditSplitDialog({
         </Group>
 
         <MultiSelect
-          label="Update Sample Selection"
+          label="Update sample selection"
           placeholder="Choose samples for this split"
           data={sampleOptions}
           value={selectedSampleIds}
@@ -491,7 +494,7 @@ function EditSplitDialog({
             loading={updateMutation.isPending}
             data-testid="edit-split-submit-btn"
           >
-            Update Split
+            Update split
           </Button>
         </Group>
       </Stack>

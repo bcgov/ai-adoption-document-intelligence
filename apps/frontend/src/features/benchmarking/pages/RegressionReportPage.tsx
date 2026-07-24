@@ -1,22 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Checkbox,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconCheck,
   IconDownload,
@@ -25,6 +7,24 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  Alert,
+  Badge,
+  Button,
+  Center,
+  Checkbox,
+  Code,
+  DataTable,
+  Drawer,
+  Group,
+  Loader,
+  Modal,
+  PanelCard,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+} from "../../../ui";
 import { TrendChart } from "../components/TrendChart";
 import { useHistoricalRuns, useRun } from "../hooks/useRuns";
 
@@ -106,7 +106,7 @@ export function RegressionReportPage() {
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Regression Report - ${run.definitionName}</title>
+  <title>Regression report - ${run.definitionName}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
     h1 { color: #228be6; }
@@ -124,14 +124,14 @@ export function RegressionReportPage() {
   </style>
 </head>
 <body>
-  <h1>Regression Report</h1>
+  <h1>Regression report</h1>
 
   <div class="summary">
     <strong>Run:</strong> ${run.definitionName}<br>
     <strong>Run ID:</strong> <code>${run.id}</code><br>
-    <strong>Baseline Run ID:</strong> <code>${run.baselineComparison.baselineRunId}</code><br>
-    <strong>Completed At:</strong> ${run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}<br>
-    <strong>Overall Status:</strong> <span class="status ${run.baselineComparison.overallPassed ? "passed" : "failed"}">
+    <strong>Baseline run ID:</strong> <code>${run.baselineComparison.baselineRunId}</code><br>
+    <strong>Completed at:</strong> ${run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}<br>
+    <strong>Overall status:</strong> <span class="status ${run.baselineComparison.overallPassed ? "passed" : "failed"}">
       ${run.baselineComparison.overallPassed ? "PASSED" : "REGRESSION DETECTED"}
     </span>
   </div>
@@ -139,7 +139,7 @@ export function RegressionReportPage() {
   ${
     run.baselineComparison.regressedMetrics.length > 0
       ? `
-  <h2>Regressed Metrics</h2>
+  <h2>Regressed metrics</h2>
   <p style="color: #ff6b6b;">The following metrics regressed below their baseline thresholds:</p>
   <ul>
     ${run.baselineComparison.regressedMetrics.map((m) => `<li><code>${m}</code></li>`).join("")}
@@ -148,7 +148,7 @@ export function RegressionReportPage() {
       : ""
   }
 
-  <h2>Detailed Metric Comparison</h2>
+  <h2>Detailed metric comparison</h2>
   <table>
     <thead>
       <tr>
@@ -241,7 +241,7 @@ export function RegressionReportPage() {
                 navigate(`/benchmarking/projects/${projectId}/runs`);
               }}
             >
-              Baseline Management
+              Baseline management
             </Button>
           </Stack>
           <Button
@@ -249,7 +249,7 @@ export function RegressionReportPage() {
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
           >
-            Back to Run Details
+            Back to run details
           </Button>
         </Stack>
       </Center>
@@ -265,7 +265,7 @@ export function RegressionReportPage() {
     <Stack gap="lg">
       <Group justify="space-between">
         <div>
-          <Title order={2}>Regression Report</Title>
+          <Title order={2}>Regression report</Title>
           <Text c="dimmed" size="sm">
             {run.definitionName}
           </Text>
@@ -293,7 +293,7 @@ export function RegressionReportPage() {
             variant="default"
             onClick={handleExportHTML}
           >
-            Export HTML
+            Export html
           </Button>
           <Button
             data-testid="back-to-run-btn"
@@ -301,7 +301,7 @@ export function RegressionReportPage() {
               navigate(`/benchmarking/projects/${projectId}/runs/${runId}`)
             }
           >
-            Back to Run
+            Back to run
           </Button>
         </Group>
       </Group>
@@ -318,8 +318,8 @@ export function RegressionReportPage() {
         color={run.baselineComparison.overallPassed ? "green" : "red"}
         title={
           run.baselineComparison.overallPassed
-            ? "✓ All Metrics Passed"
-            : "⚠ Regression Detected"
+            ? "✓ All metrics passed"
+            : "⚠ Regression detected"
         }
       >
         {run.baselineComparison.overallPassed ? (
@@ -353,40 +353,40 @@ export function RegressionReportPage() {
         )}
       </Alert>
 
-      <Card>
+      <PanelCard>
         <Stack gap="md">
-          <Title order={3}>Run Information</Title>
-          <Table data-testid="run-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Run ID</Table.Td>
-                <Table.Td>
+          <Title order={3}>Run information</Title>
+          <DataTable data-testid="run-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Run ID</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.id}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Baseline Run ID</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Baseline run ID</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.baselineComparison.baselineRunId}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Completed At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Completed at</DataTable.Td>
+                <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+                </DataTable.Td>
+              </DataTable.Tr>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card>
+      <PanelCard>
         <Stack gap="md">
           <Group justify="space-between" align="center">
-            <Title order={3}>Metric-by-Metric Analysis</Title>
+            <Title order={3}>Metric-by-Metric analysis</Title>
             <Checkbox
               data-testid="show-regressions-only-toggle"
               label="Show only regressions"
@@ -409,20 +409,24 @@ export function RegressionReportPage() {
             </Alert>
           )}
 
-          <Table data-testid="metric-comparison-table" striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Metric</Table.Th>
-                <Table.Th>Current</Table.Th>
-                <Table.Th>Baseline</Table.Th>
-                <Table.Th>Delta</Table.Th>
-                <Table.Th>Delta %</Table.Th>
-                <Table.Th>Threshold</Table.Th>
-                <Table.Th>Severity</Table.Th>
-                <Table.Th>Status</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
+          <DataTable
+            data-testid="metric-comparison-table"
+            striped
+            highlightOnHover
+          >
+            <DataTable.Thead>
+              <DataTable.Tr>
+                <DataTable.Th>Metric</DataTable.Th>
+                <DataTable.Th>Current</DataTable.Th>
+                <DataTable.Th>Baseline</DataTable.Th>
+                <DataTable.Th>Delta</DataTable.Th>
+                <DataTable.Th>Delta %</DataTable.Th>
+                <DataTable.Th>Threshold</DataTable.Th>
+                <DataTable.Th>Severity</DataTable.Th>
+                <DataTable.Th>Status</DataTable.Th>
+              </DataTable.Tr>
+            </DataTable.Thead>
+            <DataTable.Tbody>
               {filteredComparisons.map((comparison) => {
                 const severityColor = getSeverityColor(
                   comparison.deltaPercent,
@@ -430,20 +434,22 @@ export function RegressionReportPage() {
                 );
 
                 return (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={comparison.metricName}
                     data-testid="metric-row"
                     style={{ cursor: "pointer" }}
                     onClick={() => setDrillDownMetric(comparison.metricName)}
                   >
-                    <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                    <Table.Td>
+                    <DataTable.Td fw={500}>
+                      {comparison.metricName}
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{comparison.currentValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code
                         c={
                           comparison.delta > 0
@@ -456,8 +462,8 @@ export function RegressionReportPage() {
                         {comparison.delta > 0 ? "+" : ""}
                         {comparison.delta.toFixed(4)}
                       </Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code
                         c={
                           comparison.deltaPercent > 0
@@ -470,8 +476,8 @@ export function RegressionReportPage() {
                         {comparison.deltaPercent > 0 ? "+" : ""}
                         {comparison.deltaPercent.toFixed(2)}%
                       </Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {comparison.threshold ? (
                         <Text size="sm">
                           {comparison.threshold.type}:{" "}
@@ -480,30 +486,30 @@ export function RegressionReportPage() {
                       ) : (
                         "-"
                       )}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {!comparison.passed && (
                         <Badge color={severityColor}>
-                          {severityColor === "red" ? "Critical" : "Warning"}
+                          {severityColor === "red" ? "critical" : "warning"}
                         </Badge>
                       )}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge color={comparison.passed ? "green" : "red"}>
                         {comparison.passed ? "PASS" : "FAIL"}
                       </Badge>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 );
               })}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
-      </Card>
+      </PanelCard>
 
-      <Card data-testid="historical-trend-section">
+      <PanelCard data-testid="historical-trend-section">
         <Stack gap="md">
-          <Title order={3}>Historical Trend</Title>
+          <Title order={3}>Historical trend</Title>
           <TrendChart
             historicalRuns={historicalRuns}
             currentRunId={run.id}
@@ -511,15 +517,15 @@ export function RegressionReportPage() {
             isLoading={isLoadingHistorical}
           />
         </Stack>
-      </Card>
+      </PanelCard>
 
-      {/* Drill-down Panel */}
+      {/* Drill-down panel */}
       <Drawer
         opened={drillDownMetric !== null}
         onClose={() => setDrillDownMetric(null)}
         position="right"
         size="lg"
-        title="Metric Details"
+        title="Metric details"
       >
         {drillDownMetric && (
           <Stack gap="md" data-testid="metric-drill-down-panel">
@@ -531,24 +537,24 @@ export function RegressionReportPage() {
               );
               if (!comparison) return null;
               return (
-                <Card withBorder>
-                  <Table>
-                    <Table.Tbody>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Current Value</Table.Td>
-                        <Table.Td>
+                <PanelCard>
+                  <DataTable>
+                    <DataTable.Tbody>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Current value</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{comparison.currentValue.toFixed(4)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Baseline Value</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Baseline value</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Delta</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Delta</DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             c={
                               comparison.delta > 0
@@ -561,11 +567,11 @@ export function RegressionReportPage() {
                             {comparison.delta > 0 ? "+" : ""}
                             {comparison.delta.toFixed(4)}
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Delta %</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Delta %</DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             c={
                               comparison.deltaPercent > 0
@@ -578,27 +584,27 @@ export function RegressionReportPage() {
                             {comparison.deltaPercent > 0 ? "+" : ""}
                             {comparison.deltaPercent.toFixed(2)}%
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Threshold</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Threshold</DataTable.Td>
+                        <DataTable.Td>
                           {comparison.threshold
                             ? `${comparison.threshold.type}: ${comparison.threshold.value}`
                             : "-"}
-                        </Table.Td>
-                      </Table.Tr>
-                      <Table.Tr>
-                        <Table.Td fw={500}>Status</Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                      <DataTable.Tr>
+                        <DataTable.Td fw={500}>Status</DataTable.Td>
+                        <DataTable.Td>
                           <Badge color={comparison.passed ? "green" : "red"}>
                             {comparison.passed ? "PASS" : "FAIL"}
                           </Badge>
-                        </Table.Td>
-                      </Table.Tr>
-                    </Table.Tbody>
-                  </Table>
-                </Card>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    </DataTable.Tbody>
+                  </DataTable>
+                </PanelCard>
               );
             })()}
 
@@ -618,7 +624,7 @@ export function RegressionReportPage() {
                 );
               }}
             >
-              View Affected Samples
+              View affected samples
             </Button>
 
             <Button
@@ -633,11 +639,11 @@ export function RegressionReportPage() {
         )}
       </Drawer>
 
-      {/* Share Dialog */}
+      {/* Share dialog */}
       <Modal
         opened={shareDialogOpen}
         onClose={() => setShareDialogOpen(false)}
-        title="Share Regression Report"
+        title="Share regression report"
       >
         <Stack gap="md" data-testid="share-dialog">
           <Text size="sm">
@@ -650,7 +656,7 @@ export function RegressionReportPage() {
           />
           <Group justify="flex-end">
             <Button data-testid="copy-url-btn" onClick={handleCopyShareUrl}>
-              Copy URL
+              Copy url
             </Button>
           </Group>
         </Stack>

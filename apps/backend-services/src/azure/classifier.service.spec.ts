@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -15,6 +16,8 @@ import { ClassifierDbService } from "./classifier-db.service";
 const mockClassifierDbService = {
   findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
+  createClassifierModel: jest.fn(),
+  deleteClassifierModel: jest.fn(),
 };
 const mockAzureService = {
   getClient: jest.fn().mockReturnValue({
@@ -22,6 +25,7 @@ const mockAzureService = {
   }),
   getEndpoint: jest.fn().mockReturnValue("https://mockendpoint"),
   pollOperationUntilResolved: jest.fn(),
+  isMockMode: jest.fn().mockReturnValue(false),
 };
 const mockBlobService = {
   getContainerClient: jest
@@ -68,9 +72,14 @@ describe("ClassifierService", () => {
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
+    mockAzureService.isMockMode.mockReturnValue(false);
   });
 
   describe("getConstructedClassifierName", () => {
@@ -80,6 +89,15 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassifierTraining", () => {
+    it("should throw ServiceUnavailableException in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      await expect(
+        service.requestClassifierTraining("c", "g", "u"),
+      ).rejects.toThrow(
+        "Classifier training requires DOCUMENT_INTELLIGENCE_MODE=live.",
+      );
+    });
+
     it("should throw NotFoundException if classifier not found", async () => {
       (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue(
         null,
@@ -436,6 +454,19 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassification", () => {
+    it("should return mock operation location in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      const result = await service.requestClassification(
+        "cuid/classification/file",
+        "cid",
+        "gid",
+      );
+      expect(result.status).toBe("202");
+      expect(result.content).toContain(
+        "/documentintelligence/analyzeResults/mock-classify-operation",
+      );
+    });
+
     it("should return operation location on 202", async () => {
       (service as any).client = {
         path: () => ({
@@ -475,6 +506,20 @@ describe("ClassifierService", () => {
   });
 
   describe("requestClassificationFromFile", () => {
+    it("should return mock operation location in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      const file = { buffer: Buffer.from("test") } as any;
+      const result = await service.requestClassificationFromFile(
+        file,
+        "cid",
+        "gid",
+      );
+      expect(result.status).toBe("202");
+      expect(result.content).toContain(
+        "/documentintelligence/analyzeResults/mock-classify-operation",
+      );
+    });
+
     it("should return operation location on 202", async () => {
       (service as any).client = {
         path: () => ({

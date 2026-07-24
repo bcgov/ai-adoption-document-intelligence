@@ -1,21 +1,4 @@
 import {
-  Accordion,
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Code,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconBug,
   IconEdit,
   IconHistory,
@@ -28,6 +11,23 @@ import {
   useRevertWorkflowHead,
   useWorkflowVersions,
 } from "@/data/hooks/useWorkflows";
+import {
+  Accordion,
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Code,
+  DataTable,
+  Group,
+  Loader,
+  notifications,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  Title,
+} from "../../../ui";
 import { useBaselineHistory, useDefinition } from "../hooks/useDefinitions";
 import {
   type CreateRunDto,
@@ -204,7 +204,7 @@ export function DefinitionDetailView({
         notifications.show({
           title: "Candidate workflow created",
           message:
-            "Review it in the workflow editor if you want, then use “Start benchmark with this candidate” below.",
+            "Review it in the workflow editor if you want, then use “start benchmark with this candidate” below.",
           color: "green",
           autoClose: 8000,
         });
@@ -251,15 +251,15 @@ export function DefinitionDetailView({
   /** Map step identifiers to human-readable labels for the accordion headers */
   const stepLabel = (step: string): string => {
     const labels: Record<string, string> = {
-      baseline_mismatch_extraction: "Baseline Mismatch Extraction",
-      tool_manifest: "Tool Manifest",
-      workflow_load: "Workflow Load",
-      prompt_build: "LLM Prompt",
-      llm_request: "LLM Request Metadata",
-      llm_response: "LLM Response",
-      recommendation_parse: "Recommendation Parsing",
-      apply_recommendations: "Apply Recommendations",
-      candidate_creation: "Candidate Creation",
+      baseline_mismatch_extraction: "Baseline mismatch extraction",
+      tool_manifest: "Tool manifest",
+      workflow_load: "Workflow load",
+      prompt_build: "LLM prompt",
+      llm_request: "LLM request metadata",
+      llm_response: "LLM response",
+      recommendation_parse: "Recommendation parsing",
+      apply_recommendations: "Apply recommendations",
+      candidate_creation: "Candidate creation",
       error: "Error",
     };
     return labels[step] ?? step;
@@ -288,7 +288,7 @@ export function DefinitionDetailView({
                 checked={persistOcrCache}
                 onChange={(e) => setPersistOcrCache(e.currentTarget.checked)}
                 label="Persist OCR cache"
-                description="Store Azure OCR per sample for replay (recommended for improvement pipeline)"
+                description="Store azure OCR per sample for replay (recommended for improvement pipeline)"
                 size="sm"
                 data-testid="persist-ocr-cache-switch"
               />
@@ -314,7 +314,7 @@ export function DefinitionDetailView({
                 loading={isStarting}
                 data-testid="start-run-btn"
               >
-                Start Run
+                Start run
               </Button>
               {definition.immutable && (
                 <Badge color="gray" data-testid="immutable-badge">
@@ -327,45 +327,45 @@ export function DefinitionDetailView({
             </Group>
           </Group>
 
-          <Table data-testid="definition-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Dataset Version</Table.Td>
-                <Table.Td>
+          <DataTable data-testid="definition-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Dataset version</DataTable.Td>
+                <DataTable.Td>
                   {definition.datasetVersion.datasetName}{" "}
                   {definition.datasetVersion.version}
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {definition.split && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Split</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Split</DataTable.Td>
+                  <DataTable.Td>
                     {definition.split.name} ({definition.split.type})
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-              <Table.Tr>
-                <Table.Td fw={500}>Workflow</Table.Td>
-                <Table.Td>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Workflow</DataTable.Td>
+                <DataTable.Td>
                   {definition.workflow.name} v{definition.workflow.version}
                   <Text size="xs" c="dimmed" mt={4}>
                     Lineage <Code>{definition.workflow.id}</Code> · Pinned
                     version <Code>{definition.workflow.workflowVersionId}</Code>
                   </Text>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Workflow Config Hash</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Workflow config hash</DataTable.Td>
+                <DataTable.Td>
                   <Code>{definition.workflowConfigHash.substring(0, 12)}</Code>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Evaluator Type</Table.Td>
-                <Table.Td>{definition.evaluatorType}</Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Evaluator type</DataTable.Td>
+                <DataTable.Td>{definition.evaluatorType}</DataTable.Td>
+              </DataTable.Tr>
+            </DataTable.Tbody>
+          </DataTable>
 
           {!definition.immutable && (
             <Stack gap="sm" mt="md">
@@ -543,7 +543,7 @@ export function DefinitionDetailView({
               onClick={() => setShowDebugLog((prev) => !prev)}
               data-testid="toggle-debug-log-btn"
             >
-              {showDebugLog ? "Hide debug log" : "View debug log"}
+              {showDebugLog ? "hide debug log" : "view debug log"}
             </Button>
           )}
 
@@ -590,7 +590,7 @@ export function DefinitionDetailView({
                               <Accordion.Item value="system">
                                 <Accordion.Control>
                                   <Text size="sm" fw={500}>
-                                    System Message
+                                    System message
                                   </Text>
                                 </Accordion.Control>
                                 <Accordion.Panel>
@@ -617,7 +617,7 @@ export function DefinitionDetailView({
                               <Accordion.Item value="user">
                                 <Accordion.Control>
                                   <Text size="sm" fw={500}>
-                                    User Message
+                                    User message
                                   </Text>
                                 </Accordion.Control>
                                 <Accordion.Panel>
@@ -683,7 +683,7 @@ export function DefinitionDetailView({
             Object.keys(definition.workflowConfigOverrides).length > 0 && (
               <Stack gap={4}>
                 <Text size="sm" fw={500}>
-                  Workflow Config Overrides
+                  Workflow config overrides
                 </Text>
                 <Code block style={{ fontSize: 13 }}>
                   {JSON.stringify(definition.workflowConfigOverrides, null, 2)}
@@ -699,7 +699,7 @@ export function DefinitionDetailView({
             <Stack gap="xs">
               <Group justify="space-between">
                 <Title order={4} data-testid="baseline-info-heading">
-                  Current Baseline
+                  Current baseline
                 </Title>
                 <Button
                   variant="light"
@@ -711,7 +711,7 @@ export function DefinitionDetailView({
                   }
                   data-testid="view-baseline-run-btn"
                 >
-                  View Baseline Run
+                  View baseline run
                 </Button>
               </Group>
               <Text size="sm" c="dimmed" data-testid="baseline-promoted-info">
@@ -726,89 +726,89 @@ export function DefinitionDetailView({
               </Text>
             </Stack>
 
-            <Table data-testid="baseline-info-table">
-              <Table.Tbody>
-                <Table.Tr>
-                  <Table.Td fw={500}>Run ID</Table.Td>
-                  <Table.Td>
+            <DataTable data-testid="baseline-info-table">
+              <DataTable.Tbody>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Run ID</DataTable.Td>
+                  <DataTable.Td>
                     <Code data-testid="baseline-run-id">
                       {definition.baselineRun.id.substring(0, 12)}...
                     </Code>
-                  </Table.Td>
-                </Table.Tr>
-                <Table.Tr>
-                  <Table.Td fw={500}>Status</Table.Td>
-                  <Table.Td>
+                  </DataTable.Td>
+                </DataTable.Tr>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Status</DataTable.Td>
+                  <DataTable.Td>
                     <Badge
                       color={getStatusBadgeColor(definition.baselineRun.status)}
                       data-testid="baseline-status-badge"
                     >
                       {definition.baselineRun.status}
                     </Badge>
-                  </Table.Td>
-                </Table.Tr>
-                <Table.Tr>
-                  <Table.Td fw={500}>Completed At</Table.Td>
-                  <Table.Td data-testid="baseline-completed-at">
+                  </DataTable.Td>
+                </DataTable.Tr>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Completed at</DataTable.Td>
+                  <DataTable.Td data-testid="baseline-completed-at">
                     {definition.baselineRun.completedAt
                       ? new Date(
                           definition.baselineRun.completedAt,
                         ).toLocaleString()
                       : "—"}
-                  </Table.Td>
-                </Table.Tr>
-              </Table.Tbody>
-            </Table>
+                  </DataTable.Td>
+                </DataTable.Tr>
+              </DataTable.Tbody>
+            </DataTable>
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-metrics-heading">
-                Key Metrics
+                Key metrics
               </Title>
-              <Table striped data-testid="baseline-metrics-table">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric</Table.Th>
-                    <Table.Th>Value</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped data-testid="baseline-metrics-table">
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric</DataTable.Th>
+                    <DataTable.Th>Value</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {Object.entries(definition.baselineRun.metrics).map(
                     ([key, value]) => {
                       // Skip non-numeric metrics (like perSampleResults, fieldErrorBreakdown, etc.)
                       if (typeof value !== "number") return null;
 
                       return (
-                        <Table.Tr key={key}>
-                          <Table.Td>{key}</Table.Td>
-                          <Table.Td>
+                        <DataTable.Tr key={key}>
+                          <DataTable.Td>{key}</DataTable.Td>
+                          <DataTable.Td>
                             <Code>{value.toFixed(4)}</Code>
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       );
                     },
                   )}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Stack>
 
             <Stack gap="xs">
               <Title order={5} data-testid="baseline-thresholds-heading">
-                Regression Thresholds
+                Regression thresholds
               </Title>
-              <Table striped data-testid="baseline-thresholds-table">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric</Table.Th>
-                    <Table.Th>Type</Table.Th>
-                    <Table.Th>Threshold</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+              <DataTable striped data-testid="baseline-thresholds-table">
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric</DataTable.Th>
+                    <DataTable.Th>Type</DataTable.Th>
+                    <DataTable.Th>Threshold</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {definition.baselineRun.baselineThresholds.map(
                     (threshold) => (
-                      <Table.Tr key={threshold.metricName}>
-                        <Table.Td>{threshold.metricName}</Table.Td>
-                        <Table.Td>
+                      <DataTable.Tr key={threshold.metricName}>
+                        <DataTable.Td>{threshold.metricName}</DataTable.Td>
+                        <DataTable.Td>
                           <Badge
                             variant="light"
                             data-testid={`threshold-type-${threshold.metricName}`}
@@ -817,8 +817,8 @@ export function DefinitionDetailView({
                               ? "Relative (%)"
                               : "Absolute"}
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Code
                             data-testid={`threshold-value-${threshold.metricName}`}
                           >
@@ -826,19 +826,19 @@ export function DefinitionDetailView({
                               ? `${(threshold.value * 100).toFixed(0)}%`
                               : threshold.value.toFixed(4)}
                           </Code>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ),
                   )}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Stack>
 
             <Stack gap="xs">
               <Group gap="xs">
                 <IconHistory size={16} />
                 <Title order={5} data-testid="baseline-history-heading">
-                  Baseline Change History
+                  Baseline change history
                 </Title>
               </Group>
               {isLoadingHistory ? (
@@ -848,26 +848,26 @@ export function DefinitionDetailView({
                   No baseline changes recorded yet.
                 </Text>
               ) : (
-                <Table striped data-testid="baseline-history-table">
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Promoted At</Table.Th>
-                      <Table.Th>Run ID</Table.Th>
-                      <Table.Th>User</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                <DataTable striped data-testid="baseline-history-table">
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      <DataTable.Th>Promoted at</DataTable.Th>
+                      <DataTable.Th>Run ID</DataTable.Th>
+                      <DataTable.Th>User</DataTable.Th>
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
                     {baselineHistory.map((entry, index) => (
-                      <Table.Tr
+                      <DataTable.Tr
                         key={index}
                         data-testid={`baseline-history-row-${index}`}
                       >
-                        <Table.Td
+                        <DataTable.Td
                           data-testid={`baseline-history-date-${index}`}
                         >
                           {new Date(entry.promotedAt).toLocaleString()}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Button
                             variant="subtle"
                             size="compact-sm"
@@ -880,16 +880,16 @@ export function DefinitionDetailView({
                           >
                             <Code>{entry.runId.substring(0, 12)}...</Code>
                           </Button>
-                        </Table.Td>
-                        <Table.Td
+                        </DataTable.Td>
+                        <DataTable.Td
                           data-testid={`baseline-history-user-${index}`}
                         >
                           {entry.actorId}
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               )}
             </Stack>
           </Stack>
@@ -899,7 +899,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="evaluator-config-heading">
-            Evaluator Configuration
+            Evaluator configuration
           </Title>
           <Code block data-testid="evaluator-config-json">
             {JSON.stringify(definition.evaluatorConfig, null, 2)}
@@ -910,7 +910,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="runtime-settings-heading">
-            Runtime Settings
+            Runtime settings
           </Title>
           <Code block data-testid="runtime-settings-json">
             {JSON.stringify(definition.runtimeSettings, null, 2)}
@@ -921,7 +921,7 @@ export function DefinitionDetailView({
       <Card>
         <Stack gap="md">
           <Title order={4} data-testid="schedule-config-heading">
-            Schedule Configuration
+            Schedule configuration
           </Title>
           <ScheduleConfig
             projectId={definition.projectId}
@@ -936,48 +936,48 @@ export function DefinitionDetailView({
         <Card>
           <Stack gap="md">
             <Title order={4} data-testid="run-history-heading">
-              Run History
+              Run history
             </Title>
-            <Table striped highlightOnHover data-testid="run-history-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Run ID</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Started</Table.Th>
-                  <Table.Th>Completed</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="run-history-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Run ID</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
+                  <DataTable.Th>Started</DataTable.Th>
+                  <DataTable.Th>Completed</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {definition.runHistory.map((run) => (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={run.id}
                     data-testid={`run-history-row-${run.id}`}
                   >
-                    <Table.Td>
+                    <DataTable.Td>
                       <Code>{run.id.substring(0, 8)}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge
                         color={getStatusBadgeColor(run.status)}
                         data-testid={`run-status-badge-${run.id}`}
                       >
                         {run.status}
                       </Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {run.startedAt
                         ? new Date(run.startedAt).toLocaleString()
                         : "—"}
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {run.completedAt
                         ? new Date(run.completedAt).toLocaleString()
                         : "—"}
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}

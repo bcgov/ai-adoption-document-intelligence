@@ -5,12 +5,16 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { computeConfigHash, stampConfigWithPersistedHash } from "./config-hash";
 import { validateGraphConfig } from "./graph-schema-validator";
 import { GraphWorkflowConfig } from "./graph-workflow-types";
 
 const WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS = 3;
+/** Max slug suffix probes (`-2`, `-3`, …) before giving up on auto-naming. */
+const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
 
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
@@ -35,6 +39,8 @@ export interface WorkflowInfo {
   schemaVersion: string;
   /** Immutable version number (WorkflowVersion.version_number) */
   version: number;
+  /** SHA-256 of normalized config (also stored in config.metadata.configHash). */
+  configHash: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +63,7 @@ export class WorkflowService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {}
 
   private get prisma() {
@@ -117,6 +124,7 @@ export class WorkflowService {
     },
   ): WorkflowInfo {
     const config = this.asGraphConfig(version.config);
+    const configHash = config.metadata?.configHash ?? computeConfigHash(config);
     return {
       id: lineage.id,
       workflowVersionId: version.id,
@@ -128,6 +136,7 @@ export class WorkflowService {
       config,
       schemaVersion: config.schemaVersion,
       version: version.version_number,
+      configHash,
       createdAt: lineage.created_at,
       updatedAt: lineage.updated_at,
     };
@@ -157,12 +166,19 @@ export class WorkflowService {
     const base = this.slugifyName(name);
     let candidate = base;
     let counter = 2;
+    let attempts = 0;
     while (
       await tx.workflowLineage.findUnique({
         where: { group_id_slug: { group_id: groupId, slug: candidate } },
         select: { id: true },
       })
     ) {
+      attempts++;
+      if (attempts >= WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS) {
+        throw new ConflictException(
+          `Could not allocate a unique workflow slug for "${name}" in this group`,
+        );
+      }
       candidate = `${base}-${counter}`;
       counter++;
     }
@@ -225,15 +241,18 @@ export class WorkflowService {
 
     if (workflowConfigId) {
       // Could be a WorkflowVersion.id or a WorkflowLineage.id. Try version first.
-      const version = await this.prisma.workflowVersion.findUnique({
-        where: { id: workflowConfigId },
+      // Both lookups are scoped to the caller's group (via the owning lineage)
+      // so a config id belonging to another group cannot be resolved, executed,
+      // or have its configuration disclosed.
+      const version = await this.prisma.workflowVersion.findFirst({
+        where: { id: workflowConfigId, lineage: { group_id: groupId } },
         select: { id: true },
       });
       if (version) {
         return version.id;
       }
-      const lineage = await this.prisma.workflowLineage.findUnique({
-        where: { id: workflowConfigId },
+      const lineage = await this.prisma.workflowLineage.findFirst({
+        where: { id: workflowConfigId, group_id: groupId },
         select: { head_version_id: true },
       });
       if (lineage?.head_version_id) {
@@ -250,11 +269,15 @@ export class WorkflowService {
   /**
    * Look up the workflow's declared default `modelId` from its graph config
    * (`ctx.modelId.defaultValue`). Returns null when no version matches or no
-   * default is present.
+   * default is present. The lookup is scoped to the caller's group (via the
+   * owning lineage) so another group's workflow default cannot be disclosed.
    */
-  async getModelIdDefault(workflowVersionId: string): Promise<string | null> {
-    const row = await this.prisma.workflowVersion.findUnique({
-      where: { id: workflowVersionId },
+  async getModelIdDefault(
+    workflowVersionId: string,
+    groupId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.workflowVersion.findFirst({
+      where: { id: workflowVersionId, lineage: { group_id: groupId } },
       select: { config: true },
     });
     if (!row) {
@@ -403,8 +426,9 @@ export class WorkflowService {
         errors: validation.errors,
       });
     }
+    const configToPersist = stampConfigWithPersistedHash(dto.config);
 
-    const full = await this.prisma.$transaction(async (tx) => {
+    const full = await this.prismaService.transaction(async (tx) => {
       const slug = await this.resolveUniqueSlug(dto.groupId, dto.name, tx);
       const lineageRow = await tx.workflowLineage.create({
         data: {
@@ -419,7 +443,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: dto.config as object,
+          config: configToPersist as object,
         },
       });
       await tx.workflowLineage.update({
@@ -435,6 +459,24 @@ export class WorkflowService {
           `Workflow not found after create: ${lineageRow.id}`,
         );
       }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "workflow_created",
+          resource_type: "workflow_lineage",
+          resource_id: loaded.id,
+          actor_id: actorId,
+          group_id: dto.groupId,
+          payload: {
+            workflow_version_id: loaded.headVersion.id,
+            version_number: loaded.headVersion.version_number,
+            slug: loaded.slug,
+            name: loaded.name,
+          },
+        },
+        tx,
+      );
+
       return loaded;
     });
 
@@ -502,7 +544,7 @@ export class WorkflowService {
         attempt++
       ) {
         try {
-          versioned = await this.prisma.$transaction(async (tx) => {
+          versioned = await this.prismaService.transaction(async (tx) => {
             const current = await tx.workflowLineage.findUnique({
               where: { id: lineageId },
               include: this.lineageWithHead,
@@ -529,7 +571,7 @@ export class WorkflowService {
               data: {
                 lineage_id: lineageId,
                 version_number: nextNum,
-                config: nextConfig as object,
+                config: stampConfigWithPersistedHash(nextConfig) as object,
               },
             });
             await tx.workflowLineage.update({
@@ -543,6 +585,22 @@ export class WorkflowService {
             if (!updatedLineage?.headVersion) {
               throw new NotFoundException(`Workflow not found: ${lineageId}`);
             }
+
+            await this.auditService.recordEvent(
+              {
+                event_type: "workflow_version_appended",
+                resource_type: "workflow_lineage",
+                resource_id: lineageId,
+                actor_id: actorId,
+                group_id: updatedLineage.group_id,
+                payload: {
+                  workflow_version_id: updatedLineage.headVersion.id,
+                  version_number: updatedLineage.headVersion.version_number,
+                },
+              },
+              tx,
+            );
+
             return {
               lineage: updatedLineage,
               version: updatedLineage.headVersion,
@@ -604,6 +662,18 @@ export class WorkflowService {
       `Workflow metadata updated: ${lineageId} by actor ${actorId} (version unchanged)`,
     );
 
+    await this.auditService.recordEvent({
+      event_type: "workflow_updated",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: lineageOnly.group_id,
+      payload: {
+        workflow_version_id: lineageOnly.headVersion.id,
+        fields_updated: Object.keys(lineageUpdates),
+      },
+    });
+
     return this.mapLineageAndVersion(lineageOnly, lineageOnly.headVersion);
   }
 
@@ -647,7 +717,7 @@ export class WorkflowService {
       });
     }
 
-    const full = await this.prisma.$transaction(async (tx) => {
+    const full = await this.prismaService.transaction(async (tx) => {
       const candidateName = `${source.lineage.name} (candidate v${candidateNameSuffix})`;
       const slug = await this.resolveUniqueSlug(
         source.lineage.group_id,
@@ -669,7 +739,7 @@ export class WorkflowService {
         data: {
           lineage_id: lineageRow.id,
           version_number: 1,
-          config: candidateConfig as object,
+          config: stampConfigWithPersistedHash(candidateConfig) as object,
         },
       });
       await tx.workflowLineage.update({
@@ -685,6 +755,23 @@ export class WorkflowService {
           `Candidate workflow not found after create: ${lineageRow.id}`,
         );
       }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "workflow_candidate_created",
+          resource_type: "workflow_lineage",
+          resource_id: loaded.id,
+          actor_id: actorId,
+          group_id: loaded.group_id,
+          payload: {
+            source_workflow_version_id: sourceWorkflowVersionId,
+            source_lineage_id: baseLineageId,
+            workflow_version_id: loaded.headVersion.id,
+          },
+        },
+        tx,
+      );
+
       return loaded;
     });
 
@@ -725,6 +812,18 @@ export class WorkflowService {
       }
       throw error;
     }
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_deleted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: existing.group_id,
+      payload: {
+        slug: existing.slug,
+        name: existing.name,
+      },
+    });
 
     this.logger.log(
       `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
@@ -786,6 +885,19 @@ export class WorkflowService {
     if (!updated.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_head_reverted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: lineage.group_id,
+      payload: {
+        workflow_version_id: workflowVersionId,
+        version_number: version.version_number,
+      },
+    });
+
     return this.mapLineageAndVersion(updated, updated.headVersion);
   }
 }

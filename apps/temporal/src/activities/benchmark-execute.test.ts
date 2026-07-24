@@ -1,5 +1,3 @@
-import type { GraphWorkflowConfig } from "../graph-workflow-types";
-
 // Mock @temporalio/workflow before importing the module
 const mockExecuteChild = jest.fn();
 const mockWorkflowInfo = jest.fn();
@@ -15,25 +13,9 @@ import {
 } from "./benchmark-execute";
 
 describe("benchmarkExecuteWorkflow", () => {
-  const mockWorkflowConfig: GraphWorkflowConfig = {
-    schemaVersion: "1.0",
-    metadata: { name: "test-workflow", version: "1.0" },
-    nodes: {
-      "node-1": {
-        id: "node-1",
-        type: "activity",
-        label: "Test Node",
-        activityType: "test.activity",
-      },
-    },
-    edges: [],
-    entryNodeId: "node-1",
-    ctx: {},
-  };
-
   const baseInput: BenchmarkExecuteInput = {
     sampleId: "sample-001",
-    workflowConfig: mockWorkflowConfig,
+    workflowVersionId: "wv-test-001",
     configHash: "abc123hash",
     inputPaths: ["/data/input/sample-001.pdf"],
     outputBaseDir: "/data/output/run-1/sample-001",
@@ -106,7 +88,7 @@ describe("benchmarkExecuteWorkflow", () => {
         args: [
           expect.objectContaining({
             sampleId: "sample-001",
-            workflowConfig: mockWorkflowConfig,
+            workflowVersionId: "wv-test-001",
             configHash: "abc123hash",
             inputPaths: ["/data/input/sample-001.pdf"],
             outputBaseDir: "/data/output/run-1/sample-001",
@@ -114,6 +96,28 @@ describe("benchmarkExecuteWorkflow", () => {
             predictionOutputDir:
               "/data/output/run-1/.benchmark-outputs/sample-001",
             parentWorkflowId: "benchmark-run-123",
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("forwards workflowConfigOverrides to the wrapper", async () => {
+    mockExecuteChild.mockResolvedValue(mockChildResult);
+
+    await benchmarkExecuteWorkflow({
+      ...baseInput,
+      workflowConfigOverrides: { "ctx.modelId.defaultValue": "prebuilt-read" },
+    });
+
+    expect(mockExecuteChild).toHaveBeenCalledWith(
+      "benchmarkSampleWorkflow",
+      expect.objectContaining({
+        args: [
+          expect.objectContaining({
+            workflowConfigOverrides: {
+              "ctx.modelId.defaultValue": "prebuilt-read",
+            },
           }),
         ],
       }),

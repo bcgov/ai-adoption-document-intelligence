@@ -43,7 +43,8 @@ _get_git_branch() {
 #   - Replace slashes, underscores, dots, and other invalid characters with hyphens
 #   - Collapse consecutive hyphens into a single hyphen
 #   - Strip leading and trailing hyphens
-#   - Truncate to 63 characters (Kubernetes name limit)
+#   - Truncate to 20 characters (keeps Crunchy-operator-derived labels and
+#     hostnames under the Kubernetes 63-character limit — see truncation note below)
 #   - Ensure result starts and ends with an alphanumeric character
 #
 # Prints the sanitized name to stdout.

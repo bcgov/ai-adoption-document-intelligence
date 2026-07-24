@@ -38,6 +38,7 @@ const mockWorkflowInfo: WorkflowInfo = {
   config: mockGraphConfig,
   schemaVersion: "1.0",
   version: 1,
+  configHash: "abc123",
   createdAt: new Date(),
   updatedAt: new Date(),
 };

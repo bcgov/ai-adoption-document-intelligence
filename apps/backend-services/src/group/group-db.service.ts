@@ -365,6 +365,31 @@ export class GroupDbService {
   }
 
   /**
+   * Deletes all non-PENDING membership requests for a user in a group.
+   * Called before creating a new PENDING request to ensure no prior resolved records
+   * remain that would violate the unique constraint on (group_id, user_id, status).
+   * @param userId - The user ID.
+   * @param groupId - The group ID.
+   * @param tx - Optional. Prisma transaction client.
+   */
+  async deleteResolvedMembershipRequests(
+    userId: string,
+    groupId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.groupMembershipRequest.deleteMany({
+      where: {
+        user_id: userId,
+        group_id: groupId,
+        status: {
+          not: "PENDING" as $Enums.GroupMembershipRequestStatus,
+        },
+      },
+    });
+  }
+
+  /**
    * Creates a new PENDING membership request.
    * @param userId - The requesting user ID.
    * @param groupId - The target group ID.
@@ -405,6 +430,52 @@ export class GroupDbService {
   }
 
   /**
+   * Atomically cancels a membership request.
+   * Deletes all prior resolved records for the user+group pair (APPROVED, DENIED,
+   * CANCELLED) within the same transaction before updating the PENDING request to
+   * CANCELLED. This prevents unique-constraint violations on (group_id, user_id, status).
+   *
+   * Note: GroupMembershipRequest rows are treated as ephemeral state. Historical
+   * resolution data is preserved in the audit log, not in this table.
+   *
+   * @param requestUserId - The user ID from the request.
+   * @param requestGroupId - The group ID from the request.
+   * @param requestId - The membership request ID.
+   * @param resolutionData - The update payload (status=CANCELLED, resolved_at, updated_by).
+   * @param tx - Optional. Prisma transaction client.
+   */
+  async cancelRequestTransaction(
+    requestUserId: string,
+    requestGroupId: string,
+    requestId: string,
+    resolutionData: Prisma.GroupMembershipRequestUpdateInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const run = async (client: Prisma.TransactionClient): Promise<void> => {
+      // Remove any prior resolved records that would violate the unique constraint
+      // on (group_id, user_id, status) when this PENDING request is updated to CANCELLED.
+      await client.groupMembershipRequest.deleteMany({
+        where: {
+          user_id: requestUserId,
+          group_id: requestGroupId,
+          id: { not: requestId },
+          status: { not: "PENDING" as $Enums.GroupMembershipRequestStatus },
+        },
+      });
+      await client.groupMembershipRequest.update({
+        where: { id: requestId },
+        data: resolutionData,
+      });
+    };
+
+    if (tx) {
+      await run(tx);
+      return;
+    }
+    await this.prisma.$transaction(run);
+  }
+
+  /**
    * Atomically approves a membership request: upserts the user into the group
    * and updates the request status within a single transaction.
    * @param requestUserId - The user ID from the request.
@@ -420,8 +491,18 @@ export class GroupDbService {
     resolutionData: Prisma.GroupMembershipRequestUpdateInput,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    if (tx) {
-      await tx.userGroup.upsert({
+    const run = async (client: Prisma.TransactionClient): Promise<void> => {
+      // Remove any prior resolved records that would violate the unique constraint
+      // on (group_id, user_id, status) when this PENDING request is updated to APPROVED.
+      await client.groupMembershipRequest.deleteMany({
+        where: {
+          user_id: requestUserId,
+          group_id: requestGroupId,
+          id: { not: requestId },
+          status: { not: "PENDING" as $Enums.GroupMembershipRequestStatus },
+        },
+      });
+      await client.userGroup.upsert({
         where: {
           user_id_group_id: {
             user_id: requestUserId,
@@ -431,28 +512,17 @@ export class GroupDbService {
         update: {},
         create: { user_id: requestUserId, group_id: requestGroupId },
       });
-      await tx.groupMembershipRequest.update({
+      await client.groupMembershipRequest.update({
         where: { id: requestId },
         data: resolutionData,
       });
+    };
+
+    if (tx) {
+      await run(tx);
       return;
     }
-    await this.prisma.$transaction([
-      this.prisma.userGroup.upsert({
-        where: {
-          user_id_group_id: {
-            user_id: requestUserId,
-            group_id: requestGroupId,
-          },
-        },
-        update: {},
-        create: { user_id: requestUserId, group_id: requestGroupId },
-      }),
-      this.prisma.groupMembershipRequest.update({
-        where: { id: requestId },
-        data: resolutionData,
-      }),
-    ]);
+    await this.prisma.$transaction(run);
   }
 
   /**

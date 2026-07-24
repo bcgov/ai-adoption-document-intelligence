@@ -85,7 +85,7 @@ describe("HitlDatasetService", () => {
       file_path: "testgroup/ocr/documents/doc-1/original.pdf",
       normalized_file_path: "testgroup/ocr/doc1/normalized.pdf",
       file_type: "pdf",
-      status: "completed_ocr",
+      status: "complete", // approved documents are in complete status
       group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [mockApprovedSession],
@@ -96,7 +96,7 @@ describe("HitlDatasetService", () => {
       file_path: "testgroup/ocr/documents/doc-2/original.pdf",
       normalized_file_path: "testgroup/ocr/doc2/normalized.pdf",
       file_type: "pdf",
-      status: "completed_ocr",
+      status: "complete", // approved documents are in complete status
       group_id: "test-group",
       ocr_result: { keyValuePairs: mockOcrFields },
       review_sessions: [
@@ -125,17 +125,26 @@ describe("HitlDatasetService", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
-      createVersion: jest.fn().mockResolvedValue({
-        id: "version-1",
-        datasetId: "dataset-1",
-        version: "v1",
-        name: null,
-        storagePrefix: null,
-        manifestPath: "dataset-manifest.json",
-        documentCount: 0,
-        groundTruthSchema: null,
-        createdAt: new Date(),
-      }),
+      createVersion: jest
+        .fn()
+        .mockImplementation(
+          async (
+            datasetId: string,
+            dto: { version?: string; name?: string },
+            _actorId: string,
+            options?: { id?: string; storagePrefix?: string | null },
+          ) => ({
+            id: options?.id ?? "version-1",
+            datasetId,
+            version: dto.version ?? "v1",
+            name: dto.name ?? null,
+            storagePrefix: options?.storagePrefix ?? null,
+            manifestPath: "dataset-manifest.json",
+            documentCount: 0,
+            groundTruthSchema: null,
+            createdAt: new Date(),
+          }),
+        ),
       updateVersionAfterHitlImport: jest.fn().mockResolvedValue({
         id: "version-1",
         datasetId: "dataset-1",
@@ -554,13 +563,16 @@ describe("HitlDatasetService", () => {
         "test-group",
       );
 
-      expect(result.version.id).toBe("version-1");
       expect(result.skipped).toHaveLength(0);
 
       expect(mockDatasetService.createVersion).toHaveBeenCalledWith(
         "dataset-1",
         { version: undefined, name: undefined },
         "user-1",
+        expect.objectContaining({
+          id: expect.any(String),
+          storagePrefix: expect.stringMatching(/^datasets\/dataset-1\//),
+        }),
       );
     });
 
@@ -580,6 +592,10 @@ describe("HitlDatasetService", () => {
         "dataset-1",
         { version: "v2", name: "Second batch" },
         "user-1",
+        expect.objectContaining({
+          id: expect.any(String),
+          storagePrefix: expect.stringMatching(/^datasets\/dataset-1\//),
+        }),
       );
     });
   });

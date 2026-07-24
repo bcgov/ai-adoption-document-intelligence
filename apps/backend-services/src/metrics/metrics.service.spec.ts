@@ -91,4 +91,154 @@ describe("MetricsService", () => {
       expect(metrics).toContain("http_request_duration_seconds_sum");
     });
   });
+
+  describe("handleLogAlert", () => {
+    it("should increment app_error_total with severity=warning for warn level", async () => {
+      service.handleLogAlert("warn", "classifier_training_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_error_total{type="classifier_training_failed",severity="warning"} 1',
+      );
+    });
+
+    it("should increment app_error_total with severity=critical for error level", async () => {
+      service.handleLogAlert("error", "workflow_activity_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_error_total{type="workflow_activity_failed",severity="critical"} 1',
+      );
+    });
+
+    it("should track multiple alert types independently", async () => {
+      service.handleLogAlert("warn", "classifier_training_failed");
+      service.handleLogAlert("error", "ai_service_unavailable");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_error_total{type="classifier_training_failed",severity="warning"} 1',
+      );
+      expect(metrics).toContain(
+        'app_error_total{type="ai_service_unavailable",severity="critical"} 1',
+      );
+    });
+
+    it("should increment app_success_total on info after warn", async () => {
+      service.handleLogAlert("warn", "classifier_training_failed");
+      service.handleLogAlert("info", "classifier_training_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="classifier_training_failed"} 1',
+      );
+    });
+
+    it("should increment app_success_total on info level with alertType", async () => {
+      service.handleLogAlert("info", "enrich_results_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="enrich_results_failed"} 1',
+      );
+    });
+
+    it("should increment app_success_total on debug level with alertType", async () => {
+      service.handleLogAlert("debug", "enrich_results_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="enrich_results_failed"} 1',
+      );
+    });
+
+    it("should increment app_success_total on info after error", async () => {
+      service.handleLogAlert("error", "enrich_results_failed");
+      service.handleLogAlert("info", "enrich_results_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="enrich_results_failed"} 1',
+      );
+      expect(metrics).toContain(
+        'app_error_total{type="enrich_results_failed",severity="critical"} 1',
+      );
+    });
+
+    it("should increment app_success_total on info even without prior error", async () => {
+      service.handleLogAlert("info", "enrich_results_failed");
+      service.handleLogAlert("info", "enrich_results_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="enrich_results_failed"} 2',
+      );
+      // No error logged, so error counter should not be present
+      expect(metrics).not.toContain(
+        'app_error_total{type="enrich_results_failed"',
+      );
+    });
+
+    it("should only increment app_success_total on info when type was never in error state", async () => {
+      service.handleLogAlert("info", "classifier_training_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="classifier_training_failed"} 1',
+      );
+      // No error logged, so error counter should not be present
+      expect(metrics).not.toContain(
+        'app_error_total{type="classifier_training_failed"',
+      );
+    });
+
+    it("should increment success counter for each info/debug call", async () => {
+      service.handleLogAlert("error", "workflow_failed");
+      service.handleLogAlert("info", "workflow_failed");
+      service.handleLogAlert("info", "workflow_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain('app_success_total{type="workflow_failed"} 2');
+      expect(metrics).toContain(
+        'app_error_total{type="workflow_failed",severity="critical"} 1',
+      );
+    });
+
+    it("should track multiple alert types independently", async () => {
+      service.handleLogAlert("warn", "classifier_training_failed");
+      service.handleLogAlert("error", "ai_service_unavailable");
+      service.handleLogAlert("info", "classifier_training_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_success_total{type="classifier_training_failed"} 1',
+      );
+      expect(metrics).toContain(
+        'app_error_total{type="classifier_training_failed",severity="warning"} 1',
+      );
+      // ai_service_unavailable has error but no success yet
+      expect(metrics).toContain(
+        'app_error_total{type="ai_service_unavailable",severity="critical"} 1',
+      );
+      expect(metrics).not.toContain(
+        'app_success_total{type="ai_service_unavailable"}',
+      );
+    });
+  });
+
+  describe("getMetricsHook", () => {
+    it("should return a function", () => {
+      expect(typeof service.getMetricsHook()).toBe("function");
+    });
+
+    it("should invoke handleLogAlert when the hook is called", async () => {
+      const hook = service.getMetricsHook();
+      hook("error", "enrich_results_failed");
+
+      const metrics = await service.getMetrics();
+      expect(metrics).toContain(
+        'app_error_total{type="enrich_results_failed",severity="critical"} 1',
+      );
+    });
+  });
 });

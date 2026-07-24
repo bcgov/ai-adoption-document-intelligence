@@ -1,21 +1,6 @@
-import {
-  Alert,
-  Button,
-  Group,
-  Menu,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { useGroup } from "../auth/GroupContext";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -27,22 +12,34 @@ import {
   useRequestMembership,
   useUpdateGroup,
 } from "../data/hooks/useGroups";
-import { ConfusionProfilesPanel } from "../features/benchmarking/components/ConfusionProfilesPanel";
+import {
+  Alert,
+  Button,
+  ConfirmActionModal,
+  Group,
+  Menu,
+  Modal,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  UnstyledButton,
+} from "../ui";
 
 /**
  * Page shown at `/groups/:groupId`. Displays group details and the Members tab
  * for users who belong to the group, group admins, or system admins.
- * Group admins and system admins also see the Membership Requests tab.
+ * Group admins and system admins also see the Membership requests tab.
  */
 export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
-  const { availableGroups } = useGroup();
   const navigate = useNavigate();
-
-  const isMember = availableGroups.some((g) => g.id === groupId);
-  const canViewMembers = isSystemAdmin || isMember;
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
   const [editGroupOpen, setEditGroupOpen] = useState(false);
@@ -53,6 +50,9 @@ export function GroupDetailPage(): JSX.Element {
   const [activeTab, setActiveTab] = useState<string>("members");
 
   const { data: myGroups } = useMyGroups(user?.sub ?? "");
+
+  const isMember = (myGroups ?? []).some((g) => g.id === groupId);
+  const canViewMembers = isSystemAdmin || isMember;
 
   const { data: allGroups } = useAllGroups();
 
@@ -134,7 +134,7 @@ export function GroupDetailPage(): JSX.Element {
         onSuccess: () => {
           setEditGroupOpen(false);
           notifications.show({
-            title: "Group Updated",
+            title: "Group updated",
             message: "The group has been updated successfully.",
             color: "green",
           });
@@ -165,7 +165,7 @@ export function GroupDetailPage(): JSX.Element {
       {
         onSuccess: () => {
           notifications.show({
-            title: "Request Submitted",
+            title: "Request submitted",
             message: "Your membership request has been submitted.",
             color: "green",
           });
@@ -189,98 +189,100 @@ export function GroupDetailPage(): JSX.Element {
     );
   }
 
+  const actionsMenu = (
+    <Menu shadow="md" width={180} position="bottom-end" withinPortal>
+      <Menu.Target>
+        <UnstyledButton
+          className="bcds-menu-outline-trigger"
+          data-testid="group-actions-menu-btn"
+        >
+          Actions
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {isSystemAdmin && (
+          <Menu.Item
+            onClick={handleOpenEditGroup}
+            data-testid="edit-group-menu-item"
+          >
+            Edit group
+          </Menu.Item>
+        )}
+        {isMember && (
+          <Menu.Item
+            color="red"
+            onClick={() => setLeaveGroupOpen(true)}
+            data-testid="leave-group-menu-item"
+          >
+            Leave group
+          </Menu.Item>
+        )}
+        {!isMember && !isSystemAdmin && (
+          <Menu.Item
+            onClick={handleJoin}
+            disabled={hasPendingRequest || requestMutation.isPending}
+            data-testid="join-group-menu-item"
+          >
+            {hasPendingRequest ? "Request pending" : "Join"}
+          </Menu.Item>
+        )}
+        {isSystemAdmin && (
+          <>
+            <Menu.Divider />
+            <Menu.Item
+              color="red"
+              onClick={() => setDeleteGroupOpen(true)}
+              data-testid="delete-group-menu-item"
+            >
+              Delete group
+            </Menu.Item>
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={2}>{groupName}</Title>
-          <Text c="dimmed" size="sm">
-            Group details and membership.
-          </Text>
-        </Stack>
-        <Group gap="xs">
-          <Menu shadow="md" width={180} position="bottom-end">
-            <Menu.Target>
-              <Button variant="outline" data-testid="group-actions-menu-btn">
-                Actions
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {isSystemAdmin && (
-                <Menu.Item
-                  onClick={handleOpenEditGroup}
-                  data-testid="edit-group-menu-item"
-                >
-                  Edit Group
-                </Menu.Item>
-              )}
-              {isMember && (
-                <Menu.Item
-                  color="red"
-                  onClick={() => setLeaveGroupOpen(true)}
-                  data-testid="leave-group-menu-item"
-                >
-                  Leave Group
-                </Menu.Item>
-              )}
-              {!isMember && !isSystemAdmin && (
-                <Menu.Item
-                  onClick={handleJoin}
-                  disabled={hasPendingRequest || requestMutation.isPending}
-                  data-testid="join-group-menu-item"
-                >
-                  {hasPendingRequest ? "Request Pending" : "Join"}
-                </Menu.Item>
-              )}
-              {isSystemAdmin && (
-                <>
-                  <Menu.Divider />
-                  <Menu.Item
-                    color="red"
-                    onClick={() => setDeleteGroupOpen(true)}
-                    data-testid="delete-group-menu-item"
-                  >
-                    Delete Group
-                  </Menu.Item>
-                </>
-              )}
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </Group>
-
-      {groupDescription && (
-        <Text data-testid="group-description">{groupDescription}</Text>
-      )}
+      <PageHeader
+        title={groupName}
+        description={
+          groupDescription
+            ? `${groupDescription} — membership and settings`
+            : "Group details and membership."
+        }
+        actions={actionsMenu}
+      />
 
       {canViewMembers && (
-        <Tabs value={activeTab} onChange={(v) => setActiveTab(v ?? "members")}>
-          <Tabs.List>
-            <Tabs.Tab value="members">Members</Tabs.Tab>
-            {isAdmin && (
-              <Tabs.Tab value="requests">Membership Requests</Tabs.Tab>
-            )}
-            <Tabs.Tab value="confusion-profiles">Confusion Profiles</Tabs.Tab>
-          </Tabs.List>
+        <PanelCard>
+          <Tabs
+            value={activeTab}
+            onChange={(v) => setActiveTab(v ?? "members")}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="members">Members</Tabs.Tab>
+              {isAdmin && (
+                <Tabs.Tab value="requests">Membership requests</Tabs.Tab>
+              )}
+            </Tabs.List>
 
-          <Tabs.Panel value="members" pt="md">
-            <MembersTab groupId={groupId} isAdmin={isAdmin} />
-          </Tabs.Panel>
-          {isAdmin && (
-            <Tabs.Panel value="requests" pt="md">
-              <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+            <Tabs.Panel value="members" pt="md">
+              <MembersTab groupId={groupId} isAdmin={isAdmin} />
             </Tabs.Panel>
-          )}
-          <Tabs.Panel value="confusion-profiles" pt="md">
-            <ConfusionProfilesPanel groupId={groupId} />
-          </Tabs.Panel>
-        </Tabs>
+            {isAdmin && (
+              <Tabs.Panel value="requests" pt="md">
+                <GroupRequestsTab groupId={groupId} isAdmin={isAdmin} />
+              </Tabs.Panel>
+            )}
+          </Tabs>
+        </PanelCard>
       )}
 
       <Modal
         opened={editGroupOpen}
         onClose={() => setEditGroupOpen(false)}
-        title="Edit Group"
+        title="Edit group"
         data-testid="edit-group-modal"
       >
         <Stack gap="sm">
@@ -321,60 +323,31 @@ export function GroupDetailPage(): JSX.Element {
         </Stack>
       </Modal>
 
-      <Modal
+      <ConfirmActionModal
         opened={deleteGroupOpen}
         onClose={() => setDeleteGroupOpen(false)}
-        title="Delete Group"
+        onConfirm={handleDeleteConfirm}
+        title="Delete group"
+        message="Are you sure you want to delete this group? This action will disable the group and cannot be easily undone."
+        confirmLabel="Delete"
+        confirmLoading={deleteMutation.isPending}
         data-testid="delete-group-modal"
-      >
-        <Text>
-          Are you sure you want to delete this group? This action will disable
-          the group and cannot be easily undone.
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setDeleteGroupOpen(false)}
-            data-testid="delete-group-cancel-btn"
-          >
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={deleteMutation.isPending}
-            onClick={handleDeleteConfirm}
-            data-testid="delete-group-confirm-btn"
-          >
-            Delete
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="delete-group-cancel-btn"
+        confirmButtonTestId="delete-group-confirm-btn"
+      />
 
-      <Modal
+      <ConfirmActionModal
         opened={leaveGroupOpen}
         onClose={() => setLeaveGroupOpen(false)}
-        title="Leave Group"
+        onConfirm={handleLeaveConfirm}
+        title="Leave group"
+        message="Are you sure you want to leave this group?"
+        confirmLabel="Leave"
+        confirmLoading={leaveMutation.isPending}
         data-testid="leave-group-modal"
-      >
-        <Text>Are you sure you want to leave this group?</Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setLeaveGroupOpen(false)}
-            data-testid="leave-group-cancel-btn"
-          >
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={leaveMutation.isPending}
-            onClick={handleLeaveConfirm}
-            data-testid="leave-group-confirm-btn"
-          >
-            Leave
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="leave-group-cancel-btn"
+        confirmButtonTestId="leave-group-confirm-btn"
+      />
     </Stack>
   );
 }

@@ -1,8 +1,16 @@
 import {
+  IconFile,
+  IconInfoCircle,
+  IconUpload,
+  IconX,
+} from "@tabler/icons-react";
+import { useState } from "react";
+import {
   Accordion,
   Badge,
   Button,
   Code,
+  Dropzone,
   Group,
   List,
   Modal,
@@ -10,15 +18,7 @@ import {
   rem,
   Stack,
   Text,
-} from "@mantine/core";
-import { Dropzone } from "@mantine/dropzone";
-import {
-  IconFile,
-  IconInfoCircle,
-  IconUpload,
-  IconX,
-} from "@tabler/icons-react";
-import { useState } from "react";
+} from "../../../ui";
 import { useDatasetUpload } from "../hooks/useDatasetUpload";
 
 interface FileUploadDialogProps {
@@ -71,7 +71,7 @@ export function FileUploadDialog({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={versionLabel ? `Upload Files to ${versionLabel}` : "Upload Files"}
+      title={versionLabel ? `Upload files to ${versionLabel}` : "Upload files"}
       size="lg"
       data-testid="upload-files-dialog"
     >
@@ -151,9 +151,9 @@ export function FileUploadDialog({
                       <List size="sm" mt={4}>
                         <List.Item>
                           <Badge size="xs" variant="light" color="blue" mr={4}>
-                            Ground Truth
+                            Ground truth
                           </Badge>
-                          JSON, JSONL, CSV, XLSX, Parquet files
+                          JSON, JSONL, CSV, XLSX, parquet files
                         </List.Item>
                         <List.Item>
                           <Badge size="xs" variant="light" color="gray" mr={4}>
@@ -203,7 +203,7 @@ export function FileUploadDialog({
             {selectedFiles.length > 0 && (
               <Stack gap="xs" data-testid="selected-files-list">
                 <Text size="sm" fw={500}>
-                  Selected Files ({selectedFiles.length})
+                  Selected files ({selectedFiles.length})
                 </Text>
                 {selectedFiles.map((file, index) => (
                   <Group
@@ -257,13 +257,14 @@ export function FileUploadDialog({
             disabled={isUploading}
             data-testid="upload-cancel-btn"
           >
-            {isSuccess ? "Close" : "Cancel"}
+            {isSuccess ? "close" : "cancel"}
           </Button>
           {!isSuccess && (
             <Button
               onClick={handleUpload}
               disabled={selectedFiles.length === 0 || isUploading}
               loading={isUploading}
+              leftSection={<IconUpload size={16} />}
               data-testid="upload-submit-btn"
             >
               Upload

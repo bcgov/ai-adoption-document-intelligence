@@ -1,100 +1,47 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Loader,
-  Modal,
-  Table,
-  Tabs,
-  Text,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconChecklist,
   IconFileDownload,
+  IconInfoCircle,
+  IconRotateClockwise,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
-import { Document, DocumentField, ExtractedFields } from "../../shared/types";
+import { Document } from "../../shared/types";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Group,
+  Loader,
+  Modal,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+  Tooltip,
+} from "../../ui";
 import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
+import OcrResults from "./OcrResults";
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    // Less than 1 MB
+    return `${(bytes / 1024).toFixed(2)} KB`;
+  }
+  if (bytes < 1024 * 1024 * 1024) {
+    // Less than 1 GB
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 interface DocumentViewerModalProps {
   document: Document | null;
   opened: boolean;
   onClose: () => void;
-}
-
-function getFieldDisplayValue(field: DocumentField): string {
-  if (field.valueSelectionMark !== undefined) {
-    return field.valueSelectionMark === "selected"
-      ? "☑ Selected"
-      : "☐ Unselected";
-  }
-  if (field.valueNumber !== undefined) {
-    return field.valueNumber.toString();
-  }
-  if (field.valueDate !== undefined) {
-    return field.valueDate;
-  }
-  if (field.valueString !== undefined) {
-    return field.valueString;
-  }
-  return field.content || "—";
-}
-
-function ExtractedFieldsTable({ fields }: { fields: ExtractedFields }) {
-  const entries = Object.entries(fields);
-
-  if (entries.length === 0) {
-    return <Text c="dimmed">No fields extracted.</Text>;
-  }
-
-  return (
-    <Table striped highlightOnHover withTableBorder>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Field</Table.Th>
-          <Table.Th>Value</Table.Th>
-          <Table.Th>Type</Table.Th>
-          <Table.Th>Confidence</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {entries.map(([name, field]) => (
-          <Table.Tr key={name}>
-            <Table.Td>
-              <Text size="sm" fw={500}>
-                {name}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{getFieldDisplayValue(field)}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge size="xs" variant="light">
-                {field.type}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
-              <Text
-                size="sm"
-                c={
-                  field.confidence >= 0.9
-                    ? "green"
-                    : field.confidence >= 0.7
-                      ? "yellow"
-                      : "red"
-                }
-              >
-                {(field.confidence * 100).toFixed(1)}%
-              </Text>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
-  );
 }
 
 export function DocumentViewerModal({
@@ -103,19 +50,26 @@ export function DocumentViewerModal({
   onClose,
 }: DocumentViewerModalProps) {
   const documentId = document?.id;
-  const { data: ocrResult, error: ocrError } = useDocumentOcr(documentId);
+  // A purged document's blobs were removed per its workflow's retention policy.
+  // The original/normalized PDF is gone, but the extracted OCR data is retained,
+  // so we skip the (failing) blob fetch and surface the retained data instead.
+  const isPurged = !!document?.purged_at;
+  const { data: ocrResult } = useDocumentOcr(documentId);
+  const ocr = ocrResult?.ocr_result;
+  // Read/layout models save their output as `content` (markdown/text) with no
+  // keyValuePairs; field-extraction models save keyValuePairs. The OCR Results
+  // tab surfaces whichever is present.
+  const hasKeyValues = !!ocr?.keyValuePairs;
+  const hasOcrText = !!(ocr?.content?.markdown || ocr?.content?.text);
+  const hasOcrData = hasKeyValues || hasOcrText;
   const [imageUrl, setImageUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
+  const [rotation, setRotation] = useState(0);
   const showOverlays = true;
 
   useEffect(() => {
-    // OCR result and error are handled by the component state
-    // Removed console statements for lint compliance
-  }, [ocrResult, ocrError]);
-
-  useEffect(() => {
-    if (opened && document) {
+    if (opened && document && !document.purged_at) {
       void loadDocumentImage(document);
     } else if (!opened) {
       // Clean up object URL when modal closes
@@ -195,24 +149,72 @@ export function DocumentViewerModal({
     }
     setImageUrl("");
     setError("");
+    setRotation(0);
     onClose();
+  };
+
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360);
   };
 
   return (
     <Modal
       opened={opened}
       onClose={handleClose}
-      title={`Document Viewer - ${document?.title || "Document"}`}
+      centered
+      fullBleedBody
+      darkOverlay
+      title={
+        <Group
+          justify="space-between"
+          pr={30}
+          style={{ width: "100%", flex: 1 }}
+          wrap="nowrap"
+        >
+          <Text size="lg" fw={600}>
+            {document?.title || "Document"}
+          </Text>
+          <Group gap="xs">
+            <Tooltip label="Rotate 90°" position="bottom" withArrow>
+              <ActionIcon
+                variant="subtle"
+                onClick={handleRotate}
+                disabled={!imageUrl}
+                size="lg"
+                aria-label="Rotate document"
+              >
+                <IconRotateClockwise size={20} />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Download document" position="bottom" withArrow>
+              <ActionIcon
+                variant="subtle"
+                onClick={handleDownload}
+                disabled={!imageUrl || !document}
+                size="lg"
+                mr="md"
+                aria-label="Download document"
+              >
+                <IconFileDownload size={20} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Group>
+      }
       size="90vw"
       styles={{
-        body: { height: "90vh", display: "flex", flexDirection: "column" },
-        content: { height: "90vh" },
-        overlay: { backgroundColor: "rgba(0, 0, 0, 0.8)" },
+        body: {
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        },
+        content: { height: "90vh", overflow: "hidden" },
+        header: { paddingRight: "1rem" },
+        title: { flex: 1, width: "100%" },
       }}
-      withinPortal
       zIndex={9999}
-      closeOnClickOutside={false}
-      closeOnEscape={false}
+      closeOnClickOutside={true}
+      closeOnEscape={true}
     >
       {!document ? (
         <div className="flex items-center justify-center h-full">
@@ -240,32 +242,15 @@ export function DocumentViewerModal({
             minHeight: 0,
           }}
         >
-          <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
-            <div>
-              <h3 className="font-semibold text-lg">{document.title}</h3>
-              <p className="text-sm text-gray-600">
-                {document.original_filename}
-                {document.model_id && (
-                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                    Model: {document.model_id}
-                  </span>
-                )}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              leftSection={<IconFileDownload size={16} />}
-              onClick={handleDownload}
-              disabled={!imageUrl}
-            >
-              Download
-            </Button>
-          </div>
           <Tabs
             defaultValue={
-              document.status === "needs_validation" || document.needsReview
+              document.status === "awaiting_review" || document.needsReview
                 ? "review"
-                : "viewer"
+                : isPurged
+                  ? hasOcrData
+                    ? "ocr-results"
+                    : "details"
+                  : "viewer"
             }
             style={{
               flex: 1,
@@ -275,30 +260,43 @@ export function DocumentViewerModal({
               overflow: "hidden",
             }}
           >
-            <Tabs.List className="flex-shrink-0 px-4 pt-2">
+            <Tabs.List
+              className="flex-shrink-0"
+              style={{
+                paddingLeft: "var(--layout-padding-large)",
+                paddingRight: "var(--layout-padding-large)",
+                paddingTop: "var(--layout-padding-small)",
+              }}
+            >
               <Tabs.Tab
                 value="viewer"
                 leftSection={<IconFileDownload size={16} />}
               >
-                Document Viewer
+                Document viewer
               </Tabs.Tab>
-              {ocrResult?.ocr_result?.keyValuePairs && (
+              {hasOcrData && (
                 <Tabs.Tab
                   value="ocr-results"
                   leftSection={<IconChecklist size={16} />}
                 >
-                  OCR Results
+                  OCR results
                 </Tabs.Tab>
               )}
-              {(document?.status === "needs_validation" ||
+              {(document?.status === "awaiting_review" ||
                 document?.needsReview) && (
                 <Tabs.Tab
                   value="review"
                   leftSection={<IconChecklist size={16} />}
                 >
-                  Review & Approve
+                  Review & approve
                 </Tabs.Tab>
               )}
+              <Tabs.Tab
+                value="details"
+                leftSection={<IconInfoCircle size={16} />}
+              >
+                Details
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel
@@ -313,48 +311,209 @@ export function DocumentViewerModal({
               {imageUrl ? (
                 <DocumentViewer
                   imageUrl={imageUrl}
-                  extractedFields={ocrResult?.ocr_result?.keyValuePairs}
+                  extractedFields={ocr?.keyValuePairs}
                   pageNumber={1}
                   showOverlays={showOverlays}
+                  rotation={rotation}
                 />
+              ) : isPurged ? (
+                <div className="p-4">
+                  <Alert
+                    color="blue"
+                    icon={<IconInfoCircle size={16} />}
+                    title="Original document removed"
+                  >
+                    This document’s original file was removed per its workflow’s
+                    retention policy
+                    {document.purged_at
+                      ? ` on ${new Date(document.purged_at).toLocaleString()}`
+                      : ""}
+                    . The extracted data is retained
+                    {hasOcrData ? " — see the OCR results tab." : "."}
+                  </Alert>
+                </div>
               ) : null}
             </Tabs.Panel>
-
-            {ocrResult?.ocr_result?.keyValuePairs && (
+            {hasOcrData && (
               <Tabs.Panel
                 value="ocr-results"
-                className="flex-1 min-h-0 overflow-auto p-4"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
               >
-                <ExtractedFieldsTable
-                  fields={ocrResult.ocr_result.keyValuePairs}
-                />
+                <OcrResults ocr={ocr ?? null} />
               </Tabs.Panel>
             )}
-            {(document?.status === "needs_validation" ||
+            {(document?.status === "awaiting_review" ||
               document?.needsReview) && (
               <Tabs.Panel
                 value="review"
-                className="flex-1 min-h-0 overflow-auto p-4"
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
               >
-                {ocrResult?.ocr_result ? (
-                  <DocumentValidation
-                    document={document}
-                    ocrResult={ocrResult.ocr_result}
-                    onValidationComplete={() => {
-                      // Refresh the document list and close modal after a short delay
-                      setTimeout(() => {
-                        handleClose();
-                      }, 1000);
-                    }}
-                  />
-                ) : (
-                  <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                    OCR results are not available yet. Please wait for
-                    processing to complete.
-                  </Alert>
-                )}
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "auto",
+                    padding: "1rem",
+                    paddingBottom: "3rem",
+                  }}
+                >
+                  {ocr ? (
+                    <DocumentValidation
+                      document={document}
+                      ocrResult={ocr}
+                      onValidationComplete={() => {
+                        // Refresh the document list and close modal after a short delay
+                        setTimeout(() => {
+                          handleClose();
+                        }, 1000);
+                      }}
+                    />
+                  ) : (
+                    <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                      OCR results are not available yet. Please wait for
+                      processing to complete.
+                    </Alert>
+                  )}
+                </div>
               </Tabs.Panel>
             )}
+            <Tabs.Panel
+              value="details"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: "auto",
+                  padding: "1rem",
+                  paddingBottom: "3rem",
+                }}
+              >
+                <Stack gap="md">
+                  <div>
+                    <Title order={4} mb="xs">
+                      File information
+                    </Title>
+                    <Table
+                      withTableBorder
+                      withColumnBorders
+                      style={{ tableLayout: "fixed", width: "100%" }}
+                    >
+                      <Table.Tbody>
+                        <Table.Tr>
+                          <Table.Td fw={600} w="30%">
+                            Document name
+                          </Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {document.title}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>Original filename</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {document.original_filename}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>Original file type</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {document.file_type}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>File size</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {formatFileSize(document.file_size)}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>Source</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            <Badge variant="light">{document.source}</Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                      </Table.Tbody>
+                    </Table>
+                  </div>
+
+                  <div>
+                    <Title order={4} mb="xs">
+                      Processing information
+                    </Title>
+                    <Table
+                      withTableBorder
+                      withColumnBorders
+                      style={{ tableLayout: "fixed", width: "100%" }}
+                    >
+                      <Table.Tbody>
+                        <Table.Tr>
+                          <Table.Td fw={600} w="30%">
+                            Status
+                          </Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            <Badge
+                              color={
+                                document.status === "complete"
+                                  ? "green"
+                                  : document.status === "failed"
+                                    ? "red"
+                                    : document.status === "awaiting_review"
+                                      ? "yellow"
+                                      : "blue"
+                              }
+                            >
+                              {document.status}
+                            </Badge>
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>Model</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {document.model_id}
+                          </Table.Td>
+                        </Table.Tr>
+                        {document.workflow_name && (
+                          <Table.Tr>
+                            <Table.Td fw={600}>Workflow</Table.Td>
+                            <Table.Td style={{ wordBreak: "break-word" }}>
+                              {document.workflow_name}
+                            </Table.Td>
+                          </Table.Tr>
+                        )}
+                        <Table.Tr>
+                          <Table.Td fw={600}>Upload date</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {new Date(document.created_at).toLocaleString()}
+                          </Table.Td>
+                        </Table.Tr>
+                        <Table.Tr>
+                          <Table.Td fw={600}>Last updated</Table.Td>
+                          <Table.Td style={{ wordBreak: "break-word" }}>
+                            {new Date(document.updated_at).toLocaleString()}
+                          </Table.Td>
+                        </Table.Tr>
+                      </Table.Tbody>
+                    </Table>
+                  </div>
+                </Stack>
+              </div>
+            </Tabs.Panel>
           </Tabs>
         </div>
       )}

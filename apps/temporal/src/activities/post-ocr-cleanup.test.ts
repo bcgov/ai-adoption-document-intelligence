@@ -1,7 +1,55 @@
+jest.mock("../logger", () => ({
+  createActivityLogger: () => ({
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  }),
+}));
+
+import type { OcrPayloadRef } from "../ocr-payload-ref";
+import * as ocrPayloadRef from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 import { postOcrCleanup } from "./post-ocr-cleanup";
 
+const DOC_ID = "doc-cleanup-test";
+const cleanedBodies = new Map<string, OCRResult>();
+
+function cleanedFromRef(result: { cleanedResult: OcrPayloadRef }): OCRResult {
+  const body = cleanedBodies.get(result.cleanedResult.blobPath);
+  if (!body) {
+    throw new Error(
+      `missing cleaned body for ${result.cleanedResult.blobPath}`,
+    );
+  }
+  return body;
+}
+
 describe("postOcrCleanup activity", () => {
+  beforeEach(() => {
+    cleanedBodies.clear();
+    jest
+      .spyOn(ocrPayloadRef, "resolveGroupIdForOcr")
+      .mockResolvedValue("gtestgroupidfortests01");
+    jest
+      .spyOn(ocrPayloadRef, "persistOcrArtifactRef")
+      .mockImplementation(async (_groupId, documentId, _file, body) => {
+        const ref: OcrPayloadRef = {
+          documentId,
+          blobPath: `gtestgroupidfortests01/ocr/${documentId}/cleaned-result.json`,
+          storage: "blob",
+          status: "succeeded",
+        };
+        cleanedBodies.set(ref.blobPath, body as OCRResult);
+        return ref;
+      });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("cleans unicode and encoding artifacts", async () => {
     const ocrResult: OCRResult = {
       success: true,
@@ -21,9 +69,11 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
 
-    expect(result.cleanedResult.extractedText).toBe('Hello World-test"Hello"');
+    expect(cleanedFromRef(result).extractedText).toBe(
+      'Hello World-test"Hello"',
+    );
   });
 
   it("removes hyphenation at line breaks", async () => {
@@ -45,10 +95,11 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
+    const cleaned = cleanedFromRef(result).extractedText;
 
-    expect(result.cleanedResult.extractedText).toContain("document");
-    expect(result.cleanedResult.extractedText).toContain("hyphenation");
+    expect(cleaned).toContain("document");
+    expect(cleaned).toContain("hyphenation");
   });
 
   it("normalizes date separators", async () => {
@@ -70,9 +121,9 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
 
-    expect(result.cleanedResult.extractedText).toContain("12/31/2024");
+    expect(cleanedFromRef(result).extractedText).toContain("12/31/2024");
   });
 
   it("fixes common OCR number errors", async () => {
@@ -94,9 +145,9 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
 
-    expect(result.cleanedResult.extractedText).toContain("105.00");
+    expect(cleanedFromRef(result).extractedText).toContain("105.00");
   });
 
   it("cleans text in pages, paragraphs, and tables", async () => {
@@ -164,12 +215,13 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
+    const cleaned = cleanedFromRef(result);
 
-    expect(result.cleanedResult.pages[0].words[0].content).toBe("Hello World");
-    expect(result.cleanedResult.pages[0].lines[0].content).toBe("Hello World");
-    expect(result.cleanedResult.paragraphs[0].content).toBe("Para-graph");
-    expect(result.cleanedResult.tables[0].cells[0].content).toBe("105");
+    expect(cleaned.pages[0].words[0].content).toBe("Hello World");
+    expect(cleaned.pages[0].lines[0].content).toBe("Hello World");
+    expect(cleaned.paragraphs[0].content).toBe("Para-graph");
+    expect(cleaned.tables[0].cells[0].content).toBe("105");
   });
 
   it("cleans text in key-value pairs", async () => {
@@ -205,12 +257,11 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    const result = await postOcrCleanup({ ocrResult });
+    const result = await postOcrCleanup({ ocrResult, documentId: DOC_ID });
+    const cleaned = cleanedFromRef(result);
 
-    expect(result.cleanedResult.keyValuePairs[0].key.content).toBe("Name Key");
-    expect(result.cleanedResult.keyValuePairs[0].value?.content).toBe(
-      "Value-Text",
-    );
+    expect(cleaned.keyValuePairs[0].key.content).toBe("Name Key");
+    expect(cleaned.keyValuePairs[0].value?.content).toBe("Value-Text");
   });
 
   it("returns original result if cleanup fails", async () => {
@@ -232,15 +283,17 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    // Simulate an error by making pages array non-mappable
     const brokenResult = {
       ...ocrResult,
       pages: null as unknown as typeof ocrResult.pages,
     };
 
-    const result = await postOcrCleanup({ ocrResult: brokenResult });
+    const result = await postOcrCleanup({
+      ocrResult: brokenResult,
+      documentId: DOC_ID,
+    });
 
-    expect(result.cleanedResult).toBe(brokenResult);
+    expect(cleanedFromRef(result)).toEqual(brokenResult);
   });
 
   it("does not modify original ocrResult object", async () => {
@@ -263,7 +316,7 @@ describe("postOcrCleanup activity", () => {
       processedAt: "2024-01-01T00:00:00Z",
     };
 
-    await postOcrCleanup({ ocrResult });
+    await postOcrCleanup({ ocrResult, documentId: DOC_ID });
 
     expect(ocrResult.extractedText).toBe(originalText);
   });

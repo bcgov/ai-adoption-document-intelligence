@@ -18,6 +18,7 @@ describe("upsertOcrResult activity", () => {
       update: jest.Mock;
       findUnique: jest.Mock;
     };
+    $transaction: jest.Mock;
   };
 
   beforeEach(() => {
@@ -29,6 +30,9 @@ describe("upsertOcrResult activity", () => {
         update: jest.fn(),
         findUnique: jest.fn().mockResolvedValue({ id: "doc-1" }),
       },
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn(prismaMock),
+      ),
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
   });
@@ -72,7 +76,7 @@ describe("upsertOcrResult activity", () => {
     });
     prismaMock.document.update.mockResolvedValue({
       id: "doc-1",
-      status: "completed_ocr",
+      status: "extracted",
     });
 
     await upsertOcrResult({ documentId: "doc-1", ocrResult });
@@ -108,7 +112,7 @@ describe("upsertOcrResult activity", () => {
 
     expect(prismaMock.document.update).toHaveBeenCalledWith({
       where: { id: "doc-1" },
-      data: { status: "completed_ocr" },
+      data: { status: "extracted" },
     });
   });
 

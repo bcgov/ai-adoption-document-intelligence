@@ -2,17 +2,30 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "ai-doc-intelligence-alertmanager:9093"
+
+rule_files:
+  - "rules/*.yml"
+
 scrape_configs:
   - job_name: "backend-services"
     metrics_path: "/metrics"
     scrape_interval: 15s
+    # For local development, use static_configs since Kubernetes SD is not available.
+    # In production (OpenShift), pod service discovery is used to scrape each pod directly.
     static_configs:
       - targets:
-          - "host.docker.internal:3002"
+          - "host.containers.internal:3002"
 
-  - job_name: "temporal-server"
+  - job_name: "temporal-worker"
     metrics_path: "/metrics"
     scrape_interval: 15s
+    # For local development, use static_configs since Kubernetes SD is not available.
+    # In production (OpenShift), pod service discovery is used to scrape each pod directly.
     static_configs:
       - targets:
-          - "temporal:9090"
+          - "host.containers.internal:9091"

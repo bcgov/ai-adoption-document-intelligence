@@ -8,6 +8,7 @@ const mockPrismaDocument = {
   create: jest.fn(),
   findUnique: jest.fn(),
   findMany: jest.fn(),
+  count: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
 };
@@ -36,6 +37,8 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   normalized_file_path: "documents/doc-1/normalized.pdf",
   file_type: "pdf",
   file_size: 1024,
+  content_hash:
+    "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
   metadata: {},
   source: "api",
   status: DocumentStatus.ongoing_ocr,
@@ -47,6 +50,7 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   group_id: "group-1",
   created_at: new Date("2024-01-01"),
   updated_at: new Date("2024-01-01"),
+  purged_at: null,
   ...overrides,
 });
 
@@ -76,6 +80,7 @@ describe("DocumentDbService", () => {
         normalized_file_path: doc.normalized_file_path,
         file_type: doc.file_type,
         file_size: doc.file_size,
+        content_hash: doc.content_hash,
         metadata: doc.metadata,
         source: doc.source,
         status: doc.status,
@@ -131,37 +136,192 @@ describe("DocumentDbService", () => {
   });
 
   describe("findAllDocuments", () => {
-    it("should return all documents when no groupIds provided", async () => {
+    it("should return all documents with total when no groupIds provided", async () => {
       const docs = [
-        makeDocument({ id: "doc-1" }),
-        makeDocument({ id: "doc-2" }),
+        { ...makeDocument({ id: "doc-1" }), workflowVersion: null },
+        { ...makeDocument({ id: "doc-2" }), workflowVersion: null },
       ];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(2);
 
       const result = await service.findAllDocuments();
 
-      expect(result).toEqual(docs);
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+          { ...docs[1], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 2,
+      });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
-        where: undefined,
+        where: {},
         orderBy: { created_at: "desc" },
+        take: 50,
+        skip: 0,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      expect(mockPrismaDocument.count).toHaveBeenCalledWith({
+        where: {},
       });
     });
 
     it("should filter by groupIds when provided", async () => {
-      const docs = [makeDocument()];
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
       mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
 
       const result = await service.findAllDocuments(["group-1"]);
 
-      expect(result).toEqual(docs);
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 1,
+      });
       expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
         where: { group_id: { in: ["group-1"] } },
         orderBy: { created_at: "desc" },
+        take: 50,
+        skip: 0,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
+    });
+
+    it("should apply limit and offset from options", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(100);
+
+      const result = await service.findAllDocuments(undefined, {
+        limit: 10,
+        offset: 20,
+      });
+
+      expect(result).toEqual({
+        documents: [
+          { ...docs[0], workflow_name: null, workflowVersion: undefined },
+        ],
+        total: 100,
+      });
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
+        where: {},
+        orderBy: { created_at: "desc" },
+        take: 10,
+        skip: 20,
+        include: {
+          workflowVersion: {
+            select: {
+              lineage: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+
+    it("should expand the 'failed' status filter to include conversion_failed", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, { status: "failed" });
+
+      const expectedWhere = {
+        status: { in: ["failed", "conversion_failed"] },
+      };
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrismaDocument.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+    });
+
+    it("should match a non-failed status filter exactly", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, {
+        status: DocumentStatus.complete,
+      });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: DocumentStatus.complete },
+        }),
+      );
+    });
+
+    it("should filter by content_hash when provided", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+      const hash =
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+      await service.findAllDocuments(undefined, { contentHash: hash });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { content_hash: hash },
+        }),
+      );
+    });
+
+    it("should include content_hash in search filter when provided", async () => {
+      const docs = [{ ...makeDocument(), workflowVersion: null }];
+      mockPrismaDocument.findMany.mockResolvedValue(docs);
+      mockPrismaDocument.count.mockResolvedValue(1);
+
+      await service.findAllDocuments(undefined, { search: "2cf24dba" });
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { title: { contains: "2cf24dba", mode: "insensitive" } },
+              {
+                original_filename: {
+                  contains: "2cf24dba",
+                  mode: "insensitive",
+                },
+              },
+              {
+                content_hash: { contains: "2cf24dba", mode: "insensitive" },
+              },
+            ],
+          },
+        }),
+      );
     });
 
     it("should throw if prisma throws", async () => {
       mockPrismaDocument.findMany.mockRejectedValue(new Error("DB error"));
+      mockPrismaDocument.count.mockResolvedValue(0);
       await expect(service.findAllDocuments()).rejects.toThrow("DB error");
     });
   });
@@ -229,6 +389,115 @@ describe("DocumentDbService", () => {
     it("should throw on other prisma errors", async () => {
       mockPrismaDocument.delete.mockRejectedValue(new Error("DB error"));
       await expect(service.deleteDocument("doc-1")).rejects.toThrow("DB error");
+    });
+  });
+
+  describe("findPurgeableEphemeralDocuments", () => {
+    it("matches any ephemeral target, filters status/unpurged, selects config", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([]);
+
+      await service.findPurgeableEphemeralDocuments(
+        [DocumentStatus.complete, DocumentStatus.failed],
+        50,
+      );
+
+      expect(mockPrismaDocument.findMany).toHaveBeenCalledWith({
+        where: {
+          status: { in: [DocumentStatus.complete, DocumentStatus.failed] },
+          purged_at: null,
+          workflowVersion: {
+            is: {
+              OR: [
+                { config: { path: ["metadata", "ephemeral"], equals: true } },
+                {
+                  config: {
+                    path: ["metadata", "ephemeral", "files"],
+                    equals: true,
+                  },
+                },
+                {
+                  config: {
+                    path: ["metadata", "ephemeral", "temporalRecord"],
+                    equals: true,
+                  },
+                },
+              ],
+            },
+          },
+        },
+        select: {
+          id: true,
+          group_id: true,
+          workflow_execution_id: true,
+          workflowVersion: { select: { config: true } },
+        },
+        orderBy: { updated_at: "asc" },
+        take: 50,
+      });
+    });
+
+    it("extracts the ephemeral policy from each workflow config", async () => {
+      mockPrismaDocument.findMany.mockResolvedValue([
+        {
+          id: "d1",
+          group_id: "g1",
+          workflow_execution_id: "wf-1",
+          workflowVersion: { config: { metadata: { ephemeral: true } } },
+        },
+        {
+          id: "d2",
+          group_id: "g1",
+          workflow_execution_id: "wf-2",
+          workflowVersion: {
+            config: { metadata: { ephemeral: { files: true } } },
+          },
+        },
+        {
+          id: "d3",
+          group_id: "g1",
+          workflow_execution_id: null,
+          workflowVersion: { config: { metadata: {} } },
+        },
+      ]);
+
+      const result = await service.findPurgeableEphemeralDocuments(
+        [DocumentStatus.complete],
+        50,
+      );
+
+      expect(result).toEqual([
+        {
+          id: "d1",
+          group_id: "g1",
+          workflow_execution_id: "wf-1",
+          ephemeral: true,
+        },
+        {
+          id: "d2",
+          group_id: "g1",
+          workflow_execution_id: "wf-2",
+          ephemeral: { files: true, temporalRecord: false },
+        },
+        {
+          id: "d3",
+          group_id: "g1",
+          workflow_execution_id: null,
+          ephemeral: false,
+        },
+      ]);
+    });
+  });
+
+  describe("markDocumentPurged", () => {
+    it("stamps purged_at on the document", async () => {
+      mockPrismaDocument.update.mockResolvedValue({});
+
+      await service.markDocumentPurged("d1");
+
+      expect(mockPrismaDocument.update).toHaveBeenCalledWith({
+        where: { id: "d1" },
+        data: { purged_at: expect.any(Date) },
+      });
     });
   });
 

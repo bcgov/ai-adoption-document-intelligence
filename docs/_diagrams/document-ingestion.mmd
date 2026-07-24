@@ -54,8 +54,8 @@ sequenceDiagram
 
     alt Confidence >= threshold
         TW ->> DB: ocr.storeResults<br/>(upsert OcrResult with keyValuePairs)
-        TW ->> DB: document.updateStatus<br/>→ completed_ocr
-    else Confidence < threshold
+        TW ->> DB: document.updateStatus<br/>→ extracted
+    else Confidence < threshold {
         rect rgb(254, 243, 199)
             Note over TW: humanGate node<br/>Registers Temporal signal handler<br/>Waits for human approval
             TW -->> HITL: Document enters review queue<br/>(GET /api/hitl/queue)
@@ -64,7 +64,7 @@ sequenceDiagram
             TS -->> TW: Signal received
         end
         TW ->> DB: ocr.storeResults<br/>(upsert OcrResult)
-        TW ->> DB: document.updateStatus<br/>→ completed_ocr
+        TW ->> DB: document.updateStatus<br/>→ extracted
     end
 
     Note over TW,ADI: MULTI-PAGE PATH (alternative workflow)

@@ -1,20 +1,4 @@
-import {
-  Alert,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Modal,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { useForm } from "@mantine/form";
-import { notifications } from "@mantine/notifications";
-import { IconAlertCircle, IconUsersGroup } from "@tabler/icons-react";
+import { IconAlertCircle, IconPlus, IconUsersGroup } from "@tabler/icons-react";
 import type { JSX } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,7 +9,9 @@ import {
   RequestsTable,
 } from "../components/group/RequestsTable";
 import {
+  type MyMembershipRequest,
   useAllGroups,
+  useApproveMembershipRequest,
   useCancelMembershipRequest,
   useCreateGroup,
   useLeaveGroup,
@@ -33,6 +19,24 @@ import {
   useMyRequests,
   useRequestMembership,
 } from "../data/hooks/useGroups";
+import {
+  Alert,
+  Button,
+  Center,
+  ConfirmActionModal,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  PageHeader,
+  PanelCard,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  useForm,
+} from "../ui";
 
 interface CreateGroupModalProps {
   opened: boolean;
@@ -85,7 +89,7 @@ function CreateGroupModal({
         onSuccess: () => {
           handleClose();
           notifications.show({
-            title: "Group Created",
+            title: "Group created",
             message: `Group "${values.name.trim()}" was created successfully.`,
             color: "green",
           });
@@ -103,7 +107,7 @@ function CreateGroupModal({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Create Group"
+      title="Create group"
       data-testid="create-group-modal"
     >
       <form onSubmit={handleSubmit}>
@@ -190,7 +194,7 @@ function AllGroupsTab(): JSX.Element {
       {
         onSuccess: () => {
           notifications.show({
-            title: "Request Submitted",
+            title: "Request submitted",
             message: "Your membership request has been submitted.",
             color: "green",
           });
@@ -273,7 +277,7 @@ function AllGroupsTab(): JSX.Element {
       <Modal
         opened={pendingLeaveGroupId !== null}
         onClose={() => setPendingLeaveGroupId(null)}
-        title="Leave Group"
+        title="Leave group"
         data-testid="leave-group-modal"
       >
         <Text>Are you sure you want to leave this group?</Text>
@@ -304,7 +308,7 @@ function AllGroupsTab(): JSX.Element {
  * System admins see all groups; regular users see only their own groups.
  */
 function MyGroupsTab(): JSX.Element {
-  const { user, isSystemAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [pendingLeaveGroupId, setPendingLeaveGroupId] = useState<string | null>(
     null,
@@ -315,17 +319,45 @@ function MyGroupsTab(): JSX.Element {
     isLoading: myGroupsLoading,
     isError: myGroupsError,
   } = useMyGroups(user?.sub ?? "");
-  const {
-    data: allGroupsData,
-    isLoading: allGroupsLoading,
-    isError: allGroupsError,
-  } = useAllGroups();
 
-  const isLoading = isSystemAdmin ? allGroupsLoading : myGroupsLoading;
-  const isError = isSystemAdmin ? allGroupsError : myGroupsError;
-  const groups = isSystemAdmin ? allGroupsData : myGroupsData;
+  const isLoading = myGroupsLoading;
+  const isError = myGroupsError;
+  const groups = myGroupsData;
 
   const leaveMutation = useLeaveGroup(pendingLeaveGroupId ?? "");
+  const requestMutation = useRequestMembership();
+  const { data: myPendingRequests } = useMyRequests("PENDING");
+
+  const pendingRequestGroupIds = new Set(
+    (myPendingRequests ?? []).map((r) => r.groupId),
+  );
+
+  /**
+   * Submits a membership request for the given group and notifies on success or failure.
+   *
+   * @param groupId - The ID of the group to request membership for.
+   */
+  const handleJoin = (groupId: string) => {
+    requestMutation.mutate(
+      { groupId },
+      {
+        onSuccess: () => {
+          notifications.show({
+            title: "Request submitted",
+            message: "Your membership request has been submitted.",
+            color: "green",
+          });
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to submit membership request. Please try again.",
+            color: "red",
+          });
+        },
+      },
+    );
+  };
 
   /**
    * Confirms and executes the leave action for the pending group.
@@ -375,43 +407,36 @@ function MyGroupsTab(): JSX.Element {
     );
   }
 
-  const memberGroupIds = new Set(groups.map((g) => g.id));
+  const memberGroupIds = new Set((groups ?? []).map((g) => g.id));
 
   return (
     <>
       <GroupsTable
         groups={groups}
         memberGroupIds={memberGroupIds}
-        pendingRequestGroupIds={new Set()}
+        pendingRequestGroupIds={pendingRequestGroupIds}
+        onJoin={handleJoin}
         onLeave={setPendingLeaveGroupId}
+        joinLoadingGroupId={
+          requestMutation.isPending
+            ? (requestMutation.variables?.groupId ?? null)
+            : null
+        }
         onRowClick={(id) => navigate(`/groups/${id}`)}
       />
 
-      <Modal
+      <ConfirmActionModal
         opened={pendingLeaveGroupId !== null}
         onClose={() => setPendingLeaveGroupId(null)}
-        title="Leave Group"
+        onConfirm={handleConfirmLeave}
+        title="Leave group"
+        message="Are you sure you want to leave this group?"
+        confirmLabel="Leave"
+        confirmLoading={leaveMutation.isPending}
         data-testid="leave-group-modal"
-      >
-        <Text>Are you sure you want to leave this group?</Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setPendingLeaveGroupId(null)}
-            data-testid="leave-group-back-btn"
-          >
-            Back
-          </Button>
-          <Button
-            color="red"
-            loading={leaveMutation.isPending}
-            onClick={handleConfirmLeave}
-            data-testid="leave-group-confirm-btn"
-          >
-            Confirm
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="leave-group-back-btn"
+        confirmButtonTestId="leave-group-confirm-btn"
+      />
     </>
   );
 }
@@ -419,10 +444,18 @@ function MyGroupsTab(): JSX.Element {
 /**
  * Tab panel showing all membership requests belonging to the authenticated user,
  * with a status filter (defaults to PENDING) and a cancel action for pending requests.
+ * System admins also see an Approve button, allowing them to self-approve.
  */
 function MyRequestsTab(): JSX.Element {
+  const { isSystemAdmin } = useAuth();
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [approveRequest, setApproveRequest] =
+    useState<MyMembershipRequest | null>(null);
+
   const cancelMutation = useCancelMembershipRequest();
+  const approveMutation = useApproveMembershipRequest(
+    approveRequest?.groupId ?? "",
+  );
 
   /**
    * Submits the cancel request after the user confirms the action in the dialog.
@@ -442,7 +475,38 @@ function MyRequestsTab(): JSX.Element {
     });
   };
 
-  const columns = makeMyRequestColumns((id) => setCancelConfirmId(id));
+  /**
+   * Submits the approve mutation after the user confirms in the modal.
+   */
+  const handleConfirmApprove = () => {
+    if (!approveRequest) return;
+    approveMutation.mutate(
+      { requestId: approveRequest.id },
+      {
+        onSuccess: () => {
+          setApproveRequest(null);
+          notifications.show({
+            title: "Request approved",
+            message: "You have been added to the group.",
+            color: "green",
+          });
+        },
+        onError: () => {
+          notifications.show({
+            title: "Error",
+            message: "Failed to approve membership request. Please try again.",
+            color: "red",
+          });
+          setApproveRequest(null);
+        },
+      },
+    );
+  };
+
+  const columns = makeMyRequestColumns(
+    (id) => setCancelConfirmId(id),
+    isSystemAdmin ? (r) => setApproveRequest(r) : undefined,
+  );
 
   return (
     <>
@@ -451,31 +515,37 @@ function MyRequestsTab(): JSX.Element {
         columns={columns}
       />
 
-      <Modal
+      <ConfirmActionModal
         opened={cancelConfirmId !== null}
         onClose={() => setCancelConfirmId(null)}
-        title="Cancel Membership Request"
+        onConfirm={handleConfirmCancel}
+        title="Cancel membership request"
+        message="Are you sure you want to cancel this membership request?"
+        confirmLabel="Cancel request"
+        confirmLoading={cancelMutation.isPending}
         data-testid="cancel-request-modal"
-      >
-        <Text>Are you sure you want to cancel this membership request?</Text>
-        <Group justify="flex-end" mt="md">
-          <Button
-            variant="default"
-            onClick={() => setCancelConfirmId(null)}
-            data-testid="cancel-request-back-btn"
-          >
-            Back
-          </Button>
-          <Button
-            color="red"
-            loading={cancelMutation.isPending}
-            onClick={handleConfirmCancel}
-            data-testid="cancel-request-confirm-btn"
-          >
-            Confirm
-          </Button>
-        </Group>
-      </Modal>
+        cancelButtonTestId="cancel-request-back-btn"
+        confirmButtonTestId="cancel-request-confirm-btn"
+      />
+
+      <ConfirmActionModal
+        opened={approveRequest !== null}
+        onClose={() => setApproveRequest(null)}
+        onConfirm={handleConfirmApprove}
+        title="Approve membership request"
+        message={
+          <Text>
+            Approve your own request to join{" "}
+            <strong>{approveRequest?.groupName}</strong>?
+          </Text>
+        }
+        confirmLabel="Approve"
+        confirmColor="green"
+        confirmLoading={approveMutation.isPending}
+        data-testid="my-approve-request-modal"
+        cancelButtonTestId="my-approve-request-back-btn"
+        confirmButtonTestId="my-approve-request-confirm-btn"
+      />
     </>
   );
 }
@@ -490,47 +560,48 @@ export function GroupsPage(): JSX.Element {
 
   return (
     <Stack gap="lg">
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={2}>
-          <Title order={2}>Groups</Title>
-          <Text c="dimmed" size="sm">
-            Manage groups and memberships.
-          </Text>
-        </Stack>
-        {isSystemAdmin && (
-          <Button
-            onClick={() => setCreateGroupOpen(true)}
-            data-testid="create-group-btn"
-          >
-            Create Group
-          </Button>
-        )}
-      </Group>
+      <PageHeader
+        title="Groups"
+        description="Manage groups and memberships."
+        actions={
+          isSystemAdmin ? (
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setCreateGroupOpen(true)}
+              data-testid="create-group-btn"
+            >
+              Create group
+            </Button>
+          ) : undefined
+        }
+      />
 
       <CreateGroupModal
         opened={createGroupOpen}
         onClose={() => setCreateGroupOpen(false)}
       />
 
-      <Tabs defaultValue="my-groups">
-        <Tabs.List>
-          <Tabs.Tab value="my-groups">My Groups</Tabs.Tab>
-          <Tabs.Tab value="my-requests">My Requests</Tabs.Tab>
-          <Tabs.Tab value="all-groups">All Groups</Tabs.Tab>
-        </Tabs.List>
+      <PanelCard>
+        <Tabs defaultValue="my-groups">
+          <Tabs.List>
+            <Tabs.Tab value="my-groups">My groups</Tabs.Tab>
+            <Tabs.Tab value="my-requests">My requests</Tabs.Tab>
+            <Tabs.Tab value="all-groups">All groups</Tabs.Tab>
+          </Tabs.List>
 
-        <Tabs.Panel value="my-groups" pt="md">
-          <MyGroupsTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="my-groups" pt="md">
+            <MyGroupsTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="my-requests" pt="md">
-          <MyRequestsTab />
-        </Tabs.Panel>
+          <Tabs.Panel value="my-requests" pt="md">
+            <MyRequestsTab />
+          </Tabs.Panel>
 
-        <Tabs.Panel value="all-groups" pt="md">
-          <AllGroupsTab />
-        </Tabs.Panel>
-      </Tabs>
+          <Tabs.Panel value="all-groups" pt="md">
+            <AllGroupsTab />
+          </Tabs.Panel>
+        </Tabs>
+      </PanelCard>
     </Stack>
   );
 }

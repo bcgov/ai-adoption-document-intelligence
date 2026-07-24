@@ -22,9 +22,12 @@
     "baseUrl": ".",
     "paths": {
       "@generated/*": ["src/generated/*"],
-      "mupdf": ["../../node_modules/mupdf/dist/mupdf"]
+      "mupdf": [
+        "../../node_modules/mupdf/dist/mupdf",
+        "./node_modules/mupdf/dist/mupdf"
+      ]
     }
   },
   "include": ["**/*.ts", "../shared/prisma.config.ts"],
-  "exclude": ["node_modules", "dist", "**/*.js"]
+  "exclude": ["node_modules", "dist", "**/*.js", "scripts"]
 }

@@ -34,6 +34,7 @@ export {
   benchmarkAggregate,
   benchmarkEvaluate,
 } from "./activities/benchmark-evaluate";
+export { benchmarkFlattenPredictionFromRefs } from "./activities/benchmark-flatten-prediction";
 export type { DatasetManifest } from "./activities/benchmark-materialize";
 export {
   loadDatasetManifest,
@@ -77,10 +78,16 @@ export type {
   FlattenClassifiedDocumentsOutput,
 } from "./activities/flatten-classified-documents";
 export { flattenClassifiedDocuments } from "./activities/flatten-classified-documents";
+export { getDocumentStatus } from "./activities/get-document-status";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
-export type { MistralOcrProcessParams } from "./activities/mistral-ocr-process";
+export type {
+  MistralOcrProcessParams,
+  MistralOcrProcessResult,
+  MistralOcrVariant,
+} from "./activities/mistral-ocr-process";
 export {
   mistralOcrProcess,
+  resolveMistralAzureDeploymentId,
   resolveMistralOcrModelId,
 } from "./activities/mistral-ocr-process";
 // Orientation normalization (mupdf + Tesseract OSD)
@@ -128,3 +135,23 @@ export type {
   CorrectionResult,
   CorrectionToolParams,
 } from "./correction-types";
+export type {
+  AzureCuAnalyzeParams,
+  AzureCuAnalyzeResult,
+} from "./ocr-providers/azure-content-understanding/azure-cu-analyze";
+export { azureCuAnalyze } from "./ocr-providers/azure-content-understanding/azure-cu-analyze";
+export type {
+  AzureCuDeployAnalyzerParams,
+  AzureCuDeployAnalyzerResult,
+} from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
+export { azureCuDeployAnalyzer } from "./ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
+export type {
+  VlmDirectExtractParams,
+  VlmDirectExtractResult,
+} from "./ocr-providers/vlm-direct/vlm-direct-extract";
+export { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
+export type {
+  VlmHybridExtractParams,
+  VlmHybridExtractResult,
+} from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
+export { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";

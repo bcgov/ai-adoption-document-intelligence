@@ -1,0 +1,61 @@
+# Local Alertmanager configuration.
+# By default all alerts are routed to the 'drop' receiver (no notifications).
+#
+# To test CHES email delivery locally:
+#   1. Ensure CHES_ADAPTER_SECRET is set in deployments/local/.env
+#      (copy .env.sample → .env and fill it in — .env is gitignored).
+#   2. Recreate alertmanager (required to pick up new env vars):
+#        docker compose --profile monitoring up -d --force-recreate alertmanager
+#   3. POST a test alert to fire immediately (no need to wait for Prometheus):
+#        curl -s -X POST http://localhost:9093/api/v2/alerts \
+#          -H "Content-Type: application/json" \
+#          -d '[{"labels":{"alertname":"TestAlert","severity":"warning"},"annotations":{"summary":"Local test alert","description":"Fired manually to verify CHES delivery."}}]'
+#   4. Check ches-adapter logs: podman logs ai-doc-intelligence-ches-adapter -f
+#
+# The Bearer token is written to /tmp/alertmanager-token at container startup
+# from the CHES_ADAPTER_SECRET env var (set in .env). This file is safe to commit as-is.
+
+global:
+  resolve_timeout: 5m
+
+# Suppress generic catch-all alerts when a specific named alert is already
+# firing for the same alertType. The specific rules carry a `type` label;
+# AnyBackendServicesError and AnyTemporalWorkerError carry the same label
+# from the metric. BackendServicesAlertActive / TemporalWorkerAlertActive
+# carry `type` from app_alert_active labels.
+inhibit_rules:
+  - source_matchers:
+      - 'type != ""'
+    target_matchers:
+      - 'alertname =~ "AnyBackendServicesError|AnyTemporalWorkerError|BackendServicesAlertActive|TemporalWorkerAlertActive"'
+    equal: ['type']
+
+route:
+  receiver: "drop" # Fallback
+  group_by: ["alertname", "job"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+  routes:
+    # BackendServicesAlertActive and TemporalWorkerAlertActive are sticky gauges
+    # — they stay active until a recovery log is emitted. Repeat at most once
+    # per day to avoid hourly spam.
+    - receiver: "ches-notifications"
+      matchers:
+        - 'alertname =~ "BackendServicesAlertActive|TemporalWorkerAlertActive"'
+        - 'severity =~ "warning|critical"'
+      repeat_interval: 24h
+    - receiver: "ches-notifications"
+      matchers:
+        - 'severity =~ "warning|critical"'
+
+receivers:
+  - name: "drop"
+  - name: "ches-notifications"
+    webhook_configs:
+      - url: "http://ai-doc-intelligence-ches-adapter:3003/"
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /tmp/alertmanager-token

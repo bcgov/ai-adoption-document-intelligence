@@ -6,16 +6,27 @@ import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
+import { UploadNormalizationLimiter } from "../upload/upload-normalization-limiter";
+import { computeContentHash } from "./content-hash.util";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
-import { PdfNormalizationService } from "./pdf-normalization.service";
+import {
+  PdfNormalizationError,
+  PdfNormalizationService,
+} from "./pdf-normalization.service";
 
 describe("DocumentService", () => {
   let service: DocumentService;
   let documentDbService: DocumentDbService;
   let blobStorage: BlobStorageInterface;
   let pdfNormalization: jest.Mocked<
-    Pick<PdfNormalizationService, "validateForUpload" | "normalizeToPdf">
+    Pick<
+      PdfNormalizationService,
+      "validateForUpload" | "normalizeToPdf" | "generateThumbnailWebp"
+    >
+  >;
+  let uploadNormalizationLimiter: jest.Mocked<
+    Pick<UploadNormalizationLimiter, "run">
   >;
 
   beforeEach(async () => {
@@ -24,7 +35,11 @@ describe("DocumentService", () => {
       normalizeToPdf: jest
         .fn()
         .mockImplementation((buf: Buffer) => Promise.resolve(Buffer.from(buf))),
+      generateThumbnailWebp: jest.fn().mockResolvedValue(Buffer.from("webp")),
     };
+    uploadNormalizationLimiter = {
+      run: jest.fn((task: () => Promise<unknown>) => task()),
+    } as jest.Mocked<Pick<UploadNormalizationLimiter, "run">>;
     documentDbService = {
       createDocument: jest.fn(),
       findDocument: jest.fn(),
@@ -35,7 +50,7 @@ describe("DocumentService", () => {
       upsertOcrResult: jest.fn(),
     } as any;
     blobStorage = {
-      write: jest.fn(),
+      write: jest.fn().mockResolvedValue(undefined),
       read: jest.fn(),
       exists: jest.fn(),
       delete: jest.fn(),
@@ -49,6 +64,10 @@ describe("DocumentService", () => {
         { provide: DocumentDbService, useValue: documentDbService },
         { provide: BLOB_STORAGE, useValue: blobStorage },
         { provide: PdfNormalizationService, useValue: pdfNormalization },
+        {
+          provide: UploadNormalizationLimiter,
+          useValue: uploadNormalizationLimiter,
+        },
       ],
     }).compile();
     service = module.get<DocumentService>(DocumentService);
@@ -70,6 +89,7 @@ describe("DocumentService", () => {
         normalized_file_path: "documents/1/normalized.pdf",
         file_type: "pdf",
         file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
         metadata: {},
         source: "api",
         status: DocumentStatus.ongoing_ocr,
@@ -94,7 +114,11 @@ describe("DocumentService", () => {
       expect(result.document.id).toBe("1");
       expect(result.document.original_filename).toBe("file.pdf");
       expect(result.document.title).toBe("Test");
-      expect(documentDbService.createDocument).toHaveBeenCalled();
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(pdfBytes),
+        }),
+      );
       expect(blobStorage.write).toHaveBeenCalledWith(
         expect.stringMatching(/^group-1\/ocr\/.+\/original\.pdf$/),
         expect.any(Buffer),
@@ -103,6 +127,189 @@ describe("DocumentService", () => {
         expect.stringMatching(/^group-1\/ocr\/.+\/normalized\.pdf$/),
         expect.any(Buffer),
       );
+      expect(uploadNormalizationLimiter.run).toHaveBeenCalledTimes(1);
+      expect(pdfNormalization.generateThumbnailWebp).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        "pdf",
+      );
+    });
+
+    it("writes the normalized blob only after the original write completes", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      const mockDoc = {
+        id: "1",
+        title: "Test",
+        original_filename: "file.pdf",
+        file_path: "documents/1/original.pdf",
+        normalized_file_path: "documents/1/normalized.pdf",
+        file_type: "pdf",
+        file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
+        metadata: {},
+        source: "api",
+        status: DocumentStatus.ongoing_ocr,
+        created_at: new Date(),
+        updated_at: new Date(),
+        model_id: "test-model-id",
+        group_id: "group-1",
+      };
+      const writeOrder: string[] = [];
+      (documentDbService.createDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
+      (blobStorage.write as jest.Mock).mockImplementation((key: string) => {
+        if (key.endsWith("/original.pdf")) {
+          writeOrder.push("original");
+          return new Promise<void>((resolve) => {
+            setTimeout(resolve, 10);
+          });
+        }
+        if (key.endsWith("/normalized.pdf")) {
+          writeOrder.push("normalized");
+        }
+        return Promise.resolve();
+      });
+
+      await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      expect(writeOrder).toEqual(["original", "normalized"]);
+    });
+
+    it("starts PDF normalization before the original blob write finishes", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      const mockDoc = {
+        id: "1",
+        title: "Test",
+        original_filename: "file.pdf",
+        file_path: "documents/1/original.pdf",
+        normalized_file_path: "documents/1/normalized.pdf",
+        file_type: "pdf",
+        file_size: pdfBytes.length,
+        content_hash: computeContentHash(pdfBytes),
+        metadata: {},
+        source: "api",
+        status: DocumentStatus.ongoing_ocr,
+        created_at: new Date(),
+        updated_at: new Date(),
+        model_id: "test-model-id",
+        group_id: "group-1",
+      };
+      let resolveOriginalWrite: (() => void) | undefined;
+      let normalizationStarted = false;
+      (documentDbService.createDocument as jest.Mock).mockResolvedValue(
+        mockDoc,
+      );
+      (blobStorage.write as jest.Mock).mockImplementation((key: string) => {
+        if (key.endsWith("/original.pdf")) {
+          return new Promise<void>((resolve) => {
+            resolveOriginalWrite = resolve;
+          });
+        }
+        return Promise.resolve();
+      });
+      pdfNormalization.normalizeToPdf.mockImplementation(
+        async (buf: Buffer) => {
+          normalizationStarted = true;
+          return Buffer.from(buf);
+        },
+      );
+
+      const uploadPromise = service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      await Promise.resolve();
+
+      expect(normalizationStarted).toBe(true);
+      expect(documentDbService.createDocument).not.toHaveBeenCalled();
+
+      resolveOriginalWrite?.();
+      const result = await uploadPromise;
+
+      expect(result.kind).toBe("success");
+      expect(documentDbService.createDocument).toHaveBeenCalled();
+    });
+
+    it("returns conversion_failed with the specific code/reason for a password-protected PDF", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      pdfNormalization.normalizeToPdf.mockRejectedValue(
+        new PdfNormalizationError(
+          "The PDF is password protected and cannot be processed. Upload an unlocked copy.",
+          "password_protected",
+        ),
+      );
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: { id: string; status: string }) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      const result = await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "encrypted.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      expect(result.kind).toBe("conversion_failed");
+      if (result.kind !== "conversion_failed") throw new Error("unreachable");
+      expect(result.code).toBe("password_protected");
+      expect(result.reason).toMatch(/password protected/i);
+      expect(result.document.status).toBe(DocumentStatus.conversion_failed);
+      expect(result.document.normalized_file_path).toBeNull();
+    });
+
+    it("returns generic conversion_failed for an unexpected normalization error", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      pdfNormalization.normalizeToPdf.mockRejectedValue(
+        new Error("some internal boom"),
+      );
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: { id: string; status: string }) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      const result = await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+      );
+
+      expect(result.kind).toBe("conversion_failed");
+      if (result.kind !== "conversion_failed") throw new Error("unreachable");
+      // Internal error details are not leaked; falls back to the generic shape.
+      expect(result.code).toBe("conversion_failed");
+      expect(result.reason).toBe("Document could not be converted to PDF");
     });
 
     it("should throw on invalid base64", async () => {
@@ -129,6 +336,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 512,
+        content_hash: "abc123",
         metadata: { source: "ground-truth-generation" },
         source: "ground-truth-generation",
         status: DocumentStatus.pre_ocr,
@@ -169,6 +377,7 @@ describe("DocumentService", () => {
         normalized_file_path: null as string | null,
         file_type: "pdf",
         file_size: 256,
+        content_hash: "def456",
         metadata: {},
         source: "api",
         status: DocumentStatus.pre_ocr,
@@ -282,7 +491,7 @@ describe("DocumentService", () => {
         id: "1",
         file_path: "testgroup1/ocr/documents/1/original.pdf",
         group_id: "testgroup1",
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);
@@ -325,7 +534,7 @@ describe("DocumentService", () => {
         id: "1",
         file_path: "testgroup1/ocr/documents/1/original.pdf",
         group_id: "testgroup1",
-        status: DocumentStatus.completed_ocr,
+        status: DocumentStatus.extracted,
       };
       (documentDbService.findDocument as jest.Mock).mockResolvedValue(mockDoc);
       (documentDbService.deleteDocument as jest.Mock).mockResolvedValue(true);

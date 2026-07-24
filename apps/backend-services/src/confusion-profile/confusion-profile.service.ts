@@ -8,6 +8,7 @@
 
 import { CorrectionAction, Prisma } from "@generated/client";
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import type { ConfusionProfileResponseDto } from "./dto";
 
@@ -60,12 +61,16 @@ const MAX_EXAMPLES_PER_PAIR = 5;
 export class ConfusionProfileService {
   private readonly logger = new Logger(ConfusionProfileService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────────
 
   async create(
     input: CreateProfileInput,
+    actorId: string,
   ): Promise<ConfusionProfileResponseDto> {
     const profile = await this.prisma.prisma.confusionProfile.create({
       data: {
@@ -74,6 +79,16 @@ export class ConfusionProfileService {
         matrix: input.matrix as Prisma.InputJsonValue,
         metadata: (input.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         group_id: input.groupId,
+      },
+    });
+    await this.auditService.recordEvent({
+      event_type: "confusion_profile_created",
+      resource_type: "confusion_profile",
+      resource_id: profile.id,
+      actor_id: actorId,
+      group_id: input.groupId,
+      payload: {
+        name: profile.name,
       },
     });
     return this.toDto(profile);
@@ -87,9 +102,18 @@ export class ConfusionProfileService {
     return profiles.map((p) => this.toDto(p));
   }
 
-  async findById(id: string): Promise<ConfusionProfileResponseDto> {
-    const profile = await this.prisma.prisma.confusionProfile.findUnique({
-      where: { id },
+  /**
+   * Loads a confusion profile by ID, scoped to the owning group. The
+   * `groupId` constraint ensures a member of one group cannot read a profile
+   * belonging to another group by guessing its ID. A profile that exists but
+   * belongs to a different group is reported as not found.
+   */
+  async findById(
+    id: string,
+    groupId: string,
+  ): Promise<ConfusionProfileResponseDto> {
+    const profile = await this.prisma.prisma.confusionProfile.findFirst({
+      where: { id, group_id: groupId },
     });
     if (!profile) {
       throw new NotFoundException(`Confusion profile "${id}" not found`);
@@ -99,10 +123,12 @@ export class ConfusionProfileService {
 
   async update(
     id: string,
+    groupId: string,
     input: UpdateProfileInput,
+    actorId: string,
   ): Promise<ConfusionProfileResponseDto> {
-    // Ensure profile exists
-    await this.findById(id);
+    // Ensure the profile exists AND belongs to the caller's group.
+    await this.findById(id, groupId);
 
     const data: Prisma.ConfusionProfileUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;
@@ -116,18 +142,37 @@ export class ConfusionProfileService {
       where: { id },
       data,
     });
+    await this.auditService.recordEvent({
+      event_type: "confusion_profile_updated",
+      resource_type: "confusion_profile",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: groupId,
+      payload: {
+        fields_updated: Object.keys(input),
+      },
+    });
     return this.toDto(updated);
   }
 
-  async delete(id: string): Promise<void> {
-    await this.findById(id);
+  async delete(id: string, groupId: string, actorId: string): Promise<void> {
+    // Ensure the profile exists AND belongs to the caller's group.
+    await this.findById(id, groupId);
     await this.prisma.prisma.confusionProfile.delete({ where: { id } });
+    await this.auditService.recordEvent({
+      event_type: "confusion_profile_deleted",
+      resource_type: "confusion_profile",
+      resource_id: id,
+      actor_id: actorId,
+      group_id: groupId,
+    });
   }
 
   // ── Derivation ──────────────────────────────────────────────────────
 
   async deriveAndSave(
     input: DeriveAndSaveInput,
+    actorId: string,
   ): Promise<ConfusionProfileResponseDto> {
     this.logger.log(
       `Deriving confusion profile "${input.name}" for group ${input.groupId}`,
@@ -150,13 +195,16 @@ export class ConfusionProfileService {
       fieldCounts,
     };
 
-    return this.create({
-      name: input.name,
-      description: input.description,
-      matrix,
-      metadata,
-      groupId: input.groupId,
-    });
+    return this.create(
+      {
+        name: input.name,
+        description: input.description,
+        matrix,
+        metadata,
+        groupId: input.groupId,
+      },
+      actorId,
+    );
   }
 
   // ── Private helpers ─────────────────────────────────────────────────

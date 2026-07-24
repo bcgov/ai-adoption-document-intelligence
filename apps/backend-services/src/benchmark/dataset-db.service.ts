@@ -48,6 +48,7 @@ export interface CreateDatasetData {
 }
 
 export interface CreateDatasetVersionData {
+  id?: string;
   datasetId: string;
   version: string;
   name?: string | null;

@@ -1,28 +1,4 @@
 import {
-  Accordion,
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  Modal,
-  ScrollArea,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  TextInput,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
-import {
   IconAlertCircle,
   IconArrowLeft,
   IconCheck,
@@ -37,6 +13,30 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTemplateModels } from "@/features/annotation/template-models/hooks/useTemplateModels";
 import { TEMPORAL_UI_URL } from "@/shared/constants";
+import {
+  Accordion,
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Center,
+  Code,
+  DataTable,
+  Drawer,
+  Group,
+  Loader,
+  Modal,
+  notifications,
+  ScrollArea,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from "../../../ui";
 import { ArtifactViewer } from "../components/ArtifactViewer";
 import { BaselineThresholdDialog } from "../components/BaselineThresholdDialog";
 import { ErrorDetectionAnalysis } from "../components/ErrorDetectionAnalysis";
@@ -215,22 +215,26 @@ function FieldErrorDetails({
         {affectedSamples.length} sample{affectedSamples.length !== 1 ? "s" : ""}{" "}
         with errors on this field
       </Text>
-      <Table striped highlightOnHover data-testid="field-error-detail-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Sample ID</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Expected</Table.Th>
-            <Table.Th>Predicted</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
+      <DataTable
+        striped
+        highlightOnHover
+        data-testid="field-error-detail-table"
+      >
+        <DataTable.Thead>
+          <DataTable.Tr>
+            <DataTable.Th>Sample ID</DataTable.Th>
+            <DataTable.Th>Type</DataTable.Th>
+            <DataTable.Th>Expected</DataTable.Th>
+            <DataTable.Th>Predicted</DataTable.Th>
+          </DataTable.Tr>
+        </DataTable.Thead>
+        <DataTable.Tbody>
           {affectedSamples.map((s) => (
-            <Table.Tr key={s.sampleId}>
-              <Table.Td>
+            <DataTable.Tr key={s.sampleId}>
+              <DataTable.Td>
                 <Code>{s.sampleId}</Code>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Badge
                   size="sm"
                   color={
@@ -243,8 +247,8 @@ function FieldErrorDetails({
                 >
                   {s.errorType}
                 </Badge>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Code>
                   {s.expected !== undefined ? (
                     typeof s.expected === "string" ? (
@@ -256,8 +260,8 @@ function FieldErrorDetails({
                     "-"
                   )}
                 </Code>
-              </Table.Td>
-              <Table.Td>
+              </DataTable.Td>
+              <DataTable.Td>
                 <Code>
                   {s.predicted !== undefined ? (
                     typeof s.predicted === "string" ? (
@@ -269,11 +273,11 @@ function FieldErrorDetails({
                     "-"
                   )}
                 </Code>
-              </Table.Td>
-            </Table.Tr>
+              </DataTable.Td>
+            </DataTable.Tr>
           ))}
-        </Table.Tbody>
-      </Table>
+        </DataTable.Tbody>
+      </DataTable>
     </>
   );
 }
@@ -393,7 +397,7 @@ export function RunDetailPage() {
         onSuccess: () => {
           setConfusionModalOpen(false);
           notifications.show({
-            title: "Confusion Profile Created",
+            title: "Confusion profile created",
             message:
               "Confusion profile has been derived from this benchmark run.",
             color: "green",
@@ -526,21 +530,34 @@ export function RunDetailPage() {
 
   return (
     <Stack gap="lg">
-      <Stack gap={2}>
-        <Group justify="space-between">
-          <div>
-            <Group gap="sm" align="center">
-              <Button
-                variant="subtle"
-                leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
-                data-testid="back-to-project-btn"
-              >
-                Back
-              </Button>
-              <Title order={2} data-testid="run-definition-name">
+      <Stack gap="xs">
+        <Group>
+          <Button
+            variant="subtle"
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate(`/benchmarking/projects/${projectId}`)}
+            data-testid="back-to-project-btn"
+          >
+            Back
+          </Button>
+        </Group>
+
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <Stack
+            className="bcds-page-header__title-block"
+            style={{ gap: "var(--layout-margin-xsmall)" }}
+          >
+            <Group gap="sm" align="center" wrap="wrap">
+              <Title order={2} data-testid="run-definition-name" mt={0} mb={0}>
                 {run.definitionName}
               </Title>
+              <Badge
+                variant="light"
+                color={getStatusColor(run.status)}
+                data-testid="run-status-badge"
+              >
+                {run.status}
+              </Badge>
               {run.isBaseline && (
                 <Tooltip label="This run is the baseline for comparison">
                   <Badge
@@ -555,27 +572,9 @@ export function RunDetailPage() {
                 </Tooltip>
               )}
             </Group>
-            <Text c="dimmed" size="sm" data-testid="run-id-text">
-              Run ID: {run.id}
-            </Text>
-            {Boolean(
-              (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
-            ) && (
-              <Badge
-                color="cyan"
-                variant="light"
-                size="lg"
-                data-testid="ocr-cache-source-badge"
-              >
-                OCR cached from run{" "}
-                {String(
-                  (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
-                ).slice(0, 8)}
-                ...
-              </Badge>
-            )}
-          </div>
-          <Group>
+          </Stack>
+
+          <Group className="bcds-page-header__meta">
             {canCancel && (
               <Button
                 color="red"
@@ -591,7 +590,7 @@ export function RunDetailPage() {
               <Tooltip
                 label={
                   run.status !== "completed"
-                    ? `Only completed runs can be promoted to baseline. Current status: ${run.status}`
+                    ? `Only completed runs can be promoted to baseline. current status: ${run.status}`
                     : ""
                 }
                 disabled={run.status === "completed"}
@@ -605,7 +604,7 @@ export function RunDetailPage() {
                   disabled={run.status !== "completed"}
                   data-testid="promote-baseline-btn"
                 >
-                  Promote to Baseline
+                  Promote to baseline
                 </Button>
               </Tooltip>
             )}
@@ -618,7 +617,7 @@ export function RunDetailPage() {
                 loading={isPromoting}
                 data-testid="edit-thresholds-btn"
               >
-                Edit Thresholds
+                Edit thresholds
               </Button>
             )}
             {canApplyCandidateWorkflow && candidateWorkflowVersionId && (
@@ -742,7 +741,7 @@ export function RunDetailPage() {
                 }
                 data-testid="view-regression-report-btn"
               >
-                View Regression Report
+                View regression report
               </Button>
             )}
             {run.status === "completed" && (
@@ -755,7 +754,7 @@ export function RunDetailPage() {
                 }
                 data-testid="view-all-samples-btn"
               >
-                View All Samples
+                View all samples
               </Button>
             )}
             <Button
@@ -765,7 +764,7 @@ export function RunDetailPage() {
               loading={downloadRunMutation.isPending}
               data-testid="download-run-btn"
             >
-              Download Results
+              Download results
             </Button>
             {run.status === "completed" && project?.groupId && (
               <Button
@@ -773,7 +772,7 @@ export function RunDetailPage() {
                 onClick={handleConfusionOpen}
                 data-testid="create-confusion-profile-btn"
               >
-                Create Confusion Profile
+                Create confusion profile
               </Button>
             )}
             {run.status === "completed" && project?.groupId && (
@@ -783,10 +782,32 @@ export function RunDetailPage() {
                 onClick={handleSuggestFormatsOpen}
                 data-testid="suggest-formats-btn"
               >
-                Suggest Formats
+                Suggest formats
               </Button>
             )}
           </Group>
+        </Group>
+
+        <Group gap="xs" wrap="wrap">
+          <Text c="dimmed" size="sm" data-testid="run-id-text">
+            Run ID: {run.id}
+          </Text>
+          {Boolean(
+            (run.params as Record<string, unknown>)?.ocrCacheBaselineRunId,
+          ) && (
+            <Badge
+              color="cyan"
+              variant="light"
+              size="lg"
+              data-testid="ocr-cache-source-badge"
+            >
+              OCR cached from run{" "}
+              {String(
+                (run.params as Record<string, unknown>).ocrCacheBaselineRunId,
+              ).slice(0, 8)}
+              ...
+            </Badge>
+          )}
         </Group>
       </Stack>
 
@@ -813,8 +834,8 @@ export function RunDetailPage() {
           color={run.baselineComparison.overallPassed ? "green" : "orange"}
           title={
             run.baselineComparison.overallPassed
-              ? "Baseline Comparison: PASSED"
-              : "Baseline Comparison: REGRESSION DETECTED"
+              ? "Baseline comparison: PASSED"
+              : "Baseline comparison: REGRESSION DETECTED"
           }
           data-testid="baseline-comparison-alert"
         >
@@ -849,10 +870,10 @@ export function RunDetailPage() {
           <Alert
             icon={<IconAlertCircle size={16} />}
             color="blue"
-            title="No Baseline Set"
+            title="No baseline set"
             data-testid="no-baseline-alert"
           >
-            <Stack gap="sm">
+            <Stack gap="sm" align="flex-start">
               <Text>
                 No baseline has been set for this definition. Promote this run
                 to baseline to enable performance comparisons for future runs.
@@ -863,7 +884,7 @@ export function RunDetailPage() {
                 loading={isPromoting}
                 data-testid="promote-to-baseline-suggestion-btn"
               >
-                Promote this run to Baseline
+                Promote this run to baseline
               </Button>
             </Stack>
           </Alert>
@@ -872,41 +893,41 @@ export function RunDetailPage() {
       <Card>
         <Stack gap="md">
           <Title order={3} data-testid="run-info-heading">
-            Run Information
+            Run information
           </Title>
-          <Table data-testid="run-info-table">
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td fw={500}>Status</Table.Td>
-                <Table.Td>
+          <DataTable data-testid="run-info-table">
+            <DataTable.Tbody>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Status</DataTable.Td>
+                <DataTable.Td>
                   <Badge color={getStatusColor(run.status)}>{run.status}</Badge>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Started At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Started at</DataTable.Td>
+                <DataTable.Td>
                   {run.startedAt
                     ? new Date(run.startedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Completed At</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Completed at</DataTable.Td>
+                <DataTable.Td>
                   {run.completedAt
                     ? new Date(run.completedAt).toLocaleString()
                     : "-"}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Duration</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Duration</DataTable.Td>
+                <DataTable.Td>
                   {formatDurationFromDates(run.startedAt, run.completedAt)}
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Temporal Workflow</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Temporal workflow</DataTable.Td>
+                <DataTable.Td>
                   <Anchor
                     href={temporalUrl}
                     target="_blank"
@@ -918,45 +939,45 @@ export function RunDetailPage() {
                       style={{ verticalAlign: "middle" }}
                     />
                   </Anchor>
-                </Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td fw={500}>Worker Git SHA</Table.Td>
-                <Table.Td>
+                </DataTable.Td>
+              </DataTable.Tr>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Worker git sha</DataTable.Td>
+                <DataTable.Td>
                   <Code>{run.workerGitSha}</Code>
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {run.workerImageDigest && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Worker Image Digest</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Worker image digest</DataTable.Td>
+                  <DataTable.Td>
                     <Code>{run.workerImageDigest}</Code>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-              <Table.Tr>
-                <Table.Td fw={500}>Is Baseline</Table.Td>
-                <Table.Td>
+              <DataTable.Tr>
+                <DataTable.Td fw={500}>Is baseline</DataTable.Td>
+                <DataTable.Td>
                   {run.isBaseline ? (
                     <Badge color="green">Yes</Badge>
                   ) : (
                     <Badge color="gray">No</Badge>
                   )}
-                </Table.Td>
-              </Table.Tr>
+                </DataTable.Td>
+              </DataTable.Tr>
               {run.isBaseline && (
-                <Table.Tr>
-                  <Table.Td fw={500}>Retention Policy</Table.Td>
-                  <Table.Td>
+                <DataTable.Tr>
+                  <DataTable.Td fw={500}>Retention policy</DataTable.Td>
+                  <DataTable.Td>
                     <Text size="sm" c="dimmed">
                       Protected from retention - baseline runs are exempt from
                       cleanup
                     </Text>
-                  </Table.Td>
-                </Table.Tr>
+                  </DataTable.Td>
+                </DataTable.Tr>
               )}
-            </Table.Tbody>
-          </Table>
+            </DataTable.Tbody>
+          </DataTable>
         </Stack>
       </Card>
 
@@ -968,7 +989,7 @@ export function RunDetailPage() {
           <Accordion.Item value="baseline-comparison">
             <Accordion.Control>
               <Title order={3} data-testid="baseline-comparison-heading">
-                Baseline Comparison
+                Baseline comparison
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
@@ -977,33 +998,35 @@ export function RunDetailPage() {
                   Comparing against baseline run:{" "}
                   <Code>{run.baselineComparison.baselineRunId}</Code>
                 </Text>
-                <Table
+                <DataTable
                   striped
                   highlightOnHover
                   data-testid="baseline-comparison-table"
                 >
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Metric</Table.Th>
-                      <Table.Th>Current</Table.Th>
-                      <Table.Th>Baseline</Table.Th>
-                      <Table.Th>Delta</Table.Th>
-                      <Table.Th>Delta %</Table.Th>
-                      <Table.Th>Status</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      <DataTable.Th>Metric</DataTable.Th>
+                      <DataTable.Th>Current</DataTable.Th>
+                      <DataTable.Th>Baseline</DataTable.Th>
+                      <DataTable.Th>Delta</DataTable.Th>
+                      <DataTable.Th>Delta %</DataTable.Th>
+                      <DataTable.Th>Status</DataTable.Th>
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
                     {run.baselineComparison.metricComparisons.map(
                       (comparison) => (
-                        <Table.Tr key={comparison.metricName}>
-                          <Table.Td fw={500}>{comparison.metricName}</Table.Td>
-                          <Table.Td>
+                        <DataTable.Tr key={comparison.metricName}>
+                          <DataTable.Td fw={500}>
+                            {comparison.metricName}
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code>{comparison.currentValue.toFixed(4)}</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code>{comparison.baselineValue.toFixed(4)}</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code
                               c={
                                 comparison.delta > 0
@@ -1016,8 +1039,8 @@ export function RunDetailPage() {
                               {comparison.delta > 0 ? "+" : ""}
                               {comparison.delta.toFixed(4)}
                             </Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Code
                               c={
                                 comparison.deltaPercent > 0
@@ -1030,17 +1053,17 @@ export function RunDetailPage() {
                               {comparison.deltaPercent > 0 ? "+" : ""}
                               {comparison.deltaPercent.toFixed(2)}%
                             </Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <Badge color={comparison.passed ? "green" : "red"}>
                               {comparison.passed ? "PASS" : "FAIL"}
                             </Badge>
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       ),
                     )}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             </Accordion.Panel>
           </Accordion.Item>
@@ -1055,36 +1078,36 @@ export function RunDetailPage() {
           <Accordion.Item value="metrics">
             <Accordion.Control>
               <Title order={3} data-testid="aggregated-metrics-heading">
-                Aggregated Metrics
+                Aggregated metrics
               </Title>
             </Accordion.Control>
             <Accordion.Panel>
-              <Table
+              <DataTable
                 striped
                 highlightOnHover
                 data-testid="aggregated-metrics-table"
               >
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Metric Name</Table.Th>
-                    <Table.Th>Value</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Metric name</DataTable.Th>
+                    <DataTable.Th>Value</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {Object.entries(run.metrics).map(([key, value]) => (
-                    <Table.Tr key={key}>
-                      <Table.Td>{key}</Table.Td>
-                      <Table.Td>
+                    <DataTable.Tr key={key}>
+                      <DataTable.Td>{key}</DataTable.Td>
+                      <DataTable.Td>
                         <Code>
                           {typeof value === "number"
                             ? value.toFixed(4)
                             : JSON.stringify(value)}
                         </Code>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
+                </DataTable.Tbody>
+              </DataTable>
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>
@@ -1094,21 +1117,21 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Title order={3} data-testid="params-tags-heading">
-              Run Parameters & Tags
+              Run parameters & tags
             </Title>
             {run.params && Object.keys(run.params).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Parameters</Text>
-                <Table striped data-testid="params-table">
-                  <Table.Tbody>
+                <DataTable striped data-testid="params-table">
+                  <DataTable.Tbody>
                     {Object.entries(run.params).map(([key, value]) => (
-                      <Table.Tr key={key}>
-                        <Table.Td fw={500}>
+                      <DataTable.Tr key={key}>
+                        <DataTable.Td fw={500}>
                           {key === "ocrCacheBaselineRunId"
-                            ? "OCR Cache Source Run"
+                            ? "OCR cache source run"
                             : key}
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           {key === "ocrCacheBaselineRunId" ? (
                             <Anchor
                               component="button"
@@ -1123,11 +1146,11 @@ export function RunDetailPage() {
                           ) : (
                             <Code>{JSON.stringify(value)}</Code>
                           )}
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             )}
             {(() => {
@@ -1143,7 +1166,7 @@ export function RunDetailPage() {
               return (
                 <Stack gap={4}>
                   <Text size="sm" fw={500}>
-                    Workflow Config Overrides
+                    Workflow config overrides
                   </Text>
                   <Code block style={{ fontSize: 13 }}>
                     {JSON.stringify(overrides, null, 2)}
@@ -1154,18 +1177,18 @@ export function RunDetailPage() {
             {run.tags && Object.keys(run.tags).length > 0 && (
               <Stack gap="xs">
                 <Text fw={500}>Tags</Text>
-                <Table striped data-testid="tags-table">
-                  <Table.Tbody>
+                <DataTable striped data-testid="tags-table">
+                  <DataTable.Tbody>
                     {Object.entries(run.tags).map(([key, value]) => (
-                      <Table.Tr key={key}>
-                        <Table.Td fw={500}>{key}</Table.Td>
-                        <Table.Td>
+                      <DataTable.Tr key={key}>
+                        <DataTable.Td fw={500}>{key}</DataTable.Td>
+                        <DataTable.Td>
                           <Code>{JSON.stringify(value)}</Code>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
               </Stack>
             )}
           </Stack>
@@ -1199,41 +1222,43 @@ export function RunDetailPage() {
                 data-testid="artifact-type-filter"
               />
             </Group>
-            <Table striped highlightOnHover data-testid="artifacts-table">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Type</Table.Th>
-                  <Table.Th>Sample ID</Table.Th>
-                  <Table.Th>Node ID</Table.Th>
-                  <Table.Th>Size</Table.Th>
-                  <Table.Th>MIME Type</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+            <DataTable striped highlightOnHover data-testid="artifacts-table">
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Type</DataTable.Th>
+                  <DataTable.Th>Sample ID</DataTable.Th>
+                  <DataTable.Th>Node ID</DataTable.Th>
+                  <DataTable.Th>Size</DataTable.Th>
+                  <DataTable.Th>MIME type</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {artifacts.map((artifact) => (
-                  <Table.Tr
+                  <DataTable.Tr
                     key={artifact.id}
                     style={{ cursor: "pointer" }}
                     onClick={() => setSelectedArtifact(artifact)}
                     data-testid={`artifact-row-${artifact.id}`}
                   >
-                    <Table.Td>
+                    <DataTable.Td>
                       <Badge>{artifact.type}</Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.sampleId || "-"}</Code>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.nodeId || "-"}</Code>
-                    </Table.Td>
-                    <Table.Td>{formatBytes(artifact.sizeBytes)}</Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
+                      {formatBytes(artifact.sizeBytes)}
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Code>{artifact.mimeType}</Code>
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
+              </DataTable.Tbody>
+            </DataTable>
           </Stack>
         </Card>
       )}
@@ -1242,48 +1267,48 @@ export function RunDetailPage() {
         <Card>
           <Stack gap="md">
             <Title order={3} data-testid="drill-down-heading">
-              Drill-Down Summary
+              Drill-Down summary
             </Title>
 
             {drillDown.fieldErrorBreakdown &&
               drillDown.fieldErrorBreakdown.length > 0 && (
                 <Stack gap="xs">
-                  <Text fw={500}>Per-Field Error Breakdown</Text>
-                  <Table
+                  <Text fw={500}>Per-Field error breakdown</Text>
+                  <DataTable
                     striped
                     highlightOnHover
                     data-testid="field-error-breakdown-table"
                   >
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>Field Name</Table.Th>
-                        <Table.Th>Error Count</Table.Th>
-                        <Table.Th>Error Rate</Table.Th>
-                        <Table.Th />
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
+                    <DataTable.Thead>
+                      <DataTable.Tr>
+                        <DataTable.Th>Field name</DataTable.Th>
+                        <DataTable.Th>Error count</DataTable.Th>
+                        <DataTable.Th>Error rate</DataTable.Th>
+                        <DataTable.Th />
+                      </DataTable.Tr>
+                    </DataTable.Thead>
+                    <DataTable.Tbody>
                       {drillDown.fieldErrorBreakdown.map((field) => (
-                        <Table.Tr
+                        <DataTable.Tr
                           key={field.fieldName}
                           style={{ cursor: "pointer" }}
                           onClick={() => setDrawerField(field.fieldName)}
                           data-testid={`field-error-row-${field.fieldName}`}
                         >
-                          <Table.Td>
+                          <DataTable.Td>
                             <Code>{field.fieldName}</Code>
-                          </Table.Td>
-                          <Table.Td>{field.errorCount}</Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>{field.errorCount}</DataTable.Td>
+                          <DataTable.Td>
                             <Code>{(field.errorRate * 100).toFixed(2)}%</Code>
-                          </Table.Td>
-                          <Table.Td>
+                          </DataTable.Td>
+                          <DataTable.Td>
                             <IconChevronRight size={16} color="gray" />
-                          </Table.Td>
-                        </Table.Tr>
+                          </DataTable.Td>
+                        </DataTable.Tr>
                       ))}
-                    </Table.Tbody>
-                  </Table>
+                    </DataTable.Tbody>
+                  </DataTable>
                 </Stack>
               )}
           </Stack>
@@ -1294,7 +1319,7 @@ export function RunDetailPage() {
         <ErrorDetectionAnalysis projectId={projectId} runId={runId || ""} />
       )}
 
-      {/* Artifact Viewer */}
+      {/* Artifact viewer */}
       <ArtifactViewer
         artifact={selectedArtifact}
         projectId={projectId}
@@ -1329,11 +1354,11 @@ export function RunDetailPage() {
         />
       )}
 
-      {/* Create Confusion Profile Modal */}
+      {/* Create confusion profile Modal */}
       <Modal
         opened={confusionModalOpen}
         onClose={() => setConfusionModalOpen(false)}
-        title="Create Confusion Profile"
+        title="Create confusion profile"
         data-testid="create-confusion-profile-modal"
       >
         <Stack gap="sm">
@@ -1377,11 +1402,11 @@ export function RunDetailPage() {
         </Stack>
       </Modal>
 
-      {/* Suggest Formats Modal */}
+      {/* Suggest formats modal */}
       <Modal
         opened={suggestFormatsModalOpen}
         onClose={() => setSuggestFormatsModalOpen(false)}
-        title="Suggest Formats"
+        title="Suggest formats"
         data-testid="suggest-formats-modal"
       >
         <Stack gap="sm">
@@ -1391,7 +1416,7 @@ export function RunDetailPage() {
             benchmark run.
           </Text>
           <Select
-            label="Template Model"
+            label="Template model"
             placeholder="Select a template model"
             data={templateModels.map((tm) => ({
               value: tm.id,
@@ -1414,13 +1439,13 @@ export function RunDetailPage() {
               onClick={handleSuggestFormatsNavigate}
               data-testid="suggest-formats-navigate-btn"
             >
-              Open Template Model
+              Open template model
             </Button>
           </Group>
         </Stack>
       </Modal>
 
-      {/* Field Error Detail Drawer */}
+      {/* Field error detail drawer */}
       <Drawer
         opened={drawerField !== null}
         onClose={() => setDrawerField(null)}
@@ -1428,7 +1453,7 @@ export function RunDetailPage() {
         size="xl"
         title={
           <Text fw={600}>
-            Field Errors: <Code>{drawerField}</Code>
+            Field errors: <Code>{drawerField}</Code>
           </Text>
         }
         data-testid="field-error-drawer"

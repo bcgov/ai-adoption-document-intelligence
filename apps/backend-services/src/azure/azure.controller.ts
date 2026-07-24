@@ -12,11 +12,13 @@ import {
   NotFoundException,
   Param,
   Patch,
+  PayloadTooLargeException,
   Post,
   Query,
   Req,
   UploadedFile,
   UploadedFiles,
+  UseFilters,
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
@@ -77,6 +79,7 @@ import {
   buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
+import { MulterExceptionFilter } from "@/filters/multer-exception.filter";
 import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
@@ -93,7 +96,7 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity()
+  @Identity({ allowApiKey: true })
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -127,6 +130,7 @@ export class AzureController {
   @Identity({
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { body: "group_id" },
+    allowApiKey: true,
   })
   @ApiOperation({
     summary: "Create a new classifier",
@@ -220,6 +224,7 @@ export class AzureController {
 
   @Post("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -227,7 +232,14 @@ export class AzureController {
     summary: "Upload training documents",
     description: "Upload training documents for a classifier.",
   })
-  @UseInterceptors(FilesInterceptor("files"))
+  @UseInterceptors(
+    FilesInterceptor("files", 100, {
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB per file
+      },
+    }),
+  )
+  @UseFilters(MulterExceptionFilter)
   @ApiConsumes("multipart/form-data")
   @ApiQuery({ name: "group_id", required: true, description: "Group ID" })
   @ApiBody({
@@ -267,6 +279,15 @@ export class AzureController {
       throw new NotFoundException("No existing record of classifier model.");
     }
 
+    const maxFileSize = 100 * 1024 * 1024; // 100MB
+    for (const file of files) {
+      if (file.size > maxFileSize) {
+        throw new PayloadTooLargeException(
+          `File ${file.originalname} exceeds maximum size of 100MB`,
+        );
+      }
+    }
+
     const uploadResults: string[] = [];
     for (const file of files) {
       const key = buildBlobFilePath(
@@ -288,6 +309,7 @@ export class AzureController {
 
   @Get("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -337,6 +359,7 @@ export class AzureController {
 
   @Delete("classifier/documents")
   @Identity({
+    allowApiKey: true,
     minimumRole: GroupRole.MEMBER,
     groupIdFrom: { query: "group_id" },
   })
@@ -419,6 +442,17 @@ export class AzureController {
       actorId,
     );
 
+    await this.auditService.recordEvent({
+      event_type: "classifier_training_requested",
+      resource_type: "classifier",
+      resource_id: name,
+      actor_id: actorId,
+      group_id: group_id,
+      payload: {
+        classifier_name: name,
+      },
+    });
+
     setImmediate(async () => {
       try {
         // Upload the documents required for training
@@ -465,11 +499,14 @@ export class AzureController {
           group_id,
           actorId,
         );
-        this.logger.debug(`Training request accepted for classifier "${name}"`);
+        this.logger.debug(
+          `Training request accepted for classifier "${name}"`,
+          { alertType: "classifier_training_submit" },
+        );
       } catch (e) {
         this.logger.error(
           `Background classification request failed for classifier ${name} in group ${group_id}.`,
-          { error: String(e) },
+          { error: String(e), alertType: "classifier_training_submit" },
         );
         await this.classifierService.updateClassifierModel(
           name,

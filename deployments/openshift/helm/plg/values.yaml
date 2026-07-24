@@ -76,9 +76,9 @@ prometheus:
     backendServices:
       host: "backend-services"
       port: 3002
-    temporalServer:
+    temporalWorker:
       host: "temporal"
-      port: 9090
+      port: 9091
 
 grafana:
   image:
@@ -100,3 +100,115 @@ grafana:
 
   # Port Grafana listens on.
   httpPort: 3001
+
+  # PVC size for Grafana SQLite database and alert history.
+  pvcSize: 1Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+alertmanager:
+  image:
+    repository: prom/alertmanager
+    tag: "v0.28.1"
+    pullPolicy: IfNotPresent
+
+  # PVC size for Alertmanager silence/notification state storage.
+  pvcSize: 2Gi
+
+  # Storage class for the PVC. Empty string uses the cluster default.
+  storageClassName: ""
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+  # Port Alertmanager listens on.
+  httpPort: 9093
+
+  # How long to wait before declaring an alert resolved.
+  resolveTimeout: "5m"
+
+  # Whether to route alerts to an external notification channel.
+  # Set to true only after the chosen channel is verified end-to-end.
+  notificationsEnabled: false
+
+  # Active notification channel. Must be one of: ches, teams.
+  notificationChannel: ches
+
+  # Minimum severity level to route externally: warning (warning + critical) or critical (only critical).
+  minNotificationSeverity: warning
+
+  # Alert routing grouping/timing configuration.
+  route:
+    groupBy:
+      - alertname
+      - job
+    groupWait: "10s"
+    groupInterval: "1m"
+    repeatInterval: "1h"
+
+  # Teams receiver stub (disabled by default — org policy blocks external webhooks).
+  teams:
+    # Webhook URL for the Teams channel connector. Leave empty until org policy allows it.
+    webhookUrl: ""
+
+  # CHES (BCGov Common Hosted Email Service) — delivered via the ches-adapter service.
+  # The ches-adapter (apps/ches-adapter) is deployed alongside Alertmanager when
+  # notificationChannel == "ches". It accepts webhook payloads, authenticates
+  # with CHES using OAuth2 client_credentials, and sends emails via CHES /api/v1/email.
+  ches:
+    # Internal ClusterIP URL of the ches-adapter service.
+    # With the default Helm release name this resolves to:
+    #   http://<release>-ches-adapter:<port>
+    # Override with --set alertmanager.ches.adapterUrl=http://... when deploying.
+    adapterUrl: ""
+    # Name of the Kubernetes Secret containing the bearer token Alertmanager
+    # uses to authenticate to the ches-adapter. The Secret must have a single
+    # key named "token" whose value is the raw token.
+    #
+    # Create it before deploying (the deploy workflow does this automatically):
+    #   oc create secret generic <name> --from-file=token=<token-file>
+    #
+    # Defaults to <release>-alertmanager-adapter-secret when left empty.
+    # Must match CHES_ADAPTER_SECRET in the chesAdapter secret.
+    adapterSecret: ""
+
+# ches-adapter: CHES email adapter service.
+# Deployed only when alertmanager.notificationChannel == "ches".
+# All CHES credentials are read from a single Kubernetes Secret (secretName).
+chesAdapter:
+  image:
+    repository: ""
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  # Name of an existing docker-registry Secret to use for pulling the image.
+  # Leave empty to use the namespace default pull secret.
+  imagePullSecret: ""
+  # Port the service listens on (must match PORT env var passed to the container).
+  port: 3003
+  # Name of the Kubernetes Secret containing all sensitive values.
+  # The Secret must have keys: chesAdapterSecret, chesClientId, chesClientSecret,
+  # chesAuthHost, chesHost, chesFromEmail, chesToEmails.
+  # Create it before deploying, e.g.:
+  #   oc create secret generic <name> \
+  #     --from-literal=chesAdapterSecret=<value> \
+  #     --from-literal=chesClientId=<value> \
+  #     ... etc.
+  secretName: "ches-adapter-secrets"
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  sidecars:
+    promtail:
+      image: grafana/promtail:3.4.2
+    logrotate:
+      image: debian:bookworm-slim

@@ -33,7 +33,7 @@ const mockQueueResponse = {
     {
       id: "doc-1",
       original_filename: "test.pdf",
-      status: "completed_ocr",
+      status: "extracted",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     },

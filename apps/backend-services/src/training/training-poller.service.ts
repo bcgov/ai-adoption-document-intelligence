@@ -7,6 +7,9 @@ import { BuildMode, Prisma, TrainingStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { AuditService } from "@/audit/audit.service";
+import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
+import { PrismaService } from "../database/prisma.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { TrainingDbService } from "./training-db.service";
 
@@ -40,15 +43,22 @@ interface AzureModelResponse {
 
 @Injectable()
 export class TrainingPollerService {
-  private adminClient!: DocumentIntelligenceClient;
+  private adminClient?: DocumentIntelligenceClient;
   private readonly pollInterval: number;
+  private readonly diMode: ReturnType<typeof resolveDocumentIntelligenceMode>;
   private readonly maxWallClockHours: number;
 
   constructor(
     private readonly trainingDb: TrainingDbService,
+    private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
   ) {
+    this.diMode = resolveDocumentIntelligenceMode(
+      this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
+    );
+
     const endpoint = this.configService.get<string>(
       "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
     );
@@ -56,7 +66,11 @@ export class TrainingPollerService {
       "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
     );
 
-    if (!endpoint || !apiKey) {
+    if (this.diMode === "mock") {
+      this.logger.log(
+        "DOCUMENT_INTELLIGENCE_MODE=mock — training job polling against Azure is disabled.",
+      );
+    } else if (!endpoint || !apiKey) {
       this.logger.warn(
         "Azure Document Intelligence credentials not configured. Training polling will not work.",
       );
@@ -137,6 +151,11 @@ export class TrainingPollerService {
         return;
       }
 
+      const client = this.adminClient;
+      if (!client) {
+        return;
+      }
+
       // Calculate attempt number based on job start time
       const job = await this.trainingDb.findTrainingJob(jobId);
 
@@ -172,7 +191,7 @@ export class TrainingPollerService {
 
       // Poll the build operation status
       try {
-        const operationResponse = await this.adminClient
+        const operationResponse = await client
           .path("/operations/{operationId}", operationId)
           .get();
 
@@ -234,7 +253,7 @@ export class TrainingPollerService {
           // Fallback: fetch the model by ID (required when result is absent, or
           // when trainingHours is missing from the operation result — Azure
           // typically surfaces trainingHours only on GET /documentModels).
-          const modelResponse = await this.adminClient
+          const modelResponse = await client
             .path("/documentModels/{modelId}", modelId)
             .get();
 
@@ -267,47 +286,62 @@ export class TrainingPollerService {
           }
         }
 
-        // Update job status to SUCCEEDED
-        await this.trainingDb.updateTrainingJob(jobId, {
-          status: TrainingStatus.SUCCEEDED,
-          completed_at: new Date(),
-        });
-
-        // Build a snapshot of the labeled documents that just trained this
-        // version. Captured here (rather than at startTraining) because users
-        // very rarely modify labels mid-Azure-training, and the simpler model
-        // is easier to reason about than threading the snapshot through the
-        // job row.
         const snapshot = await this.trainingDb.buildTrainedModelSnapshot(
           job.template_model_id,
         );
 
-        // Resolve the version + Azure model id this job targets. Legacy
-        // jobs (started before this column existed) fall back to v1 / the
-        // bare template model id so they keep working.
         const targetVersion = job.target_version ?? 1;
         const targetModelId =
           job.target_model_id ?? job.template_model.model_id;
 
-        // Atomically demote the prior active version and create the new one.
-        // Wrapping these together avoids leaving the template with zero
-        // active versions if the process dies between writes.
-        await this.trainingDb.replaceActiveTrainedModel(job.template_model_id, {
-          template_model_id: job.template_model_id,
-          training_job_id: jobId,
-          model_id: targetModelId,
-          version: targetVersion,
-          is_active: true,
-          description,
-          doc_types:
-            docTypes == null
-              ? Prisma.DbNull
-              : (docTypes as Prisma.InputJsonValue),
-          field_count: fieldCount,
-          dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
-          build_mode: job.build_mode,
-          max_training_hours: job.max_training_hours,
-          actual_training_hours: actualTrainingHours,
+        // Mark job succeeded and activate the new trained model atomically.
+        const trainedModel = await this.prismaService.transaction(
+          async (tx) => {
+            await this.trainingDb.updateTrainingJob(
+              jobId,
+              {
+                status: TrainingStatus.SUCCEEDED,
+                completed_at: new Date(),
+              },
+              tx,
+            );
+
+            return this.trainingDb.replaceActiveTrainedModel(
+              job.template_model_id,
+              {
+                template_model_id: job.template_model_id,
+                training_job_id: jobId,
+                model_id: targetModelId,
+                version: targetVersion,
+                is_active: true,
+                description,
+                doc_types:
+                  docTypes == null
+                    ? Prisma.DbNull
+                    : (docTypes as Prisma.InputJsonValue),
+                field_count: fieldCount,
+                dataset_snapshot: snapshot as unknown as Prisma.InputJsonValue,
+                build_mode: job.build_mode,
+                max_training_hours: job.max_training_hours,
+                actual_training_hours: actualTrainingHours,
+              },
+              tx,
+            );
+          },
+        );
+
+        await this.auditService.recordEvent({
+          event_type: "trained_model_activated",
+          resource_type: "trained_model",
+          resource_id: trainedModel.id,
+          group_id: job.template_model.group_id,
+          payload: {
+            template_model_id: job.template_model_id,
+            model_id: targetModelId,
+            version: targetVersion,
+            training_job_id: jobId,
+            source: "training_poller",
+          },
         });
 
         this.logger.log(

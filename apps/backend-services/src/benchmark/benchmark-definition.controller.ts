@@ -98,6 +98,7 @@ export class BenchmarkDefinitionController {
     return this.benchmarkDefinitionService.createDefinition(
       projectId,
       createDefinitionDto,
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -177,6 +178,7 @@ export class BenchmarkDefinitionController {
       projectId,
       definitionId,
       updateDefinitionDto,
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -213,6 +215,7 @@ export class BenchmarkDefinitionController {
       projectId,
       definitionId,
       scheduleConfigDto,
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -353,6 +356,7 @@ export class BenchmarkDefinitionController {
     return this.benchmarkDefinitionService.deleteDefinition(
       projectId,
       definitionId,
+      req.resolvedIdentity.actorId,
     );
   }
 }

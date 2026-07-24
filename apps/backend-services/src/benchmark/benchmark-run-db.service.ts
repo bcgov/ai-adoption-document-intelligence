@@ -260,8 +260,12 @@ export class BenchmarkRunDbService {
   /**
    * Count remaining runs for a definition.
    */
-  async countRunsByDefinition(definitionId: string): Promise<number> {
-    return this.prisma.benchmarkRun.count({
+  async countRunsByDefinition(
+    definitionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.benchmarkRun.count({
       where: { definitionId },
     });
   }
@@ -269,8 +273,12 @@ export class BenchmarkRunDbService {
   /**
    * Reset definition immutability flag.
    */
-  async resetDefinitionImmutability(definitionId: string): Promise<void> {
-    await this.prisma.benchmarkDefinition.update({
+  async resetDefinitionImmutability(
+    definitionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.benchmarkDefinition.update({
       where: { id: definitionId },
       data: { immutable: false },
     });
@@ -279,8 +287,12 @@ export class BenchmarkRunDbService {
   /**
    * Count runs referencing a dataset version (through their definitions).
    */
-  async countRunsByDatasetVersion(datasetVersionId: string): Promise<number> {
-    return this.prisma.benchmarkRun.count({
+  async countRunsByDatasetVersion(
+    datasetVersionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.benchmarkRun.count({
       where: { definition: { datasetVersionId } },
     });
   }
@@ -288,8 +300,12 @@ export class BenchmarkRunDbService {
   /**
    * Unfreeze a dataset version.
    */
-  async unfreezeDatasetVersion(datasetVersionId: string): Promise<void> {
-    await this.prisma.datasetVersion.update({
+  async unfreezeDatasetVersion(
+    datasetVersionId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.datasetVersion.update({
       where: { id: datasetVersionId },
       data: { frozen: false },
     });
@@ -298,8 +314,12 @@ export class BenchmarkRunDbService {
   /**
    * Count runs referencing a split (through their definitions).
    */
-  async countRunsBySplit(splitId: string): Promise<number> {
-    return this.prisma.benchmarkRun.count({
+  async countRunsBySplit(
+    splitId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.benchmarkRun.count({
       where: { definition: { splitId } },
     });
   }
@@ -307,8 +327,12 @@ export class BenchmarkRunDbService {
   /**
    * Unfreeze a split.
    */
-  async unfreezeSplit(splitId: string): Promise<void> {
-    await this.prisma.split.update({
+  async unfreezeSplit(
+    splitId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.split.update({
       where: { id: splitId },
       data: { frozen: false },
     });
@@ -375,10 +399,10 @@ export class BenchmarkRunDbService {
    */
   async findWorkflowVersionConfig(
     workflowVersionId: string,
-  ): Promise<{ config: unknown } | null> {
+  ): Promise<{ config: unknown; lineage: { group_id: string } } | null> {
     return this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
-      select: { config: true },
+      select: { config: true, lineage: { select: { group_id: true } } },
     });
   }
 

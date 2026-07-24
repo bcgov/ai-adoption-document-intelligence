@@ -3,14 +3,41 @@
  * Mocks database and optional LLM; uses real enrichment rules.
  */
 
+jest.mock("../logger", () => {
+  const mockLog = {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
+    child: jest.fn(),
+  };
+  mockLog.child.mockReturnValue(mockLog);
+  return {
+    createActivityLogger: jest.fn(() => mockLog),
+  };
+});
+
+jest.mock("./database-client", () => ({
+  getPrismaClient: jest.fn(),
+}));
+
+import { createActivityLogger } from "../logger";
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult } from "../types";
 import { getPrismaClient } from "./database-client";
 import { type EnrichResultsParams, enrichResults } from "./enrich-results";
 import * as enrichmentLlm from "./enrichment-llm";
 
-jest.mock("./database-client", () => ({
-  getPrismaClient: jest.fn(),
-}));
+const ocrBodiesByPath = new Map<string, OCRResult>();
+
+function ocrBodyFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (!body) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return body;
+}
 
 const getPrismaClientMock = getPrismaClient as jest.Mock;
 
@@ -77,9 +104,31 @@ describe("enrichResults activity", () => {
         findUnique: jest.fn(),
       },
     };
-    getPrismaClientMock.mockReturnValue(prismaMock);
+    jest.clearAllMocks();
     jest.spyOn(console, "log").mockImplementation(() => {});
     jest.spyOn(console, "error").mockImplementation(() => {});
+    getPrismaClientMock.mockReturnValue(prismaMock);
+    ocrBodiesByPath.clear();
+    jest
+      .spyOn(ocrRefUtils, "resolveOcrResultInput")
+      .mockImplementation(async (params) => ({
+        ocrResult: params.ocrResult as OCRResult,
+        groupId: "gtestgroupidfortests01",
+      }));
+    jest
+      .spyOn(ocrRefUtils, "toOcrResultPort")
+      .mockImplementation(async (body, documentId, groupId) => {
+        const blobPath = `${groupId}/ocr/${documentId}/ocr-result.json`;
+        ocrBodiesByPath.set(blobPath, body);
+        return {
+          ocrResult: {
+            documentId,
+            blobPath,
+            storage: "blob",
+            status: "succeeded",
+          },
+        };
+      });
   });
 
   afterEach(() => {
@@ -98,7 +147,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
       expect(prismaMock.templateModel.findUnique).toHaveBeenCalledWith({
         where: { id: "missing-tm" },
@@ -120,7 +169,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
 
@@ -135,7 +184,7 @@ describe("enrichResults activity", () => {
         ocrResult,
         documentType: "tm-1",
       });
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
   });
@@ -157,11 +206,10 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).not.toBe(ocrResult);
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
-      expect(result.ocrResult.keyValuePairs[1].value?.content).toBe("1234.56");
+      const enriched = ocrBodyFromRef(result.ocrResult);
+      expect(enriched).not.toBe(ocrResult);
+      expect(enriched.keyValuePairs[0].value?.content).toBe("2024-01-15");
+      expect(enriched.keyValuePairs[1].value?.content).toBe("1234.56");
       expect(result.summary).not.toBeNull();
       expect(result.summary?.changes.length).toBeGreaterThan(0);
       expect(result.summary?.rulesApplied).toContain("trimWhitespace");
@@ -257,9 +305,9 @@ describe("enrichResults activity", () => {
       expect(result.summary).not.toBeNull();
       expect(result.summary?.llmEnriched).toBe(true);
       expect(result.summary?.llmModel).toBe("gpt-4o");
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
+      expect(
+        ocrBodyFromRef(result.ocrResult).keyValuePairs[0].value?.content,
+      ).toBe("2024-01-15");
 
       if (origEndpoint !== undefined)
         process.env.AZURE_OPENAI_ENDPOINT = origEndpoint;
@@ -293,9 +341,9 @@ describe("enrichResults activity", () => {
         enableLlmEnrichment: true,
       });
 
-      expect(result.ocrResult.keyValuePairs[0].value?.content).toBe(
-        "2024-01-15",
-      );
+      expect(
+        ocrBodyFromRef(result.ocrResult).keyValuePairs[0].value?.content,
+      ).toBe("2024-01-15");
       expect(result.summary).not.toBeNull();
       expect(result.summary?.llmEnriched).toBe(false);
 
@@ -319,7 +367,7 @@ describe("enrichResults activity", () => {
 
       const result = await enrichResults(params);
 
-      expect(result.ocrResult).toBe(ocrResult);
+      expect(ocrBodyFromRef(result.ocrResult)).toEqual(ocrResult);
       expect(result.summary).toBeNull();
     });
   });
@@ -337,10 +385,58 @@ describe("enrichResults activity", () => {
 
       expect(result).toHaveProperty("ocrResult");
       expect(result).toHaveProperty("summary");
-      expect(typeof result.ocrResult).toBe("object");
+      expect(result.ocrResult.storage).toBe("blob");
       expect(
         result.summary === null || typeof result.summary === "object",
       ).toBe(true);
+    });
+  });
+
+  describe("alert instrumentation", () => {
+    it("logs info with alertType on successful completion", async () => {
+      prismaMock.templateModel.findUnique.mockResolvedValue(
+        templateModelWithSchema([{ field_key: "Date", field_type: "date" }]),
+      );
+
+      await enrichResults({
+        documentId: "doc-1",
+        ocrResult: minimalOcrResult(),
+        documentType: "tm-1",
+      });
+
+      const mockLog = (createActivityLogger as jest.Mock)() as {
+        info: jest.Mock;
+      };
+      const completionCall = mockLog.info.mock.calls.find(
+        ([msg]: [string]) => msg === "Enrich results complete",
+      );
+      expect(completionCall).toBeDefined();
+      expect(completionCall?.[1]).toMatchObject({
+        alertType: "enrich_results",
+      });
+    });
+
+    it("logs error with alertType on database error", async () => {
+      prismaMock.templateModel.findUnique.mockRejectedValue(
+        new Error("Database connection failed"),
+      );
+
+      await enrichResults({
+        documentId: "doc-1",
+        ocrResult: minimalOcrResult(),
+        documentType: "tm-1",
+      });
+
+      const mockLog = (createActivityLogger as jest.Mock)() as {
+        error: jest.Mock;
+      };
+      const errorCall = mockLog.error.mock.calls.find(
+        ([msg]: [string]) => msg === "Enrich results error",
+      );
+      expect(errorCall).toBeDefined();
+      expect(errorCall?.[1]).toMatchObject({
+        alertType: "enrich_results",
+      });
     });
   });
 });

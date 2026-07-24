@@ -1,20 +1,20 @@
+import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   Badge,
   Button,
   Checkbox,
+  DataTable,
   Group,
   Loader,
   Modal,
   Pagination,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle, IconSearch } from "@tabler/icons-react";
-import { useCallback, useState } from "react";
+} from "../../../ui";
 import { useCreateDatasetFromHitl } from "../hooks/useCreateDatasetFromHitl";
 import { useEligibleDocuments } from "../hooks/useEligibleDocuments";
 
@@ -175,8 +175,8 @@ export function CreateDatasetFromHitlDialog({
       onClose={handleClose}
       title={
         isAddingVersion
-          ? "Add Version from Verified Documents"
-          : "Create Dataset from Verified Documents"
+          ? "Add version from verified documents"
+          : "Create dataset from verified documents"
       }
       size="xl"
     >
@@ -196,7 +196,7 @@ export function CreateDatasetFromHitlDialog({
         {step === "info" && (
           <>
             <TextInput
-              label="Dataset Name"
+              label="Dataset name"
               placeholder="Enter dataset name"
               value={name}
               onChange={(e) => {
@@ -259,10 +259,10 @@ export function CreateDatasetFromHitlDialog({
               </Alert>
             ) : (
               <>
-                <Table striped highlightOnHover>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th style={{ width: 40 }}>
+                <DataTable striped highlightOnHover>
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      <DataTable.Th style={{ width: 40 }}>
                         <Checkbox
                           checked={allOnPageSelected}
                           indeterminate={
@@ -272,47 +272,47 @@ export function CreateDatasetFromHitlDialog({
                           onChange={handleToggleAll}
                           aria-label="Select all on page"
                         />
-                      </Table.Th>
-                      <Table.Th>Filename</Table.Th>
-                      <Table.Th>Type</Table.Th>
-                      <Table.Th>Approved</Table.Th>
-                      <Table.Th>Fields</Table.Th>
-                      <Table.Th>Corrections</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
+                      </DataTable.Th>
+                      <DataTable.Th>Filename</DataTable.Th>
+                      <DataTable.Th>Type</DataTable.Th>
+                      <DataTable.Th>Approved</DataTable.Th>
+                      <DataTable.Th>Fields</DataTable.Th>
+                      <DataTable.Th>Corrections</DataTable.Th>
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
                     {documents.map((doc) => (
-                      <Table.Tr
+                      <DataTable.Tr
                         key={doc.id}
                         onClick={() => handleToggleDocument(doc.id)}
                         style={{ cursor: "pointer" }}
                       >
-                        <Table.Td>
+                        <DataTable.Td>
                           <Checkbox
                             checked={selectedIds.has(doc.id)}
                             onChange={() => handleToggleDocument(doc.id)}
                             onClick={(e) => e.stopPropagation()}
                           />
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Text size="sm" lineClamp={1}>
                             {doc.originalFilename}
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Badge size="sm" variant="light">
                             {doc.fileType}
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Text size="sm">
                             {new Date(doc.approvedAt).toLocaleDateString()}
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Text size="sm">{doc.fieldCount}</Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           {doc.correctionCount > 0 ? (
                             <Badge size="sm" color="orange" variant="light">
                               {doc.correctionCount}
@@ -322,11 +322,11 @@ export function CreateDatasetFromHitlDialog({
                               0
                             </Text>
                           )}
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     ))}
-                  </Table.Tbody>
-                </Table>
+                  </DataTable.Tbody>
+                </DataTable>
 
                 {totalPages > 1 && (
                   <Group justify="center">
@@ -346,7 +346,7 @@ export function CreateDatasetFromHitlDialog({
                 variant="subtle"
                 onClick={isAddingVersion ? handleClose : handleBack}
               >
-                {isAddingVersion ? "Cancel" : "Back"}
+                {isAddingVersion ? "cancel" : "back"}
               </Button>
               <Button
                 onClick={handleNextFromSelect}
@@ -400,7 +400,7 @@ export function CreateDatasetFromHitlDialog({
                 Back
               </Button>
               <Button onClick={handleSubmit} loading={isSubmitting}>
-                {isAddingVersion ? "Add Version" : "Create Dataset"}
+                {isAddingVersion ? "add version" : "create dataset"}
               </Button>
             </Group>
           </>

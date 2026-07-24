@@ -18,6 +18,8 @@ const PDFJS_WASM_ROUTE = "/pdfjs-wasm";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // Load .env from the monorepo root (../../) so all apps share one env file.
+  envDir: fileURLToPath(new URL("../..", import.meta.url)),
   plugins: [
     react(),
     // Plugin to ensure PDF.js worker is served with correct MIME type
@@ -65,11 +67,22 @@ export default defineConfig({
       },
     },
   ],
+  optimizeDeps: {
+    include: ["@ai-di/graph-workflow"],
+  },
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // Bundle graph-workflow from source: dist is CommonJS and Rollup cannot
+      // resolve named exports (e.g. validateGraphConfig) from the compiled output.
+      "@ai-di/graph-workflow": fileURLToPath(
+        new URL(
+          "../../packages/graph-workflow/src/index.browser.ts",
+          import.meta.url,
+        ),
+      ),
       // Explicit aliases so Vite/Vitest always resolves to the same React
       // instance in all environments (prevents "Invalid hook call" in CI).
       react: fileURLToPath(
@@ -84,12 +97,21 @@ export default defineConfig({
     port: 3000,
     host: true,
     proxy: {
-      "/api/auth": {
+      // All backend routes (including /api/auth/*) live under the /api prefix,
+      // so a single rule suffices — no path rewrite needed.
+      "/api": {
         target: "http://localhost:3002",
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api\/auth/, "/auth"),
       },
+    },
+  },
+  preview: {
+    port: 3000,
+    host: true,
+    proxy: {
+      // All backend routes (including /api/auth/*) live under the /api prefix,
+      // so a single rule suffices — no path rewrite needed.
       "/api": {
         target: "http://localhost:3002",
         changeOrigin: true,

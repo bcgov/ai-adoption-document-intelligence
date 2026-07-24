@@ -2,6 +2,8 @@
  * Type definitions for OCR activities and results.
  */
 
+import type { OcrPayloadRef } from "./ocr-payload-ref";
+
 // Enrichment (used by ocr.enrich activity and graph workflows)
 export interface EnrichmentStepParams {
   documentType: string; // TemplateModel ID -> fetches field_schema
@@ -100,7 +102,12 @@ export interface Page {
 export interface Word {
   content: string;
   polygon: number[];
-  confidence: number;
+  /**
+   * Per-word OCR confidence (0-1). Optional: some providers (e.g. the
+   * VLM+OCR hybrid) deliberately omit it so raw OCR word confidence does
+   * not drown the evidence-based field confidence in `ocr.checkConfidence`.
+   */
+  confidence?: number;
   span: Span;
 }
 
@@ -226,5 +233,6 @@ export interface SubmissionResult {
 
 export interface PollResult {
   status: "running" | "succeeded" | "failed";
-  response?: OCRResponse;
+  /** Port `response` — ref only (no inline OCR JSON in history). */
+  response?: OcrPayloadRef;
 }

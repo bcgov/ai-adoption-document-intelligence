@@ -29,6 +29,14 @@ export class DocumentDataDto {
   @ApiProperty()
   file_size!: number;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      "SHA-256 hex digest of the original upload bytes; identifies file content.",
+  })
+  content_hash!: string | null;
+
   @ApiProperty({ type: Object, required: false, nullable: true })
   metadata?: JsonValue;
 
@@ -44,6 +52,19 @@ export class DocumentDataDto {
   @ApiProperty()
   updated_at!: Date;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    type: "string",
+    format: "date-time",
+    description:
+      "Set once the ephemeral-cleanup janitor has purged the document's " +
+      "blobs (original and/or normalized PDF) per its workflow's retention " +
+      "policy. When set, the OCR result is retained but /view and /download " +
+      "return 410 Gone. Null = not purged.",
+  })
+  purged_at?: Date | null;
+
   @ApiProperty({ required: false, nullable: true, type: "string" })
   apim_request_id?: string | null;
 
@@ -52,4 +73,65 @@ export class DocumentDataDto {
 
   @ApiProperty({ type: "string" })
   group_id!: string;
+
+  @ApiProperty({ required: false, nullable: true, type: "string" })
+  workflow_name?: string | null;
+}
+
+export class ThumbnailResultDto {
+  @ApiProperty({ description: "Document ID" })
+  documentId!: string;
+
+  @ApiProperty({
+    description: "Base64 WebP data URL, or null if no thumbnail is available",
+    nullable: true,
+    type: "string",
+  })
+  thumbnailData!: string | null;
+}
+
+export class PaginatedDocumentsDto {
+  @ApiProperty({ type: [DocumentDataDto], description: "Page of documents" })
+  documents!: DocumentDataDto[];
+
+  @ApiProperty({ description: "Total number of documents matching the filter" })
+  total!: number;
+
+  @ApiProperty({ description: "Maximum items returned per page" })
+  limit!: number;
+
+  @ApiProperty({ description: "Number of items skipped (0-based)" })
+  offset!: number;
+}
+
+export class DocumentStatusCountsDto {
+  @ApiProperty({ description: "Total document count across all statuses" })
+  total!: number;
+
+  @ApiProperty({ description: "Documents waiting to start OCR" })
+  pre_ocr!: number;
+
+  @ApiProperty({ description: "Documents currently being processed" })
+  ongoing_ocr!: number;
+
+  @ApiProperty({ description: "Documents that completed OCR extraction" })
+  extracted!: number;
+
+  @ApiProperty({ description: "Documents awaiting human review" })
+  awaiting_review!: number;
+
+  @ApiProperty({
+    description:
+      "Documents that completed entire process (OCR + optional HITL)",
+  })
+  complete!: number;
+
+  @ApiProperty({ description: "Documents that failed processing" })
+  failed!: number;
+
+  @ApiProperty({ description: "Documents rejected by a human reviewer" })
+  rejected_by_human!: number;
+
+  @ApiProperty({ description: "Documents that failed PDF conversion" })
+  conversion_failed!: number;
 }

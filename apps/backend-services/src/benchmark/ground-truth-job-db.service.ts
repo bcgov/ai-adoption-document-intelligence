@@ -405,7 +405,7 @@ export class GroundTruthJobDbService {
     );
 
     const jobsToAwait = processingJobs.filter(
-      (j) => j.document?.status === DocumentStatus.completed_ocr,
+      (j) => j.document?.status === DocumentStatus.extracted,
     );
     const jobsToFail = processingJobs.filter(
       (j) => j.document?.status === DocumentStatus.failed,

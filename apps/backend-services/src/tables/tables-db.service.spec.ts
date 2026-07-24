@@ -4,6 +4,7 @@ import { TablesDbService } from "./tables-db.service";
 import type { ColumnDef, LookupDef } from "./types";
 
 const mockPrismaClient = {
+  $executeRaw: jest.fn(),
   referenceTable: {
     create: jest.fn(),
     findUnique: jest.fn(),
@@ -337,10 +338,12 @@ describe("TablesDbService — columns", () => {
         existingTable,
       );
       mockPrismaClient.referenceTable.update.mockResolvedValue(updatedTable);
+      mockPrismaClient.$executeRaw.mockResolvedValue(0);
 
       const result = await service.removeColumn("grp1", "t1", "name");
 
       expect(result.columns).toEqual([colB]);
+      expect(mockPrismaClient.$executeRaw).toHaveBeenCalledTimes(1);
       expect(
         mockPrismaClient.referenceTable.findUniqueOrThrow,
       ).toHaveBeenCalledWith({

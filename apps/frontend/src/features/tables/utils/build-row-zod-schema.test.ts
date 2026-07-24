@@ -28,8 +28,8 @@ describe("buildRowZodSchema (frontend)", () => {
     const s = buildRowZodSchema([
       { key: "d", label: "D", type: "date", required: true },
     ]);
-    expect(() => s.parse({ d: "12/31/2026" })).toThrow();
-    expect(s.parse({ d: "2026-12-31" })).toEqual({ d: "2026-12-31" });
+    expect(() => s.parse({ d: new Date() })).toThrow();
+    expect(() => s.parse({ d: "2026-12-31" })).not.toThrow();
   });
 
   it("strips unknown fields", () => {
@@ -51,5 +51,29 @@ describe("buildRowZodSchema (frontend)", () => {
         { key: "k", label: "K", type: "enum", required: true },
       ]),
     ).toThrow(/enumValues/i);
+  });
+
+  it("validates year-month format YYYY-MM-DD", () => {
+    const s = buildRowZodSchema([
+      { key: "ym", label: "YM", type: "year-month", required: true },
+    ]);
+    expect(() => s.parse({ ym: new Date() })).toThrow();
+    expect(() => s.parse({ ym: "2026-05-01" })).not.toThrow();
+    expect(() => s.parse({ ym: "2026-05" })).toThrow();
+  });
+
+  it("allows null for optional year-month", () => {
+    const s = buildRowZodSchema([
+      { key: "ym", label: "YM", type: "year-month" },
+    ]);
+    expect(() => s.parse({ ym: null })).not.toThrow();
+    expect(() => s.parse({})).not.toThrow();
+  });
+
+  it("allows null for optional datetime", () => {
+    const s = buildRowZodSchema([{ key: "dt", label: "DT", type: "datetime" }]);
+    expect(() => s.parse({ dt: null })).not.toThrow();
+    expect(() => s.parse({ dt: "2026-05-21 10:30:00" })).not.toThrow();
+    expect(() => s.parse({ dt: new Date() })).toThrow();
   });
 });

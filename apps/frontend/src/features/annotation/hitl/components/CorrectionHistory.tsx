@@ -1,5 +1,5 @@
-import { Card, Stack, Text } from "@mantine/core";
 import { FC } from "react";
+import { Card, Stack, Text } from "../../../../ui";
 
 interface CorrectionHistoryProps {
   corrections: Array<{

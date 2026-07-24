@@ -1,20 +1,4 @@
 import {
-  Anchor,
-  Badge,
-  Breadcrumbs,
-  Button,
-  Card,
-  Center,
-  Grid,
-  Loader,
-  Paper,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconCheck,
   IconClock,
@@ -22,6 +6,22 @@ import {
 } from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  Anchor,
+  Badge,
+  Breadcrumbs,
+  Button,
+  Center,
+  DataTable,
+  Grid,
+  Loader,
+  PanelCard,
+  Paper,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from "../../../ui";
 import {
   type DatasetReviewQueueDocument,
   useDatasetReviewQueue,
@@ -123,11 +123,11 @@ export const DatasetReviewQueuePage: FC = () => {
         <Anchor onClick={() => navigate(`/benchmarking/datasets/${datasetId}`)}>
           {dataset?.name || "Dataset"}
         </Anchor>
-        <Text>Ground Truth Review</Text>
+        <Text>Ground truth review</Text>
       </Breadcrumbs>
 
       <Stack gap={2}>
-        <Title order={2}>Ground Truth Review Queue</Title>
+        <Title order={2}>Ground truth review queue</Title>
         <Text c="dimmed" size="sm">
           Review OCR results to generate ground truth for dataset samples
         </Text>
@@ -139,7 +139,7 @@ export const DatasetReviewQueuePage: FC = () => {
             <Paper withBorder p="md">
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                  Total Jobs
+                  Total jobs
                 </Text>
                 <Text size="xl" fw={700}>
                   {activeQueue.stats.totalDocuments}
@@ -151,7 +151,7 @@ export const DatasetReviewQueuePage: FC = () => {
             <Paper withBorder p="md">
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                  Awaiting Review
+                  Awaiting review
                 </Text>
                 <Text size="xl" fw={700} c="orange">
                   {activeQueue.stats.awaitingReview}
@@ -189,7 +189,7 @@ export const DatasetReviewQueuePage: FC = () => {
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-            Pending Review ({pendingQueue.total})
+            Pending review ({pendingQueue.total})
           </Tabs.Tab>
           <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
             Reviewed ({reviewedQueue.total})
@@ -198,7 +198,7 @@ export const DatasetReviewQueuePage: FC = () => {
 
         <Tabs.Panel value="pending" pt="md">
           {pendingQueue.queue.length === 0 ? (
-            <Card withBorder p="xl">
+            <PanelCard p="xl">
               <Center>
                 <Stack align="center" gap="md">
                   <IconAlertCircle size={48} stroke={1.5} color="gray" />
@@ -210,35 +210,35 @@ export const DatasetReviewQueuePage: FC = () => {
                   </Stack>
                 </Stack>
               </Center>
-            </Card>
+            </PanelCard>
           ) : (
-            <Card withBorder padding={0}>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Sample ID</Table.Th>
-                    <Table.Th>Document</Table.Th>
-                    <Table.Th>Avg Confidence</Table.Th>
-                    <Table.Th>Uploaded</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+            <PanelCard p={0}>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Sample ID</DataTable.Th>
+                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Uploaded</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
                     const avgConfidence = getAverageConfidence(doc);
                     return (
-                      <Table.Tr key={doc.id}>
-                        <Table.Td>
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
                           <Text size="sm" fw={500}>
                             {doc.sampleId}
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Text size="sm" c="dimmed">
                             {doc.original_filename}
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Badge
                             variant="light"
                             color={getConfidenceColor(avgConfidence)}
@@ -246,13 +246,13 @@ export const DatasetReviewQueuePage: FC = () => {
                           >
                             {Math.round(avgConfidence * 100)}%
                           </Badge>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Text size="sm" c="dimmed">
                             {new Date(doc.created_at).toLocaleDateString()}
                           </Text>
-                        </Table.Td>
-                        <Table.Td>
+                        </DataTable.Td>
+                        <DataTable.Td>
                           <Button
                             size="xs"
                             variant="light"
@@ -265,19 +265,19 @@ export const DatasetReviewQueuePage: FC = () => {
                           >
                             Review
                           </Button>
-                        </Table.Td>
-                      </Table.Tr>
+                        </DataTable.Td>
+                      </DataTable.Tr>
                     );
                   })}
-                </Table.Tbody>
-              </Table>
-            </Card>
+                </DataTable.Tbody>
+              </DataTable>
+            </PanelCard>
           )}
         </Tabs.Panel>
 
         <Tabs.Panel value="reviewed" pt="md">
           {reviewedQueue.queue.length === 0 ? (
-            <Card withBorder p="xl">
+            <PanelCard p="xl">
               <Center>
                 <Stack align="center" gap="md">
                   <IconAlertCircle size={48} stroke={1.5} color="gray" />
@@ -289,39 +289,39 @@ export const DatasetReviewQueuePage: FC = () => {
                   </Stack>
                 </Stack>
               </Center>
-            </Card>
+            </PanelCard>
           ) : (
-            <Card withBorder padding={0}>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Sample ID</Table.Th>
-                    <Table.Th>Document</Table.Th>
-                    <Table.Th>Reviewer</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Corrections</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
+            <PanelCard p={0}>
+              <DataTable striped highlightOnHover>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Sample ID</DataTable.Th>
+                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>Reviewer</DataTable.Th>
+                    <DataTable.Th>Status</DataTable.Th>
+                    <DataTable.Th>Corrections</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
                   {reviewedQueue.queue.map((doc) => (
-                    <Table.Tr key={doc.id}>
-                      <Table.Td>
+                    <DataTable.Tr key={doc.id}>
+                      <DataTable.Td>
                         <Text size="sm" fw={500}>
                           {doc.sampleId}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Text size="sm" c="dimmed">
                           {doc.original_filename}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Text size="sm">
                           {doc.lastSession?.reviewer_id || "N/A"}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Badge
                           variant="light"
                           color={getStatusColor(doc.lastSession?.status || "")}
@@ -329,13 +329,13 @@ export const DatasetReviewQueuePage: FC = () => {
                         >
                           {doc.lastSession?.status || "N/A"}
                         </Badge>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Text size="sm">
                           {doc.lastSession?.corrections_count || 0}
                         </Text>
-                      </Table.Td>
-                      <Table.Td>
+                      </DataTable.Td>
+                      <DataTable.Td>
                         <Button
                           size="xs"
                           variant="light"
@@ -350,12 +350,12 @@ export const DatasetReviewQueuePage: FC = () => {
                         >
                           View
                         </Button>
-                      </Table.Td>
-                    </Table.Tr>
+                      </DataTable.Td>
+                    </DataTable.Tr>
                   ))}
-                </Table.Tbody>
-              </Table>
-            </Card>
+                </DataTable.Tbody>
+              </DataTable>
+            </PanelCard>
           )}
         </Tabs.Panel>
       </Tabs>

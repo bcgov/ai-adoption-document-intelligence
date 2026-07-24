@@ -1,28 +1,15 @@
+import { Footer, Header } from "@bcgov/design-system-react-components";
 import {
-  ActionIcon,
-  AppShell,
-  Avatar,
-  Badge,
-  Button,
-  Group,
-  NavLink,
-  ScrollArea,
-  Stack,
-  Text,
-  Title,
-  Tooltip,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import {
+  IconAdjustments,
   IconChartBar,
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
   IconDatabase,
+  IconFileText,
   IconFlagQuestion,
   IconFlask,
   IconFolderOpen,
-  IconList,
   IconLogout,
   IconSettings,
   IconTable,
@@ -34,17 +21,86 @@ import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
+import {
+  ActionIcon,
+  AppShell,
+  Avatar,
+  Group,
+  Menu,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Tooltip,
+  useDisclosure,
+} from "../ui";
 
 const NAV_EXPANDED = 240;
 const NAV_COLLAPSED = 72;
+
+const MAIN_CONTENT_ID = "main-content";
+
+function getUserInitials(name?: string, email?: string): string {
+  const source = name?.trim();
+
+  if (source) {
+    const cleaned = source.replace(/[^a-zA-Z,\s-]/g, " ").trim();
+
+    // Handle "Last, first ..." identity-provider format.
+    if (cleaned.includes(",")) {
+      const [lastRaw, firstRaw = ""] = cleaned.split(",", 2);
+      const last = lastRaw.split(/\s+/).find(Boolean);
+      const first = firstRaw
+        .split(/\s+/)
+        .find((token) => token && !/^[A-Z]{2,}$/.test(token));
+
+      if (first && last) {
+        return `${first[0]}${last[0]}`.toUpperCase();
+      }
+    }
+
+    const tokens = cleaned
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((token) => !/^[A-Z]{2,}$/.test(token));
+
+    if (tokens.length >= 2) {
+      return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+    }
+
+    if (tokens.length === 1) {
+      return tokens[0].slice(0, 2).toUpperCase();
+    }
+  }
+
+  const idir = email?.split("@")[0]?.replace(/[^a-zA-Z]/g, "") || "User";
+  return idir.slice(0, 2).toUpperCase();
+}
+
+/** Routes that use a fixed viewport workspace (document + field panel). */
+function isWorkspaceRoute(pathname: string): boolean {
+  return (
+    /^\/template-models\/[^/]+\/document\/[^/]+$/.test(pathname) ||
+    /^\/review\/[^/]+$/.test(pathname) ||
+    /^\/benchmarking\/datasets\/[^/]+\/versions\/[^/]+\/review\/[^/]+$/.test(
+      pathname,
+    )
+  );
+}
 
 export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
+  const displayName = user?.profile?.name ?? "Authenticated user";
+  const displayIdir = user?.profile?.email?.split("@")[0] ?? "Logged in";
+  const userInitials = getUserInitials(
+    user?.profile?.name,
+    user?.profile?.email,
+  );
 
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
+  const workspaceRoute = isWorkspaceRoute(location.pathname);
 
   const navItems = useMemo(
     () => [
@@ -55,14 +111,14 @@ export function RootLayout() {
         icon: IconUpload,
       },
       {
-        path: "/queue",
-        label: "Processing queue",
-        description: "Track statuses",
-        icon: IconList,
+        path: "/documents",
+        label: "Documents",
+        description: "View all documents",
+        icon: IconFileText,
       },
       {
         path: "/template-models",
-        label: "Template Models",
+        label: "Template models",
         description: "Manage template models",
         icon: IconTags,
       },
@@ -74,7 +130,7 @@ export function RootLayout() {
       },
       {
         path: "/review",
-        label: "HITL Review",
+        label: "HITL review",
         description: "Validate OCR results",
         icon: IconClipboardCheck,
       },
@@ -95,6 +151,12 @@ export function RootLayout() {
         label: "Groups",
         description: "Manage groups",
         icon: IconUsers,
+      },
+      {
+        path: "/confusion-profiles",
+        label: "Confusion profiles",
+        description: "Manage OCR confusion profiles",
+        icon: IconAdjustments,
       },
     ],
     [],
@@ -120,47 +182,57 @@ export function RootLayout() {
 
   return (
     <AppShell
-      header={{ height: 64 }}
+      header={{ height: 65 }}
       navbar={{
         width: navbarOpened ? NAV_EXPANDED : NAV_COLLAPSED,
         breakpoint: "sm",
         collapsed: { mobile: !navbarOpened },
       }}
       padding="md"
-      withBorder
       transitionDuration={200}
       transitionTimingFunction="ease"
     >
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
-            <Title order={3}>Document intelligence</Title>
-            <Badge variant="light" color="blue">
-              Live OCR
-            </Badge>
-          </Group>
-          <Group>
-            <GroupSelector />
-            <Stack gap={0}>
-              <Text size="sm" fw={600}>
-                {user?.profile?.name ?? "Authenticated user"}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {user?.profile?.email ?? "Logged in"}
-              </Text>
-            </Stack>
-            <Avatar radius="xl">{user?.profile?.name?.[0] ?? "U"}</Avatar>
-            <Button
-              variant="light"
-              color="red"
-              leftSection={<IconLogout size={16} />}
-              onClick={() => logout()}
-              data-testid="logout-btn"
-            >
-              Logout
-            </Button>
-          </Group>
-        </Group>
+      <AppShell.Header p={0} className="app-shell-bcds-header">
+        <Header
+          title="Document Intelligence"
+          skipLinks={[
+            <a key="skip-main" href={`#${MAIN_CONTENT_ID}`}>
+              Skip to main content
+            </a>,
+          ]}
+        >
+          <div className="app-shell-header-actions">
+            <Group gap="sm">
+              <GroupSelector />
+              <Menu shadow="md" width={260} position="bottom-end" withinPortal>
+                <Menu.Target>
+                  <ActionIcon
+                    variant="subtle"
+                    size="lg"
+                    radius="xl"
+                    aria-label="User menu"
+                  >
+                    <Avatar radius="xl">{userInitials}</Avatar>
+                  </ActionIcon>
+                </Menu.Target>
+
+                <Menu.Dropdown>
+                  <Menu.Label>{displayName}</Menu.Label>
+                  <Menu.Item disabled>{displayIdir}</Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    color="red"
+                    leftSection={<IconLogout size={16} />}
+                    onClick={() => logout()}
+                    data-testid="logout-btn"
+                  >
+                    Logout
+                  </Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
+          </div>
+        </Header>
       </AppShell.Header>
 
       <AppShell.Navbar style={{ overflow: "visible" }}>
@@ -323,10 +395,30 @@ export function RootLayout() {
         </ScrollArea>
       </AppShell.Navbar>
 
-      <AppShell.Main>
-        <Stack gap="lg" style={{ flex: 1, minHeight: 0 }}>
-          <Outlet />
-        </Stack>
+      <AppShell.Main
+        id={MAIN_CONTENT_ID}
+        className={workspaceRoute ? "app-shell-main--workspace" : undefined}
+        style={{ display: "flex", flexDirection: "column" }}
+      >
+        {workspaceRoute ? (
+          <>
+            <div className="app-shell-workspace-outlet">
+              <Outlet />
+            </div>
+            <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        ) : (
+          <>
+            <Stack gap="lg" style={{ minHeight: "100dvh" }}>
+              <Outlet />
+            </Stack>
+            <div className="app-shell-bcds-footer">
+              <Footer hideLogoAndLinks />
+            </div>
+          </>
+        )}
       </AppShell.Main>
     </AppShell>
   );

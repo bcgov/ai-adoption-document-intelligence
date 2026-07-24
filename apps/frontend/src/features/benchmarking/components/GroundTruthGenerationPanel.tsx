@@ -1,20 +1,4 @@
 import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Center,
-  Group,
-  Loader,
-  Progress,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
-import {
   IconAlertCircle,
   IconEye,
   IconInfoCircle,
@@ -22,6 +6,22 @@ import {
 } from "@tabler/icons-react";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Alert,
+  Badge,
+  Button,
+  Center,
+  DataTable,
+  Group,
+  Loader,
+  PanelCard,
+  Progress,
+  Select,
+  Stack,
+  Text,
+  Textarea,
+  Tooltip,
+} from "../../../ui";
 import {
   type GroundTruthJobStatus,
   useGroundTruthGeneration,
@@ -44,7 +44,7 @@ const statusColors: Record<GroundTruthJobStatus, string> = {
 const statusLabels: Record<GroundTruthJobStatus, string> = {
   pending: "Pending",
   processing: "Processing",
-  awaiting_review: "Awaiting Review",
+  awaiting_review: "Awaiting review",
   completed: "Completed",
   failed: "Failed",
 };
@@ -166,9 +166,9 @@ export const GroundTruthGenerationPanel: FC<
 
   return (
     <Stack gap="md">
-      <Card withBorder>
+      <PanelCard>
         <Stack gap="sm">
-          <Text fw={600}>Generate Ground Truth</Text>
+          <Text fw={600}>Generate ground truth</Text>
           <Text size="sm" c="dimmed">
             Run samples without ground truth through an OCR workflow, then
             review the results to generate ground truth data.
@@ -191,7 +191,7 @@ export const GroundTruthGenerationPanel: FC<
               loading={isStarting}
               disabled={!selectedWorkflowVersionId}
             >
-              Start Generation
+              Start generation
             </Button>
           </Group>
 
@@ -200,7 +200,7 @@ export const GroundTruthGenerationPanel: FC<
               label={
                 <Group gap={4} wrap="nowrap" style={{ display: "inline-flex" }}>
                   <Text size="sm" fw={500}>
-                    Workflow Config Overrides (JSON)
+                    Workflow config overrides (JSON)
                   </Text>
                   <Tooltip
                     label="Override workflow parameters like OCR model, confidence threshold, etc. Keys are parameter paths from the workflow's exposed parameters."
@@ -248,11 +248,11 @@ export const GroundTruthGenerationPanel: FC<
             </Alert>
           )}
         </Stack>
-      </Card>
+      </PanelCard>
 
       {total > 0 && (
         <>
-          <Card withBorder>
+          <PanelCard>
             <Stack gap="sm">
               <Group justify="space-between">
                 <Text fw={600}>Progress</Text>
@@ -290,27 +290,27 @@ export const GroundTruthGenerationPanel: FC<
                 </Button>
               </Group>
             </Stack>
-          </Card>
+          </PanelCard>
 
-          <Card withBorder padding={0}>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Sample ID</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Error</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+          <PanelCard p={0}>
+            <DataTable striped highlightOnHover>
+              <DataTable.Thead>
+                <DataTable.Tr>
+                  <DataTable.Th>Sample ID</DataTable.Th>
+                  <DataTable.Th>Status</DataTable.Th>
+                  <DataTable.Th>Created</DataTable.Th>
+                  <DataTable.Th>Error</DataTable.Th>
+                </DataTable.Tr>
+              </DataTable.Thead>
+              <DataTable.Tbody>
                 {jobs.map((job) => (
-                  <Table.Tr key={job.id}>
-                    <Table.Td>
+                  <DataTable.Tr key={job.id}>
+                    <DataTable.Td>
                       <Text size="sm" fw={500}>
                         {job.sampleId}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Badge
                         variant="light"
                         color={statusColors[job.status]}
@@ -318,29 +318,29 @@ export const GroundTruthGenerationPanel: FC<
                       >
                         {statusLabels[job.status]}
                       </Badge>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       <Text size="sm" c="dimmed">
                         {new Date(job.createdAt).toLocaleDateString()}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
+                    </DataTable.Td>
+                    <DataTable.Td>
                       {job.error && (
                         <Text size="xs" c="red" lineClamp={1}>
                           {job.error}
                         </Text>
                       )}
-                    </Table.Td>
-                  </Table.Tr>
+                    </DataTable.Td>
+                  </DataTable.Tr>
                 ))}
-              </Table.Tbody>
-            </Table>
-          </Card>
+              </DataTable.Tbody>
+            </DataTable>
+          </PanelCard>
         </>
       )}
 
       {total === 0 && (
-        <Card withBorder p="xl">
+        <PanelCard p="xl">
           <Center>
             <Stack align="center" gap="md">
               <Text fw={600}>No ground truth generation jobs</Text>
@@ -351,7 +351,7 @@ export const GroundTruthGenerationPanel: FC<
               </Text>
             </Stack>
           </Center>
-        </Card>
+        </PanelCard>
       )}
     </Stack>
   );

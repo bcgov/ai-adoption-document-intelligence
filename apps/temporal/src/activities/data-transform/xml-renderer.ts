@@ -1,4 +1,4 @@
-import { XMLBuilder } from "fast-xml-parser";
+import Builder from "fast-xml-builder";
 import { IterationResult } from "./binding-resolver";
 
 /** Regex pattern for valid XML element names. */
@@ -136,7 +136,7 @@ export function renderXml(
   validateElementNames(preprocessed);
 
   try {
-    const builder = new XMLBuilder({ format: false });
+    const builder = new Builder({ format: false });
     return rootElement === null
       ? builder.build(preprocessed)
       : builder.build({ [rootElement]: preprocessed });

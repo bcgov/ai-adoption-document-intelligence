@@ -1,3 +1,5 @@
+import { IconAlertCircle } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -7,9 +9,7 @@ import {
   Text,
   Textarea,
   TextInput,
-} from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+} from "../../../ui";
 
 interface CreateDatasetDialogProps {
   opened: boolean;
@@ -109,7 +109,7 @@ export function CreateDatasetDialog({
     <Modal
       opened={opened}
       onClose={handleClose}
-      title="Create New Dataset"
+      title="Create new dataset"
       size="md"
       data-testid="create-dataset-dialog"
     >
@@ -127,7 +127,7 @@ export function CreateDatasetDialog({
         )}
 
         <TextInput
-          label="Dataset Name"
+          label="Dataset name"
           placeholder="Enter dataset name"
           value={name}
           onChange={(e) => {
@@ -218,7 +218,7 @@ export function CreateDatasetDialog({
             loading={isCreating}
             data-testid="submit-dataset-btn"
           >
-            Create Dataset
+            Create dataset
           </Button>
         </Group>
       </Stack>

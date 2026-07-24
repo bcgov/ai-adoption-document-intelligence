@@ -1,0 +1,47 @@
+# Root .dockerignore — applies to backend-services and temporal Dockerfiles
+# (both use context: . in docker-compose.yml)
+
+# Dependencies — installed fresh inside the Docker build
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+**/dist/
+*.js.map
+
+# Version control
+.git/
+.gitignore
+
+# Local env files
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Test artifacts
+coverage/
+**/__snapshots__/
+**/*.spec.ts
+**/*.test.ts
+**/*.e2e-spec.ts
+
+# Dev tooling
+.vscode/
+.idea/
+*.swp
+
+# Playwright / test output
+test-results/
+playwright-report/
+
+# Docs (not needed for runtime)
+docs/
+docs-md/
+feature-docs/
+
+# Other apps not needed by any root-context build
+apps/image-service/

@@ -1,7 +1,9 @@
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
+import { ConflictException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -76,6 +78,7 @@ describe("OcrService", () => {
             startGraphWorkflow: jest.fn().mockResolvedValue("workflow-123"),
             getWorkflowStatus: jest.fn(),
             queryWorkflowStatus: jest.fn(),
+            isWorkflowRunning: jest.fn().mockResolvedValue(false),
           },
         },
         {
@@ -92,6 +95,15 @@ describe("OcrService", () => {
         {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(
+              async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+                fn({} as Prisma.TransactionClient),
+            ),
+          },
         },
       ],
     }).compile();
@@ -124,6 +136,9 @@ describe("OcrService", () => {
             mockBlobStorage as any,
             mockAppLogger,
             { recordEvent: jest.fn() } as unknown as AuditService,
+            {
+              transaction: jest.fn(async (fn) => fn({})),
+            } as unknown as PrismaService,
           ),
       ).not.toThrow();
     });
@@ -212,6 +227,80 @@ describe("OcrService", () => {
         status: DocumentStatus.failed,
         error: "Temporal connection failed",
       });
+    });
+  });
+
+  describe("reprocessDocument", () => {
+    const runnableDoc = {
+      ...defaultDocument,
+      id: "doc-1",
+      status: DocumentStatus.failed,
+      workflow_config_id: "workflow-config-123",
+      normalized_file_path: "testgroup1/ocr/doc-1/normalized.pdf",
+      purged_at: null,
+    } as DocumentData;
+
+    it("starts a new run for a failed document and returns the workflow id", async () => {
+      const result = await service.reprocessDocument(runnableDoc);
+      expect(result).toEqual({
+        workflowExecutionId: "workflow-123",
+        status: DocumentStatus.ongoing_ocr,
+      });
+      expect(temporalClientService.startGraphWorkflow).toHaveBeenCalled();
+    });
+
+    it("allows a stuck ongoing_ocr document", async () => {
+      const result = await service.reprocessDocument({
+        ...runnableDoc,
+        status: DocumentStatus.ongoing_ocr,
+      } as DocumentData);
+      expect(result.status).toEqual(DocumentStatus.ongoing_ocr);
+    });
+
+    it("rejects a non-runnable status (e.g. complete)", async () => {
+      await expect(
+        service.reprocessDocument({
+          ...runnableDoc,
+          status: DocumentStatus.complete,
+        } as DocumentData),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(temporalClientService.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("rejects a document with no workflow configuration", async () => {
+      await expect(
+        service.reprocessDocument({
+          ...runnableDoc,
+          workflow_config_id: null,
+        } as DocumentData),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it("rejects a purged document (source reclaimed)", async () => {
+      await expect(
+        service.reprocessDocument({
+          ...runnableDoc,
+          purged_at: new Date(),
+        } as DocumentData),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it("rejects when the normalized source file is missing from storage", async () => {
+      (blobStorage.exists as jest.Mock).mockResolvedValueOnce(false);
+      await expect(
+        service.reprocessDocument(runnableDoc),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(temporalClientService.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("rejects when a run is already in flight", async () => {
+      (
+        temporalClientService.isWorkflowRunning as jest.Mock
+      ).mockResolvedValueOnce(true);
+      await expect(
+        service.reprocessDocument(runnableDoc),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(temporalClientService.startGraphWorkflow).not.toHaveBeenCalled();
     });
   });
 });

@@ -5,9 +5,9 @@
  * validation. Each registered schema describes the required and optional
  * parameters for a user-authored activity node.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md
  */
-import type { GraphValidationError } from "./graph-workflow-types";
+import type { GraphValidationError } from "@ai-di/graph-workflow";
 
 const VALID_TRANSFORM_FORMATS = new Set(["json", "xml", "csv"]);
 

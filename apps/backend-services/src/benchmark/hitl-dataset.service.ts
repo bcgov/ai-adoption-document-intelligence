@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import * as path from "node:path";
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
@@ -72,7 +73,8 @@ export class HitlDatasetService {
 
   /**
    * List documents eligible for dataset creation:
-   * completed_ocr status + at least one approved review session.
+   * ready status (approved documents only).
+   * Documents transition to ready status after HITL approval.
    */
   async listEligibleDocuments(
     filters: EligibleDocumentsFilterDto,
@@ -83,7 +85,7 @@ export class HitlDatasetService {
     const offset = (page - 1) * limit;
 
     const documents = (await this.reviewDbService.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.complete],
       reviewStatus: "reviewed",
       limit: 1000,
       groupIds,
@@ -212,7 +214,7 @@ export class HitlDatasetService {
     // prevent cross-tenant packaging (a caller in group A cannot pull
     // documents belonging to group B into their dataset).
     const allDocuments = (await this.reviewDbService.findReviewQueue({
-      status: DocumentStatus.completed_ocr,
+      statuses: [DocumentStatus.complete],
       reviewStatus: "reviewed",
       limit: 10000,
       groupIds: [groupId],
@@ -220,7 +222,10 @@ export class HitlDatasetService {
 
     const documentMap = new Map(allDocuments.map((d) => [d.id, d]));
 
-    // Create the version
+    // Pre-assign version id and storage prefix so the row is consistent even if
+    // a later documentCount update fails after blob packaging.
+    const versionId = randomUUID();
+    const storagePrefix = `datasets/${datasetId}/${versionId}`;
     const version = await this.datasetService.createVersion(
       datasetId,
       {
@@ -228,9 +233,8 @@ export class HitlDatasetService {
         name: versionName,
       },
       actorId,
+      { id: versionId, storagePrefix },
     );
-
-    const storagePrefix = `datasets/${datasetId}/${version.id}`;
     const skipped: SkippedDocument[] = [];
     const manifestSamples: Array<{
       id: string;
@@ -247,7 +251,7 @@ export class HitlDatasetService {
       try {
         const doc = documentMap.get(documentId);
         if (!doc) {
-          throw new Error("Document not found or not in completed_ocr status");
+          throw new Error("Document not found or not in extracted status");
         }
 
         // Defense-in-depth: the findReviewQueue call above already filters

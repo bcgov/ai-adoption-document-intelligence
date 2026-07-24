@@ -71,7 +71,7 @@ const makeReviewSession = (
       file_size: 1024,
       metadata: {},
       source: "upload",
-      status: DocumentStatus.completed_ocr,
+      status: DocumentStatus.extracted,
       apim_request_id: null,
       model_id: "model-1",
       workflow_id: null,
@@ -186,13 +186,17 @@ describe("ReviewDbService", () => {
       const docs = [{ id: "doc-1" }];
       mockDocument.findMany.mockResolvedValue(docs);
 
-      const result = await service.findReviewQueue({});
+      const result = await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
 
       expect(result).toEqual(docs);
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            status: DocumentStatus.completed_ocr,
+            status: {
+              in: [DocumentStatus.awaiting_review],
+            },
           }),
           take: 50,
           skip: 0,
@@ -203,7 +207,9 @@ describe("ReviewDbService", () => {
     it("should restrict the queue to api-sourced documents and exclude ground truth jobs", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({});
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -218,7 +224,10 @@ describe("ReviewDbService", () => {
     it("should apply pending review status filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({ reviewStatus: "pending" });
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -232,7 +241,10 @@ describe("ReviewDbService", () => {
     it("should apply reviewed review status filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({ reviewStatus: "reviewed" });
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "reviewed",
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -246,7 +258,10 @@ describe("ReviewDbService", () => {
     it("should apply groupIds filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({ groupIds: ["g-1", "g-2"] });
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        groupIds: ["g-1", "g-2"],
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -260,7 +275,10 @@ describe("ReviewDbService", () => {
     it("should apply modelId filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({ modelId: "model-42" });
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        modelId: "model-42",
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -272,7 +290,11 @@ describe("ReviewDbService", () => {
     it("should apply limit and offset", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({ limit: 10, offset: 5 });
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        limit: 10,
+        offset: 5,
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 10, skip: 5 }),
@@ -282,7 +304,9 @@ describe("ReviewDbService", () => {
     it("should exclude documents with active locks", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 
-      await service.findReviewQueue({});
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+      });
 
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

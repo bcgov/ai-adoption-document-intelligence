@@ -1,5 +1,5 @@
-import { Button, Code, Group, Modal, Stack, Text } from "@mantine/core";
 import { useState } from "react";
+import { Button, Code, Group, Modal, Stack, Text } from "../../../ui";
 import type { LookupDef } from "../types";
 
 interface Props {
@@ -45,16 +45,20 @@ export function LookupSnippetPanel({
     <Modal opened={opened} onClose={onClose} title="Use in workflow" size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Paste this node into a graph workflow. Replace{" "}
-          <code>{"<source ctx key>"}</code> with the upstream context key
-          containing each param value, and{" "}
-          <code>{"<destination ctx key>"}</code> with where the result should
-          land.
+          Paste this node into a graph workflow. replace{" "}
+          <code>{"<source ctx key>"}</code> with the upstream context key that
+          already holds the right value, and{" "}
+          <code>{"<destination ctx key>"}</code> with where you want the result
+          available to later nodes.
+        </Text>
+        <Text size="sm" c="dimmed">
+          A context key is a named slot in the workflow&apos;s shared memory.
+          Nodes read from and write to these slots to pass data between steps.
         </Text>
         <Code block>{text}</Code>
         <Group justify="flex-end">
           <Button onClick={handleCopy}>
-            {copied ? "Copied!" : "Copy to clipboard"}
+            {copied ? "copied!" : "copy to clipboard"}
           </Button>
         </Group>
       </Stack>

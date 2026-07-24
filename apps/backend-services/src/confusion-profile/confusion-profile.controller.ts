@@ -72,12 +72,15 @@ export class ConfusionProfileController {
     this.logger.log(`POST /api/groups/${groupId}/confusion-profiles/derive`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.deriveAndSave({
-      name: dto.name,
-      description: dto.description,
-      groupId,
-      sources: dto.sources,
-    });
+    return this.confusionProfileService.deriveAndSave(
+      {
+        name: dto.name,
+        description: dto.description,
+        groupId,
+        sources: dto.sources,
+      },
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post()
@@ -101,12 +104,15 @@ export class ConfusionProfileController {
     this.logger.log(`POST /api/groups/${groupId}/confusion-profiles`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.create({
-      name: dto.name,
-      description: dto.description,
-      matrix: dto.matrix,
-      groupId,
-    });
+    return this.confusionProfileService.create(
+      {
+        name: dto.name,
+        description: dto.description,
+        matrix: dto.matrix,
+        groupId,
+      },
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get()
@@ -149,7 +155,7 @@ export class ConfusionProfileController {
     this.logger.log(`GET /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.findById(id);
+    return this.confusionProfileService.findById(id, groupId);
   }
 
   @Patch(":id")
@@ -173,7 +179,12 @@ export class ConfusionProfileController {
     this.logger.log(`PATCH /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    return this.confusionProfileService.update(id, dto);
+    return this.confusionProfileService.update(
+      id,
+      groupId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Delete(":id")
@@ -194,6 +205,10 @@ export class ConfusionProfileController {
     this.logger.log(`DELETE /api/groups/${groupId}/confusion-profiles/${id}`);
     identityCanAccessGroup(req.resolvedIdentity, groupId);
 
-    await this.confusionProfileService.delete(id);
+    await this.confusionProfileService.delete(
+      id,
+      groupId,
+      req.resolvedIdentity.actorId,
+    );
   }
 }

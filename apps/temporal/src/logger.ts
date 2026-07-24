@@ -10,10 +10,15 @@ import {
   type Logger as SharedLogger,
 } from "@ai-di/shared-logging";
 import { Context } from "@temporalio/activity";
+import { getMetricsHook } from "./metrics";
 
 const SERVICE_NAME = "temporal-worker";
 
-export const workerLogger: SharedLogger = createLogger(SERVICE_NAME);
+export const workerLogger: SharedLogger = createLogger(
+  SERVICE_NAME,
+  undefined,
+  getMetricsHook(),
+);
 
 /**
  * Create a logger for use inside an activity. Attaches activity name and

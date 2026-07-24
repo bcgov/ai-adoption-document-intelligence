@@ -5,10 +5,13 @@ import {
 } from "@generated/client";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
 } from "@/blob-storage/blob-storage.interface";
+import { PrismaService } from "@/database/prisma.service";
+import { computeContentHash } from "@/document/content-hash.util";
 import { DocumentService } from "@/document/document.service";
 import { PdfNormalizationService } from "@/document/pdf-normalization.service";
 import { ReviewDbService } from "@/hitl/review-db.service";
@@ -140,6 +143,16 @@ describe("GroundTruthGenerationService", () => {
         {
           provide: BLOB_STORAGE,
           useValue: mockBlobStorage,
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(async (fn) => fn({})),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -352,7 +365,7 @@ describe("GroundTruthGenerationService", () => {
           document: {
             id: "doc-id-1",
             original_filename: "doc-001.pdf",
-            status: DocumentStatus.completed_ocr,
+            status: DocumentStatus.extracted,
             model_id: "prebuilt-layout",
             created_at: new Date(),
             updated_at: new Date(),
@@ -526,6 +539,133 @@ describe("GroundTruthGenerationService", () => {
       const result = await service.getJobByDocumentId("nonexistent");
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("processJob", () => {
+    let processJob: (
+      jobId: string,
+      datasetId: string,
+      versionId: string,
+      storagePrefix: string,
+      groupId: string,
+    ) => Promise<void>;
+
+    beforeEach(() => {
+      processJob = (
+        service as unknown as {
+          processJob: (
+            jobId: string,
+            datasetId: string,
+            versionId: string,
+            storagePrefix: string,
+            groupId: string,
+          ) => Promise<void>;
+        }
+      ).processJob.bind(service);
+    });
+
+    it("passes workflowConfigOverrides as third argument to requestOcr", async () => {
+      const jobOverrides = { "ctx.modelId.defaultValue": "prebuilt-read" };
+      mockJobDb.findJob.mockResolvedValue({
+        id: "job-1",
+        sampleId: "doc-001",
+        status: GroundTruthJobStatus.pending,
+        workflowVersionId: "wv-1",
+        workflowConfigOverrides: jobOverrides,
+      });
+      (mockBlobStorage.read as jest.Mock).mockImplementation(
+        async (key: string) => {
+          if (key.endsWith("dataset-manifest.json")) {
+            return Buffer.from(JSON.stringify(sampleManifest));
+          }
+          return Buffer.from("%PDF-1.4");
+        },
+      );
+      mockJobDb.findWorkflowConfig.mockResolvedValue({
+        config: {
+          schemaVersion: "1.0",
+          metadata: {},
+          entryNodeId: "n1",
+          ctx: {
+            modelId: { type: "string", defaultValue: "prebuilt-layout" },
+          },
+          nodes: {},
+          edges: [],
+        },
+      });
+      mockDocumentService.createDocument.mockResolvedValue(undefined);
+      mockOcrService.requestOcr.mockResolvedValue({
+        workflowId: "graph-doc-1",
+        status: DocumentStatus.ongoing_ocr,
+      });
+
+      await processJob(
+        "job-1",
+        "dataset-1",
+        "version-1",
+        "datasets/dataset-1/version-1",
+        "test-group",
+      );
+
+      expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
+        expect.any(String),
+        { confidenceThreshold: 0 },
+        jobOverrides,
+      );
+      expect(mockDocumentService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content_hash: computeContentHash(Buffer.from("%PDF-1.4")),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("omits third argument to requestOcr when job has no overrides", async () => {
+      mockJobDb.findJob.mockResolvedValue({
+        id: "job-2",
+        sampleId: "doc-001",
+        status: GroundTruthJobStatus.pending,
+        workflowVersionId: "wv-1",
+        workflowConfigOverrides: null,
+      });
+      (mockBlobStorage.read as jest.Mock).mockImplementation(
+        async (key: string) => {
+          if (key.endsWith("dataset-manifest.json")) {
+            return Buffer.from(JSON.stringify(sampleManifest));
+          }
+          return Buffer.from("%PDF-1.4");
+        },
+      );
+      mockJobDb.findWorkflowConfig.mockResolvedValue({
+        config: {
+          schemaVersion: "1.0",
+          metadata: {},
+          entryNodeId: "n1",
+          ctx: {},
+          nodes: {},
+          edges: [],
+        },
+      });
+      mockDocumentService.createDocument.mockResolvedValue(undefined);
+      mockOcrService.requestOcr.mockResolvedValue({
+        workflowId: "graph-doc-2",
+        status: DocumentStatus.ongoing_ocr,
+      });
+
+      await processJob(
+        "job-2",
+        "dataset-1",
+        "version-1",
+        "datasets/dataset-1/version-1",
+        "test-group",
+      );
+
+      expect(mockOcrService.requestOcr).toHaveBeenCalledWith(
+        expect.any(String),
+        { confidenceThreshold: 0 },
+        undefined,
+      );
     });
   });
 

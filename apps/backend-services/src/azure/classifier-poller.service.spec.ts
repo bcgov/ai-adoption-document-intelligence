@@ -18,6 +18,7 @@ const mockClassifierDbService = {
 const mockAzureService = {
   checkOperationStatusById: jest.fn(),
   checkClassifierExists: jest.fn(),
+  isMockMode: jest.fn().mockReturnValue(false),
 };
 const mockBlobService = {
   deleteFilesWithPrefix: jest.fn(),
@@ -54,9 +55,18 @@ describe("ClassifierPollerService", () => {
 
     service = module.get<ClassifierPollerService>(ClassifierPollerService);
     jest.clearAllMocks();
+    mockAzureService.isMockMode.mockReturnValue(false);
   });
 
   describe("pollActiveClassifiers", () => {
+    it("should skip polling entirely in mock mode", async () => {
+      mockAzureService.isMockMode.mockReturnValue(true);
+      await service.pollActiveClassifiers();
+      expect(
+        mockClassifierDbService.findAllTrainingClassifiers,
+      ).not.toHaveBeenCalled();
+    });
+
     it("should not poll if no classifiers are training", async () => {
       mockClassifierDbService.findAllTrainingClassifiers.mockResolvedValue([]);
       await service.pollActiveClassifiers();
@@ -206,6 +216,36 @@ describe("ClassifierPollerService", () => {
       expect(
         mockClassifierDbService.systemUpdateClassifierModel,
       ).toHaveBeenCalledWith("clf", "gid", { status: ClassifierStatus.FAILED });
+    });
+
+    it("should log with alertType when training succeeds", async () => {
+      mockConfigService.get.mockReturnValue("minio");
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "succeeded",
+      });
+      mockClassifierDbService.markClassifierReadyIfTraining.mockResolvedValue(
+        true,
+      );
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          alertType: "classifier_training_poll",
+        }),
+      );
+    });
+
+    it("should log with alertType when training fails", async () => {
+      mockAzureService.checkOperationStatusById.mockResolvedValue({
+        status: "failed",
+      });
+      await (service as any).pollClassifierStatus("clf", "gid", "loc");
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          alertType: "classifier_training_poll",
+        }),
+      );
     });
   });
 });

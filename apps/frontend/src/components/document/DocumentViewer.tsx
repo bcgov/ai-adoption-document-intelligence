@@ -1,9 +1,11 @@
-import { Paper, Text } from "@mantine/core";
-import { useElementSize } from "@mantine/hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnnotationCanvas } from "../../features/annotation/core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../features/annotation/core/canvas/hooks/usePdfPageImage";
 import type { ExtractedFields } from "../../shared/types";
+import { Paper, Text, useElementSize } from "../../ui";
 
 interface DocumentViewerProps {
   imageUrl: string;
@@ -11,9 +13,12 @@ interface DocumentViewerProps {
   pageNumber?: number;
   showOverlays?: boolean;
   onToggleOverlays?: () => void;
+  rotation?: number;
 }
 
-const PIXELS_PER_INCH = 144;
+// PDF coordinate scale: Azure OCR coordinates are in inches
+// Multiply by (RENDER_SCALE * 72 DPI) to convert to rendered pixels
+const PIXELS_PER_INCH = RENDER_SCALE * 72;
 
 function getFieldDisplayValue(field: ExtractedFields[string]): string {
   if (field.valueSelectionMark !== undefined) {
@@ -38,6 +43,7 @@ export function DocumentViewer({
   extractedFields,
   pageNumber = 1,
   showOverlays = true,
+  rotation = 0,
 }: DocumentViewerProps) {
   /** API may send null; default `{}` does not apply when null is passed explicitly. */
   const fields = extractedFields ?? {};
@@ -134,6 +140,7 @@ export function DocumentViewer({
           height={canvasHeight}
           boxes={boxes}
           onBoxHover={handleBoxHover}
+          rotation={rotation}
         />
       )}
 

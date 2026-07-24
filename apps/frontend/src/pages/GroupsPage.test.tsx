@@ -1,4 +1,3 @@
-import { MantineProvider } from "@mantine/core";
 import {
   fireEvent,
   render,
@@ -8,11 +7,14 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  GroupInfo,
-  MyMembershipRequest,
-  UserGroup,
+import {
+  type GroupInfo,
+  type MyMembershipRequest,
+  type UserGroup,
 } from "../data/hooks/useGroups";
+import { changeFieldValue } from "../test/fieldHelpers";
+import { mockNotificationsShow } from "../test/mockNotifications";
+import { MantineProvider } from "../ui";
 import { GroupsPage } from "./GroupsPage";
 
 // ---------------------------------------------------------------------------
@@ -32,13 +34,9 @@ const mockUseRequestMembership = vi.fn();
 const mockRequestMutate = vi.fn();
 const mockUseCreateGroup = vi.fn();
 const mockCreateMutate = vi.fn();
-
-const { mockNotificationsShow } = vi.hoisted(() => ({
-  mockNotificationsShow: vi.fn(),
-}));
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: mockNotificationsShow },
-}));
+const mockApproveMembershipRequest = vi.fn().mockResolvedValue({
+  isPending: false,
+});
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -52,6 +50,7 @@ vi.mock("../data/hooks/useGroups", () => ({
   useLeaveGroup: () => mockUseLeaveGroup(),
   useRequestMembership: () => mockUseRequestMembership(),
   useCreateGroup: () => mockUseCreateGroup(),
+  useApproveMembershipRequest: () => mockApproveMembershipRequest(),
 }));
 
 vi.mock("react-router-dom", async (importOriginal) => {
@@ -158,7 +157,7 @@ describe("GroupsPage", () => {
   // Scenario 1 – Three tabs render
   // -------------------------------------------------------------------------
   describe("Scenario 1 – Page renders with three tabs", () => {
-    it("shows the My Groups, My Requests, and All Groups tabs", () => {
+    it("shows the My groups, My requests, and All groups tabs", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -177,13 +176,13 @@ describe("GroupsPage", () => {
       renderPage();
 
       expect(
-        screen.getByRole("tab", { name: "My Groups" }),
+        screen.getByRole("tab", { name: "My groups" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("tab", { name: "My Requests" }),
+        screen.getByRole("tab", { name: "My requests" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("tab", { name: "All Groups" }),
+        screen.getByRole("tab", { name: "All groups" }),
       ).toBeInTheDocument();
     });
   });
@@ -210,7 +209,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      const panel = screen.getByRole("tabpanel", { name: "My Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "My groups" });
       expect(within(panel).getByText("My Team A")).toBeInTheDocument();
       expect(within(panel).getByText("My Team B")).toBeInTheDocument();
       // "Other Team" appears in allGroups but not myGroups — should not be shown in this panel
@@ -219,10 +218,10 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 3 – System admin sees all groups
+  // Scenario 3 – System admin sees their groups
   // -------------------------------------------------------------------------
-  describe("Scenario 3 – System admin sees all groups", () => {
-    it("renders all groups including those the admin does not belong to", () => {
+  describe("Scenario 3 – System admin sees their groups", () => {
+    it("renders only the groups the admin belongs to on My groups tab", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "admin-1" },
         isSystemAdmin: true,
@@ -240,10 +239,10 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      const panel = screen.getByRole("tabpanel", { name: "My Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "My groups" });
       expect(within(panel).getByText("My Team A")).toBeInTheDocument();
       expect(within(panel).getByText("My Team B")).toBeInTheDocument();
-      expect(within(panel).getByText("Other Team")).toBeInTheDocument();
+      expect(within(panel).queryByText("Other Team")).not.toBeInTheDocument();
     });
   });
 
@@ -276,9 +275,9 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 5 – My Requests tab shows requests table
+  // Scenario 5 – My requests tab shows requests table
   // -------------------------------------------------------------------------
-  describe("Scenario 5 – My Requests tab displays request data", () => {
+  describe("Scenario 5 – My requests tab displays request data", () => {
     it("shows the requests table with expected columns when the tab is activated", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
@@ -297,10 +296,10 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
-        const panel = screen.getByRole("tabpanel", { name: "My Requests" });
+        const panel = screen.getByRole("tabpanel", { name: "My requests" });
         expect(
           within(panel).getByRole("columnheader", { name: "Group" }),
         ).toBeInTheDocument();
@@ -337,10 +336,10 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
-        const panel = screen.getByRole("tabpanel", { name: "My Requests" });
+        const panel = screen.getByRole("tabpanel", { name: "My requests" });
         expect(within(panel).getByText("Other Team")).toBeInTheDocument();
         expect(within(panel).getAllByText("PENDING").length).toBeGreaterThan(0);
       });
@@ -369,7 +368,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(
@@ -396,7 +395,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(
@@ -433,7 +432,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(
@@ -472,7 +471,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(
@@ -516,7 +515,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(
@@ -557,12 +556,12 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
-        // Mantine Select renders a visible input + a hidden input; ensure at least one has PENDING
-        const inputs = screen.getAllByDisplayValue("PENDING");
-        expect(inputs.length).toBeGreaterThan(0);
+        expect(screen.getByTestId("requests-status-filter")).toHaveTextContent(
+          /pending/i,
+        );
       });
     });
 
@@ -589,7 +588,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-empty")).toBeInTheDocument();
@@ -601,7 +600,7 @@ describe("GroupsPage", () => {
   // Scenario 6 – Loading and error states
   // -------------------------------------------------------------------------
   describe("Scenario 6 – Loading and error states", () => {
-    it("shows a loader while My Groups data is loading", () => {
+    it("shows a loader while My groups data is loading", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -622,7 +621,7 @@ describe("GroupsPage", () => {
       expect(screen.getByTestId("groups-loading")).toBeInTheDocument();
     });
 
-    it("shows an error alert when My Groups fails to load", () => {
+    it("shows an error alert when My groups fails to load", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -643,7 +642,7 @@ describe("GroupsPage", () => {
       expect(screen.getByTestId("groups-error")).toBeInTheDocument();
     });
 
-    it("shows a loader while My Requests data is loading", async () => {
+    it("shows a loader while My requests data is loading", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -666,14 +665,14 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-loading")).toBeInTheDocument();
       });
     });
 
-    it("shows an error alert when My Requests fails to load", async () => {
+    it("shows an error alert when My requests fails to load", async () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
         isSystemAdmin: false,
@@ -696,7 +695,7 @@ describe("GroupsPage", () => {
 
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "My Requests" }));
+      fireEvent.click(screen.getByRole("tab", { name: "My requests" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("requests-error")).toBeInTheDocument();
@@ -705,9 +704,9 @@ describe("GroupsPage", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Scenario 7 – All Groups tab
+  // Scenario 7 – All groups tab
   // -------------------------------------------------------------------------
-  describe("Scenario 7 – All Groups tab", () => {
+  describe("Scenario 7 – All groups tab", () => {
     const setupAuth = (systemAdmin = false) => {
       mockUseAuth.mockReturnValue({
         user: { sub: "user-1" },
@@ -726,7 +725,7 @@ describe("GroupsPage", () => {
         isLoading: false,
         isError: false,
       });
-      // No pending requests by default in All Groups tab tests
+      // No pending requests by default in All groups tab tests
       mockUseMyRequests.mockReturnValue({
         data: [],
         isLoading: false,
@@ -734,13 +733,13 @@ describe("GroupsPage", () => {
       });
     };
 
-    it("renders the All Groups tab", () => {
+    it("renders the All groups tab", () => {
       setupAuth();
       setupGroups();
       renderPage();
 
       expect(
-        screen.getByRole("tab", { name: "All Groups" }),
+        screen.getByRole("tab", { name: "All groups" }),
       ).toBeInTheDocument();
     });
 
@@ -749,10 +748,10 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
-        const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+        const panel = screen.getByRole("tabpanel", { name: "All groups" });
         expect(
           within(panel).getByRole("columnheader", { name: "Name" }),
         ).toBeInTheDocument();
@@ -770,10 +769,10 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
-        const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+        const panel = screen.getByRole("tabpanel", { name: "All groups" });
         expect(within(panel).getByText("My Team A")).toBeInTheDocument();
         expect(
           within(panel).getByText("Team A description"),
@@ -790,9 +789,9 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
-      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "All groups" });
 
       await waitFor(() => {
         expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
@@ -805,7 +804,7 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
@@ -822,7 +821,7 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("join-btn-g-3")).toBeDisabled();
@@ -834,7 +833,7 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
@@ -859,7 +858,7 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
@@ -883,7 +882,7 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("join-btn-g-3")).toBeInTheDocument();
@@ -901,9 +900,9 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
-      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "All groups" });
 
       await waitFor(() => {
         expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
@@ -925,9 +924,9 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
-      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "All groups" });
 
       await waitFor(() => {
         expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
@@ -954,9 +953,9 @@ describe("GroupsPage", () => {
       setupGroups();
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
-      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "All groups" });
 
       await waitFor(() => {
         expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
@@ -984,9 +983,9 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
-      const panel = screen.getByRole("tabpanel", { name: "All Groups" });
+      const panel = screen.getByRole("tabpanel", { name: "All groups" });
 
       await waitFor(() => {
         expect(within(panel).getByTestId("leave-btn-g-1")).toBeInTheDocument();
@@ -1007,7 +1006,7 @@ describe("GroupsPage", () => {
       );
     });
 
-    it("shows a loader while All Groups data is loading", async () => {
+    it("shows a loader while All groups data is loading", async () => {
       setupAuth();
       mockUseMyGroups.mockReturnValue({
         data: undefined,
@@ -1021,14 +1020,14 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("all-groups-loading")).toBeInTheDocument();
       });
     });
 
-    it("shows an error alert when All Groups fails to load", async () => {
+    it("shows an error alert when All groups fails to load", async () => {
       setupAuth();
       mockUseMyGroups.mockReturnValue({
         data: undefined,
@@ -1042,7 +1041,7 @@ describe("GroupsPage", () => {
       });
       renderPage();
 
-      fireEvent.click(screen.getByRole("tab", { name: "All Groups" }));
+      fireEvent.click(screen.getByRole("tab", { name: "All groups" }));
 
       await waitFor(() => {
         expect(screen.getByTestId("all-groups-error")).toBeInTheDocument();
@@ -1177,9 +1176,7 @@ describe("GroupsPage", () => {
         expect(screen.getByTestId("create-group-name")).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-        target: { value: "Duplicate Group" },
-      });
+      changeFieldValue("create-group-name", "Duplicate Group");
 
       fireEvent.click(screen.getByTestId("create-group-submit-btn"));
 
@@ -1189,9 +1186,9 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      expect(
-        screen.getByText("A group with that name already exists"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("create-group-server-error")).toHaveTextContent(
+        "A group with that name already exists",
+      );
 
       // Modal should remain open
       expect(screen.getByTestId("create-group-modal")).toBeInTheDocument();
@@ -1214,10 +1211,16 @@ describe("GroupsPage", () => {
         ).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByTestId("create-group-submit-btn"));
+      const form = screen
+        .getByTestId("create-group-submit-btn")
+        .closest("form");
+      expect(form).not.toBeNull();
+      fireEvent.submit(form as HTMLFormElement);
 
       await waitFor(() => {
-        expect(screen.getByText("Name is required")).toBeInTheDocument();
+        expect(screen.getByTestId("create-group-modal")).toHaveTextContent(
+          /name is required/i,
+        );
       });
 
       expect(mockCreateMutate).not.toHaveBeenCalled();

@@ -1,6 +1,5 @@
 import "@testing-library/jest-dom";
 
-import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +7,7 @@ import type {
   ActivityNode,
   GraphWorkflowConfig,
 } from "../../types/graph-workflow";
+import { MantineProvider } from "../../ui";
 import { GraphVisualization } from "./GraphVisualization";
 
 // ---------------------------------------------------------------------------

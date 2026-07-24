@@ -8,11 +8,21 @@ interface DrawingLayerProps {
     end: Point;
   } | null;
   color?: string;
+  rotation?: number;
+  offsetX?: number;
+  offsetY?: number;
+  x?: number;
+  y?: number;
 }
 
 export const DrawingLayer: FC<DrawingLayerProps> = ({
   drawingBox,
   color = "#40c057",
+  rotation,
+  offsetX,
+  offsetY,
+  x: layerX,
+  y: layerY,
 }) => {
   if (!drawingBox) return null;
 
@@ -23,7 +33,13 @@ export const DrawingLayer: FC<DrawingLayerProps> = ({
   const height = Math.abs(end.y - start.y);
 
   return (
-    <Layer>
+    <Layer
+      rotation={rotation}
+      offsetX={offsetX}
+      offsetY={offsetY}
+      x={layerX}
+      y={layerY}
+    >
       <Rect
         x={x}
         y={y}

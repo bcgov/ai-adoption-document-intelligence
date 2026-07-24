@@ -1,4 +1,4 @@
-import { Code, Modal, ScrollArea } from "@mantine/core";
+import { Code, Modal, ScrollArea } from "../../../ui";
 
 interface GroundTruthViewerProps {
   groundTruth: Record<string, unknown> | null;
@@ -15,7 +15,7 @@ export function GroundTruthViewer({
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Ground Truth JSON"
+      title="Ground truth JSON"
       size="xl"
       withinPortal={true}
       closeOnClickOutside={true}

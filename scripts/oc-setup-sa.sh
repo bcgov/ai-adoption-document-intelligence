@@ -116,7 +116,7 @@ metadata:
 rules:
   # Core resources
   - apiGroups: [""]
-    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events", "replicationcontrollers"]
+    resources: ["services", "configmaps", "secrets", "persistentvolumeclaims", "pods", "events", "replicationcontrollers", "serviceaccounts"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/exec", "pods/portforward"]
@@ -161,6 +161,18 @@ rules:
   # Autoscaling
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Pod disruption budgets
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Prometheus operator CRDs (used by PLG monitoring stack)
+  - apiGroups: ["monitoring.coreos.com"]
+    resources: ["prometheusrules", "servicemonitors", "podmonitors"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # RBAC (Helm charts for PLG create Roles and RoleBindings)
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 EOF
 

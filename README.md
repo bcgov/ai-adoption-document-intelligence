@@ -75,7 +75,7 @@ The platform is built as a microservices architecture with five main components:
 2. **[Frontend](apps/frontend/)** - React SPA
    - Document upload with drag-and-drop
    - Real-time processing queue
-   - Workflow editor with React Flow visualization
+   - Workflow configuration (JSON editor + read-only React Flow visualization)
    - Canvas-based labeling workspace (React Konva)
    - HITL review interface
    - Settings and API key management
@@ -112,10 +112,10 @@ The platform is built as a microservices architecture with five main components:
 - Multi-page document processing
 
 **Graph Workflows**
-- Visual DAG (Directed Acyclic Graph) workflow builder
-- Node types: OCR, HTTP Request, Azure Blob I/O, Conditional, Transform, Join, End
-- Conditional branching with expression evaluation
-- Parallel execution for multi-page documents
+- Graph workflow configuration via a form editor or raw JSON, with read-only React Flow visualization
+- Graph node types: `activity`, `switch` (conditional), `map` (fan-out), `join`, `childWorkflow`, `pollUntil`, `humanGate`
+- `activity` nodes invoke registered activity types (OCR submit/poll, blob read, data transform, classification, table lookup, and more)
+- Conditional branching with expression evaluation and parallel fan-out/join
 - Workflow versioning and configuration
 - Temporal.io-powered durable execution
 
@@ -212,7 +212,7 @@ The platform supports diverse document processing scenarios:
 
 Before setting up the development environment, ensure you have:
 
-- **[Node.js](https://nodejs.org/)** 24.x or later
+- **[Node.js](https://nodejs.org/)** 24.x or later (see `.nvmrc`; matches GitHub Actions and Docker builds)
 - **[npm](https://www.npmjs.com/)** 10.x or later
 - **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Podman/Docker for containerized database)
 - **[Podman](https://podman.io/) or Docker** (recommended for local services)
@@ -235,6 +235,11 @@ Before setting up the development environment, ensure you have:
 git clone <repository-url>
 cd ai-adoption-document-intelligence
 
+# Node 24 (required — root package.json engines, CI, and Dockerfiles)
+nvm install    # reads .nvmrc
+nvm alias default 24
+nvm use
+
 # Install all dependencies
 npm run install:all
 ```
@@ -242,25 +247,26 @@ npm run install:all
 ### 2. Database & Storage Setup
 
 ```bash
-# Start PostgreSQL and MinIO with Podman Compose
-cd apps/backend-services
-podman-compose up -d
+# From repo root: start PostgreSQL and MinIO (docker compose or npm run pod:base)
+docker compose --profile infra up -d
 # This starts:
 #   PostgreSQL on localhost:5432
 #   MinIO API on localhost:19000
 #   MinIO Console on localhost:19001 (user: minioadmin / minioadmin)
 
-# Copy environment configuration
-cp .env.sample .env
+cd apps/backend-services
 
-# Edit .env with your database connection string
+# Create the environment configuration (no sample file is committed).
+# Minimum for local dev — set your database connection string:
 # DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
+$EDITOR .env
 
-# Generate Prisma client
-npm run db:generate
+# Keep sensitive keys out of the repo .env — use the external override file
+# (~/.config/bcgov-di/backend-services.env); see docs-md/operations/local-dev-secrets.md
 
-# Run migrations
+# Run migrations, then generate the Prisma client
 npm run db:migrate
+npm run db:generate
 
 # (Optional) Seed database
 npm run db:seed
@@ -356,10 +362,8 @@ MINIO_SECRET_KEY=minioadmin
 ### 4. Start Temporal Server
 
 ```bash
-cd apps/temporal
-
-# Start Temporal server with Docker Compose
-docker-compose up -d
+# From repo root
+docker compose --profile temporal up -d
 
 # Verify Temporal is running
 temporal server status
@@ -370,7 +374,7 @@ temporal server status
 **Option A: Start All Services (Recommended)**
 
 ```bash
-# From project root - starts backend and frontend
+# From project root - starts backend, frontend, and temporal worker
 npm run dev
 ```
 
@@ -401,6 +405,7 @@ uv run main.py
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://localhost:3002
 - **Swagger Documentation**: http://localhost:3002/api
+- **Temporal UI**: http://localhost:8088 (when `docker compose --profile temporal up -d`)
 - **Prisma Studio**: `cd apps/backend-services && npm run db:studio`
 
 ## Development Workflow
@@ -496,22 +501,24 @@ ai-adoption-document-intelligence/
 ├── apps/
 │   ├── backend-services/          # NestJS REST API
 │   │   ├── src/
-│   │   │   ├── api-key/          # API key authentication
-│   │   │   ├── auth/             # Keycloak SSO authentication
+│   │   │   ├── actor/            # API key management (controller, service, DB)
+│   │   │   ├── auth/             # Keycloak SSO, JWT guards, API key auth guard
+│   │   │   ├── azure/            # Azure Document Intelligence classifiers
 │   │   │   ├── benchmark/        # Benchmarking system
-│   │   │   ├── blob-storage/     # Storage abstraction
+│   │   │   ├── blob-storage/     # Storage abstraction (MinIO/Azure)
 │   │   │   ├── database/         # Prisma database service
 │   │   │   ├── document/         # Document management
+│   │   │   ├── group/            # Groups, membership, authorization
 │   │   │   ├── hitl/             # Human-in-the-loop
-│   │   │   ├── labeling/         # Document labeling
-│   │   │   ├── ocr/              # OCR services
+│   │   │   ├── ocr/              # OCR model listing
+│   │   │   ├── tables/           # Group-scoped lookup tables
+│   │   │   ├── template-model/   # Template models + labeling documents/labels
 │   │   │   ├── temporal/         # Temporal client
-│   │   │   ├── training/         # Model training
-│   │   │   ├── upload/           # File upload
+│   │   │   ├── training/         # Custom model training jobs
+│   │   │   ├── upload/           # File upload + workflow kickoff
 │   │   │   ├── workflow/         # Workflow configuration
 │   │   │   └── app.module.ts    # Root module
 │   │   ├── integration-tests/    # Integration tests
-│   │   ├── docker-compose.yml   # PostgreSQL container
 │   │   ├── Dockerfile           # Production image
 │   │   └── package.json
 │   │
@@ -537,7 +544,6 @@ ai-adoption-document-intelligence/
 │   │   │   ├── graph-workflow.ts     # DAG executor
 │   │   │   ├── graph-engine/    # Graph evaluation
 │   │   │   └── worker.ts        # Worker entrypoint
-│   │   ├── docker-compose.yaml  # Temporal server
 │   │   └── package.json
 │   │
 │   ├── image-service/            # Python image preprocessing
@@ -558,6 +564,7 @@ ai-adoption-document-intelligence/
 │       └── scripts/
 │           └── generate-prisma.js
 │
+├── docker-compose.yml            # Local infra (postgres, minio, temporal, optional app stack)
 ├── deployments/
 │   └── openshift/
 │       └── kustomize/           # Kubernetes manifests
@@ -566,7 +573,7 @@ ai-adoption-document-intelligence/
 ├── docs-md/                      # Technical documentation
 │   ├── BLOB_STORAGE.md          # Storage architecture
 │   ├── HITL_ARCHITECTURE.md     # HITL system design
-│   ├── TEMPLATE_TRAINING.md     # Training guide
+│   ├── TEMPLATE_MODELS.md       # Template models & training guide
 │   ├── ground-truth-generation.md # Benchmark ground truth
 │   ├── hitl-dataset-creation.md # HITL dataset creation
 │   └── graph-workflows/         # Workflow engine docs
@@ -591,11 +598,12 @@ The API includes endpoints for:
 - **Documents** (`/api/documents`) - CRUD operations, OCR results, file download
 - **Upload** (`/api/upload`) - Document upload with OCR processing
 - **Workflows** (`/api/workflows`) - Workflow configuration management
-- **Labeling** (`/api/labeling`) - Labeling projects, documents, fields, labels
-- **Training** (`/api/training`) - Model training jobs and validation
+- **Template Models** (`/api/template-models`) - Template models, labeling documents/labels, and custom model training jobs
 - **HITL** (`/api/hitl`) - Review queue, sessions, corrections, analytics
 - **Azure Classifier** (`/api/azure/classifier`) - Classifier lifecycle management (create, train, classify)
 - **Benchmarking** (`/api/benchmark`) - Projects, datasets, definitions, runs, evaluators, ground truth
+- **Groups** (`/api/groups`) - Group management, membership, and authorization
+- **Tables** (`/api/tables`) - Group-scoped lookup/reference tables
 - **API Keys** (`/api/api-key`) - API key generation and management
 - **Models** (`/api/models`) - Available OCR models
 
@@ -634,7 +642,7 @@ curl -X POST http://localhost:3002/api/upload \
 ```
 
 **API Key Management:**
-- One API key per user
+- One API key per group (group-scoped; a user may hold keys for multiple groups)
 - Generate from Settings page (single-use display)
 - Keys stored as bcrypt hashes
 - No expiration
@@ -646,38 +654,37 @@ The platform uses Temporal.io for durable, graph-based workflow execution.
 
 ### Graph Workflow Engine
 
-Execute custom document processing workflows as Directed Acyclic Graphs (DAGs):
+Execute custom document processing workflows as Directed Acyclic Graphs (DAGs), interpreted at runtime by a Temporal workflow (cycles are rejected via topological validation):
 
 **Workflow Capabilities:**
-- Visual workflow design with node-based editor
-- Multiple node types: OCR, HTTP Request, Conditional, Transform, Azure Blob I/O, Join, End
+- Configure workflows via a form editor or raw JSON, with a read-only React Flow visualization
 - Parallel execution branches with join points
 - Expression-based conditional routing
 - Error handling and retry policies
 - Workflow versioning
 
-**Node Types:**
+**Graph Node Types:**
 
-| Node Type | Purpose | Example Use |
-|-----------|---------|-------------|
-| Start | Entry point | Initialize document context |
-| OCR | Azure Document Intelligence | Extract text from pages |
-| HTTP Request | External API calls | Send data to external system |
-| Azure Blob Read | Read from blob storage | Retrieve preprocessed images |
-| Azure Blob Write | Write to blob storage | Store results |
-| Conditional | Branching logic | Route by confidence score |
-| Transform | Data transformation | Map OCR results to schema |
-| Join | Merge branches | Combine parallel results |
-| End | Workflow termination | Complete processing |
+| Node Type | Purpose |
+|-----------|---------|
+| `activity` | Run a registered activity (OCR, blob read, transform, classify, table lookup, etc.) |
+| `switch` | Conditional branching via expression evaluation |
+| `map` | Fan out over a collection for parallel processing |
+| `join` | Merge parallel branches |
+| `childWorkflow` | Invoke a child workflow |
+| `pollUntil` | Poll an activity until a condition is met |
+| `humanGate` | Pause for human-in-the-loop input |
+
+`activity` nodes invoke activity types from the worker's activity registry (for example `azureOcr.submit`, `azureOcr.poll`, `blob.read`, `data.transform`, `document.*`, `azureClassify.*`, `tables.lookup`). See the engine docs and node catalog for the full list.
 
 **Creating Workflows:**
-1. Navigate to Workflows page in UI
-2. Create new workflow with JSON configuration
+1. Navigate to the Workflows page in the UI
+2. Create a workflow using the form editor or raw JSON configuration
 3. Define nodes, edges, and parameters
-4. Save workflow (receives unique ID)
-5. Select workflow during document upload
+4. Save the workflow (receives a unique ID)
+5. Select the workflow during document upload
 
-See [docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md) for complete documentation.
+See [docs-md/workflows/DAG_WORKFLOW_ENGINE.md](docs-md/workflows/DAG_WORKFLOW_ENGINE.md) and [docs-md/workflows/WORKFLOW_NODE_CATALOG.md](docs-md/workflows/WORKFLOW_NODE_CATALOG.md) for complete documentation.
 
 ## Document Labeling & Training
 
@@ -685,11 +692,11 @@ Train custom Azure Document Intelligence models for specialized document types.
 
 ### Labeling Workflow
 
-1. **Create Project** - Define custom field schema
+1. **Create Template Model** - Define custom field schema
    - Field types: string, number, date, signature, selectionMark
    - Field ordering and display configuration
 
-2. **Upload Documents** - Add training documents to project
+2. **Upload Documents** - Add training documents to the template model
    - Supports PDF and image formats
    - Multi-page documents supported
 
@@ -713,7 +720,7 @@ Train custom Azure Document Intelligence models for specialized document types.
    - Select in upload or workflow configuration
    - Higher accuracy for domain-specific fields
 
-See [docs-md/TEMPLATE_TRAINING.md](docs-md/TEMPLATE_TRAINING.md) for complete training guide.
+See [docs-md/architecture/TEMPLATE_MODELS.md](docs-md/architecture/TEMPLATE_MODELS.md) for the complete template models and training guide.
 
 ## Human-in-the-Loop (HITL)
 
@@ -746,7 +753,7 @@ Validate and correct OCR results through human review.
 - Confidence distribution
 - Correction patterns
 
-See [docs-md/HITL_ARCHITECTURE.md](docs-md/HITL_ARCHITECTURE.md) for architecture details.
+See [docs-md/architecture/HITL_ARCHITECTURE.md](docs-md/architecture/HITL_ARCHITECTURE.md) for architecture details.
 
 ## Benchmarking
 
@@ -857,19 +864,23 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 
 ## Documentation
 
+### Repo Wiki
+
+- **[Repo Wiki](docs-md/wiki/index.md)** - Compact map for humans and LLMs: find canonical docs and code paths before editing; start here when exploring the codebase.
+
 ### Core Documentation
 
-- **[HITL Architecture](docs-md/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
-- **[Template Training](docs-md/TEMPLATE_TRAINING.md)** - Custom model training guide
-- **[Blob Storage](docs-md/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
+- **[HITL Architecture](docs-md/architecture/HITL_ARCHITECTURE.md)** - Human-in-the-loop system design
+- **[Template Models](docs-md/architecture/TEMPLATE_MODELS.md)** - Template models and custom model training guide
+- **[Blob Storage](docs-md/architecture/BLOB_STORAGE.md)** - Storage architecture (MinIO/Azure)
 - **[Benchmarking Guide](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-guide.html)** - Benchmarking system usage
 - **[Benchmarking Technical](https://bcgov.github.io/ai-adoption-document-intelligence/benchmarking-technical.html)** - Benchmarking architecture and internals
 
 ### Workflow Documentation
 
-- **[DAG Workflow Engine](docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
-- **[Adding Nodes & Activities](docs-md/graph-workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
-- **[Graph Types](docs-md/graph-workflows/GRAPH_TYPES.md)** - Type definitions
+- **[DAG Workflow Engine](docs-md/workflows/DAG_WORKFLOW_ENGINE.md)** - Workflow engine specification
+- **[Adding Nodes & Activities](docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md)** - Extend workflow capabilities
+- **[Graph Types](docs-md/workflows/GRAPH_TYPES.md)** - Type definitions
 
 ### Service Documentation
 
@@ -934,8 +945,7 @@ psql $DATABASE_URL
 **Temporal Connection Errors:**
 ```bash
 # Check Temporal server
-cd apps/temporal
-docker-compose ps
+docker compose --profile temporal ps
 
 # Verify temporal CLI
 temporal server status --address localhost:7233
