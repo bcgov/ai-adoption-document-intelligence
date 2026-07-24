@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-07-08
+updated: 2026-07-24
 canonical_sources:
   - docs-md/extraction/
   - apps/temporal/src/activities/
@@ -29,7 +29,8 @@ OCR and field extraction: how document bytes become structured, corrected field 
 ## Design Notes
 
 - Extraction runs inside graph workflows — the nodes and their parameters are cataloged in [Graph workflows](graph-workflows.md); this topic is about what those nodes *do*, not how the engine schedules them.
-- Correction is a pipeline: cleanup → character-confusion → normalize-fields → spellcheck → enrich, each an optional graph node. Confusion matrices and format specs feed those nodes.
+- Correction is a pipeline: recover-numeric-zeros → cleanup → character-confusion → normalize-fields → spellcheck → enrich, each an optional graph node. Confusion matrices and format specs feed those nodes. All correction activities are blob-backed (resolve an input `OcrPayloadRef`, return a new one) via `apps/temporal/src/ocr-activity-ref-utils.ts`.
+- `ocr.recoverNumericZerosFromCheckboxes` recovers numeric zeros Azure DI misread as selection marks, driven entirely by per-table node config; it is excluded from AI tool recommendation (per-form structural config). Details and finder strategies: `docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md`.
 - Quality feedback loops (confusion profiles, format suggestions, OCR improvement pipeline) derive their inputs from HITL corrections and benchmark run mismatches — see [HITL](hitl.md) and the benchmarking docs.
 
 ## Related Topics

@@ -82,3 +82,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added new docs for previously-undocumented merged subsystems: `workflows/TEMPORAL_PAYLOAD_FOOTPRINT.md` (gzip codec + OCR payload refs) and `extraction/OCR_RESULT_VIEWS.md` (AI-1445); routed both from `graph-workflows.md` / `extraction.md` and registered the codec package in `sources.md`.
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
+
+## [2026-07-24] ingest | Add OCR recover-numeric-zeros correction activity
+
+- Added canonical doc `extraction/OCR_RECOVER_NUMERIC_ZEROS.md` for the new `ocr.recoverNumericZerosFromCheckboxes` activity (blob-backed correction tool that recovers numeric zeros Azure DI misread as selection marks; three table-finder strategies). Relocated it from the `docs-md/` root into the `extraction/` topic folder and fixed its links after the develop merge renamed `graph-workflows/` → `workflows/`.
+- Wired it into `extraction.md`: added the activity to the correction pipeline (recover-numeric-zeros → cleanup → …) and noted the blob-backed correction-tool contract (`ocr-activity-ref-utils.ts`). The `extraction/` folder is already registered in `sources.md`.

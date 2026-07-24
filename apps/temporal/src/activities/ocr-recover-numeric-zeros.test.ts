@@ -1,4 +1,8 @@
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
+import type { OcrPayloadRef } from "../ocr-payload-ref";
 import type { OCRResult, Page, SelectionMark, TableCell } from "../types";
+
+const mockBlobBodies = new Map<string, Buffer>();
 
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
@@ -9,10 +13,88 @@ jest.mock("../logger", () => ({
   }),
 }));
 
+jest.mock("./database-client", () => ({
+  getPrismaClient: jest.fn(),
+}));
+
+jest.mock("../blob-storage/blob-storage-client", () => ({
+  getBlobStorageClient: () => ({
+    write: async (key: string, data: Buffer) => {
+      mockBlobBodies.set(key, data);
+    },
+    read: async (key: string) => {
+      const body = mockBlobBodies.get(key);
+      if (!body) {
+        throw new Error(`missing blob body for ${key}`);
+      }
+      return body;
+    },
+  }),
+}));
+
 import {
   type RecoverNumericZerosFromCheckboxesParams,
   recoverNumericZerosFromCheckboxes,
 } from "./ocr-recover-numeric-zeros";
+
+const DOC_ID = "doc-recover-test";
+const ocrBodiesByPath = new Map<string, OCRResult>();
+
+/** Read back the OCRResult persisted behind a returned blob-backed ref. */
+function ocrFromRef(ref: OcrPayloadRef): OCRResult {
+  const body = ocrBodiesByPath.get(ref.blobPath);
+  if (body) {
+    return body;
+  }
+  const blobBody = mockBlobBodies.get(ref.blobPath);
+  if (!blobBody) {
+    throw new Error(`missing OCR body for ${ref.blobPath}`);
+  }
+  return JSON.parse(blobBody.toString("utf8")) as OCRResult;
+}
+
+/** Invoke the activity with a default documentId so tests stay terse. */
+function runRecover(
+  params: Omit<RecoverNumericZerosFromCheckboxesParams, "documentId"> & {
+    documentId?: string;
+  },
+) {
+  return recoverNumericZerosFromCheckboxes({ documentId: DOC_ID, ...params });
+}
+
+beforeEach(() => {
+  ocrBodiesByPath.clear();
+  mockBlobBodies.clear();
+  jest
+    .spyOn(ocrRefUtils, "resolveOcrResultInput")
+    .mockImplementation(async (params) => ({
+      ocrResult:
+        typeof params.ocrResult === "object" &&
+        params.ocrResult !== null &&
+        "storage" in params.ocrResult
+          ? ocrFromRef(params.ocrResult as OcrPayloadRef)
+          : (params.ocrResult as OCRResult),
+      groupId: "gtestgroupidfortests01",
+    }));
+  jest
+    .spyOn(ocrRefUtils, "toOcrResultPort")
+    .mockImplementation(async (body, documentId, groupId) => {
+      const blobPath = `${groupId}/ocr/${documentId}/ocr-result.json`;
+      ocrBodiesByPath.set(blobPath, body);
+      return {
+        ocrResult: {
+          documentId,
+          blobPath,
+          storage: "blob",
+          status: "succeeded",
+        },
+      };
+    });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function rectPolygon(x1: number, y1: number, x2: number, y2: number): number[] {
   return [x1, y1, x2, y1, x2, y2, x1, y2];
@@ -97,8 +179,10 @@ function makeOcrResult(opts: {
   };
 }
 
-const sdprIncomeConfig: RecoverNumericZerosFromCheckboxesParams = {
-  ocrResult: undefined as unknown as OCRResult, // filled in per-test
+const sdprIncomeConfig: Omit<
+  RecoverNumericZerosFromCheckboxesParams,
+  "documentId" | "ocrResult"
+> = {
   tables: [
     {
       find: { firstCellTextContains: "Declare all income" },
@@ -157,12 +241,12 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ...sdprIncomeConfig,
       ocrResult,
     });
 
-    const recovered = out.ocrResult.documents?.[0]?.fields;
+    const recovered = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     expect(recovered).toBeDefined();
     if (!recovered) throw new Error("missing");
     expect(recovered.applicant_net_employment_income.valueNumber).toBe(0);
@@ -196,7 +280,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -215,7 +299,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ],
     });
 
-    const f = out.ocrResult.documents?.[0]?.fields;
+    const f = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     if (!f) throw new Error("missing");
     expect(f.applicant_net_employment_income.valueNumber).toBeUndefined();
     expect(f.spouse_net_employment_income.valueNumber).toBeUndefined();
@@ -234,7 +318,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks: [] });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -250,7 +334,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ],
     });
 
-    const f = out.ocrResult.documents?.[0]?.fields;
+    const f = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     if (!f) throw new Error("missing");
     expect(f.applicant_net_employment_income.valueNumber).toBeUndefined();
     expect(out.metadata?.applied).toBe(0);
@@ -274,7 +358,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -290,7 +374,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ],
     });
 
-    const f = out.ocrResult.documents?.[0]?.fields;
+    const f = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     if (!f) throw new Error("missing");
     expect(f.applicant_net_employment_income.valueNumber).toBe(0);
   });
@@ -300,7 +384,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       cells: [],
       fields: { applicant_x: { type: "number" } },
     });
-    const out = await recoverNumericZerosFromCheckboxes({ ocrResult });
+    const out = await runRecover({ ocrResult });
     expect(out.metadata?.applied).toBe(0);
     expect(out.changes).toHaveLength(0);
   });
@@ -314,7 +398,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       fields: { applicant_x: { type: "number" } },
       marks: [],
     });
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -335,7 +419,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ...makeOcrResult({ cells, fields: {}, marks: [] }),
       documents: [],
     };
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -360,7 +444,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       applicant_net_employment_income: { type: "number" },
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -400,7 +484,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
     const before = JSON.stringify(ocrResult);
-    await recoverNumericZerosFromCheckboxes({
+    await runRecover({
       ocrResult,
       tables: [
         {
@@ -430,7 +514,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       mon_lunch: { type: "number" },
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -442,7 +526,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
         },
       ],
     });
-    const f = out.ocrResult.documents?.[0]?.fields;
+    const f = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     if (!f) throw new Error("missing");
     expect(f.mon_lunch.valueNumber).toBe(8);
     expect(f.mon_lunch.content).toBe("8");
@@ -461,7 +545,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       applicant_net_employment_income: { type: "number" },
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -567,7 +651,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       processedAt: new Date().toISOString(),
     };
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -712,7 +796,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       processedAt: new Date().toISOString(),
     };
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -746,7 +830,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
         "positional-anchor"
       ],
     ).toBe(36);
-    const recoveredFields = out.ocrResult.documents?.[0]?.fields;
+    const recoveredFields = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     expect(recoveredFields).toBeDefined();
     if (!recoveredFields) throw new Error("missing");
     expect(recoveredFields.applicant_net_employment_income.valueNumber).toBe(0);
@@ -820,7 +904,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       documents: [{ docType: "test", fields: fields as never }],
       processedAt: new Date().toISOString(),
     };
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -939,7 +1023,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       processedAt: new Date().toISOString(),
     };
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -997,7 +1081,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -1014,7 +1098,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
       ],
     });
 
-    const recovered = out.ocrResult.documents?.[0]?.fields;
+    const recovered = ocrFromRef(out.ocrResult).documents?.[0]?.fields;
     if (!recovered) throw new Error("missing");
     expect(recovered.applicant_net_employment_income.valueNumber).toBe(0);
     expect(recovered.applicant_rental_income.valueNumber).toBe(0);
@@ -1037,7 +1121,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks: [] });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {
@@ -1077,7 +1161,7 @@ describe("recoverNumericZerosFromCheckboxes", () => {
     };
     const ocrResult = makeOcrResult({ cells, fields, marks });
 
-    const out = await recoverNumericZerosFromCheckboxes({
+    const out = await runRecover({
       ocrResult,
       tables: [
         {

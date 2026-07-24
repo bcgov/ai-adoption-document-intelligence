@@ -57,6 +57,10 @@ import {
   deepCopyOcrResult,
 } from "../correction-types";
 import { createActivityLogger } from "../logger";
+import {
+  finalizeCorrectionResult,
+  resolveOcrResultInput,
+} from "../ocr-activity-ref-utils";
 import type {
   AzureDocumentFieldValue,
   EnrichmentChange,
@@ -755,7 +759,8 @@ export async function recoverNumericZerosFromCheckboxes(
   params: RecoverNumericZerosFromCheckboxesParams,
 ): Promise<CorrectionResult> {
   const log = createActivityLogger("recoverNumericZerosFromCheckboxes");
-  const { ocrResult, tables: tableConfigs } = params;
+  const { documentId, tables: tableConfigs } = params;
+  const { ocrResult, groupId } = await resolveOcrResultInput(params);
   const changes: EnrichmentChange[] = [];
   const applied: AppliedRecovery[] = [];
   const skipped: SkippedRecovery[] = [];
@@ -769,19 +774,29 @@ export async function recoverNumericZerosFromCheckboxes(
     tableConfigCount: tableConfigs?.length ?? 0,
   });
 
+  const result: OCRResult = deepCopyOcrResult(ocrResult);
+
   if (!tableConfigs || tableConfigs.length === 0) {
     log.info("Recover numeric zeros: no table configs supplied, no-op", {
       event: "noop",
       fileName: ocrResult.fileName,
     });
-    return {
-      ocrResult,
-      changes: [],
-      metadata: { applied: 0, skipped: 0, unresolved: 0, tableConfigCount: 0 },
-    };
+    return finalizeCorrectionResult(
+      {
+        ocrResult: result,
+        changes: [],
+        metadata: {
+          applied: 0,
+          skipped: 0,
+          unresolved: 0,
+          tableConfigCount: 0,
+        },
+      },
+      documentId,
+      groupId,
+    );
   }
 
-  const result: OCRResult = deepCopyOcrResult(ocrResult);
   const doc = result.documents?.[0];
   if (!doc) {
     log.info(
@@ -791,16 +806,20 @@ export async function recoverNumericZerosFromCheckboxes(
         fileName: ocrResult.fileName,
       },
     );
-    return {
-      ocrResult: result,
-      changes: [],
-      metadata: {
-        applied: 0,
-        skipped: 0,
-        unresolved: 0,
-        tableConfigCount: tableConfigs.length,
+    return finalizeCorrectionResult(
+      {
+        ocrResult: result,
+        changes: [],
+        metadata: {
+          applied: 0,
+          skipped: 0,
+          unresolved: 0,
+          tableConfigCount: tableConfigs.length,
+        },
       },
-    };
+      documentId,
+      groupId,
+    );
   }
 
   for (let ti = 0; ti < tableConfigs.length; ti++) {
@@ -921,22 +940,26 @@ export async function recoverNumericZerosFromCheckboxes(
     tableFinderStrategy,
   });
 
-  return {
-    ocrResult: result,
-    changes,
-    metadata: {
-      applied: applied.length,
-      skipped: skipped.length,
-      unresolved: unresolved.length,
-      tableConfigCount: tableConfigs.length,
-      appliedFieldKeys: applied.map((a) => a.fieldKey),
-      appliedByStrategy,
-      tableFinderStrategy,
-      skippedByReason: skipped.reduce<Record<string, number>>((acc, s) => {
-        acc[s.reason] = (acc[s.reason] ?? 0) + 1;
-        return acc;
-      }, {}),
-      unresolvedSelectors: unresolved,
+  return finalizeCorrectionResult(
+    {
+      ocrResult: result,
+      changes,
+      metadata: {
+        applied: applied.length,
+        skipped: skipped.length,
+        unresolved: unresolved.length,
+        tableConfigCount: tableConfigs.length,
+        appliedFieldKeys: applied.map((a) => a.fieldKey),
+        appliedByStrategy,
+        tableFinderStrategy,
+        skippedByReason: skipped.reduce<Record<string, number>>((acc, s) => {
+          acc[s.reason] = (acc[s.reason] ?? 0) + 1;
+          return acc;
+        }, {}),
+        unresolvedSelectors: unresolved,
+      },
     },
-  };
+    documentId,
+    groupId,
+  );
 }

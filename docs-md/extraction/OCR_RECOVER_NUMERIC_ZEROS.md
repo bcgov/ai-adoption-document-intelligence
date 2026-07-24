@@ -1,9 +1,9 @@
 # OCR Recover Numeric Zeros (from misread checkboxes)
 
 Activity: `ocr.recoverNumericZerosFromCheckboxes`
-Source: [apps/temporal/src/activities/ocr-recover-numeric-zeros.ts](../apps/temporal/src/activities/ocr-recover-numeric-zeros.ts)
-Tests: [apps/temporal/src/activities/ocr-recover-numeric-zeros.test.ts](../apps/temporal/src/activities/ocr-recover-numeric-zeros.test.ts)
-Standalone counterpart: [scripts/benchmark analysis/recover-numeric-zeros.py](../scripts/benchmark%20analysis/recover-numeric-zeros.py) (replays the same algorithm post-evaluation against an OCR cache dir)
+Source: [apps/temporal/src/activities/ocr-recover-numeric-zeros.ts](../../apps/temporal/src/activities/ocr-recover-numeric-zeros.ts)
+Tests: [apps/temporal/src/activities/ocr-recover-numeric-zeros.test.ts](../../apps/temporal/src/activities/ocr-recover-numeric-zeros.test.ts)
+Standalone counterpart: `scripts/benchmark analysis/recover-numeric-zeros.py` (replays the same algorithm post-evaluation against an OCR cache dir)
 
 ## What it solves
 
@@ -18,20 +18,22 @@ Both shapes lose information: the user wrote `0`, the model emits "nothing." Thi
 
 ## Where it sits in the workflow
 
-Between `azureOcr.extract` and `ocr.cleanup` in [docs-md/graph-workflows/templates/standard-ocr-workflow.json](graph-workflows/templates/standard-ocr-workflow.json). The recovery mutates `ctx.ocrResult` in place so all downstream nodes (`ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, benchmark prediction flattening) see real numeric values.
+Between `azureOcr.extract` and `ocr.cleanup` in [docs-md/workflows/templates/standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → postOcrCleanup`).
+
+Like every correction activity it is **blob-backed** (see the correction-tool contract in `apps/temporal/src/ocr-activity-ref-utils.ts`): it resolves the input OCR result from its blob ref via `resolveOcrResultInput`, applies recoveries to a deep copy (**the input is never mutated**), and returns a new blob-backed `OcrPayloadRef` via `finalizeCorrectionResult`. Downstream nodes (`ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, benchmark prediction flattening) consume the corrected ref and see real numeric values.
 
 ```
 extractResults → recoverNumericZeros → postOcrCleanup → checkConfidence → reviewSwitch → …
 ```
 
-A no-op when no `tables` config is supplied or no custom-model documents are returned, so it's safe to leave wired into workflows that don't need it.
+A no-op (returns the resolved result unchanged, re-persisted as a ref) when no `tables` config is supplied or no custom-model documents are returned, so it's safe to leave wired into workflows that don't need it.
 
 ## Detection rule
 
 A field is recovered iff **all** of these hold:
 
 1. **Currently empty in the custom model output**: no `valueNumber`/`valueInteger`, and both `valueString` and `content` are empty or absent. The activity never overwrites a real value.
-2. **The mapped table cell content has no real digits or letters** after stripping the configured tokens (default: `$`, `€`, `£`, `¥`, `:selected:`, `:unselected:`). Cells like `$1500`, `$0.00`, or `Free` are not eligible.
+2. **The mapped table cell content has no real digits or letters** after stripping the configured tokens (default: `$`, `€`, `£`, `¥`, `:selected:`, `:unselected:`) — or the stripped content parses to the configured `recoveryValue` (covers cells like `$ 0\n:selected:` where Azure recognized both the digit and a stray mark). Cells like `$1500` or `Free` are not eligible.
 3. **At least one page-level `selectionMark` polygon overlaps the cell's bounding region.** This rejects cells where the table parser hiccupped — empty cells stay null.
 
 The selection-mark check accepts any state (`selected` *or* `unselected`) by default. Azure's layout occasionally re-classifies the same circular glyph between runs, so insisting on `unselected` causes misses; the cell-content + bbox-overlap pair is the strong signal.
@@ -47,6 +49,8 @@ Find the OCR table whose first cell (r0c0) text equals/contains the configured `
 ### 2. Row-label anchor (fallback, opt-in via `fallbackTableFinder.labelAnchor`)
 
 When the title isn't found in any `r0c0`, scan tables of the configured shape for one where ≥`minLabelMatches` of the expected row-label texts appear in column 0 (case-insensitive contains). The first match wins; column mapping reuses the configured header-text matcher. This recovers the case where Azure dropped the section title but kept the row labels.
+
+> **Limitation:** the label-anchor locates the table via column-0 labels but still maps columns via the header-text matcher. If Azure dropped the header row along with the title, columns stay unresolved (`metadata.unresolvedSelectors`) and this strategy recovers nothing — the positional anchor below is the fallback for that case.
 
 ### 3. Positional anchor (fallback, opt-in via `fallbackTableFinder.positionalAnchor`)
 
@@ -111,6 +115,7 @@ If a row label or column header doesn't resolve in a given run, the activity ski
 
 - **Never overwrites real numbers.** A `$1500` cell stays `1500`. A field with a populated `valueNumber` is skipped.
 - **Empty cells stay null.** Without an overlapping selection mark the activity does not write `0`. This preserves the distinction between "user wrote 0" and "field was blank."
+- **Never mutates its input.** Recoveries land on a deep copy; the source OCR blob is untouched.
 - **No coordinate-system math required.** Mapping is by label/header text, so cross-document coordinate units don't matter.
 - **Model-agnostic.** Identical behavior for template/neural/(future) custom models — the recovery uses `tables[]` and `pages[].selectionMarks[]` from prebuilt-layout, which sits beneath every custom model.
 
@@ -123,7 +128,7 @@ Each recovery emits one `EnrichmentChange`:
   "fieldKey": "applicant_net_employment_income",
   "originalValue": "",
   "correctedValue": "0",
-  "reason": "Recovered 0 from misread checkbox in table (row=\"Net Employment Income\" column=\"Applicant\")",
+  "reason": "Recovered 0 from misread checkbox in table via title-anchor (row=\"Net Employment Income\" column=\"Applicant\")",
   "source": "rule"
 }
 ```
@@ -147,15 +152,16 @@ These flow through `enrichment_summary` on the stored OcrResult and through the 
 | Before recovery (template `sdpr_synth_test`) | 0.473 | 0.642 | 35 income |
 | After title-only recovery (neural `neural-test`) | **0.946** | **0.972** | 1 (`explain_changes`, unrelated transcription drift) |
 
-**Production benchmark `dfaddb26-…` (99 SDPR samples, 213 missing-0 cases originally)** — exercises all three strategies:
+**Production benchmark `dfaddb26-…` (99 SDPR samples, 213 missing-0 cases originally)** — exercises all three strategies plus the stripped-value acceptance rule:
 
 | Strategy | Flips | Remaining missing-0 |
 |---|---:|---:|
 | Title-anchor only (original) | 60 | 153 |
 | + Group A (label-anchor) | +33 → 93 | 120 |
 | + Group B (positional-anchor) | +18 → 111 | 102 |
+| + accept-stripped-recovery-value | +11 → 122 | — |
 
-Remaining 102 cases are out of "checkbox-as-zero" scope: 64 in samples where Azure didn't produce a candidate table at any shape, 17 where the cell has no overlapping selection mark, 10 where the cell content has real digits/letters, 1 with an unresolved row label. Those would need a different recovery approach.
+Remaining cases are out of "checkbox-as-zero" scope: samples where Azure didn't produce a candidate table at any shape, cells with no overlapping selection mark, cells with real digits/letters, or an unresolved row label. Those would need a different recovery approach.
 
 ## How to configure for a new form
 
@@ -172,7 +178,7 @@ Remaining 102 cases are out of "checkbox-as-zero" scope: 64 in samples where Azu
 
 ## Debug a Group-B failure
 
-If you expect Group B to fire but `tableFinderStrategy.config_N` shows `"not-found"`, check `metadata.appliedByStrategy` for the previous strategies and the per-sample log line `Recover numeric zeros: target table not found`. The standalone diagnostic [scripts/benchmark analysis/inspect-missing-zeros.py](../scripts/benchmark%20analysis/inspect-missing-zeros.py) dumps the candidate-table shapes, row Y/col X coordinates, label-paragraph match counts under exact/fuzzy/loose modes, and the offset-vote tally per sample — useful for tuning `shape`, `minVotes`, or `dominanceRatio`.
+If you expect Group B to fire but `tableFinderStrategy.config_N` shows `"not-found"`, check `metadata.appliedByStrategy` for the previous strategies and the per-sample log line `Recover numeric zeros: target table not found`. The standalone diagnostic `scripts/benchmark analysis/inspect-missing-zeros.py` dumps the candidate-table shapes, row Y/col X coordinates, label-paragraph match counts under exact/fuzzy/loose modes, and the offset-vote tally per sample — useful for tuning `shape`, `minVotes`, or `dominanceRatio`.
 
 ## Not AI-recommendable
 
@@ -182,12 +188,12 @@ The activity is intentionally excluded from `ToolManifestService.getAiRecommenda
 
 If renaming or removing the activity, update all of these:
 
-- [apps/temporal/src/activities.ts](../apps/temporal/src/activities.ts) — barrel export
-- [apps/temporal/src/activity-types.ts](../apps/temporal/src/activity-types.ts) — `REGISTERED_ACTIVITY_TYPES`
-- [apps/temporal/src/activity-registry.ts](../apps/temporal/src/activity-registry.ts) — temporal-side `register({...})`
-- [apps/temporal/src/activity-registry.test.ts](../apps/temporal/src/activity-registry.test.ts) — `EXPECTED_ACTIVITY_TYPES`
-- [apps/temporal/src/correction-tool-registry.ts](../apps/temporal/src/correction-tool-registry.ts) — temporal-side manifest
-- [apps/backend-services/src/workflow/activity-registry.ts](../apps/backend-services/src/workflow/activity-registry.ts) — backend-side type list
-- [apps/backend-services/src/workflow/activity-registry.spec.ts](../apps/backend-services/src/workflow/activity-registry.spec.ts) — `EXPECTED_ACTIVITY_TYPES`
-- [apps/backend-services/src/hitl/tool-manifest.service.ts](../apps/backend-services/src/hitl/tool-manifest.service.ts) — backend-side tool manifest and `getAiRecommendableTools()` exclusion
-- [docs-md/graph-workflows/templates/standard-ocr-workflow.json](graph-workflows/templates/standard-ocr-workflow.json) — workflow JSON (node + edges + nodeGroups)
+- [apps/temporal/src/activities.ts](../../apps/temporal/src/activities.ts) — barrel export
+- [apps/temporal/src/activity-types.ts](../../apps/temporal/src/activity-types.ts) — `REGISTERED_ACTIVITY_TYPES`
+- [apps/temporal/src/activity-registry.ts](../../apps/temporal/src/activity-registry.ts) — temporal-side `register({...})`
+- [apps/temporal/src/activity-registry.test.ts](../../apps/temporal/src/activity-registry.test.ts) — `EXPECTED_ACTIVITY_TYPES`
+- [apps/temporal/src/correction-tool-registry.ts](../../apps/temporal/src/correction-tool-registry.ts) — temporal-side manifest
+- [apps/backend-services/src/workflow/activity-registry.ts](../../apps/backend-services/src/workflow/activity-registry.ts) — backend-side type list
+- [apps/backend-services/src/workflow/activity-registry.spec.ts](../../apps/backend-services/src/workflow/activity-registry.spec.ts) — `EXPECTED_ACTIVITY_TYPES`
+- [apps/backend-services/src/hitl/tool-manifest.service.ts](../../apps/backend-services/src/hitl/tool-manifest.service.ts) — backend-side tool manifest and `getAiRecommendableTools()` exclusion
+- [docs-md/workflows/templates/standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) — workflow JSON (node + edges + nodeGroups)
