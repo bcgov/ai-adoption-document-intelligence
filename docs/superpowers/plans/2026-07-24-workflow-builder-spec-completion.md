@@ -53,9 +53,14 @@ Agents reliably emit malformed findings and cite file:line locations that do not
 // scripts/validate-gap-findings.test.mjs
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { validateFindings } from "./validate-gap-findings.mjs";
 
 const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const SCRIPT_PATH = new URL("./validate-gap-findings.mjs", import.meta.url).pathname;
 
 const VALID = {
   id: "B-001",
@@ -113,6 +118,81 @@ describe("validateFindings", () => {
     assert.equal(errors.length, 1);
     assert.match(errors[0], /duplicate/);
   });
+
+  it("rejects an explicit null in a required field", () => {
+    const errors = check([{ ...VALID, rationale: null }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /rationale/);
+  });
+
+  it("rejects a citation one line past true EOF (trailing-newline off-by-one)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gap-findings-eof-"));
+    const fixture = join(dir, "eof-fixture.txt");
+    writeFileSync(fixture, "line1\nline2\nline3\n");
+
+    const errors = check([{ ...VALID, evidence: `${fixture}:4` }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /4/);
+  });
+
+  it("rejects line 0 (files are 1-indexed)", () => {
+    const errors = check([{ ...VALID, evidence: "package.json:0" }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /0/);
+  });
+
+  it("accepts line 1 of a real file (guards against over-correcting)", () => {
+    const errors = check([{ ...VALID, evidence: "package.json:1" }]);
+    assert.deepEqual(errors, []);
+  });
+});
+
+describe("validate-gap-findings CLI", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gap-findings-cli-"));
+
+  const runCli = (args) =>
+    spawnSync(process.execPath, [SCRIPT_PATH, ...args], { encoding: "utf8" });
+
+  it("reports a missing file cleanly and exits 1", () => {
+    const missing = join(dir, "does-not-exist.json");
+    const result = runCli([missing]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /cannot read/);
+  });
+
+  it("reports invalid JSON cleanly and exits 1", () => {
+    const badJson = join(dir, "invalid.json");
+    writeFileSync(badJson, "{ not valid json");
+    const result = runCli([badJson]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /invalid JSON/);
+  });
+
+  it("reports a non-array JSON payload cleanly and exits 1", () => {
+    const notArray = join(dir, "not-array.json");
+    writeFileSync(notArray, JSON.stringify({}));
+    const result = runCli([notArray]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /expected a JSON array/);
+  });
+
+  it("continues past a malformed file to validate the rest of the batch", () => {
+    const badJson = join(dir, "batch-bad.json");
+    const clean = join(dir, "batch-clean.json");
+    writeFileSync(badJson, "{ not valid json");
+    writeFileSync(clean, JSON.stringify([VALID]));
+
+    const result = runCli([badJson, clean]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /invalid JSON/);
+    assert.match(result.stdout, new RegExp(`${clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*clean`));
+  });
+
+  it("exits 2 with a usage message when called with no arguments", () => {
+    const result = runCli([]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /usage/);
+  });
 });
 ```
 
@@ -159,6 +239,10 @@ const FILE_REF = /^([\w./@-]+\.[a-z]{2,5}):(\d+)$/;
  * @returns {{ errors: string[] }}
  */
 export function validateFindings(findings, { repoRoot }) {
+  if (!Array.isArray(findings)) {
+    throw new TypeError("validateFindings: findings must be an array");
+  }
+
   const errors = [];
   const seen = new Set();
 
@@ -166,7 +250,8 @@ export function validateFindings(findings, { repoRoot }) {
     const label = finding?.id ?? `#${index}`;
 
     for (const field of REQUIRED) {
-      if (finding?.[field] === undefined || finding[field] === "") {
+      const value = finding?.[field];
+      if (value === undefined || value === null || value === "") {
         errors.push(`${label}: missing required field "${field}"`);
       }
     }
@@ -196,9 +281,14 @@ export function validateFindings(findings, { repoRoot }) {
       if (!existsSync(absolute)) {
         errors.push(`${label}: evidence file does not exist — ${path}`);
       } else {
-        const lineCount = readFileSync(absolute, "utf8").split("\n").length;
+        const content = readFileSync(absolute, "utf8");
+        const lineCount = content.replace(/\n$/, "").split("\n").length;
         const line = Number(lineText);
-        if (line > lineCount) {
+        if (line < 1) {
+          errors.push(
+            `${label}: evidence line ${lineText} is out of range for ${path} (lines are 1-indexed)`,
+          );
+        } else if (line > lineCount) {
           errors.push(
             `${label}: evidence line ${lineText} is past end of ${path} (${lineCount} lines)`,
           );
@@ -214,13 +304,19 @@ export function validateFindings(findings, { repoRoot }) {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test scripts/validate-gap-findings.test.mjs`
-Expected: PASS — `# pass 7` / `# fail 0`
+Expected: PASS — `# pass 16` / `# fail 0`
 
 - [ ] **Step 5: Add the CLI entry point**
 
 Append to `scripts/validate-gap-findings.mjs`:
 
 ```javascript
+// "object" | "null" | "number" | ... — mirrors typeof but calls out null explicitly,
+// since typeof null === "object" would be a confusing error message.
+function describeType(value) {
+  return value === null ? "null" : typeof value;
+}
+
 // CLI: node scripts/validate-gap-findings.mjs <findings.json> [...]
 if (import.meta.url === `file://${process.argv[1]}`) {
   const files = process.argv.slice(2);
@@ -231,7 +327,30 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   let failed = false;
   for (const file of files) {
-    const findings = JSON.parse(readFileSync(file, "utf8"));
+    let raw;
+    try {
+      raw = readFileSync(file, "utf8");
+    } catch (error) {
+      failed = true;
+      console.error(`${file} — cannot read: ${error.message}`);
+      continue;
+    }
+
+    let findings;
+    try {
+      findings = JSON.parse(raw);
+    } catch (error) {
+      failed = true;
+      console.error(`${file} — invalid JSON: ${error.message}`);
+      continue;
+    }
+
+    if (!Array.isArray(findings)) {
+      failed = true;
+      console.error(`${file} — expected a JSON array of findings, got ${describeType(findings)}`);
+      continue;
+    }
+
     const { errors } = validateFindings(findings, { repoRoot: process.cwd() });
     if (errors.length > 0) {
       failed = true;

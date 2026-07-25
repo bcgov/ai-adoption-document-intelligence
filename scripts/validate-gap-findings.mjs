@@ -33,6 +33,10 @@ const FILE_REF = /^([\w./@-]+\.[a-z]{2,5}):(\d+)$/;
  * @returns {{ errors: string[] }}
  */
 export function validateFindings(findings, { repoRoot }) {
+  if (!Array.isArray(findings)) {
+    throw new TypeError("validateFindings: findings must be an array");
+  }
+
   const errors = [];
   const seen = new Set();
 
@@ -40,7 +44,8 @@ export function validateFindings(findings, { repoRoot }) {
     const label = finding?.id ?? `#${index}`;
 
     for (const field of REQUIRED) {
-      if (finding?.[field] === undefined || finding[field] === "") {
+      const value = finding?.[field];
+      if (value === undefined || value === null || value === "") {
         errors.push(`${label}: missing required field "${field}"`);
       }
     }
@@ -70,9 +75,14 @@ export function validateFindings(findings, { repoRoot }) {
       if (!existsSync(absolute)) {
         errors.push(`${label}: evidence file does not exist — ${path}`);
       } else {
-        const lineCount = readFileSync(absolute, "utf8").split("\n").length;
+        const content = readFileSync(absolute, "utf8");
+        const lineCount = content.replace(/\n$/, "").split("\n").length;
         const line = Number(lineText);
-        if (line > lineCount) {
+        if (line < 1) {
+          errors.push(
+            `${label}: evidence line ${lineText} is out of range for ${path} (lines are 1-indexed)`,
+          );
+        } else if (line > lineCount) {
           errors.push(
             `${label}: evidence line ${lineText} is past end of ${path} (${lineCount} lines)`,
           );
@@ -82,6 +92,12 @@ export function validateFindings(findings, { repoRoot }) {
   }
 
   return { errors };
+}
+
+// "object" | "null" | "number" | ... — mirrors typeof but calls out null explicitly,
+// since typeof null === "object" would be a confusing error message.
+function describeType(value) {
+  return value === null ? "null" : typeof value;
 }
 
 // CLI: node scripts/validate-gap-findings.mjs <findings.json> [...]
@@ -94,7 +110,30 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   let failed = false;
   for (const file of files) {
-    const findings = JSON.parse(readFileSync(file, "utf8"));
+    let raw;
+    try {
+      raw = readFileSync(file, "utf8");
+    } catch (error) {
+      failed = true;
+      console.error(`${file} — cannot read: ${error.message}`);
+      continue;
+    }
+
+    let findings;
+    try {
+      findings = JSON.parse(raw);
+    } catch (error) {
+      failed = true;
+      console.error(`${file} — invalid JSON: ${error.message}`);
+      continue;
+    }
+
+    if (!Array.isArray(findings)) {
+      failed = true;
+      console.error(`${file} — expected a JSON array of findings, got ${describeType(findings)}`);
+      continue;
+    }
+
     const { errors } = validateFindings(findings, { repoRoot: process.cwd() });
     if (errors.length > 0) {
       failed = true;

@@ -1,9 +1,14 @@
 // scripts/validate-gap-findings.test.mjs
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { validateFindings } from "./validate-gap-findings.mjs";
 
 const REPO_ROOT = new URL("..", import.meta.url).pathname;
+const SCRIPT_PATH = new URL("./validate-gap-findings.mjs", import.meta.url).pathname;
 
 const VALID = {
   id: "B-001",
@@ -60,5 +65,80 @@ describe("validateFindings", () => {
     const errors = check([VALID, VALID]);
     assert.equal(errors.length, 1);
     assert.match(errors[0], /duplicate/);
+  });
+
+  it("rejects an explicit null in a required field", () => {
+    const errors = check([{ ...VALID, rationale: null }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /rationale/);
+  });
+
+  it("rejects a citation one line past true EOF (trailing-newline off-by-one)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gap-findings-eof-"));
+    const fixture = join(dir, "eof-fixture.txt");
+    writeFileSync(fixture, "line1\nline2\nline3\n");
+
+    const errors = check([{ ...VALID, evidence: `${fixture}:4` }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /4/);
+  });
+
+  it("rejects line 0 (files are 1-indexed)", () => {
+    const errors = check([{ ...VALID, evidence: "package.json:0" }]);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /0/);
+  });
+
+  it("accepts line 1 of a real file (guards against over-correcting)", () => {
+    const errors = check([{ ...VALID, evidence: "package.json:1" }]);
+    assert.deepEqual(errors, []);
+  });
+});
+
+describe("validate-gap-findings CLI", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gap-findings-cli-"));
+
+  const runCli = (args) =>
+    spawnSync(process.execPath, [SCRIPT_PATH, ...args], { encoding: "utf8" });
+
+  it("reports a missing file cleanly and exits 1", () => {
+    const missing = join(dir, "does-not-exist.json");
+    const result = runCli([missing]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /cannot read/);
+  });
+
+  it("reports invalid JSON cleanly and exits 1", () => {
+    const badJson = join(dir, "invalid.json");
+    writeFileSync(badJson, "{ not valid json");
+    const result = runCli([badJson]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /invalid JSON/);
+  });
+
+  it("reports a non-array JSON payload cleanly and exits 1", () => {
+    const notArray = join(dir, "not-array.json");
+    writeFileSync(notArray, JSON.stringify({}));
+    const result = runCli([notArray]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /expected a JSON array/);
+  });
+
+  it("continues past a malformed file to validate the rest of the batch", () => {
+    const badJson = join(dir, "batch-bad.json");
+    const clean = join(dir, "batch-clean.json");
+    writeFileSync(badJson, "{ not valid json");
+    writeFileSync(clean, JSON.stringify([VALID]));
+
+    const result = runCli([badJson, clean]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /invalid JSON/);
+    assert.match(result.stdout, new RegExp(`${clean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*clean`));
+  });
+
+  it("exits 2 with a usage message when called with no arguments", () => {
+    const result = runCli([]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /usage/);
   });
 });
