@@ -78,3 +78,20 @@ journeys reusable as e2e acceptance scenarios later.
 **Do not fix the journeys.** If a journey is wrong about the product, that is itself
 worth reporting in `notes-a.md` — but the journeys were written and corrected
 deliberately before you ran, so treat them as the requirement.
+
+## Speculative expectations — tag findings that rest on these
+
+Three expectations in JOURNEYS.md were inferred by the drafter rather than
+confirmed against an observed user request. Walk them normally, but if a finding
+arises from one, begin its `rationale` with `SPECULATIVE REQUIREMENT:` so it can be
+ranked lower at merge and dispositioned deliberately:
+
+- **J2 step 5** — exporting/carrying away a per-file failure list grouped by source
+  agency. (No export capability exists anywhere in the run surfaces; a wall here is
+  expected. The open question is whether the requirement is real, not whether the
+  builder meets it.)
+- **J7 step 8** — re-running only the suspect part of a workflow without creating a
+  second official result.
+- **J4** as a whole is NOT speculative — `document.split` supports a `per-page`
+  strategy (`packages/graph-workflow/src/catalog/activities/document-split.ts:19`),
+  so the workload is real. Treat it as a normal journey.
