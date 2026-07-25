@@ -420,7 +420,12 @@ describe("provenance (via)", () => {
     });
   });
 
-  it("reports 'map-item' for a bind to a map's synthetic element producer", () => {
+  it("reports a map's item producer under the stable port name 'item' (G-104)", () => {
+    // The map's OUTPUT PORT is `item` — the stable identifier every other
+    // control-flow producer uses (join `results`, humanGate `payload`). The
+    // author-chosen `itemCtxKey` is the ctx KEY that port writes, not the port
+    // name. Reporting the ctx key here made the resolver disagree with
+    // `nodeTypeCtxWrites`, which is why map-item wires could not be drawn.
     // SPLIT(Segment[]) → MAP → BODY (document.classify wants Segment `segment`).
     const cfg: GraphWorkflowConfig = {
       schemaVersion: "1.0",
@@ -456,8 +461,62 @@ describe("provenance (via)", () => {
     ).toEqual({
       status: "auto-bound",
       producerNodeId: "MAP",
-      producerPort: "currentSegment",
+      producerPort: "item",
       via: "map-item",
+    });
+  });
+
+  it("derives the map item's element kind from the collection producer, whatever the itemCtxKey is called", () => {
+    // Regression guard for the port rename: the ELEMENT KIND derivation walks
+    // `collectionCtxKey` back to the producing activity's output kind and
+    // strips `[]`. It must not depend on the item port name or on the
+    // author's chosen ctx key, so this graph uses a deliberately unrelated
+    // `itemCtxKey` and asserts both the successful bind and the negative case
+    // (a port whose kind the element type cannot satisfy).
+    const cfg: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        SPLIT: {
+          ...activity("SPLIT", "document.split"),
+          outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+        },
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "Map",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "thePieceIAmOn",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        } as GraphNode,
+        BODY: activity("BODY", "document.classify"),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+      entryNodeId: "SPLIT",
+      ctx: {},
+    };
+    expect(
+      resolveInputPort(cfg, "BODY", { name: "segment", kind: "Segment" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "MAP",
+      producerPort: "item",
+      via: "map-item",
+    });
+    // The map contributes the ELEMENT kind only. A `Segment[]` port is
+    // therefore NOT satisfied by the map — it binds straight past it to
+    // SPLIT, whose output really is the collection.
+    expect(
+      resolveInputPort(cfg, "BODY", { name: "segments", kind: "Segment[]" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "SPLIT",
+      producerPort: "segments",
+      via: "nearest-kind",
     });
   });
 });
@@ -663,7 +722,7 @@ describe("control-flow and source producers (G-007)", () => {
     ).toEqual({
       status: "auto-bound",
       producerNodeId: "MAP",
-      producerPort: "currentSegment",
+      producerPort: "item",
       via: "map-item",
     });
   });

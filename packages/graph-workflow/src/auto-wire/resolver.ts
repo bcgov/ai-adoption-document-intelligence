@@ -127,28 +127,28 @@ export function resolveBindings(
       if (result.status !== "auto-bound") continue;
 
       const producerNode = nextNodes[result.producerNodeId];
-      let producerCtxKey: string;
-      if (producerNode?.type === "map") {
-        // The map-item pass reports `itemCtxKey` as the "port"; either way
-        // the branch item is what a body node binds to.
-        producerCtxKey = producerNode.itemCtxKey;
-      } else {
-        // G-007: control-flow and source nodes write ctx through their own
-        // fields, not through `outputs[]`. Binding to a synthesised
-        // `__auto.<node>.<port>` key there would point the consumer at a key
-        // no executor ever writes, so ask the node for the key it actually
-        // produces first and only fall back to stamping an `outputs[]` row
-        // for the activity/pollUntil nodes that own one.
-        producerCtxKey =
-          (producerNode
-            ? producerCtxKeyForPort(producerNode, result.producerPort)
-            : undefined) ??
-          ensureProducerOutputBinding(
-            nextNodes,
-            result.producerNodeId,
-            result.producerPort,
-          );
-      }
+      // G-007: control-flow and source nodes write ctx through their own
+      // fields, not through `outputs[]`. Binding to a synthesised
+      // `__auto.<node>.<port>` key there would point the consumer at a key
+      // no executor ever writes, so ask the node for the key it actually
+      // produces first and only fall back to stamping an `outputs[]` row
+      // for the activity/pollUntil nodes that own one.
+      //
+      // G-104: `map` used to be special-cased here to `itemCtxKey`, because
+      // the map-item pass reported the ctx key as the "port". Now that it
+      // reports the stable port name `"item"`, the generic lookup handles a
+      // map like every other control-flow producer — and handles it BETTER:
+      // the special case returned `itemCtxKey` for any port, so a bind to a
+      // map's `index` port resolved to the item key.
+      const producerCtxKey =
+        (producerNode
+          ? producerCtxKeyForPort(producerNode, result.producerPort)
+          : undefined) ??
+        ensureProducerOutputBinding(
+          nextNodes,
+          result.producerNodeId,
+          result.producerPort,
+        );
 
       const existing = nextInputs.find((b) => b.port === port.name);
       if (existing && existing.ctxKey === producerCtxKey) continue;

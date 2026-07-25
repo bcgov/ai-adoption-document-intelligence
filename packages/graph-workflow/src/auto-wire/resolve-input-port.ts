@@ -166,6 +166,17 @@ export function resolveInputPort(
   // Map synthetic-producer pass: any reachable `map` node contributes one
   // synthetic producer of element type T, where T is derived by stripping
   // `[]` from the kind of the producer feeding the map's collection.
+  //
+  // The producer PORT is the fixed identifier `"item"` — the same name
+  // `nodeTypeCtxWrites` records the write under, and the same shape every
+  // other control-flow producer uses (join `"results"`, humanGate
+  // `"payload"`, childWorkflow `mapping.port`). The author-chosen
+  // `itemCtxKey` is the ctx KEY that port writes, not the port's name;
+  // `producerCtxKeyForPort(map, "item")` is what maps the one to the other.
+  // Reporting the ctx key here instead made the resolver disagree with the
+  // shared write enumeration, so a derived wire carried a `sourcePort` its
+  // own provenance lookup could never match and map-item wires could not be
+  // drawn at all (G-104).
   for (const [producerNodeId, distance] of distances) {
     const producer = config.nodes[producerNodeId];
     if (!producer || producer.type !== "map") continue;
@@ -174,7 +185,7 @@ export function resolveInputPort(
     if (isAssignable(elementKind, port.kind)) {
       candidates.push({
         producerNodeId,
-        producerPort: producer.itemCtxKey,
+        producerPort: "item",
         distance,
         via: "map-item",
       });
