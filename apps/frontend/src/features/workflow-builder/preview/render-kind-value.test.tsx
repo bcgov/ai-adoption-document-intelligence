@@ -13,6 +13,7 @@
 
 import "@testing-library/jest-dom";
 
+import { ARTIFACT_REGISTRY } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -90,10 +91,73 @@ describe("renderKindValue", () => {
     expect(screen.getByTestId("classification-preview")).toBeInTheDocument();
   });
 
-  it("returns null for a kind with no widget", () => {
-    expect(renderKindValue("Artifact", "some-id")).toBeNull();
-    expect(renderKindValue("Reference", "some-id")).toBeNull();
-    expect(renderKindValue(null, 42)).toBeNull();
+  // -------------------------------------------------------------------
+  // G-011 — dispatch used to `return null` for every kind outside
+  // Document / OcrResult / Classification / Segment[], which rendered as a
+  // blank card indistinguishable from a bug.
+  // -------------------------------------------------------------------
+
+  it("renders a readable fallback for a kind with no dedicated renderer", () => {
+    wrap(renderKindValue("Reference", { docId: "d1", page: 3 }));
+    expect(screen.getByTestId("preview-generic-value")).toBeInTheDocument();
+    expect(screen.getByTestId("json-value-preview")).toHaveTextContent("d1");
+  });
+
+  it("names the kind on the generic fallback so the author knows why it is raw", () => {
+    wrap(renderKindValue("ValidationResult", { ok: false }));
+    expect(screen.getByTestId("preview-generic-kind")).toHaveTextContent(
+      "ValidationResult",
+    );
+  });
+
+  it("falls back for an array kind with no array renderer", () => {
+    wrap(renderKindValue("Document[]", [{ blobKey: "b1" }]));
+    expect(screen.getByTestId("preview-generic-value")).toBeInTheDocument();
+  });
+
+  it("falls back for a value whose kind is undeclared", () => {
+    wrap(renderKindValue(null, 42));
+    expect(screen.getByTestId("preview-generic-value")).toBeInTheDocument();
+    expect(screen.getByTestId("json-value-preview")).toHaveTextContent("42");
+  });
+
+  it("says why when a value cannot be previewed, instead of a blank card", () => {
+    wrap(renderKindValue("Document", undefined));
+    expect(screen.getByTestId("preview-value-unavailable")).toHaveTextContent(
+      "Document",
+    );
+    expect(screen.queryByTestId("document-preview")).toBeNull();
+  });
+
+  it("never returns null for any registered kind, in either cardinality", () => {
+    // The coverage floor: a blank card is never an acceptable outcome. Every
+    // kind either routes to a dedicated widget or to the legible fallback.
+    const kinds = Object.keys(ARTIFACT_REGISTRY);
+    expect(kinds.length).toBeGreaterThan(20);
+    for (const kind of kinds) {
+      for (const ref of [kind, `${kind}[]`]) {
+        const rendered = renderKindValue(ref, kind.endsWith("[]") ? [] : {});
+        expect(rendered, `renderKindValue(${ref})`).not.toBeNull();
+      }
+    }
+  });
+
+  it("does not misdispatch LabeledDocumentMap into the Classification widget", () => {
+    // G-011 item 4: `LabeledDocumentMap` has `baseKind: Classification` but is
+    // a deliberately schema-free `Record<label, documents>`. Family-root
+    // dispatch handed it to the label-pill + confidence-bar widget, whose type
+    // guard cannot match, so it rendered its "no data" placeholder.
+    wrap(
+      renderKindValue("LabeledDocumentMap", {
+        invoice: [{ blobKey: "b1" }],
+        receipt: [{ blobKey: "b2" }],
+      }),
+    );
+    expect(screen.queryByTestId("classification-preview")).toBeNull();
+    // The exact-kind override sends it straight to the structured JSON view.
+    expect(screen.getByTestId("json-value-preview")).toHaveTextContent(
+      "invoice",
+    );
   });
 
   // -------------------------------------------------------------------
@@ -161,16 +225,6 @@ describe("renderKindValue", () => {
   it("maps ClassificationLabel (baseKind → Classification) to ClassificationPreview", () => {
     wrap(
       renderKindValue("ClassificationLabel", {
-        label: "invoice",
-        confidence: 0.92,
-      }),
-    );
-    expect(screen.getByTestId("classification-preview")).toBeInTheDocument();
-  });
-
-  it("maps LabeledDocumentMap (baseKind → Classification) to ClassificationPreview", () => {
-    wrap(
-      renderKindValue("LabeledDocumentMap", {
         label: "invoice",
         confidence: 0.92,
       }),

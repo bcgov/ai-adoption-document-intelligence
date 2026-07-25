@@ -33,8 +33,8 @@
  */
 
 import { resolveCtxBinding } from "@ai-di/graph-workflow";
-import { Alert, Box, Skeleton } from "@mantine/core";
-import type { ReactNode } from "react";
+import { Alert, Box, Chip, Group, Skeleton, Text } from "@mantine/core";
+import { type ReactNode, useState } from "react";
 
 import type { NodeRunStatusValue } from "../run/node-status.types";
 import { useOptionalRunState } from "../run/RunStateContext";
@@ -45,7 +45,7 @@ import {
   noOutputReasonForNode,
   type PreviewState,
 } from "./no-output-state";
-import type { ActivityOutputPreview } from "./preview.types";
+import type { PreviewOutputBinding } from "./preview.types";
 import { renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
 
@@ -55,6 +55,9 @@ import { useActivityOutputPreview } from "./useActivityOutputPreview";
  * pagination (§4 design doc).
  */
 export const PREVIEW_MAX_HEIGHT_PX = 200;
+
+/** Stable identity so the default never re-triggers memoised children. */
+const EMPTY_OUTPUTS: readonly PreviewOutputBinding[] = [];
 
 export interface PreviewWidgetProps {
   workflowId: string;
@@ -73,12 +76,14 @@ export interface PreviewWidgetProps {
    */
   isReplay?: boolean;
   /**
-   * The ctx key the previewed node binds its (first) output to — the key the
-   * value lives under inside the nested `outputCtx` delta. Supplied by the
-   * mounting renderer, which has the node's output bindings. When absent, no
-   * value is read (nothing to preview).
+   * Every previewable output of the node, in declaration order (G-011). Each
+   * carries the ctx key the value lives under inside the nested `outputCtx`
+   * delta, plus the port's catalog label + kind. Supplied by the mounting
+   * renderer, which has the node's output bindings. The widget previews the
+   * first by default and renders a port selector when there is more than one.
+   * Empty → nothing to read.
    */
-  outputCtxKey?: string;
+  outputs?: readonly PreviewOutputBinding[];
   /**
    * The node's run status in the active run. Drives `noOutputReasonForNode`:
    * it tells a genuine cache eviction (`succeeded` / `skipped` — the node
@@ -112,7 +117,7 @@ export function PreviewWidget({
   nodeId,
   runId,
   isReplay = false,
-  outputCtxKey,
+  outputs,
   nodeStatus,
   producesOutput = true,
 }: PreviewWidgetProps): ReactNode {
@@ -121,6 +126,10 @@ export function PreviewWidget({
     nodeId,
     runId,
   );
+  // Which output port the author is looking at. `null` = "the first one",
+  // which keeps the single-output case identical to before.
+  const [selectedPort, setSelectedPort] = useState<string | null>(null);
+  const previewOutputs = outputs ?? EMPTY_OUTPUTS;
 
   if (isLoading) {
     return (
@@ -190,55 +199,71 @@ export function PreviewWidget({
     );
   }
 
-  const content = renderForOutputKind(data, outputCtxKey);
-  if (content === null) {
-    // G-011 (Task 2) removes this branch: a kind with no dedicated renderer
-    // currently produces an indistinguishable blank card.
-    return null;
-  }
+  // G-011: preview the SELECTED output, not `outputs[0]`. `data.outputKind`
+  // types only the first port (the worker's cache decorator records
+  // `entry.outputs[0].kind`), so it is used as the kind only for that port;
+  // later ports rely on their own catalog descriptor, and fall through to the
+  // generic renderer when they have none.
+  const selected =
+    previewOutputs.find((o) => o.port === selectedPort) ?? previewOutputs[0];
+  const value =
+    selected !== undefined
+      ? // `outputCtx` is stored NESTED at runtime (the engine splits the ctxKey
+        // on "." and namespace-remaps prefixes). `resolveCtxBinding` performs
+        // the identical read the engine resolver uses, so flat, `__auto.*` and
+        // namespaced keys all resolve.
+        resolveCtxBinding(selected.ctxKey, data.outputCtx)
+      : undefined;
+  const kind =
+    selected?.kind ??
+    (selected !== undefined && selected === previewOutputs[0]
+      ? data.outputKind
+      : null);
 
   return (
     <Box
       data-testid={`preview-widget-${nodeId}`}
       data-state={"ready" satisfies PreviewState}
-      data-output-kind={data.outputKind ?? ""}
-      style={{ maxHeight: PREVIEW_MAX_HEIGHT_PX, overflow: "hidden" }}
+      data-output-kind={kind ?? ""}
+      data-output-port={selected?.port ?? ""}
+      style={{ maxHeight: PREVIEW_MAX_HEIGHT_PX, overflow: "auto" }}
     >
-      {content}
+      {previewOutputs.length > 1 && (
+        <Group gap={4} mb={4} data-testid={`preview-output-selector-${nodeId}`}>
+          {previewOutputs.map((output) => (
+            <Chip
+              key={output.port}
+              size="xs"
+              checked={output.port === selected?.port}
+              onChange={() => setSelectedPort(output.port)}
+              data-testid={`preview-output-chip-${output.port}`}
+            >
+              {output.label}
+            </Chip>
+          ))}
+        </Group>
+      )}
+      {selected === undefined ? (
+        <Text size="xs" c="dimmed" data-testid="preview-no-output-binding">
+          This step's output isn't bound to a workflow value yet, so there's
+          nothing to read.
+        </Text>
+      ) : (
+        renderKindValue(kind, value)
+      )}
     </Box>
   );
-}
-
-/**
- * Pure dispatch — reads the previewed value out of the nested `outputCtx`
- * delta at the producing port's bound `ctxKey` (via `resolveCtxBinding`, the
- * SAME read the runtime and the wire-peek use), then hands it to
- * `renderKindValue`, which resolves the kind's `baseKind` family root and picks
- * the widget. Reading by ctxKey — not by a fixed family slot name — is what
- * lets a producer bound to any ctxKey (`preparedFileData`, `__auto.<node>.<port>`,
- * a namespaced `doc.*` key, …) render; the old fixed `outputCtx.document` /
- * `.segments` slots only ever matched ctxKeys literally named that.
- */
-function renderForOutputKind(
-  data: ActivityOutputPreview,
-  outputCtxKey: string | undefined,
-): ReactNode {
-  const value =
-    outputCtxKey !== undefined && outputCtxKey !== ""
-      ? resolveCtxBinding(outputCtxKey, data.outputCtx)
-      : undefined;
-  return renderKindValue(data.outputKind, value);
 }
 
 export interface NodePreviewOverlayProps {
   nodeId: string;
   /**
-   * The ctx key the node binds its (first) output to — where the previewed
-   * value lives inside the cached `outputCtx` delta. The mounting renderer
-   * resolves it from the node's own output bindings (it holds the node data;
-   * the overlay only knows the id). Absent → nothing to read.
+   * Every previewable output of the node (G-011) — see
+   * `computePreviewOutputs`. The mounting renderer resolves them from the
+   * node's own output bindings + catalog entry (it holds the node data; the
+   * overlay only knows the id). Empty → nothing to read.
    */
-  outputCtxKey?: string;
+  outputs?: readonly PreviewOutputBinding[];
   /**
    * Whether this node produces a cacheable output. Passed `false` by the
    * control-flow / switch renderers so their overlays stay silent in replay
@@ -257,7 +282,7 @@ export interface NodePreviewOverlayProps {
  */
 export function NodePreviewOverlay({
   nodeId,
-  outputCtxKey,
+  outputs,
   producesOutput = true,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
@@ -288,7 +313,7 @@ export function NodePreviewOverlay({
       nodeId={nodeId}
       runId={ctx.activeRunId ?? undefined}
       isReplay={ctx.isReplay}
-      outputCtxKey={outputCtxKey}
+      outputs={outputs}
       nodeStatus={ctx.nodeStatuses[nodeId]?.status}
       producesOutput={producesOutput}
     />

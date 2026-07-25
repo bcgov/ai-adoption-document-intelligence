@@ -17,6 +17,27 @@
  */
 
 /**
+ * One previewable output of a node (G-011). The canvas projection derives
+ * these from the node's output BINDINGS joined with its activity-catalog
+ * output DESCRIPTORS, and the preview widget renders one per port with a
+ * selector when there is more than one.
+ */
+export interface PreviewOutputBinding {
+  /** Output port name (the catalog descriptor's `name`). */
+  port: string;
+  /** Label for the port selector; falls back to the port name. */
+  label: string;
+  /** The ctx key this port's value is bound to inside the `outputCtx` delta. */
+  ctxKey: string;
+  /**
+   * The port's declared artifact kind, from the catalog descriptor. Absent for
+   * ports with no catalog entry (`dyn.*` activities, deleted entries) — the
+   * value then renders through the generic fallback.
+   */
+  kind?: string;
+}
+
+/**
  * Wire shape of `GET /api/workflows/:id/preview-cache`. Mirrors the
  * backend `ActivityOutputPreviewDto`.
  */

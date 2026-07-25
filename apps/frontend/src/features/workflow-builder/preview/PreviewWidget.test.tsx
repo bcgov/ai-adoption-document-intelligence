@@ -16,6 +16,7 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +29,10 @@ import {
   PreviewWidget,
   type PreviewWidgetProps,
 } from "./PreviewWidget";
-import type { ActivityOutputPreview } from "./preview.types";
+import type {
+  ActivityOutputPreview,
+  PreviewOutputBinding,
+} from "./preview.types";
 
 // ---------------------------------------------------------------------------
 // Widget stubs — each renders a single sentinel `<div>` so the test
@@ -140,6 +144,15 @@ function renderWithProviders(
   return { unmount: view.unmount, queryClient };
 }
 
+/**
+ * The single-output binding most tests use: one port bound to `nodeOut`, with
+ * no catalog kind, so the widget falls back to the cache row's `outputKind`
+ * exactly as the pre-G-011 `outputCtxKey` prop did.
+ */
+const NODE_OUT: PreviewOutputBinding[] = [
+  { port: "out", label: "out", ctxKey: "nodeOut" },
+];
+
 const fetchSpy = vi.spyOn(globalThis, "fetch");
 
 beforeEach(() => {
@@ -170,7 +183,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
         <PreviewWidget
           workflowId={WORKFLOW_ID}
           nodeId={NODE_ID}
-          outputCtxKey="nodeOut"
+          outputs={NODE_OUT}
         />,
       );
 
@@ -190,7 +203,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
     const stub = await screen.findByTestId("stub-segment-array-preview");
@@ -211,7 +224,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
         <PreviewWidget
           workflowId={WORKFLOW_ID}
           nodeId={NODE_ID}
-          outputCtxKey="nodeOut"
+          outputs={NODE_OUT}
         />,
       );
       const stub = await screen.findByTestId("stub-ocr-result-preview");
@@ -229,7 +242,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
     const stub = await screen.findByTestId("stub-classification-preview");
@@ -258,7 +271,7 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
         <PreviewWidget
           workflowId={WORKFLOW_ID}
           nodeId={NODE_ID}
-          outputCtxKey="nodeOut"
+          outputs={NODE_OUT}
         />,
       );
 
@@ -268,21 +281,31 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
     });
   }
 
-  it("routes outputKind=LabeledDocumentMap (baseKind → Classification) to ClassificationPreview with ctx.classification", async () => {
-    const cls = { label: "invoice", confidence: 0.92 };
+  // G-011 item 4: `LabeledDocumentMap` is a Classification SUBKIND whose shape
+  // (a schema-free `Record<label, documents>`) diverges from its family, so it
+  // must NOT reach the label-pill widget, whose `{label, confidence}` guard can
+  // never match it.
+  it("keeps outputKind=LabeledDocumentMap out of ClassificationPreview", async () => {
+    const map = { invoice: [{ blobKey: "b1" }] };
     fetchSpy.mockResolvedValue(
-      rowResponse(buildRow("LabeledDocumentMap", { nodeOut: cls })),
+      rowResponse(buildRow("LabeledDocumentMap", { nodeOut: map })),
     );
 
     renderWithProviders(
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
-    const stub = await screen.findByTestId("stub-classification-preview");
-    expect(stub.getAttribute("data-value")).toBe(JSON.stringify(cls));
+    const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(wrapper.getAttribute("data-state")).toBe("ready");
+    });
+    expect(screen.queryByTestId("stub-classification-preview")).toBeNull();
+    expect(screen.getByTestId("json-value-preview")).toHaveTextContent(
+      "invoice",
+    );
   });
 
   // `OcrTable`'s `baseKind` is `OcrResult` in the live registry, so
@@ -301,14 +324,19 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
     const stub = await screen.findByTestId("stub-ocr-result-preview");
     expect(stub.getAttribute("data-value")).toBe(JSON.stringify(ocr));
   });
 
-  const UNKNOWN_KINDS: Array<ActivityOutputPreview["outputKind"]> = [
+  // -------------------------------------------------------------------------
+  // G-011 — a kind with no dedicated widget used to render as a BLANK CARD
+  // (`return null`), indistinguishable from "no cache row" or a bug.
+  // -------------------------------------------------------------------------
+
+  const NO_WIDGET_KINDS: Array<ActivityOutputPreview["outputKind"]> = [
     "Artifact",
     "ValidationResult",
     "Reference",
@@ -316,32 +344,152 @@ describe("Scenario 4 — dispatch shell routes outputKind → widget", () => {
     null,
   ];
 
-  for (const kind of UNKNOWN_KINDS) {
-    it(`renders nothing for outputKind=${kind === null ? "null" : kind}`, async () => {
-      fetchSpy.mockResolvedValue(rowResponse(buildRow(kind, {})));
+  for (const kind of NO_WIDGET_KINDS) {
+    it(`renders a legible fallback (not a blank card) for outputKind=${kind === null ? "null" : kind}`, async () => {
+      fetchSpy.mockResolvedValue(
+        rowResponse(buildRow(kind, { nodeOut: { some: "value" } })),
+      );
 
       renderWithProviders(
         <PreviewWidget
           workflowId={WORKFLOW_ID}
           nodeId={NODE_ID}
-          outputCtxKey="nodeOut"
+          outputs={NODE_OUT}
         />,
       );
 
-      // Wait for the query to resolve out of the loading state. The
-      // wrapper's `data-state` is `loading` during the in-flight phase
-      // and disappears once the dispatch returns null. Once the
-      // wrapper is gone we're confident the dispatch picked the
-      // `default` branch.
+      const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
       await waitFor(() => {
-        expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
+        expect(wrapper.getAttribute("data-state")).toBe("ready");
       });
+      expect(screen.getByTestId("preview-generic-value")).toBeInTheDocument();
       expect(screen.queryByTestId("stub-document-preview")).toBeNull();
       expect(screen.queryByTestId("stub-segment-array-preview")).toBeNull();
       expect(screen.queryByTestId("stub-ocr-result-preview")).toBeNull();
       expect(screen.queryByTestId("stub-classification-preview")).toBeNull();
     });
   }
+
+  it("says why when a value cannot be previewed, instead of a blank card", async () => {
+    // Row exists, but nothing was written at the bound ctx key.
+    fetchSpy.mockResolvedValue(rowResponse(buildRow("Document", {})));
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputs={NODE_OUT}
+      />,
+    );
+
+    const unavailable = await screen.findByTestId("preview-value-unavailable");
+    expect(unavailable).toHaveTextContent("Document");
+  });
+
+  it("says so when the node has no output binding at all", async () => {
+    fetchSpy.mockResolvedValue(rowResponse(buildRow("Document", {})));
+
+    renderWithProviders(
+      <PreviewWidget workflowId={WORKFLOW_ID} nodeId={NODE_ID} outputs={[]} />,
+    );
+
+    expect(
+      await screen.findByTestId("preview-no-output-binding"),
+    ).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // G-011 — multi-output. The projection used to hand over `outputs[0]` only.
+  // -------------------------------------------------------------------------
+
+  const TWO_OUTPUTS: PreviewOutputBinding[] = [
+    { port: "document", label: "document", ctxKey: "docOut", kind: "Document" },
+    {
+      port: "segments",
+      label: "segments",
+      ctxKey: "segOut",
+      kind: "Segment[]",
+    },
+  ];
+
+  it("previews a node's second output, not only the first", async () => {
+    const doc = { blobKey: "b1" };
+    const segs = [{ parentDocId: "doc-1" }];
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(
+        rowResponse(buildRow("Document", { docOut: doc, segOut: segs })),
+      ),
+    );
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputs={TWO_OUTPUTS}
+      />,
+    );
+
+    await screen.findByTestId("stub-document-preview");
+    await userEvent.click(screen.getByTestId("preview-output-chip-segments"));
+
+    const stub = await screen.findByTestId("stub-segment-array-preview");
+    expect(stub.getAttribute("data-value")).toBe(JSON.stringify(segs));
+  });
+
+  it("lets the author switch between a node's outputs", async () => {
+    const doc = { blobKey: "b1" };
+    const segs = [{ parentDocId: "doc-1" }];
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(
+        rowResponse(buildRow("Document", { docOut: doc, segOut: segs })),
+      ),
+    );
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputs={TWO_OUTPUTS}
+      />,
+    );
+
+    const selector = await screen.findByTestId(
+      `preview-output-selector-${NODE_ID}`,
+    );
+    expect(selector).toBeInTheDocument();
+    // Defaults to the first output.
+    expect(await screen.findByTestId("stub-document-preview")).toHaveAttribute(
+      "data-value",
+      JSON.stringify(doc),
+    );
+
+    await userEvent.click(screen.getByTestId("preview-output-chip-segments"));
+    expect(
+      await screen.findByTestId("stub-segment-array-preview"),
+    ).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId("preview-output-chip-document"));
+    expect(await screen.findByTestId("stub-document-preview")).toBeTruthy();
+  });
+
+  it("renders no port selector when the node has a single output", async () => {
+    fetchSpy.mockResolvedValue(
+      rowResponse(buildRow("Document", { nodeOut: { blobKey: "b1" } })),
+    );
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputs={NODE_OUT}
+      />,
+    );
+
+    await screen.findByTestId("stub-document-preview");
+    expect(
+      screen.queryByTestId(`preview-output-selector-${NODE_ID}`),
+    ).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -362,7 +510,7 @@ describe("Scenario 5 — loading + error states", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
 
@@ -381,7 +529,7 @@ describe("Scenario 5 — loading + error states", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
       />,
     );
 
@@ -485,7 +633,7 @@ describe("Scenario 5 — loading + error states", () => {
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
+        outputs={NODE_OUT}
         {...props}
       />,
     );
@@ -615,10 +763,13 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
       rowResponse(buildRow("Document", { nodeOut: doc })),
     );
 
-    renderWithProviders(<NodePreviewOverlay nodeId={NODE_ID} />, {
-      workflowId: WORKFLOW_ID,
-      activeRunId: RUN_ID,
-    });
+    renderWithProviders(
+      <NodePreviewOverlay nodeId={NODE_ID} outputs={NODE_OUT} />,
+      {
+        workflowId: WORKFLOW_ID,
+        activeRunId: RUN_ID,
+      },
+    );
 
     await screen.findByTestId("stub-document-preview");
     expect(fetchSpy).toHaveBeenCalledTimes(1);

@@ -31,6 +31,7 @@ import { memo } from "react";
 import { colorForKind } from "../canvas/artifact-kind-colour";
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
+import type { PreviewOutputBinding } from "../preview/preview.types";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import {
   getSourceVisualHints,
@@ -101,6 +102,20 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
       ? ((data.parameters as { ctxKey?: string } | undefined)?.ctxKey ??
         "documentUrl")
       : undefined;
+  // A source node has exactly one typed output, so the preview never renders a
+  // port selector for it — but it goes through the same multi-output contract
+  // as activity nodes (G-011).
+  const previewOutputs: PreviewOutputBinding[] =
+    outputCtxKey === undefined
+      ? []
+      : [
+          {
+            port: "out",
+            label: "out",
+            ctxKey: outputCtxKey,
+            kind: entry?.outputKind,
+          },
+        ];
 
   // Phase 3 type pill — source nodes have a SINGLE typed output so the
   // pill always renders the one-line shape. For source.api a small
@@ -182,7 +197,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
           {labelOverride}
         </div>
       )}
-      <NodePreviewOverlay nodeId={id} outputCtxKey={outputCtxKey} />
+      <NodePreviewOverlay nodeId={id} outputs={previewOutputs} />
       {/*
         Output handle — coloured by the catalog entry's `outputKind`.
         Hover tooltip reads the kind literal verbatim ("Document" /

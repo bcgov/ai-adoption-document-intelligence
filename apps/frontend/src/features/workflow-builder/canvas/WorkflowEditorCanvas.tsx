@@ -81,6 +81,7 @@ import {
   type ControlFlowNodeType,
 } from "../palette/control-flow-skeletons";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
+import type { PreviewOutputBinding } from "../preview/preview.types";
 import { computeActiveEdges } from "../run/active-edges";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import { useOptionalRunState } from "../run/RunStateContext";
@@ -133,6 +134,7 @@ import {
   type PortRowModel,
   rendersPerPortHandle,
 } from "./port-rows";
+import { computePreviewOutputs } from "./preview-outputs";
 import { recordErrorEdge } from "./record-error-edge";
 import { removeNodesFromConfig } from "./remove-nodes";
 import { swapActivityType } from "./swap-node-type";
@@ -280,15 +282,15 @@ interface ActivityNodeData extends CommonNodeData {
    */
   portRows: { inputs: PortRowModel[]; outputs: PortRowModel[] };
   /**
-   * The ctx key this activity's primary (first) output is bound to — where the
-   * previewed value lives inside the cached `outputCtx` delta. Forwarded to the
-   * preview overlay so `renderForOutputKind` can resolve the value via
-   * `resolveCtxBinding` (mirrors what the source renderer does with its single
-   * output). Without it the preview reads `undefined` and every document/object
-   * preview falls back to its "unavailable" placeholder. Undefined when the node
-   * has no output binding yet.
+   * EVERY previewable output of this activity, in declaration order (G-011) —
+   * the ctx key each output port is bound to, plus the port's catalog label and
+   * kind. Forwarded to the preview overlay, which resolves the selected port's
+   * value via `resolveCtxBinding` and renders a port selector when there is
+   * more than one. This used to be a single `primaryOutputCtxKey:
+   * node.outputs?.[0]?.ctxKey`, which made every output after the first
+   * invisible. Empty when the node has no output binding yet.
    */
-  primaryOutputCtxKey?: string;
+  previewOutputs: PreviewOutputBinding[];
 }
 
 interface ControlFlowNodeData extends CommonNodeData {
@@ -873,10 +875,7 @@ const ActivityNodeRenderer = memo(
           onOutputHandleEnter={data.onOutputHandleEnter}
           onOutputHandleLeave={data.onOutputHandleLeave}
         />
-        <NodePreviewOverlay
-          nodeId={id}
-          outputCtxKey={data.primaryOutputCtxKey}
-        />
+        <NodePreviewOverlay nodeId={id} outputs={data.previewOutputs} />
       </div>
     );
   },
@@ -1274,7 +1273,7 @@ function projectFlowNodes(
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           portRows: computePortRows(config, node.id, wires),
-          primaryOutputCtxKey: node.outputs?.[0]?.ctxKey,
+          previewOutputs: computePreviewOutputs(config, node.id),
         },
       };
       return flowNode;
