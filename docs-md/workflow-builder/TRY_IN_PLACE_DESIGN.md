@@ -403,7 +403,12 @@ export function PreviewWidget({ outputKind, outputCtx, port }: {
 }
 ```
 
-**No preview pane is rendered when `outputKind` is null or the dispatch returns null.** This means activities that produce free-form `Artifact` outputs (35 of the 41 catalog entries before Phase 3.x fan-out; 0 after) get no preview pane. The canvas stays uncluttered.
+> **Superseded by G-011 / G-022 (fix batch 7, 2026-07-25).** The shipped code differs from the sketch above in four ways; the sketch is kept for the design rationale only.
+>
+> 1. **Every output, not the first.** The canvas projects `previewOutputs: PreviewOutputBinding[]` (`canvas/preview-outputs.ts`) — every bound output port joined with its catalog descriptor for label + kind — instead of a single `primaryOutputCtxKey: node.outputs?.[0]?.ctxKey`. The widget renders a port-chip selector when a node has more than one output. Per-port kinds come from the CATALOG, because the cache row's `outputKind` records only `outputs[0].kind`.
+> 2. **The dispatch never returns `null`.** `renderKindValue` (`preview/render-kind-value.tsx`) resolves a renderer by walking the kind's `baseKind` chain from the EXACT kind upward, so an exact-kind entry overrides its family (this is how `LabeledDocumentMap` — a schema-free `Record`, `baseKind: Classification` — stops being handed to the label-pill widget). Anything unresolved falls to a **generic view**: a caption naming the kind above a bounded JSON snippet. An absent value renders "No value was recorded for this output (expected `<Kind>`)". Of the 27 registered kinds, 15 scalar and 15 array forms previously rendered as an empty card.
+> 3. **Values are read by ctxKey**, via `resolveCtxBinding` — the same read the engine resolver performs — not from fixed `outputCtx.document` / `.segments` slots.
+> 4. **Blob-backed values are dereferenced server-side.** See §4.4.
 
 ### 4.2 `DocumentPreview`
 
@@ -424,6 +429,13 @@ A structured key-value table. For `OcrResult`, renders the top-level keys as tab
 
 New file: `apps/frontend/src/features/workflow-builder/preview/OcrResultPreview.tsx`. ~100 LoC.
 
+**G-022 — the table shows the PAYLOAD, not the pointer (fix batch 7).** An `OcrResult` ctx value is a blob POINTER by design (`OcrResultSchema` = `{documentId, blobPath, storage:"blob", byteLength?, pageCount?, status?}`); keeping large payloads out of workflow ctx and Temporal history is a deliberate architecture decision and is UNCHANGED. What changed is that the preview endpoints now dereference the pointer:
+
+- **Server-side**, in `PreviewBlobExcerptService` (`apps/backend-services/src/workflow/preview-blob-excerpt.service.ts`), because the browser holds no blob credentials, `GET /:id/preview-cache[-batch]` is already authorised for the workflow's group, and the payload must be bounded before it crosses the wire.
+- **Bounded**, by `buildBoundedExcerpt` (`preview-blob-excerpt.ts`): `maxStringChars 400`, `maxArrayItems 5`, `maxObjectKeys 40`, `maxDepth 6`, `maxTotalChars 8000`, plus an 8 MiB per-blob ceiling and a cap of 16 blobs per request (one budget shared across a whole batch response). `maxDepth` is 6 because `analyzeResult.documents[0].fields.<name>.content` — the extracted field value — must survive.
+- **Self-describing.** The response carries `blobExcerpts: Record<blobPath, BlobExcerptDto>`, each with `status`, `truncated`, a path-anchored `omissions[]` ("pages: showing the first 5 of 312 items") and the `limits` applied. The widget renders the omissions verbatim: a truncated preview that says it is truncated is correct; one that silently shows part of the data is not.
+- **Honest on failure.** A pointer that cannot be resolved (`not-found` / `unreadable` / `too-large` / `outside-group` / `request-limit`) falls back to showing the reference **with** a line saying why. A pointer whose first path segment names a group other than the workflow's is refused, not read.
+
 ### 4.5 `ClassificationPreview`
 
 A compact label-with-confidence pill plus the matched rule's name. `{ label: string, confidence: number, ruleName?: string }`. Confidence renders as a small filled bar (green ≥ 0.8, amber 0.5–0.8, red < 0.5).
@@ -432,7 +444,24 @@ New file: `apps/frontend/src/features/workflow-builder/preview/ClassificationPre
 
 ### 4.6 Preview loading + error states
 
-Each preview component receives a single `value` prop (the unwrapped ctx fragment). Loading state (cache row hasn't arrived yet) is owned by the parent — the dispatch shell wraps `PreviewWidget` in a `<Skeleton>` while the `useActivityOutputPreview(workflowId, nodeId, runId)` hook is loading. Error state — a small red `<Alert>` saying "Preview unavailable" with a tooltip explaining ("cache evicted" / "node hasn't executed yet" / "ArtifactKind not supported in 4.0").
+Each preview component receives a single `value` prop (the unwrapped ctx fragment). Loading state (cache row hasn't arrived yet) is owned by the parent — the dispatch shell wraps `PreviewWidget` in a `<Skeleton>` while the `useActivityOutputPreview(workflowId, nodeId, runId)` hook is loading. Error state — a small red `<Alert>` saying "Preview unavailable".
+
+**G-012 — "no output" is a typed state model, not one sentence (fix batch 7).** The shipped code replaces the single "This step didn't run" string (which covered `pending`, `running`, `cancelled` and absent, and only appeared in replay) with `preview/no-output-state.ts`:
+
+| `NoOutputReason` | when | copy | Re-run offered |
+|---|---|---|---|
+| `no-run` | no run selected | "Run this workflow to see what this step produces." | no |
+| `not-started` | live run, node not reached | "Waiting — the run hasn't reached this step yet." | no |
+| `running` | live run, node executing | "Running now — output appears when this step finishes." | no |
+| `branch-not-taken` | run over, node never walked | "This step was never reached — the run took a different branch." | no |
+| `failed` | node failed | "This step failed — no output was produced to preview." | no |
+| `cancelled` | run cancelled | "The run was cancelled before this step produced output." | no |
+| `evicted` | node succeeded/skipped, row TTL-evicted | `CacheEvictedAlert` | **yes** |
+| `not-previewable` | control-flow node | (no copy; `data-state` only) | no |
+
+`noOutputReasonForNode` switches exhaustively over `NodeRunStatusValue` and `describeNoOutput` over `NoOutputReason`, both with an `assertNever` guard — adding a run status without deciding its copy fails compilation. `PreviewState` (`loading | error | ready | empty | NoOutputReason`) types `data-state` on BOTH `PreviewWidget` and `WirePeekPopover`, which previously named the same derived state `not-run` and `no-run` with `state: string`.
+
+**Eviction is deliberately NOT a flavour of "didn't run".** It is the only reason whose output actually existed, and therefore the only one with a working recovery; the others would offer a Re-run that repopulates nothing.
 
 ---
 
