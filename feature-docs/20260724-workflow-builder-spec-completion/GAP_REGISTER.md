@@ -10,6 +10,25 @@ was re-adjudicated. Each pass's `disposition` is preserved as the **proposed** v
 merged sources disagree, the disagreement is stated rather than resolved. Disposition is
 Alex's call at the next gate.
 
+## Approved dispositions (2026-07-25)
+
+The disposition gate ran over the **27 entries that are either a blocker or corroborated by
+2+ independent passes**. Alex ruled on the three clusters carrying a genuine scope judgement;
+every other entry keeps the disposition its pass proposed, and any of those may still be
+overridden when the implementation plan lands.
+
+| Decision | Entries | Ruling |
+|---|---|---|
+| Run architecture | **G-021**, **G-026** | **fix now** — these are bugs, not missing features. G-021 needs one discriminator on the cancel predicate; G-026 is `Promise.all` where `allSettled` belongs. |
+| Run architecture | **G-023**, **G-025**, **G-006** | **defer** — batch, multi-file intake and the map threshold become a separate tracked epic with its own plan. |
+| Step output visibility | **G-022** | **fix** — extracted values must be visible in the builder. An author who cannot see what a step produced cannot tell whether the workflow works, and it is the whole method behind the debugging journey. |
+| Durability | **G-003** | **fix, full undo/redo** — not the cheaper confirm-before-destroy mitigation. |
+
+Architectural findings stay in this register regardless of which layer owns the fix, and are
+dispositioned per item rather than split into a separate track.
+
+**Net for the 27 gated entries: 24 fix, 3 defer.**
+
 ## Summary
 
 | Pass | Findings | Blocker | Major | Minor |
@@ -149,7 +168,8 @@ Pass D found the producer-existence half — nothing catches it anywhere. Pass C
 
 Marcus's 40–300-page documents always take the child path, so J4 step 6 — "tell whether it is progressing and roughly how far along it is" — has no surface at all. Neither pass verified this at runtime; Pass A explicitly asks for one live 25-item map to confirm the canvas really shows nothing.
 
-**Proposed disposition:** fix
+**Proposed disposition:** fix → **APPROVED: defer**
+**Approval note (2026-07-25):** Deferred to the batch epic. The map child-workflow threshold is engine behaviour, not an authoring-surface defect; it is only reachable at a collection size the deferred multi-file/batch work would introduce.
 
 **Merge note:** **Two defects, probably two fixes.** Filed as one entry because they are the same branch and the same threshold, and because fixing observability without fixing the entry-point bug would report progress on the wrong subgraph.
 
@@ -391,7 +411,8 @@ Net effect: the gate blocks, the document appears in the queue, a reviewer appro
 
 `run-history-drawer` is a flat cursor-paged list of individual executions filtered by status / date range / version only. There is no batch entity in the schema, no correlation id on a run, and no count roll-up anywhere. Marcus's step 2 ("how many are done, how many still going, how many failed — the counts add up to 240") has no surface to read. Even the degenerate workaround (filter by date range and count rows by eye) can't distinguish this quarter's batch from a re-run of one file.
 
-**Proposed disposition:** fix
+**Proposed disposition:** fix → **APPROVED: defer**
+**Approval note (2026-07-25):** Deferred to the batch epic. There is no batch concept to fix — this is a feature to build, and it belongs with G-025 and G-006 in their own plan.
 
 ### G-024 — J7.3/J7.4 — yesterday's run has no values left to walk: the preview cache TTL is 24 h, and the offered recovery starts a brand-new run against head
 
@@ -413,7 +434,8 @@ Net effect: the gate blocks, the document appears in the queue, a reviewer appro
 
 The Run-drawer Dropzone is `multiple={false}`; the settings-panel "Upload & Try" button posts one file (apps/frontend/src/features/workflow-builder/sources/useSourceUpload.ts:7 — "a single part named `file`") and the endpoint is a single-file `FileInterceptor`. Priya's folder of 60 and Marcus's batch of 240 have to be uploaded one at a time, and A-001 means each upload kills the previous one. Even the honest workaround (write a script that loops the upload endpoint) is defeated by A-001.
 
-**Proposed disposition:** fix
+**Proposed disposition:** fix → **APPROVED: defer**
+**Approval note (2026-07-25):** Deferred to the batch epic. Multi-file intake is a new capability rather than a repair; sequencing it with G-023 avoids building the affordance twice.
 
 ### G-026 — J4.7 — one bad page kills the whole document: the map fan-out awaits `Promise.all`, not `allSettled`, and no per-node skip policy is authorable
 
