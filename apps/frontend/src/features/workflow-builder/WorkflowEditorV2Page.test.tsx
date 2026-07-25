@@ -13,7 +13,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
+import { Notifications, notifications } from "@mantine/notifications";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
@@ -120,6 +120,15 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
     },
   };
 });
+
+// Mantine's <Notifications/> host does not actually mount its toasts under
+// jsdom, so assert on the payload the editor hands the notifications system,
+// and render the message element directly when a test needs to click inside
+// it. Same approach as WorkflowEditorCanvas.test.tsx.
+vi.mock("@mantine/notifications", () => ({
+  Notifications: () => null,
+  notifications: { show: vi.fn(), hide: vi.fn() },
+}));
 
 vi.mock("./palette/ActivityPalette", () => ({
   ActivityPalette: (props: Record<string, unknown>) => {
@@ -255,6 +264,7 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   }),
 }));
 
+import { ORPHANED_DELETE_TOAST_ID } from "./delete-orphan-toast";
 import { resolveWireableInputRows } from "./settings/input-row-resolution";
 import type { WorkflowTemplate } from "./templates";
 // Now import the page under test. Must come AFTER the vi.mock calls so
@@ -2135,9 +2145,10 @@ describe("WorkflowEditorV2Page — de-placeholdered activity drop", () => {
 });
 
 // ---------------------------------------------------------------------------
-// G-002 — deleting a sole producer warns, then prunes the orphaned ctx
-// declarations so the surviving consumers visibly break instead of silently
-// reading a variable nothing writes.
+// G-002/G-003 — deleting a sole producer prunes the orphaned ctx declarations
+// (so the surviving consumers visibly break instead of silently reading a
+// variable nothing writes) and reports what it broke in a non-blocking toast
+// carrying an Undo. No dialog: since G-003 the delete is reversible.
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
@@ -2195,22 +2206,39 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     capturedCanvasProps.current = null;
     capturedSettingsPanelProps.current = null;
     vi.restoreAllMocks();
+    vi.mocked(notifications.show).mockClear();
+    vi.mocked(notifications.hide).mockClear();
   });
 
-  it("asks before deleting a sole producer other steps still read", () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
+  /** The orphaned-delete toast payload, or undefined when none was raised. */
+  function orphanToast(): Record<string, unknown> | undefined {
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    return showMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .find((arg) => arg?.id === ORPHANED_DELETE_TOAST_ID);
+  }
+
+  /** Renders the toast body so its copy — and its Undo link — are reachable. */
+  function renderToastBody(toast: Record<string, unknown> | undefined) {
+    if (!toast) throw new Error("no orphaned-delete toast was raised");
+    return render(
+      <MantineProvider>{toast.message as React.ReactNode}</MantineProvider>,
+    );
+  }
+
+  it("deletes without a dialog and toasts what broke", () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
     renderPage(prepThenOcrTemplate(true));
     selectAndDelete("prep");
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toBe(
-      'Deleting "Prepare File" leaves 1 variable without a source; 1 step reads it. Continue?',
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(readLiveConfig().nodes.prep).toBeUndefined();
+    const body = renderToastBody(orphanToast());
+    expect(body.container.textContent).toContain(
+      'Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.',
     );
   });
 
-  it("prunes the orphaned declaration on confirm", () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => true);
+  it("prunes the orphaned declaration", () => {
     renderPage(prepThenOcrTemplate(true));
     selectAndDelete("prep");
     const config = readLiveConfig();
@@ -2218,23 +2246,41 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     expect(config.ctx.preparedFile).toBeUndefined();
   });
 
-  it("changes nothing when the author cancels", () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => false);
+  it("the toast's Undo restores the node AND its pruned declarations", () => {
+    // The crux of retiring the confirm. Deletion prunes `config.ctx`; if undo
+    // brought the node back without its declarations we would have swapped one
+    // silent-data-loss bug for another. The whole-config snapshot should make
+    // this fall out — proven here rather than assumed.
     renderPage(prepThenOcrTemplate(true));
     selectAndDelete("prep");
-    const config = readLiveConfig();
-    expect(config.nodes.prep).toBeDefined();
-    expect(config.ctx.preparedFile).toBeDefined();
+    expect(readLiveConfig().ctx.preparedFile).toBeUndefined();
+
+    const body = renderToastBody(orphanToast());
+    act(() => {
+      fireEvent.click(body.getByTestId("orphaned-delete-undo"));
+    });
+
+    const restored = readLiveConfig();
+    expect(restored.nodes.prep).toBeDefined();
+    expect(restored.ctx.preparedFile).toEqual({ type: "object" });
+    expect(restored.edges).toHaveLength(1);
+    expect(restored.entryNodeId).toBe("prep");
   });
 
-  it("stays silent — and still deletes — when nothing reads the key", () => {
+  it("Ctrl+Z undoes the delete just as the toast action does", () => {
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    const restored = readLiveConfig();
+    expect(restored.nodes.prep).toBeDefined();
+    expect(restored.ctx.preparedFile).toEqual({ type: "object" });
+  });
+
+  it("shows no toast when the delete orphans nothing", () => {
     // NOTE: the `consumerBound: false` variant is NOT this case — the page's
     // resolveBindings pass auto-wires ocr.fileData to prep's key, so the key
-    // IS read by the time the delete happens (correctly warning). "Nothing
+    // IS read by the time the delete happens (correctly reported). "Nothing
     // reads it" means no surviving consumer at all.
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
     const loneProducer = prepThenOcrTemplate(false);
     loneProducer.config = {
       ...loneProducer.config,
@@ -2244,36 +2290,27 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     };
     renderPage(loneProducer);
     selectAndDelete("prep");
-    expect(confirmSpy).not.toHaveBeenCalled();
     expect(readLiveConfig().nodes.prep).toBeUndefined();
+    expect(orphanToast()).toBeUndefined();
   });
 
-  it("warns when the resolver — not the author — made the connection", () => {
+  it("reports it when the resolver — not the author — made the connection", () => {
     // The consumer carries no explicit binding; auto-wire connects it to
     // prep's key. Deleting prep still orphans a variable a step reads.
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
     renderPage(prepThenOcrTemplate(false));
     selectAndDelete("prep");
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toContain(
-      "1 variable without a source",
-    );
+    const body = renderToastBody(orphanToast());
+    expect(body.container.textContent).toContain("1 variable lost its source");
   });
 
   it("stays silent when deleting a node that writes nothing", () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
     renderPage(prepThenOcrTemplate(true));
     selectAndDelete("ocr");
-    expect(confirmSpy).not.toHaveBeenCalled();
     expect(readLiveConfig().nodes.ocr).toBeUndefined();
+    expect(orphanToast()).toBeUndefined();
   });
 
   it("never prunes a declaration marked isInput", () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => true);
     const template = prepThenOcrTemplate(true);
     template.config.ctx = {
       preparedFile: { type: "object", isInput: true },

@@ -74,7 +74,7 @@ import {
   type ControlFlowVisualHints,
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
-import { confirmOrphanedDelete } from "../delete-orphan-warning";
+import { showOrphanedDeleteToast } from "../delete-orphan-toast";
 import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
 import {
   buildControlFlowSkeleton,
@@ -224,6 +224,12 @@ interface WorkflowEditorCanvasProps {
    * whatever the node's renderer already draws, for every node type.
    */
   highlightedNodeId?: string | null;
+  /**
+   * Reverses the last config change (G-003). Offered as the "Undo" action on
+   * the toast a delete raises when it orphans ctx variables other steps read —
+   * which is what replaced the blocking confirm those paths used to show.
+   */
+  onUndo?: () => void;
 }
 
 interface CommonNodeData extends Record<string, unknown> {
@@ -1692,6 +1698,7 @@ function WorkflowEditorCanvasInner({
   layoutNonce = 0,
   onFixNodeInput,
   highlightedNodeId = null,
+  onUndo,
 }: WorkflowEditorCanvasProps) {
   // Internal node state managed by xyflow — keeps dragging smooth. The
   // outer GraphWorkflowConfig is updated only on drag-stop / select /
@@ -2220,16 +2227,15 @@ function WorkflowEditorCanvasInner({
     (deleted: Node[]) => {
       if (deleted.length === 0) return;
       const removedIds = new Set(deleted.map((n) => n.id));
-      // G-002: ask before orphaning ctx variables other steps still read.
-      // Safe to gate here — this path is driven by our own context menu, not
-      // by xyflow's store, so an early return leaves the canvas untouched.
-      if (!confirmOrphanedDelete(config, removedIds)) return;
       onConfigChange(removeNodesFromConfig(config, removedIds));
       if (selectedNodeId && removedIds.has(selectedNodeId)) {
         onSelectNode(null);
       }
+      // G-002: name the ctx variables this delete just orphaned, with an Undo.
+      // Described against the PRE-delete `config`, which still has the writers.
+      if (onUndo) showOrphanedDeleteToast(config, removedIds, onUndo);
     },
-    [config, onConfigChange, onSelectNode, selectedNodeId],
+    [config, onConfigChange, onSelectNode, selectedNodeId, onUndo],
   );
 
   /**
@@ -2343,30 +2349,14 @@ function WorkflowEditorCanvasInner({
    *     endpoint node died → vanish with the node, no §6.3 disconnect
    *     and no hint; deleted directly with both endpoints surviving →
    *     routed through `disconnectWires` (pinned unbound + hint).
-   */
-  /**
-   * G-002 guard for the keyboard / multi-select gesture. It has to run here
-   * rather than inside `handleDelete`: by the time xyflow fires `onDelete` it
-   * has ALREADY removed the elements from its internal store, and the
-   * config→canvas projection is fingerprint-gated on `config`, so a cancel
-   * that simply skipped `onConfigChange` would leave the nodes visually gone
-   * while still present in the config. `onBeforeDelete` vetoes before the
-   * store is touched, so a cancel is a true no-op.
    *
-   * Fires ONCE per gesture with the whole selection, so a multi-node delete
-   * asks a single question whose counts span every node being removed.
+   * There is no `onBeforeDelete` companion any more. It existed purely to veto
+   * the gesture when the author cancelled the G-002 confirm — xyflow removes
+   * elements from its store BEFORE firing `onDelete`, so a late bail would have
+   * left nodes visually gone but still in the config. With the confirm retired
+   * (G-003 made deletes reversible) nothing can cancel, so there is nothing to
+   * veto and xyflow's default "always allow" is correct.
    */
-  const handleBeforeDelete = useCallback(
-    async ({ nodes: deletedNodes }: { nodes: Node[]; edges: Edge[] }) => {
-      if (deletedNodes.length === 0) return true;
-      return confirmOrphanedDelete(
-        config,
-        new Set(deletedNodes.map((n) => n.id)),
-      );
-    },
-    [config],
-  );
-
   const handleDelete = useCallback(
     ({
       nodes: deletedNodes,
@@ -2407,8 +2397,21 @@ function WorkflowEditorCanvasInner({
       if (selectedNodeId && removedNodeIds.has(selectedNodeId)) {
         onSelectNode(null);
       }
+      // ONE toast per gesture, whatever the selection size — the counts inside
+      // `describeOrphanedDelete` already roll up across every removed node, so
+      // a three-node delete reports once rather than three times.
+      if (onUndo && removedNodeIds.size > 0) {
+        showOrphanedDeleteToast(config, removedNodeIds, onUndo);
+      }
     },
-    [config, onConfigChange, disconnectWires, onSelectNode, selectedNodeId],
+    [
+      config,
+      onConfigChange,
+      disconnectWires,
+      onSelectNode,
+      selectedNodeId,
+      onUndo,
+    ],
   );
 
   // ---------------------------------------------------------------------------
@@ -3062,7 +3065,6 @@ function WorkflowEditorCanvasInner({
           onEdgesChange={onInternalEdgesChange}
           onNodeDragStop={handleNodeDragStop}
           onSelectionChange={handleSelectionChange}
-          onBeforeDelete={handleBeforeDelete}
           onDelete={handleDelete}
           onConnect={handleConnect}
           isValidConnection={isValidConnection}

@@ -38,6 +38,7 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import { ORPHANED_DELETE_TOAST_ID } from "../delete-orphan-toast";
 import { mergeNodeGroups, synthesizeMapBodyGroups } from "./map-body-groups";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
 import {
@@ -313,6 +314,10 @@ function renderCanvas(
 ) {
   const onConfigChange = vi.fn();
   const onSelectNode = vi.fn();
+  // G-003 — the host's undo, offered as the toast action on a delete that
+  // orphans ctx variables. Always supplied so the delete paths behave here
+  // exactly as they do in the page.
+  const onUndo = vi.fn();
   let currentConfig = config;
   let currentSelected = options.selectedNodeId ?? null;
   let currentSimplified = options.simplifiedView ?? false;
@@ -329,6 +334,7 @@ function renderCanvas(
         onGroupChipClick={options.onGroupChipClick}
         onSelectMapBodyNode={options.onSelectMapBodyNode}
         onFixNodeInput={options.onFixNodeInput}
+        onUndo={onUndo}
       />
     </MantineProvider>,
   );
@@ -358,6 +364,7 @@ function renderCanvas(
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
           onFixNodeInput={options.onFixNodeInput}
+          onUndo={onUndo}
         />
       </MantineProvider>,
     );
@@ -380,6 +387,7 @@ function renderCanvas(
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
           onFixNodeInput={options.onFixNodeInput}
+          onUndo={onUndo}
         />
       </MantineProvider>,
     );
@@ -388,6 +396,7 @@ function renderCanvas(
     ...utils,
     onConfigChange,
     onSelectNode,
+    onUndo,
     rerenderWithConfig,
     rerenderWithSimplified,
   };
@@ -2412,7 +2421,14 @@ describe("WorkflowEditorCanvas — data wire deletion (§6.3)", () => {
     expect(next.edges).toEqual([]);
     const submit = next.nodes.submit as ActivityNode;
     expect(submit.metadata?.lockedInputPorts).toBeUndefined();
-    expect(notifications.show).not.toHaveBeenCalled();
+    // No "Execution order kept" hint. (The delete DOES raise the G-002
+    // orphaned-variable toast — prep was the sole writer of a key submit
+    // reads — so this asserts against that toast's id, not against every
+    // notification.)
+    const shown = (
+      notifications.show as unknown as ReturnType<typeof vi.fn>
+    ).mock.calls.map((call) => call[0] as Record<string, unknown>);
+    expect(shown.some((arg) => arg?.id === DETACH_FULLY_TOAST_ID)).toBe(false);
   });
 
   it("co-deleting a node and an unrelated data wire applies both in one onConfigChange", async () => {
@@ -4596,10 +4612,12 @@ describe("WorkflowEditorCanvas — auto-wire supersession toast", () => {
 });
 
 // ---------------------------------------------------------------------------
-// G-002 — every delete path warns before orphaning ctx variables, and the
-// prune itself lives in the shared `removeNodesFromConfig` so no path can
-// forget it. Covers the two canvas entry points; the settings-panel trash
-// button is covered in WorkflowEditorV2Page.test.tsx.
+// G-002/G-003 — every delete path prunes orphaned ctx declarations and then
+// SAYS SO, via a non-blocking toast carrying an Undo action. There is no
+// dialog and no cancel path any more: since G-003 landed, a delete is
+// reversible, so interrupting the author to confirm one is pure friction.
+// Covers the two canvas entry points; the settings-panel trash button and the
+// end-to-end undo are covered in WorkflowEditorV2Page.test.tsx.
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
@@ -4673,20 +4691,6 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     } as GraphWorkflowConfig;
   }
 
-  function getOnBeforeDelete(): (args: {
-    nodes: FlowNode[];
-    edges: Edge[];
-  }) => Promise<boolean | { nodes: FlowNode[]; edges: Edge[] }> {
-    const props = latestReactFlowProps.current;
-    if (!props || typeof props.onBeforeDelete !== "function") {
-      throw new Error("ReactFlow mock did not capture onBeforeDelete");
-    }
-    return props.onBeforeDelete as (args: {
-      nodes: FlowNode[];
-      edges: Edge[];
-    }) => Promise<boolean | { nodes: FlowNode[]; edges: Edge[] }>;
-  }
-
   function getUnifiedOnDelete(): (args: {
     nodes: FlowNode[];
     edges: Edge[];
@@ -4699,6 +4703,21 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
       nodes: FlowNode[];
       edges: Edge[];
     }) => void;
+  }
+
+  /** Every `notifications.show` call whose id is the orphaned-delete toast. */
+  function orphanToastCalls(): Record<string, unknown>[] {
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    return showMock.mock.calls
+      .map((call) => call[0] as Record<string, unknown>)
+      .filter((arg) => arg?.id === ORPHANED_DELETE_TOAST_ID);
+  }
+
+  /** Renders the toast body so its copy — and its Undo link — are reachable. */
+  function renderToastBody(toast: Record<string, unknown>) {
+    return render(
+      <MantineProvider>{toast.message as React.ReactNode}</MantineProvider>,
+    );
   }
 
   const flowNode = (id: string): FlowNode =>
@@ -4723,12 +4742,22 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
   }
 
   beforeEach(() => {
-    vi.restoreAllMocks();
+    vi.mocked(notifications.show).mockClear();
+    vi.mocked(notifications.hide).mockClear();
+  });
+
+  it("no longer registers an onBeforeDelete veto", () => {
+    // It existed solely to cancel the gesture before xyflow emptied its store
+    // when the author declined the confirm. With no confirm there is nothing
+    // to cancel, and leaving a veto in place would be dead weight on the one
+    // hook that can silently swallow deletes.
+    renderCanvas(producerConsumerConfig());
+    expect(latestReactFlowProps.current?.onBeforeDelete).toBeUndefined();
   });
 
   // -- context-menu path ----------------------------------------------------
 
-  it("context menu: asks before deleting a sole producer, and prunes on confirm", async () => {
+  it("context menu: deletes with no dialog, prunes, and toasts what broke", async () => {
     const confirmSpy = vi
       .spyOn(window, "confirm")
       .mockImplementation(() => true);
@@ -4742,33 +4771,21 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     fireEvent.click(screen.getByTestId("context-menu-delete-node"));
     await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toBe(
-      'Deleting "Prepare File" leaves 1 variable without a source; 1 step reads it. Continue?',
-    );
+    expect(confirmSpy).not.toHaveBeenCalled();
     const calls = onConfigChange.mock.calls;
     const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
     expect(next.nodes).not.toHaveProperty("prep");
     expect(next.ctx.preparedFile).toBeUndefined();
-  });
 
-  it("context menu: cancelling emits no config change at all", async () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => false);
-    const { onConfigChange } = renderCanvas(producerConsumerConfig());
-    openContextMenuOn("prep");
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("context-menu-delete-node"),
-      ).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
-    expect(onConfigChange).not.toHaveBeenCalled();
+    const toasts = orphanToastCalls();
+    expect(toasts).toHaveLength(1);
+    const body = renderToastBody(toasts[0]);
+    expect(body.container.textContent).toContain(
+      'Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.',
+    );
   });
 
   it("context menu: stays silent when the deleted node orphans nothing", async () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
     const { onConfigChange } = renderCanvas(producerConsumerConfig());
     openContextMenuOn("ocr");
     await waitFor(() => {
@@ -4778,61 +4795,61 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     });
     fireEvent.click(screen.getByTestId("context-menu-delete-node"));
     await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(orphanToastCalls()).toHaveLength(0);
+  });
+
+  it("the toast's Undo action asks the host to undo, then dismisses itself", async () => {
+    const { onUndo } = renderCanvas(producerConsumerConfig());
+    openContextMenuOn("prep");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
+    const body = renderToastBody(orphanToastCalls()[0]);
+    fireEvent.click(body.getByTestId("orphaned-delete-undo"));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(notifications.hide).toHaveBeenCalledWith(ORPHANED_DELETE_TOAST_ID);
   });
 
   // -- keyboard / multi-select path -----------------------------------------
 
-  it("keyboard: onBeforeDelete vetoes the gesture when the author cancels", async () => {
+  it("keyboard: onDelete prunes and toasts, with no dialog in the way", async () => {
     const confirmSpy = vi
       .spyOn(window, "confirm")
-      .mockImplementation(() => false);
-    renderCanvas(producerConsumerConfig());
-    await flushAnimationFrame();
-    const allowed = await getOnBeforeDelete()({
-      nodes: [flowNode("prep")],
-      edges: [],
-    });
-    expect(allowed).toBe(false);
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("keyboard: onBeforeDelete allows the gesture, and onDelete prunes", async () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => true);
+      .mockImplementation(() => true);
     const { onConfigChange } = renderCanvas(producerConsumerConfig());
     await flushAnimationFrame();
-    const allowed = await getOnBeforeDelete()({
-      nodes: [flowNode("prep")],
-      edges: [],
-    });
-    expect(allowed).toBe(true);
     act(() => {
       getUnifiedOnDelete()({ nodes: [flowNode("prep")], edges: [] });
     });
+    expect(confirmSpy).not.toHaveBeenCalled();
     const calls = onConfigChange.mock.calls;
     const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
     expect(next.nodes).not.toHaveProperty("prep");
     expect(next.ctx.preparedFile).toBeUndefined();
+    expect(orphanToastCalls()).toHaveLength(1);
   });
 
-  it("keyboard: a multi-node selection asks ONCE with counts spanning the whole selection", async () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
+  it("keyboard: a multi-node delete shows ONE toast, not one per node", async () => {
     renderCanvas(twoPairsConfig());
     await flushAnimationFrame();
-    await getOnBeforeDelete()({
-      nodes: [flowNode("prepA"), flowNode("prepB")],
-      edges: [],
+    act(() => {
+      getUnifiedOnDelete()({
+        nodes: [flowNode("prepA"), flowNode("prepB")],
+        edges: [],
+      });
     });
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(confirmSpy.mock.calls[0][0]).toBe(
-      "Deleting these 2 steps leaves 2 variables without a source; 2 steps read them. Continue?",
+    const toasts = orphanToastCalls();
+    expect(toasts).toHaveLength(1);
+    const body = renderToastBody(toasts[0]);
+    expect(body.container.textContent).toContain(
+      "Deleted 2 steps — 2 variables lost their source; 2 steps read them.",
     );
   });
 
   it("keyboard: a multi-node delete prunes every orphaned key in one pass", async () => {
-    vi.spyOn(window, "confirm").mockImplementation(() => true);
     const { onConfigChange } = renderCanvas(twoPairsConfig());
     await flushAnimationFrame();
     act(() => {
@@ -4847,18 +4864,16 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     expect(next.ctx.k2).toBeUndefined();
   });
 
-  it("keyboard: deleting a producer together with its only reader asks nothing", async () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
+  it("keyboard: deleting a producer together with its only reader says nothing", async () => {
     renderCanvas(producerConsumerConfig());
     await flushAnimationFrame();
-    const allowed = await getOnBeforeDelete()({
-      nodes: [flowNode("prep"), flowNode("ocr")],
-      edges: [],
+    act(() => {
+      getUnifiedOnDelete()({
+        nodes: [flowNode("prep"), flowNode("ocr")],
+        edges: [],
+      });
     });
-    expect(allowed).toBe(true);
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(orphanToastCalls()).toHaveLength(0);
   });
 
   it("keyboard: a mixed node+edge gesture still sees the real readers", async () => {
@@ -4866,14 +4881,8 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     // `removeNodesFromConfig` receives the un-stripped config. Consumer
     // detection reads port bindings and conditions — never edges — so it is
     // unaffected either way; this pins both facts.
-    vi.spyOn(window, "confirm").mockImplementation(() => true);
     const { onConfigChange } = renderCanvas(producerConsumerConfig());
     await flushAnimationFrame();
-    const allowed = await getOnBeforeDelete()({
-      nodes: [flowNode("prep")],
-      edges: [{ id: "e1", source: "prep", target: "ocr" } as unknown as Edge],
-    });
-    expect(allowed).toBe(true);
     act(() => {
       getUnifiedOnDelete()({
         nodes: [flowNode("prep")],
@@ -4885,16 +4894,15 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     expect(next.nodes).not.toHaveProperty("prep");
     expect(next.ctx.preparedFile).toBeUndefined();
     expect(next.edges).toHaveLength(0);
+    expect(orphanToastCalls()).toHaveLength(1);
   });
 
-  it("keyboard: an edges-only gesture never asks", async () => {
-    const confirmSpy = vi
-      .spyOn(window, "confirm")
-      .mockImplementation(() => true);
+  it("keyboard: an edges-only gesture never toasts", async () => {
     renderCanvas(producerConsumerConfig());
     await flushAnimationFrame();
-    const allowed = await getOnBeforeDelete()({ nodes: [], edges: [] });
-    expect(allowed).toBe(true);
-    expect(confirmSpy).not.toHaveBeenCalled();
+    act(() => {
+      getUnifiedOnDelete()({ nodes: [], edges: [] });
+    });
+    expect(orphanToastCalls()).toHaveLength(0);
   });
 });

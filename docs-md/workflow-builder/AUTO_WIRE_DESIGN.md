@@ -114,23 +114,35 @@ The only point at which "this key just lost its source" is knowable is the delet
 - `findOrphanedCtxKeys(config, removedNodeIds)` — the ctx keys the removed nodes are the **sole** writer of that at least one **surviving** node still reads. Producers come from `collectCtxWriters` (the same enumeration §2.3a answers from, so the two can never disagree); readers are `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and the refs inside `switch` / `pollUntil` conditions. A key nothing reads is **not** reported — deleting a leaf whose output nobody uses is an ordinary edit and must stay silent.
 - `pruneCtxDeclarations(config, ctxKeys)` — drops those declarations. Never drops one marked `isInput`, and never drops one another node still writes.
 
-**Where each piece lives.** The prune is **unconditional and inside `removeNodesFromConfig`** ([canvas/remove-nodes.ts](../../apps/frontend/src/features/workflow-builder/canvas/remove-nodes.ts)) — the choke point every delete path funnels through, so no future path can forget it. The *confirmation* stays at each entry point, all three calling one shared `confirmOrphanedDelete`:
+**Where each piece lives.** The prune is **unconditional and inside `removeNodesFromConfig`** ([canvas/remove-nodes.ts](../../apps/frontend/src/features/workflow-builder/canvas/remove-nodes.ts)) — the choke point every delete path funnels through, so no future path can forget it. The *reporting* stays at each entry point, all three calling one shared `showOrphanedDeleteToast` ([delete-orphan-toast.tsx](../../apps/frontend/src/features/workflow-builder/delete-orphan-toast.tsx)), whose copy comes from `describeOrphanedDelete`:
 
-| Entry point | Guard |
+| Entry point | Reporting |
 |---|---|
-| Settings-panel trash (`deleteSelected`) | `confirmOrphanedDelete` → early return on cancel |
-| Canvas context menu (`handleNodesDelete`) | same; the menu drives our own callback, not xyflow's store, so an early return leaves the canvas untouched |
-| Keyboard / multi-select (`onDelete` → `handleDelete`) | **`onBeforeDelete`**, not `handleDelete` |
+| Settings-panel trash (`deleteSelected`) | delete → prune → toast with Undo |
+| Canvas context menu (`handleNodesDelete`) | same |
+| Keyboard / multi-select (`onDelete` → `handleDelete`) | same; **one** toast per gesture, whatever the selection size |
 
-That last row matters. By the time xyflow fires `onDelete` it has **already** removed the elements from its internal store, and the config→canvas projection is fingerprint-gated on `config` — so a cancel that merely skipped `onConfigChange` would leave the nodes visually gone while still present in the config. `onBeforeDelete` vetoes before the store is touched, making a cancel a true no-op. It also fires **once per gesture with the whole selection**, so a three-node delete asks one question whose counts span all three (`findOrphanedCtxKeys` takes a set for exactly this reason).
+The delete is described against the **pre-delete** config — "which keys lose their sole writer" is only answerable while the writers are still there — and the counts roll up across every removed node (`findOrphanedCtxKeys` takes a set for exactly this reason), so a three-node delete reports once rather than three times. The toast carries a fixed id, so a rapid second delete replaces the first rather than leaving a stale Undo link pointing at a superseded history step.
 
 `handleDelete` removes nodes first and strips edges in a later pass, so `removeNodesFromConfig` sees the un-stripped config; consumer detection reads port bindings, `map.collectionCtxKey`, childWorkflow input mappings and condition refs — **never edges** — so it is unaffected either way.
 
 The prune is what makes the consequence chain fire: declaration gone → the key has neither producer nor declaration → §2.3a returns `null` → the badge, the drawer and the settings row all report it.
 
-**The warning fires for resolver-made connections too**, not just hand-authored ones — if the resolver wired a consumer to the producer's key, deleting the producer breaks it identically, so the signal must be identical. Narrowing it to "author-made only" would recreate exactly the blind spot this section exists to remove: a distinction the user cannot see, used to decide whether to warn them.
+**The report fires for resolver-made connections too**, not just hand-authored ones — if the resolver wired a consumer to the producer's key, deleting the producer breaks it identically, so the signal must be identical. Narrowing it to "author-made only" would recreate exactly the blind spot this section exists to remove: a distinction the user cannot see, used to decide whether to tell them.
 
-**The blocking confirm is a stopgap for missing undo.** There is no history stack (G-003), so a modal question is the only safety net available. That is why the guard is more intrusive than it should be. **When G-003 lands, revisit this as: delete silently, prune, and show a non-blocking toast naming what broke, with an Undo action** — no dialog at all. Tracked as a dependent item on the G-003 work.
+#### The confirm-era design is gone
+
+*Superseded 2026-07-25 by G-003.*
+
+Between 2026-07-25 and G-003 landing, all three entry points put a blocking `window.confirm` in front of the author — `confirmOrphanedDelete`, with an early return on cancel — and the keyboard path additionally registered an **`onBeforeDelete`** veto. That veto existed for one reason: by the time xyflow fires `onDelete` it has **already** removed the elements from its internal store, and the config→canvas projection is fingerprint-gated on `config`, so a cancel that merely skipped `onConfigChange` would have left the nodes visually gone while still present in the config. `onBeforeDelete` vetoed before the store was touched, making a cancel a true no-op.
+
+That whole apparatus was explicitly a stopgap for the absence of an undo stack. With [G-003](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md) shipped, a delete is reversible, so:
+
+- `confirmOrphanedDelete` is deleted. Nothing blocks; the delete happens immediately.
+- `onBeforeDelete` is **removed entirely**. With no cancellation there is nothing to veto, and xyflow's default ("always allow") is correct. Leaving a veto in place would be dead weight on the one hook that can silently swallow a delete.
+- `describeOrphanedDelete`'s copy moved to the **past tense** (`Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.`) because it is now reported after the fact.
+
+Undo restores the pruned `config.ctx` declarations along with the node, because the history stack snapshots whole configs rather than diffing fields — pinned by a test, since a partial restore would swap one silent-data-loss bug for another.
 
 **Remaining gap.** `deleteKey` in `WorkflowSettingsDrawer` deletes a ctx declaration *directly*, from a bare trash icon, with no usage count and no reverse lookup — while its sibling *rename* is backed by a full graph sweep. Same class of problem, different surface, different fix.
 

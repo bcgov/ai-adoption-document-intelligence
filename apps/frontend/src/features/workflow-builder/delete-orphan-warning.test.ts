@@ -58,7 +58,7 @@ describe("describeOrphanedDelete", () => {
   it("names the deleted step and counts variables and readers", () => {
     const cfg = graph(["ocr"]);
     expect(describeOrphanedDelete(cfg, new Set(["prep"]))?.message).toBe(
-      'Deleting "Prepare File" leaves 1 variable without a source; 1 step reads it. Continue?',
+      'Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.',
     );
   });
 
@@ -78,7 +78,7 @@ describe("describeOrphanedDelete", () => {
       sizeBytes: { type: "number" },
     };
     expect(describeOrphanedDelete(cfg, new Set(["prep"]))?.message).toBe(
-      'Deleting "Prepare File" leaves 2 variables without a source; 3 steps read them. Continue?',
+      'Deleted "Prepare File" — 2 variables lost their source; 3 steps read them.',
     );
   });
 
@@ -101,18 +101,16 @@ describe("describeOrphanedDelete", () => {
       { k1: { type: "object" }, k2: { type: "number" } },
     );
     expect(describeOrphanedDelete(cfg, new Set(["prep"]))?.message).toBe(
-      'Deleting "Prepare File" leaves 2 variables without a source; 1 step reads them. Continue?',
+      'Deleted "Prepare File" — 2 variables lost their source; 1 step reads them.',
     );
   });
 
-  it("says 'these steps' rather than naming one when several nodes are deleted", () => {
+  it("says '2 steps' rather than naming one when several nodes are deleted", () => {
     const cfg = graph(["ocr"]);
     cfg.nodes.other = activity("other", "Other", "file.prepare");
     expect(
       describeOrphanedDelete(cfg, new Set(["prep", "other"]))?.message,
-    ).toBe(
-      "Deleting these 2 steps leaves 1 variable without a source; 1 step reads it. Continue?",
-    );
+    ).toBe("Deleted 2 steps — 1 variable lost its source; 1 step reads it.");
   });
 
   it("carries the ctx keys to prune", () => {
@@ -122,11 +120,11 @@ describe("describeOrphanedDelete", () => {
     ]);
   });
 
-  it("still warns for an auto key even though there is no declaration to prune", () => {
+  it("still reports an auto key even though there is no declaration to prune", () => {
     const cfg = graph(["ocr"], "__auto.prep.preparedData");
     cfg.ctx = {};
     const described = describeOrphanedDelete(cfg, new Set(["prep"]));
-    expect(described?.message).toContain("1 variable without a source");
+    expect(described?.message).toContain("1 variable lost its source");
     expect(described?.ctxKeys).toEqual(["__auto.prep.preparedData"]);
   });
 
@@ -134,7 +132,7 @@ describe("describeOrphanedDelete", () => {
     const cfg = graph(["ocr"]);
     cfg.nodes.prep = { ...cfg.nodes.prep, label: "" } as Nodes[string];
     expect(describeOrphanedDelete(cfg, new Set(["prep"]))?.message).toContain(
-      'Deleting "prep"',
+      'Deleted "prep"',
     );
   });
 });

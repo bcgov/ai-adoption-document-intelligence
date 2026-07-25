@@ -95,7 +95,7 @@ import {
 } from "./canvas/map-body-groups";
 import { removeNodesFromConfig } from "./canvas/remove-nodes";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
-import { confirmOrphanedDelete } from "./delete-orphan-warning";
+import { showOrphanedDeleteToast } from "./delete-orphan-toast";
 import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
 import {
   createGroupFromSelection,
@@ -799,14 +799,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     // G-002: deleting the sole writer of a ctx variable that other steps still
     // read is the one moment "this key lost its source" is knowable — after
     // the delete, a declared-but-unwritten key is indistinguishable from a
-    // workflow input. Ask first; the prune itself lives inside the shared
-    // `removeNodesFromConfig` so no delete path can forget it. There is no
-    // undo yet (G-003), which is exactly why this delete is guarded.
+    // workflow input. The prune lives inside the shared
+    // `removeNodesFromConfig` so no delete path can forget it; the toast names
+    // what broke. Described BEFORE the write, while the writers still exist.
     const removedIds = new Set([selectedNodeId]);
-    if (!confirmOrphanedDelete(config, removedIds)) return;
     setConfig((prev) => removeNodesFromConfig(prev, removedIds));
     setSelectedNodeId(null);
-  }, [config, selectedNodeId]);
+    showOrphanedDeleteToast(config, removedIds, undo);
+  }, [config, selectedNodeId, setConfig, undo]);
 
   const handleSave = useCallback(async () => {
     const cleanedName = name.trim() || "Untitled workflow";
@@ -1487,6 +1487,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
               layoutNonce={layoutNonce}
               onFixNodeInput={handleFixNodeInput}
               highlightedNodeId={highlightedNodeId}
+              onUndo={undo}
             />
           </Box>
           <NodeSettingsPanel
