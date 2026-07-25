@@ -35,7 +35,7 @@ This document describes the durable audit table used to record **workflow runs**
 
 | event_type             | When | resource_type  | resource_id              | Payload / notes                    |
 |------------------------|------|----------------|--------------------------|------------------------------------|
-| `workflow_run_started`  | Backend starts graph workflow for a document | workflow_run | workflow_execution_id | workflow_config_id, request_id     |
+| `workflow_run_started`  | Backend starts graph workflow for a document (`OcrService.processDocument`, and the source upload-and-Try endpoint `POST /workflows/:id/sources/:sourceNodeId/upload`) | workflow_run | workflow_execution_id | workflow_config_id, request_id; upload-and-Try also records `source_node_id` and `trigger` |
 
 ### HITL events
 
@@ -46,7 +46,7 @@ This document describes the durable audit table used to record **workflow runs**
 | `review_session_approved`      | Session status → approved | review_session | session.id | document_id             |
 | `review_session_escalated`     | Session status → escalated | review_session | session.id | document_id, reason     |
 | `review_session_skipped`       | Session status → skipped | review_session | session.id | document_id             |
-| `human_approval_signal_sent`   | Backend sends humanApproval signal to Temporal | workflow_run | workflow_execution_id | approved, reviewer     |
+| `human_approval_signal_sent`   | Backend sends humanApproval signal to Temporal. Emitted by `POST /documents/:id/approve` and by `HitlService.approveSession` (approving in the review queue resumes the waiting run). Recorded only when the signal actually landed — a failed signal is logged, not audited as sent. | workflow_run | workflow_execution_id | approved, reviewer; from the review queue also `review_session_id` |
 
 ### Document access
 

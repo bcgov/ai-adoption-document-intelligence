@@ -177,6 +177,39 @@ describe("DocumentService", () => {
       expect(writeOrder).toEqual(["original", "normalized"]);
     });
 
+    // G-020: creation genuinely has no run yet — the run id is stamped on
+    // later, at run-start. Upload must NOT invent one.
+    it("leaves workflow_execution_id null when no run was started (G-020)", async () => {
+      const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
+      const base64 = pdfBytes.toString("base64");
+      (documentDbService.createDocument as jest.Mock).mockImplementation(
+        async (doc: Record<string, unknown>) => ({
+          ...doc,
+          created_at: new Date(),
+          updated_at: new Date(),
+        }),
+      );
+
+      await service.uploadDocument(
+        "Test",
+        base64,
+        "pdf",
+        "file.pdf",
+        "test-model-id",
+        "group-1",
+        {},
+        "wf-config-1",
+      );
+
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflow_config_id: "wf-config-1",
+          workflow_execution_id: null,
+        }),
+      );
+      expect(documentDbService.updateDocument).not.toHaveBeenCalled();
+    });
+
     it("starts PDF normalization before the original blob write finishes", async () => {
       const pdfBytes = Buffer.from("%PDF-1.4\n%\xe2\xe3\xcf\xd3\n");
       const base64 = pdfBytes.toString("base64");

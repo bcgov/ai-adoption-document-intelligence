@@ -5,6 +5,7 @@ import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
 import * as request from "supertest";
 import { z } from "zod/v4";
+import { AuditService } from "@/audit/audit.service";
 import { ActivityOutputCacheRepository } from "@/cache/activity-output-cache.repository";
 import { DocumentDbService } from "@/document/document-db.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -104,6 +105,7 @@ describe("WorkflowController", () => {
   let sourceUploadService: jest.Mocked<SourceUploadService>;
   let activityOutputCache: jest.Mocked<ActivityOutputCacheRepository>;
   let documentDbService: jest.Mocked<DocumentDbService>;
+  let auditService: jest.Mocked<AuditService>;
 
   beforeEach(async () => {
     workflowService = {
@@ -152,7 +154,12 @@ describe("WorkflowController", () => {
 
     documentDbService = {
       createDocument: jest.fn().mockResolvedValue({ id: "doc-created-1" }),
+      updateDocument: jest.fn().mockResolvedValue({ id: "doc-created-1" }),
     } as unknown as jest.Mocked<DocumentDbService>;
+
+    auditService = {
+      recordEvent: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<AuditService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
@@ -180,6 +187,10 @@ describe("WorkflowController", () => {
         {
           provide: DocumentDbService,
           useValue: documentDbService,
+        },
+        {
+          provide: AuditService,
+          useValue: auditService,
         },
       ],
     }).compile();
@@ -1698,6 +1709,57 @@ describe("WorkflowController", () => {
         "group-1",
         "wf-1",
         "upload",
+      );
+    });
+
+    // -------------------------------------------------------------------
+    // G-020: the run id must land on the document, or human review can
+    // never signal the run back to life.
+    // -------------------------------------------------------------------
+    it("persists the workflow execution id when a run starts for a document (G-020)", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      const wf: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        config: {
+          ...mockGraphConfig,
+          nodes: {
+            ...mockGraphConfig.nodes,
+            upload: {
+              id: "upload",
+              type: "source",
+              label: "Upload",
+              sourceType: "source.upload",
+              parameters: { ctxKey: "myFile" },
+            },
+          },
+        },
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(wf);
+      sourceUploadService.uploadFileForSource.mockResolvedValue(
+        "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("run-abc-123");
+
+      await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
+
+      // Created with a null run id (there is no run yet at creation time)…
+      expect(documentDbService.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({ workflow_execution_id: null }),
+      );
+      // …then stamped with the real run id once the run exists.
+      expect(documentDbService.updateDocument).toHaveBeenCalledWith(
+        "doc-created-1",
+        { workflow_execution_id: "run-abc-123" },
+      );
+      expect(auditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_run_started",
+          resource_type: "workflow_run",
+          resource_id: "run-abc-123",
+          document_id: "doc-created-1",
+          workflow_execution_id: "run-abc-123",
+          group_id: "group-1",
+        }),
       );
     });
 
@@ -3764,6 +3826,9 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
       const { DocumentDbService: FreshDocumentDbService } = await import(
         "@/document/document-db.service"
       );
+      const { AuditService: FreshAuditService } = await import(
+        "@/audit/audit.service"
+      );
 
       const uploadSpy = jest.fn();
       const moduleRef = await Test.createTestingModule({
@@ -3786,7 +3851,11 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
           { provide: FreshActivityOutputCacheRepo, useValue: {} },
           {
             provide: FreshDocumentDbService,
-            useValue: { createDocument: jest.fn() },
+            useValue: { createDocument: jest.fn(), updateDocument: jest.fn() },
+          },
+          {
+            provide: FreshAuditService,
+            useValue: { recordEvent: jest.fn() },
           },
         ],
       }).compile();

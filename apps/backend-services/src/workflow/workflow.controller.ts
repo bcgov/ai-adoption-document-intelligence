@@ -43,6 +43,7 @@ import {
 } from "@nestjs/swagger";
 import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
+import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
 import {
   getIdentityGroupIds,
@@ -238,6 +239,7 @@ export class WorkflowController {
     private readonly sourceUploadService: SourceUploadService,
     private readonly activityOutputCache: ActivityOutputCacheRepository,
     private readonly documentDbService: DocumentDbService,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get()
@@ -751,6 +753,31 @@ export class WorkflowController {
       // disposable and the next Try may cancel it.
       "try",
     );
+
+    // G-020: stamp the run id onto the document now that a run exists.
+    // Creation (above) legitimately has none — but without this write the
+    // document never learns which execution is waiting on it, so a human
+    // gate in this workflow can never be signalled back to life from the
+    // review queue (`HitlService.approveSession` /
+    // `DocumentController.approveDocument` both read this column).
+    await this.documentDbService.updateDocument(document.id, {
+      workflow_execution_id: runId,
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_run_started",
+      resource_type: "workflow_run",
+      resource_id: runId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: document.id,
+      workflow_execution_id: runId,
+      group_id: wf.groupId,
+      payload: {
+        workflow_config_id: wf.workflowVersionId,
+        source_node_id: sourceNodeId,
+        trigger: "try",
+      },
+    });
 
     this.logger.log(
       `Source upload-and-Try started run ${runId} (workflow=${workflowId}, version=${wf.workflowVersionId}, documentId=${document.id})`,

@@ -16,7 +16,9 @@ import {
 } from "@nestjs/common";
 import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -71,6 +73,8 @@ export class HitlService {
     private readonly analyticsService: AnalyticsService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly prisma: PrismaService,
+    private readonly temporalClient: TemporalClientService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -398,22 +402,35 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    const updated = await this.reviewDb.updateReviewSession(sessionId, {
-      status: ReviewStatus.approved,
-      completed_at: new Date(),
+    // The session transition, the document transition and the lock release
+    // must all land or none of them: a session marked `approved` whose
+    // document is still `awaiting_review` (or whose lock is still held)
+    // strands the document. One transaction, per CLAUDE.md.
+    const updated = await this.prisma.transaction(async (tx) => {
+      const session_ = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.approved,
+          completed_at: new Date(),
+        },
+        tx,
+      );
+      if (!session_) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      // Transition document to 'complete' status after HITL approval
+      await this.documentService.updateDocument(
+        session.document_id,
+        { status: DocumentStatus.complete },
+        tx,
+      );
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+      return session_;
     });
 
-    // Transition document to 'complete' status after HITL approval
-    await this.documentService.updateDocument(session.document_id, {
-      status: DocumentStatus.complete,
-    });
-
-    await this.reviewDb.releaseDocumentLock(sessionId);
-
-    const doc = session.document as {
-      group_id?: string;
-      workflow_execution_id?: string;
-    };
+    const doc = session.document;
     await this.auditService.recordEvent({
       event_type: "review_session_approved",
       resource_type: "review_session",
@@ -424,9 +441,10 @@ export class HitlService {
       payload: { document_id: session.document_id },
     });
 
-    if (!updated) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
+    // G-020: the whole point of a human gate is that the run resumes when a
+    // human decides. Signalling is an external call, so it happens AFTER the
+    // commit above and can never roll the approval back.
+    await this.signalHumanApproval(session);
 
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
     // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
@@ -458,6 +476,65 @@ export class HitlService {
       completedAt: updated.completed_at,
       message: "Review session approved",
     };
+  }
+
+  /**
+   * Resume the Temporal run waiting on this document's human gate (G-020).
+   *
+   * Sends the same `humanApproval` signal — and the same payload shape — that
+   * `DocumentController.approveDocument` sends, so a gate sees one consistent
+   * body no matter which surface the reviewer used.
+   *
+   * Deliberately non-fatal in both failure modes:
+   *  - **No run id.** The document was never processed by a graph workflow
+   *    (a plain OCR upload, a seeded document). There is nothing to resume.
+   *  - **The run is gone.** It may have timed out, been cancelled or already
+   *    completed before the reviewer got to it. The reviewer's decision is
+   *    the record of truth; a dead workflow is a logging concern, not grounds
+   *    for rejecting the approval (which has already been committed).
+   *
+   * MUST be called after the approval transaction commits — Temporal is an
+   * external call and must never sit inside a Prisma transaction.
+   */
+  private async signalHumanApproval(session: ReviewSessionData): Promise<void> {
+    const doc = session.document;
+    // Mirrors DocumentController.approveDocument: prefer the Temporal
+    // execution id, fall back to the legacy workflow_id column.
+    const workflowId = doc.workflow_execution_id || doc.workflow_id;
+    if (!workflowId) {
+      this.logger.debug(
+        `Review session ${session.id} approved; document ${session.document_id} has no workflow execution id, nothing to resume`,
+      );
+      return;
+    }
+
+    const reviewer = session.actor_id ?? undefined;
+    try {
+      await this.temporalClient.sendHumanApproval(workflowId, {
+        approved: true,
+        reviewer,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Human approval signal to workflow ${workflowId} failed; approval for session ${session.id} stands: ${getErrorMessage(error)}`,
+      );
+      return;
+    }
+
+    await this.auditService.recordEvent({
+      event_type: "human_approval_signal_sent",
+      resource_type: "workflow_run",
+      resource_id: workflowId,
+      actor_id: reviewer,
+      document_id: session.document_id,
+      workflow_execution_id: workflowId,
+      group_id: doc.group_id ?? undefined,
+      payload: {
+        approved: true,
+        reviewer,
+        review_session_id: session.id,
+      },
+    });
   }
 
   async escalateSession(sessionId: string, dto: EscalateDto) {

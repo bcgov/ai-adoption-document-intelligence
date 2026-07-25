@@ -10,7 +10,9 @@ import {
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { AnalyticsService } from "./analytics.service";
@@ -33,6 +35,10 @@ describe("HitlService", () => {
   let mockDocumentService: jest.Mocked<DocumentService>;
   let mockReviewDbService: jest.Mocked<ReviewDbService>;
   let mockAnalyticsService: jest.Mocked<AnalyticsService>;
+  let mockTemporalClient: jest.Mocked<TemporalClientService>;
+  let mockAuditService: jest.Mocked<AuditService>;
+  /** Sentinel handed to db-services inside `prisma.transaction`. */
+  const fakeTx = { __tx: true } as never;
 
   const mockDocument = {
     id: "doc-1",
@@ -158,6 +164,20 @@ describe("HitlService", () => {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(
+              (fn: (tx: never) => Promise<unknown>) => fn(fakeTx) as unknown,
+            ),
+          },
+        },
+        {
+          provide: TemporalClientService,
+          useValue: {
+            sendHumanApproval: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -165,6 +185,8 @@ describe("HitlService", () => {
     mockDocumentService = module.get(DocumentService);
     mockReviewDbService = module.get(ReviewDbService);
     mockAnalyticsService = module.get(AnalyticsService);
+    mockTemporalClient = module.get(TemporalClientService);
+    mockAuditService = module.get(AuditService);
   });
 
   describe("getQueue", () => {
@@ -714,15 +736,25 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
+      // The session update, document transition and lock release run inside
+      // one Prisma transaction (CLAUDE.md: 2+ writes that must stay
+      // consistent), so each db-service call carries the same `tx`.
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
           status: ReviewStatus.approved,
           completed_at: expect.any(Date),
         },
+        fakeTx,
+      );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.complete },
+        fakeTx,
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        fakeTx,
       );
 
       expect(result).toEqual({
@@ -741,6 +773,170 @@ describe("HitlService", () => {
       );
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------
+    // G-020: approving must resume the workflow waiting on the gate.
+    // -----------------------------------------------------------------
+    /** A session whose document carries a real Temporal run id. */
+    const sessionWithRun = (overrides: Record<string, unknown> = {}) => ({
+      ...mockReviewSession,
+      document: {
+        ...mockDocumentWithOcr,
+        workflow_execution_id: "wf-run-1",
+        ...overrides,
+      },
+    });
+
+    it("sends a humanApproval signal when a review session is approved", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun() as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as any);
+
+      await service.approveSession("session-1");
+
+      expect(mockTemporalClient.sendHumanApproval).toHaveBeenCalledWith(
+        "wf-run-1",
+        { approved: true, reviewer: "reviewer-1" },
+      );
+    });
+
+    it("signals only after the approval has been committed", async () => {
+      const order: string[] = [];
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun() as any,
+      );
+      mockReviewDbService.updateReviewSession.mockImplementationOnce(
+        async () => {
+          order.push("commit");
+          return {
+            ...mockReviewSession,
+            status: ReviewStatus.approved,
+            completed_at: new Date(),
+          } as any;
+        },
+      );
+      mockTemporalClient.sendHumanApproval.mockImplementationOnce(async () => {
+        order.push("signal");
+      });
+
+      await service.approveSession("session-1");
+
+      // The signal is an external call — it must never sit inside the tx.
+      expect(order).toEqual(["commit", "signal"]);
+    });
+
+    it("falls back to the legacy workflow_id when no execution id was stored", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun({
+          workflow_execution_id: null,
+          workflow_id: "legacy-run-9",
+        }) as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+
+      await service.approveSession("session-1");
+
+      expect(mockTemporalClient.sendHumanApproval).toHaveBeenCalledWith(
+        "legacy-run-9",
+        expect.objectContaining({ approved: true }),
+      );
+    });
+
+    it("does not fail the approval when the workflow is already gone", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun() as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+        completed_at: new Date(),
+      } as any);
+      mockTemporalClient.sendHumanApproval.mockRejectedValueOnce(
+        new Error("workflow execution already completed"),
+      );
+
+      // The reviewer's decision is the record of truth: a dead run is a
+      // logging concern, not grounds for rejecting the approval.
+      const result = await service.approveSession("session-1");
+
+      expect(result.status).toBe(ReviewStatus.approved);
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.complete },
+        fakeTx,
+      );
+    });
+
+    it("approves without signalling when the document has no run id at all", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun({
+          workflow_execution_id: null,
+          workflow_id: null,
+        }) as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+
+      const result = await service.approveSession("session-1");
+
+      expect(result.status).toBe(ReviewStatus.approved);
+      expect(mockTemporalClient.sendHumanApproval).not.toHaveBeenCalled();
+    });
+
+    it("records an audit event for the signal", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun() as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+
+      await service.approveSession("session-1");
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "human_approval_signal_sent",
+          resource_type: "workflow_run",
+          resource_id: "wf-run-1",
+          actor_id: "reviewer-1",
+          document_id: "doc-1",
+          workflow_execution_id: "wf-run-1",
+          group_id: "group-1",
+        }),
+      );
+    });
+
+    it("does not record a signal-sent audit event when the signal failed", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithRun() as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+      mockTemporalClient.sendHumanApproval.mockRejectedValueOnce(
+        new Error("not found"),
+      );
+
+      await service.approveSession("session-1");
+
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "human_approval_signal_sent",
+        }),
+      );
     });
   });
 
