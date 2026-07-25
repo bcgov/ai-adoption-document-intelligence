@@ -6,6 +6,8 @@
 import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
+  JoinNode,
+  MapNode,
   PollUntilNode,
   SourceNode,
   SwitchNode,
@@ -194,6 +196,25 @@ describe("estimateNodeWidth — per-type card footprint (map-body box enclosure)
     // Unknown id falls back to the compact control-flow width.
     expect(estimateNodeWidth(cfg, "missing")).toBe(CONTROL_FLOW_NODE_WIDTH);
   });
+
+  it("returns the wide activity width for a pollUntil that renders port rows (G-016)", () => {
+    const cfg = config({
+      nodes: {
+        P: node<PollUntilNode>({
+          id: "P",
+          type: "pollUntil",
+          activityType: "azureOcr.submit",
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: true },
+          },
+          interval: "30s",
+        }),
+      },
+    });
+    expect(estimateNodeWidth(cfg, "P")).toBe(ACTIVITY_NODE_WIDTH);
+  });
 });
 
 describe("computePortRows — Scenario 6: optional unbound input", () => {
@@ -220,7 +241,7 @@ describe("computePortRows — Scenario 6: optional unbound input", () => {
 });
 
 describe("estimateNodeHeight — per-type routing (calibrated heights)", () => {
-  it("sizes pollUntil as a control-flow rectangle, NOT by its catalog rows", () => {
+  it("sizes a pollUntil card from its port rows, not as a rectangle (G-016)", () => {
     const cfg = config({
       nodes: {
         P: node<PollUntilNode>({
@@ -237,10 +258,63 @@ describe("estimateNodeHeight — per-type routing (calibrated heights)", () => {
       },
     });
 
-    // azureOcr.submit resolves catalog rows, but the canvas renders
-    // pollUntil as the control-flow rectangle without them (measured
-    // 178px; constant is the 180px switch-diamond max).
+    // G-016: pollUntil wraps a real activity and now renders `<PortRows>`
+    // on the control-flow rectangle chrome, so its height must scale with
+    // the taller side's row count exactly as an activity card's does.
+    // azureOcr.submit declares 1 input + 3 outputs → 3 rows.
+    expect(estimateNodeHeight(cfg, "P")).toBe(
+      CONTROL_FLOW_NODE_HEIGHT + PORT_ROWS_TOP_MARGIN + 3 * PORT_ROW_HEIGHT,
+    );
+  });
+
+  it("still renders switch/map/join as control-flow rectangles", () => {
+    const cfg = config({
+      nodes: {
+        S: node<SwitchNode>({ id: "S", type: "switch", cases: [] }),
+        M: node<MapNode>({
+          id: "M",
+          type: "map",
+          collectionCtxKey: "items",
+          itemCtxKey: "item",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        }),
+        J: node<JoinNode>({
+          id: "J",
+          type: "join",
+          sourceMapNodeId: "M",
+          strategy: "all",
+          resultsCtxKey: "results",
+        }),
+      },
+    });
+
+    for (const id of ["S", "M", "J"]) {
+      expect(estimateNodeHeight(cfg, id)).toBe(CONTROL_FLOW_NODE_HEIGHT);
+      expect(estimateNodeWidth(cfg, id)).toBe(CONTROL_FLOW_NODE_WIDTH);
+    }
+  });
+
+  it("sizes a catalog-less pollUntil at the bare control-flow height", () => {
+    const cfg = config({
+      nodes: {
+        P: node<PollUntilNode>({
+          id: "P",
+          type: "pollUntil",
+          activityType: "dyn.gone",
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: true },
+          },
+          interval: "30s",
+        }),
+      },
+    });
+
     expect(estimateNodeHeight(cfg, "P")).toBe(CONTROL_FLOW_NODE_HEIGHT);
+    // No rows → the card stays rectangle-narrow.
+    expect(estimateNodeWidth(cfg, "P")).toBe(CONTROL_FLOW_NODE_WIDTH);
   });
 
   it("sizes source nodes with the slimmer source-card height", () => {
@@ -325,10 +399,9 @@ describe("rendersPerPortHandle — per-port handle mount predicate", () => {
     expect(rendersPerPortHandle(cfg, "D", "payload", "input")).toBe(false);
   });
 
-  it("is false for non-activity nodes, including catalog-backed pollUntil", () => {
+  it("renders per-port handles for a pollUntil node (G-016)", () => {
     const cfg = config({
       nodes: {
-        S: node<SwitchNode>({ id: "S", type: "switch", cases: [] }),
         P: node<PollUntilNode>({
           id: "P",
           type: "pollUntil",
@@ -343,10 +416,39 @@ describe("rendersPerPortHandle — per-port handle mount predicate", () => {
       },
     });
 
+    // G-016: a pollUntil wraps a real catalog activity, so the same
+    // catalog-declared ports the settings panel and the problems badge
+    // already show must mount a draggable handle on the canvas.
+    expect(rendersPerPortHandle(cfg, "P", "fileData", "input")).toBe(true);
+    expect(rendersPerPortHandle(cfg, "P", "apimRequestId", "output")).toBe(
+      true,
+    );
+    // Same guards as an activity: wrong side and undeclared ports stay false.
+    expect(rendersPerPortHandle(cfg, "P", "fileData", "output")).toBe(false);
+    expect(rendersPerPortHandle(cfg, "P", "legacyPort", "input")).toBe(false);
+  });
+
+  it("is false for control-flow nodes with no wrapped activity", () => {
+    const cfg = config({
+      nodes: {
+        S: node<SwitchNode>({ id: "S", type: "switch", cases: [] }),
+        P: node<PollUntilNode>({
+          id: "P",
+          type: "pollUntil",
+          activityType: "dyn.gone",
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.x" },
+            right: { literal: true },
+          },
+          interval: "30s",
+        }),
+      },
+    });
+
     expect(rendersPerPortHandle(cfg, "S", "anything", "input")).toBe(false);
-    // pollUntil resolves a catalog entry inside computePortRows, but the
-    // canvas renders it as a control-flow rectangle WITHOUT port rows —
-    // the predicate must mirror the render condition, not the catalog.
+    // A pollUntil whose wrapped type resolves no catalog entry mounts no
+    // rows, exactly like a `dyn.*` activity.
     expect(rendersPerPortHandle(cfg, "P", "fileData", "input")).toBe(false);
     expect(rendersPerPortHandle(cfg, "missing", "fileData", "input")).toBe(
       false,

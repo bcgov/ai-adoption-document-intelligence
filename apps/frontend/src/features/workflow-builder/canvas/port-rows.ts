@@ -11,7 +11,7 @@
  * `DerivedWire[]`.
  */
 import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
-import type { GraphWorkflowConfig } from "../../../types/workflow";
+import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
 import type { DataWire, DerivedWire } from "./derive-wires";
 
 /**
@@ -38,9 +38,11 @@ export const PORT_ROW_HEIGHT = 22;
 /** Row-less activity card: pill + label + 120px preview widget + padding. */
 export const ACTIVITY_BASE_HEIGHT = 177;
 /**
- * Control-flow rectangles/diamonds render WITHOUT port rows regardless of
- * catalog entries: map/join/childWorkflow/pollUntil/humanGate measure
- * 178px, the switch diamond 180×180 — one constant at the max.
+ * Control-flow rectangles/diamonds render WITHOUT port rows: map / join /
+ * childWorkflow / humanGate measure 178px, the switch diamond 180×180 —
+ * one constant at the max. `pollUntil` uses this as its BASE and adds row
+ * height on top (G-016): it wraps a real catalog activity, so its card
+ * renders the same `<PortRows>` grid an activity card does.
  */
 export const CONTROL_FLOW_NODE_HEIGHT = 180;
 /** Source cards (e.g. `source.upload`) render a slimmer fixed card: 165px. */
@@ -111,13 +113,13 @@ function isDataWire(wire: DerivedWire): wire is DataWire {
  * per-lineage runtime schema rather than the static catalog) falls into
  * the "no catalog entry" branch and returns empty rows.
  *
- * Note the canvas projection currently renders rows for `activity` nodes
- * only — `pollUntil` nodes render through the control-flow rectangle with
- * no port rows in the render-only slice, and `estimateNodeHeight`
- * accordingly sizes them with `CONTROL_FLOW_NODE_HEIGHT`, not by row
- * count. The `pollUntil` branch below just keeps the catalog lookup
- * uniform across catalog-backed node types; no current caller consumes
- * `pollUntil` rows.
+ * The canvas renders rows for the two catalog-backed node types:
+ * `activity` and `pollUntil`. A `pollUntil` wraps a real activity, so it
+ * keeps the control-flow rectangle chrome (type icon, accent) AND mounts
+ * the same `<PortRows>` grid — `rendersPerPortHandle` and
+ * `estimateNodeHeight` both follow (G-016). Before that fix its inputs
+ * appeared in the settings panel and the problems badge with nothing on
+ * the canvas to drag to.
  */
 export function computePortRows(
   config: GraphWorkflowConfig,
@@ -182,13 +184,13 @@ export function computePortRows(
 
 /**
  * True when the canvas actually mounts a per-port ReactFlow handle
- * (`in-<port>` / `out-<port>`) for this node+port — i.e. the node is an
- * `activity` node (the ONLY type the canvas renders `<PortRows>` for;
- * `pollUntil` resolves a catalog entry but renders the control-flow
- * rectangle without rows) AND `computePortRows` emits a row with that
- * port name on that side. Nodes without a static catalog entry (`dyn.*`
- * activity types, deleted entries) and stale bindings to ports the
- * current entry doesn't declare both return `false`.
+ * (`in-<port>` / `out-<port>`) for this node+port — i.e. the node is one
+ * of the two types the canvas renders `<PortRows>` for (`activity` and
+ * `pollUntil`, the catalog-backed types) AND `computePortRows` emits a
+ * row with that port name on that side. Nodes without a static catalog
+ * entry (`dyn.*` activity types, deleted entries, a `pollUntil` whose
+ * wrapped type is gone) and stale bindings to ports the current entry
+ * doesn't declare both return `false`.
  *
  * The wire→edge projection MUST anchor per-port only under this
  * predicate — targeting a handle id that never mounts makes xyflow drop
@@ -203,10 +205,19 @@ export function rendersPerPortHandle(
   direction: "input" | "output",
 ): boolean {
   const node = config.nodes[nodeId];
-  if (!node || node.type !== "activity") return false;
+  if (!node || !rendersPortRows(node)) return false;
   const rows = computePortRows(config, nodeId, []);
   const side = direction === "input" ? rows.inputs : rows.outputs;
   return side.some((row) => row.name === portName);
+}
+
+/**
+ * The node types whose canvas card mounts a `<PortRows>` grid — the two
+ * catalog-backed types. Single predicate so the handle-mount check, the
+ * height estimate and the width estimate can't drift from each other.
+ */
+function rendersPortRows(node: GraphNode): boolean {
+  return node.type === "activity" || node.type === "pollUntil";
 }
 
 /**
@@ -218,12 +229,14 @@ export function rendersPerPortHandle(
  *     the card renders both columns in the same vertical run, so the
  *     shorter side just leaves blank space. Row-less activities (`dyn.*`,
  *     stale catalog entries) get the bare base.
+ *   - `pollUntil` (G-016): `CONTROL_FLOW_NODE_HEIGHT` — it keeps the
+ *     rectangle chrome — plus the same per-row scaling, because the card
+ *     mounts the wrapped activity's `<PortRows>` grid. A `pollUntil`
+ *     whose wrapped type resolves no catalog entry has no rows and gets
+ *     the bare rectangle height.
  *   - `source`: fixed `SOURCE_NODE_HEIGHT` card.
- *   - everything else (switch/map/join/childWorkflow/pollUntil/humanGate,
- *     and unknown node ids): `CONTROL_FLOW_NODE_HEIGHT`. Note `pollUntil`
- *     resolves a catalog entry in `computePortRows` but the canvas renders
- *     it as a control-flow rectangle WITHOUT rows, so its estimate must
- *     NOT scale with row count.
+ *   - everything else (switch/map/join/childWorkflow/humanGate, and
+ *     unknown node ids): `CONTROL_FLOW_NODE_HEIGHT`.
  *
  * Wires don't affect row count, so this passes an empty wire list to
  * `computePortRows` rather than requiring one from the caller.
@@ -233,29 +246,41 @@ export function estimateNodeHeight(
   nodeId: string,
 ): number {
   const node = config.nodes[nodeId];
-  if (!node || node.type !== "activity") {
+  if (!node || !rendersPortRows(node)) {
     return node?.type === "source"
       ? SOURCE_NODE_HEIGHT
       : CONTROL_FLOW_NODE_HEIGHT;
   }
+  const base =
+    node.type === "pollUntil" ? CONTROL_FLOW_NODE_HEIGHT : ACTIVITY_BASE_HEIGHT;
   const { inputs, outputs } = computePortRows(config, nodeId, []);
   const rows = Math.max(inputs.length, outputs.length);
-  if (rows === 0) return ACTIVITY_BASE_HEIGHT;
-  return ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
+  if (rows === 0) return base;
+  return base + PORT_ROWS_TOP_MARGIN + rows * PORT_ROW_HEIGHT;
 }
 
 /**
  * Estimated rendered WIDTH of a node's card, by type. Mirrors
  * `estimateNodeHeight`; used to enclose a map body's members in the container
- * box. Width is not row-count-dependent (rows add height, not width), so this
- * is a per-type lookup.
+ * box. Width is not row-count-dependent (rows add height, not width), but it
+ * IS row-PRESENCE-dependent: a card that mounts the `<PortRows>` grid renders
+ * to the wide activity footprint, which is why a `pollUntil` wrapping a live
+ * catalog activity measures wide and a row-less one stays rectangle-narrow
+ * (G-016).
  */
 export function estimateNodeWidth(
   config: GraphWorkflowConfig,
   nodeId: string,
 ): number {
   const node = config.nodes[nodeId];
-  if (node?.type === "activity") return ACTIVITY_NODE_WIDTH;
-  if (node?.type === "source") return SOURCE_NODE_WIDTH;
+  if (!node) return CONTROL_FLOW_NODE_WIDTH;
+  if (node.type === "activity") return ACTIVITY_NODE_WIDTH;
+  if (node.type === "source") return SOURCE_NODE_WIDTH;
+  if (node.type === "pollUntil") {
+    const { inputs, outputs } = computePortRows(config, nodeId, []);
+    return inputs.length > 0 || outputs.length > 0
+      ? ACTIVITY_NODE_WIDTH
+      : CONTROL_FLOW_NODE_WIDTH;
+  }
   return CONTROL_FLOW_NODE_WIDTH;
 }

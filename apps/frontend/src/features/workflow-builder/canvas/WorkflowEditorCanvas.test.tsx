@@ -666,6 +666,88 @@ describe("WorkflowEditorCanvas — Scenario 3: simple rectangles with type icon"
 });
 
 // ---------------------------------------------------------------------------
+// G-016: pollUntil keeps the activity affordances it wraps
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — G-016: pollUntil activity affordances", () => {
+  function configWithPollUntil(activityType: string): GraphWorkflowConfig {
+    const poll: PollUntilNode = {
+      id: "poll_1",
+      type: "pollUntil",
+      label: "Poll",
+      activityType,
+      condition: {
+        operator: "equals",
+        left: { ref: "ctx.x" },
+        right: { literal: "" },
+      },
+      interval: "30s",
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Test", version: "1.0.0" },
+      ctx: {},
+      nodes: { [poll.id]: poll },
+      edges: [],
+      entryNodeId: poll.id,
+    };
+  }
+
+  it("renders per-port handles for a pollUntil node", () => {
+    renderCanvas(configWithPollUntil("azureOcr.submit"));
+    const nodeEl = screen.getByTestId("canvas-node-poll_1");
+    // The card keeps the control-flow rectangle chrome…
+    expect(nodeEl).toHaveAttribute("data-shape", "rectangle");
+    expect(nodeEl).toHaveAttribute("data-node-type", "pollUntil");
+    // …but now mounts the wrapped activity's catalog port rows, each with
+    // its own draggable handle — the settings panel and the problems badge
+    // have always listed these inputs.
+    expect(screen.getByTestId("port-rows-poll_1")).not.toBeNull();
+    expect(
+      nodeEl.querySelector('[data-testid="port-row-poll_1-in-fileData"]'),
+    ).not.toBeNull();
+    expect(
+      nodeEl.querySelector('[data-testid="port-row-poll_1-out-apimRequestId"]'),
+    ).not.toBeNull();
+  });
+
+  it("degrades legibly when a pollUntil's wrapped activity is unregistered", () => {
+    renderCanvas(configWithPollUntil("azureOcr.gone"));
+    const nodeEl = screen.getByTestId("canvas-node-poll_1");
+    // Same treatment an `activity` node gets: the ❓ glyph, the
+    // "Unregistered activity." note, and the raw type string.
+    expect(nodeEl.textContent).toContain("❓");
+    expect(nodeEl.textContent).toContain("Unregistered activity.");
+    expect(nodeEl.textContent).toContain("azureOcr.gone");
+    // No catalog entry → no port rows to drag to.
+    expect(screen.queryByTestId("port-rows-poll_1")).toBeNull();
+  });
+
+  it("does not show the unregistered fallback for a registered wrapped activity", () => {
+    renderCanvas(configWithPollUntil("azureOcr.submit"));
+    const nodeEl = screen.getByTestId("canvas-node-poll_1");
+    expect(nodeEl.textContent).not.toContain("Unregistered activity.");
+  });
+
+  it("still renders switch/map/join as control-flow rectangles with no port rows", () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    expect(screen.getByTestId("canvas-node-switch_1")).toHaveAttribute(
+      "data-shape",
+      "diamond",
+    );
+    for (const id of ["map_1", "join_1", "child_1", "human_1"]) {
+      expect(screen.getByTestId(`canvas-node-${id}`)).toHaveAttribute(
+        "data-shape",
+        "rectangle",
+      );
+      expect(screen.queryByTestId(`port-rows-${id}`)).toBeNull();
+    }
+    expect(screen.queryByTestId("port-rows-switch_1")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Scenario 4: all control-flow nodes are selectable / draggable / connectable
 // ---------------------------------------------------------------------------
 
@@ -931,7 +1013,10 @@ describe("WorkflowEditorCanvas — US-024: error source handle", () => {
     };
     renderCanvas(next);
     const handles = collectHandles(nodeId);
-    const sources = handles.filter((h) => h.type === "source");
+    // NODE-LEVEL handles only — `pollUntil` now also mounts per-port row
+    // handles for the activity it wraps (G-016), exactly as an activity
+    // node does, and the Scenario 1/2 activity cases filter those out too.
+    const sources = handles.filter((h) => h.type === "source" && !h.perPort);
     expect(sources).toHaveLength(2);
     const sourceIds = sources.map((h) => h.handleId).sort();
     expect(sourceIds).toEqual(["error", "out"]);

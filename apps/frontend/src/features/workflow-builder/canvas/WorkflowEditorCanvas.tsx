@@ -316,12 +316,36 @@ interface ControlFlowNodeData extends CommonNodeData {
   outputPillEntries: NodeTypePillEntry[];
 }
 
+/**
+ * G-016 — `pollUntil` wraps a real catalog activity, so its card carries
+ * the control-flow chrome AND the activity affordances: the per-port row
+ * grid (so its inputs have something on the canvas to drag to, matching
+ * what the settings panel and the problems badge already list) plus the
+ * catalog lookup that lets an unregistered wrapped type degrade legibly.
+ * Every other control-flow type keeps the plain `ControlFlowNodeData`.
+ */
+interface PollUntilNodeData extends ControlFlowNodeData {
+  /** The wrapped activity type — resolved against the static catalog. */
+  activityType: string;
+  /** Same shape (and same producer) as `ActivityNodeData.portRows`. */
+  portRows: { inputs: PortRowModel[]; outputs: PortRowModel[] };
+}
+
 type ActivityFlowNode = Node<ActivityNodeData, "activity">;
-type ControlFlowFlowNode = Node<ControlFlowNodeData, ControlFlowNodeType>;
+/**
+ * Every control-flow type EXCEPT `pollUntil` — which carries the richer
+ * `PollUntilNodeData` (G-016). Excluding it here keeps the `FlowNode`
+ * union discriminated on `type`, so `n.type === "pollUntil"` narrows to
+ * exactly one member.
+ */
+type PlainControlFlowNodeType = Exclude<ControlFlowNodeType, "pollUntil">;
+type ControlFlowFlowNode = Node<ControlFlowNodeData, PlainControlFlowNodeType>;
+type PollUntilFlowNode = Node<PollUntilNodeData, "pollUntil">;
 type SourceFlowNode = Node<SourceNodeData, "source">;
 type FlowNode =
   | ActivityFlowNode
   | ControlFlowFlowNode
+  | PollUntilFlowNode
   | SourceFlowNode
   | GroupChipFlowNode
   | MapBodyContainerFlowNode;
@@ -1035,6 +1059,168 @@ const ControlFlowRectangleRenderer = memo(
 ControlFlowRectangleRenderer.displayName = "ControlFlowRectangleRenderer";
 
 /**
+ * `pollUntil` renderer (G-016). A pollUntil is a control-flow node that
+ * WRAPS a real catalog activity, and it used to render through
+ * `ControlFlowRectangleRenderer` — so its catalog inputs appeared in the
+ * settings panel and in the problems badge with nothing on the canvas to
+ * drag to, and a wrapped activity that vanished from the catalog left the
+ * card looking entirely normal.
+ *
+ * This renderer keeps the rectangle chrome (type icon, accent, ENTRY pill,
+ * node-level flow handles) and adds the two affordances that belong to the
+ * activity it wraps:
+ *
+ *   1. `<PortRows>` — the same grid `ActivityNodeRenderer` mounts, from the
+ *      same `computePortRows` projection, so `rendersPerPortHandle` can
+ *      anchor wires per port.
+ *   2. the catalog fallback — `❓` + "Unregistered activity." + the raw type
+ *      for a missing static entry, and the red "Deleted" pill for a
+ *      soft-deleted `dyn.*` lineage. Identical treatment to an `activity`.
+ */
+const PollUntilNodeRenderer = memo(
+  ({ id, data, selected }: NodeProps<PollUntilFlowNode>) => {
+    const hints = getControlFlowVisualHints("pollUntil");
+    const accent = hints.color;
+    // Same handle-bounds invalidation the activity renderer needs: swapping
+    // the wrapped activityType changes the per-port handle ids, and xyflow
+    // caches handleBounds per node.
+    const updateNodeInternals = useUpdateNodeInternals();
+    const portHandlesKey = useMemo(
+      () =>
+        [
+          ...data.portRows.inputs.map((row) => row.handleId),
+          "→",
+          ...data.portRows.outputs.map((row) => row.handleId),
+        ].join(","),
+      [data.portRows],
+    );
+    useEffect(() => {
+      updateNodeInternals(id);
+    }, [id, portHandlesKey, updateNodeInternals]);
+
+    const isDynamic = data.activityType.startsWith("dyn.");
+    const catalog = useActivityCatalog();
+    const isMissingFromCatalog = isDynamic
+      ? !catalog.isLoading &&
+        !catalog.entries.some((e) => e.activityType === data.activityType)
+      : getActivityCatalogEntry(data.activityType) === undefined;
+    const activityHints = getActivityVisualHints(data.activityType);
+    const hasRows =
+      data.portRows.inputs.length > 0 || data.portRows.outputs.length > 0;
+
+    return (
+      <div
+        data-testid={`canvas-node-${id}`}
+        data-shape="rectangle"
+        data-node-type="pollUntil"
+        style={{
+          background: "var(--mantine-color-body, #fff)",
+          borderTopWidth: 2,
+          borderRightWidth: 2,
+          borderBottomWidth: 2,
+          borderLeftWidth: 6,
+          borderStyle: "solid",
+          borderTopColor: selected ? accent : "transparent",
+          borderRightColor: selected ? accent : "transparent",
+          borderBottomColor: selected ? accent : "transparent",
+          borderLeftColor: accent,
+          borderRadius: 10,
+          padding: "10px 14px",
+          minWidth: 200,
+          boxShadow: selected
+            ? `0 0 0 2px ${accent}33, 0 6px 18px rgba(0,0,0,0.22)`
+            : "0 2px 8px rgba(0,0,0,0.18)",
+          color: "var(--mantine-color-text, #f3f4f6)",
+          fontSize: 13,
+          lineHeight: 1.2,
+          position: "relative",
+        }}
+      >
+        <ValidationBadge
+          nodeId={id}
+          errorCount={data.errorCount ?? 0}
+          warningCount={data.warningCount ?? 0}
+          onBadgeClick={data.onBadgeClick}
+        />
+        <NodeStatusBadgeOverlay nodeId={id} />
+        {renderControlFlowHeader({ id, data, selected, hints })}
+        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        {/* The wrapped activity, named on the card — the pollUntil's own
+            header names the CONTROL-FLOW type, so without this row the
+            activity it repeats is invisible on the canvas. */}
+        <div
+          data-testid={`poll-until-wrapped-${id}`}
+          style={{
+            fontSize: 11,
+            color: "var(--mantine-color-dimmed, #9ca3af)",
+            marginTop: 2,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{activityHints.icon}</span>
+          <span>{activityHints.displayName}</span>
+          {isDynamic && (
+            <Badge
+              size="xs"
+              variant="filled"
+              color={isMissingFromCatalog ? "red" : "grape"}
+              data-testid={
+                isMissingFromCatalog
+                  ? `canvas-node-${id}-deleted-pill`
+                  : `canvas-node-${id}-dyn-pill`
+              }
+            >
+              {isMissingFromCatalog ? "Deleted" : "DYN"}
+            </Badge>
+          )}
+        </div>
+        {isMissingFromCatalog && (
+          <div
+            data-testid={`poll-until-unregistered-${id}`}
+            style={{
+              fontSize: 10,
+              color: "var(--mantine-color-dimmed, #9ca3af)",
+              fontStyle: "italic",
+              marginTop: 2,
+            }}
+          >
+            {isDynamic ? "(deleted dynamic node)" : "Unregistered activity."}
+          </div>
+        )}
+        <NodePreviewOverlay nodeId={id} producesOutput={false} />
+        {/* Node-level handles FIRST in DOM order for their type — xyflow's
+            default target resolution picks bounds[0], so a null-targetHandle
+            edge must not land on the first per-port row dot. Same constraint
+            `ActivityNodeRenderer` documents. */}
+        <NodeHandles
+          nodeId={id}
+          errorPolicy={data.errorPolicy}
+          onSourceHandleEnter={data.onSourceHandleEnter}
+          onSourceHandleLeave={data.onSourceHandleLeave}
+          inputHandleStyle={data.inputHandleStyle}
+          outputHandleStyle={data.outputHandleStyle}
+          inputPillEntries={data.inputPillEntries}
+          outputPillEntries={data.outputPillEntries}
+          selected={selected ?? false}
+        />
+        {hasRows && (
+          <PortRows
+            nodeId={id}
+            inputs={data.portRows.inputs}
+            outputs={data.portRows.outputs}
+            onOutputHandleEnter={data.onOutputHandleEnter}
+            onOutputHandleLeave={data.onOutputHandleLeave}
+          />
+        )}
+      </div>
+    );
+  },
+);
+PollUntilNodeRenderer.displayName = "PollUntilNodeRenderer";
+
+/**
  * Diamond renderer for `switch` nodes. Visual layer is a rotated square
  * (matching `GraphVisualization.tsx`); content + handles stay upright.
  * Handles are pinned to the unrotated wrapper so they sit at the
@@ -1177,7 +1363,7 @@ const NODE_TYPES = {
   map: ControlFlowRectangleRenderer,
   join: ControlFlowRectangleRenderer,
   childWorkflow: ControlFlowRectangleRenderer,
-  pollUntil: ControlFlowRectangleRenderer,
+  pollUntil: PollUntilNodeRenderer,
   humanGate: ControlFlowRectangleRenderer,
   source: SourceNodeRenderer,
   "group-chip": GroupChipNode,
@@ -1274,6 +1460,37 @@ function projectFlowNodes(
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           portRows: computePortRows(config, node.id, wires),
           previewOutputs: computePreviewOutputs(config, node.id),
+        },
+      };
+      return flowNode;
+    }
+    if (node.type === "pollUntil") {
+      // G-016 — the one control-flow type that wraps a catalog activity
+      // projects the activity's port rows too.
+      const sides = controlFlowNodeSides();
+      const flowNode: PollUntilFlowNode = {
+        id: node.id,
+        type: "pollUntil",
+        position,
+        selected: node.id === selectedNodeId,
+        data: {
+          label: node.label,
+          controlFlowType: "pollUntil",
+          activityType: node.activityType,
+          isEntry,
+          errorCount: 0,
+          warningCount: 0,
+          onBadgeClick: callbacks.onBadgeClick,
+          errorPolicy: node.errorPolicy,
+          onSourceHandleEnter: callbacks.onSourceHandleEnter,
+          onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          onOutputHandleEnter: callbacks.onOutputHandleEnter,
+          onOutputHandleLeave: callbacks.onOutputHandleLeave,
+          inputHandleStyle: sides.input.handleStyle,
+          outputHandleStyle: sides.output.handleStyle,
+          inputPillEntries: sides.input.pillEntries,
+          outputPillEntries: sides.output.pillEntries,
+          portRows: computePortRows(config, node.id, wires),
         },
       };
       return flowNode;
@@ -1639,7 +1856,11 @@ function buildStructuralFingerprint(
         // `onError: 'fallback'` re-projects and the bottom "error" source
         // handle appears/disappears immediately (the handle's presence is
         // derived from the error policy at projection time).
-        n.type === "activity"
+        // `pollUntil` is folded in with `activity` because it too renders
+        // catalog-derived port rows (G-016) — its wrapped `activityType`
+        // must be part of the signature or a re-wrap would leave the rows
+        // (and their handle ids) stale behind the fingerprint gate.
+        n.type === "activity" || n.type === "pollUntil"
           ? `${n.label}::${n.activityType}::${n.errorPolicy?.onError ?? ""}`
           : `${n.label}::${n.type}::${n.errorPolicy?.onError ?? ""}`,
       ]),
@@ -1985,6 +2206,13 @@ function WorkflowEditorCanvasInner({
         // spread back into FlowNode through the union.
         if (n.type === "activity") {
           const updated: ActivityFlowNode = {
+            ...n,
+            data: { ...n.data, errorCount, warningCount },
+          };
+          return updated;
+        }
+        if (n.type === "pollUntil") {
+          const updated: PollUntilFlowNode = {
             ...n,
             data: { ...n.data, errorCount, warningCount },
           };
