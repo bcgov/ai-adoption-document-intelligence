@@ -1,7 +1,7 @@
 // packages/graph-workflow/src/auto-wire/resolver.ts
 import { getActivityCatalogEntry } from "../catalog";
 import type { GraphNode, GraphWorkflowConfig, PortBinding } from "../types";
-import { resolveCtxKeySource } from "./ctx-source";
+import { producerCtxKeyForPort, resolveCtxKeySource } from "./ctx-source";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 import { resolveInputPort } from "./resolve-input-port";
 import { shouldAutoWirePort } from "./should-auto-wire";
@@ -129,13 +129,25 @@ export function resolveBindings(
       const producerNode = nextNodes[result.producerNodeId];
       let producerCtxKey: string;
       if (producerNode?.type === "map") {
+        // The map-item pass reports `itemCtxKey` as the "port"; either way
+        // the branch item is what a body node binds to.
         producerCtxKey = producerNode.itemCtxKey;
       } else {
-        producerCtxKey = ensureProducerOutputBinding(
-          nextNodes,
-          result.producerNodeId,
-          result.producerPort,
-        );
+        // G-007: control-flow and source nodes write ctx through their own
+        // fields, not through `outputs[]`. Binding to a synthesised
+        // `__auto.<node>.<port>` key there would point the consumer at a key
+        // no executor ever writes, so ask the node for the key it actually
+        // produces first and only fall back to stamping an `outputs[]` row
+        // for the activity/pollUntil nodes that own one.
+        producerCtxKey =
+          (producerNode
+            ? producerCtxKeyForPort(producerNode, result.producerPort)
+            : undefined) ??
+          ensureProducerOutputBinding(
+            nextNodes,
+            result.producerNodeId,
+            result.producerPort,
+          );
       }
 
       const existing = nextInputs.find((b) => b.port === port.name);

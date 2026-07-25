@@ -1,5 +1,5 @@
 // packages/graph-workflow/src/auto-wire/resolve-input-port.test.ts
-import type { GraphWorkflowConfig } from "../types";
+import type { GraphNode, GraphWorkflowConfig } from "../types";
 import { resolveInputPort } from "./resolve-input-port";
 
 function activity(
@@ -450,6 +450,208 @@ describe("provenance (via)", () => {
     cfg.nodes.SPLIT = {
       ...cfg.nodes.SPLIT,
       outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+    };
+    expect(
+      resolveInputPort(cfg, "BODY", { name: "segment", kind: "Segment" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "MAP",
+      producerPort: "currentSegment",
+      via: "map-item",
+    });
+  });
+});
+
+describe("control-flow and source producers (G-007)", () => {
+  it("auto-binds a consumer downstream of a source node", () => {
+    // `source.upload` writes its configured ctx key with the catalog's
+    // `outputKind` (DocumentRef, a Document subtype), so a downstream
+    // `Document` port has a real producer to bind to.
+    const cfg = makeConfig(
+      {
+        S: {
+          id: "S",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+          parameters: { ctxKey: "incomingDoc" },
+        } as GraphNode,
+        B: activity("B", "azureOcr.submit"),
+      },
+      [{ source: "S", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "S",
+      producerPort: "incomingDoc",
+      via: "nearest-kind",
+    });
+  });
+
+  it("honours a source.api field's declared kind", () => {
+    const cfg = makeConfig(
+      {
+        S: {
+          id: "S",
+          type: "source",
+          label: "API",
+          sourceType: "source.api",
+          parameters: {
+            fields: [
+              { name: "incomingDoc", type: "object", kind: "PreparedFile", required: true },
+              { name: "caseNumber", type: "string", required: true },
+            ],
+          },
+        } as GraphNode,
+        B: activity("B", "azureOcr.submit"),
+      },
+      [{ source: "S", target: "B" }],
+    );
+    // Only the PreparedFile field satisfies a `Document` port — the untyped
+    // `caseNumber` declares no kind and must not be guessed at.
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "S",
+      producerPort: "incomingDoc",
+      via: "nearest-kind",
+    });
+  });
+
+  it("auto-binds a consumer to a join's results array", () => {
+    // `benchmark.aggregate.results` is a base-`Artifact` port, so it takes
+    // the identifier fast path: the unique upstream output NAMED `results`
+    // is the join's. Before G-007 the join contributed nothing and the port
+    // was left unsatisfied.
+    const cfg = makeConfig(
+      {
+        J: {
+          id: "J",
+          type: "join",
+          label: "Join",
+          sourceMapNodeId: "MAP",
+          strategy: "all",
+          resultsCtxKey: "joined",
+        } as GraphNode,
+        A: activity("A", "benchmark.aggregate"),
+      },
+      [{ source: "J", target: "A" }],
+    );
+    expect(
+      resolveInputPort(cfg, "A", { name: "results", kind: "Artifact" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "J",
+      producerPort: "results",
+      via: "name-match",
+    });
+  });
+
+  it("offers a humanGate's approval payload as a producer", () => {
+    const cfg = makeConfig(
+      {
+        H: {
+          id: "H",
+          type: "humanGate",
+          label: "Review",
+          signal: { name: "approve" },
+          timeout: "1h",
+          onTimeout: "fail",
+        } as GraphNode,
+        B: activity("B", "ocr.cleanup"),
+      },
+      [{ source: "H", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "payload", kind: "Artifact" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "H",
+      producerPort: "payload",
+      via: "name-match",
+    });
+  });
+
+  it("offers a childWorkflow's declared output mappings", () => {
+    const cfg = makeConfig(
+      {
+        C: {
+          id: "C",
+          type: "childWorkflow",
+          label: "Child",
+          workflowRef: { type: "library", workflowId: "w1" },
+          outputMappings: [{ port: "summary", ctxKey: "childSummary" }],
+        } as GraphNode,
+        B: activity("B", "ocr.cleanup"),
+      },
+      [{ source: "C", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "summary", kind: "Artifact" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "C",
+      producerPort: "summary",
+      via: "name-match",
+    });
+  });
+
+  it("a switch contributes no outputs (it routes, it does not produce)", () => {
+    const cfg = makeConfig(
+      {
+        SW: {
+          id: "SW",
+          type: "switch",
+          label: "Route",
+          cases: [],
+          defaultEdge: "e0",
+        } as GraphNode,
+        B: activity("B", "azureOcr.submit"),
+      },
+      [{ source: "SW", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "unsatisfied" });
+    // Nor by name: a switch has no ports at all to match against.
+    expect(
+      resolveInputPort(cfg, "B", { name: "SW", kind: "Artifact" }),
+    ).toEqual({ status: "unsatisfied" });
+  });
+
+  it("a map's item/index writes do not compete with its synthetic element producer", () => {
+    // The map contributes `item`/`index` ports with NO kind (the element type
+    // is supplied by the synthetic map-item pass, which knows it precisely).
+    // Declaring them must not turn the precise bind into an ambiguity.
+    const cfg: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        SPLIT: {
+          ...activity("SPLIT", "document.split"),
+          outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+        },
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "Map",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "currentSegment",
+          indexCtxKey: "segmentIndex",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        } as GraphNode,
+        BODY: activity("BODY", "document.classify"),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+      entryNodeId: "SPLIT",
+      ctx: {},
     };
     expect(
       resolveInputPort(cfg, "BODY", { name: "segment", kind: "Segment" }),

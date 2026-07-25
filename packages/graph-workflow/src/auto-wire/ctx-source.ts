@@ -1,5 +1,5 @@
 // packages/graph-workflow/src/auto-wire/ctx-source.ts
-import { getActivityCatalogEntry } from "../catalog";
+import { getActivityCatalogEntry, getSourceCatalogEntry } from "../catalog";
 import type { GraphNode, GraphWorkflowConfig } from "../types";
 import type { KindRef } from "../types/artifacts";
 import { getCtxRootKey } from "../validator/context-utils";
@@ -143,35 +143,65 @@ export function collectCtxWriters(config: GraphWorkflowConfig): CtxWriter[] {
         kind: outputPortKind(node, binding.port),
       });
     }
-    switch (node.type) {
-      case "map":
-        writers.push({ nodeId, port: "item", ctxKey: node.itemCtxKey });
-        if (node.indexCtxKey) {
-          writers.push({ nodeId, port: "index", ctxKey: node.indexCtxKey });
-        }
-        break;
-      case "join":
-        writers.push({ nodeId, port: "results", ctxKey: node.resultsCtxKey });
-        break;
-      case "childWorkflow":
-        for (const mapping of node.outputMappings ?? []) {
-          writers.push({
-            nodeId,
-            port: mapping.port,
-            ctxKey: mapping.ctxKey,
-          });
-        }
-        break;
-      case "humanGate":
-        // The executor always writes `<nodeId>Payload` with the signal body.
-        writers.push({ nodeId, port: "payload", ctxKey: `${nodeId}Payload` });
-        break;
-      case "source":
-        collectSourceWriters(nodeId, node, writers);
-        break;
-      default:
-        break;
-    }
+    writers.push(...nodeTypeCtxWrites(nodeId, node));
+  }
+  return writers;
+}
+
+/**
+ * The ctx a node writes by virtue of its TYPE, independent of any
+ * `outputs[]` binding rows it carries. `map`/`join`/`childWorkflow`/
+ * `humanGate`/`source` all write ctx through dedicated fields rather than
+ * through `outputs[]`, so this is the only enumeration of what they produce.
+ * `switch` deliberately returns nothing — it selects an edge, it does not
+ * write ctx. Mirrors the writes `apps/temporal/src/graph-engine/
+ * node-executors.ts` makes.
+ *
+ * Shared by `collectCtxWriters` (does this key have a source?) and by the
+ * auto-wire resolver's `outputPortsFor` (what can downstream ports bind
+ * to?), so the two can never disagree about what a control-flow node
+ * produces (G-007).
+ *
+ * `kind` is populated only where it is statically knowable: source-node
+ * kinds come from the source catalog / per-field annotations. A map item's
+ * element kind is NOT set here — the resolver derives it precisely from the
+ * collection producer (`map-item` pass) — and a join's results, a child
+ * workflow's outputs and a human gate's payload have no statically knowable
+ * kind, so they are left `undefined` ("no opinion") rather than guessed.
+ */
+export function nodeTypeCtxWrites(
+  nodeId: string,
+  node: GraphNode,
+): CtxWriter[] {
+  const writers: CtxWriter[] = [];
+  switch (node.type) {
+    case "map":
+      writers.push({ nodeId, port: "item", ctxKey: node.itemCtxKey });
+      if (node.indexCtxKey) {
+        writers.push({ nodeId, port: "index", ctxKey: node.indexCtxKey });
+      }
+      break;
+    case "join":
+      writers.push({ nodeId, port: "results", ctxKey: node.resultsCtxKey });
+      break;
+    case "childWorkflow":
+      for (const mapping of node.outputMappings ?? []) {
+        writers.push({
+          nodeId,
+          port: mapping.port,
+          ctxKey: mapping.ctxKey,
+        });
+      }
+      break;
+    case "humanGate":
+      // The executor always writes `<nodeId>Payload` with the signal body.
+      writers.push({ nodeId, port: "payload", ctxKey: `${nodeId}Payload` });
+      break;
+    case "source":
+      collectSourceWriters(nodeId, node, writers);
+      break;
+    default:
+      break;
   }
   return writers;
 }
@@ -180,9 +210,11 @@ export function collectCtxWriters(config: GraphWorkflowConfig): CtxWriter[] {
  * Source nodes write ctx directly (no `outputs[]` bindings): `source.api`
  * writes one key per declared field, `source.upload` writes its configured
  * key (defaulting to `documentUrl`). Mirrors the validator's
- * `enumerateSourceProducers`; kinds are left undefined here because this
- * helper answers existence, and the validator remains the surface that
- * type-checks source producers against consumers.
+ * `enumerateSourceProducers`, kinds included: a per-field `kind?` for
+ * `source.api` (absent = no opinion) and the catalog entry's `outputKind`
+ * for `source.upload`. The validator remains the surface that REPORTS a
+ * source/consumer kind mismatch; carrying the kind here is what lets a
+ * downstream port auto-bind to a source in the first place (G-007).
  */
 function collectSourceWriters(
   nodeId: string,
@@ -209,8 +241,32 @@ function collectSourceWriters(
     const raw = (node.parameters as { ctxKey?: unknown } | undefined)?.ctxKey;
     const ctxKey =
       typeof raw === "string" && raw.length > 0 ? raw : "documentUrl";
-    writers.push({ nodeId, port: ctxKey, ctxKey });
+    writers.push({
+      nodeId,
+      port: ctxKey,
+      ctxKey,
+      kind: getSourceCatalogEntry(node.sourceType)?.outputKind,
+    });
   }
+}
+
+/**
+ * The ctx key a producer node's output port actually writes, for the
+ * control-flow/source node types whose writes live in dedicated fields
+ * rather than in `outputs[]`. Returns `undefined` for activity/pollUntil
+ * (whose keys come from — or are synthesised into — their `outputs[]`
+ * rows) and for a port the node does not write.
+ *
+ * Callers that turn a resolver `auto-bound` result into a persisted input
+ * binding MUST consult this first: synthesising an `__auto.*` key and
+ * stamping an `outputs[]` row on a join would bind the consumer to a key
+ * no executor ever writes.
+ */
+export function producerCtxKeyForPort(
+  node: GraphNode,
+  port: string,
+): string | undefined {
+  return nodeTypeCtxWrites(node.id, node).find((w) => w.port === port)?.ctxKey;
 }
 
 /** The catalog-declared kind of a node's output port, when there is one. */

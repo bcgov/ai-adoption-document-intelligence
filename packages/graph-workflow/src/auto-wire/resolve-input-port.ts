@@ -3,7 +3,7 @@ import { getActivityCatalogEntry } from "../catalog";
 import type { GraphWorkflowConfig } from "../types";
 import type { KindRef } from "../types/artifacts";
 import { isAssignable } from "../types/subtype-check";
-import { resolveCtxKeySource } from "./ctx-source";
+import { nodeTypeCtxWrites, resolveCtxKeySource } from "./ctx-source";
 import { getLockedInputPorts } from "./lock-list";
 import { upstreamNodesWithDistance } from "./upstream-walk";
 
@@ -246,6 +246,24 @@ interface OutputPortInfo {
   kind?: KindRef;
 }
 
+/**
+ * What a producer node offers downstream ports.
+ *
+ * `activity`/`pollUntil` declare their outputs in the activity catalog.
+ * Every other node type writes ctx through dedicated fields (`map.itemCtxKey`,
+ * `join.resultsCtxKey`, `childWorkflow.outputMappings`, the humanGate payload
+ * key, a source node's produced keys), enumerated once by `nodeTypeCtxWrites`
+ * so this resolver and the ctx-source arbiter can never disagree (G-007).
+ * `switch` writes nothing — it selects an edge — so it contributes no
+ * candidates, which is why nothing here special-cases it.
+ *
+ * Kinds are only reported where they are statically knowable (source nodes).
+ * A kindless output never satisfies a kinded port — the kind pass skips it —
+ * so it can only be reached through the base-`Artifact` name-match path,
+ * where the port NAME is the evidence. That is deliberate: a `join`'s results
+ * or a gate's approval payload has no knowable kind, and guessing one would
+ * bind ports that should have stayed unsatisfied.
+ */
 function outputPortsFor(
   node: GraphWorkflowConfig["nodes"][string],
 ): OutputPortInfo[] {
@@ -254,10 +272,10 @@ function outputPortsFor(
     if (!entry) return [];
     return entry.outputs.map((p) => ({ name: p.name, kind: p.kind }));
   }
-  // Control-flow nodes have no catalog-declared outputs in v1 of this
-  // resolver — `map`/`join`/`switch` get special-case treatment in later
-  // tasks (Tasks 13–15). For now they contribute no producer candidates.
-  return [];
+  return nodeTypeCtxWrites(node.id, node).map((w) => ({
+    name: w.port,
+    kind: w.kind,
+  }));
 }
 
 /**
