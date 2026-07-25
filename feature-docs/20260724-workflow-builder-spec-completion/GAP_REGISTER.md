@@ -1435,3 +1435,83 @@ it records that the graph model has exactly *one* containment object (`MapNode.b
 combinations the briefs named have nothing to check against. **A-015** records a journey step that
 **works**, so that J3 step 4 does not read as unexplored. Neither is a gap; both are here so the next
 audit does not refile them.
+
+---
+
+## Found during remediation
+
+Two defects the nine fix batches surfaced that were **not** in the original four discovery
+passes and therefore have no entry above. They are recorded here so the effort does not lose
+what it learned. **Neither has been dispositioned** — both are recommendations awaiting Alex's
+ruling, exactly like a pass-proposed disposition.
+
+Ids continue the register's sequence (the merged findings run to G-103).
+
+### G-104 — Map-item wires can never render: the resolver names a map's item producer by `itemCtxKey` while `nodeTypeCtxWrites` names it by the port `"item"`
+
+**Found by:** batch 4 (remediation) · **Severity:** major · **Type:** impl-gap
+**Surfaces:** canvas, canvas:port-rows, auto-wire, settings-panel:inputs
+**Evidence:** `packages/graph-workflow/src/auto-wire/ctx-source.ts` (`nodeTypeCtxWrites`, `case "map"` → `port: "item"`) · `packages/graph-workflow/src/auto-wire/resolver.ts` (map-item pass) · `apps/frontend/src/features/workflow-builder/canvas/derive-wires.ts`
+
+The two halves of the same lookup disagree about what a map's item port is called. The
+auto-wire resolver identifies a map's per-item producer by the map's **`itemCtxKey`**
+(`resolver.ts` special-cases `producerNode?.type === "map"` for exactly this reason); the shared
+write enumeration `nodeTypeCtxWrites` records that same write under the **port name `"item"`**.
+A wire derived for a map item would therefore carry a `sourcePort` its own provenance lookup
+could never match, so `derive-wires.ts` **skips `map` entirely** when building the producer
+index — and a body node correctly auto-bound to the map's item gets **no wire at all**: a
+binding the author can neither see nor delete. The exclusion is documented in a comment at
+`derive-wires.ts`, which is how it was found.
+
+This is **pre-existing**, adjacent to G-007 (control-flow nodes having no declared output
+ports), and was deliberately **not fixed in batch 4**: the batch's scope was the declared-port
+enumeration itself, and reconciling the two naming schemes touches the resolver, the wire
+derivation and every persisted `outputs[]` row that already uses one convention.
+
+It matters more than its lateness suggests: fan-out over a collection is the most common
+binding shape in the product (every multi-page document workflow is a map), so the one binding
+an author is most likely to create is the one whose wire cannot draw. **It probably warrants
+its own batch** rather than being folded into a mixed one — a rename on either side is a data
+migration over saved configs, not a local edit.
+
+**Proposed disposition:** fix — own batch
+
+### G-105 — A stale Vite dep cache silently serves a bundle missing the new exports, and the editor dies with `does not provide an export named …`
+
+**Found by:** batches 2–8 (remediation, retrospectively) · **Severity:** major · **Type:** tooling/process
+**Surfaces:** dev-environment, page-shell
+**Evidence:** `apps/frontend/vite.config.ts:70-72` (`optimizeDeps.include: ["@ai-di/graph-workflow"]`) and `:79-86` (aliases the package to `packages/graph-workflow/src/index.browser.ts`) · `apps/frontend/node_modules/.vite`
+
+**Symptom.** After adding an export to `packages/graph-workflow`'s browser entry
+(`index.browser.ts`) and importing it from the editor, the running dev server keeps serving its
+**pre-bundled** copy of the package. The page throws
+`SyntaxError: The requested module '/node_modules/.vite/deps/…' does not provide an export named '<newExport>'`
+at module-eval time, which happens **before** any React render — so the whole editor is blank,
+not just the new feature. Nothing in the terminal reports an error; the HMR log looks normal.
+
+**Root cause.** The package is aliased to **source** (`resolve.alias` → `src/index.browser.ts`)
+but is also listed in **`optimizeDeps.include`**, which forces Vite to pre-bundle it into
+`node_modules/.vite/deps`. The pre-bundle is keyed on the dependency graph, not on the aliased
+source file's mtime, so editing the browser entry does not invalidate it.
+
+**Fix.** Delete the dep cache and restart the dev server, then read the log for the ready
+banner. Rebuild the package too if anything type-checks against `dist` (`tsc` does):
+
+```bash
+npm run -w packages/graph-workflow build   # for tsc / node consumers
+rm -rf apps/frontend/node_modules/.vite    # the actual fix for the dev server
+# restart the frontend dev server, then check its log
+```
+
+**Why it is being recorded as a finding.** This went unnoticed for **three batches** of this
+effort. Each agent dutifully reported "no live browser check performed", so a green unit suite
+plus a green type-check read as success while the editor was, in fact, dead in the browser the
+whole time. The failure mode is invisible to every automated gate the repo has: Jest/Vitest
+resolve the package from source, `tsc` resolves it from `dist`, and only the dev server uses
+the pre-bundle. The mitigation is procedural (it is now a standing rule in the batch plans),
+but **dropping `@ai-di/graph-workflow` from `optimizeDeps.include`** — it is aliased to source,
+so it does not need pre-bundling — would remove the trap rather than documenting around it.
+That change needs a check that it doesn't reintroduce whatever made someone add the include in
+the first place, which is why it is recorded rather than done here.
+
+**Proposed disposition:** fix — remove the trap, not just the rule

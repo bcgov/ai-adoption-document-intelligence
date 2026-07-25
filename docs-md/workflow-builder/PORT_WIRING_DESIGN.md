@@ -56,7 +56,8 @@ Nodes get taller (worst current case: Azure OCR extract, 5 inputs). Mitigations,
 - **switch** — one input handle; per-case + default source handles as today (conditional edges unchanged).
 - **map** — input handle for `collection` (typed `T[]`); inside the body the map's synthetic element producer ([resolver §6.1](AUTO_WIRE_DESIGN.md)) renders as an `item (T)` output port on the map node so body-node wires have a visible origin.
 - **join** — `results` output port (`T[]`).
-- **pollUntil / humanGate / childWorkflow** — activity-like port rows (childWorkflow's ports are the library's declared ports).
+- **pollUntil** — **shipped 2026-07-25 (G-016).** A `pollUntil` wraps a real catalog activity, so its card keeps the control-flow rectangle chrome (type icon, accent, ENTRY pill, node-level flow handles) **and** renders the wrapped activity's `<PortRows>` grid — the same `computePortRows` projection an `activity` card uses. `rendersPerPortHandle` and `estimateNodeHeight`/`estimateNodeWidth` follow (`CONTROL_FLOW_NODE_HEIGHT` as the base, plus the per-row scaling; the wide activity footprint once it has rows). It also consults the catalog like an activity does, so an unregistered wrapped type degrades legibly (`❓` + "Unregistered activity." + the raw type; a soft-deleted `dyn.*` lineage gets the red "Deleted" pill). Before this, its inputs appeared in the settings panel and in the problems badge with nothing on the canvas to drag to, and a vanished wrapped activity left the card looking entirely normal.
+- **humanGate / childWorkflow** — activity-like port rows still deferred (childWorkflow's ports would be the library's declared ports). Neither wraps a catalog activity, so neither has a `computePortRows` source today.
 - **source** — output ports only, as today.
 
 ## 5. Wire derivation
@@ -187,7 +188,7 @@ Each phase ships independently and leaves the editor coherent:
 
    **Known limitations of this slice, documented rather than silently deferred:**
    - ~~Data wires are render-only this phase — not deletable/selectable; drag-to-bind + delete semantics are Phase 3 (§6).~~ **Resolved in Phase 3** — see item 3 below.
-   - Control-flow nodes (incl. pollUntil) and source nodes still render a single node-level handle per side — no port rows yet (§4.4 partially deferred).
+   - ~~Control-flow nodes (incl. pollUntil) and source nodes still render a single node-level handle per side — no port rows yet (§4.4 partially deferred).~~ **`pollUntil` resolved 2026-07-25 (G-016)** — it now renders the wrapped activity's port rows (§4.4). `humanGate` / `childWorkflow` / `source` still render a single node-level handle per side.
    - Simplified view intentionally renders edge-only — group chips have anonymous handles, no data wires.
    - Node-to-node drag still creates control edges + triggers auto-wire underneath it, unchanged.
    - The uniform 482px dagre node width makes narrow/few-port graphs lay out sparsely; per-node width estimation is deferred.
@@ -212,7 +213,7 @@ Each phase ships independently and leaves the editor coherent:
    3. `ProducerPicker` offers no ctx-variable option, so "Change source" on a ctx-bound identifier port is a one-way door — once replaced with a producer, the original ctx binding can't be re-selected through the picker.
    4. A stale auto-binding whose producer node was deleted keeps the amber ring **off** while the problems badge correctly warns — the badge is the truthful surface in that case, the ring is not.
    5. "Revert to automatic" on a port pinned to a non-auto ctx key can re-lock across a save/reload via `normaliseLocks` (pre-existing behaviour, not introduced this phase).
-   6. Control-flow nodes (incl. `pollUntil`) and source nodes still render a single node-level handle per side — drag-to-bind covers activity nodes only. Simplified view stays edge-only (group chips have anonymous handles). Map-item wires remain deferred, unchanged from Phase 2 (§15 item 2's limitation above).
+   6. Control-flow nodes and source nodes still render a single node-level handle per side — drag-to-bind covers activity nodes and, since G-016 (2026-07-25), `pollUntil`. Simplified view stays edge-only (group chips have anonymous handles). Map-item wires remain deferred, unchanged from Phase 2 (§15 item 2's limitation above).
 4. **Wire data peek** (§10).
    *Status: complete 2026-07-15.* Landed:
    - Clicking a data wire on the canvas after a run opens a `WirePeekPopover` (`canvas/WirePeekPopover.tsx`) anchored at the wire midpoint. The popover mounts inside `WorkflowEdge` (`canvas/WorkflowEdge.tsx`) whenever the edge is `selected` and its wire is `variant: "data"`, so the trigger is plain React Flow edge selection — no bespoke hit-testing. Testid `wire-peek-popover`, `data-state` on the surface, value in `wire-peek-value`.

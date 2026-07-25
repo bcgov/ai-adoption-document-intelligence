@@ -105,6 +105,17 @@ Three consumers share it:
 
 **Why a declaration has to count.** Because `validatePortBindings` already requires every non-`__auto.` binding key to be declared in `config.ctx`, and a declaration counts as a source, "declared but nothing writes it" is not by itself evidence of a problem. It cannot be: across all 8 shipped templates, 3–11 declared keys per template have no producer and are exactly the workflow inputs (`documentId`, `blobKey`, `fileName`, `fileType`, `groupId`, thresholds, `classifierName`), and **`isInput` is set on none of them**. After the fact, "declared workflow input" and "declaration whose producer was deleted" are the same static state.
 
+### 2.3a-bis The mirror question: what READS this key? (`findCtxKeyReferences`)
+
+*Added 2026-07-25 — fixes G-009 in the [spec-completion gap register](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md).*
+
+§2.3a answers "where does this value come from". `ctx-references.ts` answers the mirror — "what else uses it?" — from the same graph data, and pairs the two into the blast-radius lookup an author needs **before** renaming or deleting a variable rather than after.
+
+- `collectCtxReaders(config)` — every ctx READ the graph performs: `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and every `ValueRef.ref` inside a `switch` case or a `pollUntil` condition. `outputs[]` and `childWorkflow.outputMappings` are deliberately absent — those are writes, and `collectCtxWriters` owns them. Its `switch (node.type)` is exhaustive with a `never` check, the same guard `rename-ctx-key.ts` uses, so a new reader cannot be added to the model without a compile error here.
+- `findCtxKeyReferences(config, ctxKey)` — `{ key, readers, writers, declared, total }`. Matching uses the same `writerSourcesKey` relation §2.3a uses, so a drilled read (`ocrResult.status`) counts as a read of `ocrResult` and a prefix cousin (`ocrResultBackup`) does not, on both sides.
+
+**The reference sites enumerated here are exactly the ones `rename-ctx-key.ts` rewrites.** That is the invariant: what the author is shown as the blast radius must be what a rename would actually move, or the preview lies. Surfaced on each row of the workflow-settings ctx list as a **"Used by N"** popover, whose entries select-and-reveal the named node through the page's one `selectAndRevealNode` helper.
+
 ### 2.3b The one moment the two cases are distinguishable: the delete
 
 *Added 2026-07-25 — closes the residual above.*

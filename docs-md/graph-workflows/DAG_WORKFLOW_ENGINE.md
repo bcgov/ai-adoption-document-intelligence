@@ -1302,6 +1302,16 @@ Validation rules:
 6. **Expression validation** (for `switch` conditions):
    - Operators are valid
    - Referenced variables exist in ctx declarations
+7. **Inline child graphs** (G-015): a `childWorkflow` node with
+   `workflowRef.type === "inline"` embeds a complete `GraphWorkflowConfig`, and the validator
+   **descends into it with the same rules and the same injected options**. Inner errors are
+   re-anchored as `nodes.<parentId>.inline.<inner path>` (e.g.
+   `nodes.child_1.inline.nodes.sw.defaultEdge`) and their messages are prefixed
+   `Inline child graph: …`. The anchor names the parent first so the editor's per-node badge,
+   drawer bucketing and click-to-navigate all land on the `childWorkflow` node holding the JSON
+   — the inner graph has no canvas of its own — while the inner node id stays in the path.
+   Nesting recurses; a graph that (transitively) embeds itself is reported as a recursive
+   reference rather than looping.
 
 ### 9.3 TemporalClientService Changes
 

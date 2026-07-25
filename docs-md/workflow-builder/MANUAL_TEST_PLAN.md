@@ -116,7 +116,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 | 13.2, 13.3, 13.4, 13.7 (SourceNodeSettings UI + maxFileSizeMB round-trip; upload endpoint validation matrix; single-source rule + isInput warning) | `tier2-sources` | 2 (CI) |
 | 11.1, 11.2, 13.6 (Run drawer renders trigger URL / declared input schema / sample curl / auth notes; upload-source workflow shows the dropzone, no API tabs) | `tier2-run-drawer` | 2 (CI) |
 
-**🔬 unit / integration-backstopped** (not e2e): **3.8–3.14** (undo/redo + the unsaved-changes guard — `use-config-history.test.ts`, `use-undo-redo-hotkeys.test.ts`, `use-unsaved-guard.test.tsx`, plus the page/canvas wiring in `WorkflowEditorV2Page.test.tsx` and `WorkflowEditorCanvas.test.tsx`; the *browser-native* halves — the real `beforeunload` dialog and native text undo inside an input — are ✍️ manual by nature, jsdom can only assert the event was prevented), 5.5 (graph validator), 7.6 (`dynamic-node-binding-walk.spec` + workflow validator), 11.3/11.4 (`build-run-spec.spec`), 14.1/14.2 (`dynamic-nodes.service/controller.spec`), 14.11–14.13 (`dynamic-nodes.service.spec` + deno-runner + `dyn-run.activity` sandbox-escape specs), 15.7/15.9/15.10 (`agent.service.spec`, `tools.spec`, `abort-flag-map.spec`).
+**🔬 unit / integration-backstopped** (not e2e): **3.15/3.16** (find-a-node + ctx references — `node-search.test.ts`, `NodeSearchBox.test.tsx`, `packages/graph-workflow/src/auto-wire/ctx-references.test.ts`, and the drawer wiring in `WorkflowSettingsDrawer.test.tsx`; the *pan* half of 3.15 is jsdom-invisible and stays ✍️ manual), **5.7** (inline child-graph validation — `packages/graph-workflow/src/validator/validator-inline-child.test.ts` for the descent + anchor shape, `useGraphValidation.inline.test.ts` for the top-bar/drawer surfacing, `anchor-target.test.ts` for the parent-node navigation, `ChildWorkflowNodeSettings.test.tsx` for the panel's problems list), **7.9** (pollUntil port rows + catalog fallback — `port-rows.test.ts`, `WorkflowEditorCanvas.test.tsx` "G-016"), **3.8–3.14** (undo/redo + the unsaved-changes guard — `use-config-history.test.ts`, `use-undo-redo-hotkeys.test.ts`, `use-unsaved-guard.test.tsx`, plus the page/canvas wiring in `WorkflowEditorV2Page.test.tsx` and `WorkflowEditorCanvas.test.tsx`; the *browser-native* halves — the real `beforeunload` dialog and native text undo inside an input — are ✍️ manual by nature, jsdom can only assert the event was prevented), 5.5 (graph validator), 7.6 (`dynamic-node-binding-walk.spec` + workflow validator), 11.3/11.4 (`build-run-spec.spec`), 14.1/14.2 (`dynamic-nodes.service/controller.spec`), 14.11–14.13 (`dynamic-nodes.service.spec` + deno-runner + `dyn-run.activity` sandbox-escape specs), 15.7/15.9/15.10 (`agent.service.spec`, `tools.spec`, `abort-flag-map.spec`).
 
 **✍️ manual-only** (no automated guard — these are *intentionally* manual, not gaps waiting to be closed; the reason each resists cheap automation is noted):
 
@@ -210,6 +210,20 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
   - Now click **Save**, wait for the success toast, then navigate away → **Pass:** no prompt at all.
   - Open a saved workflow and navigate away without touching anything → **Pass:** no prompt. Undo every edit back to the state you opened on → also no prompt.
 
+### 3.15–3.16 Finding things in a large graph (G-009)
+
+- [ ] **3.15 Find a node.** Load the master template (16 nodes, 3.7) and pan somewhere the node you want is off-screen. In the top bar's centre zone, next to **Name** / **Description**, type into **Find a node…** (`node-search-input`).
+  - Type part of a node's **label** (e.g. `wait`) → **Pass:** a dropdown lists matching nodes, each showing the label above `<type> · <nodeId>`.
+  - Type an **activity type** instead (e.g. `azureOcr`) → **Pass:** every node of that type is listed, including a `pollUntil` wrapping one. Source nodes match on `source.upload` / `source.api`; control-flow nodes match on `map` / `join` / `switch` / …
+  - Type something the graph does not contain but the **palette does** (e.g. `document.classify` on a workflow with no classify node) → **Pass:** *"No node matches … in this workflow."* This box searches **your workflow**, not the catalog — the palette's own "Search activities…" answers the other question and is unchanged.
+  - Click a result → **Pass:** the node is **selected and the selection sticks**, and the canvas **pans to it** (the same select-and-reveal path a validation row uses, 5.4a). The query clears and the dropdown closes.
+- [ ] **3.16 What else reads this variable.** **More ▸ Workflow settings ▸ Context declarations**. Each row now ends with a **Used by N** button.
+  - Click **Used by** on a variable a step produces and another step consumes → **Pass:** a popover lists **Written by (n)** and **Read by (n)** sections; each entry names the node's label with `<nodeId> · <port> → <ctxKey>` (writers) or `<nodeId> · <port> ← <ref>` (readers). Reads through a **drilled path** (`ocrResult.status`) count as reads of `ocrResult`; a prefix cousin (`ocrResultBackup`) does **not**.
+  - Readers are counted wherever they occur, not only in `inputs[]`: a **map's collection**, a **childWorkflow input mapping**, and a **`ctx.` ref inside a switch case or a pollUntil condition** all appear. (`outputs[]` and childWorkflow **output** mappings are writes, and appear under *Written by*.)
+  - Click any entry → **Pass:** the drawer closes and the named node is selected and panned to.
+  - Click **Used by 0** on a freshly added variable → **Pass:** *"Nothing in this workflow reads or writes `<key>` — it is declared but unused."* No empty popover.
+  - This is the safety net before a destructive edit: check **Used by** *before* renaming (3.13 / §4.8 rewrite) or deleting (3.12) a variable, so the blast radius is visible in advance rather than discovered by the toast afterwards.
+
 ---
 
 ## Part 4 — Control-Flow Settings Forms & Condition Editor
@@ -238,9 +252,9 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   **Pass:** only map nodes are selectable as the source. *(Join strategy is fixed to `all` and isn't shown in the form.)*
 - [ ] **4.4 Sub-workflow (childWorkflow) — call another graph.** *Runs a whole other workflow — either a saved Library workflow or an inline graph shipped with this node.*
   1. Click **Sub-workflow (inline OCR)** → its settings open.
-  2. Toggle **Library / Inline**. In **Inline** mode a read-only JSON preview of the embedded child graph shows.
+  2. Toggle **Library / Inline**. In **Inline** mode an **editable** JSON textarea of the embedded child graph shows, with a live problems list beneath it (see 5.7).
   3. Edit the **input** and **output mapping** lists (which parent ctx keys feed the child, and where its outputs land).
-  **Pass:** the Library/Inline toggle switches modes; inline shows the JSON preview. *(Library-picker modal is a manual spot-check; inline round-trip is `tier2-control-flow` e2e.)*
+  **Pass:** the Library/Inline toggle switches modes; inline shows the JSON editor and, under it, either *"No problems in the inline graph."* or a red/amber panel listing them. *(Library-picker modal is a manual spot-check; inline round-trip is `tier2-control-flow` e2e.)*
 - [ ] **4.5 Wait until condition (pollUntil) — poll until true.** *Re-runs an activity on an interval until a condition holds (or it times out).*
   1. Click **Wait until condition** → its settings open.
   2. Pick an **activity type** → its own parameters sub-form renders below.
@@ -319,6 +333,12 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   ```
   **Pass:** `400` with an error path like `nodes.<id>.parameters.rules.0…`.
 - [ ] **5.6 Reserved ctx-namespace rejection.** *A ctx key that IS a bare expression-namespace word (`param`/`row`/`ctx`/`doc`/`segment`) can't be addressed by a condition ref — the runtime evaluator reroutes it (`segment.*`→`currentSegment`, `doc.*`→`documentMetadata`) — so producing one is a validation error.* On any workflow, rename a map's **item ctx key** (or a node's output-binding ctx key, or a `config.ctx` declaration) to **`segment`** (or `doc`). **Pass:** an **error** badge appears on that node and the Validation drawer lists an entry like *"Map item ctx key `segment` collides with a reserved expression namespace…"* anchored at `nodes.<id>.itemCtxKey`; `POST`/`PUT /api/workflows` refuses to persist it (`400`). Renaming to a non-reserved key (e.g. `currentSegment`) clears it. *(Note: a **namespaced path** like `doc.fileId` is the intended remap and is NOT flagged — only the bare word.)*
+- [ ] **5.7 An inline sub-workflow obeys the same rules (G-015).** Add a **Sub-workflow** node (3.5), open its settings and switch the ref type to **Inline** (4.4). The JSON textarea holds a complete graph config.
+  - Paste a graph whose `entryNodeId` names a node that isn't in it, and add a switch whose `defaultEdge` names an edge that isn't there. **Pass:** the panel's problems list under the textarea names both, the **node's badge turns red**, the **top-bar issues count goes up**, and the Validation drawer lists the rows with messages prefixed *"Inline child graph: …"* anchored at `nodes.<parentId>.inline.nodes.<innerId>.…`. **Save is refused** by the backend validator with the same paths. *(Before G-015 all of this validated green and saved clean — no validator pass descended into `workflowRef.inline`, so every rule the product enforces was dropped one level down.)*
+  - Click one of those drawer rows → **Pass:** **"Select node →"** selects and pans to the **childWorkflow node** (the inner graph has no canvas of its own, so the node holding the JSON is the correct target).
+  - Fix the JSON → **Pass:** the panel reads *"No problems in the inline graph."*, the badge clears and the top-bar count drops.
+  - Type a half-finished brace → **Pass:** only the textarea's own *"Invalid JSON: …"* shows; the problems list is hidden (there is nothing to validate) and the last well-formed graph stays committed.
+  - Nest one inline sub-workflow inside another and break the inner one → **Pass:** the descent continues (`…inline.nodes.<id>.inline.…`). An inline graph that (transitively) embeds itself is reported as *"recursive reference"* rather than hanging the editor.
 
 ---
 
@@ -350,6 +370,11 @@ Use the 5 typed exemplars (`document.split`, `document.classify`, `mistral-ocr.p
 - [ ] **7.6 Save-time binding-walk validator.** Build a real cross-kind binding (a `Document` producer’s ctx key read by a `Segment`-typed input) → Save. **Pass:** error anchored to the **consumer node + port**, naming producer/consumer kinds + ctx key + “not assignable”. Cardinality strict (`Document` → `Document[]` rejected). Fix → re-save → green.
 - [ ] **7.7 Ctx Kind column.** Workflow **Settings** drawer → add a ctx variable → set **Kind = Document** → Save → reload. **Pass:** Kind column present (blank `—` = wildcard), round-trips, and drives downstream compatibility.
 - [ ] **7.8 Library port kinds.** Save-as-library modal → declare a typed input/output kind → later reference the library from a childWorkflow node. **Pass:** Kind annotations show in the library port editor, library picker summary, and ChildWorkflow settings; round-trip.
+- [ ] **7.9 A `pollUntil` keeps the affordances of the activity it wraps (G-016).** Add a **Wait until condition** (pollUntil) node and set its **activity type** to a catalog activity with ports (e.g. `azureOcr.submit` — 1 input, 3 outputs).
+  - **Pass:** the card keeps its control-flow chrome (orange accent, ⟳ icon, "WAIT UNTIL CONDITION" header) **and** now renders per-port rows (`port-row-poll_x-in-fileData`, `…-out-apimRequestId`, …) with kind-coloured, draggable handles — exactly like an activity card. The card grows with the row count instead of staying a fixed rectangle.
+  - Drag from another node's typed output onto the pollUntil's `fileData` input row → **Pass:** the drag-to-bind gesture works and the wire anchors to that row (8.9). *(Before G-016 these inputs appeared in the settings panel and in the problems badge with **nothing on the canvas to drag to** — two surfaces, one node type, opposite answers.)*
+  - Now set the wrapped activity type to something the catalog doesn't know (hand-edit the config, or reference a deleted `dyn.` lineage). **Pass:** the card degrades the same way an `activity` node does — a **❓** glyph, the raw type string, and *"Unregistered activity."* (a soft-deleted `dyn.*` lineage gets the red **Deleted** pill and *"(deleted dynamic node)"* instead), and no port rows. *(Before G-016 the rectangle never consulted the catalog, so a vanished wrapped activity looked entirely normal.)*
+  - **Pass:** `switch` (diamond), `map`, `join`, `childWorkflow` and `humanGate` still render as plain rectangles/diamonds with **no** port rows — `pollUntil` is the only control-flow type that wraps a catalog activity.
 
 ---
 
