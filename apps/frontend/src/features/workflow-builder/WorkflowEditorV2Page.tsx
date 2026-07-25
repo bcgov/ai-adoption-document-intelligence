@@ -181,17 +181,26 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // G-003: `config` lives in an undo/redo history stack rather than a plain
   // `useState`. `setConfig` records an undo step; `resetConfig` replaces state
   // WITHOUT recording one and is reserved for lifecycle updates (initial
-  // load, server hydration, auto-layout) — see use-config-history.ts.
-  const { config, setConfig, resetConfig, undo, redo, canUndo, canRedo } =
-    useConfigHistory(() =>
-      incomingTemplate
-        ? resolveBindings(
-            normaliseLocks(
-              layoutGraphIfMissingPositions(incomingTemplate.config),
-            ),
-          )
-        : EMPTY_CONFIG,
-    );
+  // load, server hydration, arrange-on-load) — see use-config-history.ts.
+  // `undo` / `redo` below wrap the raw history steppers to keep the canvas's
+  // rendered positions in sync; use those, not these.
+  const {
+    config,
+    setConfig,
+    resetConfig,
+    undo: undoHistory,
+    redo: redoHistory,
+    canUndo,
+    canRedo,
+  } = useConfigHistory(() =>
+    incomingTemplate
+      ? resolveBindings(
+          normaliseLocks(
+            layoutGraphIfMissingPositions(incomingTemplate.config),
+          ),
+        )
+      : EMPTY_CONFIG,
+  );
   const [selectedNodeId, setSelectedNodeIdState] = useState<string | null>(
     null,
   );
@@ -349,11 +358,6 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   >(null);
   const validation = useGraphValidation(config);
 
-  // G-003: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y. Mounted with the editor,
-  // and inert while focus is in a text field so native text undo still works
-  // in every settings input. See use-undo-redo-hotkeys.ts.
-  useUndoRedoHotkeys({ undo, redo });
-
   // Render-time synthesis of map-body groups (Spec §6).
   // Synthetic entries are NEVER persisted; they're stripped from any config
   // update the canvas dispatches back through `onConfigChange`.
@@ -384,48 +388,100 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     reactFlowRef.current = instance;
   }, []);
 
-  // Bumped by "Auto-arrange" so the canvas re-applies config positions that
-  // the structural fingerprint would otherwise ignore (§4.2).
+  // Bumped whenever `metadata.position` changes without any structural
+  // change, so the canvas re-applies config positions its structural
+  // fingerprint would otherwise ignore (§4.2). Auto-arrange bumps it; so does
+  // every undo/redo, since a history step can restore a position-only diff.
   const [layoutNonce, setLayoutNonce] = useState(0);
 
-  const handleAutoArrange = useCallback(() => {
-    // Feed dagre each card's REAL rendered width, read from the live xyflow
-    // instance, so a narrow card gets a narrow slot and the horizontal gap
-    // between adjacent cards collapses to ~ranksep instead of every card
-    // reserving the widest card's fixed footprint. Nodes xyflow hasn't
-    // measured yet are simply omitted — layoutGraph falls back to its default
-    // width for those.
-    const nodeWidths = new Map<string, number>();
-    for (const node of reactFlowRef.current?.getNodes() ?? []) {
-      const width = node.measured?.width ?? node.width;
-      if (typeof width === "number" && width > 0) {
-        nodeWidths.set(node.id, width);
-      }
-    }
-    // Cluster each map's body members under dagre (and strip the synthetic
-    // groups back out) so the body-container box wraps just its members
-    // instead of sprawling after arrange. See layoutGraphWithMapBodies.
-    //
-    // G-003: `resetConfig`, not `setConfig`. This handler is shared by the
-    // top-bar action AND by `scheduleArrangeOnLoad`, which fires automatically
-    // ~1.5s after a `metadata.arrangeOnLoad` demo opens — recording that as an
-    // undo step would put a phantom entry at the bottom of every demo's stack.
-    // Auto-arrange is idempotent and one click away, so it is not worth
-    // splitting the two paths to make the manual one undoable.
-    resetConfig(layoutGraphWithMapBodies(configRef.current, { nodeWidths }));
-    // §4.2: the canvas's structural fingerprint excludes metadata.position,
-    // so this config-only position change won't re-project on its own. Bump
-    // the layout nonce so the canvas re-applies the new positions to its
-    // internal xyflow nodes (otherwise the rendered nodes never move even
-    // though the new layout persists to config).
+  /**
+   * G-003: the raw history steppers, wrapped so a restored layout is actually
+   * SEEN. Undo can reverse a position-only change — a manual Auto-arrange, or
+   * a node drag — and the canvas's structural fingerprint deliberately
+   * excludes `metadata.position` (§4.2), so without a nonce bump the restored
+   * positions would persist to config while the rendered nodes stayed put.
+   * Bumping on every step re-applies them; it is a no-op when the step changed
+   * no positions.
+   */
+  const undo = useCallback(() => {
+    undoHistory();
     setLayoutNonce((n) => n + 1);
-    // Defer the fit so the canvas's structural projection effect has run.
-    // 0ms is enough — xyflow updates its internal node store
-    // synchronously inside its sibling effect on the same tick.
-    setTimeout(() => {
-      reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
-    }, 0);
-  }, [resetConfig]);
+  }, [undoHistory]);
+  const redo = useCallback(() => {
+    redoHistory();
+    setLayoutNonce((n) => n + 1);
+  }, [redoHistory]);
+
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y. Mounted with the editor, and
+  // inert while focus is in a text field so native text undo still works in
+  // every settings input. See use-undo-redo-hotkeys.ts.
+  useUndoRedoHotkeys({ undo, redo });
+
+  /**
+   * The shared body of both arrange paths. `persist` is what decides whether
+   * the new layout becomes an undo step — the ONLY difference between the two
+   * callers, and the reason they are separate callbacks rather than one.
+   */
+  const runAutoArrange = useCallback(
+    (persist: (next: GraphWorkflowConfig) => void) => {
+      // Feed dagre each card's REAL rendered width, read from the live xyflow
+      // instance, so a narrow card gets a narrow slot and the horizontal gap
+      // between adjacent cards collapses to ~ranksep instead of every card
+      // reserving the widest card's fixed footprint. Nodes xyflow hasn't
+      // measured yet are simply omitted — layoutGraph falls back to its
+      // default width for those.
+      const nodeWidths = new Map<string, number>();
+      for (const node of reactFlowRef.current?.getNodes() ?? []) {
+        const width = node.measured?.width ?? node.width;
+        if (typeof width === "number" && width > 0) {
+          nodeWidths.set(node.id, width);
+        }
+      }
+      // Cluster each map's body members under dagre (and strip the synthetic
+      // groups back out) so the body-container box wraps just its members
+      // instead of sprawling after arrange. See layoutGraphWithMapBodies.
+      persist(layoutGraphWithMapBodies(configRef.current, { nodeWidths }));
+      // §4.2: the canvas's structural fingerprint excludes metadata.position,
+      // so this config-only position change won't re-project on its own. Bump
+      // the layout nonce so the canvas re-applies the new positions to its
+      // internal xyflow nodes (otherwise the rendered nodes never move even
+      // though the new layout persists to config).
+      setLayoutNonce((n) => n + 1);
+      // Defer the fit so the canvas's structural projection effect has run.
+      // 0ms is enough — xyflow updates its internal node store
+      // synchronously inside its sibling effect on the same tick.
+      setTimeout(() => {
+        reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
+      }, 0);
+    },
+    [],
+  );
+
+  /**
+   * The top-bar **More ▸ Auto-arrange** action. A deliberate authoring edit —
+   * the author asked for this layout and will reach for Ctrl+Z if they don't
+   * like it — so it goes through `setConfig` and IS an undo step. Undoing it
+   * restores the previous positions from the snapshot; it does not re-run the
+   * layout algorithm.
+   */
+  const handleAutoArrange = useCallback(
+    () => runAutoArrange(setConfig),
+    [runAutoArrange, setConfig],
+  );
+
+  /**
+   * The `metadata.arrangeOnLoad` path. Fires by itself ~1.5s after a demo
+   * opens, with nobody asking for it, so it goes through `resetConfig` and is
+   * NOT an undo step — otherwise every demo would open with a phantom entry
+   * already at the bottom of its undo stack, and the author's first Ctrl+Z
+   * would scramble the layout they were shown.
+   *
+   * Same layout, different persistence. That is the whole distinction.
+   */
+  const handleArrangeOnLoad = useCallback(
+    () => runAutoArrange(resetConfig),
+    [runAutoArrange, resetConfig],
+  );
 
   // "Open demos in the auto-arranged view" (metadata.arrangeOnLoad). The
   // measured-width Auto-arrange needs the cards to be mounted AND measured, so
@@ -439,7 +495,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     const MAX_FRAMES = 90; // ~1.5s at 60fps — give up if measurement stalls
     const tick = () => {
       if (nodesAllMeasured(reactFlowRef.current?.getNodes() ?? [])) {
-        handleAutoArrange();
+        handleArrangeOnLoad();
         return;
       }
       if (frames++ < MAX_FRAMES) {
@@ -447,7 +503,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       }
     };
     requestAnimationFrame(tick);
-  }, [handleAutoArrange]);
+  }, [handleArrangeOnLoad]);
 
   /**
    * Handler for the "Group selected" top-bar action (US-041). Calls the

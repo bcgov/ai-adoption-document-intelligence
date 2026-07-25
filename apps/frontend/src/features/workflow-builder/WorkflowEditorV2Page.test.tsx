@@ -43,6 +43,7 @@ const {
   capturedSettingsPanelProps,
   capturedValidationDrawerProps,
   fitViewMock,
+  measuredNodes,
   setCenterMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
@@ -68,6 +69,11 @@ const {
     capturedSettingsPanelProps: {
       current: null as null | Record<string, unknown>,
     },
+    // What the stubbed xyflow instance reports from `getNodes()`. Default is
+    // empty, which is what most tests want (auto-arrange falls back to its
+    // default node width). The arrange-on-load poll only fires once every node
+    // reports a measured width, so that test populates this.
+    measuredNodes: { current: [] as unknown[] },
     fitViewMock: vi.fn(),
     // Item 6X — the jump-to-producer handler pans via the live instance's
     // `setCenter`; capture calls so the page test can assert the pan fired.
@@ -106,10 +112,11 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
             // No-op — the stub doesn't simulate xyflow's node-selection
             // side effects, only that `setNodes` exists as a callable.
           },
-          // Auto-arrange reads measured node widths off the live instance.
-          // The stub reports none, so layoutGraph falls back to its default
-          // width — the width-packing maths is covered in auto-layout.test.ts.
-          getNodes: () => [],
+          // Auto-arrange reads measured node widths off the live instance,
+          // and the arrange-on-load poll waits for every node to report one.
+          // Defaults to none, so layoutGraph falls back to its default width —
+          // the width-packing maths is covered in auto-layout.test.ts.
+          getNodes: () => measuredNodes.current,
           // Item 6X — the stub reports no resolved node so the page falls
           // back to reading the position from config (still calls setCenter).
           getNode: () => undefined,
@@ -2358,6 +2365,7 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
     capturedPaletteProps.current = null;
     capturedSettingsPanelProps.current = null;
     existingWorkflowRef.current = null;
+    measuredNodes.current = [];
     fitViewMock.mockClear();
     vi.restoreAllMocks();
   });
@@ -2412,13 +2420,75 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
     expect(undoButton()).toBeDisabled();
   });
 
-  it("auto-arrange is not an undo step", async () => {
-    // Shared by the top-bar action AND the arrangeOnLoad path that fires
-    // automatically on demo workflows — recording it would seed a phantom
-    // entry at the bottom of every demo's stack.
+  it("the More > Auto-arrange menu action IS an undo step", async () => {
+    // A deliberate authoring edit: the author asked for this layout and will
+    // reach for Ctrl+Z if they dislike it.
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    expect(undoButton()).toBeDisabled();
+    fireEvent.click(screen.getByTestId("topbar-more-button"));
+    fireEvent.click(await screen.findByTestId("topbar-menu-auto-arrange"));
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    expect(undoButton()).toBeEnabled();
+  });
+
+  it("undoing a manual auto-arrange restores the PREVIOUS positions", async () => {
+    // Restored from the history snapshot — the layout algorithm must not be
+    // re-run, or "undo" would just produce the arranged layout again.
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const before = readPositionsFromCanvas();
+    expect(before.a).toEqual({ x: 10, y: 20 });
+
+    fireEvent.click(screen.getByTestId("topbar-more-button"));
+    fireEvent.click(await screen.findByTestId("topbar-menu-auto-arrange"));
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    const arranged = readPositionsFromCanvas();
+    expect(arranged).not.toEqual(before);
+
+    fireEvent.click(undoButton());
+    expect(readPositionsFromCanvas()).toEqual(before);
+  });
+
+  it("undo bumps the layout nonce so the restored positions actually re-render", async () => {
+    // §4.2 — the canvas's structural fingerprint excludes metadata.position,
+    // so a position-only restore would persist to config while the rendered
+    // nodes stayed put. The nonce is what makes the canvas re-apply them.
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
     fireEvent.click(screen.getByTestId("topbar-more-button"));
     fireEvent.click(await screen.findByTestId("topbar-menu-auto-arrange"));
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    const afterArrange = capturedCanvasProps.current?.layoutNonce as number;
+
+    fireEvent.click(undoButton());
+    expect(capturedCanvasProps.current?.layoutNonce).toBeGreaterThan(
+      afterArrange,
+    );
+    fireEvent.click(redoButton());
+    expect(capturedCanvasProps.current?.layoutNonce).toBeGreaterThan(
+      afterArrange + 1,
+    );
+  });
+
+  it("the automatic arrange-on-load is NOT an undo step", async () => {
+    // Fires by itself ~1.5s after a `metadata.arrangeOnLoad` demo opens.
+    // Recording it would seed a phantom entry at the bottom of every demo's
+    // stack, so the viewer's first Ctrl+Z would scramble the layout they were
+    // just shown.
+    const config = buildTemplateConfig({ positions: "all" });
+    measuredNodes.current = Object.keys(config.nodes).map((id) => ({
+      id,
+      measured: { width: 200 },
+    }));
+    existingWorkflowRef.current = {
+      id: "wf-arrange",
+      name: "Demo",
+      description: "",
+      config: {
+        ...config,
+        metadata: { ...config.metadata, arrangeOnLoad: true },
+      },
+      workflowVersionId: "wf-arrange-v1",
+    };
+    renderEditPage("wf-arrange");
     await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
     expect(undoButton()).toBeDisabled();
   });
