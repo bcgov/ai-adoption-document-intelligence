@@ -3,6 +3,7 @@ import { getActivityCatalogEntry } from "../catalog";
 import type { GraphNode, GraphWorkflowConfig } from "../types";
 import type { KindRef } from "../types/artifacts";
 import { getCtxRootKey } from "../validator/context-utils";
+import { decodeAutoCtxKey } from "./synthesise-ctx-key";
 
 /**
  * Where a ctx key's value comes from.
@@ -54,6 +55,30 @@ export function resolveCtxKeySource(
 ): CtxKeySource | null {
   const key = normaliseCtxKey(ctxKey);
   if (key === "") return null;
+
+  // An auto key names its own producer. The resolver stamps the matching
+  // `outputs[]` row whenever it runs, but a config can be inspected before
+  // that happens, so decode the key rather than relying on the row: the node
+  // still existing (and still declaring the port) IS the source. Once it is
+  // deleted the decode finds nothing and the key is correctly dangling.
+  const auto = decodeAutoCtxKey(key);
+  if (auto && auto.nodeId !== consumerNodeId) {
+    const producer = config.nodes?.[auto.nodeId];
+    if (producer) {
+      const kind = outputPortKind(producer, auto.port);
+      const declaresPort =
+        kind !== undefined ||
+        (producer.outputs ?? []).some((b) => b.port === auto.port);
+      if (declaresPort) {
+        return {
+          origin: "node-output",
+          nodeId: auto.nodeId,
+          port: auto.port,
+          ...(kind !== undefined ? { kind } : {}),
+        };
+      }
+    }
+  }
 
   for (const writer of collectCtxWriters(config)) {
     if (writer.nodeId === consumerNodeId) continue;

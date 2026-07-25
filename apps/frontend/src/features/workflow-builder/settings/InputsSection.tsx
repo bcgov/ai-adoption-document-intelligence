@@ -358,6 +358,73 @@ function PortRow({
         onClick: onRevert,
       });
       break;
+    case "locked-dangling":
+      // G-005: pinned, but the key it points at no longer has a source.
+      badge = (
+        <Tooltip label="This source no longer exists">
+          <Badge size="xs" color="red" variant="light">
+            Broken
+          </Badge>
+        </Tooltip>
+      );
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Text size="xs" c="red" truncate title={`from ${resolution.ctxKey}`}>
+            from {resolution.ctxKey} — nothing writes this
+          </Text>
+        </Group>
+      );
+      primary = (
+        <Button
+          size="compact-xs"
+          color="red"
+          variant="light"
+          onClick={onOverride}
+        >
+          Pick a source
+        </Button>
+      );
+      menuActions.push({
+        key: "revert",
+        label: "Revert to automatic",
+        onClick: onRevert,
+      });
+      break;
+    case "locked-kind-mismatch":
+      // G-005: pinned to a real source whose kind can't satisfy this port.
+      badge = (
+        <Tooltip
+          label={`Expected ${resolution.expected}, found ${resolution.actual}`}
+        >
+          <Badge size="xs" color="red" variant="light">
+            Wrong type
+          </Badge>
+        </Tooltip>
+      );
+      middle = (
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Text size="xs" c="red" truncate title={`from ${resolution.ctxKey}`}>
+            from {resolution.ctxKey} — {resolution.actual}, not{" "}
+            {resolution.expected}
+          </Text>
+        </Group>
+      );
+      primary = (
+        <Button
+          size="compact-xs"
+          color="red"
+          variant="light"
+          onClick={onOverride}
+        >
+          Pick a source
+        </Button>
+      );
+      menuActions.push({
+        key: "revert",
+        label: "Revert to automatic",
+        onClick: onRevert,
+      });
+      break;
     case "locked-unbound":
       badge = (
         <Tooltip label="Disconnected by you">

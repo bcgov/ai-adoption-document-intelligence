@@ -17,6 +17,7 @@ function activity(
 function makeConfig(
   nodes: Record<string, GraphWorkflowConfig["nodes"][string]>,
   edges: { source: string; target: string }[],
+  ctx: GraphWorkflowConfig["ctx"] = {},
 ): GraphWorkflowConfig {
   return {
     schemaVersion: "1.0",
@@ -29,7 +30,7 @@ function makeConfig(
       type: "normal" as const,
     })),
     entryNodeId: Object.keys(nodes)[0] ?? "",
-    ctx: {},
+    ctx,
   };
 }
 
@@ -184,14 +185,23 @@ describe("resolveInputPort", () => {
   });
 
   it("returns 'locked' when the port is in node.metadata.lockedInputPorts", () => {
+    // `myDoc` must have a real source for the pin to be healthy (G-005): here
+    // A's `preparedData` output is bound to it.
     const node = {
       ...activity("B", "azureOcr.submit"),
       inputs: [{ port: "fileData", ctxKey: "myDoc" }],
       metadata: { lockedInputPorts: ["fileData"] },
     };
-    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
-      { source: "A", target: "B" },
-    ]);
+    const cfg = makeConfig(
+      {
+        A: {
+          ...activity("A", "file.prepare"),
+          outputs: [{ port: "preparedData", ctxKey: "myDoc" }],
+        },
+        B: node,
+      },
+      [{ source: "A", target: "B" }],
+    );
     expect(
       resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
     ).toEqual({ status: "locked", ctxKey: "myDoc" });
@@ -264,17 +274,120 @@ describe("locked-unbound (port-wiring Phase 3, §6.3)", () => {
   });
 
   it("still reports locked (with ctxKey) when the locked port has a binding", () => {
+    // `someKey` is a declared workflow input — a legitimate source with no
+    // producing node (G-005).
     const node = {
       ...activity("B", "azureOcr.submit"),
       inputs: [{ port: "fileData", ctxKey: "someKey" }],
       metadata: { lockedInputPorts: ["fileData"] },
     };
-    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
-      { source: "A", target: "B" },
-    ]);
+    const cfg = makeConfig(
+      { A: activity("A", "file.prepare"), B: node },
+      [{ source: "A", target: "B" }],
+      { someKey: { type: "object", isInput: true } },
+    );
     expect(
       resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
     ).toEqual({ status: "locked", ctxKey: "someKey" });
+  });
+});
+
+describe("locked binding health (G-005)", () => {
+  it("reports a problem when a pinned port's ctx key has no source", () => {
+    // B is pinned to `myDoc`; NOTHING writes it and it is not declared.
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "myDoc" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ A: activity("A", "file.prepare"), B: node }, [
+      { source: "A", target: "B" },
+    ]);
+    const result = resolveInputPort(cfg, "B", {
+      name: "fileData",
+      kind: "Document",
+    });
+    expect(result).not.toEqual({ status: "locked", ctxKey: "myDoc" });
+    expect(result).toEqual({ status: "locked-dangling", ctxKey: "myDoc" });
+  });
+
+  it("reports a problem when a pinned port's producer node was deleted", () => {
+    // The auto key survives the delete; the producer does not.
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ B: node }, []);
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({
+      status: "locked-dangling",
+      ctxKey: "__auto.A.preparedData",
+    });
+  });
+
+  it("stays healthy when a pinned port's ctx key is a declared workflow input", () => {
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "myDoc" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig({ B: node }, [], {
+      myDoc: { type: "object", isInput: true },
+    });
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked", ctxKey: "myDoc" });
+  });
+
+  it("reports a problem when a pinned port's ctx key holds an incompatible kind", () => {
+    // A writes `myDoc` as `PreparedFile`; the consumer port expects OcrResult.
+    const node = {
+      ...activity("B", "ocr.cleanup"),
+      inputs: [{ port: "ocrResult", ctxKey: "myDoc" }],
+      metadata: { lockedInputPorts: ["ocrResult"] },
+    };
+    const cfg = makeConfig(
+      {
+        A: {
+          ...activity("A", "file.prepare"),
+          outputs: [{ port: "preparedData", ctxKey: "myDoc" }],
+        },
+        B: node,
+      },
+      [{ source: "A", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "ocrResult", kind: "OcrResult" }),
+    ).toEqual({
+      status: "locked-kind-mismatch",
+      ctxKey: "myDoc",
+      expected: "OcrResult",
+      actual: "PreparedFile",
+    });
+  });
+
+  it("stays healthy when the pinned kind is an assignable subtype", () => {
+    // `PreparedFile` is a `Document` subtype — a pin to it must NOT be flagged.
+    const node = {
+      ...activity("B", "azureOcr.submit"),
+      inputs: [{ port: "fileData", ctxKey: "myDoc" }],
+      metadata: { lockedInputPorts: ["fileData"] },
+    };
+    const cfg = makeConfig(
+      {
+        A: {
+          ...activity("A", "file.prepare"),
+          outputs: [{ port: "preparedData", ctxKey: "myDoc" }],
+        },
+        B: node,
+      },
+      [{ source: "A", target: "B" }],
+    );
+    expect(
+      resolveInputPort(cfg, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked", ctxKey: "myDoc" });
   });
 });
 

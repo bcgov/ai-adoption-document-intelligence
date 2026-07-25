@@ -3,6 +3,7 @@ import { getActivityCatalogEntry } from "../catalog";
 import type { GraphWorkflowConfig } from "../types";
 import type { KindRef } from "../types/artifacts";
 import { isAssignable } from "../types/subtype-check";
+import { resolveCtxKeySource } from "./ctx-source";
 import { getLockedInputPorts } from "./lock-list";
 import { upstreamNodesWithDistance } from "./upstream-walk";
 
@@ -26,7 +27,24 @@ export type PortResolution =
    * (PORT_WIRING_DESIGN.md §6.3 "pinned unbound"). The resolver must leave
    * it alone; the UI renders it as "Disconnected by you" (§12).
    */
-  | { status: "locked-unbound" };
+  | { status: "locked-unbound" }
+  /**
+   * Locked and bound, but the ctx key has NO source: nothing writes it and it
+   * is not declared in `config.ctx` — typically its producer node was deleted
+   * after the pin was made (G-005). The pin is preserved (the resolver still
+   * must not rewrite a locked port), but every surface reports a problem.
+   */
+  | { status: "locked-dangling"; ctxKey: string }
+  /**
+   * Locked and bound to a real source whose kind cannot satisfy this port
+   * (G-005). Only reported when BOTH sides declare a kind.
+   */
+  | {
+      status: "locked-kind-mismatch";
+      ctxKey: string;
+      expected: KindRef;
+      actual: KindRef;
+    };
 
 interface PortSpec {
   name: string;
@@ -58,6 +76,27 @@ export function resolveInputPort(
     // classifier must reject every falsy ctxKey, not just the empty string.
     if (!existing || !existing.ctxKey) {
       return { status: "locked-unbound" };
+    }
+    // G-005: a pin is NOT proof of health. Check that the key still has a
+    // source (a node writes it, or it is declared in `config.ctx`) and that
+    // the source's kind can satisfy this port. The pin itself is preserved —
+    // the resolver never rewrites a locked port — but a broken one is
+    // reported instead of silently reading as satisfied.
+    const source = resolveCtxKeySource(config, existing.ctxKey, consumerNodeId);
+    if (!source) {
+      return { status: "locked-dangling", ctxKey: existing.ctxKey };
+    }
+    if (
+      port.kind !== undefined &&
+      source.kind !== undefined &&
+      !isAssignable(source.kind, port.kind)
+    ) {
+      return {
+        status: "locked-kind-mismatch",
+        ctxKey: existing.ctxKey,
+        expected: port.kind,
+        actual: source.kind,
+      };
     }
     return { status: "locked", ctxKey: existing.ctxKey };
   }

@@ -5,6 +5,7 @@ import { computeNodeInputIssues, computeNodeStatus } from "./auto-wire-status";
 function makeConfig(
   nodes: Record<string, GraphWorkflowConfig["nodes"][string]>,
   edges: { source: string; target: string }[] = [],
+  ctx: GraphWorkflowConfig["ctx"] = {},
 ): GraphWorkflowConfig {
   return {
     schemaVersion: "1.0",
@@ -17,8 +18,20 @@ function makeConfig(
       type: "normal" as const,
     })),
     entryNodeId: Object.keys(nodes)[0] ?? "",
-    ctx: {},
+    ctx,
   };
+}
+
+/**
+ * Declares the hand-authored ctx keys a fixture pins ports to. A pin is only
+ * healthy when its key has a real source (G-005), and a workflow variable
+ * declared in `config.ctx` is exactly that — so fixtures that mean "this port
+ * is bound to a workflow variable" must actually declare it.
+ */
+function ctxVars(...keys: string[]): GraphWorkflowConfig["ctx"] {
+  return Object.fromEntries(
+    keys.map((k) => [k, { type: "string" as const, isInput: true }]),
+  );
 }
 
 describe("computeNodeStatus", () => {
@@ -95,19 +108,23 @@ describe("computeNodeStatus", () => {
     // computation — but the required documentId port now DOES (ring/badge
     // reconciliation, PORT_WIRING §4.2), so it must be resolved like any
     // other required port for the node to read "ok".
-    const cfg = makeConfig({
-      A: {
-        id: "A",
-        type: "activity",
-        activityType: "file.prepare",
-        label: "A",
-        inputs: [
-          { port: "documentId", ctxKey: "myDocId" },
-          { port: "blobKey", ctxKey: "myBlobKey" },
-        ],
-        metadata: { lockedInputPorts: ["documentId", "blobKey"] },
+    const cfg = makeConfig(
+      {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [
+            { port: "documentId", ctxKey: "myDocId" },
+            { port: "blobKey", ctxKey: "myBlobKey" },
+          ],
+          metadata: { lockedInputPorts: ["documentId", "blobKey"] },
+        },
       },
-    });
+      [],
+      ctxVars("myDocId", "myBlobKey"),
+    );
     expect(computeNodeStatus(cfg, "A")).toBe("ok");
   });
 });
@@ -219,16 +236,20 @@ describe("computeNodeInputIssues", () => {
     // documentId (kind Artifact, required) has no upstream producer and no
     // binding. blobKey is locked/bound so it doesn't also show up as a
     // problem — isolating the identifier-port behaviour under test.
-    const cfg = makeConfig({
-      A: {
-        id: "A",
-        type: "activity",
-        activityType: "file.prepare",
-        label: "A",
-        inputs: [{ port: "blobKey", ctxKey: "myBlobKey" }],
-        metadata: { lockedInputPorts: ["blobKey"] },
+    const cfg = makeConfig(
+      {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [{ port: "blobKey", ctxKey: "myBlobKey" }],
+          metadata: { lockedInputPorts: ["blobKey"] },
+        },
       },
-    });
+      [],
+      ctxVars("myBlobKey"),
+    );
     const issues = computeNodeInputIssues(cfg, "A");
     expect(issues.status).toBe("unsatisfied");
     expect(issues.problemPorts).toEqual([
@@ -245,19 +266,23 @@ describe("computeNodeInputIssues", () => {
     // fileName/fileType/contentType are optional Artifact-kinded ports with
     // no source. documentId and blobKey are locked/bound so the node is
     // otherwise clean — the optional identifier ports must stay invisible.
-    const cfg = makeConfig({
-      A: {
-        id: "A",
-        type: "activity",
-        activityType: "file.prepare",
-        label: "A",
-        inputs: [
-          { port: "documentId", ctxKey: "myDocId" },
-          { port: "blobKey", ctxKey: "myBlobKey" },
-        ],
-        metadata: { lockedInputPorts: ["documentId", "blobKey"] },
+    const cfg = makeConfig(
+      {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          inputs: [
+            { port: "documentId", ctxKey: "myDocId" },
+            { port: "blobKey", ctxKey: "myBlobKey" },
+          ],
+          metadata: { lockedInputPorts: ["documentId", "blobKey"] },
+        },
       },
-    });
+      [],
+      ctxVars("myDocId", "myBlobKey"),
+    );
     expect(computeNodeInputIssues(cfg, "A")).toEqual({
       status: "ok",
       problemPorts: [],
@@ -323,19 +348,23 @@ describe("computeNodeInputIssues", () => {
     // locked with no binding — a deliberate disconnect of an optional port
     // is not a problem. resultId and modelId (both required) are
     // locked/bound so they don't also surface as problems.
-    const cfg = makeConfig({
-      A: {
-        id: "A",
-        type: "activity",
-        activityType: "azureClassify.poll",
-        label: "A",
-        inputs: [
-          { port: "resultId", ctxKey: "r1" },
-          { port: "modelId", ctxKey: "m1" },
-        ],
-        metadata: { lockedInputPorts: ["resultId", "modelId", "blobKey"] },
+    const cfg = makeConfig(
+      {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "azureClassify.poll",
+          label: "A",
+          inputs: [
+            { port: "resultId", ctxKey: "r1" },
+            { port: "modelId", ctxKey: "m1" },
+          ],
+          metadata: { lockedInputPorts: ["resultId", "modelId", "blobKey"] },
+        },
       },
-    });
+      [],
+      ctxVars("r1", "m1"),
+    );
     expect(computeNodeInputIssues(cfg, "A")).toEqual({
       status: "ok",
       problemPorts: [],

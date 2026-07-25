@@ -70,6 +70,29 @@ describe("resolveCtxKeySource", () => {
     expect(resolveCtxKeySource(cfg, "__auto.prep.preparedData")).toBeNull();
   });
 
+  it("treats a live auto key as sourced even before its outputs row is stamped", () => {
+    // The resolver stamps `outputs[]` when it runs; a config can be inspected
+    // first (fresh drop, hand-edited pin). The auto key names its producer, so
+    // the node still existing IS the source.
+    const cfg = makeConfig({
+      prep: activity("prep", "file.prepare"),
+      b: activity("b", "azureOcr.submit", {
+        inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      }),
+    });
+    expect(resolveCtxKeySource(cfg, "__auto.prep.preparedData", "b")).toEqual({
+      origin: "node-output",
+      nodeId: "prep",
+      port: "preparedData",
+      kind: "PreparedFile",
+    });
+  });
+
+  it("returns null for an auto key naming a port its node does not declare", () => {
+    const cfg = makeConfig({ prep: activity("prep", "file.prepare") });
+    expect(resolveCtxKeySource(cfg, "__auto.prep.noSuchPort")).toBeNull();
+  });
+
   it("prefers a node output when a key is both declared and produced", () => {
     const cfg = makeConfig(
       {

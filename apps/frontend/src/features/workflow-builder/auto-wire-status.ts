@@ -14,7 +14,14 @@ export interface NodeInputProblem {
   /** Human-readable label for user-facing messages; falls back to `port`. */
   label: string;
   kind: KindRef;
-  status: "ambiguous" | "unsatisfied" | "locked-unbound";
+  status:
+    | "ambiguous"
+    | "unsatisfied"
+    | "locked-unbound"
+    | "locked-dangling"
+    | "locked-kind-mismatch";
+  /** `locked-dangling` / `locked-kind-mismatch` only: the broken binding's key. */
+  ctxKey?: string;
 }
 
 /**
@@ -57,6 +64,12 @@ export function computeNodeInputIssues(
     const isProblem =
       result.status === "ambiguous" ||
       result.status === "unsatisfied" ||
+      // A pin whose ctx key lost its source, or whose source can't satisfy
+      // the port, is broken however deliberately it was made (G-005). Unlike
+      // a disconnect, this is NOT gated on `required`: the author asked for
+      // this binding and it no longer works.
+      result.status === "locked-dangling" ||
+      result.status === "locked-kind-mismatch" ||
       // A disconnect is deliberate — only nag when the port is required.
       (result.status === "locked-unbound" && port.required === true);
     if (isProblem) {
@@ -67,6 +80,7 @@ export function computeNodeInputIssues(
         // ports admitted above are kind "Artifact".
         kind: port.kind as KindRef,
         status: result.status as NodeInputProblem["status"],
+        ...("ctxKey" in result ? { ctxKey: result.ctxKey } : {}),
       });
     }
   }

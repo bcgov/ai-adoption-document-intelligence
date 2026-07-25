@@ -215,6 +215,35 @@ function SummaryRow({ row, config, nodeId, onFix, onClose }: SummaryRowProps) {
           {fixButton}
         </Group>
       );
+    case "locked-dangling":
+      return (
+        <Group
+          gap={6}
+          wrap="nowrap"
+          justify="space-between"
+          data-testid={testId}
+        >
+          <Text size="xs">
+            ⚠ {port.label} — pinned to {resolution.ctxKey}, which nothing writes
+          </Text>
+          {fixButton}
+        </Group>
+      );
+    case "locked-kind-mismatch":
+      return (
+        <Group
+          gap={6}
+          wrap="nowrap"
+          justify="space-between"
+          data-testid={testId}
+        >
+          <Text size="xs">
+            ⚠ {port.label} — pinned to {resolution.ctxKey} ({resolution.actual}
+            ), expected {resolution.expected}
+          </Text>
+          {fixButton}
+        </Group>
+      );
     case "locked-unbound":
       return (
         <Group
