@@ -221,7 +221,10 @@ describe("validateGraphConfigWithDynamicNodes (US-174)", () => {
           id: "seg1",
           type: "activity",
           label: "segment",
-          // document.classify expects a Segment input port.
+          // document.classify's `segment` port declares kind `DocumentSegment`
+          // (retagged from the flat `Segment` by the kind-taxonomy refinement —
+          // see catalog/activities/document-classify.ts). A dynamic node
+          // producing `Document` is not assignable to it.
           activityType: "document.classify",
           parameters: {
             rules: [],
@@ -246,7 +249,9 @@ describe("validateGraphConfigWithDynamicNodes (US-174)", () => {
       (m) => m.path === "nodes.seg1.inputs.segment",
     );
     expect(target).toBeDefined();
-    expect(target?.message).toContain("Document not assignable to Segment");
+    expect(target?.message).toContain(
+      "Document not assignable to DocumentSegment",
+    );
   });
 
   it("Scenario 4 — version pin uses the pinned signature, not head", async () => {
