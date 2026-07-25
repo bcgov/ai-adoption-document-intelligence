@@ -107,12 +107,16 @@ export function InputsSection({
   };
 
   const node = config.nodes[nodeId];
-  if (!node || (node.type !== "activity" && node.type !== "pollUntil")) {
-    return null;
+  if (!node) return null;
+  // G-013: a map's `collection` is a real bindable input and gets a row here
+  // like any other port — read-only, because its key lives in
+  // `collectionCtxKey` (edited in MapNodeSettings) rather than `inputs[]`,
+  // which is what the pin/revert mutations write.
+  const isMapCollection = node.type === "map";
+  if (!isMapCollection) {
+    if (node.type !== "activity" && node.type !== "pollUntil") return null;
+    if (!getActivityCatalogEntry(node.activityType)) return null;
   }
-  const activityType = node.activityType;
-  const entry = getActivityCatalogEntry(activityType);
-  if (!entry) return null;
 
   // Two port populations get a row: auto-wireable typed ports (as before),
   // plus REQUIRED base-`Artifact` identifier ports — the amber ring already
@@ -169,6 +173,7 @@ export function InputsSection({
           producerNodeId={producerNodeIdForRow(resolution, config)}
           onJumpToProducer={onJumpToProducer}
           onHoverProducer={onHoverProducer}
+          showActions={!isMapCollection}
           onOverride={() => setOverrideOf(port.name)}
           onRevert={() => handleRevert(port.name)}
         />
@@ -219,6 +224,12 @@ interface PortRowProps {
   producerNodeId: string | null;
   onJumpToProducer?: (nodeId: string) => void;
   onHoverProducer?: (nodeId: string | null) => void;
+  /**
+   * Whether the row offers the pin/revert controls. False for rows whose
+   * binding is not stored in `inputs[]` (the map's `collection`, G-013) —
+   * those are status-only here and edited in their own settings section.
+   */
+  showActions?: boolean;
   onOverride: () => void;
   onRevert: () => void;
 }
@@ -232,6 +243,7 @@ function PortRow({
   producerNodeId,
   onJumpToProducer,
   onHoverProducer,
+  showActions = true,
   onOverride,
   onRevert,
 }: PortRowProps) {
@@ -461,6 +473,13 @@ function PortRow({
         onClick: onOverride,
       });
       break;
+  }
+
+  // Status-only rows keep their badge and source text but drop every control
+  // that would write `inputs[]` (see `showActions`).
+  if (!showActions) {
+    primary = null;
+    menuActions.length = 0;
   }
 
   return (

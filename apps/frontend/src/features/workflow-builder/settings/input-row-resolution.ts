@@ -9,6 +9,7 @@
 import {
   AUTO_CTX_KEY_PREFIX,
   getActivityCatalogEntry,
+  getLockedInputPorts,
   isAutoCtxKey,
   type KindRef,
   type PortResolution,
@@ -159,6 +160,7 @@ export function resolveWireableInputRows(
   nodeId: string,
 ): WireableInputRow[] {
   const node = config.nodes[nodeId];
+  if (node?.type === "map") return [resolveMapCollectionRow(config, node)];
   if (!node || (node.type !== "activity" && node.type !== "pollUntil")) {
     return [];
   }
@@ -189,4 +191,66 @@ export function resolveWireableInputRows(
       resolution,
     };
   });
+}
+
+/**
+ * The map's `collection` port row (G-013).
+ *
+ * `collection` is a real bindable input — the resolver honours a
+ * `lockedInputPorts` entry for it and auto-fills `collectionCtxKey` — but it
+ * lives in its own field rather than in `inputs[]`, so it had no
+ * `PortDescriptor`, no kind and no row anywhere. That left the one port every
+ * map depends on outside the binding-state model: nothing told the author
+ * whether the collection was auto-wired, pinned or dangling, and a deleted
+ * producer just made every body node quietly unsatisfiable.
+ *
+ * The row is read-only on this surface: `collectionCtxKey` is edited in
+ * `MapNodeSettings`, and the generic pin/revert mutations write `inputs[]`,
+ * which is the wrong home for it. Its job here is to make the state visible.
+ *
+ * Kind is left undefined — the collection is `T[]` for whatever `T` the
+ * producer emits, and control-flow nodes have no declared port kinds (that is
+ * G-007, a later batch).
+ */
+export const MAP_COLLECTION_PORT: WireableInputPort = {
+  name: "collection",
+  label: "Collection",
+};
+
+function resolveMapCollectionRow(
+  config: GraphWorkflowConfig,
+  node: Extract<GraphWorkflowConfig["nodes"][string], { type: "map" }>,
+): WireableInputRow {
+  const row = (resolution: RowResolution): WireableInputRow => ({
+    port: MAP_COLLECTION_PORT,
+    resolution,
+  });
+  const locked = getLockedInputPorts(node).includes("collection");
+  const ctxKey = node.collectionCtxKey;
+  if (!ctxKey) {
+    return row(
+      locked ? { status: "locked-unbound" } : { status: "unsatisfied" },
+    );
+  }
+  const source = resolveCtxKeySource(config, ctxKey, node.id);
+  if (!source) {
+    // Unlocked dangling keys are rewritten by the next `resolveBindings` pass
+    // when a replacement exists; until then "needs a source" is the honest
+    // state. A pinned one is never rewritten, so it is reported as broken.
+    return row(
+      locked
+        ? { status: "locked-dangling", ctxKey }
+        : { status: "unsatisfied" },
+    );
+  }
+  if (locked) return row({ status: "locked", ctxKey });
+  if (source.origin === "node-output") {
+    return row({
+      status: "auto-bound",
+      producerNodeId: source.nodeId,
+      producerPort: source.port,
+      via: "nearest-kind",
+    });
+  }
+  return row({ status: "ctx-bound", ctxKey });
 }

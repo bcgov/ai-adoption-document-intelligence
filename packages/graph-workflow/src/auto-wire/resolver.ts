@@ -1,6 +1,7 @@
 // packages/graph-workflow/src/auto-wire/resolver.ts
 import { getActivityCatalogEntry } from "../catalog";
 import type { GraphNode, GraphWorkflowConfig, PortBinding } from "../types";
+import { resolveCtxKeySource } from "./ctx-source";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 import { resolveInputPort } from "./resolve-input-port";
 import { shouldAutoWirePort } from "./should-auto-wire";
@@ -25,8 +26,25 @@ export function resolveBindings(
   for (const [mapId, mapNode] of Object.entries(nextNodes)) {
     if (mapNode.type !== "map") continue;
     const lockList = getLockedInputPorts(mapNode);
+    // A pinned collection is never rewritten — a broken one is REPORTED
+    // instead (resolveInputPort's `locked-dangling`), same as any other port.
     if (lockList.includes("collection")) continue;
-    if (mapNode.collectionCtxKey) continue;
+    // G-013: the auto-fill used to be one-shot (`if (collectionCtxKey)
+    // continue`), so once the producer behind the key was deleted the map
+    // kept the dead key forever — `resolveMapElementKind` then returned
+    // undefined and every body node silently lost its `map-item` producer.
+    // Re-resolve whenever the current key has no source; a key that still
+    // has one (a live producer, or a declared workflow input) is left alone.
+    if (
+      mapNode.collectionCtxKey &&
+      resolveCtxKeySource(
+        { ...config, nodes: nextNodes },
+        mapNode.collectionCtxKey,
+        mapId,
+      ) !== null
+    ) {
+      continue;
+    }
     const distances = upstreamNodesWithDistance(
       { ...config, nodes: nextNodes },
       mapId,

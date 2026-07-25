@@ -190,3 +190,114 @@ describe("resolvePinnedSource", () => {
     });
   });
 });
+
+describe("map collection row (G-013)", () => {
+  function mapConfig(
+    collectionCtxKey: string,
+    opts: { locked?: boolean; splitOutputs?: boolean; ctxDecl?: boolean } = {},
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "map-row" },
+      ctx: opts.ctxDecl
+        ? { incomingSegments: { type: "array", isInput: true } }
+        : {},
+      nodes: {
+        SPLIT: {
+          id: "SPLIT",
+          type: "activity",
+          label: "Split",
+          activityType: "document.split",
+          ...(opts.splitOutputs
+            ? { outputs: [{ port: "segments", ctxKey: collectionCtxKey }] }
+            : {}),
+        },
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "Map",
+          collectionCtxKey,
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+          ...(opts.locked
+            ? { metadata: { lockedInputPorts: ["collection"] } }
+            : {}),
+        },
+        BODY: {
+          id: "BODY",
+          type: "activity",
+          label: "Body",
+          activityType: "document.classify",
+        },
+      },
+      edges: [{ id: "e", source: "SPLIT", target: "MAP", type: "normal" }],
+      entryNodeId: "SPLIT",
+    } as GraphWorkflowConfig;
+  }
+
+  it("gives the map a single `collection` row", () => {
+    const rows = resolveWireableInputRows(mapConfig(""), "MAP");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].port.name).toBe("collection");
+    expect(rows[0].port.label).toBe("Collection");
+  });
+
+  it("reports an empty collection as unsatisfied", () => {
+    const rows = resolveWireableInputRows(mapConfig(""), "MAP");
+    expect(rows[0].resolution.status).toBe("unsatisfied");
+  });
+
+  it("reports an auto-wired collection as auto-bound to its producer", () => {
+    const rows = resolveWireableInputRows(
+      mapConfig("__auto.SPLIT.segments"),
+      "MAP",
+    );
+    expect(rows[0].resolution).toMatchObject({
+      status: "auto-bound",
+      producerNodeId: "SPLIT",
+      producerPort: "segments",
+    });
+  });
+
+  it("reports a declared workflow input as ctx-bound", () => {
+    const rows = resolveWireableInputRows(
+      mapConfig("incomingSegments", { ctxDecl: true }),
+      "MAP",
+    );
+    expect(rows[0].resolution).toEqual({
+      status: "ctx-bound",
+      ctxKey: "incomingSegments",
+    });
+  });
+
+  it("reports a pinned collection as locked", () => {
+    const rows = resolveWireableInputRows(
+      mapConfig("mySegments", { locked: true, splitOutputs: true }),
+      "MAP",
+    );
+    expect(rows[0].resolution).toEqual({
+      status: "locked",
+      ctxKey: "mySegments",
+    });
+  });
+
+  it("reports a pinned collection whose producer is gone as locked-dangling", () => {
+    const rows = resolveWireableInputRows(
+      mapConfig("__auto.GONE.segments", { locked: true }),
+      "MAP",
+    );
+    expect(rows[0].resolution).toEqual({
+      status: "locked-dangling",
+      ctxKey: "__auto.GONE.segments",
+    });
+  });
+
+  it("reports a pinned-but-empty collection as locked-unbound", () => {
+    const rows = resolveWireableInputRows(
+      mapConfig("", { locked: true }),
+      "MAP",
+    );
+    expect(rows[0].resolution).toEqual({ status: "locked-unbound" });
+  });
+});
