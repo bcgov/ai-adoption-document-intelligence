@@ -18,6 +18,13 @@ const mockProxyActivities = jest.fn(() => {
 });
 
 jest.mock("@temporalio/workflow", () => ({
+  // ⚠️ This is a bare OBJECT, not a class. `extractErrorDetails` (used on
+  // every node failure path) does `error instanceof ApplicationFailure`,
+  // which against a non-callable stub throws
+  // `TypeError: Right-hand side of 'instanceof' is not callable` and MASKS
+  // the real error. Fine here — these suites never reach that path — but if
+  // you add a test that exercises a FAILURE, copy the real-class stub from
+  // `node-executors.map-partial-failure.test.ts` instead of this one.
   ApplicationFailure: {
     create: jest.fn(
       (opts: { message: string; type: string; nonRetryable?: boolean }) => {

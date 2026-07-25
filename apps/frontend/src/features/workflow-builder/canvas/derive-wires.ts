@@ -26,6 +26,7 @@ import {
   getSourceCatalogEntry,
   isAutoCtxKey,
   type KindRef,
+  nodeTypeCtxWrites,
   resolveInputPort,
 } from "@ai-di/graph-workflow";
 import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
@@ -77,11 +78,12 @@ interface Producer {
 /**
  * Index of every ctx key some node writes, keyed by ctx key. Built from
  * declared `outputs[]` bindings (kind resolved via the activity catalog
- * when the producing node has an `activityType`) plus source-node
+ * when the producing node has an `activityType`), then source-node
  * synthetic emissions (`source.upload`'s single ctx key, `source.api`'s
- * per-field ctx keys). The source-node branch mirrors
- * `graph-widgets/resolve-producer-kind.ts`'s source handling — read that
- * module before changing it so the two stay in sync.
+ * per-field ctx keys), then the remaining control-flow writes (G-007). The
+ * source-node branch mirrors `graph-widgets/resolve-producer-kind.ts`'s
+ * source handling — read that module before changing it so the two stay in
+ * sync.
  *
  * Two deliberate divergences from that module: (1) ANY node's `outputs[]`
  * bindings index as producers here, not just activity/pollUntil — design
@@ -156,6 +158,36 @@ function buildProducerIndex(
           kind: field.kind ?? "Artifact",
         });
       }
+    }
+  }
+
+  // G-007 follow-up: control-flow producers. `join`, `childWorkflow` and
+  // `humanGate` write ctx through their own fields (`resultsCtxKey`,
+  // `outputMappings`, the `<nodeId>Payload` key) rather than through
+  // `outputs[]`, so before this pass a consumer the resolver auto-bound to one
+  // of them rendered NO wire — a correct binding the author could neither see
+  // nor delete. `nodeTypeCtxWrites` is the same enumeration the resolver's
+  // `outputPortsFor` uses, so the two can never disagree about what a node
+  // produces. `switch` writes nothing and contributes nothing.
+  //
+  // Two node types are deliberately NOT indexed here:
+  //   - `source` — already handled by the branch above, which owns the
+  //     per-subtype kinds (`outputKind` / per-field `kind`).
+  //   - `map` — its item key is reported by the resolver as
+  //     `producerPort = itemCtxKey`, not the `"item"` port name this
+  //     enumeration uses, so indexing it would draw a wire the `via` lookup
+  //     below could never stamp provenance on. Map-item wires have always
+  //     been invisible (this predates G-007) and making them visible is a
+  //     separate change that also has to reckon with `MapBodyContainer`.
+  for (const producerNode of Object.values(config.nodes)) {
+    if (producerNode.type === "source" || producerNode.type === "map") continue;
+    for (const write of nodeTypeCtxWrites(producerNode.id, producerNode)) {
+      if (index.has(write.ctxKey)) continue;
+      index.set(write.ctxKey, {
+        nodeId: producerNode.id,
+        port: write.port,
+        kind: write.kind,
+      });
     }
   }
 

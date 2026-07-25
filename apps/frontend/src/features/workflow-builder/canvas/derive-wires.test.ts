@@ -7,7 +7,10 @@
 import { describe, expect, it } from "vitest";
 import type {
   ActivityNode,
+  ChildWorkflowNode,
   GraphWorkflowConfig,
+  HumanGateNode,
+  JoinNode,
   SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
@@ -398,5 +401,237 @@ describe("deriveWires — two producers writing the same ctx key", () => {
     const dataWires = deriveWires(cfg).filter(isDataWire);
     expect(dataWires).toHaveLength(1);
     expect(dataWires[0].source).toBe("A");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-007 follow-up: control-flow producers must draw wires too.
+//
+// G-007 let the resolver auto-bind consumers downstream of a `join`,
+// `humanGate` or `childWorkflow`. Those nodes write ctx through their own
+// fields rather than through `outputs[]`, so the producer index did not know
+// about them and the resulting binding rendered NO wire — a correct binding
+// the author could neither see nor delete.
+// ---------------------------------------------------------------------------
+
+describe("deriveWires — control-flow producers (G-007)", () => {
+  it("draws a data wire from a join's results key", () => {
+    const cfg = config({
+      nodes: {
+        J: node<JoinNode>({
+          id: "J",
+          type: "join",
+          sourceMapNodeId: "MAP",
+          strategy: "all",
+          resultsCtxKey: "branchResults",
+        }),
+        AGG: node<ActivityNode>({
+          id: "AGG",
+          type: "activity",
+          activityType: "benchmark.aggregate",
+          inputs: [{ port: "results", ctxKey: "branchResults" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "J", target: "AGG", type: "normal" }],
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0]).toMatchObject({
+      source: "J",
+      sourcePort: "results",
+      target: "AGG",
+      targetPort: "results",
+      ctxKey: "branchResults",
+      edgeId: "e1",
+    });
+    // No sequence wire: the pair's edge is stamped onto the data wire.
+    expect(
+      deriveWires(cfg).filter((w) => w.variant === "sequence"),
+    ).toHaveLength(0);
+  });
+
+  it("draws a data wire from a humanGate's approval payload", () => {
+    const cfg = config({
+      nodes: {
+        HG: node<HumanGateNode>({
+          id: "HG",
+          type: "humanGate",
+          signal: { name: "humanApproval" },
+          timeout: "1h",
+          onTimeout: "fail",
+        }),
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "document.updateStatus",
+          // The executor always writes `<nodeId>Payload` with the signal body.
+          inputs: [{ port: "documentId", ctxKey: "HGPayload" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "HG", target: "A", type: "normal" }],
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0]).toMatchObject({
+      source: "HG",
+      sourcePort: "payload",
+      target: "A",
+      targetPort: "documentId",
+      ctxKey: "HGPayload",
+    });
+  });
+
+  it("draws a data wire from a childWorkflow's declared output mapping", () => {
+    const cfg = config({
+      nodes: {
+        C: node<ChildWorkflowNode>({
+          id: "C",
+          type: "childWorkflow",
+          workflowRef: { type: "library", workflowId: "w1" },
+          outputMappings: [{ port: "summary", ctxKey: "childSummary" }],
+        }),
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "documentId", ctxKey: "childSummary" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "C", target: "A", type: "normal" }],
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0]).toMatchObject({
+      source: "C",
+      sourcePort: "summary",
+      target: "A",
+      targetPort: "documentId",
+      ctxKey: "childSummary",
+    });
+  });
+
+  it("a switch still contributes no producers", () => {
+    // A switch routes; it writes no ctx. A binding to a key it does not
+    // write must stay wire-less rather than gain a phantom producer.
+    const cfg = config({
+      nodes: {
+        SW: node<SwitchNode>({ id: "SW", type: "switch", cases: [] }),
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "documentId", ctxKey: "nothingWritesThis" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "SW", target: "A", type: "normal" }],
+    });
+
+    expect(deriveWires(cfg).filter(isDataWire)).toHaveLength(0);
+  });
+
+  it("an explicit outputs[] row on a control-flow node still wins", () => {
+    // First-writer-wins is unchanged: the `outputs[]` pass runs first, so a
+    // hand-authored row is not displaced by the type-derived write.
+    const cfg = config({
+      nodes: {
+        J: node<JoinNode>({
+          id: "J",
+          type: "join",
+          sourceMapNodeId: "MAP",
+          strategy: "all",
+          resultsCtxKey: "shared",
+          outputs: [{ port: "handAuthored", ctxKey: "shared" }],
+        }),
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "document.updateStatus",
+          inputs: [{ port: "documentId", ctxKey: "shared" }],
+        }),
+      },
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].sourcePort).toBe("handAuthored");
+  });
+
+  it("regression: source-originated wires are unchanged", () => {
+    // The source branch of the producer index owns source kinds and must not
+    // be displaced by the control-flow pass. Same assertions as the
+    // source.upload / source.api scenarios above, re-run together.
+    const cfg = config({
+      nodes: {
+        UP: node<SourceNode>({
+          id: "UP",
+          type: "source",
+          sourceType: "source.upload",
+          parameters: { ctxKey: "incomingDoc" },
+        }),
+        API: node<SourceNode>({
+          id: "API",
+          type: "source",
+          sourceType: "source.api",
+          parameters: {
+            fields: [
+              { name: "caseNumber", type: "string", required: true },
+              {
+                name: "typedDoc",
+                type: "object",
+                kind: "Document",
+                required: true,
+              },
+            ],
+          },
+        }),
+        R: node<ActivityNode>({
+          id: "R",
+          type: "activity",
+          activityType: "blob.read",
+          inputs: [{ port: "blobKey", ctxKey: "incomingDoc" }],
+        }),
+        P: node<ActivityNode>({
+          id: "P",
+          type: "activity",
+          activityType: "file.prepare",
+          inputs: [
+            { port: "blobKey", ctxKey: "typedDoc" },
+            { port: "fileName", ctxKey: "caseNumber" },
+          ],
+        }),
+      },
+    });
+
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(3);
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        source: "UP",
+        sourcePort: "incomingDoc",
+        target: "R",
+        kind: "DocumentRef",
+      }),
+    );
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        source: "API",
+        sourcePort: "typedDoc",
+        target: "P",
+        kind: "Document",
+      }),
+    );
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        source: "API",
+        sourcePort: "caseNumber",
+        target: "P",
+        // source.api's untyped fields keep the `Artifact` default the source
+        // branch has always applied.
+        kind: "Artifact",
+      }),
+    );
   });
 });

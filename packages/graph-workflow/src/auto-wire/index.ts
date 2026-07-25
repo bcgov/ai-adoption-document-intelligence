@@ -1,4 +1,10 @@
-export { type CtxKeySource, resolveCtxKeySource } from "./ctx-source";
+export {
+  type CtxKeySource,
+  type CtxWriter,
+  nodeTypeCtxWrites,
+  producerCtxKeyForPort,
+  resolveCtxKeySource,
+} from "./ctx-source";
 export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 export { normaliseLocks } from "./normalise-locks";
 export {

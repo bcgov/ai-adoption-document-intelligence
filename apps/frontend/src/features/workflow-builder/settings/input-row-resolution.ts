@@ -208,9 +208,13 @@ export function resolveWireableInputRows(
  * `MapNodeSettings`, and the generic pin/revert mutations write `inputs[]`,
  * which is the wrong home for it. Its job here is to make the state visible.
  *
- * Kind is left undefined — the collection is `T[]` for whatever `T` the
- * producer emits, and control-flow nodes have no declared port kinds (that is
- * G-007, a later batch).
+ * Kind is left undefined, and stays that way after G-007: the collection is
+ * `T[]` for whatever `T` the producer emits, so there is no single kind to
+ * declare. (G-007 gave control-flow nodes declared OUTPUTS — a map's `item`,
+ * a join's `results` — but `collection` is an INPUT, and its element type is
+ * only knowable from whichever producer happens to feed it. The resolver
+ * derives that per-graph in its `map-item` pass rather than pinning a kind
+ * here.)
  */
 export const MAP_COLLECTION_PORT: WireableInputPort = {
   name: "collection",
