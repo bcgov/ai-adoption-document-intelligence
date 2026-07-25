@@ -14,7 +14,7 @@
  * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
  */
 
-import { isAutoCtxKey } from "../auto-wire";
+import { isAutoCtxKey, resolveCtxKeySource } from "../auto-wire";
 import { getActivityCatalogEntry as defaultGetActivityCatalogEntry } from "../catalog";
 import { getSourceCatalogEntry as defaultGetSourceCatalogEntry } from "../catalog/source-catalog";
 import type {
@@ -1498,7 +1498,26 @@ function walkCtxKeyBindings(
   }
 
   for (const [ctxKey, { producers, consumers }] of byCtxKey.entries()) {
-    if (producers.length === 0 || consumers.length === 0) continue;
+    if (consumers.length === 0) continue;
+    if (producers.length === 0) {
+      // G-002: nothing here to KIND-check — but a key with consumers and no
+      // producer is not automatically fine either. `resolveCtxKeySource` is
+      // the shared arbiter: it knows about the writes this walk never
+      // enumerates (map item/index, join results, childWorkflow output
+      // mappings, the humanGate payload key, live `__auto.<node>.<port>`
+      // producers) and it treats a `config.ctx` declaration as a legitimate
+      // source, so workflow inputs stay clean. Only when it finds nothing at
+      // all is the binding genuinely dangling.
+      for (const consumer of consumers) {
+        if (resolveCtxKeySource(config, ctxKey) !== null) break;
+        errors.push({
+          path: `nodes.${consumer.node.id}.inputs.${consumer.port}`,
+          message: `Input port \`${consumer.port}\` on node \`${consumer.node.id}\` reads from ctx key \`${ctxKey}\`, which nothing writes and no ctx declaration provides`,
+          severity: "error",
+        });
+      }
+      continue;
+    }
     for (const consumer of consumers) {
       for (const producer of producers) {
         if (isAssignable(producer.kind, consumer.kind)) continue;

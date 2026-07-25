@@ -12,6 +12,7 @@ import {
   isAutoCtxKey,
   type KindRef,
   type PortResolution,
+  resolveCtxKeySource,
   resolveInputPort,
   shouldAutoWirePort,
 } from "@ai-di/graph-workflow";
@@ -68,11 +69,18 @@ export function resolvePinnedSource(
 /**
  * What a port row renders from: the resolver's `PortResolution` plus one
  * display-only state — "ctx-bound", an UNLOCKED port whose persisted binding
- * points at a real (non-auto) ctx variable. The resolver ignores unlocked
- * `inputs[]` rows and reports "unsatisfied" for these, but the unified
- * validation drawer suppresses exactly this case (its `manuallyBoundPorts`
- * filter in auto-wire-validation.ts): a ctx-bound port HAS a source. Every
- * row-rendering surface must agree with the drawer.
+ * points at a real (non-auto) ctx variable **that still has a source**. The
+ * resolver ignores unlocked `inputs[]` rows and reports "unsatisfied" for
+ * these, and the unified validation drawer suppresses the same case (its
+ * `manuallyBoundPorts` filter in auto-wire-validation.ts). Every row-rendering
+ * surface must agree with the drawer.
+ *
+ * G-002: "bound to a ctx variable" is NOT by itself proof of a source — the
+ * node that wrote that variable can be deleted out from under the binding, and
+ * the key then points at nothing. Both this state and the drawer's suppression
+ * are therefore gated on `resolveCtxKeySource`; a dangling key falls through
+ * to the honest "unsatisfied" ("Needs a source") rather than the reassuring
+ * "from `<key>`".
  */
 export type RowResolution =
   | PortResolution
@@ -117,7 +125,8 @@ function effectiveResolution(
   if (
     rawResolution.status === "unsatisfied" &&
     existingCtxKey &&
-    !isAutoCtxKey(existingCtxKey)
+    !isAutoCtxKey(existingCtxKey) &&
+    resolveCtxKeySource(config, existingCtxKey) !== null
   ) {
     return { status: "ctx-bound", ctxKey: existingCtxKey };
   }

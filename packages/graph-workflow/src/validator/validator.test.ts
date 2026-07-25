@@ -683,7 +683,9 @@ describe("G-017: humanGate signal name validation", () => {
       ALWAYS_REGISTERED_OPTIONS,
     );
 
-    expect(result.errors.find((e) => e.path.includes("signal"))).toBeUndefined();
+    expect(
+      result.errors.find((e) => e.path.includes("signal")),
+    ).toBeUndefined();
   });
 });
 
@@ -1923,6 +1925,123 @@ describe("validateGraphConfig + resolveBindings: __auto. ctx keys are accepted",
     const result = validateGraphConfig(resolved, ALWAYS_REGISTERED_OPTIONS);
 
     expect(result.errors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-002 — a consumed ctx key with no source at all
+//
+// `walkCtxKeyBindings` used to `continue` past every key with zero producers,
+// so it skipped the kind check AND any existence check: delete the sole
+// producer of a key and every consumer still validated clean. The kind check
+// still has nothing to compare, but the key's ABSENCE of a source is now an
+// error in its own right.
+// ---------------------------------------------------------------------------
+
+describe("G-002: a consumed ctx key must have a source", () => {
+  function chain(
+    nodes: Record<string, GraphWorkflowConfig["nodes"][string]>,
+    ctx: GraphWorkflowConfig["ctx"] = {},
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: Object.keys(nodes)[0] ?? "",
+      ctx,
+      nodes,
+      edges: [],
+    };
+  }
+
+  it("errors when a consumed ctx key has no producer and no declaration", () => {
+    const cfg = chain({
+      B: {
+        id: "B",
+        type: "activity",
+        activityType: "azureOcr.submit",
+        label: "Submit",
+        inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      } as ActivityNode,
+    });
+    const result = validateGraphConfig(cfg, ALWAYS_REGISTERED_OPTIONS);
+    const errors = result.errors.filter((e) => e.severity === "error");
+    expect(errors).toHaveLength(1);
+    expect(errors[0].path).toBe("nodes.B.inputs.fileData");
+    expect(errors[0].message).toContain("__auto.prep.preparedData");
+    expect(result.valid).toBe(false);
+  });
+
+  it("does not error when the key is a declared workflow input", () => {
+    const cfg = chain(
+      {
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Submit",
+          inputs: [{ port: "fileData", ctxKey: "incomingFile" }],
+        } as ActivityNode,
+      },
+      { incomingFile: { type: "object", isInput: true } },
+    );
+    const result = validateGraphConfig(cfg, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors.filter((e) => e.severity === "error")).toEqual([]);
+  });
+
+  it("does not error while the producing node is still there", () => {
+    const cfg = chain({
+      prep: {
+        id: "prep",
+        type: "activity",
+        activityType: "file.prepare",
+        label: "Prepare",
+        outputs: [{ port: "preparedData", ctxKey: "__auto.prep.preparedData" }],
+      } as ActivityNode,
+      B: {
+        id: "B",
+        type: "activity",
+        activityType: "azureOcr.submit",
+        label: "Submit",
+        inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+      } as ActivityNode,
+    });
+    const result = validateGraphConfig(cfg, ALWAYS_REGISTERED_OPTIONS);
+    expect(result.errors.filter((e) => e.severity === "error")).toEqual([]);
+  });
+
+  it("does not error for a key a control-flow node writes (map item)", () => {
+    // `walkCtxKeyBindings` never enumerated map/join writes as producers, so
+    // an existence check built on its own producer map alone would flag every
+    // map body node.
+    const cfg = chain(
+      {
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "Map",
+          collectionCtxKey: "segments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        } as GraphWorkflowConfig["nodes"][string],
+        BODY: {
+          id: "BODY",
+          type: "activity",
+          activityType: "document.classify",
+          label: "Classify",
+          inputs: [{ port: "segment", ctxKey: "currentSegment" }],
+        } as ActivityNode,
+      },
+      {
+        segments: { type: "array" },
+        currentSegment: { type: "object" },
+      },
+    );
+    const errors = validateGraphConfig(
+      cfg,
+      ALWAYS_REGISTERED_OPTIONS,
+    ).errors.filter((e) => e.severity === "error");
+    expect(errors.filter((e) => e.path.includes("BODY"))).toEqual([]);
   });
 });
 
