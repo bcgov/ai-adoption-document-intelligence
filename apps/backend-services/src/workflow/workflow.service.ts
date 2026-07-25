@@ -1016,10 +1016,20 @@ export class WorkflowService {
    * a ref: a `WorkflowVersion.id`, the `WorkflowLineage.id`, or the lineage
    * NAME. Scanning only for the lineage id would miss real references.
    *
-   * Unlike the dynamic-node precedent this scan is NOT scoped to the
-   * lineage's group: `getWorkflowGraphConfig` resolves refs without a group
-   * filter, so a cross-group reference is a real (if unusual) reference and
-   * missing it would break exactly the workflow we are protecting.
+   * ## Tenancy — read both halves before changing either
+   *
+   * **The SCAN is deliberately NOT scoped to the lineage's group**, unlike
+   * the dynamic-node precedent. `getWorkflowGraphConfig` resolves refs
+   * without a group filter, so a cross-group reference is a real (if
+   * unusual) reference; adding `AND wl.group_id = …` here would make us miss
+   * exactly the case this guard exists to protect. **Do not "fix" the
+   * missing group scope — it is the point.**
+   *
+   * **The MESSAGE, however, only names referrers in the target's own
+   * group.** Naming another tenant's workflow would leak its existence and
+   * title to anyone who merely attempted a delete. Out-of-group referrers
+   * are reported as a bare count. If every referrer is out-of-group the
+   * delete is still refused and still says why — it just names nothing.
    *
    * Not transactional with the delete: this is a read, and a workflow saved
    * between the scan and the delete would race any check we could write
@@ -1029,6 +1039,7 @@ export class WorkflowService {
   private async assertNotReferencedAsLibrary(lineage: {
     id: string;
     name: string;
+    group_id: string;
   }): Promise<void> {
     const versions = await this.prisma.workflowVersion.findMany({
       where: { lineage_id: lineage.id },
@@ -1054,6 +1065,7 @@ export class WorkflowService {
       Array<{
         lineage_id: string;
         lineage_name: string;
+        group_id: string;
         version_number: number;
         config: unknown;
       }>
@@ -1061,6 +1073,7 @@ export class WorkflowService {
       Prisma.sql`
         SELECT wl.id AS lineage_id,
                wl.name AS lineage_name,
+               wl.group_id AS group_id,
                wv.version_number AS version_number,
                wv.config AS config
           FROM "workflow_versions" wv
@@ -1070,13 +1083,16 @@ export class WorkflowService {
       `,
     );
 
-    const referencing = new Map<string, string>();
+    const referencing = new Map<string, { name: string; groupId: string }>();
     for (const row of rows) {
       const refs = new Set<string>();
       collectLibraryWorkflowRefs(row.config, refs);
       for (const ref of refs) {
         if (identifiers.has(ref)) {
-          referencing.set(row.lineage_id, row.lineage_name);
+          referencing.set(row.lineage_id, {
+            name: row.lineage_name,
+            groupId: row.group_id,
+          });
           break;
         }
       }
@@ -1086,17 +1102,44 @@ export class WorkflowService {
       return;
     }
 
-    const names = [...referencing.values()];
-    const listed = names.slice(0, MAX_LISTED_REFERENCING_WORKFLOWS);
-    const remainder = names.length - listed.length;
-    const nameList =
-      remainder > 0
-        ? `${listed.join(", ")} and ${remainder} more`
-        : listed.join(", ");
+    // Tenancy split — see the doc comment. Same-group referrers are named;
+    // out-of-group ones are counted only, so a delete attempt cannot be used
+    // to discover another tenant's workflow titles.
+    const sameGroup: string[] = [];
+    let otherGroupCount = 0;
+    for (const referrer of referencing.values()) {
+      if (referrer.groupId === lineage.group_id) {
+        sameGroup.push(referrer.name);
+      } else {
+        otherGroupCount += 1;
+      }
+    }
+
+    const total = referencing.size;
+    const clauses: string[] = [];
+    if (sameGroup.length > 0) {
+      const listed = sameGroup.slice(0, MAX_LISTED_REFERENCING_WORKFLOWS);
+      const remainder = sameGroup.length - listed.length;
+      clauses.push(
+        remainder > 0
+          ? `${listed.join(", ")} and ${remainder} more`
+          : listed.join(", "),
+      );
+    }
+    if (otherGroupCount > 0) {
+      clauses.push(
+        `${otherGroupCount} workflow${
+          otherGroupCount === 1 ? "" : "s"
+        } in other groups`,
+      );
+    }
+
     throw new ConflictException(
-      `This workflow cannot be deleted because ${names.length} other workflow${
-        names.length === 1 ? "" : "s"
-      } still call${names.length === 1 ? "s" : ""} it as a library child: ${nameList}. Remove or repoint those child-workflow steps first.`,
+      `This workflow cannot be deleted because ${total} other workflow${
+        total === 1 ? "" : "s"
+      } still call${total === 1 ? "s" : ""} it as a library child: ${clauses.join(
+        " and ",
+      )}. Remove or repoint those child-workflow steps first.`,
     );
   }
 

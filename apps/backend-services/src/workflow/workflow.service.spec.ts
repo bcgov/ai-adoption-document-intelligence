@@ -845,6 +845,7 @@ describe("WorkflowService", () => {
           {
             lineage_id: "lin-caller",
             lineage_name: "Caller workflow",
+            group_id: "group-1",
             version_number: 4,
             config: callerConfig("lin-1"),
           },
@@ -866,6 +867,7 @@ describe("WorkflowService", () => {
           {
             lineage_id: "lin-caller",
             lineage_name: "Caller workflow",
+            group_id: "group-1",
             version_number: 1,
             // `getWorkflowGraphConfig` resolves a ref by WorkflowVersion.id,
             // lineage id OR lineage NAME — all three are live references.
@@ -889,6 +891,7 @@ describe("WorkflowService", () => {
           {
             lineage_id: "lin-caller",
             lineage_name: "Caller workflow",
+            group_id: "group-1",
             version_number: 1,
             config: callerConfig("wv-2"),
           },
@@ -907,6 +910,7 @@ describe("WorkflowService", () => {
           {
             lineage_id: "lin-caller",
             lineage_name: "Caller workflow",
+            group_id: "group-1",
             // Version 2 of a caller whose head is version 7 — superseded, but
             // still reachable through `workflowRef.version` pinning, through
             // `Document.workflow_version_id`, and through benchmark
@@ -943,6 +947,7 @@ describe("WorkflowService", () => {
           {
             lineage_id: "lin-unrelated",
             lineage_name: "Unrelated workflow",
+            group_id: "group-1",
             version_number: 1,
             config: {
               schemaVersion: "1.0",
@@ -968,6 +973,101 @@ describe("WorkflowService", () => {
         expect(mockLineage.delete).toHaveBeenCalledWith({
           where: { id: "lin-1" },
         });
+      });
+
+      // Tenancy: the SCAN is intentionally unscoped by group (a cross-group
+      // reference is a real reference), but the MESSAGE must not disclose
+      // another tenant's workflow names.
+      it("names same-group referrers", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Payroll intake",
+            group_id: "group-1",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).message).toContain(
+          "Payroll intake",
+        );
+        expect((error as ConflictException).message).toContain(
+          "1 other workflow still calls it",
+        );
+      });
+
+      it("counts but does NOT name referrers from another group", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-other-a",
+            lineage_name: "Secret tenant workflow A",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+          {
+            lineage_id: "lin-other-b",
+            lineage_name: "Secret tenant workflow B",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        const message = (error as ConflictException).message;
+        // Still refuses, still says why.
+        expect(message).toContain("2 workflows in other groups");
+        // Leaks nothing.
+        expect(message).not.toContain("Secret tenant workflow A");
+        expect(message).not.toContain("Secret tenant workflow B");
+        expect(message).not.toContain("lin-other-a");
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("mixes named same-group referrers with a count of out-of-group ones", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-mine",
+            lineage_name: "My caller",
+            group_id: "group-1",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+          {
+            lineage_id: "lin-theirs",
+            lineage_name: "Their caller",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        const message = (error as ConflictException).message;
+        expect(message).toContain("2 other workflows still call it");
+        expect(message).toContain("My caller");
+        expect(message).toContain("1 workflow in other groups");
+        expect(message).not.toContain("Their caller");
       });
 
       it("ignores self-references from the lineage being deleted", async () => {

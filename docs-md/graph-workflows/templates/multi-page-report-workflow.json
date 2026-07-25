@@ -180,7 +180,7 @@
       "label": "OCR Monthly Report",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -198,7 +198,7 @@
       "label": "OCR Pay Stub",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -216,7 +216,7 @@
       "label": "OCR Bank Record",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -234,7 +234,7 @@
       "label": "OCR Unknown Document",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
