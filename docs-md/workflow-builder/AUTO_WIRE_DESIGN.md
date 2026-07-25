@@ -79,6 +79,32 @@ metadata?: {
 
 **Load normalisation.** When a workflow loads into the editor, a one-shot pass populates `lockedInputPorts` / `lockedOutputPorts` for every binding whose ctx key does not start with `__auto.`. After this pass, the resolver's single check is `if (lockedInputPorts.includes(port)) skip` — the prefix convention is only consulted once at load time, then the explicit lock list is authoritative for the editor session. Existing templates (which have no `lockedInputPorts` field) end up with every binding locked, which is the desired no-touch behaviour.
 
+### 2.3a Does this ctx key have a source? (`resolveCtxKeySource`)
+
+*Added 2026-07-25 — fixes G-002 / G-005 / G-013 in the [spec-completion gap register](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md).*
+
+A lock said "the user chose this", and every surface used to read that as "so it must be fine". It is not: the producer behind the chosen key can be deleted afterwards, leaving a binding that points at nothing. `packages/graph-workflow/src/auto-wire/ctx-source.ts` is the single arbiter all surfaces now share:
+
+> **A port binding is satisfied only if its `ctxKey` has a real source: some node writes that key as an output, or the key is declared in `config.ctx`. Otherwise every surface must report a problem.**
+
+`resolveCtxKeySource(config, ctxKey, consumerNodeId?)` returns `{ origin: "node-output", nodeId, port, kind? }`, `{ origin: "declared-ctx", kind? }`, or `null`. It is deliberately broader than the validator's own producer enumeration:
+
+- every node's `outputs[]` bindings (kind from the activity catalog);
+- `map.itemCtxKey` / `map.indexCtxKey`, `join.resultsCtxKey`, `childWorkflow.outputMappings`, the humanGate `<nodeId>Payload` key — control-flow writes that no `outputs[]` row records;
+- `source` node produced keys (`source.api` fields, `source.upload`'s configured key);
+- a live `__auto.<nodeId>.<port>` key, which names its own producer, so it resolves whether or not the producer's `outputs[]` row has been stamped yet;
+- `config.ctx` declarations. **A declaration is a legitimate source** — workflow inputs have no producing node — so declaring a key is what keeps templates and library inputs healthy.
+
+Matching mirrors the condition picker's reverse lookup: a leading `ctx.` prefix is stripped, drilled refs (`ocrResult.status`) resolve through their producing key on a dot boundary only, and `doc.` / `segment.` resolve via `getCtxRootKey`. A node never counts as its own source when `consumerNodeId` is given.
+
+Three consumers share it:
+
+1. **`resolveInputPort`** — a locked port no longer short-circuits to `{ status: "locked" }`. It gains `locked-dangling` (key has no source) and `locked-kind-mismatch` (source kind not assignable to the port kind, checked with `isAssignable` and only when both sides declare a kind). Both are problems for the node badge and the validation drawer, ungated by `required` — the author asked for this binding and it no longer works.
+2. **The validator's `walkCtxKeyBindings`** — a ctx key with consumers and zero producers used to `continue` past both the kind check *and* any existence check. The kind check still has nothing to compare, but a key that `resolveCtxKeySource` cannot source is now an `error` anchored at `nodes.<id>.inputs.<port>`.
+3. **The frontend badge pipeline** — `autoWireIssuesToValidationErrors`'s `manuallyBoundPorts` suppression and `input-row-resolution.ts`'s display-only `ctx-bound` state are both gated on the lookup instead of being unconditional. A dangling hand-bound port falls through to the honest "needs a source".
+
+**Residual (not fixed here).** Because `validatePortBindings` already requires every non-`__auto.` binding key to be declared in `config.ctx`, and a declaration counts as a source, deleting a producer whose key was hand-authored *and* declared still validates clean — the leftover declaration stands in for the missing writer. Nothing prunes `config.ctx` on node delete (G-002 facet 1). The rule bites hardest exactly where the editor writes by default: `__auto.*` keys, which skip the declaration check entirely and were previously unchecked by anything.
+
 ### 2.4 What gets resolved vs. left alone
 
 Resolved:
@@ -173,6 +199,10 @@ The resolver covers activity nodes' typed ports. Control-flow nodes get analogou
 ### 6.1 `map`
 
 `map.collectionCtxKey` is the input the map iterates over. Auto-bind it to the nearest upstream producer whose output `kind` is an array type (`T[]` for any `T`). Ambiguity rule is the same as §2.1.
+
+**Re-resolution (2026-07-25, G-013).** The auto-fill used to be one-shot — any map whose `collectionCtxKey` was already truthy was skipped forever — so deleting the collection's producer left the map holding a dead key, `resolveMapElementKind` returned `undefined`, and every body node silently lost its synthetic `map-item` producer while the map card showed no problem. The skip is now conditional on the key still having a source per §2.3a: a map with a dangling collection is re-resolved to the nearest upstream `T[]` producer, one with a live producer or a declared workflow input is left alone, and a **pinned** collection (`lockedInputPorts` includes `"collection"`) is still never rewritten — it is reported as `locked-dangling` instead.
+
+`collection` also now gets a row in `resolveWireableInputRows`, so the settings panel and the connect-summary popover show whether it is auto-wired, pinned, ctx-bound or dangling like any other input port. The row is status-only on that surface: the key lives in `collectionCtxKey`, not `inputs[]`, and the generic pin/revert mutations write `inputs[]` — editing stays in `MapNodeSettings`. Control-flow nodes still mount no per-port canvas handles (that needs declared output ports — a separate change).
 
 Inside the map's body, the iteration variable (today `currentSegment` for segment maps via the hardcoded `segment.*` namespace rewrite in [context-utils.ts:41-65](apps/temporal/src/graph-engine/context-utils.ts#L41-L65)) is the implicit input to the body entry node. The resolver treats the map node as a synthetic producer of element type `T` for body-scope consumers, where `T` is derived by stripping the `[]` from the collection producer's output kind (a `Segment[]` collection yields a `Segment` synthetic producer inside the body). This collapses today's hidden `segment.*` dialect into a normal resolver rule.
 
