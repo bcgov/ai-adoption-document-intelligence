@@ -116,7 +116,7 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 | 13.2, 13.3, 13.4, 13.7 (SourceNodeSettings UI + maxFileSizeMB round-trip; upload endpoint validation matrix; single-source rule + isInput warning) | `tier2-sources` | 2 (CI) |
 | 11.1, 11.2, 13.6 (Run drawer renders trigger URL / declared input schema / sample curl / auth notes; upload-source workflow shows the dropzone, no API tabs) | `tier2-run-drawer` | 2 (CI) |
 
-**🔬 unit / integration-backstopped** (not e2e): 5.5 (graph validator), 7.6 (`dynamic-node-binding-walk.spec` + workflow validator), 11.3/11.4 (`build-run-spec.spec`), 14.1/14.2 (`dynamic-nodes.service/controller.spec`), 14.11–14.13 (`dynamic-nodes.service.spec` + deno-runner + `dyn-run.activity` sandbox-escape specs), 15.7/15.9/15.10 (`agent.service.spec`, `tools.spec`, `abort-flag-map.spec`).
+**🔬 unit / integration-backstopped** (not e2e): **3.8–3.14** (undo/redo + the unsaved-changes guard — `use-config-history.test.ts`, `use-undo-redo-hotkeys.test.ts`, `use-unsaved-guard.test.tsx`, plus the page/canvas wiring in `WorkflowEditorV2Page.test.tsx` and `WorkflowEditorCanvas.test.tsx`; the *browser-native* halves — the real `beforeunload` dialog and native text undo inside an input — are ✍️ manual by nature, jsdom can only assert the event was prevented), 5.5 (graph validator), 7.6 (`dynamic-node-binding-walk.spec` + workflow validator), 11.3/11.4 (`build-run-spec.spec`), 14.1/14.2 (`dynamic-nodes.service/controller.spec`), 14.11–14.13 (`dynamic-nodes.service.spec` + deno-runner + `dyn-run.activity` sandbox-escape specs), 15.7/15.9/15.10 (`agent.service.spec`, `tools.spec`, `abort-flag-map.spec`).
 
 **✍️ manual-only** (no automated guard — these are *intentionally* manual, not gaps waiting to be closed; the reason each resists cheap automation is noted):
 
@@ -191,6 +191,23 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 - [ ] **3.5 Add all six control-flow nodes.** Palette **“Flow Control”** section → add each: **Branch by condition** (switch), **Run for each item** (map), **Collect results** (join), **Sub-workflow** (childWorkflow), **Wait until condition** (pollUntil), **Wait for approval** (humanGate). **Pass:** all six add with distinct shapes (switch = **diamond**; map/join = rectangle + fan icon; others = rectangle + type icon) and sensible defaults (join strategy `all`, pollUntil interval `30s`, humanGate timeout `1h`/onTimeout `fail`).
 - [ ] **3.6 Save/load round-trip.** Build a small graph → **Save** (redirects to `/workflows/:id/edit`) → reload. **Pass:** canvas matches the saved config.
 - [ ] **3.7 Load master template.** On the **`/workflows`** list page click **New from template** → in the **“New workflow from template”** modal pick **Multi-Page Report Workflow (Keyword-Based Split)** (`multi-page-report-workflow`) → the editor opens at `/workflows/create` preloaded with the template → **More ▸ Auto-arrange** → Save → reload. **Pass:** 16 nodes load fully editable and round-trip.
+
+### 3.8–3.14 Undo / redo and not losing the session (G-003, G-027)
+
+- [ ] **3.8 Undo/redo controls exist and are honest.** Open `/workflows/create`. **Pass:** the top bar shows **↩ Undo** and **↪ Redo** buttons left of the validation chip, both **disabled**. Add a node → Undo becomes enabled, Redo stays disabled.
+- [ ] **3.9 Undo an add, redo it.** Add two activities → click **Undo** twice → **Pass:** the canvas empties, one node per click. Click **Redo** twice → both nodes come back, in order.
+- [ ] **3.10 Undo covers every kind of edit, not just adds.** Do each of these and Undo it: move a node (drag it, release, Undo → it returns to its old position, **one** undo step for the whole drag); change a node’s label in the settings panel; draw an edge; group two nodes (**More ▸ Group selected**). **Pass:** each reverses with a single Undo.
+- [ ] **3.11 A new edit after an undo drops the redo branch.** Add node A → Undo → Redo is enabled → add node B. **Pass:** Redo goes disabled; there is no way back to the A-only future.
+- [ ] **3.12 Delete is no longer blocking, and undo restores the pruned variables.** Build **Prepare File → Submit OCR** with the OCR input wired to Prepare’s output (Part 8 covers the wiring), then select **Prepare File** and press <kbd>Delete</kbd>. **Pass:** no confirmation dialog; the node vanishes immediately and a yellow toast reads *Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.* with an **Undo** link. Click **Undo** → the node comes back **and** the `preparedFile` declaration is back in **More ▸ Workflow settings ▸ Variables** (not just the node). <kbd>Ctrl</kbd>+<kbd>Z</kbd> does the same thing as the link.
+  - Multi-select two producers and delete them together → **one** toast, not two, with counts spanning both.
+  - Delete a leaf node nothing reads from → **no toast at all** (silence is the common case).
+- [ ] **3.13 Undo must not hijack typing.** Click into the top-bar **Name** field, type `abcdef`, then press <kbd>Ctrl</kbd>+<kbd>Z</kbd> a few times. **Pass:** the *text* undoes character-group by character-group, exactly as in any browser input; the canvas does **not** change and no node reappears. Repeat inside a settings-panel text field. Then click empty canvas and press <kbd>Ctrl</kbd>+<kbd>Z</kbd> → now the graph undoes.
+  - Shortcuts: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Z</kbd> = undo; <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> or <kbd>Ctrl</kbd>+<kbd>Y</kbd> = redo.
+- [ ] **3.14 Leaving with unsaved changes asks first (G-027).** Add a node, then:
+  - Press <kbd>F5</kbd> / close the tab → **Pass:** the browser’s “Leave site?” prompt appears. Cancel it.
+  - Click a link out of the editor (e.g. the **Workflows** nav item) → **Pass:** a confirm reading *“This workflow has unsaved changes. Leave and discard them?”* Cancel → you stay put with the edit intact. Repeat and confirm → you navigate away.
+  - Now click **Save**, wait for the success toast, then navigate away → **Pass:** no prompt at all.
+  - Open a saved workflow and navigate away without touching anything → **Pass:** no prompt. Undo every edit back to the state you opened on → also no prompt.
 
 ---
 
