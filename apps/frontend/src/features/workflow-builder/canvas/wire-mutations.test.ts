@@ -398,3 +398,253 @@ describe("input non-mutation", () => {
     ).not.toThrow();
   });
 });
+
+/**
+ * G-104 — pinning a CONTROL-FLOW producer must bind to the key it actually
+ * writes. `synthesiseCtxKey(producerNodeId, producerPort)` is right for an
+ * activity (whose output key really is `__auto.<node>.<port>` unless an
+ * `outputs[]` row says otherwise) and wrong for every node type G-007 made
+ * bindable: a map writes `itemCtxKey`, a join `resultsCtxKey`, a humanGate
+ * `<id>Payload`, a childWorkflow its `outputMappings`, a source its produced
+ * key. Pinning one of those to a synthesised key persists a key nothing
+ * writes and silently breaks the binding.
+ */
+describe("pinPortBinding — control-flow producers (G-104)", () => {
+  function configWith(
+    producer: GraphNode,
+    consumerType = "document.classify",
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: producer.id,
+      ctx: {},
+      nodes: {
+        [producer.id]: producer,
+        consumer: activityNode("consumer", consumerType),
+      },
+      edges: [],
+    };
+  }
+
+  /** No `outputs[]` row is invented on a node that writes through a field. */
+  function expectNoOutputsRow(node: GraphNode): void {
+    expect(node.outputs ?? []).toHaveLength(0);
+  }
+
+  it("pins a map-item wire to the map's own itemCtxKey, not a synthesised key", () => {
+    const cfg = configWith({
+      id: "MAP",
+      type: "map",
+      label: "MAP",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "currentSegment",
+      bodyEntryNodeId: "consumer",
+      bodyExitNodeId: "consumer",
+    });
+    const next = pinPortBinding(cfg, "consumer", "segment", {
+      producerNodeId: "MAP",
+      producerPort: "item",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "segment",
+      ctxKey: "currentSegment",
+    });
+    expectNoOutputsRow(next.nodes.MAP);
+  });
+
+  it("pins a map's index port to indexCtxKey, not to the item key", () => {
+    const cfg = configWith({
+      id: "MAP",
+      type: "map",
+      label: "MAP",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "currentSegment",
+      indexCtxKey: "segmentIndex",
+      bodyEntryNodeId: "consumer",
+      bodyExitNodeId: "consumer",
+    });
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "MAP",
+      producerPort: "index",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "segmentIndex",
+    });
+    expectNoOutputsRow(next.nodes.MAP);
+  });
+
+  it("pins a join-results wire to the join's resultsCtxKey", () => {
+    const cfg = configWith(
+      {
+        id: "J",
+        type: "join",
+        label: "J",
+        sourceMapNodeId: "MAP",
+        strategy: "all",
+        resultsCtxKey: "branchResults",
+      },
+      "benchmark.aggregate",
+    );
+    const next = pinPortBinding(cfg, "consumer", "results", {
+      producerNodeId: "J",
+      producerPort: "results",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "results",
+      ctxKey: "branchResults",
+    });
+    expectNoOutputsRow(next.nodes.J);
+  });
+
+  it("pins a humanGate-payload wire to the <nodeId>Payload key the executor writes", () => {
+    const cfg = configWith(
+      {
+        id: "HG",
+        type: "humanGate",
+        label: "HG",
+        signal: { name: "humanApproval" },
+        timeout: "1h",
+        onTimeout: "fail",
+      },
+      "document.updateStatus",
+    );
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "HG",
+      producerPort: "payload",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "HGPayload",
+    });
+    expectNoOutputsRow(next.nodes.HG);
+  });
+
+  it("pins a childWorkflow wire to the declared output mapping's ctxKey", () => {
+    const cfg = configWith(
+      {
+        id: "C",
+        type: "childWorkflow",
+        label: "C",
+        workflowRef: { type: "library", workflowId: "w1" },
+        outputMappings: [{ port: "summary", ctxKey: "childSummary" }],
+      },
+      "document.updateStatus",
+    );
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "C",
+      producerPort: "summary",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "childSummary",
+    });
+    expectNoOutputsRow(next.nodes.C);
+  });
+
+  it("pins a source wire to the key the source emits", () => {
+    const cfg = configWith(
+      {
+        id: "UP",
+        type: "source",
+        label: "UP",
+        sourceType: "source.upload",
+        parameters: { ctxKey: "incomingDoc" },
+      },
+      "blob.read",
+    );
+    const next = pinPortBinding(cfg, "consumer", "blobKey", {
+      producerNodeId: "UP",
+      producerPort: "incomingDoc",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "blobKey",
+      ctxKey: "incomingDoc",
+    });
+    expectNoOutputsRow(next.nodes.UP);
+  });
+
+  it("prefers the field the executor writes over a stale hand-authored outputs[] row", () => {
+    // A hand-authored `outputs[]` row on a join is inert — the executor
+    // writes `resultsCtxKey`. Binding to the row would point the consumer at
+    // a key nothing writes.
+    const cfg = configWith(
+      {
+        id: "J",
+        type: "join",
+        label: "J",
+        sourceMapNodeId: "MAP",
+        strategy: "all",
+        resultsCtxKey: "branchResults",
+        outputs: [{ port: "results", ctxKey: "staleHandAuthored" }],
+      },
+      "benchmark.aggregate",
+    );
+    const next = pinPortBinding(cfg, "consumer", "results", {
+      producerNodeId: "J",
+      producerPort: "results",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "results",
+      ctxKey: "branchResults",
+    });
+    // The stale row is left alone — this path never rewrites producer rows,
+    // it only declines to add one.
+    expect(next.nodes.J.outputs).toEqual([
+      { port: "results", ctxKey: "staleHandAuthored" },
+    ]);
+  });
+
+  it("still synthesises a key and stamps an outputs[] row for an activity producer", () => {
+    const next = pinPortBinding(baseConfig(), "consumer", "ocrResult", {
+      producerNodeId: "producer",
+      producerPort: "ocrResult",
+    });
+    expect(next.nodes.producer.outputs).toEqual([
+      { port: "ocrResult", ctxKey: "__auto.producer.ocrResult" },
+    ]);
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "__auto.producer.ocrResult",
+    });
+  });
+
+  it("a pinned map-item binding survives resolveBindings and reads as locked", () => {
+    // End to end: the pin must be a key that HAS a source, or the resolver
+    // reports `locked-dangling` and every surface shows a problem.
+    const cfg: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: "SPLIT",
+      ctx: {},
+      nodes: {
+        SPLIT: activityNode("SPLIT", "document.split", {
+          outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+        }),
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "MAP",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        },
+        BODY: activityNode("BODY", "document.classify"),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+    };
+    const pinned = pinPortBinding(cfg, "BODY", "segment", {
+      producerNodeId: "MAP",
+      producerPort: "item",
+    });
+    const resolved = resolveBindings(pinned);
+    expect(
+      resolveInputPort(resolved, "BODY", { name: "segment", kind: "Segment" }),
+    ).toEqual({ status: "locked", ctxKey: "currentSegment" });
+  });
+});

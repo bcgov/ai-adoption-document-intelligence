@@ -14,6 +14,7 @@
 import {
   getActivityCatalogEntry,
   getLockedInputPorts,
+  producerCtxKeyForPort,
   resolveInputPort,
   synthesiseCtxKey,
 } from "@ai-di/graph-workflow";
@@ -36,6 +37,22 @@ export function makeEdgeId(): string {
  * consumer `inputs[]` row, ensure the producer carries a matching
  * `outputs[]` row (reusing its ctx key when present), and add the port to
  * `metadata.lockedInputPorts`.
+ *
+ * The pinned key must be the key the producer ACTUALLY writes. For an
+ * activity/pollUntil that is its `outputs[]` row, or a synthesised
+ * `__auto.<node>.<port>` key stamped as a new row. For every control-flow
+ * and source producer G-007 made bindable it is a dedicated field the
+ * author names — a map's `itemCtxKey`, a join's `resultsCtxKey`, a
+ * humanGate's `<id>Payload`, a childWorkflow's `outputMappings`, a source's
+ * produced key — so `producerCtxKeyForPort` is consulted FIRST (G-104).
+ * Before that, pinning a map wire persisted `__auto.<mapId>.item`: a key no
+ * executor ever writes, made to look healthy by the bogus `outputs[]` row
+ * this function stamped alongside it, so the broken binding reported as a
+ * clean "Pinned" row on every surface.
+ *
+ * A producer that writes through a field gets NO `outputs[]` row. Adding one
+ * would invent persisted state the engine ignores — and a hand-authored row
+ * on such a node is inert for the same reason, so the field wins over it.
  */
 export function pinPortBinding(
   config: GraphWorkflowConfig,
@@ -48,15 +65,22 @@ export function pinPortBinding(
   const producer = config.nodes[selection.producerNodeId];
   if (!consumer || !producer) return config;
 
-  const existingOutputBinding = producer.outputs?.find(
-    (b) => b.port === selection.producerPort,
+  const fieldWrittenCtxKey = producerCtxKeyForPort(
+    producer,
+    selection.producerPort,
   );
+  const existingOutputBinding =
+    fieldWrittenCtxKey === undefined
+      ? producer.outputs?.find((b) => b.port === selection.producerPort)
+      : undefined;
   const ctxKey =
+    fieldWrittenCtxKey ??
     existingOutputBinding?.ctxKey ??
     synthesiseCtxKey(selection.producerNodeId, selection.producerPort);
-  const nextProducerOutputs = existingOutputBinding
-    ? (producer.outputs ?? [])
-    : [...(producer.outputs ?? []), { port: selection.producerPort, ctxKey }];
+  const nextProducerOutputs =
+    fieldWrittenCtxKey !== undefined || existingOutputBinding
+      ? (producer.outputs ?? [])
+      : [...(producer.outputs ?? []), { port: selection.producerPort, ctxKey }];
   const nextConsumerInputs = [
     ...(consumer.inputs ?? []).filter((b) => b.port !== consumerPort),
     { port: consumerPort, ctxKey },
