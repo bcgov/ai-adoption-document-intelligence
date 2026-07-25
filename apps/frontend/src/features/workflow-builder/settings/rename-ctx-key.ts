@@ -11,10 +11,22 @@
  *   - `childWorkflow.inputMappings` / `childWorkflow.outputMappings`
  *   - `ValueRef.ref`s inside `switch.cases[].condition` and
  *     `pollUntil.condition`
+ *   - (G-008) `source` node parameters: `source.upload`'s `ctxKey` and every
+ *     `source.api` field name. Source nodes have no `outputs[]` bindings —
+ *     they write ctx directly from their parameters — so nothing else in the
+ *     sweep reached them.
  *
  * A reference matches when it equals the old key exactly OR is a dotted path
  * rooted at it (e.g. renaming `doc` → `document` rewrites `doc.category` to
  * `document.category`).
+ *
+ * The `switch (node.type)` in {@link renameNode} is EXHAUSTIVE by design: the
+ * `never` check in its default branch makes adding a node type to the
+ * `GraphNode` union a compile error here, so a future writer cannot go
+ * unnoticed the way `source` did. `rename-ctx-key.test.ts` mirrors that at
+ * runtime by driving one fixture per node type through
+ * `nodeTypeCtxWrites` — the shared enumeration of what each node type
+ * produces — and asserting the rename moved every key it reports.
  */
 
 import type {
@@ -22,6 +34,7 @@ import type {
   GraphNode,
   GraphWorkflowConfig,
   PortBinding,
+  SourceNode,
   ValueRef,
 } from "../../../types/workflow";
 
@@ -89,6 +102,48 @@ function renameCondition(
   return { ...c, value: renameValueRef(c.value, oldKey, newKey) };
 }
 
+/**
+ * Source nodes carry their produced ctx keys in `parameters`, not in
+ * `outputs[]` — `source.upload` writes its `ctxKey`, `source.api` writes one
+ * key per declared field name. Mirrors `collectSourceWriters` in
+ * `packages/graph-workflow/src/auto-wire/ctx-source.ts`; the two must agree
+ * about what a source produces or a rename will strand a binding.
+ */
+function renameSourceParameters(
+  node: SourceNode,
+  oldKey: string,
+  newKey: string,
+): Record<string, unknown> | undefined {
+  const parameters = node.parameters;
+
+  if (node.sourceType === "source.api") {
+    const fields = (parameters as { fields?: unknown } | undefined)?.fields;
+    if (!Array.isArray(fields)) return parameters;
+    return {
+      ...parameters,
+      fields: fields.map((raw) => {
+        const field = raw as { name?: unknown };
+        if (typeof field?.name !== "string" || field.name === "") return raw;
+        return { ...field, name: renameRef(field.name, oldKey, newKey) };
+      }),
+    };
+  }
+
+  if (node.sourceType === "source.upload") {
+    const raw = (parameters as { ctxKey?: unknown } | undefined)?.ctxKey;
+    // An absent/blank `ctxKey` still writes `documentUrl` (the catalog
+    // default), so renaming THAT key has to materialise the parameter —
+    // otherwise the rename silently fails to move an implicit producer.
+    const current =
+      typeof raw === "string" && raw.length > 0 ? raw : "documentUrl";
+    const next = renameRef(current, oldKey, newKey);
+    if (next === current) return parameters;
+    return { ...parameters, ctxKey: next };
+  }
+
+  return parameters;
+}
+
 function renameNode(
   node: GraphNode,
   oldKey: string,
@@ -143,8 +198,27 @@ function renameNode(
         outputs,
         condition: renameCondition(node.condition, oldKey, newKey),
       };
-    default:
+    case "source":
+      return {
+        ...node,
+        inputs,
+        outputs,
+        parameters: renameSourceParameters(node, oldKey, newKey),
+      };
+    // `activity` holds ctx only in the shared inputs/outputs bindings, and
+    // `humanGate` writes `<nodeId>Payload` — a key derived from the node id,
+    // with nothing stored to rewrite. Both are listed explicitly so the
+    // exhaustiveness check below can do its job.
+    case "activity":
+    case "humanGate":
       return { ...node, inputs, outputs };
+    default: {
+      // Adding a node type to the `GraphNode` union without deciding what a
+      // rename does for it is a compile error here. G-008 was exactly that
+      // omission going unnoticed behind a permissive `default:`.
+      const unhandled: never = node;
+      return unhandled;
+    }
   }
 }
 
