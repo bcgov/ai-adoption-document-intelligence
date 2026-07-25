@@ -68,6 +68,13 @@ export interface WorkflowEdgeData {
   sourceSwitch?: SwitchNode;
   wire?: DerivedWire;
   isActive?: boolean;
+  /**
+   * G-014 — this edge is on the path the run being viewed actually took.
+   * Distinct from `isActive` ("flowing right now"): a replayed run has no
+   * active edge at all, and during a live run the already-walked hops are
+   * taken while only the in-flight hop is active.
+   */
+  isTaken?: boolean;
   /** Data wires only — producer step label for the peek header. */
   peekProducerLabel?: string;
   /** Data wires only — producer port label for the peek header. */
@@ -117,6 +124,11 @@ const SWITCH_ACCENT = getControlFlowVisualHints("switch").color;
  */
 const ACTIVE_STROKE = "var(--mantine-color-blue-6, #228be6)";
 const ACTIVE_STROKE_WIDTH = 2.5;
+// G-014 — the path a run took: same blue family as the live hop so the two
+// read as one story, but calmer (no animation, slightly thinner) so a live
+// run's in-flight edge still stands out against the trail behind it.
+const TAKEN_STROKE = "var(--mantine-color-blue-4, #74c0fc)";
+const TAKEN_STROKE_WIDTH = 2.5;
 /**
  * Width applied to a selected edge. Wider than both the resting (2) and
  * active (2.5) strokes so the user can tell a wire is selected even while
@@ -245,13 +257,18 @@ export const WorkflowEdge = memo(function WorkflowEdge(
   // wider 2.5px line — it wins over every wire variant (including the
   // sequence dash, which would fight xyflow's marching-ants animation).
   const isActive = data?.isActive === true;
+  // G-014 — the taken-path cue sits between "active" and plain: it loses to
+  // the live hop, wins over the resting wire styling.
+  const isTaken = data?.isTaken === true;
   const baseStyle: CSSProperties = isActive
     ? { stroke: ACTIVE_STROKE, strokeWidth: ACTIVE_STROKE_WIDTH }
-    : {
-        stroke,
-        strokeWidth: 2,
-        ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
-      };
+    : isTaken
+      ? { stroke: TAKEN_STROKE, strokeWidth: TAKEN_STROKE_WIDTH }
+      : {
+          stroke,
+          strokeWidth: 2,
+          ...(strokeDasharray !== undefined ? { strokeDasharray } : {}),
+        };
   // Selection cue: xyflow adds a `.selected` class and paints a selected
   // stroke via its base stylesheet, but BaseEdge's INLINE `style` overrides
   // that class — so selection was visually silent (the edge selects and

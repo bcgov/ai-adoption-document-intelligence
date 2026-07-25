@@ -73,6 +73,13 @@ export class NodeRunStatusDto {
     type: CacheHitDto,
   })
   cacheHit?: CacheHitDto;
+
+  @ApiProperty({
+    description:
+      'G-014 — the id of the ONE outgoing edge this node routed to, when the node made a branch decision: a `switch` (matched case, or the default edge), a `humanGate` that timed out onto its `fallbackEdgeId`, or any node whose `errorPolicy: "fallback"` diverted onto an error edge. Absent for every other node, which means all outgoing `normal` edges were taken. Lets the canvas draw the path a finished run actually followed.',
+    required: false,
+  })
+  selectedEdgeId?: string;
 }
 
 /**

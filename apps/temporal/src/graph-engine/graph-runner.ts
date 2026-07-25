@@ -173,6 +173,11 @@ export async function runGraphExecution(
             status: "completed",
             completedAt: endedAt,
           });
+          // G-014 — surface the branch decision this node made (switch
+          // case / default edge, humanGate fallback) on its run status, so
+          // a finished run can still show which way it went. Absent for
+          // nodes that route implicitly down every outgoing normal edge.
+          const selectedEdgeId = state.selectedEdges.get(nodeId);
           // Phase 4 (US-135) — flip the run-status map based on whether
           // the activity-node cache decorator short-circuited.
           if (executionResult.kind === "skipped") {
@@ -181,12 +186,14 @@ export async function runGraphExecution(
               startedAt,
               endedAt,
               cacheHit: executionResult.cacheHit,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
             };
           } else {
             state.nodeRunStatuses[nodeId] = {
               status: "succeeded",
               startedAt,
               endedAt,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
             };
           }
         } catch (error) {
@@ -203,7 +210,19 @@ export async function runGraphExecution(
             errorMessage:
               error instanceof Error ? error.message : String(error),
           };
-          handleNodeError(nodeId, node, error, state, config);
+          try {
+            handleNodeError(nodeId, node, error, state, config);
+          } finally {
+            // G-014 — an `errorPolicy: "fallback"` diversion is recorded by
+            // `handleNodeError`, i.e. AFTER the failed status was written
+            // above. Copy it across either way so the canvas can draw the
+            // error edge the run actually took.
+            const fallbackEdgeId = state.selectedEdges.get(nodeId);
+            const entry = state.nodeRunStatuses[nodeId];
+            if (fallbackEdgeId && entry) {
+              entry.selectedEdgeId = fallbackEdgeId;
+            }
+          }
         }
       }),
     );

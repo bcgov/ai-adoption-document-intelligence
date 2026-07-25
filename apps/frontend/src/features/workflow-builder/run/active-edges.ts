@@ -41,3 +41,55 @@ export function computeActiveEdges(
   }
   return active;
 }
+
+/**
+ * Node statuses that mean "this node finished and the graph carried on past
+ * it". `skipped` counts — a cache-served node still routes onward.
+ */
+const ROUTED_ONWARD = new Set(["succeeded", "skipped"]);
+
+/**
+ * G-014 — the set of edge ids on the path this run **actually took**.
+ *
+ * `computeActiveEdges` answers "what is flowing right now", which is empty
+ * by definition once a run is over. This answers "which way did it go", and
+ * so is the thing a replay needs: without it a finished run shows no path at
+ * all and there is no way to tell which branch of a switch was chosen.
+ *
+ * The rules mirror the engine's own routing (`computeReadySet` in
+ * `apps/temporal/src/graph-engine/graph-algorithms.ts`):
+ *
+ *   - a node with `selectedEdgeId` made a branch decision — exactly that one
+ *     edge was taken and every sibling was not (switch case / default edge,
+ *     humanGate fallback, `errorPolicy: "fallback"` diversion);
+ *   - a node that succeeded or was served from cache, with no recorded
+ *     decision, routed down **every** outgoing `normal` edge — that is the
+ *     engine's implicit fan-out;
+ *   - a node that failed without a recorded fallback, or that never finished,
+ *     took nothing.
+ *
+ * Deliberately independent of `computeActiveEdges`: during a live run both
+ * are meaningful at once (walked hops are "taken", the in-flight hop is
+ * "active") and the canvas renders them differently.
+ */
+export function computeTakenEdges(
+  config: GraphWorkflowConfig,
+  statuses: Record<string, NodeRunStatus>,
+): Set<string> {
+  const taken = new Set<string>();
+  for (const edge of config.edges) {
+    const source = statuses[edge.source];
+    if (!source) continue;
+    if (source.selectedEdgeId !== undefined) {
+      if (source.selectedEdgeId === edge.id) taken.add(edge.id);
+      continue;
+    }
+    if (!ROUTED_ONWARD.has(source.status)) continue;
+    // No recorded decision → the engine fans out down every normal edge.
+    // Error edges are only ever traversed via a recorded fallback, which
+    // the branch above already handled.
+    if (edge.type === "error") continue;
+    taken.add(edge.id);
+  }
+  return taken;
+}

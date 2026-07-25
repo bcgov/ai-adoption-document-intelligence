@@ -404,3 +404,151 @@ describe("runGraphExecution — Phase 4 nodeRunStatuses map (US-135)", () => {
     expect(state.nodeRunStatuses.lookup.endedAt).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-014 — a branch decision must survive on the node's run status.
+//
+// `state.selectedEdges` is in-memory only and no query exposes it, so once a
+// run is over there was no way to tell which branch it took. Stamping the
+// decision onto `nodeRunStatuses` carries it out through the existing
+// `getNodeStatuses` query with no new endpoint.
+// ---------------------------------------------------------------------------
+
+describe("runGraphExecution — G-014 selectedEdgeId on the run status", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function branchGraph(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "branch", description: "" },
+      entryNodeId: "sw",
+      ctx: { flag: { type: "boolean" } },
+      nodes: {
+        sw: {
+          id: "sw",
+          type: "switch",
+          label: "Switch",
+          cases: [
+            {
+              condition: {
+                operator: "equals",
+                left: { ref: "flag" },
+                right: { literal: true },
+              },
+              edgeId: "e-yes",
+            },
+          ],
+          defaultEdge: "e-no",
+        },
+        yes: {
+          id: "yes",
+          type: "activity",
+          label: "Yes",
+          activityType: "tables.lookup",
+        },
+        no: {
+          id: "no",
+          type: "activity",
+          label: "No",
+          activityType: "tables.lookup",
+        },
+      },
+      edges: [
+        { id: "e-yes", source: "sw", target: "yes", type: "normal" },
+        { id: "e-no", source: "sw", target: "no", type: "normal" },
+      ],
+    } as unknown as GraphWorkflowConfig;
+  }
+
+  it("records the switch's chosen edge on the switch node's run status", async () => {
+    mockActivityFn.mockResolvedValue({});
+    const state = makeFreshState();
+    state.ctx = { flag: true };
+    const input = makeInput(branchGraph());
+    input.initialCtx = { flag: true };
+    await runGraphExecution(input, state);
+
+    expect(state.nodeRunStatuses.sw.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.sw.selectedEdgeId).toBe("e-yes");
+    // The branch that was not taken never ran, so it stays absent.
+    expect(state.nodeRunStatuses.no).toBeUndefined();
+  });
+
+  it("records the default edge when no case matched", async () => {
+    mockActivityFn.mockResolvedValue({});
+    const state = makeFreshState();
+    const input = makeInput(branchGraph());
+    input.initialCtx = { flag: false };
+    await runGraphExecution(input, state);
+
+    expect(state.nodeRunStatuses.sw.selectedEdgeId).toBe("e-no");
+    expect(state.nodeRunStatuses.yes).toBeUndefined();
+  });
+
+  it("records the error edge an errorPolicy fallback diverted onto", async () => {
+    mockActivityFn.mockRejectedValue(new Error("kaboom"));
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "fallback", description: "" },
+      entryNodeId: "boom",
+      ctx: {},
+      nodes: {
+        boom: {
+          id: "boom",
+          type: "activity",
+          label: "Boom",
+          activityType: "tables.lookup",
+          errorPolicy: { onError: "fallback", fallbackEdgeId: "e-err" },
+        },
+        recover: {
+          id: "recover",
+          type: "activity",
+          label: "Recover",
+          activityType: "tables.lookup",
+        },
+      },
+      edges: [
+        { id: "e-err", source: "boom", target: "recover", type: "error" },
+      ],
+    } as unknown as GraphWorkflowConfig;
+
+    const state = makeFreshState();
+    await runGraphExecution(makeInput(graph), state).catch(() => undefined);
+
+    expect(state.nodeRunStatuses.boom.status).toBe("failed");
+    expect(state.nodeRunStatuses.boom.selectedEdgeId).toBe("e-err");
+  });
+
+  it("leaves selectedEdgeId absent for a plain activity that fans out implicitly", async () => {
+    mockActivityFn.mockResolvedValue({});
+    const graph: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "linear", description: "" },
+      entryNodeId: "a",
+      ctx: {},
+      nodes: {
+        a: {
+          id: "a",
+          type: "activity",
+          label: "A",
+          activityType: "tables.lookup",
+        },
+        b: {
+          id: "b",
+          type: "activity",
+          label: "B",
+          activityType: "tables.lookup",
+        },
+      },
+      edges: [{ id: "e-ab", source: "a", target: "b", type: "normal" }],
+    } as unknown as GraphWorkflowConfig;
+
+    const state = makeFreshState();
+    await runGraphExecution(makeInput(graph), state);
+
+    expect(state.nodeRunStatuses.a.status).toBe("succeeded");
+    expect(state.nodeRunStatuses.a.selectedEdgeId).toBeUndefined();
+  });
+});

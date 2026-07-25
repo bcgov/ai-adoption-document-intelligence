@@ -62,6 +62,21 @@ export interface NodeRunStatus {
    * output.
    */
   cacheHit?: { configHash: string; inputHash: string };
+  /**
+   * G-014 — the id of the ONE outgoing edge this node routed to, when the
+   * node made a branch decision. Written for `switch` nodes (the case whose
+   * condition matched, or the default edge), a `humanGate` that timed out
+   * onto its `fallbackEdgeId`, and any node whose `errorPolicy: "fallback"`
+   * diverted onto an error edge — i.e. exactly the nodes for which
+   * `ExecutionState.selectedEdges` holds an entry.
+   *
+   * Absent for every other node, which means "all outgoing `normal` edges
+   * were taken" (the implicit routing `computeReadySet` applies). Together
+   * with the node statuses this is enough for the canvas to draw the path a
+   * finished run actually followed, which is otherwise unrecoverable once
+   * nothing is `running` any more.
+   */
+  selectedEdgeId?: string;
 }
 
 /**

@@ -82,7 +82,7 @@ import {
 } from "../palette/control-flow-skeletons";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import type { PreviewOutputBinding } from "../preview/preview.types";
-import { computeActiveEdges } from "../run/active-edges";
+import { computeActiveEdges, computeTakenEdges } from "../run/active-edges";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
 import { useOptionalRunState } from "../run/RunStateContext";
 import {
@@ -2102,6 +2102,14 @@ function WorkflowEditorCanvasInner({
     () => computeActiveEdges(config, nodeStatuses ?? {}),
     [config, nodeStatuses],
   );
+  // G-014 — the path the run actually took. Independent of `activeEdges`:
+  // a replayed run has nothing running so `activeEdges` is empty by
+  // definition, which is exactly why no path was ever shown for a finished
+  // run before.
+  const takenEdges = useMemo(
+    () => computeTakenEdges(config, nodeStatuses ?? {}),
+    [config, nodeStatuses],
+  );
   useEffect(() => {
     setInternalEdges((prev) =>
       prev.map((e): Edge => {
@@ -2110,19 +2118,26 @@ function WorkflowEditorCanvasInner({
         // active set directly. Data wires carry `wire:` ids — they are
         // active when the normal edge stamped onto them (`edgeId`) is.
         const wire = prevData.wire;
-        const isActive =
+        const matches = (set: Set<string>) =>
           wire?.variant === "data"
-            ? wire.edgeId !== undefined && activeEdges.has(wire.edgeId)
-            : activeEdges.has(e.id);
+            ? wire.edgeId !== undefined && set.has(wire.edgeId)
+            : set.has(e.id);
+        const isActive = matches(activeEdges);
+        const isTaken = matches(takenEdges);
         const prevIsActive = prevData.isActive === true;
-        if (prevIsActive === isActive && e.animated === isActive) {
+        const prevIsTaken = prevData.isTaken === true;
+        if (
+          prevIsActive === isActive &&
+          prevIsTaken === isTaken &&
+          e.animated === isActive
+        ) {
           return e;
         }
-        const nextData: WorkflowEdgeData = { ...prevData, isActive };
+        const nextData: WorkflowEdgeData = { ...prevData, isActive, isTaken };
         return { ...e, data: nextData, animated: isActive };
       }),
     );
-  }, [activeEdges, setInternalEdges]);
+  }, [activeEdges, takenEdges, setInternalEdges]);
 
   // Persist final positions to the outer config once the drag finishes.
   const handleNodeDragStop = useCallback(

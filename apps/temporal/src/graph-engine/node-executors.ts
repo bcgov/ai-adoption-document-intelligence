@@ -1192,6 +1192,10 @@ export async function executeBranchSubgraph(
             status: "completed",
             completedAt: endedAt,
           });
+          // G-014 — same branch-decision capture as the top-level runner.
+          // `nodeRunStatuses` is shared with the parent state (unlike
+          // `selectedEdges`, which is per-branch), so this reaches the query.
+          const selectedEdgeId = branchState.selectedEdges.get(nodeId);
           // Phase 4 (US-135) — flip the run-status map based on whether
           // the activity-node cache decorator short-circuited.
           if (executionResult.kind === "skipped") {
@@ -1200,12 +1204,14 @@ export async function executeBranchSubgraph(
               startedAt,
               endedAt,
               cacheHit: executionResult.cacheHit,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
             };
           } else {
             branchState.nodeRunStatuses[nodeId] = {
               status: "succeeded",
               startedAt,
               endedAt,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
             };
           }
         } catch (error) {

@@ -55,6 +55,15 @@ export interface NodeRunStatus {
   errorMessage?: string;
   /** Populated when `status === "skipped"`. Names the cache row served. */
   cacheHit?: NodeRunStatusCacheHit;
+  /**
+   * G-014 — the id of the ONE outgoing edge this node routed to, when it
+   * made a branch decision (a `switch`'s matched case or default edge, a
+   * `humanGate` timing out onto its fallback, an `errorPolicy: "fallback"`
+   * diversion). Absent for every other node, which means all outgoing
+   * `normal` edges were taken. `computeTakenEdges` uses it to draw the path
+   * a finished run actually followed.
+   */
+  selectedEdgeId?: string;
 }
 
 /**

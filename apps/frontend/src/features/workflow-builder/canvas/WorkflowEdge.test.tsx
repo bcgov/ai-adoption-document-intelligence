@@ -457,6 +457,35 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
     expect(styleAttr).toContain("stroke-width: 2.5");
     expect(styleAttr).not.toContain("stroke-dasharray");
   });
+
+  // G-014 — the path a finished run took.
+  it("isTaken paints the taken-path stroke", () => {
+    renderEdge(
+      makeEdgeProps({
+        id: "w1",
+        source: "A",
+        target: "B",
+        data: { wire: makeDataWire({ kind: undefined }), isTaken: true },
+      }),
+    );
+    expectBaseEdgeStroke("var(--mantine-color-blue-4, #74c0fc)");
+  });
+
+  it("a live in-flight edge still wins over the taken-path stroke (regression)", () => {
+    renderEdge(
+      makeEdgeProps({
+        id: "w1",
+        source: "A",
+        target: "B",
+        data: {
+          wire: makeDataWire({ kind: undefined }),
+          isActive: true,
+          isTaken: true,
+        },
+      }),
+    );
+    expectBaseEdgeStroke("var(--mantine-color-blue-6, #228be6)");
+  });
 });
 
 describe("WorkflowEdge — selection indicator", () => {
