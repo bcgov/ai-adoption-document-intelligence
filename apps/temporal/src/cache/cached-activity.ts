@@ -2,7 +2,10 @@
  * Phase 4 — Worker-side cache decorator (US-132).
  *
  * Wraps a single activity dispatch with a `(findFresh → execute → upsert)`
- * cycle keyed on `(workflowLineageId, nodeId, configHash, inputHash)`.
+ * cycle keyed on `(workflowLineageId, nodeId, configHash, inputHash)`,
+ * where `configHash` covers the node's identity-of-computation (its
+ * `type` + activity/source subtype) as well as its parameters — see
+ * "Hash semantics" below.
  * The decorator is the only piece of code that knows about the cache —
  * the workflow body (US-133) calls it once per node and stays oblivious
  * to whether a node short-circuited or actually ran.
@@ -24,14 +27,26 @@
  *
  * ## Hash semantics
  *
- *   - `configHash = sha256(stableJson(node.parameters ?? {}))`
- *     For `ActivityNode` and `SourceNode` the parameters are the catalog
- *     parameters; for other node variants we fall back to the empty
- *     object hash (those node types don't go through the worker
- *     decorator in 4.0 but the type system requires a value).
+ *   - `configHash = sha256(stableJson({ type, subtype, parameters }))`
+ *     — see `computeNodeConfigHash` below. The hash covers the node's
+ *     IDENTITY OF COMPUTATION, not just its parameters:
+ *       • `type` — the `GraphNode` discriminant (`"activity"`,
+ *         `"join"`, …);
+ *       • `subtype` — `activityType` for activity / pollUntil nodes,
+ *         `sourceType` for source nodes, `null` for the variants that
+ *         declare neither;
+ *       • `parameters` — for `ActivityNode` and `SourceNode` the catalog
+ *         parameters; for other node variants the empty object (those
+ *         node types don't go through the worker decorator in 4.0 but
+ *         the type system requires a value).
+ *     Hashing parameters ALONE (the pre-G-018 behaviour) meant nothing
+ *     in `(workflowLineageId, nodeId, configHash, inputHash)` said which
+ *     activity produced a row: retyping a node in place from
+ *     `azureOcr.extract` to `document.classify` kept the id, parameters
+ *     and inputs identical, so the classifier was served the OCR result
+ *     until the row's TTL expired.
  *   - `inputHash = computeInputHash(node, ctx)` — content-addressable
  *     hash of the consumed ctx slice (shared helper, US-129).
- *
  * ## `nonCacheable` bypass
  *
  *   - Activity nodes: `ACTIVITY_CATALOG[node.activityType]?.nonCacheable`.
@@ -137,6 +152,66 @@ function getNodeParameters(node: GraphNode): Record<string, unknown> {
 }
 
 /**
+ * The node's activity/source subtype — the second half of its
+ * identity-of-computation. `activityType` covers `ActivityNode` and
+ * `PollUntilNode`; `sourceType` covers `SourceNode`. The remaining
+ * variants (switch / map / join / childWorkflow / humanGate) declare
+ * neither, so they are identified by their `type` discriminant alone.
+ */
+function getNodeSubtype(node: GraphNode): string | null {
+  if ("activityType" in node) {
+    return node.activityType;
+  }
+  if ("sourceType" in node) {
+    return node.sourceType;
+  }
+  return null;
+}
+
+/**
+ * G-018 — the `configHash` component of the cache key.
+ *
+ * Hashes the node's IDENTITY OF COMPUTATION: what kind of node it is,
+ * which activity/source it dispatches, and the static parameters that
+ * configure it. Two nodes that hash the same genuinely compute the same
+ * thing from the same inputs, so sharing a cache row between them is
+ * correct.
+ *
+ * Deliberately EXCLUDED, because they vary without changing what is
+ * computed:
+ *   - `label` — renaming a step must not discard its cached work;
+ *   - `metadata` (canvas position, colours, notes);
+ *   - port bindings (`inputs` / `outputs`) — the consumed values are
+ *     already covered by `inputHash`;
+ *   - anything time- or run-derived. `stableJson` sorts object keys, so
+ *     the digest is independent of key insertion order too.
+ *
+ * **Migration consequence:** this changes the digest for every node, so
+ * every pre-existing `ActivityOutputCache` row stops matching and is
+ * simply never read again. That is intended and is the only safe
+ * outcome — those rows record no activity identity, so we cannot know
+ * what produced them. They are removed by the existing TTL sweep
+ * (`activityOutputCache.gc`, US-134) once `expiresAt` passes; no
+ * migration or manual purge is needed.
+ *
+ * **Why cache eviction on node delete / retype is NOT needed:** the key
+ * is content-addressed on what matters. A retyped node now produces a
+ * different `configHash`, so it cannot collide with its own past. A node
+ * that is deleted and recreated onto a recycled id, with the same type,
+ * subtype, parameters and inputs, IS the same computation — reusing its
+ * row is correct, not a leak.
+ */
+export function computeNodeConfigHash(node: GraphNode): string {
+  return sha256Hex(
+    stableJson({
+      type: node.type,
+      subtype: getNodeSubtype(node),
+      parameters: getNodeParameters(node),
+    }),
+  );
+}
+
+/**
  * Returns the activity's declared output kind (the first output port's
  * `kind`) coerced to the string the cache row stores in `outputKind`.
  * Returns `null` for source nodes (no activity-side output ports) and
@@ -217,7 +292,7 @@ export async function executeCachedActivity(
   workflowLineageId: string,
   rawExecute: () => Promise<Record<string, unknown>>,
 ): Promise<ExecuteCachedActivityResult> {
-  const configHash = sha256Hex(stableJson(getNodeParameters(node)));
+  const configHash = computeNodeConfigHash(node);
 
   // Scenario 3 — bypass for non-cacheable activities. We still compute
   // hashes so the workflow status map (US-135) can surface them in the

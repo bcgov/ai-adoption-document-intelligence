@@ -24,7 +24,7 @@
  * touching the production sweep (US-134).
  */
 
-import type { ActivityNode, SourceNode } from "@ai-di/graph-workflow";
+import type { ActivityNode, JoinNode, SourceNode } from "@ai-di/graph-workflow";
 
 jest.mock("@ai-di/graph-workflow", () => {
   const actual = jest.requireActual("@ai-di/graph-workflow");
@@ -45,6 +45,21 @@ jest.mock("@ai-di/graph-workflow", () => {
           : undefined,
         // nonCacheable absent → defaults to cacheable.
       },
+      // Second cacheable entry — G-018 needs two DIFFERENT activity types
+      // that are both cacheable so a retype can be exercised.
+      "test.cacheable2": {
+        activityType: "test.cacheable2",
+        displayName: "Test Cacheable Two",
+        category: "Classification",
+        description: "stub",
+        iconHint: "x",
+        colorHint: "green",
+        inputs: [],
+        outputs: [{ name: "out", label: "Out", kind: "Classification" }],
+        parametersSchema: actual.ACTIVITY_CATALOG["azureOcr.extract"]
+          ? actual.ACTIVITY_CATALOG["azureOcr.extract"].parametersSchema
+          : undefined,
+      },
       "test.nonCacheable": {
         activityType: "test.nonCacheable",
         displayName: "Test Non-Cacheable",
@@ -63,6 +78,11 @@ jest.mock("@ai-di/graph-workflow", () => {
   };
 });
 
+import type {
+  ActivityOutputCacheFindFreshInput,
+  ActivityOutputCacheFindFreshResult,
+  ActivityOutputCacheUpsertInput,
+} from "../activities/cache/activity-output-cache.types";
 import type { CachedActivityDeps } from "./cached-activity";
 import { executeCachedActivity } from "./cached-activity";
 
@@ -456,5 +476,201 @@ describe("executeCachedActivity (US-132)", () => {
     const secondHash = (findFresh.mock.calls[1][0] as { configHash: string })
       .configHash;
     expect(firstHash).toBe(secondHash);
+  });
+
+  // -------------------------------------------------------------------------
+  // G-018 — the cache key must carry the node's identity-of-computation.
+  //
+  // The unique key is `(workflowLineageId, nodeId, configHash, inputHash)`.
+  // Before the fix `configHash` hashed the node's PARAMETERS ALONE, so a node
+  // retyped in place — same id, same parameters, same inputs — landed on the
+  // previous activity's row and was served its output. These tests use a fake
+  // store keyed exactly like the Prisma `@@unique` so a collision shows up as
+  // a real cache hit rather than as a hash comparison.
+  // -------------------------------------------------------------------------
+  describe("G-018 — activity identity is part of the cache key", () => {
+    function makeStore(): {
+      deps: CachedActivityDeps;
+      findFresh: jest.Mock;
+      upsert: jest.Mock;
+    } {
+      const rows = new Map<string, ActivityOutputCacheFindFreshResult>();
+      const rowKey = (input: ActivityOutputCacheFindFreshInput): string =>
+        [
+          input.workflowLineageId,
+          input.nodeId,
+          input.configHash,
+          input.inputHash,
+        ].join("|");
+      const findFresh = jest.fn(
+        async (
+          input: ActivityOutputCacheFindFreshInput,
+        ): Promise<ActivityOutputCacheFindFreshResult | null> =>
+          rows.get(rowKey(input)) ?? null,
+      );
+      const upsert = jest.fn(
+        async (input: ActivityOutputCacheUpsertInput): Promise<void> => {
+          rows.set(rowKey(input), {
+            outputCtx: input.outputCtx,
+            outputKind: input.outputKind ?? null,
+          });
+        },
+      );
+      return { deps: { findFresh, upsert }, findFresh, upsert };
+    }
+
+    it("does not serve a cached result to a different activity type", async () => {
+      const { deps } = makeStore();
+
+      // Node A — an OCR-ish activity populates the cache.
+      const nodeA = makeCacheableNode({
+        activityType: "test.cacheable",
+        parameters: { confidenceThreshold: 0.8 },
+      });
+      const ocrExecute = jest.fn().mockResolvedValue({ result: "ocr-output" });
+      const firstRun = await executeCachedActivity(
+        deps,
+        nodeA,
+        {},
+        WORKFLOW_LINEAGE_ID,
+        ocrExecute,
+      );
+      expect(firstRun.cacheHit).toBe(false);
+      expect(ocrExecute).toHaveBeenCalledTimes(1);
+
+      // Node B — SAME id, SAME parameters, SAME (empty) inputs; only the
+      // activity type differs. It must NOT inherit A's output.
+      const nodeB = makeCacheableNode({
+        activityType: "test.cacheable2",
+        parameters: { confidenceThreshold: 0.8 },
+      });
+      const ctxB: Record<string, unknown> = {};
+      const classifyExecute = jest
+        .fn()
+        .mockResolvedValue({ result: "classification-output" });
+      const secondRun = await executeCachedActivity(
+        deps,
+        nodeB,
+        ctxB,
+        WORKFLOW_LINEAGE_ID,
+        classifyExecute,
+      );
+
+      expect(secondRun.cacheHit).toBe(false);
+      expect(classifyExecute).toHaveBeenCalledTimes(1);
+      expect(ctxB).toEqual({ result: "classification-output" });
+      expect(secondRun.configHash).not.toBe(firstRun.configHash);
+    });
+
+    it("still serves a cached result to the same activity", async () => {
+      const { deps } = makeStore();
+
+      const node = makeCacheableNode({ parameters: { a: 1 } });
+      const rawExecute = jest.fn().mockResolvedValue({ result: "v1" });
+      const first = await executeCachedActivity(
+        deps,
+        node,
+        {},
+        WORKFLOW_LINEAGE_ID,
+        rawExecute,
+      );
+      expect(first.cacheHit).toBe(false);
+
+      const ctx: Record<string, unknown> = {};
+      const secondExecute = jest.fn();
+      const second = await executeCachedActivity(
+        deps,
+        makeCacheableNode({ parameters: { a: 1 } }),
+        ctx,
+        WORKFLOW_LINEAGE_ID,
+        secondExecute,
+      );
+
+      expect(second.cacheHit).toBe(true);
+      expect(secondExecute).not.toHaveBeenCalled();
+      expect(ctx).toEqual({ result: "v1" });
+      expect(second.configHash).toBe(first.configHash);
+    });
+
+    it("distinguishes a control-flow node from an activity with the same id", async () => {
+      const { deps } = makeStore();
+
+      // An activity with no parameters — pre-fix this hashed to sha256("{}").
+      const activity = makeCacheableNode({ parameters: {} });
+      const activityExecute = jest
+        .fn()
+        .mockResolvedValue({ result: "from-activity" });
+      const first = await executeCachedActivity(
+        deps,
+        activity,
+        {},
+        WORKFLOW_LINEAGE_ID,
+        activityExecute,
+      );
+      expect(first.cacheHit).toBe(false);
+
+      // A join node reusing the same id — no parameters either, so pre-fix it
+      // produced the identical sha256("{}") configHash.
+      const join: JoinNode = {
+        id: activity.id,
+        type: "join",
+        label: "Collect",
+        sourceMapNodeId: "map-1",
+        strategy: "all",
+        resultsCtxKey: "results",
+        inputs: [],
+        outputs: [],
+      };
+      const ctx: Record<string, unknown> = {};
+      const joinExecute = jest.fn().mockResolvedValue({ result: "from-join" });
+      const second = await executeCachedActivity(
+        deps,
+        join,
+        ctx,
+        WORKFLOW_LINEAGE_ID,
+        joinExecute,
+      );
+
+      expect(second.cacheHit).toBe(false);
+      expect(joinExecute).toHaveBeenCalledTimes(1);
+      expect(ctx).toEqual({ result: "from-join" });
+      expect(second.configHash).not.toBe(first.configHash);
+    });
+
+    it("keeps the cache across a pure rename — label is NOT part of the key", async () => {
+      const { deps } = makeStore();
+
+      const node = makeCacheableNode({
+        label: "Extract text",
+        parameters: { a: 1 },
+      });
+      const rawExecute = jest.fn().mockResolvedValue({ result: "v1" });
+      const first = await executeCachedActivity(
+        deps,
+        node,
+        {},
+        WORKFLOW_LINEAGE_ID,
+        rawExecute,
+      );
+      expect(first.cacheHit).toBe(false);
+
+      const renamed = makeCacheableNode({
+        label: "Extract text (renamed)",
+        parameters: { a: 1 },
+      });
+      const ctx: Record<string, unknown> = {};
+      const renamedExecute = jest.fn();
+      const second = await executeCachedActivity(
+        deps,
+        renamed,
+        ctx,
+        WORKFLOW_LINEAGE_ID,
+        renamedExecute,
+      );
+
+      expect(second.configHash).toBe(first.configHash);
+      expect(second.cacheHit).toBe(true);
+      expect(renamedExecute).not.toHaveBeenCalled();
+    });
   });
 });

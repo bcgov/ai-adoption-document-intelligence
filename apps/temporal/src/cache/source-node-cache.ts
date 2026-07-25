@@ -8,7 +8,12 @@
  * unrelated inbound payloads).
  *
  * Per REQUIREMENTS.md L16, a source node's cache row is keyed by:
- *   - `configHash = sha256(stableJson(sourceNode.parameters ?? {}))`
+ *   - `configHash = computeNodeConfigHash(sourceNode)` — the SAME helper
+ *     `executeCachedActivity` uses, so both writers into
+ *     `ActivityOutputCache` key rows identically by construction. Per
+ *     G-018 it folds the node's `type` + `sourceType` into the digest
+ *     alongside its parameters, so retyping `source.api` → `source.upload`
+ *     in place cannot inherit the previous source's cached payload.
  *   - `inputHash  = sha256(stableJson(initialCtx))`   — the inbound payload
  *   - `outputCtx  = initialCtx`                       — the source's "output"
  *   - `outputKind = sourceCatalogEntry.outputKind`    — resolved via SOURCE_CATALOG
@@ -34,6 +39,7 @@ import {
 } from "@ai-di/graph-workflow";
 
 import type { CachedActivityDeps } from "./cached-activity";
+import { computeNodeConfigHash } from "./cached-activity";
 
 /**
  * Resolve a source node's declared output kind via the source catalog.
@@ -96,7 +102,7 @@ export async function writeSourceNodeCache(
   initialCtx: Record<string, unknown>,
   workflowLineageId: string,
 ): Promise<WriteSourceNodeCacheResult> {
-  const configHash = sha256Hex(stableJson(node.parameters ?? {}));
+  const configHash = computeNodeConfigHash(node);
   const inputHash = sha256Hex(stableJson(initialCtx));
   const outputKind = resolveSourceOutputKind(node.sourceType);
 
