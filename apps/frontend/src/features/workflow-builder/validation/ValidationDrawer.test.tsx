@@ -52,9 +52,8 @@ function mount(ui: React.ReactNode) {
 }
 
 describe("ValidationDrawer", () => {
-  it("deep-links an input-anchored issue to that input's picker via onFixNodeInput", () => {
-    const onFixNodeInput = vi.fn();
-    const onSelectNode = vi.fn();
+  it("deep-links an input-anchored issue to that input's picker", () => {
+    const onNavigate = vi.fn();
     const onClose = vi.fn();
     mount(
       <ValidationDrawer
@@ -68,19 +67,20 @@ describe("ValidationDrawer", () => {
           },
         ])}
         config={config}
-        onSelectNode={onSelectNode}
-        onFixNodeInput={onFixNodeInput}
+        onNavigate={onNavigate}
       />,
     );
     fireEvent.click(screen.getByText(/needs a source/i));
-    expect(onFixNodeInput).toHaveBeenCalledWith("Z", "fileData");
-    expect(onSelectNode).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: "nodeInput",
+      nodeId: "Z",
+      port: "fileData",
+    });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to selecting the node for a non-input issue", () => {
-    const onFixNodeInput = vi.fn();
-    const onSelectNode = vi.fn();
+    const onNavigate = vi.fn();
     mount(
       <ValidationDrawer
         opened
@@ -93,13 +93,11 @@ describe("ValidationDrawer", () => {
           },
         ])}
         config={config}
-        onSelectNode={onSelectNode}
-        onFixNodeInput={onFixNodeInput}
+        onNavigate={onNavigate}
       />,
     );
     fireEvent.click(screen.getByText(/not reachable/i));
-    expect(onSelectNode).toHaveBeenCalledWith("Z");
-    expect(onFixNodeInput).not.toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith({ kind: "node", nodeId: "Z" });
   });
 
   it("shows a 'Pick a source' affordance on an input-anchored row", () => {
@@ -115,8 +113,7 @@ describe("ValidationDrawer", () => {
           },
         ])}
         config={config}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
     expect(screen.getByText(/pick a source/i)).toBeInTheDocument();
@@ -136,8 +133,7 @@ describe("ValidationDrawer", () => {
           },
         ])}
         config={config}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
     expect(screen.getByText(/select node/i)).toBeInTheDocument();
@@ -178,8 +174,7 @@ describe("ValidationDrawer", () => {
           },
         ])}
         config={reachabilityConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
     expect(
@@ -252,8 +247,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
         onClose={vi.fn()}
         result={twoNodeResult()}
         config={multiConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
         filterNodeId="Z"
         onShowAll={vi.fn()}
       />,
@@ -278,8 +272,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
         onClose={vi.fn()}
         result={twoNodeResult()}
         config={multiConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
         filterNodeId="Z"
         onShowAll={onShowAll}
       />,
@@ -295,8 +288,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
         onClose={vi.fn()}
         result={twoNodeResult()}
         config={multiConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
         filterNodeId="not-a-node"
         onShowAll={vi.fn()}
       />,
@@ -305,7 +297,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
   });
 
   it("drops the 'Select node' hint and is non-interactive for a non-input row in filtered mode", () => {
-    const onSelectNode = vi.fn();
+    const onNavigate = vi.fn();
     const onClose = vi.fn();
     mount(
       <ValidationDrawer
@@ -319,8 +311,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
           },
         ])}
         config={multiConfig}
-        onSelectNode={onSelectNode}
-        onFixNodeInput={vi.fn()}
+        onNavigate={onNavigate}
         filterNodeId="Z"
         onShowAll={vi.fn()}
       />,
@@ -334,12 +325,12 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
     expect(msg.closest("button")).toBeNull();
     // Clicking does nothing.
     fireEvent.click(msg);
-    expect(onSelectNode).not.toHaveBeenCalled();
+    expect(onNavigate).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
   it("keeps the 'Pick a source' hint + picker deep-link for an input row in filtered mode", () => {
-    const onFixNodeInput = vi.fn();
+    const onNavigate = vi.fn();
     mount(
       <ValidationDrawer
         opened
@@ -352,19 +343,22 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
           },
         ])}
         config={multiConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={onFixNodeInput}
+        onNavigate={onNavigate}
         filterNodeId="Z"
         onShowAll={vi.fn()}
       />,
     );
     expect(screen.getByText(/pick a source/i)).toBeInTheDocument();
     fireEvent.click(screen.getByText(/"fileData" needs a source/));
-    expect(onFixNodeInput).toHaveBeenCalledWith("Z", "fileData");
+    expect(onNavigate).toHaveBeenCalledWith({
+      kind: "nodeInput",
+      nodeId: "Z",
+      port: "fileData",
+    });
   });
 
   it("keeps the 'Select node' hint + selection for a non-input row in unfiltered mode", () => {
-    const onSelectNode = vi.fn();
+    const onNavigate = vi.fn();
     mount(
       <ValidationDrawer
         opened
@@ -377,13 +371,12 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
           },
         ])}
         config={multiConfig}
-        onSelectNode={onSelectNode}
-        onFixNodeInput={vi.fn()}
+        onNavigate={onNavigate}
       />,
     );
     expect(screen.getByText(/select node/i)).toBeInTheDocument();
     fireEvent.click(screen.getByText(/not reachable/i));
-    expect(onSelectNode).toHaveBeenCalledWith("Z");
+    expect(onNavigate).toHaveBeenCalledWith({ kind: "node", nodeId: "Z" });
   });
 
   it("unfiltered mode still lists every node's bucket (regression)", () => {
@@ -393,8 +386,7 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
         onClose={vi.fn()}
         result={twoNodeResult()}
         config={multiConfig}
-        onSelectNode={vi.fn()}
-        onFixNodeInput={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
     expect(screen.getByText(/"fileData" needs a source/)).toBeInTheDocument();
@@ -405,5 +397,85 @@ describe("ValidationDrawer — node-scoped filter mode", () => {
     expect(
       screen.queryByRole("button", { name: /show all problems/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-010 — anchors that are NOT `nodes.*` land in `workflowLevelErrors`
+// (that's all `useGraphValidation` buckets), yet most of them name a concrete
+// target. They must navigate; only the genuinely workflow-level four stay
+// inert.
+// ---------------------------------------------------------------------------
+
+const anchorConfig: GraphWorkflowConfig = {
+  schemaVersion: "1.0",
+  metadata: { name: "t" },
+  nodes: {
+    Z: {
+      id: "Z",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Submit OCR",
+    },
+    Q: {
+      id: "Q",
+      type: "activity",
+      activityType: "azureOcr.submit",
+      label: "Other node",
+    },
+  },
+  edges: [{ id: "e1", source: "Z", target: "Q", type: "normal" }],
+  entryNodeId: "Z",
+  ctx: { documentId: { type: "string" } },
+  nodeGroups: { g1: { label: "G1", nodeIds: ["Z", "Q"] } },
+};
+
+describe("ValidationDrawer — non-node anchors navigate too", () => {
+  function mountWith(path: string, onNavigate = vi.fn()) {
+    mount(
+      <ValidationDrawer
+        opened
+        onClose={vi.fn()}
+        result={makeResult([
+          { path, message: `anchored at [${path}]`, severity: "error" },
+        ])}
+        config={anchorConfig}
+        onNavigate={onNavigate}
+      />,
+    );
+    return onNavigate;
+  }
+
+  it.each<[string, unknown, RegExp]>([
+    ["edges[0].source", { kind: "edge", edgeId: "e1" }, /show connection/i],
+    [
+      "nodeGroups.g1.nodeIds[0]",
+      { kind: "group", groupId: "g1" },
+      /show group/i,
+    ],
+    [
+      "ctx.documentId",
+      { kind: "workflowSettings", focus: "ctx" },
+      /open settings/i,
+    ],
+    ["entryNodeId", { kind: "node", nodeId: "Z" }, /select node/i],
+  ])("deep-links workflow-bucket anchor %s", (path, expected, hint) => {
+    const onNavigate = mountWith(path);
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(`anchored at [${path}]`));
+    expect(onNavigate).toHaveBeenCalledWith(expected);
+  });
+
+  it.each([
+    "",
+    "schemaVersion",
+    "nodes",
+    "edges",
+  ])("falls back to workflow-level only for genuinely workflow-level anchor %s", (path) => {
+    const onNavigate = mountWith(path);
+    const row = screen.getByText(`anchored at [${path}]`);
+    expect(row.closest("button")).toBeNull();
+    fireEvent.click(row);
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 });

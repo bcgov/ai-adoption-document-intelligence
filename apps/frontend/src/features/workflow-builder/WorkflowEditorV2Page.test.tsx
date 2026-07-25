@@ -45,6 +45,8 @@ const {
   fitViewMock,
   measuredNodes,
   setCenterMock,
+  setNodesMock,
+  setEdgesMock,
   existingWorkflowRef,
 } = vi.hoisted(() => {
   return {
@@ -75,6 +77,10 @@ const {
     // reports a measured width, so that test populates this.
     measuredNodes: { current: [] as unknown[] },
     fitViewMock: vi.fn(),
+    // G-010 — the page must drive xyflow's own selection store so a
+    // programmatic selection STICKS. These record that it did.
+    setNodesMock: vi.fn(),
+    setEdgesMock: vi.fn(),
     // Item 6X — the jump-to-producer handler pans via the live instance's
     // `setCenter`; capture calls so the page test can assert the pan fired.
     setCenterMock: vi.fn(),
@@ -97,7 +103,8 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
         | ((instance: {
             fitView: typeof fitViewMock;
             setCenter: typeof setCenterMock;
-            setNodes: (updater: (nodes: unknown[]) => unknown[]) => void;
+            setNodes: typeof setNodesMock;
+            setEdges: typeof setEdgesMock;
             getNodes: () => unknown[];
             getNode: (id: string) => unknown;
             getZoom: () => number;
@@ -108,10 +115,10 @@ vi.mock("./canvas/WorkflowEditorCanvas", () => {
           fitView: fitViewMock,
           // Item 6X — jump-to-producer pans via setCenter.
           setCenter: setCenterMock,
-          setNodes: () => {
-            // No-op — the stub doesn't simulate xyflow's node-selection
-            // side effects, only that `setNodes` exists as a callable.
-          },
+          // The stub doesn't simulate xyflow's selection side effects; the
+          // spies only record that the page went through the live store.
+          setNodes: setNodesMock,
+          setEdges: setEdgesMock,
           // Auto-arrange reads measured node widths off the live instance,
           // and the arrange-on-load poll waits for every node to report one.
           // Defaults to none, so layoutGraph falls back to its default width —
@@ -165,7 +172,8 @@ vi.mock("./settings/NodeSettingsPanel", () => ({
 }));
 
 vi.mock("./settings/WorkflowSettingsDrawer", () => ({
-  WorkflowSettingsDrawer: () => null,
+  WorkflowSettingsDrawer: (props: Record<string, unknown>) =>
+    props.opened ? <div data-testid="workflow-settings-drawer-stub" /> : null,
 }));
 
 vi.mock("./validation/ValidationDrawer", () => ({
@@ -2627,5 +2635,106 @@ describe("WorkflowEditorV2Page — unsaved-changes guard (G-027)", () => {
     await waitFor(() => expect(capturedCreateDto.current).not.toBeNull());
     await waitFor(() => expect(fireBeforeUnload()).toBe(false));
     expect(confirmSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-010 — clicking a validation problem must take you to it.
+//   Three stacked failures this covers:
+//     1. the drawer was handed the plain `setSelectedNodeId`, whose selection
+//        xyflow immediately clobbers — it must get `selectNodeSticky`;
+//     2. nothing panned the canvas, so a successful selection could be
+//        off-screen;
+//     3. only `nodes.<id>.inputs.<port>` deep-linked — every other anchor
+//        shape that names a concrete target degraded to "workflow-level".
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — G-010 validation navigation", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedSettingsPanelProps.current = null;
+    capturedValidationDrawerProps.current = null;
+    fitViewMock.mockClear();
+    setCenterMock.mockClear();
+    setNodesMock.mockClear();
+    setEdgesMock.mockClear();
+  });
+
+  function navigate(target: unknown) {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const onNavigate = capturedValidationDrawerProps.current?.onNavigate as
+      | ((t: unknown) => void)
+      | undefined;
+    if (!onNavigate) throw new Error("drawer stub did not capture onNavigate");
+    act(() => {
+      onNavigate(target);
+    });
+  }
+
+  it("selects the node a validation entry names, and it sticks", () => {
+    navigate({ kind: "node", nodeId: "b" });
+    expect(capturedCanvasProps.current?.selectedNodeId).toBe("b");
+    // Stickiness: the page must go through xyflow's own selection store,
+    // not just React state — a plain setState is clobbered on the next
+    // xyflow selection event.
+    expect(setNodesMock).toHaveBeenCalled();
+  });
+
+  it("brings the selected node into view", () => {
+    navigate({ kind: "node", nodeId: "c" });
+    expect(setCenterMock).toHaveBeenCalled();
+  });
+
+  it("deep-links an input-anchored entry to the port's source picker and reveals it", () => {
+    navigate({ kind: "nodeInput", nodeId: "b", port: "fileData" });
+    expect(capturedSettingsPanelProps.current?.focusInput).toEqual({
+      nodeId: "b",
+      port: "fileData",
+    });
+    expect(setNodesMock).toHaveBeenCalled();
+    expect(setCenterMock).toHaveBeenCalled();
+  });
+
+  it("deep-links an edge-anchored entry by selecting the connection and framing both ends", () => {
+    navigate({ kind: "edge", edgeId: "e1" });
+    expect(setEdgesMock).toHaveBeenCalled();
+    // Two endpoint nodes → fitView scoped to them, not a single-node pan.
+    expect(fitViewMock).toHaveBeenCalled();
+    const calls = fitViewMock.mock.calls;
+    const call = calls[calls.length - 1]?.[0] as
+      | { nodes?: { id: string }[] }
+      | undefined;
+    expect(call?.nodes?.map((n) => n.id)).toEqual(["a", "b"]);
+    expect(capturedCanvasProps.current?.selectedNodeId).toBeNull();
+  });
+
+  it("deep-links a group-anchored entry to the group panel", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    // Give the config a group to navigate to.
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as
+      | ((c: GraphWorkflowConfig) => void)
+      | undefined;
+    const base = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange?.({
+        ...base,
+        nodeGroups: { g1: { label: "G1", nodeIds: ["a", "b"] } },
+      });
+    });
+    const onNavigate = capturedValidationDrawerProps.current?.onNavigate as
+      | ((t: unknown) => void)
+      | undefined;
+    act(() => {
+      onNavigate?.({ kind: "group", groupId: "g1" });
+    });
+    expect(capturedSettingsPanelProps.current?.activeGroupId).toBe("g1");
+    expect(fitViewMock).toHaveBeenCalled();
+  });
+
+  it("deep-links a ctx / entry / library-port entry to the workflow-settings drawer", () => {
+    navigate({ kind: "workflowSettings", focus: "ctx" });
+    expect(
+      screen.getByTestId("workflow-settings-drawer-stub"),
+    ).toBeInTheDocument();
   });
 });

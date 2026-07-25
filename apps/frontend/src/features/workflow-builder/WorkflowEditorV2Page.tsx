@@ -122,6 +122,7 @@ import type { WorkflowTemplate } from "./templates";
 import { useConfigHistory } from "./use-config-history";
 import { useUndoRedoHotkeys } from "./use-undo-redo-hotkeys";
 import { useUnsavedGuard } from "./use-unsaved-guard";
+import type { AnchorTarget } from "./validation/anchor-target";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
@@ -278,16 +279,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     [selectNodeSticky],
   );
   const clearFocusInput = useCallback(() => setFocusInput(null), []);
-  // Item 6X — click a real-producer input row: select the producer so its
-  // selection sticks (same helper the problems deep-link uses) and pan/center
-  // it into view via the live ReactFlow instance. Prefer `setCenter` (keeps
-  // the current zoom, a gentle pan) using the node's measured center; fall
-  // back to `fitView` on the single node when the instance can't resolve it.
-  const handleJumpToProducer = useCallback(
-    (nodeId: string) => {
-      selectNodeSticky(nodeId);
-      const instance = reactFlowRef.current;
-      if (!instance) return;
+  // G-010 — bring node(s) into view on the live ReactFlow instance. One node:
+  // `setCenter` on its measured centre (keeps the current zoom — a gentle
+  // pan). Several, or a node the instance can't resolve: `fitView` scoped to
+  // them. A selection the user can't see is the same bug as no selection.
+  const revealNodes = useCallback((nodeIds: readonly string[]) => {
+    const instance = reactFlowRef.current;
+    if (!instance || nodeIds.length === 0) return;
+    if (nodeIds.length === 1) {
+      const nodeId = nodeIds[0];
       const node = instance.getNode?.(nodeId);
       const pos =
         node?.position ??
@@ -304,15 +304,71 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           zoom,
           duration: 300,
         });
-      } else {
-        instance.fitView({
-          padding: 0.2,
-          duration: 300,
-          nodes: [{ id: nodeId }],
-        });
+        return;
+      }
+    }
+    instance.fitView({
+      padding: 0.2,
+      duration: 300,
+      nodes: nodeIds.map((id) => ({ id })),
+    });
+  }, []);
+  // Item 6X — click a real-producer input row: select the producer so its
+  // selection sticks (same helper the problems deep-link uses) and pan it
+  // into view.
+  const handleJumpToProducer = useCallback(
+    (nodeId: string) => {
+      selectNodeSticky(nodeId);
+      revealNodes([nodeId]);
+    },
+    [selectNodeSticky, revealNodes],
+  );
+  /**
+   * G-010 — a validation row was clicked. Take the user to whatever its
+   * anchor names: select + pan for a node, the source picker for an input,
+   * the connection itself for an edge, the group panel for a group, the
+   * workflow-settings drawer for a ctx / entry / library-port field.
+   */
+  const handleValidationNavigate = useCallback(
+    (target: AnchorTarget) => {
+      switch (target.kind) {
+        case "nodeInput":
+          handleFixNodeInput(target.nodeId, target.port);
+          revealNodes([target.nodeId]);
+          return;
+        case "node":
+          selectNodeSticky(target.nodeId);
+          revealNodes([target.nodeId]);
+          return;
+        case "edge": {
+          const edge = configRef.current.edges.find(
+            (e) => e.id === target.edgeId,
+          );
+          // Same stickiness problem as nodes — go through xyflow's own store.
+          reactFlowRef.current?.setEdges((es) =>
+            es.map((e) => ({ ...e, selected: e.id === target.edgeId })),
+          );
+          reactFlowRef.current?.setNodes((ns) =>
+            ns.map((n) => ({ ...n, selected: false })),
+          );
+          setSelectedNodeId(null);
+          if (edge) revealNodes([edge.source, edge.target]);
+          return;
+        }
+        case "group": {
+          setActiveGroupId(target.groupId);
+          setSelectedNodeIdState(null);
+          const members =
+            configRef.current.nodeGroups?.[target.groupId]?.nodeIds ?? [];
+          revealNodes(members);
+          return;
+        }
+        case "workflowSettings":
+          setSettingsOpen(true);
+          return;
       }
     },
-    [selectNodeSticky],
+    [handleFixNodeInput, selectNodeSticky, revealNodes, setSelectedNodeId],
   );
   // Item 6X — hover a real-producer input row (node id) / leave it (`null`).
   const handleHoverProducer = useCallback(
@@ -1348,8 +1404,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           }}
           result={validation}
           config={config}
-          onSelectNode={setSelectedNodeId}
-          onFixNodeInput={handleFixNodeInput}
+          onNavigate={handleValidationNavigate}
           focusedNodeId={validationFocusNodeId}
           filterNodeId={validationFilterNodeId}
           onShowAll={() => setValidationFilterNodeId(null)}

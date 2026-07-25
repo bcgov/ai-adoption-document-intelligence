@@ -27,6 +27,11 @@ import {
   IconExclamationCircle,
 } from "@tabler/icons-react";
 import { useEffect, useRef } from "react";
+import {
+  type AnchorTarget,
+  anchorActionHint,
+  resolveAnchorTarget,
+} from "./anchor-target";
 import type { GraphValidationResult } from "./useGraphValidation";
 
 interface ValidationDrawerProps {
@@ -34,14 +39,17 @@ interface ValidationDrawerProps {
   onClose: () => void;
   result: GraphValidationResult;
   config: GraphWorkflowConfig;
-  onSelectNode: (nodeId: string) => void;
   /**
-   * Deep-link for an input-anchored issue (an unbound / ambiguous port folded
-   * in from auto-wire): instead of just selecting the node, open that input's
-   * source picker. Falls back to plain selection when absent or the issue
-   * isn't input-anchored.
+   * G-010 — take the user to the thing an issue names. The drawer resolves
+   * each issue's `path` into an `AnchorTarget` (`resolveAnchorTarget`) and
+   * hands it over; the host owns the reveal behaviour for each kind
+   * (select + pan for a node, open the source picker for an input, select
+   * the connection for an edge, open the group / workflow settings).
+   *
+   * Rows whose anchor is genuinely workflow-level (`""`, `schemaVersion`,
+   * `nodes`, `edges`) resolve to `null` and stay non-interactive.
    */
-  onFixNodeInput?: (nodeId: string, port: string) => void;
+  onNavigate: (target: AnchorTarget) => void;
   /**
    * When set, the drawer scrolls the matching node's entry into view on
    * open. Used by the canvas validation badges — clicking a badge opens
@@ -64,19 +72,6 @@ interface ValidationDrawerProps {
 }
 
 /**
- * Parse a `nodes.<id>.inputs.<port>` validation path into its node + port.
- * Returns null for any other path shape. `<id>` may contain dots (greedy);
- * `<port>` is the final segment.
- */
-function parseInputPortPath(
-  path: string,
-): { nodeId: string; port: string } | null {
-  const match = /^nodes\.(.+)\.inputs\.([^.]+)$/.exec(path);
-  if (!match) return null;
-  return { nodeId: match[1], port: match[2] };
-}
-
-/**
  * Validator messages embed raw internal node IDs (the `config.nodes` keys) in
  * double quotes — e.g. `Node "normB" is not reachable from entry node "prepA"`.
  * Those IDs never appear in the UI, so swap any quoted token that matches a
@@ -96,26 +91,15 @@ export function ValidationDrawer({
   onClose,
   result,
   config,
-  onSelectNode,
-  onFixNodeInput,
+  onNavigate,
   focusedNodeId,
   filterNodeId,
   onShowAll,
 }: ValidationDrawerProps) {
-  const handleSelect = (nodeId: string) => {
-    onSelectNode(nodeId);
+  /** Click handler for a single issue row — navigates to whatever it names. */
+  const handleIssueClick = (target: AnchorTarget) => {
+    onNavigate(target);
     onClose();
-  };
-
-  /** Click handler for a single issue row — deep-links input issues. */
-  const handleIssueClick = (err: GraphValidationError, nodeId: string) => {
-    const target = parseInputPortPath(err.path);
-    if (target && onFixNodeInput) {
-      onFixNodeInput(target.nodeId, target.port);
-      onClose();
-      return;
-    }
-    handleSelect(nodeId);
   };
 
   const isFiltered = filterNodeId != null;
@@ -194,14 +178,27 @@ export function ValidationDrawer({
                   Workflow-level
                 </Text>
                 <Stack gap={6}>
-                  {result.workflowLevelErrors.map((err, i) => (
-                    <IssueRow
-                      key={`${err.path}-${i}`}
-                      error={err}
-                      displayMessage={humanizeNodeIds(err.message, config)}
-                      onClick={undefined}
-                    />
-                  ))}
+                  {result.workflowLevelErrors.map((err, i) => {
+                    // G-010: `errorsByNode` only buckets `nodes.*` paths, so
+                    // edge / group / ctx / library-port anchors land here even
+                    // though they name a concrete target. Resolve them so
+                    // those rows navigate too; only the four genuinely
+                    // workflow-level anchors stay inert.
+                    const target = resolveAnchorTarget(err.path, config);
+                    return (
+                      <IssueRow
+                        key={`${err.path}-${i}`}
+                        error={err}
+                        displayMessage={humanizeNodeIds(err.message, config)}
+                        onClick={
+                          target ? () => handleIssueClick(target) : undefined
+                        }
+                        actionHint={
+                          target ? anchorActionHint(target) : undefined
+                        }
+                      />
+                    );
+                  })}
                 </Stack>
               </Box>
             )}
@@ -240,28 +237,24 @@ export function ValidationDrawer({
               </Group>
               <Stack gap={6}>
                 {errs.map((err, i) => {
-                  const isInput = parseInputPortPath(err.path) != null;
+                  const target =
+                    resolveAnchorTarget(err.path, config) ??
+                    ({ kind: "node", nodeId } as const);
                   // Node-scoped mode: the node is already selected, so
                   // "Select node →" on a non-input row is a redundant no-op.
                   // Drop the hint and make the row explain-only. Input rows
                   // keep their picker deep-link in both modes.
-                  const explainOnly = isFiltered && !isInput;
+                  const explainOnly = isFiltered && target.kind !== "nodeInput";
                   return (
                     <IssueRow
                       key={`${err.path}-${i}`}
                       error={err}
                       displayMessage={humanizeNodeIds(err.message, config)}
                       onClick={
-                        explainOnly
-                          ? undefined
-                          : () => handleIssueClick(err, nodeId)
+                        explainOnly ? undefined : () => handleIssueClick(target)
                       }
                       actionHint={
-                        explainOnly
-                          ? undefined
-                          : isInput
-                            ? "pick-source"
-                            : "select-node"
+                        explainOnly ? undefined : anchorActionHint(target)
                       }
                     />
                   );
@@ -309,11 +302,11 @@ interface IssueRowProps {
   onClick: (() => void) | undefined;
   /**
    * What the row does when clicked, surfaced as a right-aligned hint so the
-   * user can see a fix exists before clicking. `"pick-source"` opens the
-   * input's source picker (input-anchored issues); `"select-node"` just
-   * focuses the node (structural issues). Absent for non-clickable rows.
+   * user can see a fix exists before clicking — produced by
+   * `anchorActionHint` from the row's resolved `AnchorTarget`. Absent for
+   * non-clickable rows.
    */
-  actionHint?: "pick-source" | "select-node";
+  actionHint?: string;
 }
 
 function IssueRow({
@@ -326,12 +319,7 @@ function IssueRow({
   const color = isError ? "red" : "yellow";
   const Icon = isError ? IconExclamationCircle : IconAlertTriangle;
 
-  const hintLabel =
-    actionHint === "pick-source"
-      ? "Pick a source →"
-      : actionHint === "select-node"
-        ? "Select node →"
-        : null;
+  const hintLabel = actionHint ?? null;
 
   const content = (
     <Group gap={8} wrap="nowrap" align="flex-start" p={6}>
