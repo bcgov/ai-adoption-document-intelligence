@@ -1440,10 +1440,11 @@ audit does not refile them.
 
 ## Found during remediation
 
-Two defects the nine fix batches surfaced that were **not** in the original four discovery
-passes and therefore have no entry above. They are recorded here so the effort does not lose
-what it learned. **Neither has been dispositioned** — both are recommendations awaiting Alex's
-ruling, exactly like a pass-proposed disposition.
+Defects the fix batches surfaced that were **not** in the original four discovery passes and
+therefore have no entry above. They are recorded here so the effort does not lose what it
+learned. Unless an entry says otherwise they are recommendations awaiting Alex's ruling,
+exactly like a pass-proposed disposition. G-104 has since been fixed (batch 10) and carries an
+Outcome block; G-106 was found while fixing it.
 
 Ids continue the register's sequence (the merged findings run to G-103).
 
@@ -1475,6 +1476,68 @@ its own batch** rather than being folded into a mixed one — a rename on either
 migration over saved configs, not a local edit.
 
 **Proposed disposition:** fix — own batch
+
+**Outcome: FIXED in fix batch 10.** The resolver now reports a map's item producer under the
+stable port name `"item"` (`resolve-input-port.ts`), `map` is indexed like every other
+control-flow producer (`derive-wires.ts`), and the pin path binds to the key the producer
+actually writes (`wire-mutations.ts`). Plan:
+[docs/superpowers/plans/2026-07-25-fix-batch-10-map-item-wires.md](../../docs/superpowers/plans/2026-07-25-fix-batch-10-map-item-wires.md).
+
+Two claims in the text above were **measured and found false** — recorded so the next reader
+does not inherit the overestimate:
+
+- **There is no data migration.** 0 of 2 map nodes in the shipped templates and 0 of 2 in the
+  seeded database persist an `outputs[]` row (verified by sweeping all 15 templates and every
+  seeded workflow). Maps write ctx through the dedicated `itemCtxKey` field, so the port name
+  is an in-memory convention only. Nothing on disk encodes it, and the fix is a local edit.
+- **`MapBodyContainer` is not a complication.** It is a pure presentational backdrop
+  (`pointerEvents: "none"`, ~7% alpha fill) rendered *behind* the body nodes, which are
+  ordinary siblings rather than children. A map→body wire is an ordinary wire and is fully
+  legible through the box.
+
+Two further things the batch established, neither of which blocks the fix:
+
+- **`pinPortBinding` had the same bug on the write side, for every control-flow producer**, not
+  only map: it computed the pinned ctx key with `synthesiseCtxKey(nodeId, port)` unconditionally
+  and stamped a matching `outputs[]` row, so pinning a map/join/humanGate/childWorkflow/source
+  wire persisted a key no executor writes *and* made the dead key decode as healthy. Fixed in
+  the same batch.
+- **A persisted map-item binding always loads as "Pinned by you"**, because `normaliseLocks`
+  locks every binding whose ctx key is not `__auto.*`-prefixed and a map's item key is always
+  author-named. The wire draws either way; only the `via: "map-item"` provenance tooltip is
+  reserved for a binding auto-wire creates live in the session. See G-106.
+
+### G-106 — The upstream walk does not descend into a map's body, so a body node never sees the map as a producer
+
+**Found by:** batch 10 (remediation) · **Severity:** major · **Type:** impl-gap
+**Surfaces:** auto-wire, canvas, settings-panel:inputs
+**Evidence:** `packages/graph-workflow/src/auto-wire/upstream-walk.ts` (pure `config.edges` BFS) · `docs-md/workflows/templates/multi-page-report-workflow.json` · seeded `seed-workflow-multi-page-report`
+
+`upstreamNodesWithDistance` is a reverse BFS over `config.edges` only. A map connects to its
+body through `bodyEntryNodeId` / `bodyExitNodeId`, **not** through an edge — so unless the
+author also draws an explicit `map → bodyEntry` edge, the map is not upstream of any body node
+and the resolver's `map-item` synthetic-producer pass can never fire for it.
+
+Both maps that ship in the product have exactly this shape. In
+`multi-page-report-workflow.json` the map `processSegments` reaches its body only via
+`bodyEntryNodeId: "segmentRouter"`, and `segmentRouter` has no incoming edge at all; the body
+node `passthrough` binds `currentSegment` by hand. Measured: `resolveInputPort(cfg,
+"passthrough", { name: "currentSegment", kind: "Segment" })` returns `unsatisfied`, and the
+upstream set for `passthrough` is `{monthlyReportOcr, payStubOcr, bankRecordOcr,
+unknownDocOcr, segmentRouter}` — no map.
+
+Consequence: inside a loop, auto-wire is effectively off. Every body node's item binding has to
+be typed by hand, and because a hand-typed key is not `__auto.*`-prefixed, `normaliseLocks`
+then pins it — so the port also loses the "Revert to automatic" recovery that would re-derive
+it. G-104 makes these bindings **visible** (the wire now draws from the map, via the ctx-key
+producer index, which does not depend on the upstream walk), but it does not make them
+**automatic**.
+
+The fix is not obviously "walk into the body": the map's body is a nested scope, and whether a
+body node should see producers *outside* the map — and at what distance — is a design question
+the auto-wire spec does not currently answer. Deliberately left undispositioned.
+
+**Proposed disposition:** needs a ruling
 
 ### G-105 — A stale Vite dep cache silently serves a bundle missing the new exports, and the editor dies with `does not provide an export named …`
 
