@@ -110,7 +110,19 @@ model ActivityOutputCache {
 
 **Canonical JSON** — keys sorted alphabetically, no insignificant whitespace, arrays preserve declared order. A small helper `stableJson(value: unknown): string` ships in `packages/graph-workflow/src/cache/stable-json.ts` and is consumed by both the worker (for writes) and the backend (for lookups).
 
-**`configHash`** — `sha256(stableJson(node.parameters))`. Empty parameters hash to `sha256("{}")` so unconfigured nodes still produce a stable key.
+**`configHash`** — `sha256(stableJson({ type, subtype, parameters }))`, computed by `computeNodeConfigHash` in `apps/temporal/src/cache/cached-activity.ts` and shared by both cache writers (the activity decorator and the source-node writer).
+
+- `type` — the `GraphNode` discriminant (`"activity"`, `"source"`, `"join"`, …).
+- `subtype` — `activityType` for activity / pollUntil nodes, `sourceType` for source nodes, `null` otherwise.
+- `parameters` — the node's static parameters; empty parameters hash as `{}` so unconfigured nodes still produce a stable key.
+
+Hashing parameters **alone** (the original design) left nothing in `(workflowLineageId, nodeId, configHash, inputHash)` saying *which activity* produced a row: retyping a node in place from `azureOcr.extract` to `document.classify` kept the id, parameters and inputs identical, so the classifier was served the OCR result until the row's TTL expired — and the preview widget and status badge, reading the same row, corroborated it (G-018).
+
+The hash deliberately excludes anything that varies without changing what is computed: the node's `label` (renaming a step must not discard its cached work), `metadata` such as canvas position, and the port bindings (whose consumed values are already covered by `inputHash`).
+
+**Migration:** the fix changes every node's digest, so pre-existing cache rows stop matching and are never read again. That is the only safe outcome — those rows record no activity identity, so what produced them is unknowable. They are removed by the existing TTL sweep (`activityOutputCache.gc`) once `expiresAt` passes; no migration or manual purge is involved.
+
+**Why no eviction on node delete / retype:** the key is content-addressed on what matters. A retyped node produces a different `configHash` and cannot collide with its own past; a node deleted and recreated onto a recycled id with the same type, subtype, parameters and inputs *is* the same computation, so reusing its row is correct.
 
 **`inputHash`** — for each port binding declared on this node, look up the ctx value at execution time and hash the combined set:
 
@@ -147,7 +159,7 @@ export async function executeCachedActivity(
     return;
   }
 
-  const configHash = sha256(stableJson(node.parameters ?? {}));
+  const configHash = computeNodeConfigHash(node); // §2.3 — type + subtype + parameters
   const inputHash = computeInputHash(node, ctx);
 
   const cached = await activityOutputCacheRepo.findFresh({

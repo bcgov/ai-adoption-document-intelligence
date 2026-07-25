@@ -271,6 +271,11 @@ interface ChildWorkflowNode extends GraphNodeBase {
 - `outputMappings` read from the child workflow `ctx` and write to the parent ctx.
 - The child input includes `parentWorkflowId` set to the parent workflow ID.
 
+**Referential integrity (G-019)** — `workflowRef.workflowId` lives inside the `WorkflowVersion.config` JSON column, so the database cannot enforce it with a foreign key. Two guards stand in for one:
+
+- **Delete-time.** `WorkflowService.deleteWorkflow` refuses to delete a lineage that any other workflow still calls as a library child, with a `ConflictException` naming the callers. The scan is a parameterised `wv.config::text LIKE` prefilter (mirroring `DynamicNodeRepository.countWorkflowsReferencingSlug`) followed by an exact structural check of each candidate config, so an id that merely appears in some unrelated string cannot block a legitimate delete. Needles cover every identifier `getWorkflowGraphConfig` accepts — `WorkflowVersion.id`, `WorkflowLineage.id`, and the lineage name. **References from non-head versions count**: a superseded version is still reachable via `workflowRef.version` pinning, `Document.workflow_version_id`, and benchmark definitions. Only the target lineage's own versions are excluded, since they cascade away with it.
+- **Run-time.** When `getWorkflowGraphConfig` still cannot resolve a ref, it throws a **non-retryable** `ApplicationFailure` of type `LIBRARY_WORKFLOW_NOT_FOUND` naming the missing ref and the calling node id. As a plain `Error` this was retryable, so the `childWorkflow` node burned its entire retry budget against a condition that can never resolve.
+
 #### 4.2.6 PollUntil Node
 
 Repeatedly executes an activity until a condition is met.
