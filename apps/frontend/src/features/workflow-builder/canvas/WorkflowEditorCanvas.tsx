@@ -133,6 +133,7 @@ import {
   type PortRowModel,
   rendersPerPortHandle,
 } from "./port-rows";
+import { recordErrorEdge } from "./record-error-edge";
 import { removeNodesFromConfig } from "./remove-nodes";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
@@ -2709,10 +2710,16 @@ function WorkflowEditorCanvasInner({
         target: connection.target,
         type: edgeType,
       };
-      const configWithNewEdge = {
-        ...config,
-        edges: [...config.edges, newEdge],
-      };
+      // G-001: drawing from the bottom `error` handle IS the author naming
+      // the node's error path — record it on the policy, or the validator
+      // reports a missing `fallbackEdgeId` the author has no way to clear.
+      const configWithNewEdge = recordErrorEdge(
+        {
+          ...config,
+          edges: [...config.edges, newEdge],
+        },
+        newEdge,
+      );
       // §6.3/§7 "connect again = wire again": a fresh node-level execution
       // edge makes the source upstream, so clear any `locked-unbound`
       // ("Disconnected by you") lock on the target's port(s) that this edge

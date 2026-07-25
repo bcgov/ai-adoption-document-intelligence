@@ -1423,6 +1423,24 @@ Behavior:
 - `"fallback"`: The graph runner follows the `fallbackEdgeId` edge instead of failing. This is represented as an explicit `error` type edge in the graph.
 - `"skip"`: The node is marked as skipped and execution continues to the next node(s). Output ports are not written (ctx keys retain their previous values or defaults).
 
+`retryable` is read only in the `"fail"` branch: `retryable: false` converts the
+failure into a non-retryable `ApplicationFailure`. An absent policy therefore
+behaves exactly as `{ onError: "fail", retryable: true }`.
+
+> ⚠️ **`maxRetries` is inert.** It is declared on the type but no engine code
+> reads it — an activity's retry count comes from `ActivityNode.retry.maximumAttempts`.
+> The visual builder deliberately does not offer it (G-001).
+
+**Authoring (visual builder).** The node settings panel's **Error handling**
+section writes this policy: *If this step fails* → **Stop the workflow**
+(`fail`) / **Follow the error path** (`fallback`) / **Skip this step and
+continue** (`skip`), plus the retryable toggle and — for `fallback` only — an
+**Error path** picker limited to `error`-typed edges leaving that node.
+Drawing an edge from the node's bottom `error` handle records it as
+`fallbackEdgeId` when the node has none yet, so a `fallback` policy never sits
+in the unclearable "requires fallbackEdgeId" state. `switch` and `source`
+nodes are excluded: neither canvas renderer mounts an `error` handle.
+
 ### 11.2 Fallback Edge Example
 
 A common pattern: on OCR failure, route to human review:

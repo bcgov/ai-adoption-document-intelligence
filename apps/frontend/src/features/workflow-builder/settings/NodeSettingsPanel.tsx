@@ -65,6 +65,7 @@ import {
   SwitchNodeSettings,
 } from "./control-flow";
 import { DynamicNodeSettings } from "./dynamic-node/DynamicNodeSettings";
+import { ErrorPolicySection, supportsErrorPolicy } from "./ErrorPolicySection";
 import { GroupNodeSettings } from "./group/GroupNodeSettings";
 import { InputsSection } from "./InputsSection";
 
@@ -319,6 +320,20 @@ function NodeSettings({
             onConfigChange={onConfigChange}
             workflowId={workflowId}
           />
+
+          {/* G-001. `switch` / `source` never mount an error handle, so the
+              section (and its divider) stay out of their panels entirely
+              rather than leaving a stray rule behind. */}
+          {supportsErrorPolicy(node) && (
+            <>
+              <Divider />
+              <ErrorPolicySection
+                node={node}
+                config={config}
+                onConfigChange={onConfigChange}
+              />
+            </>
+          )}
 
           <Divider />
           <InputsSection
