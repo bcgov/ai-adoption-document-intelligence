@@ -981,6 +981,8 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         { customerId: "cust-001" },
         "group-1",
+        // G-021: every start declares what triggered it.
+        "api",
       );
     });
 
@@ -988,7 +990,7 @@ describe("WorkflowController", () => {
     // the workflow input — Temporal would persist it in durable history in
     // cleartext. The worker's dyn.run activity sources the platform key
     // server-side. Even when the request carries an `x-api-key` header, the
-    // controller must call startGraphWorkflow with exactly four args (no key).
+    // controller must call startGraphWorkflow with exactly five args (no key).
     it("Item 4: does NOT forward the caller's x-api-key into the workflow input", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         wfWithCustomerInput,
@@ -1018,10 +1020,12 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         { customerId: "cust-001" },
         "group-1",
+        // G-021: every start declares what triggered it.
+        "api",
       );
       // Belt-and-suspenders: the secret value never appears in any argument.
       const callArgs = temporalClient.startGraphWorkflow.mock.calls[0];
-      expect(callArgs).toHaveLength(4);
+      expect(callArgs).toHaveLength(5);
       expect(JSON.stringify(callArgs)).not.toContain("super-secret-caller-key");
     });
 
@@ -1067,6 +1071,8 @@ describe("WorkflowController", () => {
         "wv-wf-1",
         {},
         "group-1",
+        // G-021: every start declares what triggered it.
+        "api",
       );
     });
 
@@ -1151,6 +1157,8 @@ describe("WorkflowController", () => {
         "wv-v2",
         {},
         "group-1",
+        // G-021: every start declares what triggered it.
+        "api",
       );
     });
 
@@ -1360,6 +1368,8 @@ describe("WorkflowController", () => {
           "wv-wf-1",
           { documentUrl: "https://example.com/doc.pdf" },
           "group-1",
+          // G-021: every start declares what triggered it.
+          "api",
         );
       });
 
@@ -1469,6 +1479,8 @@ describe("WorkflowController", () => {
             extra: true,
           },
           "group-1",
+          // G-021: every start declares what triggered it.
+          "api",
         );
       });
 
@@ -1516,6 +1528,8 @@ describe("WorkflowController", () => {
           "wv-v1",
           { documentUrl: "https://example.com/v1.pdf" },
           "group-1",
+          // G-021: every start declares what triggered it.
+          "api",
         );
       });
     });
@@ -1668,6 +1682,8 @@ describe("WorkflowController", () => {
         wf.workflowVersionId,
         expect.objectContaining({ documentId: "doc-created-1" }),
         "group-1",
+        // G-021: every start declares what triggered it.
+        "try",
       );
 
       // SourceUploadService received the file payload, the resolved
@@ -1909,6 +1925,8 @@ describe("WorkflowController", () => {
           documentId: "doc-created-1",
         },
         wf.groupId,
+        // G-021: every start declares what triggered it.
+        "try",
       );
       expect(result.runId).toBe("graph-adhoc-kicked-off-run");
       expect(result.workflowVersionId).toBe(wf.workflowVersionId);

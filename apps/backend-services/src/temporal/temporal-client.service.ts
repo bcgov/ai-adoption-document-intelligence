@@ -32,6 +32,22 @@ export type TemporalExecutionStatusFilter =
   | "Canceled";
 
 /**
+ * What started a graph workflow run, recorded on the `RunTrigger` search
+ * attribute (G-021):
+ *
+ * - `"try"` — an editor preview started from the canvas Try tab. These are
+ *   disposable: starting a new Try cancels the in-flight ones for the same
+ *   lineage.
+ * - `"api"` — a production run (the `/runs` API, or a document processed by
+ *   `OcrService`). These are never cancelled by a subsequent start.
+ *
+ * Every call site must state its trigger explicitly — there is no default,
+ * because guessing wrong here either cancels production work or leaks
+ * abandoned previews.
+ */
+export type RunTrigger = "try" | "api";
+
+/**
  * Decoded form of a single Temporal `WorkflowExecutionInfo` row, narrowed
  * to the fields the run-history endpoint (US-150) consumes. Surfaced from
  * {@link TemporalClientService.listRunsForWorkflow}.
@@ -81,6 +97,12 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     // Phase 4 (US-152). `WorkflowVersionId` lets the version-row badge
     // count runs per pinned version.
     { name: "WorkflowVersionId" },
+    // G-021. `RunTrigger` distinguishes an editor preview ("try") from a
+    // production run ("api"). The cancel-on-new-Try helper
+    // (`cancelInFlightTriesForLineage`) filters on it — without it the
+    // visibility query matched every running execution in the lineage, so
+    // starting a second production run cancelled the first.
+    { name: "RunTrigger" },
   ] as const;
 
   /**
@@ -249,12 +271,19 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * direct API trigger), the doc-specific search attributes / memo
    * keys are skipped and the Temporal execution id is generated with
    * a synthetic `graph-adhoc-<uuid>` prefix.
+   *
+   * @param trigger G-021: `"try"` for an editor preview, `"api"` for a
+   *        production run. Recorded on the `RunTrigger` search attribute so
+   *        `cancelInFlightTriesForLineage` can cancel previews without
+   *        touching production runs. Deliberately required — see
+   *        {@link RunTrigger}.
    */
   async startGraphWorkflow(
     documentId: string | undefined,
     workflowConfigId: string,
     initialCtx: Record<string, unknown>,
     groupId: string | null,
+    trigger: RunTrigger,
     workflowConfigOverrides?: Record<string, unknown>,
   ): Promise<string> {
     this.ensureClientInitialized();
@@ -301,11 +330,15 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             // of doc-mode vs adhoc-mode.
             WorkflowLineageId: [workflowConfig.id],
             WorkflowVersionId: [workflowConfigId],
+            // G-021: marks this run as a preview or a production run so the
+            // cancel-on-new-Try helper can tell them apart.
+            RunTrigger: [trigger],
           }
         : {
             Status: ["ongoing_adhoc"],
             WorkflowLineageId: [workflowConfig.id],
             WorkflowVersionId: [workflowConfigId],
+            RunTrigger: [trigger],
           };
 
       const memo: Record<string, unknown> = {
@@ -669,10 +702,17 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * query is safe to issue against a lineage that's never been Tried.
    *
    * @param workflowLineageId The `WorkflowLineage.id` to filter on.
+   * @param trigger G-021: when supplied, narrows the result to runs stamped
+   *        with that `RunTrigger`. The cancel-on-new-Try helper passes
+   *        `"try"` so it cannot reach production runs. Omitted means "every
+   *        running run in the lineage, whatever started it".
    * @returns Workflow execution ids of running runs (caller passes
    *          each through `cancelRun`).
    */
-  async listRunningInLineage(workflowLineageId: string): Promise<string[]> {
+  async listRunningInLineage(
+    workflowLineageId: string,
+    trigger?: RunTrigger,
+  ): Promise<string[]> {
     this.ensureClientInitialized();
     // The visibility query language quotes string values with `"..."` —
     // the lineage id never contains `"` characters (it's a Prisma cuid),
@@ -683,7 +723,11 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         `Invalid workflowLineageId (contains quote): ${workflowLineageId}`,
       );
     }
-    const query = `WorkflowLineageId = "${workflowLineageId}" AND ExecutionStatus = "Running"`;
+    // `trigger` is a closed union, never caller-supplied free text, so it
+    // needs no quote guard.
+    const query = trigger
+      ? `WorkflowLineageId = "${workflowLineageId}" AND ExecutionStatus = "Running" AND RunTrigger = "${trigger}"`
+      : `WorkflowLineageId = "${workflowLineageId}" AND ExecutionStatus = "Running"`;
     const workflowIds: string[] = [];
     for await (const execution of this.client!.workflow.list({ query })) {
       workflowIds.push(execution.workflowId);
@@ -909,11 +953,22 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * service's existing dep on WorkflowService.getWorkflowVersionById).
    *
    * Spec: feature-docs/.../REQUIREMENTS.md L26, TRY_IN_PLACE_DESIGN.md §1, §5.1.
+   *
+   * G-021: only runs stamped `RunTrigger = "try"` are eligible. Before that
+   * attribute existed the query matched every running execution in the
+   * lineage, so starting run #2 of a production batch cancelled run #1.
+   *
+   * Migration note: runs started before `RunTrigger` shipped carry no value
+   * for it and therefore no longer match, so they will not be cancelled.
+   * That is the safe direction — an unknown run is treated as production.
    */
   async cancelInFlightTriesForLineage(
     workflowLineageId: string,
   ): Promise<{ cancelledCount: number }> {
-    const workflowIds = await this.listRunningInLineage(workflowLineageId);
+    const workflowIds = await this.listRunningInLineage(
+      workflowLineageId,
+      "try",
+    );
     if (workflowIds.length === 0) {
       return { cancelledCount: 0 };
     }

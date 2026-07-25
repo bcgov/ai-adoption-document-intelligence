@@ -525,12 +525,14 @@ export class WorkflowController {
       });
     }
 
-    // Phase 4 (US-149): cancel any in-flight Try for this lineage BEFORE
-    // starting the new run. Mirrors the upload-and-Try semantics added in
-    // US-146 — every new run (whether triggered from the canvas Try tab
-    // or from an external API caller) wins over a stale in-flight one.
-    // Cancel is best-effort inside the helper (errors are swallowed there),
-    // so this never blocks the new run.
+    // Phase 4 (US-149): cancel any in-flight editor Try for this lineage
+    // BEFORE starting the new run, so a stale canvas preview doesn't keep
+    // running alongside it. G-021: only runs stamped `RunTrigger = "try"`
+    // are cancelled — production runs started through this endpoint run to
+    // completion regardless of how many others are in flight for the same
+    // lineage (feeding 240 documents through must not have document #2
+    // cancel document #1). Cancel is best-effort inside the helper (errors
+    // are swallowed there), so this never blocks the new run.
     await this.temporalClient.cancelInFlightTriesForLineage(id);
 
     // Item 4 (security): the caller's `x-api-key` is intentionally NOT
@@ -544,6 +546,9 @@ export class WorkflowController {
       wf.workflowVersionId,
       initialCtx,
       wf.groupId,
+      // G-021: this is the public run API — a production run, not an editor
+      // preview. Marking it `"api"` keeps it out of every later cancel set.
+      "api",
     );
 
     this.logger.log(
@@ -742,6 +747,9 @@ export class WorkflowController {
       wf.workflowVersionId,
       initialCtx,
       wf.groupId,
+      // G-021: upload-and-Try is the canvas preview path, so this run is
+      // disposable and the next Try may cancel it.
+      "try",
     );
 
     this.logger.log(
