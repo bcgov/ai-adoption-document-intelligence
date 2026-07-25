@@ -15,11 +15,8 @@
  *      Phase 3 registry, `deriveOutputSchema({})` is callable.
  */
 
-import {
-  SOURCE_CATALOG,
-  getSourceCatalogEntry,
-} from "../source-catalog";
 import { isAssignable } from "../../types/subtype-check";
+import { getSourceCatalogEntry, SOURCE_CATALOG } from "../source-catalog";
 
 import {
   sourceUploadCatalogEntry,
@@ -174,18 +171,16 @@ describe("source.upload catalog entry — Scenario 5 (per-entry invariants)", ()
   });
 
   it("outputKind resolves via the Phase 3 registry (isAssignable round-trip)", () => {
-    expect(
-      isAssignable("Document", sourceUploadCatalogEntry.outputKind),
-    ).toBe(false);
-    expect(
-      isAssignable(sourceUploadCatalogEntry.outputKind, "Document"),
-    ).toBe(true);
+    expect(isAssignable("Document", sourceUploadCatalogEntry.outputKind)).toBe(
+      false,
+    );
+    expect(isAssignable(sourceUploadCatalogEntry.outputKind, "Document")).toBe(
+      true,
+    );
   });
 
   it("deriveOutputSchema is callable with empty parameters (smoke test)", () => {
-    expect(() =>
-      sourceUploadCatalogEntry.deriveOutputSchema({}),
-    ).not.toThrow();
+    expect(() => sourceUploadCatalogEntry.deriveOutputSchema({})).not.toThrow();
     const schema = sourceUploadCatalogEntry.deriveOutputSchema({});
     expect(schema.type).toBe("object");
   });

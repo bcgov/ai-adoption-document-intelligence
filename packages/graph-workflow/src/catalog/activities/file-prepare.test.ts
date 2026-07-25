@@ -1,5 +1,8 @@
 import { z } from "zod/v4";
-import { filePrepareCatalogEntry, filePrepareParametersSchema } from "./file-prepare";
+import {
+  filePrepareCatalogEntry,
+  filePrepareParametersSchema,
+} from "./file-prepare";
 
 describe("file.prepare catalog entry", () => {
   it("has the expected activity type", () => {
@@ -26,12 +29,16 @@ describe("file.prepare catalog entry", () => {
   });
 
   it("accepts a known prebuilt model id", () => {
-    const result = filePrepareParametersSchema.safeParse({ modelId: "prebuilt-invoice" });
+    const result = filePrepareParametersSchema.safeParse({
+      modelId: "prebuilt-invoice",
+    });
     expect(result.success).toBe(true);
   });
 
   it("accepts a custom model id (combobox, not strict enum)", () => {
-    const result = filePrepareParametersSchema.safeParse({ modelId: "custom-trained-v3" });
+    const result = filePrepareParametersSchema.safeParse({
+      modelId: "custom-trained-v3",
+    });
     expect(result.success).toBe(true);
   });
 

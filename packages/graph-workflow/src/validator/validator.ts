@@ -141,6 +141,20 @@ export function validateGraphConfig(
   config: GraphWorkflowConfig,
   options: ValidateGraphConfigOptions = SKIP_ACTIVITY_VALIDATION,
 ): { valid: boolean; errors: GraphValidationError[] } {
+  return validateConfig(config, options, new Set());
+}
+
+/**
+ * The real entry point. `visited` carries the set of config objects already
+ * being validated on the current descent so a `childWorkflow` whose inline
+ * graph (transitively) embeds itself terminates instead of recursing forever
+ * — a hand-authored/API config can hold such a reference in memory.
+ */
+function validateConfig(
+  config: GraphWorkflowConfig,
+  options: ValidateGraphConfigOptions,
+  visited: Set<GraphWorkflowConfig>,
+): { valid: boolean; errors: GraphValidationError[] } {
   const errors: GraphValidationError[] = [];
 
   if (!config || typeof config !== "object") {
@@ -178,6 +192,7 @@ export function validateGraphConfig(
   walkCtxKeyBindings(config, errors, options);
   walkLibraryPaths(config, errors);
   validateReservedCtxNamespaces(config, errors);
+  validateInlineChildGraphs(config, errors, options, visited);
 
   return {
     valid: errors.filter((e) => e.severity === "error").length === 0,
@@ -1684,4 +1699,82 @@ function walkLibraryPaths(
 
   checkDescriptors(config.metadata.inputs, "inputs");
   checkDescriptors(config.metadata.outputs, "outputs");
+}
+
+// ---------------------------------------------------------------------------
+// Inline child graphs (G-015)
+// ---------------------------------------------------------------------------
+
+/**
+ * `childWorkflow.workflowRef.type === "inline"` embeds a COMPLETE
+ * `GraphWorkflowConfig`. Until G-015 no pass descended into it, so every rule
+ * this validator enforces — edge refs, map/join cross-references, ctx
+ * declarations, reserved namespaces, kind assignability, reachability —
+ * stopped at the parent graph's boundary. An inline graph with a dangling
+ * `entryNodeId` and a switch pointing at a missing edge validated green and
+ * saved clean.
+ *
+ * The inner graph is validated with the SAME rules and the SAME injected
+ * options (so activity-type and parameter checks apply one level down too),
+ * and every inner error is re-anchored as
+ * `nodes.<parentId>.inline.<inner path>`.
+ *
+ * That anchor shape is load-bearing on three surfaces:
+ *   - `useGraphValidation`'s `nodeIdFromPath` takes the first segment after
+ *     `nodes.`, so the issue buckets onto the PARENT node — the only node
+ *     the canvas can draw a badge on, since the inner graph has no canvas.
+ *   - `resolveAnchorTarget` resolves it to `{ kind: "node", nodeId: parent }`
+ *     for the same reason, so clicking the row selects and reveals the
+ *     childWorkflow node whose JSON editor holds the offending graph.
+ *   - the inner node id survives inside the path, so the message still names
+ *     exactly which node inside the JSON is wrong.
+ *
+ * Messages are prefixed with "Inline child graph:" so a reader of the drawer
+ * can tell an inner problem from an outer one at a glance.
+ */
+function validateInlineChildGraphs(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+  options: ValidateGraphConfigOptions,
+  visited: Set<GraphWorkflowConfig>,
+): void {
+  visited.add(config);
+
+  for (const [nodeId, node] of Object.entries(config.nodes ?? {})) {
+    if (!node || node.type !== "childWorkflow") continue;
+    const ref = node.workflowRef;
+    if (!ref || ref.type !== "inline") continue;
+
+    const anchor = `nodes.${nodeId}.inline`;
+    const inner = ref.graph;
+
+    if (!inner || typeof inner !== "object") {
+      errors.push({
+        path: anchor,
+        message:
+          "Inline child graph: `workflowRef.graph` must be a graph workflow config object",
+        severity: "error",
+      });
+      continue;
+    }
+
+    if (visited.has(inner)) {
+      errors.push({
+        path: anchor,
+        message:
+          "Inline child graph: recursive reference — this graph is already validated higher up the nesting chain",
+        severity: "error",
+      });
+      continue;
+    }
+
+    const innerResult = validateConfig(inner, options, visited);
+    for (const innerError of innerResult.errors) {
+      errors.push({
+        ...innerError,
+        path: innerError.path === "" ? anchor : `${anchor}.${innerError.path}`,
+        message: `Inline child graph: ${innerError.message}`,
+      });
+    }
+  }
 }

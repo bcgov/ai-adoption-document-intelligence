@@ -47,8 +47,7 @@ export function createCatalogParameterValidator(
     const parsed = entry.parametersSchema.safeParse(parameters ?? {});
     if (parsed.success) return;
     for (const issue of parsed.error.issues) {
-      const suffix =
-        issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
+      const suffix = issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
       errors.push({
         path: `nodes.${nodeId}.parameters${suffix}`,
         message: issue.message,

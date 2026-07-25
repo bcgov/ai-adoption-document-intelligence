@@ -47,8 +47,10 @@ function sortByPort(a: PortBinding, b: PortBinding): number {
 function normalizeBindings(
   nodes: GraphWorkflowConfig["nodes"],
 ): Record<string, { inputs: PortBinding[]; outputs: PortBinding[] }> {
-  const result: Record<string, { inputs: PortBinding[]; outputs: PortBinding[] }> =
-    {};
+  const result: Record<
+    string,
+    { inputs: PortBinding[]; outputs: PortBinding[] }
+  > = {};
   for (const id of Object.keys(nodes).sort()) {
     const node = nodes[id];
     result[id] = {

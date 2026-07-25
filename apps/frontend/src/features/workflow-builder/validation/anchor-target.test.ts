@@ -100,6 +100,21 @@ describe("resolveAnchorTarget — node-anchored shapes", () => {
       node("ghost"),
     );
   });
+
+  // G-015 — an inline child graph's errors are anchored
+  // `nodes.<parentId>.inline.<inner path>`. The inner graph has no canvas, so
+  // the only navigable target is the childWorkflow node holding the JSON.
+  it.each<[string, AnchorTarget]>([
+    ["nodes.a.inline", node("a")],
+    ["nodes.a.inline.entryNodeId", node("a")],
+    ["nodes.a.inline.nodes.inner.defaultEdge", node("a")],
+    // Deliberately NOT a `nodeInput` — `inner` is not on this canvas, and
+    // there is no input picker to open for it.
+    ["nodes.a.inline.nodes.inner.inputs.fileData", node("a")],
+    ["nodes.a.inline.nodes.inner.inline.nodes.deep.label", node("a")],
+  ])("resolves inline-child anchor %s to the parent node", (path, expected) => {
+    expect(resolveAnchorTarget(path, config)).toEqual(expected);
+  });
 });
 
 describe("resolveAnchorTarget — edge-anchored shapes", () => {

@@ -55,56 +55,51 @@ import { segmentCombineResultCatalogEntry } from "./activities/segment-combine-r
 import { tablesLookupCatalogEntry } from "./activities/tables-lookup";
 import type { ActivityCatalogEntry } from "./types";
 
-export type {
-  ActivityCatalogEntry,
-  CatalogCategory,
-  PortDescriptor,
-} from "./types";
+export {
+  CLASSIFICATION_PATTERN_OPERATORS,
+  CLASSIFICATION_PATTERN_SCOPES,
+  type ClassificationPattern,
+  type ClassificationRule,
+  classificationPatternSchema,
+  classificationRuleSchema,
+  documentClassifyParametersSchema,
+} from "./activities/document-classify";
+export {
+  documentValidateFieldsParametersSchema,
+  type ValidationRule,
+  validationRuleSchema,
+} from "./activities/document-validate-fields";
 
+export {
+  createCatalogParameterValidator,
+  type ValidateActivityParameters,
+} from "./create-parameter-validator";
+export {
+  getProviderDescriptor,
+  listProvidersForKind,
+  PROVIDER_CATALOG,
+  type ProviderDescriptor,
+} from "./provider-catalog";
+export {
+  createSourceParameterValidator,
+  deriveSourceOutputSchema,
+  getSourceCatalogEntry,
+  getSourceParametersJsonSchema,
+  listSourceTypes,
+  SOURCE_CATALOG,
+  type ValidateSourceParameters,
+} from "./source-catalog";
 export type {
   FieldDescriptor,
   JsonSchema7,
   SourceCatalogEntry,
   SourceRuntimePattern,
 } from "./source-types";
-
-export {
-  createCatalogParameterValidator,
-  type ValidateActivityParameters,
-} from "./create-parameter-validator";
-
-export {
-  validationRuleSchema,
-  documentValidateFieldsParametersSchema,
-  type ValidationRule,
-} from "./activities/document-validate-fields";
-
-export {
-  CLASSIFICATION_PATTERN_OPERATORS,
-  CLASSIFICATION_PATTERN_SCOPES,
-  classificationPatternSchema,
-  classificationRuleSchema,
-  documentClassifyParametersSchema,
-  type ClassificationPattern,
-  type ClassificationRule,
-} from "./activities/document-classify";
-
-export {
-  PROVIDER_CATALOG,
-  getProviderDescriptor,
-  listProvidersForKind,
-  type ProviderDescriptor,
-} from "./provider-catalog";
-
-export {
-  SOURCE_CATALOG,
-  createSourceParameterValidator,
-  deriveSourceOutputSchema,
-  getSourceCatalogEntry,
-  getSourceParametersJsonSchema,
-  listSourceTypes,
-  type ValidateSourceParameters,
-} from "./source-catalog";
+export type {
+  ActivityCatalogEntry,
+  CatalogCategory,
+  PortDescriptor,
+} from "./types";
 
 const ENTRIES: ActivityCatalogEntry[] = [
   filePrepareCatalogEntry,

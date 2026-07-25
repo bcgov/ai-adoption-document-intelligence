@@ -33,17 +33,12 @@ export const documentSplitParametersSchema = z.discriminatedUnion("strategy", [
   }),
   z.object({
     strategy: z.literal("fixed-range").meta(strategyMeta),
-    fixedRangeSize: z
-      .number()
-      .int()
-      .min(1)
-      .max(500)
-      .meta({
-        title: "Pages per segment",
-        description: "How many consecutive pages each segment should contain.",
-        "x-default": 1,
-        "x-step": 1,
-      }),
+    fixedRangeSize: z.number().int().min(1).max(500).meta({
+      title: "Pages per segment",
+      description: "How many consecutive pages each segment should contain.",
+      "x-default": 1,
+      "x-step": 1,
+    }),
   }),
   z.object({
     strategy: z.literal("custom-ranges").meta(strategyMeta),
@@ -55,11 +50,7 @@ export const documentSplitParametersSchema = z.discriminatedUnion("strategy", [
             .int()
             .min(1)
             .meta({ title: "Start page", "x-step": 1 }),
-          end: z
-            .number()
-            .int()
-            .min(1)
-            .meta({ title: "End page", "x-step": 1 }),
+          end: z.number().int().min(1).meta({ title: "End page", "x-step": 1 }),
         }),
       )
       .min(1)

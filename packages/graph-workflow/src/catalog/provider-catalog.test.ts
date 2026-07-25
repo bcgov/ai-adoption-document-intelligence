@@ -6,13 +6,13 @@
  * contents, the two helpers, and the package-root barrel re-export.
  */
 
+import * as packageRoot from "../index";
 import {
-  PROVIDER_CATALOG,
   getProviderDescriptor,
   listProvidersForKind,
+  PROVIDER_CATALOG,
   type ProviderDescriptor,
 } from "./provider-catalog";
-import * as packageRoot from "../index";
 
 describe("ProviderDescriptor interface (Scenario 1)", () => {
   it("seed entries satisfy the ProviderDescriptor shape", () => {

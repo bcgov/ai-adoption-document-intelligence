@@ -8,22 +8,16 @@ export const ocrEnrichParametersSchema = z.object({
       "Template model ID — selects the field schema for type-aware rules.",
     "x-widget": "documentTypePicker",
   }),
-  confidenceThreshold: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .meta({
-      title: "Confidence threshold",
-      description:
-        "Fields below this confidence are eligible for LLM correction.",
-      "x-default": 0.85,
-      "x-step": 0.05,
-    }),
+  confidenceThreshold: z.number().min(0).max(1).optional().meta({
+    title: "Confidence threshold",
+    description:
+      "Fields below this confidence are eligible for LLM correction.",
+    "x-default": 0.85,
+    "x-step": 0.05,
+  }),
   enableLlmEnrichment: z.boolean().optional().meta({
     title: "Enable LLM enrichment",
-    description:
-      "Use Azure OpenAI to correct low-confidence field values.",
+    description: "Use Azure OpenAI to correct low-confidence field values.",
     "x-default": false,
   }),
 });

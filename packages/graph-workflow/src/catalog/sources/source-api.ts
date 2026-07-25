@@ -52,12 +52,10 @@ const fieldTypeEnum = z.enum([
 const kindRefSchema = z.string().optional();
 
 const fieldDescriptorSchema = z.object({
-  name: z
-    .string()
-    .regex(FIELD_NAME_REGEX, {
-      message:
-        "Field name must match /^[a-zA-Z_][a-zA-Z0-9_]*$/ (URL-safe identifier)",
-    }),
+  name: z.string().regex(FIELD_NAME_REGEX, {
+    message:
+      "Field name must match /^[a-zA-Z_][a-zA-Z0-9_]*$/ (URL-safe identifier)",
+  }),
   type: fieldTypeEnum,
   kind: kindRefSchema,
   required: z.boolean(),
@@ -74,23 +72,17 @@ const fieldDescriptorSchema = z.object({
  */
 export const sourceApiParametersSchema = z
   .object({
-    fields: z
-      .array(fieldDescriptorSchema)
-      .default([])
-      .meta({
-        title: "Fields",
-        description:
-          "API input fields callers must send in the POST body. Each field becomes a top-level ctx key after validation.",
-        "x-widget": "field-list-editor",
-      }),
-    authNotes: z
-      .string()
-      .optional()
-      .meta({
-        title: "Auth notes",
-        description:
-          "Optional override of the default auth-notes string shown in the Run drawer.",
-      }),
+    fields: z.array(fieldDescriptorSchema).default([]).meta({
+      title: "Fields",
+      description:
+        "API input fields callers must send in the POST body. Each field becomes a top-level ctx key after validation.",
+      "x-widget": "field-list-editor",
+    }),
+    authNotes: z.string().optional().meta({
+      title: "Auth notes",
+      description:
+        "Optional override of the default auth-notes string shown in the Run drawer.",
+    }),
   })
   .refine(
     (params) => {
@@ -116,9 +108,7 @@ function jsonSchemaTypeFor(fieldType: FieldDescriptor["type"]): string {
  * `sourceApiParametersSchema` — callers are expected to have run
  * `createSourceParameterValidator` upstream.
  */
-function deriveOutputSchema(
-  parameters: Record<string, unknown>,
-): JsonSchema7 {
+function deriveOutputSchema(parameters: Record<string, unknown>): JsonSchema7 {
   const parsed = sourceApiParametersSchema.parse(parameters);
   const properties: Record<string, JsonSchema7> = {};
   const required: string[] = [];

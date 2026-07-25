@@ -2,7 +2,9 @@
 import type { GraphWorkflowConfig } from "../types";
 import { stripRedundantLocks } from "./strip-redundant-locks";
 
-function configWithNode(node: GraphWorkflowConfig["nodes"][string]): GraphWorkflowConfig {
+function configWithNode(
+  node: GraphWorkflowConfig["nodes"][string],
+): GraphWorkflowConfig {
   return {
     schemaVersion: "1.0",
     metadata: { name: "t" },
@@ -41,8 +43,7 @@ describe("stripRedundantLocks", () => {
     });
     const out = stripRedundantLocks(cfg);
     expect(
-      (out.nodes.X.metadata as { lockedInputPorts: string[] })
-        .lockedInputPorts,
+      (out.nodes.X.metadata as { lockedInputPorts: string[] }).lockedInputPorts,
     ).toEqual(["fileData"]);
   });
 

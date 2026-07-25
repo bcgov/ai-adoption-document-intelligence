@@ -824,3 +824,95 @@ describe("ChildWorkflowNodeSettings — US-100 Scenario 3: untyped library ports
     expect(badge).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-015: the inline JSON textarea is honest — it reports VALIDATION results,
+// not just parse errors.
+// ---------------------------------------------------------------------------
+
+describe("ChildWorkflowNodeSettings — G-015: inline graph validation", () => {
+  const validInlineGraph = {
+    schemaVersion: "1.0",
+    metadata: { name: "Nested" },
+    nodes: {
+      step: {
+        id: "step",
+        type: "activity",
+        label: "Inner step",
+        activityType: "data.transform",
+        parameters: {
+          inputFormat: "json",
+          outputFormat: "json",
+          fieldMapping: "{}",
+        },
+      },
+    },
+    edges: [],
+    entryNodeId: "step",
+    ctx: {},
+  };
+
+  function mountInline(graph: unknown) {
+    const initial = childWorkflowNode("c1", "Child", {
+      workflowRef: {
+        type: "inline",
+        graph: graph as GraphWorkflowConfig,
+      },
+    });
+    return mountWithSpy(makeConfig([initial]), "c1");
+  }
+
+  it("says so when the inline graph is valid", () => {
+    mountInline(validInlineGraph);
+    expect(
+      screen.getByTestId("child-workflow-inline-problems-none"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("child-workflow-inline-problems")).toBeNull();
+  });
+
+  it("reports a structurally invalid inline graph instead of accepting it in silence", () => {
+    // Dangling entry node — parses fine, is not a valid graph.
+    mountInline({ ...validInlineGraph, entryNodeId: "ghost" });
+    const problems = screen.getByTestId("child-workflow-inline-problems");
+    expect(problems).toHaveTextContent(/entryNodeId/i);
+    expect(
+      screen.queryByTestId("child-workflow-inline-problems-none"),
+    ).toBeNull();
+  });
+
+  it("updates the problems list as the JSON is edited", () => {
+    mountInline(validInlineGraph);
+    const editor = screen.getByTestId(
+      "child-workflow-node-settings-inline-editor",
+    ) as HTMLTextAreaElement;
+
+    fireEvent.change(editor, {
+      target: {
+        value: JSON.stringify({ ...validInlineGraph, entryNodeId: "ghost" }),
+      },
+    });
+    expect(
+      screen.getByTestId("child-workflow-inline-problems"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(editor, {
+      target: { value: JSON.stringify(validInlineGraph) },
+    });
+    expect(
+      screen.getByTestId("child-workflow-inline-problems-none"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows only the parse error while the draft is not parseable", () => {
+    mountInline(validInlineGraph);
+    const editor = screen.getByTestId(
+      "child-workflow-node-settings-inline-editor",
+    );
+    fireEvent.change(editor, { target: { value: "{ not json" } });
+    expect(screen.getByText(/Invalid JSON/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("child-workflow-inline-problems")).toBeNull();
+    expect(
+      screen.queryByTestId("child-workflow-inline-problems-none"),
+    ).toBeNull();
+  });
+});

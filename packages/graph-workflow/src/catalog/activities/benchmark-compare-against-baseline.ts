@@ -8,8 +8,7 @@ export const benchmarkCompareAgainstBaselineCatalogEntry: ActivityCatalogEntry =
     activityType: "benchmark.compareAgainstBaseline",
     displayName: "Benchmark — Compare Against Baseline",
     category: "Benchmarking",
-    description:
-      "Compare run metrics against baseline and detect regressions.",
+    description: "Compare run metrics against baseline and detect regressions.",
     iconHint: "chart-diff",
     colorHint: "green",
     inputs: [

@@ -10,15 +10,13 @@ const DOCUMENT_STATUSES = [
 ] as const;
 
 export const documentUpdateStatusParametersSchema = z.object({
-  status: z
-    .string()
-    .meta({
-      title: "Status",
-      description: "Status value to set on the document.",
-      "x-widget": "combobox",
-      "x-options": [...DOCUMENT_STATUSES],
-      "x-default": "ongoing_ocr",
-    }),
+  status: z.string().meta({
+    title: "Status",
+    description: "Status value to set on the document.",
+    "x-widget": "combobox",
+    "x-options": [...DOCUMENT_STATUSES],
+    "x-default": "ongoing_ocr",
+  }),
 });
 
 export const documentUpdateStatusCatalogEntry: ActivityCatalogEntry = {

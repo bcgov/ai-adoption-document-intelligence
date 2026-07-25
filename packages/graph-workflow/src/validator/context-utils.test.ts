@@ -142,8 +142,6 @@ describe("resolveCtxBinding", () => {
   });
 
   it("rejects unsafe path segments (prototype-pollution guard)", () => {
-    expect(
-      resolveCtxBinding("__proto__.polluted", { a: 1 }),
-    ).toBeUndefined();
+    expect(resolveCtxBinding("__proto__.polluted", { a: 1 })).toBeUndefined();
   });
 });

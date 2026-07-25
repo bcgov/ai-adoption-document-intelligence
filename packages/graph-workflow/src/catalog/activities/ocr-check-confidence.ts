@@ -12,18 +12,13 @@ import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
 export const ocrCheckConfidenceParametersSchema = z.object({
-  threshold: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .meta({
-      title: "Confidence threshold",
-      description:
-        "Below this value the result is flagged for review. 0 = always pass, 1 = always flag.",
-      "x-default": 0.95,
-      "x-step": 0.01,
-    }),
+  threshold: z.number().min(0).max(1).optional().meta({
+    title: "Confidence threshold",
+    description:
+      "Below this value the result is flagged for review. 0 = always pass, 1 = always flag.",
+    "x-default": 0.95,
+    "x-step": 0.01,
+  }),
 });
 
 export const ocrCheckConfidenceCatalogEntry: ActivityCatalogEntry = {

@@ -29,9 +29,13 @@
 import JSON5 from "json5";
 
 import type { ActivityCatalogEntry, PortDescriptor } from "../catalog/types";
-import type { KindRef } from "../types/artifacts";
 import { getArtifactKindMeta } from "../types/artifact-registry";
-import type { JsDocParseError, ParseError, SignatureSemanticsError } from "./types";
+import type { KindRef } from "../types/artifacts";
+import type {
+  JsDocParseError,
+  ParseError,
+  SignatureSemanticsError,
+} from "./types";
 
 /**
  * Per-tag JSDoc value with the 1-based source line it was found on.
@@ -108,8 +112,9 @@ const JSON_VALUE_TAGS = new Set<string>([
 ]);
 
 /** Tags REQUIRED in every dynamic-node signature. */
-const REQUIRED_TAGS: ReadonlyArray<"@name" | "@description" | "@inputs" | "@outputs"> =
-  ["@name", "@description", "@inputs", "@outputs"];
+const REQUIRED_TAGS: ReadonlyArray<
+  "@name" | "@description" | "@inputs" | "@outputs"
+> = ["@name", "@description", "@inputs", "@outputs"];
 
 /**
  * Locates the first `/** ... *\/` JSDoc block at the top of the file.
@@ -135,21 +140,26 @@ function findTopOfFileJsDocBlock(script: string): JsDocBlockLocation | null {
   const sourceLines = script.split(/\r?\n/);
   // Declarations after which we should stop searching for a JSDoc header.
   // We do NOT include `import` here — imports can precede the JSDoc.
-  const declStarts = /^(export|function|class|const|let|var|async\s+function)\b/;
+  const declStarts =
+    /^(export|function|class|const|let|var|async\s+function)\b/;
 
   for (let i = 0; i < sourceLines.length; i += 1) {
     const trimmed = sourceLines[i].trim();
     if (trimmed === "" || trimmed.startsWith("//")) continue;
     // An `import` (or `import type`) statement is allowed to precede the
     // JSDoc block; keep scanning.
-    if (trimmed.startsWith("import ") || trimmed.startsWith("import\t")) continue;
+    if (trimmed.startsWith("import ") || trimmed.startsWith("import\t"))
+      continue;
 
     // Found `/**` — try to read it as a JSDoc block.
     if (trimmed.startsWith("/**")) {
       const startLine = i + 1; // 1-based
 
       // Single-line `/** ... */` form.
-      if (trimmed.includes("*/") && trimmed.indexOf("*/") > trimmed.indexOf("/**")) {
+      if (
+        trimmed.includes("*/") &&
+        trimmed.indexOf("*/") > trimmed.indexOf("/**")
+      ) {
         const inner = trimmed.slice(3, trimmed.lastIndexOf("*/"));
         return {
           startLine,
@@ -341,7 +351,12 @@ function applyTag(
     case "@outputs":
     case "@parameters":
     case "@allowNet": {
-      const result = parseJsonishTagValue(rawValue, valueLines, tagFileLine, tag);
+      const result = parseJsonishTagValue(
+        rawValue,
+        valueLines,
+        tagFileLine,
+        tag,
+      );
       if (result.kind === "error") {
         errors.push(result.error);
         return;
@@ -386,9 +401,7 @@ function parseJsonishTagValue(
   valueLines: string[],
   tagFileLine: number,
   tag: "@inputs" | "@outputs" | "@parameters" | "@allowNet",
-):
-  | { kind: "ok"; value: unknown }
-  | { kind: "error"; error: JsDocParseError } {
+): { kind: "ok"; value: unknown } | { kind: "error"; error: JsDocParseError } {
   if (rawValue === "") {
     return {
       kind: "error",
@@ -697,12 +710,14 @@ function runSignatureSemanticsStage(block: ParsedJsDocBlock): {
   const category = block.category?.value ?? CATEGORY_DEFAULT;
   const deterministic = block.deterministic?.value ?? DETERMINISTIC_DEFAULT;
   const allowNet = extractAllowNet(block.allowNet?.value);
-  const timeoutMs = block.timeoutMs?.value !== undefined
-    ? Math.min(block.timeoutMs.value, TIMEOUT_MS_CAP)
-    : TIMEOUT_MS_DEFAULT;
-  const maxMemoryMB = block.maxMemoryMB?.value !== undefined
-    ? Math.min(block.maxMemoryMB.value, MAX_MEMORY_MB_CAP)
-    : MAX_MEMORY_MB_DEFAULT;
+  const timeoutMs =
+    block.timeoutMs?.value !== undefined
+      ? Math.min(block.timeoutMs.value, TIMEOUT_MS_CAP)
+      : TIMEOUT_MS_DEFAULT;
+  const maxMemoryMB =
+    block.maxMemoryMB?.value !== undefined
+      ? Math.min(block.maxMemoryMB.value, MAX_MEMORY_MB_CAP)
+      : MAX_MEMORY_MB_DEFAULT;
 
   // --- Step 5: assemble the derived ActivityCatalogEntry.
   // US-161 reconciled the dynamic-entry shape with the existing
@@ -869,7 +884,8 @@ function buildParamsSchema(
   if (!isPlainObject(raw)) {
     errors.push({
       stage: "signature-semantics",
-      message: "@parameters must be an object mapping param names to { type, ... }",
+      message:
+        "@parameters must be an object mapping param names to { type, ... }",
       tag: "@parameters",
       line,
     });
@@ -891,7 +907,10 @@ function buildParamsSchema(
 
     const paramShape = paramRawValue as Record<string, unknown>;
     const declaredType = paramShape.type;
-    if (typeof declaredType !== "string" || !RECOGNIZED_PARAM_TYPES.has(declaredType)) {
+    if (
+      typeof declaredType !== "string" ||
+      !RECOGNIZED_PARAM_TYPES.has(declaredType)
+    ) {
       errors.push({
         stage: "signature-semantics",
         message: `@parameters.${paramName}.type "${String(declaredType)}" is not supported (expected one of: string, number, boolean, enum)`,
@@ -968,7 +987,10 @@ function buildParamsSchema(
  */
 function extractAllowNet(raw: unknown): string[] {
   if (raw === undefined) return [];
-  if (Array.isArray(raw) && raw.every((v): v is string => typeof v === "string")) {
+  if (
+    Array.isArray(raw) &&
+    raw.every((v): v is string => typeof v === "string")
+  ) {
     return raw;
   }
   // Defensive fallback — `@allowNet` must be a string[]; non-conforming
@@ -980,10 +1002,5 @@ function extractAllowNet(raw: unknown): string[] {
 
 /** True iff `value` is a plain object (`{}`), not an array, not null. */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value)
-  );
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-

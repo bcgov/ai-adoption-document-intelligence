@@ -1,7 +1,9 @@
 import type { GraphWorkflowConfig } from "../types";
 import { normaliseLocks } from "./normalise-locks";
 
-function configWithNode(node: GraphWorkflowConfig["nodes"][string]): GraphWorkflowConfig {
+function configWithNode(
+  node: GraphWorkflowConfig["nodes"][string],
+): GraphWorkflowConfig {
   return {
     schemaVersion: "1.0",
     metadata: { name: "t" },
@@ -69,9 +71,8 @@ describe("normaliseLocks", () => {
       metadata: { lockedInputPorts: ["locale"] },
     });
     const out = normaliseLocks(cfg);
-    const locks =
-      (out.nodes.X.metadata as { lockedInputPorts: string[] })
-        .lockedInputPorts;
+    const locks = (out.nodes.X.metadata as { lockedInputPorts: string[] })
+      .lockedInputPorts;
     expect(locks.sort()).toEqual(["fileData", "locale"]);
   });
 

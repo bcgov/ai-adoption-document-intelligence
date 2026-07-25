@@ -29,19 +29,15 @@
  *   6. Integration: jsdoc-parse failure short-circuits before semantics.
  */
 
-import {
-  parseDynamicNodeSignature,
-  parseJsDocBlock,
-} from "./parse-signature";
 import type { ActivityCatalogEntry } from "../catalog/types";
-import type { JsDocParseError, SignatureSemanticsError } from "./types";
-
 // Re-import via the package barrel so the test simultaneously asserts the
 // barrel re-export (Scenario 6).
 import {
-  parseDynamicNodeSignature as parseFromBarrel,
   parseJsDocBlock as parseBlockFromBarrel,
+  parseDynamicNodeSignature as parseFromBarrel,
 } from "../index";
+import { parseDynamicNodeSignature, parseJsDocBlock } from "./parse-signature";
+import type { JsDocParseError, SignatureSemanticsError } from "./types";
 
 /**
  * Test-only view of the dynamic-node `ActivityCatalogEntry` that exposes the
@@ -338,7 +334,7 @@ export default async function dynamicNode() {}
       "jsdoc-parse",
       "jsdoc-parse",
     ]);
-    expect(errors.map((e) => "tag" in e ? e.tag : undefined)).toEqual([
+    expect(errors.map((e) => ("tag" in e ? e.tag : undefined))).toEqual([
       "@name",
       "@description",
       "@inputs",
@@ -1047,8 +1043,9 @@ export default async function dynamicNode() {}
 `;
     const { entry, errors } = parseDynamicNodeSignature(script);
     expect(errors).toEqual([]);
-    const props = (asDyn(entry).paramsSchema as { properties: Record<string, unknown> })
-      .properties;
+    const props = (
+      asDyn(entry).paramsSchema as { properties: Record<string, unknown> }
+    ).properties;
     expect(props.mode).toEqual({
       type: "string",
       default: "auto",
@@ -1074,8 +1071,9 @@ export default async function dynamicNode() {}
 `;
     const { entry, errors } = parseDynamicNodeSignature(script);
     expect(errors).toEqual([]);
-    const props = (asDyn(entry).paramsSchema as { properties: Record<string, unknown> })
-      .properties;
+    const props = (
+      asDyn(entry).paramsSchema as { properties: Record<string, unknown> }
+    ).properties;
     expect(props.lang).toEqual({
       enum: ["en", "fr", "es"],
       default: "en",
@@ -1450,7 +1448,11 @@ export default async function dynamicNode() {}
 export default async function dynamicNode() {}
 `;
     const { entry } = parseDynamicNodeSignature(script);
-    expect(entry!.inputs.map((p) => p.name)).toEqual(["alpha", "beta", "gamma"]);
+    expect(entry!.inputs.map((p) => p.name)).toEqual([
+      "alpha",
+      "beta",
+      "gamma",
+    ]);
   });
 
   it("emits dynamicNodeVersion 0 as a placeholder (backend overwrites)", () => {

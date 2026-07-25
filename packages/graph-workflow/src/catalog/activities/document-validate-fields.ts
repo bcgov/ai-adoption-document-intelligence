@@ -36,10 +36,7 @@ const fieldMatchRuleSchema = z.object({
   type: z.literal("field-match"),
   name: z.string().min(1).meta({ title: "Rule name" }),
   primaryField: z.string().min(1).meta({ title: "Primary field path" }),
-  attachmentField: z
-    .string()
-    .min(1)
-    .meta({ title: "Attachment field path" }),
+  attachmentField: z.string().min(1).meta({ title: "Attachment field path" }),
   operator: z.enum(MATCH_OPERATORS).meta({ title: "Operator" }),
   tolerance: toleranceSchema.optional(),
   fieldType: z.enum(FIELD_TYPES).meta({ title: "Field type" }),
@@ -86,15 +83,12 @@ export const validationRuleSchema = z.discriminatedUnion("type", [
 export type ValidationRule = z.infer<typeof validationRuleSchema>;
 
 export const documentValidateFieldsParametersSchema = z.object({
-  rules: z
-    .array(validationRuleSchema)
-    .min(1)
-    .meta({
-      title: "Validation rules",
-      description:
-        "Cross-document field matching, arithmetic, and array-match rules.",
-      "x-widget": "validation-rule-editor",
-    }),
+  rules: z.array(validationRuleSchema).min(1).meta({
+    title: "Validation rules",
+    description:
+      "Cross-document field matching, arithmetic, and array-match rules.",
+    "x-widget": "validation-rule-editor",
+  }),
 });
 
 export const documentValidateFieldsCatalogEntry: ActivityCatalogEntry = {

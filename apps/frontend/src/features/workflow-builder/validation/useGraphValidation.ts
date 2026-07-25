@@ -16,6 +16,7 @@ import {
   createCatalogParameterValidator,
   type GraphValidationError,
   type GraphWorkflowConfig,
+  type ValidateGraphConfigOptions,
   validateGraphConfig,
 } from "@ai-di/graph-workflow";
 import { useEffect, useMemo, useState } from "react";
@@ -39,13 +40,17 @@ export interface GraphValidationResult {
 
 const EMPTY_ERRORS: GraphValidationError[] = [];
 
-export function useGraphValidation(
-  config: GraphWorkflowConfig,
-  debounceMs = 300,
-): GraphValidationResult {
-  const [errors, setErrors] = useState<GraphValidationError[]>(EMPTY_ERRORS);
-  const [isPending, setIsPending] = useState(false);
-
+/**
+ * The registry callbacks `validateGraphConfig` needs in the editor: static
+ * catalog + the group's published `dyn.*` lineages, plus the catalog-driven
+ * parameter validator.
+ *
+ * Exported because the inline child-graph editor (G-015) validates the graph
+ * inside its JSON textarea with the SAME rules the outer graph gets — sharing
+ * the options object is what makes "the same rules" literally true rather
+ * than approximately true.
+ */
+export function useValidatorOptions(): ValidateGraphConfigOptions {
   // Published dynamic nodes (`dyn.*`) only exist in the merged catalog the
   // backend serves — validating against the static ACTIVITY_CATALOG alone
   // flags every dynamic-node instance with a false "not registered" error.
@@ -55,20 +60,33 @@ export function useGraphValidation(
     () => new Set(mergedEntries.map((e) => e.activityType)),
     [mergedEntries],
   );
+  return useMemo(
+    () => ({
+      isRegisteredActivityType: (type: string) =>
+        Boolean(ACTIVITY_CATALOG[type]) ||
+        mergedTypes.has(type) ||
+        // While the merged catalog is still loading, give dyn.* types the
+        // benefit of the doubt — otherwise a false "not registered" error
+        // flashes on every editor load of a dynamic-node workflow.
+        (catalogLoading && type.startsWith("dyn.")),
+      validateActivityParameters,
+    }),
+    [mergedTypes, catalogLoading],
+  );
+}
+
+export function useGraphValidation(
+  config: GraphWorkflowConfig,
+  debounceMs = 300,
+): GraphValidationResult {
+  const [errors, setErrors] = useState<GraphValidationError[]>(EMPTY_ERRORS);
+  const [isPending, setIsPending] = useState(false);
+  const options = useValidatorOptions();
 
   useEffect(() => {
     setIsPending(true);
     const handle = setTimeout(() => {
-      const result = validateGraphConfig(config, {
-        isRegisteredActivityType: (type) =>
-          Boolean(ACTIVITY_CATALOG[type]) ||
-          mergedTypes.has(type) ||
-          // While the merged catalog is still loading, give dyn.* types the
-          // benefit of the doubt — otherwise a false "not registered" error
-          // flashes on every editor load of a dynamic-node workflow.
-          (catalogLoading && type.startsWith("dyn.")),
-        validateActivityParameters,
-      });
+      const result = validateGraphConfig(config, options);
       // Fold auto-wire input health (unbound / ambiguous ports) into the same
       // problems list so it feeds the ONE unified surface — top-bar count,
       // per-node badge, and drawer — instead of a separate status-dot system.
@@ -80,7 +98,7 @@ export function useGraphValidation(
       setIsPending(false);
     }, debounceMs);
     return () => clearTimeout(handle);
-  }, [config, debounceMs, mergedTypes, catalogLoading]);
+  }, [config, debounceMs, options]);
 
   return useMemo(() => {
     const errorsByNode = new Map<string, GraphValidationError[]>();

@@ -70,7 +70,8 @@ describe("source-types (US-107)", () => {
       outputKind: "Document",
       deriveOutputSchema: (parameters) => {
         // Pure derivation — no I/O, no side effects.
-        const fields = (parameters?.fields as FieldDescriptor[] | undefined) ?? [];
+        const fields =
+          (parameters?.fields as FieldDescriptor[] | undefined) ?? [];
         const properties: Record<string, JsonSchema7> = {};
         const required: string[] = [];
         for (const field of fields) {

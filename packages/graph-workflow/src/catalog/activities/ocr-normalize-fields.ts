@@ -42,15 +42,11 @@ export const ocrNormalizeFieldsParametersSchema = z.object({
     description: "Restrict normalization to specific field names.",
     "x-widget": "multi-select-combobox",
   }),
-  emptyValueCoercion: z
-    .enum(EMPTY_VALUE_COERCION)
-    .optional()
-    .meta({
-      title: "Empty value coercion",
-      description:
-        "How to handle empty field values: none / blank ('') / null.",
-      "x-default": "none",
-    }),
+  emptyValueCoercion: z.enum(EMPTY_VALUE_COERCION).optional().meta({
+    title: "Empty value coercion",
+    description: "How to handle empty field values: none / blank ('') / null.",
+    "x-default": "none",
+  }),
 });
 
 export const ocrNormalizeFieldsCatalogEntry: ActivityCatalogEntry = {

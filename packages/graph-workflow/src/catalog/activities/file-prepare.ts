@@ -75,7 +75,8 @@ export const filePrepareCatalogEntry: ActivityCatalogEntry = {
     {
       name: "fileType",
       label: "File type",
-      description: "`pdf` or `image`. Auto-detected from the extension if omitted.",
+      description:
+        "`pdf` or `image`. Auto-detected from the extension if omitted.",
       required: false,
       kind: "Artifact",
     },
@@ -91,7 +92,8 @@ export const filePrepareCatalogEntry: ActivityCatalogEntry = {
     {
       name: "preparedData",
       label: "Prepared file data",
-      description: "Object describing the validated file, ready for OCR submission.",
+      description:
+        "Object describing the validated file, ready for OCR submission.",
       required: true,
       kind: "PreparedFile",
     },

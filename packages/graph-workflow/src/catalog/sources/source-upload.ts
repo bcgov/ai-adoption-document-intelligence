@@ -52,7 +52,7 @@ export const sourceUploadParametersSchema = z.object({
     .meta({
       title: "Allowed MIME types",
       description:
-        "MIME types accepted by the upload widget. Supports glob entries like \"image/*\".",
+        'MIME types accepted by the upload widget. Supports glob entries like "image/*".',
       "x-default": [...DEFAULT_ALLOWED_MIME_TYPES],
     }),
   maxFileSizeMB: z
@@ -89,9 +89,7 @@ export const sourceUploadParametersSchema = z.object({
  * (`"documentUrl"`) is filled in by `.parse(...)` and used as the
  * property name on the returned JSON Schema.
  */
-function deriveOutputSchema(
-  parameters: Record<string, unknown>,
-): JsonSchema7 {
+function deriveOutputSchema(parameters: Record<string, unknown>): JsonSchema7 {
   const parsed = sourceUploadParametersSchema.parse(parameters);
   return {
     type: "object",

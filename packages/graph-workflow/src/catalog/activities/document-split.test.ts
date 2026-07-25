@@ -112,9 +112,7 @@ describe("document.split catalog entry", () => {
       };
       expect(Array.isArray(jsonSchema.anyOf)).toBe(true);
       expect(jsonSchema.anyOf).toHaveLength(3);
-      const literals = jsonSchema.anyOf.map(
-        (v) => v.properties.strategy.const,
-      );
+      const literals = jsonSchema.anyOf.map((v) => v.properties.strategy.const);
       expect(literals.sort()).toEqual(
         ["custom-ranges", "fixed-range", "per-page"].sort(),
       );
@@ -128,7 +126,8 @@ describe("document.split catalog entry", () => {
           };
         }>;
       };
-      const labels = jsonSchema.anyOf[0].properties.strategy["x-options-labels"];
+      const labels =
+        jsonSchema.anyOf[0].properties.strategy["x-options-labels"];
       expect(labels).toEqual({
         "per-page": "One segment per page",
         "fixed-range": "Fixed-size ranges",

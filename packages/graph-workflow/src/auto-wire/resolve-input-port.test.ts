@@ -500,7 +500,12 @@ describe("control-flow and source producers (G-007)", () => {
           sourceType: "source.api",
           parameters: {
             fields: [
-              { name: "incomingDoc", type: "object", kind: "PreparedFile", required: true },
+              {
+                name: "incomingDoc",
+                type: "object",
+                kind: "PreparedFile",
+                required: true,
+              },
               { name: "caseNumber", type: "string", required: true },
             ],
           },

@@ -28,7 +28,8 @@ export const ocrStoreResultsCatalogEntry: ActivityCatalogEntry = {
     {
       name: "enrichmentSummary",
       label: "Enrichment summary",
-      description: "Optional enrichment summary to persist alongside the result.",
+      description:
+        "Optional enrichment summary to persist alongside the result.",
       required: false,
       kind: "Artifact",
     },

@@ -14,15 +14,12 @@ const keywordPatternSchema = z.object({
 });
 
 export const documentSplitAndClassifyParametersSchema = z.object({
-  keywordPatterns: z
-    .array(keywordPatternSchema)
-    .min(1)
-    .meta({
-      title: "Keyword patterns",
-      description:
-        "Each pattern's regex must contain a single capture group for the page number.",
-      "x-widget": "keyword-pattern-editor",
-    }),
+  keywordPatterns: z.array(keywordPatternSchema).min(1).meta({
+    title: "Keyword patterns",
+    description:
+      "Each pattern's regex must contain a single capture group for the page number.",
+    "x-widget": "keyword-pattern-editor",
+  }),
 });
 
 export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {

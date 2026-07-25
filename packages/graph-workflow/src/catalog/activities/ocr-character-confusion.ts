@@ -35,15 +35,11 @@ export const ocrCharacterConfusionParametersSchema = z.object({
       "x-widget": "multi-select-combobox",
       "x-options": [...BUILT_IN_RULES],
     }),
-  customConfusionMap: z
-    .record(z.string(), z.string())
-    .optional()
-    .meta({
-      title: "Custom confusion map",
-      description:
-        "Override or extend the built-in map (e.g., { \"€\": \"E\" }).",
-      "x-widget": "confusion-map-editor",
-    }),
+  customConfusionMap: z.record(z.string(), z.string()).optional().meta({
+    title: "Custom confusion map",
+    description: 'Override or extend the built-in map (e.g., { "€": "E" }).',
+    "x-widget": "confusion-map-editor",
+  }),
   fieldScope: z.array(z.string().min(1)).optional().meta({
     title: "Field scope",
     description: "Restrict to specific field names.",

@@ -25,7 +25,8 @@ export const benchmarkPersistEvaluationDetailsCatalogEntry: ActivityCatalogEntry
       {
         name: "sampleId",
         label: "Sample ID",
-        description: "Benchmark sample identifier the evaluation details belong to.",
+        description:
+          "Benchmark sample identifier the evaluation details belong to.",
         required: true,
         kind: "Artifact",
       },

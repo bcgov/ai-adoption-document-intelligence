@@ -80,5 +80,7 @@ export function getProviderDescriptor(
 export function listProvidersForKind(
   acceptsKind: KindRef | undefined,
 ): ProviderDescriptor[] {
-  return PROVIDER_CATALOG.filter((p) => isAssignable(acceptsKind, p.acceptsKind));
+  return PROVIDER_CATALOG.filter((p) =>
+    isAssignable(acceptsKind, p.acceptsKind),
+  );
 }

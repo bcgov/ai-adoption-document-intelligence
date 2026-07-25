@@ -15,16 +15,10 @@
  *      check), `deriveOutputSchema({})` is callable.
  */
 
-import {
-  SOURCE_CATALOG,
-  getSourceCatalogEntry,
-} from "../source-catalog";
 import { isAssignable } from "../../types/subtype-check";
+import { getSourceCatalogEntry, SOURCE_CATALOG } from "../source-catalog";
 
-import {
-  sourceApiCatalogEntry,
-  sourceApiParametersSchema,
-} from "./source-api";
+import { sourceApiCatalogEntry, sourceApiParametersSchema } from "./source-api";
 
 describe("source.api catalog entry — Scenario 1 (registration)", () => {
   it("is registered in SOURCE_CATALOG", () => {
@@ -101,9 +95,9 @@ describe("source.api catalog entry — Scenario 2 (parametersSchema)", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.some((i) =>
-        i.message.includes("unique"),
-      )).toBe(true);
+      expect(
+        result.error.issues.some((i) => i.message.includes("unique")),
+      ).toBe(true);
     }
   });
 
@@ -113,9 +107,11 @@ describe("source.api catalog entry — Scenario 2 (parametersSchema)", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues.some((i) =>
-        i.message.includes("URL-safe identifier"),
-      )).toBe(true);
+      expect(
+        result.error.issues.some((i) =>
+          i.message.includes("URL-safe identifier"),
+        ),
+      ).toBe(true);
     }
   });
 
@@ -162,9 +158,7 @@ describe("source.api catalog entry — Scenario 3 (deriveOutputSchema)", () => {
 
   it("round-trips a single required field", () => {
     const schema = sourceApiCatalogEntry.deriveOutputSchema({
-      fields: [
-        { name: "documentUrl", type: "string", required: true },
-      ],
+      fields: [{ name: "documentUrl", type: "string", required: true }],
     });
     expect(schema).toEqual({
       type: "object",
@@ -247,9 +241,7 @@ describe("source.api catalog entry — Scenario 5 (per-entry invariants)", () =>
   });
 
   it("has a valid SourceRuntimePattern enum value", () => {
-    expect(["push", "pull", "manual"]).toContain(
-      sourceApiCatalogEntry.runtime,
-    );
+    expect(["push", "pull", "manual"]).toContain(sourceApiCatalogEntry.runtime);
   });
 
   it("outputKind resolves via the Phase 3 registry (isAssignable round-trip)", () => {

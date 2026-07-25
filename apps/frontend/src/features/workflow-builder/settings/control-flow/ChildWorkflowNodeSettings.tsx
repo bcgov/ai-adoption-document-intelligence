@@ -9,9 +9,11 @@
  *   - `workflowRef.workflowId` — `TextInput` shown when the ref type is
  *     `library`. (Future: dropdown sourced from the workflow list API —
  *     out of scope here.)
- *   - `workflowRef.graph` — read-only JSON preview shown when the ref
- *     type is `inline`, with a dimmed hint that inline graph editing is
- *     out of scope in V2.
+ *   - `workflowRef.graph` — editable JSON textarea shown when the ref type
+ *     is `inline`, with a live problems list underneath (G-015): the inline
+ *     graph is validated by the SAME `validateGraphConfig` and the same
+ *     injected options the outer graph gets, so it can no longer accept a
+ *     structurally invalid graph in silence.
  *   - `inputMappings` / `outputMappings` — list editors of `PortBinding`
  *     rows (`port` `TextInput` + `ctxKey` `VariablePicker`), each with
  *     Add Row + Remove affordances.
@@ -21,8 +23,10 @@
  * this component renders only the childWorkflow-specific body.
  */
 
+import { validateGraphConfig } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -36,7 +40,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconBook2, IconPlus, IconTrash } from "@tabler/icons-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useWorkflow,
   useWorkflowVersion,
@@ -54,6 +58,7 @@ import { KindDot, VariablePicker } from "../../graph-widgets";
 import { formatLibraryPortSummary } from "../../library/format-library-port-summary";
 import { LibraryPickerModal } from "../../library/LibraryPickerModal";
 import { replaceNode } from "../../replace-node";
+import { useValidatorOptions } from "../../validation/useGraphValidation";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -253,9 +258,9 @@ export function ChildWorkflowNodeSettings({
       ) : (
         <Box data-testid="child-workflow-node-settings-inline-body">
           <Text size="xs" c="dimmed" mb="xs">
-            Edit the inline child graph as JSON. It's validated (with the rest
-            of the workflow) on Save; a parse error here just blocks the update
-            until the JSON is well-formed.
+            Edit the inline child graph as JSON. It obeys the same rules as the
+            outer workflow — problems are listed below as you type, and also
+            appear on this node's badge and in the workflow's problems list.
           </Text>
           <Textarea
             autosize
@@ -267,6 +272,9 @@ export function ChildWorkflowNodeSettings({
             error={inlineError}
             onChange={(event) => commitInlineDraft(event.currentTarget.value)}
             data-testid="child-workflow-node-settings-inline-editor"
+          />
+          <InlineGraphProblems
+            graph={inlineError === null ? node.workflowRef.graph : null}
           />
         </Box>
       )}
@@ -677,5 +685,80 @@ function SignaturePortRow({ port, testId }: SignaturePortRowProps) {
         {formatLibraryPortSummary(port)}
       </Text>
     </Group>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline child-graph problems (G-015)
+// ---------------------------------------------------------------------------
+
+/**
+ * G-015 — the inline JSON editor used to report ONLY parse errors, so a
+ * structurally invalid graph (dangling `entryNodeId`, a switch naming a
+ * missing edge, an unregistered activity type) was accepted in silence and
+ * the top bar stayed green.
+ *
+ * The validator now descends into `workflowRef.inline` and those problems
+ * reach the top-bar count and the drawer anchored to this node. This panel is
+ * the third surface: the problems shown at the point of editing, so the
+ * author doesn't have to open the drawer to learn the JSON they are typing is
+ * wrong.
+ *
+ * It runs the SAME `validateGraphConfig` with the SAME injected options the
+ * outer graph gets (`useValidatorOptions`) — deliberately not a second,
+ * lighter rule set. Paths are shown relative to the inline graph, because
+ * that is the document in the textarea.
+ *
+ * `graph === null` means the draft doesn't parse; the textarea's own error
+ * already says so and there is nothing to validate.
+ */
+function InlineGraphProblems({ graph }: { graph: GraphWorkflowConfig | null }) {
+  const options = useValidatorOptions();
+  const problems = useMemo(() => {
+    if (!graph) return [];
+    return validateGraphConfig(graph, options).errors;
+  }, [graph, options]);
+
+  if (!graph) return null;
+
+  if (problems.length === 0) {
+    return (
+      <Text
+        size="10px"
+        c="dimmed"
+        mt={6}
+        data-testid="child-workflow-inline-problems-none"
+      >
+        No problems in the inline graph.
+      </Text>
+    );
+  }
+
+  const errorCount = problems.filter((p) => p.severity === "error").length;
+
+  return (
+    <Alert
+      mt={6}
+      p="xs"
+      color={errorCount > 0 ? "red" : "yellow"}
+      variant="light"
+      title={`${problems.length} problem${problems.length === 1 ? "" : "s"} in the inline graph`}
+      data-testid="child-workflow-inline-problems"
+    >
+      <Stack gap={2}>
+        {problems.map((problem) => (
+          <Text
+            key={`${problem.path}::${problem.message}`}
+            size="10px"
+            c={problem.severity === "error" ? undefined : "dimmed"}
+          >
+            <Text span ff="monospace">
+              {problem.path || "(graph)"}
+            </Text>{" "}
+            — {problem.message}
+          </Text>
+        ))}
+      </Stack>
+    </Alert>
   );
 }

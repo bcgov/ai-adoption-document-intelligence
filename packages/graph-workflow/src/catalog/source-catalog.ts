@@ -24,10 +24,9 @@
 import { z } from "zod/v4";
 
 import type { GraphValidationError, SourceNode } from "../types";
-
+import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
 import { sourceApiCatalogEntry } from "./sources/source-api";
 import { sourceUploadCatalogEntry } from "./sources/source-upload";
-import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
 
 /**
  * Frozen registry of source catalog entries.
@@ -126,8 +125,7 @@ export function createSourceParameterValidator(
     const parsed = entry.parametersSchema.safeParse(parameters ?? {});
     if (parsed.success) return;
     for (const issue of parsed.error.issues) {
-      const suffix =
-        issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
+      const suffix = issue.path.length > 0 ? `.${issue.path.join(".")}` : "";
       errors.push({
         path: `nodes.${nodeId}.parameters${suffix}`,
         message: issue.message,

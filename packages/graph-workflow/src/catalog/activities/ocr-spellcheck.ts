@@ -4,15 +4,12 @@ import type { ActivityCatalogEntry } from "../types";
 const SPELLCHECK_LANGUAGES = ["en", "fr", "es", "de"] as const;
 
 export const ocrSpellcheckParametersSchema = z.object({
-  fieldScope: z
-    .array(z.string().min(1))
-    .optional()
-    .meta({
-      title: "Field scope",
-      description:
-        "Restrict spellcheck to specific field names. Leave empty to apply to all.",
-      "x-widget": "multi-select-combobox",
-    }),
+  fieldScope: z.array(z.string().min(1)).optional().meta({
+    title: "Field scope",
+    description:
+      "Restrict spellcheck to specific field names. Leave empty to apply to all.",
+    "x-widget": "multi-select-combobox",
+  }),
   language: z
     .string()
     .optional()

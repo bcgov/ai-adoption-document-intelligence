@@ -2,17 +2,13 @@ import { z } from "zod/v4";
 import type { ActivityCatalogEntry } from "../types";
 
 export const documentNormalizeOrientationParametersSchema = z.object({
-  confidenceThreshold: z
-    .number()
-    .min(0)
-    .optional()
-    .meta({
-      title: "OSD confidence threshold",
-      description:
-        "Minimum Tesseract OSD confidence required before applying a rotation correction.",
-      "x-default": 2.0,
-      "x-step": 0.1,
-    }),
+  confidenceThreshold: z.number().min(0).optional().meta({
+    title: "OSD confidence threshold",
+    description:
+      "Minimum Tesseract OSD confidence required before applying a rotation correction.",
+    "x-default": 2.0,
+    "x-step": 0.1,
+  }),
 });
 
 export const documentNormalizeOrientationCatalogEntry: ActivityCatalogEntry = {

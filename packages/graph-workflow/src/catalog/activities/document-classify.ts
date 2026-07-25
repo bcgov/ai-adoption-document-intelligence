@@ -41,13 +41,10 @@ export const classificationRuleSchema = z.object({
     title: "Result type",
     description: "Document type to assign if this rule matches.",
   }),
-  patterns: z
-    .array(classificationPatternSchema)
-    .min(1)
-    .meta({
-      title: "Patterns",
-      description: "ALL patterns must match for the rule to fire.",
-    }),
+  patterns: z.array(classificationPatternSchema).min(1).meta({
+    title: "Patterns",
+    description: "ALL patterns must match for the rule to fire.",
+  }),
 });
 
 /**
@@ -58,22 +55,17 @@ export const classificationRuleSchema = z.object({
 export type ClassificationRule = z.infer<typeof classificationRuleSchema>;
 
 export const documentClassifyParametersSchema = z.object({
-  classifierType: z
-    .literal("rule-based")
-    .meta({
-      title: "Classifier strategy",
-      description: "Currently only rule-based classification is supported.",
-      "x-default": "rule-based",
-    }),
-  rules: z
-    .array(classificationRuleSchema)
-    .min(1)
-    .meta({
-      title: "Classification rules",
-      description:
-        "Tried in order; the first rule whose patterns all match wins.",
-      "x-widget": "classification-rule-editor",
-    }),
+  classifierType: z.literal("rule-based").meta({
+    title: "Classifier strategy",
+    description: "Currently only rule-based classification is supported.",
+    "x-default": "rule-based",
+  }),
+  rules: z.array(classificationRuleSchema).min(1).meta({
+    title: "Classification rules",
+    description:
+      "Tried in order; the first rule whose patterns all match wins.",
+    "x-widget": "classification-rule-editor",
+  }),
 });
 
 /**

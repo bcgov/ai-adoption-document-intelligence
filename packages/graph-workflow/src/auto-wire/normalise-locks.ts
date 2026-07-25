@@ -1,6 +1,6 @@
 import type { GraphNode, GraphWorkflowConfig, PortBinding } from "../types";
-import { isAutoCtxKey } from "./synthesise-ctx-key";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
+import { isAutoCtxKey } from "./synthesise-ctx-key";
 
 /**
  * One-shot pass that populates `metadata.lockedInputPorts` /
@@ -36,12 +36,8 @@ export function normaliseLocks(
       ...node,
       metadata: {
         ...existing,
-        ...(mergedInput.length > 0
-          ? { lockedInputPorts: mergedInput }
-          : {}),
-        ...(mergedOutput.length > 0
-          ? { lockedOutputPorts: mergedOutput }
-          : {}),
+        ...(mergedInput.length > 0 ? { lockedInputPorts: mergedInput } : {}),
+        ...(mergedOutput.length > 0 ? { lockedOutputPorts: mergedOutput } : {}),
       },
     } as GraphNode;
   }

@@ -93,6 +93,15 @@ export function resolveAnchorTarget(
   if (!path) return null;
 
   // --- node-anchored ------------------------------------------------------
+  //
+  // G-015 — inline child-graph errors arrive as
+  // `nodes.<parentId>.inline.<inner path>`. They resolve here to
+  // `{ kind: "node", nodeId: parentId }`, which is correct and deliberate:
+  // the inner graph has no canvas and no settings form of its own, so the
+  // only navigable target is the `childWorkflow` node whose JSON editor holds
+  // it. The `^\.inputs\.<port>$` deep link is anchored to the END of the
+  // remainder, so an inner `…inline.nodes.<id>.inputs.<port>` correctly does
+  // NOT resolve to a `nodeInput` picker that does not exist on this canvas.
   if (path.startsWith("nodes.")) {
     const { nodeId, remainder } = splitNodeId(
       path.slice("nodes.".length),

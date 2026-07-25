@@ -22,9 +22,9 @@ describe("getLockedInputPorts / getLockedOutputPorts", () => {
   });
 
   it("returns [] when the field is present but not an array", () => {
-    expect(
-      getLockedInputPorts(node({ lockedInputPorts: "fileData" })),
-    ).toEqual([]);
+    expect(getLockedInputPorts(node({ lockedInputPorts: "fileData" }))).toEqual(
+      [],
+    );
   });
 
   it("returns the string entries, dropping non-string values", () => {

@@ -10,21 +10,18 @@
  */
 
 import { z } from "zod/v4";
-
-import type { GraphValidationError, SourceNode } from "../types";
-
 import * as packageRoot from "../index";
-
+import type { GraphValidationError, SourceNode } from "../types";
+import { isAssignable } from "../types/subtype-check";
 import {
-  SOURCE_CATALOG,
   createSourceParameterValidator,
   deriveSourceOutputSchema,
   getSourceCatalogEntry,
   getSourceParametersJsonSchema,
   listSourceTypes,
+  SOURCE_CATALOG,
 } from "./source-catalog";
 import type { JsonSchema7, SourceCatalogEntry } from "./source-types";
-import { isAssignable } from "../types/subtype-check";
 
 /** Fabricated entry used only by the synthetic happy-path tests. */
 function fakeSourceEntry(
@@ -95,20 +92,19 @@ describe("SOURCE_CATALOG bulk invariants (Scenario 5)", () => {
   // Every registered entry must satisfy the contract documented on
   // `SourceCatalogEntry` in `./source-types.ts`. Catches accidental
   // drift as future Phase 8.x sources land.
-  it.each(SOURCE_CATALOG.map((entry) => [entry.type, entry]))(
-    "%s — non-empty type / displayName / description, valid runtime, outputKind resolves, deriveOutputSchema callable",
-    (_typeId, entry: SourceCatalogEntry) => {
-      expect(entry.type.length).toBeGreaterThan(0);
-      expect(entry.displayName.length).toBeGreaterThan(0);
-      expect(entry.description.length).toBeGreaterThan(0);
-      expect(["push", "pull", "manual"]).toContain(entry.runtime);
-      // outputKind must resolve via the Phase 3 registry — reflexive
-      // assignability is the cheapest round-trip check.
-      expect(isAssignable(entry.outputKind, entry.outputKind)).toBe(true);
-      // Smoke-test that deriveOutputSchema is callable with empty params.
-      expect(() => entry.deriveOutputSchema({})).not.toThrow();
-    },
-  );
+  it.each(
+    SOURCE_CATALOG.map((entry) => [entry.type, entry]),
+  )("%s — non-empty type / displayName / description, valid runtime, outputKind resolves, deriveOutputSchema callable", (_typeId, entry: SourceCatalogEntry) => {
+    expect(entry.type.length).toBeGreaterThan(0);
+    expect(entry.displayName.length).toBeGreaterThan(0);
+    expect(entry.description.length).toBeGreaterThan(0);
+    expect(["push", "pull", "manual"]).toContain(entry.runtime);
+    // outputKind must resolve via the Phase 3 registry — reflexive
+    // assignability is the cheapest round-trip check.
+    expect(isAssignable(entry.outputKind, entry.outputKind)).toBe(true);
+    // Smoke-test that deriveOutputSchema is callable with empty params.
+    expect(() => entry.deriveOutputSchema({})).not.toThrow();
+  });
 });
 
 describe("createSourceParameterValidator (Scenario 3)", () => {
@@ -121,9 +117,7 @@ describe("createSourceParameterValidator (Scenario 3)", () => {
       path: "nodes.n1.sourceType",
       severity: "error",
     });
-    expect(errors[0]?.message).toBe(
-      "Unknown source type: source.nonexistent",
-    );
+    expect(errors[0]?.message).toBe("Unknown source type: source.nonexistent");
   });
 
   it("names the unknown subtype in the error message", () => {
@@ -193,9 +187,10 @@ describe("deriveSourceOutputSchema (Scenario 4)", () => {
     jest.isolateModules(() => {
       const synthetic = fakeSourceEntry(z.object({}).passthrough());
       jest.doMock("./source-catalog", () => {
-        const actual = jest.requireActual<
-          typeof import("./source-catalog")
-        >("./source-catalog");
+        const actual =
+          jest.requireActual<typeof import("./source-catalog")>(
+            "./source-catalog",
+          );
         return {
           ...actual,
           SOURCE_CATALOG: [synthetic],
@@ -213,7 +208,8 @@ describe("deriveSourceOutputSchema (Scenario 4)", () => {
         };
       });
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mocked = require("./source-catalog") as typeof import("./source-catalog");
+      const mocked =
+        require("./source-catalog") as typeof import("./source-catalog");
       const node: SourceNode = {
         id: "src2",
         type: "source",
@@ -326,9 +322,7 @@ describe("getSourceParametersJsonSchema — preserves Zod .meta() hints (US-119)
     const schema = getSourceParametersJsonSchema("source.upload") as {
       properties: Record<string, { title?: string }>;
     };
-    expect(schema.properties.allowedMimeTypes.title).toBe(
-      "Allowed MIME types",
-    );
+    expect(schema.properties.allowedMimeTypes.title).toBe("Allowed MIME types");
     expect(schema.properties.maxFileSizeMB.title).toBe("Max file size (MB)");
     expect(schema.properties.ctxKey.title).toBe("Ctx key");
   });

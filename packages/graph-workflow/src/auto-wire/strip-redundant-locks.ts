@@ -1,6 +1,6 @@
 import type { GraphNode, GraphWorkflowConfig, PortBinding } from "../types";
-import { isAutoCtxKey } from "./synthesise-ctx-key";
 import { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
+import { isAutoCtxKey } from "./synthesise-ctx-key";
 
 /**
  * Save-time helper. Drops `lockedInputPorts` / `lockedOutputPorts`
