@@ -2,6 +2,11 @@ export { type CtxKeySource, resolveCtxKeySource } from "./ctx-source";
 export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 export { normaliseLocks } from "./normalise-locks";
 export {
+  findOrphanedCtxKeys,
+  type OrphanedCtxKey,
+  pruneCtxDeclarations,
+} from "./orphaned-ctx-keys";
+export {
   type AutoBoundVia,
   type PortResolution,
   resolveInputPort,

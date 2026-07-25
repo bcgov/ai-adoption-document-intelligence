@@ -2129,3 +2129,155 @@ describe("WorkflowEditorV2Page — de-placeholdered activity drop", () => {
     expect(fileData?.resolution.status).toBe("unsatisfied");
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-002 — deleting a sole producer warns, then prunes the orphaned ctx
+// declarations so the surviving consumers visibly break instead of silently
+// reading a variable nothing writes.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
+  function readLiveConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  function prepThenOcrTemplate(consumerBound: boolean): WorkflowTemplate {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "orphan-fixture" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          label: "Prepare File",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "preparedFile" }],
+          metadata: { position: { x: 0, y: 0 } },
+        } as ActivityNode,
+        ocr: {
+          id: "ocr",
+          type: "activity",
+          label: "Submit OCR",
+          activityType: "azureOcr.submit",
+          ...(consumerBound
+            ? { inputs: [{ port: "fileData", ctxKey: "preparedFile" }] }
+            : {}),
+          metadata: { position: { x: 200, y: 0 } },
+        } as ActivityNode,
+      },
+      edges: [{ id: "e1", source: "prep", target: "ocr", type: "normal" }],
+      entryNodeId: "prep",
+      ctx: { preparedFile: { type: "object" } },
+    };
+    return makeTemplate(config, "Orphan Fixture");
+  }
+
+  function selectAndDelete(nodeId: string) {
+    act(() => {
+      (capturedCanvasProps.current?.onSelectNode as (id: string) => void)(
+        nodeId,
+      );
+    });
+    act(() => {
+      (capturedSettingsPanelProps.current?.onDeleteSelected as () => void)();
+    });
+  }
+
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedSettingsPanelProps.current = null;
+    vi.restoreAllMocks();
+  });
+
+  it("asks before deleting a sole producer other steps still read", () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0]).toBe(
+      'Deleting "Prepare File" leaves 1 variable without a source; 1 step reads it. Continue?',
+    );
+  });
+
+  it("prunes the orphaned declaration on confirm", () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    const config = readLiveConfig();
+    expect(config.nodes.prep).toBeUndefined();
+    expect(config.ctx.preparedFile).toBeUndefined();
+  });
+
+  it("changes nothing when the author cancels", () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => false);
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    const config = readLiveConfig();
+    expect(config.nodes.prep).toBeDefined();
+    expect(config.ctx.preparedFile).toBeDefined();
+  });
+
+  it("stays silent — and still deletes — when nothing reads the key", () => {
+    // NOTE: the `consumerBound: false` variant is NOT this case — the page's
+    // resolveBindings pass auto-wires ocr.fileData to prep's key, so the key
+    // IS read by the time the delete happens (correctly warning). "Nothing
+    // reads it" means no surviving consumer at all.
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    const loneProducer = prepThenOcrTemplate(false);
+    loneProducer.config = {
+      ...loneProducer.config,
+      nodes: { prep: loneProducer.config.nodes.prep },
+      edges: [],
+      entryNodeId: "prep",
+    };
+    renderPage(loneProducer);
+    selectAndDelete("prep");
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(readLiveConfig().nodes.prep).toBeUndefined();
+  });
+
+  it("warns when the resolver — not the author — made the connection", () => {
+    // The consumer carries no explicit binding; auto-wire connects it to
+    // prep's key. Deleting prep still orphans a variable a step reads.
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderPage(prepThenOcrTemplate(false));
+    selectAndDelete("prep");
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0]).toContain(
+      "1 variable without a source",
+    );
+  });
+
+  it("stays silent when deleting a node that writes nothing", () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("ocr");
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(readLiveConfig().nodes.ocr).toBeUndefined();
+  });
+
+  it("never prunes a declaration marked isInput", () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
+    const template = prepThenOcrTemplate(true);
+    template.config.ctx = {
+      preparedFile: { type: "object", isInput: true },
+    };
+    renderPage(template);
+    selectAndDelete("prep");
+    const config = readLiveConfig();
+    expect(config.nodes.prep).toBeUndefined();
+    expect(config.ctx.preparedFile).toBeDefined();
+  });
+});

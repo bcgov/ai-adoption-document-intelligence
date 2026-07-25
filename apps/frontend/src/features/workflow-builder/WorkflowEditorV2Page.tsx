@@ -24,8 +24,10 @@
 import {
   ACTIVITY_CATALOG,
   type ActivityCatalogEntry,
+  findOrphanedCtxKeys,
   getSourceCatalogEntry,
   normaliseLocks,
+  pruneCtxDeclarations,
   resolveBindings,
   stripRedundantLocks,
 } from "@ai-di/graph-workflow";
@@ -92,6 +94,7 @@ import {
   synthesizeMapBodyGroups,
 } from "./canvas/map-body-groups";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
+import { describeOrphanedDelete } from "./delete-orphan-warning";
 import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
 import {
   createGroupFromSelection,
@@ -729,6 +732,19 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
 
   const deleteSelected = useCallback(() => {
     if (!selectedNodeId) return;
+    // G-002: deleting the sole writer of a ctx variable that other steps still
+    // read is the one moment "this key lost its source" is knowable — after
+    // the delete, a declared-but-unwritten key is indistinguishable from a
+    // workflow input. So warn first, then prune the orphaned declarations on
+    // confirm; the consumers then correctly report as needing a source on the
+    // badge, in the drawer and in the settings row. There is no undo yet
+    // (G-003), which is exactly why this delete is guarded.
+    const removedIds = new Set([selectedNodeId]);
+    const warning = describeOrphanedDelete(config, removedIds);
+    if (warning) {
+      // biome-ignore lint/suspicious/noAlert: native confirm matches existing UX patterns elsewhere in the editor for accidental-deletion guards.
+      if (!window.confirm(warning.message)) return;
+    }
     setConfig((prev) => {
       const next = { ...prev.nodes };
       delete next[selectedNodeId];
@@ -743,16 +759,25 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       // emptied groups + orphaned exposedParams) so the save-time
       // validator doesn't report "references non-existent node".
       const prunedGroups = pruneNodeFromGroups(prev, selectedNodeId);
-      return {
+      const withoutNode: GraphWorkflowConfig = {
         ...prev,
         nodes: next,
         edges: filteredEdges,
         entryNodeId: nextEntryNodeId,
         nodeGroups: prunedGroups.nodeGroups,
       };
+      // Recompute against `prev` inside the setter rather than trusting the
+      // `warning` captured above: `setConfig` may run against a newer config
+      // than the one the confirmation was computed from. `pruneCtxDeclarations`
+      // never drops an `isInput` declaration or one another node still writes.
+      const orphaned = findOrphanedCtxKeys(prev, removedIds);
+      return pruneCtxDeclarations(
+        withoutNode,
+        orphaned.map((entry) => entry.ctxKey),
+      );
     });
     setSelectedNodeId(null);
-  }, [selectedNodeId]);
+  }, [config, selectedNodeId]);
 
   const handleSave = useCallback(async () => {
     const cleanedName = name.trim() || "Untitled workflow";

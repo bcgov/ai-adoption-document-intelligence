@@ -103,7 +103,22 @@ Three consumers share it:
 2. **The validator's `walkCtxKeyBindings`** — a ctx key with consumers and zero producers used to `continue` past both the kind check *and* any existence check. The kind check still has nothing to compare, but a key that `resolveCtxKeySource` cannot source is now an `error` anchored at `nodes.<id>.inputs.<port>`.
 3. **The frontend badge pipeline** — `autoWireIssuesToValidationErrors`'s `manuallyBoundPorts` suppression and `input-row-resolution.ts`'s display-only `ctx-bound` state are both gated on the lookup instead of being unconditional. A dangling hand-bound port falls through to the honest "needs a source".
 
-**Residual (not fixed here).** Because `validatePortBindings` already requires every non-`__auto.` binding key to be declared in `config.ctx`, and a declaration counts as a source, deleting a producer whose key was hand-authored *and* declared still validates clean — the leftover declaration stands in for the missing writer. Nothing prunes `config.ctx` on node delete (G-002 facet 1). The rule bites hardest exactly where the editor writes by default: `__auto.*` keys, which skip the declaration check entirely and were previously unchecked by anything.
+**Why a declaration has to count.** Because `validatePortBindings` already requires every non-`__auto.` binding key to be declared in `config.ctx`, and a declaration counts as a source, "declared but nothing writes it" is not by itself evidence of a problem. It cannot be: across all 8 shipped templates, 3–11 declared keys per template have no producer and are exactly the workflow inputs (`documentId`, `blobKey`, `fileName`, `fileType`, `groupId`, thresholds, `classifierName`), and **`isInput` is set on none of them**. After the fact, "declared workflow input" and "declaration whose producer was deleted" are the same static state.
+
+### 2.3b The one moment the two cases are distinguishable: the delete
+
+*Added 2026-07-25 — closes the residual above.*
+
+The only point at which "this key just lost its source" is knowable is the deletion itself, because a writer is observably going away. So the signal is captured there and turned into a persistent change rather than inferred later. `orphaned-ctx-keys.ts` provides:
+
+- `findOrphanedCtxKeys(config, removedNodeIds)` — the ctx keys the removed nodes are the **sole** writer of that at least one **surviving** node still reads. Producers come from `collectCtxWriters` (the same enumeration §2.3a answers from, so the two can never disagree); readers are `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and the refs inside `switch` / `pollUntil` conditions. A key nothing reads is **not** reported — deleting a leaf whose output nobody uses is an ordinary edit and must stay silent.
+- `pruneCtxDeclarations(config, ctxKeys)` — drops those declarations. Never drops one marked `isInput`, and never drops one another node still writes.
+
+`deleteSelected` ([WorkflowEditorV2Page.tsx](../../apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx)) asks first — *"Deleting "Prepare File" leaves 2 variables without a source; 3 steps read them. Continue?"* via the same `window.confirm` idiom group deletion uses — and prunes on confirm. The prune is what makes the consequence chain fire: declaration gone → the key has neither producer nor declaration → §2.3a returns `null` → the badge, the drawer and the settings row all report it. **The confirmation is currently the only safety net: there is no undo (G-003).**
+
+**Remaining gaps.** Two, both deliberately out of scope:
+1. **`deleteKey` in `WorkflowSettingsDrawer`** deletes a ctx declaration directly, from a bare trash icon, with no usage count and no reverse lookup — while its sibling *rename* is backed by a full graph sweep. Same class of problem, different surface, different fix.
+2. **The canvas delete paths** (`handleDelete` keyboard/multi-select and the context menu's `handleNodesDelete`, both via `removeNodesFromConfig`) neither confirm nor prune. `findOrphanedCtxKeys` accepts a set of ids precisely so they can adopt the same guard; wiring a confirmation through the canvas is a larger change than this batch took on.
 
 ### 2.4 What gets resolved vs. left alone
 

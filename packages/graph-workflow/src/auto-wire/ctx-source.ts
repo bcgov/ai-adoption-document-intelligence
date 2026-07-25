@@ -23,7 +23,7 @@ export type CtxKeySource =
   | { origin: "declared-ctx"; kind?: KindRef };
 
 /** A single (nodeId, port) → ctxKey write recorded on the graph. */
-interface CtxWriter {
+export interface CtxWriter {
   nodeId: string;
   port: string;
   ctxKey: string;
@@ -108,13 +108,13 @@ export function resolveCtxKeySource(
  * bare by others; producer bindings are always bare. Strip the prefix before
  * matching (mirrors `resolveCtxKeyToProducer` / `splitKnownBase`).
  */
-function normaliseCtxKey(ctxKey: string): string {
+export function normaliseCtxKey(ctxKey: string): string {
   if (typeof ctxKey !== "string") return "";
   return ctxKey.startsWith("ctx.") ? ctxKey.slice(4) : ctxKey;
 }
 
 /** Does a write to `written` supply the value a binding to `consumed` reads? */
-function writerSourcesKey(written: string, consumed: string): boolean {
+export function writerSourcesKey(written: string, consumed: string): boolean {
   if (written === "") return false;
   if (written === consumed) return true;
   // Drilled ref — dot boundary only, so `ocrResultX` never matches `ocrResult`.
@@ -131,7 +131,7 @@ function writerSourcesKey(written: string, consumed: string): boolean {
  * mappings, the humanGate payload key), and a key those write is NOT dangling.
  * Mirrors the writes `apps/temporal/src/graph-engine/node-executors.ts` makes.
  */
-function collectCtxWriters(config: GraphWorkflowConfig): CtxWriter[] {
+export function collectCtxWriters(config: GraphWorkflowConfig): CtxWriter[] {
   const writers: CtxWriter[] = [];
   for (const [nodeId, node] of Object.entries(config.nodes ?? {})) {
     if (!node) continue;
