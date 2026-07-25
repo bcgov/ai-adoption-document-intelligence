@@ -29,7 +29,7 @@ Every authored object in the model, with its defining type and source location.
 | Workflow version (immutable config revision) | `WorkflowVersion` | `apps/shared/prisma/schema.prisma:200` |
 | Head-version pin | `WorkflowLineage.head_version_id` | `apps/shared/prisma/schema.prisma:172` |
 | Workflow kind (primary / library / benchmark candidate) | `WorkflowKind` enum column `workflow_kind` | `apps/shared/prisma/schema.prisma:172` |
-| Run (Temporal execution — **no Prisma table**) | `RunSummaryDto` / `RunSummaryStatus` | `apps/backend-services/src/workflow/dto/list-runs.dto.ts:26`, `:145` |
+| Run (Temporal execution — **no Prisma table**) | `RunSummaryDto` (class opens `:115`) / `RunSummaryStatus` (`:26`) | `apps/backend-services/src/workflow/dto/list-runs.dto.ts:115`, `:26` |
 | Activity-output cache row | `ActivityOutputCache` | `apps/shared/prisma/schema.prisma:888` |
 | Cache TTL | `DEFAULT_CACHE_TTL_MS` (24 h) | `packages/graph-workflow/src/cache/constants.ts` |
 | Dynamic-node lineage (`SHARED`, Part 14) | `DynamicNode` | `apps/shared/prisma/schema.prisma:914` |
@@ -334,6 +334,9 @@ every row: **what happens on rename / retype / delete / re-parent of the upstrea
 
 ### 3.1 Node identity
 
+> Bindings the node itself owns (`inputs[]` / `outputs[]`) and their retype/delete
+> cascade are **§3.10**, not this table.
+
 | # | Upstream → Downstream | Reference field | Defined / resolved at |
 |---|---|---|---|
 | D1 | node → edge (source) | `GraphEdge.source` | `packages/graph-workflow/src/types.ts:333`; validated `packages/graph-workflow/src/validator/validator.ts:307` |
@@ -405,7 +408,7 @@ every row: **what happens on rename / retype / delete / re-parent of the upstrea
 | D52 | edge `type === "conditional"` + `source === switchId` → EdgePicker option set | filter args | `apps/frontend/src/features/workflow-builder/settings/control-flow/SwitchNodeSettings.tsx:179`, `:263`; `apps/frontend/src/features/workflow-builder/graph-widgets/EdgePicker.tsx` |
 | D53 | switch case condition → edge label text | `SwitchCase.condition` | `apps/frontend/src/features/workflow-builder/canvas/edge-labels.ts`; unreferenced edge → `(unmatched)` at `apps/frontend/src/features/workflow-builder/canvas/WorkflowEdge.tsx:136` |
 | D54 | normal edge presence → sequence-wire vs data-wire rendering | `GraphEdge.type === "normal"` with no binding | `apps/frontend/src/features/workflow-builder/canvas/derive-wires.ts:265` |
-| D55 | node deletion → orphaned edges | `edges[]` sweep | `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx` delete handler |
+| D55 | node deletion → orphaned edges | `edges[]` filtered on `source`/`target` | `deleteSelected` at `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730`; edge filter at `:735`–`:737`. **See §3.10 for what the same handler does NOT sweep.** |
 
 ### 3.5 Groups
 
@@ -439,7 +442,7 @@ every row: **what happens on rename / retype / delete / re-parent of the upstrea
 | D71 | library `metadata.inputs/outputs` → childWorkflow port signature | `LibraryPortDescriptor` | `packages/graph-workflow/src/types.ts:83`; rendered `apps/frontend/src/features/workflow-builder/settings/control-flow/ChildWorkflowNodeSettings.tsx` |
 | D72 | inline graph → childWorkflow embedded config | `workflowRef.inline.graph` | `packages/graph-workflow/src/types.ts:258` |
 | D73 | version → head pointer | `WorkflowLineage.head_version_id` | `apps/shared/prisma/schema.prisma:172` |
-| D74 | version → run pin | `RunSummaryDto.workflowVersionId` | `apps/backend-services/src/workflow/dto/list-runs.dto.ts:145`; filter `apps/frontend/src/features/workflow-builder/run-history/RunHistoryFilters.tsx` |
+| D74 | version → run pin | `RunSummaryDto.workflowVersionId` | `apps/backend-services/src/workflow/dto/list-runs.dto.ts:128` (class opens `:115`); query filter `ListRunsQueryDto.workflowVersionId` at `:111`; UI filter `apps/frontend/src/features/workflow-builder/run-history/RunHistoryFilters.tsx` |
 | D75 | version → run-count badge | `useVersionRunCount` | `apps/frontend/src/features/workflow-builder/versioning/useVersionRunCount.ts` |
 | D76 | **dynamic-node slug → node activity type** `dyn.<slug>` | `ActivityNode.activityType` + `ActivityCatalogEntry.dynamicNodeSlug` | `packages/graph-workflow/src/catalog/types.ts:75`; `apps/frontend/src/features/workflow-builder/palette/usePaletteSections.ts:50`; `apps/shared/prisma/schema.prisma:914` |
 | D77 | dynamic-node version → node pin | `ActivityNode.dynamicNodeVersion` ↔ `DynamicNodeVersion.versionNumber` | `packages/graph-workflow/src/types.ts:186`; `apps/shared/prisma/schema.prisma:939` |
@@ -459,7 +462,7 @@ every row: **what happens on rename / retype / delete / re-parent of the upstrea
 | D86 | node status → active-edge animation | `active-edges` rule (source running / target pending) | `apps/frontend/src/features/workflow-builder/run/active-edges.ts:35` |
 | D87 | node status → preview evicted-vs-not-run branch | `producedOutput(status)` | `apps/frontend/src/features/workflow-builder/preview/PreviewWidget.tsx:49` |
 | D88 | source upload → run id | `SourceUploadResponse.runId` → `RunStateContext.activeRunId` | `apps/frontend/src/features/workflow-builder/sources/useSourceUpload.ts`; `apps/frontend/src/features/workflow-builder/sources/SourceUploadButton.tsx` |
-| D89 | new Try → prior run cancellation | server-side cancel-on-new-Try | `apps/backend-services/src/workflow/workflow.controller.ts` (run start path) |
+| D89 | new Try → prior run cancellation | `cancelInFlightTriesForLineage(lineageId)` — called before starting a new run, so at most one Try is in flight per lineage | `apps/backend-services/src/workflow/workflow.controller.ts:534` (source-upload run path), `:728` (Try/run start path) |
 
 ### 3.9 Auto-wire lock state
 
@@ -472,7 +475,31 @@ every row: **what happens on rename / retype / delete / re-parent of the upstrea
 | D94 | lock normalisation on load | `normaliseLocks` | `packages/graph-workflow/src/auto-wire/normalise-locks.ts` |
 | D95 | upstream reachability (BFS distance) → candidate ranking | `upstreamNodesWithDistance` | `packages/graph-workflow/src/auto-wire/upstream-walk.ts` |
 
-**Total dependency edges: 95.**
+### 3.10 Node → its own bindings (the mutation cascade)
+
+**`node → binding` is a distinct dependency from `catalog port → binding` (D19/D20).** A node
+*owns* its `inputs[]` / `outputs[]` arrays (`GraphNodeBase`,
+`packages/graph-workflow/src/types.ts:162`); the catalog only says which port *names* and *kinds*
+are legal. So a node can be retyped or deleted out from under bindings that the catalog never
+had a say in. This subsection is the retype/delete cascade — it is the axis Pass D owns.
+
+| # | Upstream → Downstream | Reference field | Defined / resolved at |
+|---|---|---|---|
+| D96 | **node → its own input bindings** | `GraphNodeBase.inputs?: PortBinding[]` | `packages/graph-workflow/src/types.ts:162` |
+| D97 | **node → its own output bindings** | `GraphNodeBase.outputs?: PortBinding[]` | `packages/graph-workflow/src/types.ts:162` |
+| D98 | **activity-type swap → `inputs[]` / `outputs[]` survival** | `swapNodeType` changes `activityType` and intersects `parameters` against the new schema, but carries `id`, `label`, **`inputs`, `outputs`**, `errorPolicy`, `retry`, `timeout`, `metadata` **over verbatim** | `apps/frontend/src/features/workflow-builder/canvas/swap-node-type.ts:13`–`:14` (doc comment); the verbatim carry-over is literal in the return object — `inputs: node.inputs` at `:162`, `outputs: node.outputs` at `:163` |
+| D99 | activity-type swap → locked-port metadata survival | `metadata.lockedInputPorts` / `lockedOutputPorts` ride along in the verbatim `metadata: node.metadata` carry-over | `apps/frontend/src/features/workflow-builder/canvas/swap-node-type.ts:167`; lock reader `packages/graph-workflow/src/auto-wire/lock-list.ts` |
+| D100 | activity-type swap → `parameters` key survival | keys in both old and new schema preserved; keys absent from the new schema **dropped**; keys newly required by the new schema get a default | `apps/frontend/src/features/workflow-builder/canvas/swap-node-type.ts:7`–`:12` (doc comment); `buildSwappedParameters` call at `:154` |
+| D101 | swap picker → swapped node | `NodeTypeSwapModal` `onPick` → `handleSwapPick` | `apps/frontend/src/features/workflow-builder/canvas/NodeTypeSwapModal.tsx`; mounted `apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:3135`; entry point `apps/frontend/src/features/workflow-builder/canvas/NodeContextMenu.tsx` ("Change activity type"; disabled for control-flow nodes per 6.6) |
+| D102 | node deletion → its own `inputs[]` / `outputs[]` / lock metadata | removed together with the node | `deleteSelected` at `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730`; node dropped at `:734` |
+| D103 | **node deletion → bindings on OTHER nodes** that read `__auto.<deletedId>.<port>` | consumer `inputs[].ctxKey` still names the dead producer's synthesised key | `deleteSelected` (`apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730`) deletes the node (`:734`), filters edges (`:735`–`:737`), reassigns `entryNodeId` (`:738`–`:741`), prunes groups (`:745`) — it does **not** sweep other nodes' `inputs[]`. Key format `packages/graph-workflow/src/auto-wire/synthesise-ctx-key.ts` |
+| D104 | node deletion → other nodes' `metadata.lockedInputPorts` pinned to the dead producer | lock entry survives the producer it pinned to | `packages/graph-workflow/src/auto-wire/lock-list.ts`; resolver reaction `packages/graph-workflow/src/auto-wire/resolve-input-port.ts:50`–`:64` |
+| D105 | node deletion → `config.ctx` declarations for keys only that node produced | `config.ctx[key]` | `packages/graph-workflow/src/types.ts:21`; not swept by `deleteSelected` |
+| D106 | node deletion → run/cache artefacts keyed by the dead node id | `NodeStatusesMap` key, `ActivityOutputCache.nodeId` | `apps/frontend/src/features/workflow-builder/run/node-status.types.ts:66`; `apps/shared/prisma/schema.prisma:888` |
+| D107 | node **retype** → port rows / handles / data wires drawn from the *new* catalog entry against *old* bindings | `PortRowModel` derivation vs `node.inputs[]` | `apps/frontend/src/features/workflow-builder/canvas/port-rows.ts`; `apps/frontend/src/features/workflow-builder/canvas/derive-wires.ts` |
+
+**Total dependency edges: 107.**
+
 
 ---
 
@@ -490,7 +517,7 @@ Rows marked **⚠ no backing enum** are hardcoded strings in a component with no
 | Backend DTO `enum` | `pending`, `running`, `succeeded`, `failed`, `skipped` (**no `cancelled`**) | `apps/backend-services/src/workflow/dto/node-statuses-response.dto.ts:44` | API contract |
 | `TERMINAL_NODE_STATUSES` | `succeeded`, `failed`, `skipped`, `cancelled` | `apps/frontend/src/features/workflow-builder/run/node-status.types.ts:72` | `run:polling` stop condition |
 | Badge style map | `pending`→gray, `running`→blue, `succeeded`→green, `failed`→red, `skipped`→violet, `cancelled`→gray | `apps/frontend/src/features/workflow-builder/run/NodeStatusBadge.tsx:57`–`:67` | `run-status-badge` |
-| Group aggregate precedence | `failed` > `running` > `succeeded` > `skipped` > `pending` | `apps/frontend/src/features/workflow-builder/run/RunStateContext.tsx:160`–`:183` | `canvas:group-chip` |
+| Group aggregate precedence — **returns only 4 of the 6 values** | any member `failed` → `failed`; else any member `running` → `running`; else all members `succeeded`-or-`skipped` → **`succeeded`**; else `pending`. **Never returns `skipped` or `cancelled`.** Empty member list → `pending`. | `apps/frontend/src/features/workflow-builder/run/RunStateContext.tsx:156`–`:184` (doc comment `:150`) | `canvas:group-chip` |
 | `RunSummaryStatus` (run history) | `running`, `succeeded`, `failed`, `cancelled` | `apps/backend-services/src/workflow/dto/list-runs.dto.ts:26`; frontend mirror `apps/frontend/src/features/workflow-builder/run-history/useWorkflowRuns.ts:41` | `run-row`, `run-history-filters` |
 | Run-history filter options | `all`, `running`, `succeeded`, `failed`, `cancelled` | `apps/frontend/src/features/workflow-builder/run-history/RunHistoryFilters.tsx:37`, `:46`–`:50` | `run-history-filters` |
 | `GraphWorkflowResult.status` | `completed`, `failed`, `cancelled` | `packages/graph-workflow/src/types.ts:410` | — |
@@ -558,7 +585,7 @@ Reserved ctx namespaces: `param`, `row`, `ctx`, `doc`, `segment`
 | Input-row badge text | `Auto` (green), *(none)* `Pick a source` (yellow), *(none)* `Needs a source` (red), `Pinned` (gray), `Disconnected` (gray), *(none)* `from <ctxKey>` | `apps/frontend/src/features/workflow-builder/settings/InputsSection.tsx:272`–`:395` | `settings-panel:inputs` |
 | Port direction | `input`, `output` | `apps/frontend/src/features/workflow-builder/canvas/port-kinds.ts:39`; `apps/frontend/src/features/workflow-builder/canvas/port-rows.ts:90` | `canvas:port-rows` |
 | Handle-id prefix | `in-`, `out-`, plus the literal `error` bottom handle | `apps/frontend/src/features/workflow-builder/canvas/port-kinds.ts:41`; `apps/frontend/src/features/workflow-builder/canvas/WorkflowEditorCanvas.tsx:662` | `canvas` |
-| Port-row data attrs | `data-port-kind` (default `Artifact`), `data-needs-source` (`true`/`false`), `data-drop-compatible` | `apps/frontend/src/features/workflow-builder/canvas/PortRows.tsx:170`–`:175` | `canvas:port-rows` |
+| Port-row data attrs | `data-port-kind` (default `Artifact`, `:170`), `data-needs-source` (`true`/`false`, `:171`), **`data-from-ctx`** (`:172`), `data-drop-compatible` (`:175`, omitted entirely when `dropCompatible === null`) | `apps/frontend/src/features/workflow-builder/canvas/PortRows.tsx:170`–`:175` | `canvas:port-rows` |
 
 ### 4.4 Wires & edges
 
@@ -644,7 +671,8 @@ Reserved ctx namespaces: `param`, `row`, `ctx`, `doc`, `segment`
 | Validation field types | `text`, `number`, `currency` | `apps/frontend/src/features/workflow-builder/settings/rich-widgets/ValidationRuleEditor.tsx:37` |
 | Validation match types | `any`, `all` | `apps/frontend/src/features/workflow-builder/settings/rich-widgets/ValidationRuleEditor.tsx:38` |
 | Arithmetic operations | `sum`, `difference`, `product` | `apps/frontend/src/features/workflow-builder/settings/rich-widgets/ValidationRuleEditor.tsx:39` |
-| Classification pattern scopes / operators | imported `CLASSIFICATION_PATTERN_SCOPES` / `_OPERATORS` | `packages/graph-workflow/src/catalog/activities/document-classify.ts` |
+| Classification pattern scopes | `fullText`, `title`, `paragraph`, `section`, `keyValueKey`, `keyValueValue` | `packages/graph-workflow/src/catalog/activities/document-classify.ts:4` (`PATTERN_SCOPES`), re-exported as `CLASSIFICATION_PATTERN_SCOPES` at `:14` |
+| Classification pattern operators | `contains`, `startsWith`, `matches` | `packages/graph-workflow/src/catalog/activities/document-classify.ts:12` (`PATTERN_OPERATORS`), re-exported as `CLASSIFICATION_PATTERN_OPERATORS` at `:15` |
 | `PreparedFile.fileType` | `pdf`, `image` | `packages/graph-workflow/src/types/kind-schemas.ts:46` |
 | `PreparedFile.outputFormat` | `text`, `markdown` | `packages/graph-workflow/src/types/kind-schemas.ts:46` |
 | `OcrResult.storage` | `blob` (literal) | `packages/graph-workflow/src/types/kind-schemas.ts:23` |
@@ -673,8 +701,8 @@ Reserved ctx namespaces: `param`, `row`, `ctx`, `doc`, `segment`
 | `node-picker` render mode | Select (≤20 nodes) vs Autocomplete (>20) | `apps/frontend/src/features/workflow-builder/graph-widgets/NodePicker.tsx:38` |
 | `settings-panel:map` alerts | `Body exit is unreachable` (red), `Some branches never reach the exit` (yellow) | `apps/frontend/src/features/workflow-builder/settings/control-flow/MapNodeSettings.tsx:202`, `:213` |
 
-**State-source count: 91 distinct enums / state sets across §4.1–§4.12, plus 33 validation-error
-anchor shapes in the §4.2 anchor table.**
+**State-source count: 91 distinct enums / state sets across §4.1–§4.12, plus 32 validation-error
+anchor rows in the §4.2 anchor table.**
 
 ---
 
@@ -753,8 +781,9 @@ Separately, `apps/frontend/src/features/workflow-builder/run-history/RunRow.tsx:
 ### 5.8 Only one validation-anchor shape deep-links
 
 `apps/frontend/src/features/workflow-builder/validation/ValidationDrawer.tsx:74` matches exactly
-`/^nodes\.(.+)\.inputs\.([^.]+)$/`. Every other anchor in §4.2 — 27 distinct shapes — falls back
-to select-node-and-close. Anchors that do **not** start with `nodes.` (`nodeGroups.<id>.…`,
+`/^nodes\.(.+)\.inputs\.([^.]+)$/`. Exactly 2 of the 32 anchor rows in §4.2 match it (the error
+variant from the binding-walk validator and the warning variant from auto-wire); the other **30**
+fall back to select-node-and-close. Anchors that do **not** start with `nodes.` (`nodeGroups.<id>.…`,
 `ctx.<key>`, `metadata.inputs[i].path`, `edges[i]`, `edges.<edgeId>`) land in the *workflow-level*
 bucket even when they name a specific node's group or a specific edge
 (`apps/frontend/src/features/workflow-builder/validation/useGraphValidation.ts:116`).
@@ -796,6 +825,29 @@ Found in the model, no editor located in scope. Marked **uncertain** — a pass 
 | `CtxDeclaration.defaultValue` | `packages/graph-workflow/src/types.ts:94` |
 | `ExposedParam.default` | `packages/graph-workflow/src/types.ts:123` |
 | `ActivityCatalogEntry.nonCacheable` (affects 9.6 cache behaviour, no UI indicator) | `packages/graph-workflow/src/catalog/types.ts:75` |
+
+### 5.13 The delete handler prunes groups but not bindings
+
+`deleteSelected` (`apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730`) explicitly
+prunes `nodeGroups` — with a comment at `:742`–`:744` saying it does so *"so the save-time
+validator doesn't report 'references non-existent node'"*. It applies no equivalent sweep to
+other nodes' `inputs[]` bindings, their `metadata.lockedInputPorts` entries, or `config.ctx`
+declarations, all of which can still name the deleted node (`__auto.<deletedId>.<port>`). The
+asymmetry is visible in the handler itself: groups get a named prune helper
+(`apps/frontend/src/features/workflow-builder/group/prune-node-from-groups.ts`), bindings get nothing.
+Whether the auto-wire resolver silently heals this on the next pass is exactly the D103/D104
+question — see §3.10.
+
+### 5.14 Node swap carries bindings across a schema change
+
+`apps/frontend/src/features/workflow-builder/canvas/swap-node-type.ts:162`–`:163` returns
+`inputs: node.inputs` / `outputs: node.outputs` unchanged while `activityType` changes. Only
+`parameters` are reconciled against the new schema (`:154`). So after a swap a node can hold
+bindings for port names the new activity type does not declare — the inverse of D19's
+catalog-port-name dependency. This is in scope at test-plan 6.6, whose stated Pass is
+"preserves label/ports/errorPolicy/retry/timeout/position + shared param keys" — i.e. the
+carry-over is the *specified* behaviour; whether the resulting graph still validates is the
+open question.
 
 ### 5.12 Data-wire id uniqueness assumption
 
