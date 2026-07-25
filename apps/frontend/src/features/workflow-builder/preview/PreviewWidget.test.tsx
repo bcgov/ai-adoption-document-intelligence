@@ -23,7 +23,11 @@ import {
   buildRunStateContextValue,
   RunStateTestProvider,
 } from "../run/RunStateContext";
-import { NodePreviewOverlay, PreviewWidget } from "./PreviewWidget";
+import {
+  NodePreviewOverlay,
+  PreviewWidget,
+  type PreviewWidgetProps,
+} from "./PreviewWidget";
 import type { ActivityOutputPreview } from "./preview.types";
 
 // ---------------------------------------------------------------------------
@@ -410,13 +414,111 @@ describe("Scenario 5 — loading + error states", () => {
     expect(wrapper).toHaveTextContent("Preview unavailable");
   });
 
-  it("renders an honest 'didn't run' Alert (NOT cache-evicted) when data === null in REPLAY mode AND the node never produced output", async () => {
+  // -------------------------------------------------------------------------
+  // G-012 — every reason a step has no output gets its own state + copy.
+  //
+  // These replace the old assertions that ALL of pending / running / cancelled
+  // / absent render one `data-state="not-run"` sentence, and that a live Try
+  // renders nothing at all.
+  // -------------------------------------------------------------------------
+
+  interface NoOutputCase {
+    label: string;
+    props: Partial<PreviewWidgetProps>;
+    state: string;
+    copy: string;
+  }
+
+  const NO_OUTPUT_CASES: NoOutputCase[] = [
+    {
+      label: "never reached, run finished",
+      props: { runId: RUN_ID, isReplay: true },
+      state: "branch-not-taken",
+      copy: "took a different branch",
+    },
+    {
+      label: "pending, run finished",
+      props: { runId: RUN_ID, isReplay: true, nodeStatus: "pending" },
+      state: "branch-not-taken",
+      copy: "took a different branch",
+    },
+    {
+      label: "failed",
+      props: { runId: RUN_ID, isReplay: true, nodeStatus: "failed" },
+      state: "failed",
+      copy: "This step failed",
+    },
+    {
+      label: "cancelled",
+      props: { runId: RUN_ID, isReplay: true, nodeStatus: "cancelled" },
+      state: "cancelled",
+      copy: "run was cancelled",
+    },
+    {
+      label: "running, live",
+      props: { runId: RUN_ID, nodeStatus: "running" },
+      state: "running",
+      copy: "Running now",
+    },
+    {
+      label: "not started, live",
+      props: { runId: RUN_ID },
+      state: "not-started",
+      copy: "hasn't reached this step yet",
+    },
+    {
+      label: "no run selected",
+      props: {},
+      state: "no-run",
+      copy: "Run this workflow",
+    },
+  ];
+
+  it.each(NO_OUTPUT_CASES)("renders distinct copy for $label", async ({
+    props,
+    state,
+    copy,
+  }) => {
     fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
-      // A branch not taken / never reached: node status is absent (undefined).
-      // A missing row is NOT an eviction here — re-running wouldn't repopulate
-      // it — so we explain rather than blame the cache.
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        outputCtxKey="nodeOut"
+        {...props}
+      />,
+    );
+
+    const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(wrapper.getAttribute("data-state")).toBe(state);
+    });
+    expect(wrapper).toHaveTextContent(copy);
+    // None of these are evictions — no Re-run recovery may be offered.
+    expect(screen.queryByTestId(`cache-evicted-alert-${NODE_ID}`)).toBeNull();
+  });
+
+  it("distinguishes a branch that was not taken from a node that never started", async () => {
+    // Identical inputs apart from whether the run is over — the distinction
+    // the old single sentence could not express.
+    // `mockImplementation`, not `mockResolvedValue` — the second render needs
+    // its own unconsumed Response body.
+    fetchSpy.mockImplementation(() => Promise.resolve(emptyBatchResponse()));
+    const { unmount } = renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+      />,
+    );
+    const live = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(live.getAttribute("data-state")).toBe("not-started");
+    });
+    unmount();
+
+    renderWithProviders(
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
@@ -424,22 +526,63 @@ describe("Scenario 5 — loading + error states", () => {
         isReplay
       />,
     );
+    const replayed = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(replayed.getAttribute("data-state")).toBe("branch-not-taken");
+    });
+  });
+
+  it("shows a state during a live run, not a blank", async () => {
+    // The G-012 headline: the live-Try branch used to be a bare `return null`.
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+        nodeStatus="running"
+      />,
+    );
 
     const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
     await waitFor(() => {
-      expect(wrapper.getAttribute("data-state")).toBe("not-run");
+      expect(wrapper.getAttribute("data-state")).toBe("running");
     });
-    expect(wrapper).toHaveTextContent("didn't run in this run");
-    // Not the cache-evicted recovery copy.
-    expect(wrapper).not.toHaveTextContent("cache evicted");
+    expect(wrapper.textContent).not.toBe("");
   });
 
-  it("stays silent in REPLAY mode for a control-flow node (producesOutput=false) even when it succeeded — no misleading 'cache evicted'", async () => {
+  it("still shows the eviction message with its Re-run action for a genuine TTL eviction", async () => {
+    // Regression guard: eviction is a DIFFERENT cause with a DIFFERENT
+    // remedy and must never be folded into "didn't run".
+    fetchSpy.mockResolvedValue(emptyBatchResponse());
+
+    renderWithProviders(
+      <PreviewWidget
+        workflowId={WORKFLOW_ID}
+        nodeId={NODE_ID}
+        runId={RUN_ID}
+        isReplay
+        nodeStatus="skipped"
+      />,
+    );
+
+    const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
+    await waitFor(() => {
+      expect(wrapper.getAttribute("data-state")).toBe("evicted");
+    });
+    expect(
+      screen.getByTestId(`cache-evicted-alert-${NODE_ID}`),
+    ).toBeInTheDocument();
+  });
+
+  it("marks a control-flow node `not-previewable` instead of an indistinguishable blank", async () => {
     fetchSpy.mockResolvedValue(emptyBatchResponse());
 
     renderWithProviders(
       // A switch that succeeded (evaluated its condition) but never wrote an
-      // output-cache row. A missing row is not an eviction — render nothing.
+      // output-cache row. Not an eviction, not a "didn't run" — and no longer
+      // the same empty card as either.
       <PreviewWidget
         workflowId={WORKFLOW_ID}
         nodeId={NODE_ID}
@@ -450,66 +593,13 @@ describe("Scenario 5 — loading + error states", () => {
       />,
     );
 
-    // The wrapper never mounts — silent.
-    await waitFor(() => {
-      expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
-    });
-  });
-
-  it("renders a 'step failed' Alert (NOT cache-evicted) when data === null in REPLAY mode AND the node failed", async () => {
-    fetchSpy.mockResolvedValue(emptyBatchResponse());
-
-    renderWithProviders(
-      <PreviewWidget
-        workflowId={WORKFLOW_ID}
-        nodeId={NODE_ID}
-        runId={RUN_ID}
-        isReplay
-        nodeStatus="failed"
-      />,
-    );
-
     const wrapper = await screen.findByTestId(`preview-widget-${NODE_ID}`);
     await waitFor(() => {
-      expect(wrapper.getAttribute("data-state")).toBe("not-run");
+      expect(wrapper.getAttribute("data-state")).toBe("not-previewable");
     });
-    expect(wrapper).toHaveTextContent("This step failed in this run");
-  });
-
-  it("§4.7: stays silent for a not-yet-run node during a LIVE Try (runId set, isReplay false)", async () => {
-    fetchSpy.mockResolvedValue(emptyBatchResponse());
-
-    renderWithProviders(
-      // Live Try: runId is set but isReplay is false — a 404 means the run
-      // hasn't reached this node yet, NOT an eviction.
-      <PreviewWidget
-        workflowId={WORKFLOW_ID}
-        nodeId={NODE_ID}
-        runId={RUN_ID}
-      />,
-    );
-
-    // No cache-evicted alert; the wrapper stays unmounted (silent).
-    await waitFor(() => {
-      expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
-    });
-  });
-
-  it("renders null silently when data === null AND no runId", async () => {
-    fetchSpy.mockResolvedValue(emptyBatchResponse());
-
-    renderWithProviders(
-      <PreviewWidget
-        workflowId={WORKFLOW_ID}
-        nodeId={NODE_ID}
-        outputCtxKey="nodeOut"
-      />,
-    );
-
-    // Wait until the resolved-data null branch has unmounted the wrapper.
-    await waitFor(() => {
-      expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
-    });
+    // Deliberately draws no copy — a message on every control-flow node would
+    // paper the canvas — but the state is observable.
+    expect(screen.queryByTestId(`cache-evicted-alert-${NODE_ID}`)).toBeNull();
   });
 });
 

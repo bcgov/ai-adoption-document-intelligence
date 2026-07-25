@@ -15,8 +15,13 @@
  *   |----------------------|-------------------------------------------|
  *   | `isLoading`          | `<Skeleton h={120} radius="sm" />`        |
  *   | `error` set          | `<Alert color="red">Preview unavailable</Alert>` |
- *   | `data === null && runId` | `<CacheEvictedAlert>` (US-155 — small red Alert + Re-run button that fetches historical `initialCtx` and POSTs a fresh `/runs`) |
- *   | `data === null && !runId` | `null` (silent — node hasn't run yet) |
+ *   | `data === null`      | the derived `NoOutputReason` (see `no-output-state.ts`) — `evicted` gets `<CacheEvictedAlert>` (US-155: Re-run repopulates the row); every other reason gets `<NoOutputNotice>` |
+ *
+ * G-012: `data === null` used to render a single sentence for `pending`,
+ * `running`, `cancelled` and absent, and only in replay — during a live Try
+ * the branch was a bare `return null`, so the most informative moment showed a
+ * blank. Every reason now has its own state, its own copy, and its own
+ * `data-state`, live runs included.
  *
  * The maxHeight of the preview pane is constrained (200px) so the
  * canvas stays readable; widgets handle their own internal scrolling.
@@ -28,41 +33,21 @@
  */
 
 import { resolveCtxBinding } from "@ai-di/graph-workflow";
-import { Alert, Box, Skeleton, Text } from "@mantine/core";
+import { Alert, Box, Skeleton } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import type { NodeRunStatusValue } from "../run/node-status.types";
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
+import { NoOutputNotice } from "./NoOutputNotice";
+import {
+  describeNoOutput,
+  noOutputReasonForNode,
+  type PreviewState,
+} from "./no-output-state";
 import type { ActivityOutputPreview } from "./preview.types";
 import { renderKindValue } from "./render-kind-value";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
-
-/**
- * Whether a node in the given run status could have written an output-cache
- * row. Only nodes that actually produced output — `succeeded` (ran fresh) or
- * `skipped` (served from a cache hit) — ever had a row to evict. A `failed`,
- * `pending`, `running`, `cancelled`, or absent (undefined) node never wrote
- * one, so a missing row in replay is NOT a TTL eviction for those.
- */
-function producedOutput(status: NodeRunStatusValue | undefined): boolean {
-  return status === "succeeded" || status === "skipped";
-}
-
-/**
- * Honest copy for a replayed node whose cache row is absent because the node
- * never produced output in that run (as opposed to a genuine TTL eviction).
- * Re-running the workflow wouldn't "repopulate" anything here, so we don't
- * offer the cache-evicted Re-run recovery — we explain what actually happened.
- */
-function notRunMessage(status: NodeRunStatusValue | undefined): string {
-  if (status === "failed") {
-    return "This step failed in this run — no output was produced to preview.";
-  }
-  // pending / running / cancelled / absent — the branch was not taken or the
-  // run never reached this node.
-  return "This step didn't run in this run, so there's no output to preview.";
-}
 
 /**
  * Max height of the preview pane (px). Constrains every widget so the
@@ -95,11 +80,12 @@ export interface PreviewWidgetProps {
    */
   outputCtxKey?: string;
   /**
-   * The node's run status in the active run. Used only in replay mode to tell
-   * a genuine cache eviction (`succeeded` / `skipped` — the node produced
-   * output, but its row was TTL-evicted) apart from a node that never produced
-   * output (`failed` / not-run), so the empty-preview copy is honest instead of
-   * always blaming the cache. Absent → treated as "didn't run".
+   * The node's run status in the active run. Drives `noOutputReasonForNode`:
+   * it tells a genuine cache eviction (`succeeded` / `skipped` — the node
+   * produced output but its row was TTL-evicted, and Re-run repopulates it)
+   * apart from failed / cancelled / still-running / never-reached, each of
+   * which gets its own copy. Absent means the run's node-status map has no
+   * entry for this node.
    */
   nodeStatus?: NodeRunStatusValue;
   /**
@@ -138,7 +124,10 @@ export function PreviewWidget({
 
   if (isLoading) {
     return (
-      <Box data-testid={`preview-widget-${nodeId}`} data-state="loading">
+      <Box
+        data-testid={`preview-widget-${nodeId}`}
+        data-state={"loading" satisfies PreviewState}
+      >
         <Skeleton h={120} radius="sm" />
       </Box>
     );
@@ -146,7 +135,10 @@ export function PreviewWidget({
 
   if (error) {
     return (
-      <Box data-testid={`preview-widget-${nodeId}`} data-state="error">
+      <Box
+        data-testid={`preview-widget-${nodeId}`}
+        data-state={"error" satisfies PreviewState}
+      >
         <Alert color="red" variant="light">
           Preview unavailable
         </Alert>
@@ -155,59 +147,60 @@ export function PreviewWidget({
   }
 
   if (data === null) {
-    // Control-flow nodes (switch / map / join / humanGate / childWorkflow /
-    // pollUntil) never write an output-cache row, so a missing row is neither
-    // an eviction nor a "didn't run" — there's nothing to preview. Stay silent
-    // rather than showing a misleading "cache evicted" alert on them.
-    if (!producesOutput) return null;
-    // Cache row gone (404). §4.7: only surface the cache-evicted recovery
-    // Alert + Re-run button (US-155) in REPLAY mode, where a missing row
-    // genuinely means the TTL evicted it. During a live Try, `runId` is also
-    // set but nodes the run hasn't reached yet 404 on the preview-cache — that
-    // is normal, so stay silent instead of flooding the canvas with false
-    // "cache evicted" alerts (clicking Re-run there would duplicate/cancel the
-    // in-flight Try).
-    if (isReplay && runId !== undefined && runId !== "") {
-      // A missing cache row in replay has two very different causes. Only when
-      // the node actually PRODUCED output (succeeded / cache-hit) is a missing
-      // row a genuine TTL eviction — offer the Re-run-to-repopulate recovery.
-      // Otherwise the node never wrote a row (branch not taken, never reached,
-      // or it failed before producing output), so re-running wouldn't
-      // repopulate anything — say what actually happened instead of blaming the
-      // cache (the misleading "cache evicted" the user hit on a fresh run).
-      if (producedOutput(nodeStatus)) {
-        return (
-          <Box data-testid={`preview-widget-${nodeId}`} data-state="evicted">
-            <CacheEvictedAlert
-              workflowId={workflowId}
-              runId={runId}
-              nodeId={nodeId}
-            />
-          </Box>
-        );
-      }
+    // No cache row. G-012: every reason that can be true here gets its OWN
+    // state and its OWN copy — including during a LIVE run, where this branch
+    // used to `return null` and show the author nothing at exactly the moment
+    // they are watching a Try take an unexpected branch.
+    //
+    // `isReplay` (plus a non-empty runId) is what tells us the run is OVER:
+    // only then does an absent node status mean "control never came this way"
+    // rather than "not yet".
+    const hasRun = runId !== undefined && runId !== "";
+    const reason = noOutputReasonForNode({
+      status: nodeStatus,
+      runFinished: isReplay && hasRun,
+      producesOutput,
+      hasActiveRun: hasRun,
+    });
+    const copy = describeNoOutput(reason);
+
+    // Eviction is the ONE reason with a working recovery: the node genuinely
+    // produced output and re-running repopulates the row. Every other reason
+    // must not offer it — re-running would repopulate nothing, and mid-Try it
+    // would duplicate or cancel the in-flight run.
+    if (copy.offersRerun && hasRun) {
       return (
-        <Box data-testid={`preview-widget-${nodeId}`} data-state="not-run">
-          <Alert color="gray" variant="light">
-            <Text size="xs">{notRunMessage(nodeStatus)}</Text>
-          </Alert>
+        <Box
+          data-testid={`preview-widget-${nodeId}`}
+          data-state={"evicted" satisfies PreviewState}
+        >
+          <CacheEvictedAlert
+            workflowId={workflowId}
+            runId={runId}
+            nodeId={nodeId}
+          />
         </Box>
       );
     }
-    // Live Try (not-yet-run node) or no `runId` — stay silent so the canvas
-    // isn't cluttered with empty/false panes.
-    return null;
+
+    return (
+      <Box data-testid={`preview-widget-${nodeId}`} data-state={reason}>
+        <NoOutputNotice reason={reason} />
+      </Box>
+    );
   }
 
   const content = renderForOutputKind(data, outputCtxKey);
   if (content === null) {
+    // G-011 (Task 2) removes this branch: a kind with no dedicated renderer
+    // currently produces an indistinguishable blank card.
     return null;
   }
 
   return (
     <Box
       data-testid={`preview-widget-${nodeId}`}
-      data-state="ready"
+      data-state={"ready" satisfies PreviewState}
       data-output-kind={data.outputKind ?? ""}
       style={{ maxHeight: PREVIEW_MAX_HEIGHT_PX, overflow: "hidden" }}
     >

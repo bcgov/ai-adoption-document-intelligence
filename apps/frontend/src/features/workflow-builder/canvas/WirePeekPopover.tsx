@@ -19,6 +19,12 @@ import type { ReactNode } from "react";
 
 import { CacheEvictedAlert } from "../preview/CacheEvictedAlert";
 import { JsonValuePreview } from "../preview/JsonValuePreview";
+import { NoOutputNotice } from "../preview/NoOutputNotice";
+import {
+  describeNoOutput,
+  noOutputReasonForNode,
+  type PreviewState,
+} from "../preview/no-output-state";
 import { renderKindValue } from "../preview/render-kind-value";
 import { useActivityOutputPreview } from "../preview/useActivityOutputPreview";
 import { useOptionalRunState } from "../run/RunStateContext";
@@ -34,13 +40,18 @@ export interface WirePeekPopoverProps {
  * Shared Paper + header chrome so every state branch renders an identical
  * bordered, click-swallowing surface (clicks inside must not bubble to the
  * canvas). `data-state` distinguishes the branch for tests + styling.
+ *
+ * G-012: `state` was a bare `string`, and this component emitted `no-run` for
+ * causes the node card called `not-run` (plus two more of its own). It is now
+ * the shared `PreviewState` union, so the two surfaces cannot name the same
+ * state differently.
  */
 function Shell({
   state,
   header,
   children,
 }: {
-  state: string;
+  state: PreviewState;
   header: string;
   children: ReactNode;
 }): ReactNode {
@@ -79,6 +90,7 @@ export function WirePeekPopover({
   const workflowId = runState?.workflowId ?? "";
   const activeRunId = runState?.activeRunId ?? null;
   const isReplay = runState?.isReplay ?? false;
+  const producerStatus = runState?.nodeStatuses[wire.source]?.status;
   const header = `${producerLabel ?? wire.source} → ${portLabel ?? wire.sourcePort}`;
 
   // Called unconditionally (hooks rules) — the branches below only read its
@@ -90,12 +102,13 @@ export function WirePeekPopover({
     activeRunId ?? undefined,
   );
 
-  if (activeRunId === null || activeRunId === "") {
+  const hasActiveRun = activeRunId !== null && activeRunId !== "";
+  if (!hasActiveRun) {
     return (
       <Shell state="no-run" header={header}>
-        <Text size="xs" c="dimmed" data-testid="wire-peek-value">
-          Run to see the data flowing here.
-        </Text>
+        <div data-testid="wire-peek-value">
+          <NoOutputNotice reason="no-run" />
+        </div>
       </Shell>
     );
   }
@@ -116,7 +129,18 @@ export function WirePeekPopover({
     );
   }
   if (data === null) {
-    if (isReplay) {
+    // G-012: this branch used to blame the cache for EVERY missing row in
+    // replay (even for a node that never ran), and to say "Run to see the data
+    // flowing here" during a live run that was already in flight. It now
+    // shares the node card's derivation, so the two surfaces agree on both the
+    // state name and the copy.
+    const reason = noOutputReasonForNode({
+      status: producerStatus,
+      runFinished: isReplay,
+      producesOutput: true,
+      hasActiveRun,
+    });
+    if (describeNoOutput(reason).offersRerun) {
       return (
         <Shell state="evicted" header={header}>
           <CacheEvictedAlert
@@ -128,10 +152,10 @@ export function WirePeekPopover({
       );
     }
     return (
-      <Shell state="no-run" header={header}>
-        <Text size="xs" c="dimmed" data-testid="wire-peek-value">
-          Run to see the data flowing here.
-        </Text>
+      <Shell state={reason} header={header}>
+        <div data-testid="wire-peek-value">
+          <NoOutputNotice reason={reason} />
+        </div>
       </Shell>
     );
   }

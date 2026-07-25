@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityOutputPreview } from "../preview/preview.types";
 import type { UseActivityOutputPreviewResult } from "../preview/useActivityOutputPreview";
+import type { NodeStatusesMap } from "../run/node-status.types";
 import {
   buildRunStateContextValue,
   RunStateTestProvider,
@@ -66,6 +67,7 @@ interface RenderOptions {
   isReplay?: boolean;
   withProvider?: boolean;
   wireOverride?: DataWire;
+  nodeStatuses?: NodeStatusesMap;
 }
 
 function renderPopover({
@@ -73,6 +75,7 @@ function renderPopover({
   isReplay = false,
   withProvider = true,
   wireOverride = wire,
+  nodeStatuses = {},
 }: RenderOptions = {}): void {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -86,6 +89,7 @@ function renderPopover({
         workflowId: "wf-1",
         activeRunId,
         isReplay,
+        nodeStatuses,
       })}
     >
       {inner}
@@ -119,7 +123,7 @@ describe("WirePeekPopover", () => {
       "no-run",
     );
     expect(screen.getByTestId("wire-peek-value")).toHaveTextContent(
-      "Run to see the data",
+      "Run this workflow to see what this step produces.",
     );
   });
 
@@ -148,9 +152,14 @@ describe("WirePeekPopover", () => {
     );
   });
 
-  it("renders the cache-evicted recovery when replaying a run with no data", () => {
+  // G-012: a missing row in replay is only an EVICTION when the producer
+  // actually produced output. This used to blame the cache unconditionally.
+  it("renders the cache-evicted recovery when replaying a run whose producer succeeded", () => {
     mockPreview.mockReturnValue(preview({ data: null }));
-    renderPopover({ isReplay: true });
+    renderPopover({
+      isReplay: true,
+      nodeStatuses: { [wire.source]: { status: "succeeded" } },
+    });
 
     expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
       "data-state",
@@ -161,16 +170,65 @@ describe("WirePeekPopover", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the no-run prompt for a live (non-replay) run with no cache row", () => {
+  it("does NOT blame the cache when the replayed producer never ran", () => {
     mockPreview.mockReturnValue(preview({ data: null }));
-    renderPopover({ activeRunId: "run-1", isReplay: false });
+    renderPopover({ isReplay: true, nodeStatuses: {} });
 
     expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
       "data-state",
-      "no-run",
+      "branch-not-taken",
+    );
+    expect(
+      screen.queryByTestId(`cache-evicted-alert-${wire.source}`),
+    ).toBeNull();
+    expect(screen.getByTestId("wire-peek-value")).toHaveTextContent(
+      "took a different branch",
+    );
+  });
+
+  it("says the producer is still running during a live run with no cache row", () => {
+    mockPreview.mockReturnValue(preview({ data: null }));
+    renderPopover({
+      activeRunId: "run-1",
+      isReplay: false,
+      nodeStatuses: { [wire.source]: { status: "running" } },
+    });
+
+    expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
+      "data-state",
+      "running",
     );
     expect(screen.getByTestId("wire-peek-value")).toHaveTextContent(
-      "Run to see the data flowing here.",
+      "Running now",
+    );
+  });
+
+  it("says the run hasn't reached the producer yet during a live run", () => {
+    mockPreview.mockReturnValue(preview({ data: null }));
+    renderPopover({ activeRunId: "run-1", isReplay: false, nodeStatuses: {} });
+
+    expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
+      "data-state",
+      "not-started",
+    );
+    expect(screen.getByTestId("wire-peek-value")).toHaveTextContent(
+      "hasn't reached this step yet",
+    );
+  });
+
+  it("says the producer failed rather than reporting a generic 'no data'", () => {
+    mockPreview.mockReturnValue(preview({ data: null }));
+    renderPopover({
+      isReplay: true,
+      nodeStatuses: { [wire.source]: { status: "failed" } },
+    });
+
+    expect(screen.getByTestId("wire-peek-popover")).toHaveAttribute(
+      "data-state",
+      "failed",
+    );
+    expect(screen.getByTestId("wire-peek-value")).toHaveTextContent(
+      "This step failed",
     );
   });
 
