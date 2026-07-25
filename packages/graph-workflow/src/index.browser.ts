@@ -38,7 +38,11 @@ export {
 } from "./auto-wire";
 export { computeInputHash } from "./cache/compute-input-hash";
 // Cache constants (Phase 4 — try-in-place). Browser-safe: sha256 via @noble/hashes.
-export { DEFAULT_CACHE_TTL_MS } from "./cache/constants";
+export {
+  CACHE_TTL_ENV_VAR,
+  DEFAULT_CACHE_TTL_MS,
+  resolveCacheTtlMs,
+} from "./cache/constants";
 export { hashArtifact } from "./cache/hash-artifact";
 export { sha256Hex } from "./cache/sha256-hex";
 export { stableJson } from "./cache/stable-json";

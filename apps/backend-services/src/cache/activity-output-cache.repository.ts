@@ -1,4 +1,4 @@
-import { DEFAULT_CACHE_TTL_MS } from "@ai-di/graph-workflow";
+import { resolveCacheTtlMs } from "@ai-di/graph-workflow";
 import type { ActivityOutputCache, Prisma } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
@@ -42,7 +42,8 @@ export interface ActivityOutputCacheRunWindowKey
 /**
  * Input for `upsert`. The unique-key columns plus the payload columns. When
  * `ttlMs` is omitted the row's `expiresAt` is set to
- * `now + DEFAULT_CACHE_TTL_MS` (24 hours, from US-126).
+ * `now + resolveCacheTtlMs(process.env)` (14 days by default; override with
+ * `ACTIVITY_OUTPUT_CACHE_TTL_MS` — G-024).
  */
 export interface ActivityOutputCacheUpsertInput extends ActivityOutputCacheKey {
   outputCtx: Prisma.InputJsonValue;
@@ -106,12 +107,14 @@ export class ActivityOutputCacheRepository {
    * (`outputCtx`, `outputKind`, `expiresAt`) are refreshed; the unique-key
    * columns are not.
    *
-   * `expiresAt` is computed as `now + (ttlMs ?? DEFAULT_CACHE_TTL_MS)`.
+   * `expiresAt` is computed as `now + (ttlMs ?? resolveCacheTtlMs(process.env))`.
    */
   async upsert(
     input: ActivityOutputCacheUpsertInput,
   ): Promise<ActivityOutputCache> {
-    const ttl = input.ttlMs ?? DEFAULT_CACHE_TTL_MS;
+    // G-024 — the retention window is env-tunable
+    // (ACTIVITY_OUTPUT_CACHE_TTL_MS) so it can be adjusted without a deploy.
+    const ttl = input.ttlMs ?? resolveCacheTtlMs(process.env);
     const expiresAt = new Date(Date.now() + ttl);
     const outputKind = input.outputKind ?? null;
 

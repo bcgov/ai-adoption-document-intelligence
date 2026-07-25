@@ -113,9 +113,9 @@ describe("stableJson — Scenario 5: ≥8 cases covering the contract", () => {
 
   // Case 2: mixed arrays and objects
   it("[case 2] mixed arrays of objects and primitives", () => {
-    expect(
-      stableJson({ items: [{ b: 1, a: 2 }, 7, { z: 9, y: 8 }] }),
-    ).toBe('{"items":[{"a":2,"b":1},7,{"y":8,"z":9}]}');
+    expect(stableJson({ items: [{ b: 1, a: 2 }, 7, { z: 9, y: 8 }] })).toBe(
+      '{"items":[{"a":2,"b":1},7,{"y":8,"z":9}]}',
+    );
   });
 
   // Case 3: deep nesting (≥3 levels)

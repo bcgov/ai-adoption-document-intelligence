@@ -26,7 +26,7 @@
  * feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L14.
  */
 
-import { DEFAULT_CACHE_TTL_MS } from "@ai-di/graph-workflow";
+import { resolveCacheTtlMs } from "@ai-di/graph-workflow";
 import type { Prisma } from "@generated/client";
 import { getPrismaClient } from "../database-client";
 import type {
@@ -81,7 +81,9 @@ async function findFresh(
 
 async function upsert(input: ActivityOutputCacheUpsertInput): Promise<void> {
   const prisma = getPrismaClient();
-  const ttl = input.ttlMs ?? DEFAULT_CACHE_TTL_MS;
+  // G-024 — the retention window is env-tunable
+  // (ACTIVITY_OUTPUT_CACHE_TTL_MS) so it can be adjusted without a deploy.
+  const ttl = input.ttlMs ?? resolveCacheTtlMs(process.env);
   const expiresAt = new Date(Date.now() + ttl);
   const outputKind = input.outputKind ?? null;
   const outputCtx = input.outputCtx as Prisma.InputJsonValue;

@@ -131,16 +131,25 @@ export async function fetchInputCtx(
 /**
  * Starts a fresh Try via `POST /api/workflows/:id/runs` with the supplied
  * `initialCtx`. Exported so unit tests can stub the network surface.
+ *
+ * G-024 — `workflowVersionId` targets the version the user is LOOKING AT.
+ * Omitting it makes the backend default to head, so a re-run offered while
+ * replaying an old run silently executed a different graph and filed the
+ * result in history as if it were the same thing. Absent only when not
+ * replaying, where head is the correct target.
  */
 export async function startRunWithCtx(
   workflowId: string,
   initialCtx: Record<string, unknown>,
+  workflowVersionId?: string,
 ): Promise<StartRunResponseBody> {
   const url = `${API_BASE_URL}/workflows/${workflowId}/runs`;
   const response = await builderFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ initialCtx }),
+    body: JSON.stringify(
+      workflowVersionId ? { initialCtx, workflowVersionId } : { initialCtx },
+    ),
   });
 
   if (!response.ok) {
@@ -198,7 +207,7 @@ export function CacheEvictedAlert({
   runId,
   nodeId,
 }: CacheEvictedAlertProps): ReactNode {
-  const { setActiveRunId, setIsReplay } = useRunState();
+  const { replayVersion, setActiveRunId, setIsReplay } = useRunState();
   const [mode, setMode] = useState<Mode>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -207,7 +216,14 @@ export function CacheEvictedAlert({
     setErrorMessage(null);
     try {
       const { initialCtx } = await fetchInputCtx(workflowId, runId);
-      const result = await startRunWithCtx(workflowId, initialCtx);
+      // G-024 — re-run THE VERSION BEING VIEWED. `replayVersion` is the
+      // version pin G-004 put on the replay; without it this POST defaults
+      // to head, which after G-004 is visibly a different graph.
+      const result = await startRunWithCtx(
+        workflowId,
+        initialCtx,
+        replayVersion?.id,
+      );
       // Swap the editor out of replay mode into the new live run. The
       // `setIsReplay(false)` call closes the top-bar's "Replay mode"
       // indicator (driven by `RunStateContext.isReplay`).
@@ -231,16 +247,21 @@ export function CacheEvictedAlert({
     setErrorMessage(null);
   };
 
+  const versionLabel = replayVersion ? `v${replayVersion.versionNumber}` : null;
+
   const alertText = ((): string => {
     switch (mode) {
       case "rerunning":
-        return "Re-running...";
+        return versionLabel ? `Re-running ${versionLabel}...` : "Re-running...";
       case "retention-cleaned":
         return "Re-run unavailable — historical input has been retention-cleaned";
       case "error":
         return errorMessage ?? "Re-run failed";
       case "idle":
-        return "Preview unavailable — cache evicted. Re-run to repopulate.";
+        // Name the target so the user is not guessing which graph runs.
+        return versionLabel
+          ? `Preview unavailable — cache evicted. Re-run ${versionLabel} (the version you are viewing) to repopulate.`
+          : "Preview unavailable — cache evicted. Re-run to repopulate.";
     }
   })();
 
@@ -269,8 +290,9 @@ export function CacheEvictedAlert({
               mode === "rerunning" ? <Loader size="xs" color="white" /> : null
             }
             data-testid={`cache-evicted-rerun-${nodeId}`}
+            data-version-id={replayVersion?.id ?? ""}
           >
-            Re-run
+            {versionLabel ? `Re-run ${versionLabel}` : "Re-run"}
           </Button>
           {mode === "retention-cleaned" && (
             <Anchor

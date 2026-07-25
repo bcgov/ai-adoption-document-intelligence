@@ -325,3 +325,82 @@ describe("Scenario 5 — 404 input-ctx path", () => {
     expect(screen.queryByTestId(`cache-evicted-close-${NODE_ID}`)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-024 — the offered remedy must not compound the problem. The Re-run
+// button POSTed with no `workflowVersionId`, i.e. against head — which after
+// G-004 is visibly a different graph from the one being replayed, and which
+// then appears in history as a new official result.
+// ---------------------------------------------------------------------------
+
+describe("CacheEvictedAlert — G-024 re-run targets the replayed version", () => {
+  function replayCtx(): RunStateContextValue {
+    return buildRunStateContextValue({
+      workflowId: WORKFLOW_ID,
+      activeRunId: RUN_ID,
+      isReplay: true,
+      replayVersion: { id: "v-old", versionNumber: 2 },
+    });
+  }
+
+  it("re-runs the replayed version, not head", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ initialCtx: { documentId: "d1" } }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          workflowId: NEW_RUN_ID,
+          workflowVersionId: "v-old",
+          status: "started",
+        }),
+      );
+    renderAlert({ contextValue: replayCtx() });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`));
+    });
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+    const [, init] = fetchSpy.mock.calls[1];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      initialCtx: { documentId: "d1" },
+      workflowVersionId: "v-old",
+    });
+  });
+
+  it("names the version it will run so the user is not guessing", () => {
+    renderAlert({ contextValue: replayCtx() });
+    expect(
+      screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`),
+    ).toHaveTextContent("Re-run v2");
+    expect(
+      screen.getByTestId(`cache-evicted-alert-text-${NODE_ID}`),
+    ).toHaveTextContent(/the version you are viewing/i);
+  });
+
+  it("still targets head when there is no version pin (not replaying)", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ initialCtx: { documentId: "d1" } }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          workflowId: NEW_RUN_ID,
+          workflowVersionId: "v-head",
+          status: "started",
+        }),
+      );
+    renderAlert();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`));
+    });
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+    const [, init] = fetchSpy.mock.calls[1];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      initialCtx: { documentId: "d1" },
+    });
+  });
+});

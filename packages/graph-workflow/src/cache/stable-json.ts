@@ -40,7 +40,11 @@ export function stableJson(value: unknown): string {
     return "null";
   }
 
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
     return JSON.stringify(value);
   }
 

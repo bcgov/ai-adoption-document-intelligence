@@ -17,7 +17,10 @@ describe("sha256Hex", () => {
       "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
     ],
     // 2-byte (é) sequence.
-    ["café", "850f7dc43910ff890f8879c0ed26fe697c93a067ad93a7d50f466a7028a9bf4e"],
+    [
+      "café",
+      "850f7dc43910ff890f8879c0ed26fe697c93a067ad93a7d50f466a7028a9bf4e",
+    ],
     // 3-byte (CJK) + 4-byte (emoji, surrogate pair) sequences.
     [
       "日本語 😀",

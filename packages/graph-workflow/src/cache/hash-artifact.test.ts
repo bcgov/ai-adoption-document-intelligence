@@ -81,9 +81,7 @@ describe("hashArtifact — Scenario 2: Segment normalisation", () => {
       kind: "Text",
       confidence: 0.92,
     };
-    const expected = sha256Hex(
-      `Segment:doc-7:2-5:${stableJson(polygon)}`,
-    );
+    const expected = sha256Hex(`Segment:doc-7:2-5:${stableJson(polygon)}`);
     expect(hashArtifact(segment)).toBe(expected);
   });
 
@@ -143,9 +141,7 @@ describe("hashArtifact — Scenario 3: arrays hash element-wise with order prese
       pageRange: { start: 3, end: 4 },
       polygon: [{ x: 5, y: 5 }],
     };
-    const expected = sha256Hex(
-      `[${hashArtifact(seg1)},${hashArtifact(seg2)}]`,
-    );
+    const expected = sha256Hex(`[${hashArtifact(seg1)},${hashArtifact(seg2)}]`);
     expect(hashArtifact([seg1, seg2])).toBe(expected);
   });
 
@@ -229,7 +225,10 @@ describe("hashArtifact — Scenario 6: ≥10 cases covering the contract", () =>
 
   // Case 2: Segment path
   it("[case 2] Segment path includes parentDocId, pageRange, polygon — excludes kind/confidence", () => {
-    const polygon = [{ x: 0, y: 0 }, { x: 10, y: 10 }];
+    const polygon = [
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ];
     const segment = {
       parentDocId: "doc-42",
       pageRange: { start: 1, end: 2 },
@@ -331,9 +330,9 @@ describe("hashArtifact — barrel re-export sanity", () => {
     expect(hashArtifact(true)).toMatch(hexPattern);
     expect(hashArtifact(null)).toMatch(hexPattern);
     expect(hashArtifact(undefined)).toMatch(hexPattern);
-    expect(
-      hashArtifact({ url: "u", blobKey: "k", mimeType: "m" }),
-    ).toMatch(hexPattern);
+    expect(hashArtifact({ url: "u", blobKey: "k", mimeType: "m" })).toMatch(
+      hexPattern,
+    );
     expect(
       hashArtifact({
         parentDocId: "p",

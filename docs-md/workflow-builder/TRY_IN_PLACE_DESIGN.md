@@ -93,7 +93,7 @@ model ActivityOutputCache {
   /** Surfaced to the canvas as the source data for preview widgets. */
   outputKind        String?  // ArtifactKind name; null if the catalog entry has no declared output kind
   createdAt         DateTime @default(now())
-  expiresAt         DateTime // createdAt + 24h by default
+  expiresAt         DateTime // createdAt + 14d by default (G-024)
 
   @@unique([workflowLineageId, nodeId, configHash, inputHash])
   @@index([workflowLineageId, nodeId])          // for the preview-cache read endpoint
@@ -177,7 +177,7 @@ export async function executeCachedActivity(
     workflowLineageId, nodeId: node.id, configHash, inputHash,
     outputCtx: delta,
     outputKind: catalogEntry.outputs?.[0]?.kind ?? null,
-    expiresAt: new Date(Date.now() + DEFAULT_CACHE_TTL_MS),
+    expiresAt: new Date(Date.now() + resolveCacheTtlMs(process.env)),
   });
 }
 ```
@@ -255,7 +255,7 @@ The bulk catalog invariant test (Phase 3 Milestone F / US-103) is extended with 
 
 ### 2.7 TTL + lazy GC
 
-Default TTL is 24 hours (`DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000`), configurable per row via the `expiresAt` column. Lazy GC: a small background activity `activityOutputCache.gc` runs once per hour, deleting rows where `expiresAt < now()`. Per the `expiresAt` index, GC is O(rows-to-delete) regardless of total table size.
+Default TTL is **14 days** (`DEFAULT_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000`), overridable per environment with `ACTIVITY_OUTPUT_CACHE_TTL_MS` (see `resolveCacheTtlMs`) and per row via the `expiresAt` column. It was 24 h until G-024: that landed exactly on "the run happened yesterday", the most common debugging situation there is. The measured cost of the longer window is negligible — rows hold the node's ctx delta (avg 264 B, p95 335 B measured) and are UPSERTed on `(lineageId, nodeId, configHash, inputHash)`, so the table grows with distinct input sets rather than with run count. Differential retention (shorter for previews, longer for a workflow's most recent run, or keeping the last N runs) is not expressible today: the table has neither a run id nor a preview flag. Lazy GC: a small background activity `activityOutputCache.gc` runs once per hour, deleting rows where `expiresAt < now()`. Per the `expiresAt` index, GC is O(rows-to-delete) regardless of total table size.
 
 **No eviction on save / editor close.** Editor sessions aren't tracked; trying to attach session lifecycle to cache lifetime adds complexity for little payoff. TTL handles the "user came back tomorrow" case; the same-day case has cache rows that just stay until naturally evicted.
 
@@ -593,7 +593,7 @@ The canvas treats replay mode as read-only-for-runs-only: the user can still edi
 
 ### 6.4 Cache eviction during replay
 
-If a historical run's cache rows have been TTL-evicted (24h after run), the preview-cache endpoint returns 404. The `PreviewWidget` falls back to an empty state: the status badge still renders (from Temporal history, which has longer retention), but the preview pane shows a small "Cache evicted — re-run to repopulate" alert with a "Re-run" button that starts a fresh Try with the historical input ctx.
+If a historical run's cache rows have been TTL-evicted (14 days after the run, by default), the preview-cache endpoint returns 404. The `PreviewWidget` falls back to an empty state: the status badge still renders (from Temporal history, which has longer retention), but the preview pane shows a small "Cache evicted — re-run to repopulate" alert with a "Re-run" button that starts a fresh Try with the historical input ctx **against the version being replayed** (`RunStateContext.replayVersion`), not against head — G-024. The button names the version it will run.
 
 The historical input ctx is captured in `RunSummaryDto.inputCtxSummary` (compact form for display) AND fetched in full from the existing `GET /api/workflows/:id/runs/:runId/input-ctx` endpoint (new, Phase 4 — small) when the user clicks Re-run.
 
@@ -677,6 +677,6 @@ Phase 4 needs minimal validator changes (the cache is a runtime concern; status 
 - **Phase 5 — segmentation node pack.** Phase 5's segmentation activities will produce richer `Segment` artifacts that the `SegmentArrayPreview` already renders. No Phase 4 work to anticipate; just declare the new activities' output kinds correctly.
 - **Phase 6 — dynamic nodes.** User-authored scripts will need to declare `nonCacheable` honestly. The 4.0 `nonCacheable` flag is the hook.
 - **Phase 7 — AI agent.** The agent reads cached previews the same way the canvas does (via `useActivityOutputPreview`); no Phase 4 work to anticipate beyond the existing endpoint surface.
-- **Cache-eviction policy refinement.** 24h TTL is a guess; first month of usage data should tell us whether it's too short (cache-miss frustration) or too long (storage growth). Easy to tune via `DEFAULT_CACHE_TTL_MS`.
+- **Cache-eviction policy refinement.** G-024 replaced the original 24 h guess with a measured 14 d default, tunable per environment via `ACTIVITY_OUTPUT_CACHE_TTL_MS`. The next refinement worth considering — differential retention, or keeping the last N runs regardless of age — needs a run id and/or a preview flag on `ActivityOutputCache` first.
 
 These are deliberately punted: ship the floor in 4.0, layer the polish on top.

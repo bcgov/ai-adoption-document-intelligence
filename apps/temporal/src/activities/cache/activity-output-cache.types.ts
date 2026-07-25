@@ -88,7 +88,8 @@ export interface ActivityOutputCacheFindFreshResult {
 /**
  * Input to `activityOutputCache.upsert`. Carries the composite unique key
  * plus the mutable payload columns. `ttlMs` defaults to
- * `DEFAULT_CACHE_TTL_MS` (24h, from the shared `@ai-di/graph-workflow`
+ * `resolveCacheTtlMs(process.env)` (14d by default, overridable with
+ * `ACTIVITY_OUTPUT_CACHE_TTL_MS`; from the shared `@ai-di/graph-workflow`
  * constant).
  */
 export interface ActivityOutputCacheUpsertInput {

@@ -96,9 +96,7 @@ describe("computeInputHash — Scenario 3: Document/Segment normalisation via ha
       mimeType: "application/pdf",
     };
 
-    const expected = sha256Hex(
-      stableJson({ doc: hashArtifact(document) }),
-    );
+    const expected = sha256Hex(stableJson({ doc: hashArtifact(document) }));
     expect(computeInputHash(node, { document })).toBe(expected);
   });
 
@@ -146,9 +144,7 @@ describe("computeInputHash — Scenario 3: Document/Segment normalisation via ha
       { url: "u1", blobKey: "k1", mimeType: "application/pdf" },
       { url: "u2", blobKey: "k2", mimeType: "application/pdf" },
     ];
-    const expected = sha256Hex(
-      stableJson({ docs: hashArtifact(documents) }),
-    );
+    const expected = sha256Hex(stableJson({ docs: hashArtifact(documents) }));
     expect(computeInputHash(node, { documents })).toBe(expected);
   });
 });
@@ -302,7 +298,9 @@ describe("computeInputHash — Scenario 6: ≥7 cases covering the contract", ()
     const expected = sha256Hex(
       stableJson({ doc: hashArtifact(document), tol: 0.05 }),
     );
-    expect(computeInputHash(node, { document, tolerance: 0.05 })).toBe(expected);
+    expect(computeInputHash(node, { document, tolerance: 0.05 })).toBe(
+      expected,
+    );
   });
 });
 
@@ -320,7 +318,9 @@ describe("computeInputHash — Scenario 7: namespace-aware ctx resolution (doc.*
   });
 
   it("reads segment.* through the currentSegment namespace", () => {
-    const node = makeActivity("n1", [{ port: "p", ctxKey: "segment.pageRange" }]);
+    const node = makeActivity("n1", [
+      { port: "p", ctxKey: "segment.pageRange" },
+    ]);
     const ctx = { currentSegment: { pageRange: { start: 2, end: 4 } } };
     const expected = sha256Hex(stableJson({ p: { start: 2, end: 4 } }));
     expect(computeInputHash(node, ctx)).toBe(expected);
@@ -359,9 +359,9 @@ describe("computeInputHash — Scenario 7: namespace-aware ctx resolution (doc.*
       blobKey: "tenant/file.pdf",
       mimeType: "application/pdf",
     };
-    expect(
-      computeInputHash(node, { documentMetadata: { source: docA } }),
-    ).toBe(computeInputHash(node, { documentMetadata: { source: docB } }));
+    expect(computeInputHash(node, { documentMetadata: { source: docA } })).toBe(
+      computeInputHash(node, { documentMetadata: { source: docB } }),
+    );
   });
 });
 
