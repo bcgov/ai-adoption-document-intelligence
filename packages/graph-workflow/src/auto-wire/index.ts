@@ -9,6 +9,7 @@ export {
   type AutoBoundVia,
   type PortResolution,
 } from "./resolve-input-port";
+export { resolveCtxKeySource, type CtxKeySource } from "./ctx-source";
 export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
 export { normaliseLocks } from "./normalise-locks";
 export { stripRedundantLocks } from "./strip-redundant-locks";
