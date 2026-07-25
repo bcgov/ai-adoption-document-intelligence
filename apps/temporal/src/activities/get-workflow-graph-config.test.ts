@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/activity";
 import { computeConfigHash } from "../config-hash";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 import { getPrismaClient } from "./database-client";
@@ -139,6 +140,66 @@ describe("getWorkflowGraphConfig activity", () => {
     await expect(
       getWorkflowGraphConfig({ workflowId: "missing" }),
     ).rejects.toThrow("Workflow not found by ID or name: missing");
+  });
+
+  // ---------------------------------------------------------------------------
+  // G-019 — a library child that no longer exists can never resolve, so it must
+  // fail on the first attempt instead of burning the childWorkflow node's whole
+  // retry budget.
+  // ---------------------------------------------------------------------------
+  describe("G-019 — missing library child fails fast", () => {
+    it("fails fast and non-retryably when a library child no longer exists", async () => {
+      prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
+      prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "lin-deleted",
+        parentNodeId: "call-library-1",
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      expect(failure.type).toBe("LIBRARY_WORKFLOW_NOT_FOUND");
+      // Names the missing workflow AND the parent node.
+      expect(failure.message).toContain("lin-deleted");
+      expect(failure.message).toContain("call-library-1");
+    });
+
+    it("fails fast and non-retryably when the pinned version is gone", async () => {
+      prismaMock.workflowLineage.findUnique.mockResolvedValue({ id: "lin-1" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "lin-1",
+        version: 99,
+        parentNodeId: "call-library-2",
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      expect(failure.message).toContain("has no version 99");
+      expect(failure.message).toContain("call-library-2");
+    });
+
+    it("fails fast and non-retryably when a pinned ref resolves to no lineage", async () => {
+      prismaMock.workflowLineage.findUnique.mockResolvedValue(null);
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "ghost",
+        version: 1,
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      // No parentNodeId supplied — the message stays clean rather than
+      // interpolating "undefined".
+      expect(failure.message).toBe("Library lineage not found: ghost");
+    });
   });
 
   // US-080: version-pinned resolution

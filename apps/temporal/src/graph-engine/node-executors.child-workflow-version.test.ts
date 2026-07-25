@@ -134,6 +134,9 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledWith({
       workflowId: "lineage-abc",
       version: 3,
+      // G-019: the calling node id rides along so a missing library child
+      // fails with the offending step named.
+      parentNodeId: "child-node",
     });
 
     // The resolved (pinned) version id + hash are handed to the child runner,
@@ -167,6 +170,7 @@ describe("executeChildWorkflowNode — US-080 library version pinning", () => {
     expect(mockGetWorkflowGraphConfig).toHaveBeenCalledWith({
       workflowId: "lineage-abc",
       version: undefined,
+      parentNodeId: "child-node",
     });
   });
 

@@ -27,6 +27,43 @@ const WORKFLOW_SLUG_UNIQUE_MAX_ATTEMPTS = 200;
  */
 const WORKFLOW_SLUG_CREATE_MAX_RETRIES = 5;
 
+/**
+ * Max referencing workflow names listed in the G-019 refusal before the
+ * message collapses to "…and N more".
+ */
+const MAX_LISTED_REFERENCING_WORKFLOWS = 5;
+
+/**
+ * Walk a `WorkflowVersion.config` and collect every library child
+ * reference in it — the `workflowId` of each `{ type: "library",
+ * workflowId }` shape, at any depth.
+ *
+ * Recursive rather than a `config.nodes` scan on purpose: a library ref
+ * can also sit inside an inline child graph (`workflowRef.graph`), and a
+ * structural walk cannot be defeated by a nesting shape we didn't
+ * anticipate. The `type === "library"` + string-`workflowId` test keeps
+ * it precise — it never fires on an id that merely appears somewhere in
+ * the config text.
+ */
+function collectLibraryWorkflowRefs(value: unknown, out: Set<string>): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectLibraryWorkflowRefs(item, out);
+    }
+    return;
+  }
+  if (value === null || typeof value !== "object") {
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.type === "library" && typeof record.workflowId === "string") {
+    out.add(record.workflowId);
+  }
+  for (const child of Object.values(record)) {
+    collectLibraryWorkflowRefs(child, out);
+  }
+}
+
 function isWorkflowVersionUniqueConflict(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -955,6 +992,114 @@ export class WorkflowService {
     return this.mapLineageAndVersion(full, full.headVersion);
   }
 
+  /**
+   * G-019 — refuse to delete a lineage that other workflows still call as
+   * a library child.
+   *
+   * `workflowRef.workflowId` lives inside the `WorkflowVersion.config`
+   * JSON column, so there is no foreign key and the `P2003` catch in
+   * `deleteWorkflow` can never fire for it. Without this scan the parent
+   * keeps validating green and only fails at run time — with a RETRYABLE
+   * error, so it burns its whole retry budget against a condition that can
+   * never resolve.
+   *
+   * Two-stage, mirroring `DynamicNodeRepository.countWorkflowsReferencingSlug`
+   * (`dynamic-node.repository.ts`):
+   *   1. a parameterised `wv.config::text LIKE ${needle}` prefilter — the
+   *      same `Prisma.sql` interpolation, so the needle is bound as a
+   *      parameter and cannot be injected;
+   *   2. an exact structural check of each candidate config in JS. The
+   *      `LIKE` alone would be over-broad — an id that merely appears in
+   *      some unrelated `metadata` string would block a legitimate delete.
+   *
+   * The needles cover EVERY identifier `getWorkflowGraphConfig` accepts for
+   * a ref: a `WorkflowVersion.id`, the `WorkflowLineage.id`, or the lineage
+   * NAME. Scanning only for the lineage id would miss real references.
+   *
+   * Unlike the dynamic-node precedent this scan is NOT scoped to the
+   * lineage's group: `getWorkflowGraphConfig` resolves refs without a group
+   * filter, so a cross-group reference is a real (if unusual) reference and
+   * missing it would break exactly the workflow we are protecting.
+   *
+   * Not transactional with the delete: this is a read, and a workflow saved
+   * between the scan and the delete would race any check we could write
+   * short of a real foreign key. The window is narrow and the failure mode
+   * is the pre-existing one.
+   */
+  private async assertNotReferencedAsLibrary(lineage: {
+    id: string;
+    name: string;
+  }): Promise<void> {
+    const versions = await this.prisma.workflowVersion.findMany({
+      where: { lineage_id: lineage.id },
+      select: { id: true },
+    });
+    const identifiers = new Set<string>([
+      lineage.id,
+      lineage.name,
+      ...versions.map((v) => v.id),
+    ]);
+
+    const needleClauses = [...identifiers].map(
+      (identifier) => Prisma.sql`wv.config::text LIKE ${`%"${identifier}"%`}`,
+    );
+
+    // RULING (G-019): references from NON-HEAD versions count. A superseded
+    // version is still reachable — a caller can pin it via
+    // `workflowRef.version`, documents carry `workflow_version_id`, and
+    // benchmark definitions pin versions — so deleting the child would break
+    // a run that is still perfectly launchable. Only the target lineage's OWN
+    // versions are excluded, since they cascade away with it.
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        lineage_id: string;
+        lineage_name: string;
+        version_number: number;
+        config: unknown;
+      }>
+    >(
+      Prisma.sql`
+        SELECT wl.id AS lineage_id,
+               wl.name AS lineage_name,
+               wv.version_number AS version_number,
+               wv.config AS config
+          FROM "workflow_versions" wv
+          JOIN "workflow_lineages" wl ON wl.id = wv."lineage_id"
+         WHERE wv."lineage_id" <> ${lineage.id}
+           AND (${Prisma.join(needleClauses, " OR ")})
+      `,
+    );
+
+    const referencing = new Map<string, string>();
+    for (const row of rows) {
+      const refs = new Set<string>();
+      collectLibraryWorkflowRefs(row.config, refs);
+      for (const ref of refs) {
+        if (identifiers.has(ref)) {
+          referencing.set(row.lineage_id, row.lineage_name);
+          break;
+        }
+      }
+    }
+
+    if (referencing.size === 0) {
+      return;
+    }
+
+    const names = [...referencing.values()];
+    const listed = names.slice(0, MAX_LISTED_REFERENCING_WORKFLOWS);
+    const remainder = names.length - listed.length;
+    const nameList =
+      remainder > 0
+        ? `${listed.join(", ")} and ${remainder} more`
+        : listed.join(", ");
+    throw new ConflictException(
+      `This workflow cannot be deleted because ${names.length} other workflow${
+        names.length === 1 ? "" : "s"
+      } still call${names.length === 1 ? "s" : ""} it as a library child: ${nameList}. Remove or repoint those child-workflow steps first.`,
+    );
+  }
+
   async deleteWorkflow(lineageId: string, actorId: string): Promise<void> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
@@ -963,6 +1108,8 @@ export class WorkflowService {
     if (!existing) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    await this.assertNotReferencedAsLibrary(existing);
 
     try {
       await this.prisma.workflowLineage.delete({

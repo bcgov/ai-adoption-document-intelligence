@@ -912,6 +912,9 @@ async function executeChildWorkflowNode(
     // US-080: forward the optional pinned version. When undefined, the
     // activity falls through to its head-resolution lookup.
     version: node.workflowRef.version,
+    // G-019: name this node in the activity's non-retryable "library child
+    // is gone" failure so the offending step is identifiable on the canvas.
+    parentNodeId: node.id,
   })) as {
     workflowVersionId: string;
     configHash: string;

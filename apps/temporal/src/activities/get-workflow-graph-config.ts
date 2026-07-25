@@ -1,4 +1,5 @@
 import { applyWorkflowConfigOverrides } from "@ai-di/graph-workflow";
+import { ApplicationFailure } from "@temporalio/activity";
 import { computeConfigHashWithOverrides } from "../config-hash";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 import { getPrismaClient } from "./database-client";
@@ -20,6 +21,39 @@ export interface GetWorkflowGraphConfigInput {
    */
   version?: number;
   workflowConfigOverrides?: Record<string, unknown>;
+  /**
+   * G-019 — the id of the `childWorkflow` node that asked for this config.
+   * Only used to name the offending step in the resolution-failure message,
+   * so an operator can find it on the canvas without reading the graph JSON.
+   */
+  parentNodeId?: string;
+}
+
+/**
+ * `ApplicationFailure` type for "the referenced library workflow is not
+ * there" (G-019). See `notFound` below for why it is non-retryable.
+ */
+const LIBRARY_WORKFLOW_NOT_FOUND = "LIBRARY_WORKFLOW_NOT_FOUND";
+
+/**
+ * G-019 — a library child that cannot be resolved is a PERMANENT failure:
+ * the workflow was deleted, renamed, or its pinned version no longer
+ * exists, and no amount of retrying will bring it back. As a plain `Error`
+ * this was retryable, so the calling `childWorkflow` node burned its entire
+ * retry budget against a condition that can never resolve, and the run's
+ * real cause was buried under identical attempt failures. `nonRetryable`
+ * surfaces it on the first attempt with the missing ref and the parent node
+ * named.
+ */
+function notFound(message: string, parentNodeId?: string): ApplicationFailure {
+  return ApplicationFailure.create({
+    type: LIBRARY_WORKFLOW_NOT_FOUND,
+    message:
+      parentNodeId === undefined
+        ? message
+        : `${message} (referenced by child-workflow node "${parentNodeId}")`,
+    nonRetryable: true,
+  });
 }
 
 /**
@@ -73,7 +107,10 @@ export async function getWorkflowGraphConfig(
         select: { id: true },
       }));
     if (lineage === null) {
-      throw new Error(`Library lineage not found: ${input.workflowId}`);
+      throw notFound(
+        `Library lineage not found: ${input.workflowId}`,
+        input.parentNodeId,
+      );
     }
     const pinned = await prisma.workflowVersion.findUnique({
       where: {
@@ -90,8 +127,9 @@ export async function getWorkflowGraphConfig(
         pinned.config as unknown as GraphWorkflowConfig,
       );
     }
-    throw new Error(
+    throw notFound(
       `Library lineage ${input.workflowId} has no version ${input.version}`,
+      input.parentNodeId,
     );
   }
 
@@ -128,5 +166,8 @@ export async function getWorkflowGraphConfig(
     );
   }
 
-  throw new Error(`Workflow not found by ID or name: ${input.workflowId}`);
+  throw notFound(
+    `Workflow not found by ID or name: ${input.workflowId}`,
+    input.parentNodeId,
+  );
 }

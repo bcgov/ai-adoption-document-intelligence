@@ -68,10 +68,13 @@ const mockVersion = {
   create: jest.fn(),
 };
 
+const mockQueryRaw = jest.fn();
+
 const mockPrismaService = {
   prisma: {
     workflowLineage: mockLineage,
     workflowVersion: mockVersion,
+    $queryRaw: mockQueryRaw,
     $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         workflowLineage: mockLineage,
@@ -108,6 +111,8 @@ describe("WorkflowService", () => {
     mockVersion.create.mockResolvedValue(headVersion);
     mockLineage.update.mockResolvedValue({ ...lineageRow, headVersion });
     mockLineage.delete.mockResolvedValue(undefined);
+    // G-019 — the referencing-workflow scan finds nothing unless a test says so.
+    mockQueryRaw.mockResolvedValue([]);
     mockTemporalClient.listRunningInLineage.mockResolvedValue([]);
     mockTemporalClient.cancelRun.mockResolvedValue(undefined);
     // Restore the pass-through $transaction — individual tests may override it
@@ -809,6 +814,175 @@ describe("WorkflowService", () => {
       await expect(service.deleteWorkflow("lin-1", "actor-1")).rejects.toThrow(
         ConflictException,
       );
+    });
+
+    // -----------------------------------------------------------------------
+    // G-019 — a library workflow must not vanish under the workflows that
+    // call it. `workflowRef.workflowId` lives inside `WorkflowVersion.config`
+    // JSON, so there is no foreign key and the pre-existing `P2003` catch
+    // above can never fire for it.
+    // -----------------------------------------------------------------------
+    describe("G-019 — library reference guard", () => {
+      const callerConfig = (workflowId: string) => ({
+        schemaVersion: "1.0",
+        entryNodeId: "child",
+        ctx: {},
+        nodes: {
+          child: {
+            id: "child",
+            type: "childWorkflow",
+            label: "Run library",
+            workflowRef: { type: "library", workflowId },
+          },
+        },
+        edges: [],
+      });
+
+      it("refuses to delete a workflow that other workflows call as a library", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            version_number: 4,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(/Caller workflow/);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("blocks on a reference that names the lineage rather than its id", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            version_number: 1,
+            // `getWorkflowGraphConfig` resolves a ref by WorkflowVersion.id,
+            // lineage id OR lineage NAME — all three are live references.
+            config: callerConfig(lineageRow.name),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("blocks on a reference that pins one of the lineage's version ids", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([
+          { id: "wv-1" },
+          { id: "wv-2" },
+        ]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            version_number: 1,
+            config: callerConfig("wv-2"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("RULING: a reference from a NON-HEAD version still blocks the delete", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            // Version 2 of a caller whose head is version 7 — superseded, but
+            // still reachable through `workflowRef.version` pinning, through
+            // `Document.workflow_version_id`, and through benchmark
+            // definitions. So it counts.
+            version_number: 2,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("deletes a workflow nothing references", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        expect(mockLineage.delete).toHaveBeenCalledWith({
+          where: { id: "lin-1" },
+        });
+      });
+
+      it("does not block on a LIKE-only match that is not a real library reference", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        // The prefilter `LIKE` matched because the id appears somewhere in the
+        // config text, but no childWorkflow node actually calls it.
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-unrelated",
+            lineage_name: "Unrelated workflow",
+            version_number: 1,
+            config: {
+              schemaVersion: "1.0",
+              entryNodeId: "a",
+              ctx: {},
+              metadata: { note: "forked from lin-1 by hand" },
+              nodes: {
+                a: {
+                  id: "a",
+                  type: "activity",
+                  label: "Extract",
+                  activityType: "azureOcr.extract",
+                  parameters: { sourceWorkflow: "lin-1" },
+                },
+              },
+              edges: [],
+            },
+          },
+        ]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        expect(mockLineage.delete).toHaveBeenCalledWith({
+          where: { id: "lin-1" },
+        });
+      });
+
+      it("ignores self-references from the lineage being deleted", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        // The scan excludes the target lineage's own versions in SQL; assert
+        // the exclusion is expressed rather than relying on the mock.
+        mockQueryRaw.mockResolvedValue([]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        const sql = mockQueryRaw.mock.calls[0][0] as { values: unknown[] };
+        expect(sql.values).toContain("lin-1");
+        expect(mockLineage.delete).toHaveBeenCalled();
+      });
     });
   });
 
