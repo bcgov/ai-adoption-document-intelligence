@@ -49,7 +49,12 @@ import {
 import { handleNodeError, throwPollTimeout } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySetForSubgraph } from "./graph-algorithms";
-import { executeWithConcurrencyLimit, parseDurationToMs } from "./runner-utils";
+import {
+  executeWithConcurrencyLimit,
+  fulfilledValues,
+  parseDurationToMs,
+  rejectedOutcomes,
+} from "./runner-utils";
 
 /**
  * Phase 6 Milestone C (US-171) — workflow-side proxy for the two new
@@ -577,6 +582,18 @@ export function executeSwitchNode(
  *
  * Collections with more than 20 items use child graphWorkflow per branch (ref-only history).
  * Smaller collections run in-process in the parent workflow.
+ *
+ * **Partial failure (G-026).** Branch results are collected by a helper that
+ * settles rather than rejecting, so the successful branches survive a failing
+ * sibling and are always written to `state.mapBranchResults`. What a failure
+ * then MEANS is the map node's `errorPolicy.onError`:
+ *   - absent / `"fail"` — the map throws (today's behaviour), naming the
+ *     failed branch indices, and preserving the first failure's error type
+ *     and retryability;
+ *   - `"skip"` — the successful subset stands and the map completes;
+ *   - `"fallback"` — throws like `fail`; the node-level fallback routing is
+ *     then applied by `handleNodeError`, since a map body has no per-branch
+ *     error edge to fall back to.
  */
 const MAP_CHILD_WORKFLOW_THRESHOLD = 20;
 
@@ -600,7 +617,7 @@ async function executeMapNode(
     collection.length > MAP_CHILD_WORKFLOW_THRESHOLD &&
     state.workflowVersionId !== undefined;
 
-  const results = await executeWithConcurrencyLimit(
+  const outcomes = await executeWithConcurrencyLimit(
     collection,
     maxConcurrency,
     async (item: unknown, index: number) => {
@@ -647,7 +664,59 @@ async function executeMapNode(
     },
   );
 
+  // G-026. The concurrency helper settles rather than rejecting, so the
+  // branches that DID complete are always available here. Record them before
+  // deciding anything: a downstream join reads `mapBranchResults`, and the
+  // point of this fix is to stop one bad branch destroying its siblings.
+  const results = fulfilledValues(outcomes);
   state.mapBranchResults.set(node.id, results);
+
+  const failures = rejectedOutcomes(outcomes);
+  if (failures.length === 0) return;
+
+  const summary = failures
+    .map(
+      (failure) =>
+        `#${failure.index}: ${
+          failure.reason instanceof Error
+            ? failure.reason.message
+            : String(failure.reason)
+        }`,
+    )
+    .join("; ");
+  const message = `Map node ${node.id}: ${failures.length} of ${collection.length} branches failed (${summary})`;
+
+  // Recorded on both paths so a downstream `ctx.lastError` reference (and the
+  // run's error surface) can see WHICH branches failed, not just that the map
+  // as a whole did or didn't complete.
+  state.lastError.current = {
+    nodeId: node.id,
+    message,
+    type: "GRAPH_EXECUTION_ERROR",
+  };
+
+  // `skip` is the policy that says "keep going when a branch fails" — the
+  // successful subset stands and the map completes. Every other policy keeps
+  // today's semantics and throws. That includes `fallback`: a map body has no
+  // per-branch error edge, so there is nothing branch-scoped to fall back to;
+  // throwing hands the failure to `handleNodeError`, which applies the NODE's
+  // fallback routing exactly as it would for any other node type.
+  if (node.errorPolicy?.onError === "skip") return;
+
+  // Preserve the FIRST failure's type and retryability so a workflow with no
+  // error policy fails exactly as it does today — the only difference is that
+  // the message now names the branches and the survivors are still in
+  // `mapBranchResults`. Inventing a nonRetryable GRAPH_EXECUTION_ERROR here
+  // would silently make previously-retryable map failures permanent.
+  const first = failures[0].reason as
+    | { type?: unknown; nonRetryable?: unknown }
+    | undefined;
+  throw ApplicationFailure.create({
+    type:
+      typeof first?.type === "string" ? first.type : "GRAPH_EXECUTION_ERROR",
+    message,
+    nonRetryable: first?.nonRetryable === true,
+  });
 }
 
 /**
@@ -656,6 +725,15 @@ async function executeMapNode(
  * US-009: Join node handler
  *
  * Join nodes collect results from map node branches.
+ *
+ * G-026: when the source map ran under `errorPolicy.onError === "skip"` and
+ * some branches failed, the join receives the SUCCESSFUL SUBSET, in original
+ * branch order — failed branches contribute no entry at all rather than a
+ * hole or a placeholder. So `results.length` is the number of branches that
+ * produced a value, which is what every downstream consumer of an array
+ * actually wants; the failures themselves are reported on
+ * `state.lastError.current` by the map. Under any other policy the map throws
+ * and the join never runs.
  */
 async function executeJoinNode(
   node: JoinNode,

@@ -833,6 +833,22 @@ The `map` node handles fan-out:
 3. Execute the body subgraph (from `bodyEntryNodeId` to `bodyExitNodeId`) for each item
 4. Respect `maxConcurrency` -- if set, use a semaphore pattern to limit parallel branches
 
+**Partial failure (G-026).** Branches are collected by a helper that *settles*
+rather than rejecting, so a failing branch no longer discards the siblings that
+already completed -- the successful subset is always recorded in
+`mapBranchResults`. What a failure then means is the map node's
+`errorPolicy.onError`:
+
+| `onError` | Map outcome | What the join sees |
+|---|---|---|
+| absent / `"fail"` | throws, naming the failed branch indices and preserving the first failure's error type + retryability | join does not run |
+| `"skip"` | completes | the successful subset, in original branch order (no holes, no placeholders) |
+| `"fallback"` | throws; node-level fallback routing is then applied by `handleNodeError` (a map body has no per-branch error edge) | only if the error edge leads there |
+
+Failures are recorded on `state.lastError.current` on every path, so a
+downstream condition can see *which* branches failed rather than only that the
+map as a whole did or did not complete.
+
 The `join` node handles fan-in:
 
 1. Wait for all (or any, depending on `strategy`) branches from the corresponding `map`
