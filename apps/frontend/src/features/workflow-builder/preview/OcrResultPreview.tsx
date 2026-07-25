@@ -41,8 +41,46 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { type ReactNode, useMemo, useState } from "react";
 
+import type { BlobExcerpt } from "./preview.types";
+
 export interface OcrResultPreviewProps {
+  /**
+   * The ctx value. For `OcrResult` kinds this is a blob POINTER by design
+   * (`{documentId, blobPath, storage:"blob"}`) — see `OcrResultSchema`.
+   */
   value: unknown;
+  /**
+   * G-022 — the server-side dereference of `value`'s blob pointer, bounded.
+   * When resolved, the widget renders the EXTRACTED VALUES from it (plus what
+   * the server left out); when unavailable, it falls back to showing the
+   * pointer AND says why the payload could not be loaded. Absent for
+   * `OcrResult`-kind values that are not blob-backed.
+   */
+  excerpt?: BlobExcerpt;
+}
+
+/**
+ * Why the payload could not be loaded, in the author's terms. Exhaustive over
+ * `BlobExcerptUnavailableReason` so a new server-side reason cannot silently
+ * render as an empty note.
+ */
+function unavailableMessage(excerpt: BlobExcerpt): string {
+  switch (excerpt.reason) {
+    case "not-found":
+      return "The full OCR payload is no longer in storage — showing the reference only.";
+    case "unreadable":
+      return "The stored OCR payload could not be read — showing the reference only.";
+    case "too-large":
+      return excerpt.byteLength === undefined
+        ? "The OCR payload is too large to preview — showing the reference only."
+        : `The OCR payload is too large to preview (${excerpt.byteLength.toLocaleString()} bytes) — showing the reference only.`;
+    case "outside-group":
+      return "This value points at storage outside this workflow's group and was not read.";
+    case "request-limit":
+      return "Too many blob-backed values in this run to resolve them all — showing the reference only.";
+    default:
+      return "The OCR payload could not be loaded — showing the reference only.";
+  }
 }
 
 const LONG_STRING_LIMIT = 60;
@@ -202,26 +240,39 @@ function resolvePages(value: Record<string, unknown>): PageInfo[] | null {
   return resolved;
 }
 
-export function OcrResultPreview({ value }: OcrResultPreviewProps): ReactNode {
+export function OcrResultPreview({
+  value,
+  excerpt,
+}: OcrResultPreviewProps): ReactNode {
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [rawModal, setRawModal] = useState<RawModalState | null>(null);
   const [opened, { open, close }] = useDisclosure(false);
 
+  // G-022: when the server resolved the blob pointer, the thing worth showing
+  // is the PAYLOAD, not the pointer. When it could not, fall back to the
+  // pointer and say why — never silently show a blob key as if it were the
+  // extracted data.
+  const resolved =
+    excerpt !== undefined && excerpt.status === "resolved"
+      ? excerpt.excerpt
+      : undefined;
+  const shown = resolved !== undefined ? resolved : value;
+
   const pages = useMemo(
-    () => (isPlainObject(value) ? resolvePages(value) : null),
-    [value],
+    () => (isPlainObject(shown) ? resolvePages(shown) : null),
+    [shown],
   );
 
   const fields = useMemo<Record<string, unknown> | null>(() => {
-    if (!isPlainObject(value)) {
+    if (!isPlainObject(shown)) {
       return null;
     }
     if (pages !== null) {
       const idx = Math.min(activePageIndex, pages.length - 1);
       return pages[idx].fields;
     }
-    return value;
-  }, [value, pages, activePageIndex]);
+    return shown;
+  }, [shown, pages, activePageIndex]);
 
   if (fields === null) {
     return (
@@ -240,6 +291,18 @@ export function OcrResultPreview({ value }: OcrResultPreviewProps): ReactNode {
 
   return (
     <Stack gap="xs" data-testid="ocr-preview-root">
+      {excerpt !== undefined && excerpt.status === "unavailable" && (
+        <Text size="xs" c="dimmed" data-testid="ocr-preview-unresolved">
+          {unavailableMessage(excerpt)}
+        </Text>
+      )}
+      {/* A truncated preview that says it is truncated is correct; one that
+          silently shows part of the data is not. */}
+      {excerpt?.truncated === true && (
+        <Text size="xs" c="dimmed" data-testid="ocr-preview-truncation-note">
+          {`Truncated preview — ${excerpt.omissions.join("; ")}`}
+        </Text>
+      )}
       {pages !== null && pages.length > 1 && (
         <Group gap="xs" data-testid="ocr-preview-page-chips">
           {pages.map((_, i) => (

@@ -12,8 +12,16 @@
  *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.5
  */
 
-import { ApiProperty } from "@nestjs/swagger";
+import {
+  ApiExtraModels,
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from "@nestjs/swagger";
 
+import { BlobExcerptDto } from "./blob-excerpt.dto";
+
+@ApiExtraModels(BlobExcerptDto)
 export class ActivityOutputPreviewDto {
   @ApiProperty({
     description:
@@ -51,4 +59,18 @@ export class ActivityOutputPreviewDto {
     example: "2026-05-25T12:00:00.000Z",
   })
   expiresAt!: string;
+
+  @ApiPropertyOptional({
+    description:
+      "G-022 — blob-backed values found in `outputCtx`, resolved server-side " +
+      "into BOUNDED excerpts and keyed by `blobPath`. `OcrResult`-kind values " +
+      "are pointers by design (large payloads stay out of ctx), so without " +
+      "this the preview could only show `blobPath` / `byteLength` / `status` " +
+      "and never the extracted values. Absent when the row holds no pointers. " +
+      "Each entry reports the limits applied and every omission, so a " +
+      "truncated preview always says what it left out.",
+    type: "object",
+    additionalProperties: { $ref: getSchemaPath(BlobExcerptDto) },
+  })
+  blobExcerpts?: Record<string, BlobExcerptDto>;
 }

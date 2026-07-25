@@ -161,6 +161,52 @@ describe("renderKindValue", () => {
   });
 
   // -------------------------------------------------------------------
+  // G-022 — blob-backed values are handed their server-resolved excerpt.
+  // -------------------------------------------------------------------
+
+  it("hands an OcrResult pointer its resolved excerpt, keyed by blobPath", () => {
+    const pointer = {
+      documentId: "d1",
+      blobPath: "grp/ocr/d1/ocr-result.json",
+      storage: "blob",
+    };
+    wrap(
+      renderKindValue("OcrResult", pointer, {
+        "grp/ocr/d1/ocr-result.json": {
+          blobPath: "grp/ocr/d1/ocr-result.json",
+          status: "resolved",
+          excerpt: { applicantName: "A. Person" },
+          truncated: false,
+          omissions: [],
+          limits: {
+            maxStringChars: 400,
+            maxArrayItems: 5,
+            maxObjectKeys: 40,
+            maxDepth: 6,
+            maxTotalChars: 8000,
+          },
+        },
+      }),
+    );
+
+    expect(
+      screen.getByTestId("ocr-preview-row-applicantName"),
+    ).toHaveTextContent("A. Person");
+    expect(screen.queryByTestId("ocr-preview-row-blobPath")).toBeNull();
+  });
+
+  it("renders the pointer when no excerpt exists for its blobPath", () => {
+    wrap(
+      renderKindValue(
+        "OcrResult",
+        { documentId: "d1", blobPath: "grp/ocr/d1/r.json", storage: "blob" },
+        {},
+      ),
+    );
+    expect(screen.getByTestId("ocr-preview-row-blobPath")).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------
   // Family-aware dispatch — shape-honest subkinds retagged onto catalog
   // ports by the kind-taxonomy-refinement wave must still resolve to
   // their family's widget via `baseKind` (walked through the live

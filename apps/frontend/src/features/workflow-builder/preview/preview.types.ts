@@ -59,4 +59,50 @@ export interface ActivityOutputPreview {
   createdAt: string;
   /** ISO-8601 — when the row is considered expired by the read endpoint. */
   expiresAt: string;
+  /**
+   * G-022 — blob-backed values found in `outputCtx`, resolved server-side into
+   * bounded excerpts and keyed by `blobPath`. `OcrResult` values are POINTERS
+   * by design (large payloads stay out of ctx), so without this the preview
+   * could only show `blobPath` / `byteLength` / `status`. Absent when the row
+   * holds no pointers.
+   */
+  blobExcerpts?: Record<string, BlobExcerpt>;
+}
+
+/** Why a pointer could not be dereferenced. Mirrors the backend DTO. */
+export type BlobExcerptUnavailableReason =
+  | "not-found"
+  | "unreadable"
+  | "too-large"
+  | "outside-group"
+  | "request-limit";
+
+/** The limits the server applied when building an excerpt. */
+export interface BlobExcerptLimits {
+  maxStringChars: number;
+  maxArrayItems: number;
+  maxObjectKeys: number;
+  maxDepth: number;
+  maxTotalChars: number;
+}
+
+/**
+ * A blob-backed value the server dereferenced. Local mirror of the backend
+ * `BlobExcerptDto`.
+ */
+export interface BlobExcerpt {
+  blobPath: string;
+  status: "resolved" | "unavailable";
+  reason?: BlobExcerptUnavailableReason;
+  /** Present only when `status === "resolved"`. */
+  excerpt?: unknown;
+  truncated: boolean;
+  /**
+   * Path-anchored notes for everything the server left out, e.g.
+   * `pages: showing the first 5 of 300 items`. Rendered verbatim — a truncated
+   * preview must always say it is truncated.
+   */
+  omissions: string[];
+  byteLength?: number;
+  limits: BlobExcerptLimits;
 }

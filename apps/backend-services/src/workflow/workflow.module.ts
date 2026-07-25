@@ -5,6 +5,7 @@ import { DatabaseModule } from "@/database/database.module";
 import { DocumentDbService } from "@/document/document-db.service";
 import { DynamicNodesModule } from "@/dynamic-nodes/dynamic-nodes.module";
 import { TemporalModule } from "@/temporal/temporal.module";
+import { PreviewBlobExcerptService } from "./preview-blob-excerpt.service";
 import { SourceUploadService } from "./source-upload.service";
 import { WorkflowController } from "./workflow.controller";
 import { WorkflowService } from "./workflow.service";
@@ -18,7 +19,12 @@ import { WorkflowService } from "./workflow.service";
     DynamicNodesModule,
   ],
   controllers: [WorkflowController],
-  providers: [WorkflowService, SourceUploadService, DocumentDbService],
+  providers: [
+    WorkflowService,
+    SourceUploadService,
+    DocumentDbService,
+    PreviewBlobExcerptService,
+  ],
   exports: [WorkflowService],
 })
 export class WorkflowModule {}

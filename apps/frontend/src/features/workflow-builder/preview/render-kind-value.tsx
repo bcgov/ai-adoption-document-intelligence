@@ -7,6 +7,7 @@ import { ClassificationPreview } from "./ClassificationPreview";
 import { DocumentPreview } from "./DocumentPreview";
 import { JsonValuePreview } from "./JsonValuePreview";
 import { OcrResultPreview } from "./OcrResultPreview";
+import type { BlobExcerpt } from "./preview.types";
 import { SegmentArrayPreview } from "./SegmentArrayPreview";
 
 /**
@@ -35,12 +36,35 @@ import { SegmentArrayPreview } from "./SegmentArrayPreview";
  * `{label, confidence}` type guard can never match it.
  */
 
-type ValueRenderer = (value: unknown) => ReactNode;
+/**
+ * Server-resolved blob-backed values for the row being rendered, keyed by
+ * `blobPath` (G-022). Keyed by path rather than ctx path because the CLIENT
+ * holds the pointer and can look it up directly, with no dependence on how the
+ * engine nested or namespace-remapped the ctx key.
+ */
+export type BlobExcerptMap = Record<string, BlobExcerpt>;
+
+type ValueRenderer = (value: unknown, excerpts?: BlobExcerptMap) => ReactNode;
+
+/** The blob pointer's path, when `value` is one. */
+function blobPathOf(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const path = (value as { blobPath?: unknown }).blobPath;
+  return typeof path === "string" && path.length > 0 ? path : undefined;
+}
 
 /** Renderers for scalar (non-array) kinds, keyed by exact kind name. */
 const SCALAR_RENDERERS: Readonly<Record<string, ValueRenderer>> = {
   Document: (v) => <DocumentPreview value={v} />,
-  OcrResult: (v) => <OcrResultPreview value={v} />,
+  OcrResult: (v, excerpts) => {
+    const path = blobPathOf(v);
+    return (
+      <OcrResultPreview
+        value={v}
+        excerpt={path === undefined ? undefined : excerpts?.[path]}
+      />
+    );
+  },
   Classification: (v) => <ClassificationPreview value={v} />,
   // Exact-kind override: a Classification SUBKIND whose shape diverges from
   // its family. The registry entry itself flags it as schema-free.
@@ -115,6 +139,7 @@ function UnavailableValue({ kind }: { kind: string | null }): ReactNode {
 export function renderKindValue(
   kind: string | null,
   value: unknown,
+  excerpts?: BlobExcerptMap,
 ): ReactNode {
   // `undefined` is a sound "absent" signal — JSON leaves are never `undefined`.
   if (value === undefined) {
@@ -129,7 +154,7 @@ export function renderKindValue(
     baseKind,
   );
   if (renderer !== undefined) {
-    return renderer(value);
+    return renderer(value, excerpts);
   }
   return <GenericKindValue kind={kind} value={value} />;
 }

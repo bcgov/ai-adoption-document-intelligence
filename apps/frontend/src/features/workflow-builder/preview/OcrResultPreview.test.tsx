@@ -231,3 +231,129 @@ describe("OcrResultPreview — OcrResult pages[] handling", () => {
     ).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-022 — the widget used to show the blob POINTER (blobPath / byteLength /
+// status) because that is all `OcrResultSchema` carries. The server now
+// dereferences it into a bounded excerpt; the widget must show the VALUES.
+// ---------------------------------------------------------------------------
+
+const POINTER = {
+  documentId: "doc-1",
+  blobPath: "grp/ocr/doc-1/ocr-result.json",
+  storage: "blob" as const,
+  byteLength: 4_831_022,
+  status: "succeeded",
+};
+
+const LIMITS = {
+  maxStringChars: 400,
+  maxArrayItems: 5,
+  maxObjectKeys: 40,
+  maxDepth: 6,
+  maxTotalChars: 8000,
+};
+
+describe("OcrResultPreview — G-022 blob dereference", () => {
+  it("shows extracted field values for an OcrResult, not a blob key", () => {
+    renderWithProviders(
+      <OcrResultPreview
+        value={POINTER}
+        excerpt={{
+          blobPath: POINTER.blobPath,
+          status: "resolved",
+          excerpt: { fileName: "form.pdf", applicantName: "A. Person" },
+          truncated: false,
+          omissions: [],
+          byteLength: POINTER.byteLength,
+          limits: LIMITS,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("ocr-preview-row-applicantName"),
+    ).toHaveTextContent("A. Person");
+    // The pointer's own fields are NOT what gets rendered any more.
+    expect(screen.queryByTestId("ocr-preview-row-blobPath")).toBeNull();
+    expect(screen.queryByTestId("ocr-preview-row-storage")).toBeNull();
+  });
+
+  it("says the preview is truncated when it is, and what was omitted", () => {
+    renderWithProviders(
+      <OcrResultPreview
+        value={POINTER}
+        excerpt={{
+          blobPath: POINTER.blobPath,
+          status: "resolved",
+          excerpt: { pages: [1, 2, 3, 4, 5] },
+          truncated: true,
+          omissions: [
+            "pages: showing the first 5 of 312 items",
+            "extractedText: showing the first 400 of 184320 characters",
+          ],
+          limits: LIMITS,
+        }}
+      />,
+    );
+
+    const note = screen.getByTestId("ocr-preview-truncation-note");
+    expect(note).toHaveTextContent("Truncated preview");
+    expect(note).toHaveTextContent("showing the first 5 of 312 items");
+    expect(note).toHaveTextContent(
+      "showing the first 400 of 184320 characters",
+    );
+  });
+
+  it("falls back to the reference AND says why when the payload is gone", () => {
+    renderWithProviders(
+      <OcrResultPreview
+        value={POINTER}
+        excerpt={{
+          blobPath: POINTER.blobPath,
+          status: "unavailable",
+          reason: "not-found",
+          truncated: false,
+          omissions: [],
+          limits: LIMITS,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("ocr-preview-unresolved")).toHaveTextContent(
+      "no longer in storage",
+    );
+    // The pointer is still shown — it is all there is — but it is labelled.
+    expect(screen.getByTestId("ocr-preview-row-blobPath")).toBeInTheDocument();
+  });
+
+  it("names the size when the payload is refused for being too large", () => {
+    renderWithProviders(
+      <OcrResultPreview
+        value={POINTER}
+        excerpt={{
+          blobPath: POINTER.blobPath,
+          status: "unavailable",
+          reason: "too-large",
+          truncated: false,
+          omissions: [],
+          byteLength: 99_000_000,
+          limits: LIMITS,
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("ocr-preview-unresolved")).toHaveTextContent(
+      "too large to preview (99,000,000 bytes)",
+    );
+  });
+
+  it("renders the value unchanged when there is no excerpt to apply", () => {
+    renderWithProviders(<OcrResultPreview value={{ inlineField: "v" }} />);
+    expect(
+      screen.getByTestId("ocr-preview-row-inlineField"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("ocr-preview-truncation-note")).toBeNull();
+    expect(screen.queryByTestId("ocr-preview-unresolved")).toBeNull();
+  });
+});

@@ -93,6 +93,10 @@ import {
   WorkflowResponseDto,
   WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
+import {
+  BlobExcerptBudget,
+  PreviewBlobExcerptService,
+} from "./preview-blob-excerpt.service";
 import { summariseInputCtx } from "./run-history/summarise-input-ctx";
 import {
   SourceUploadParameters,
@@ -240,6 +244,7 @@ export class WorkflowController {
     private readonly activityOutputCache: ActivityOutputCacheRepository,
     private readonly documentDbService: DocumentDbService,
     private readonly auditService: AuditService,
+    private readonly previewBlobExcerpt: PreviewBlobExcerptService,
   ) {}
 
   @Get()
@@ -1001,11 +1006,20 @@ export class WorkflowController {
       });
     }
 
+    // G-022: resolve blob-backed values (OcrResult pointers) into bounded
+    // excerpts so the preview can show extracted values instead of a blob key.
+    const blobExcerpts = await this.previewBlobExcerpt.resolveOutputCtx(
+      row.outputCtx,
+      wf.groupId,
+      new BlobExcerptBudget(),
+    );
+
     return {
       outputCtx: row.outputCtx as Record<string, unknown>,
       outputKind: row.outputKind,
       createdAt: row.createdAt.toISOString(),
       expiresAt: row.expiresAt.toISOString(),
+      ...(blobExcerpts !== undefined ? { blobExcerpts } : {}),
     };
   }
 
@@ -1068,13 +1082,24 @@ export class WorkflowController {
       });
     }
 
+    // G-022: one dereference budget for the WHOLE batch — the batch covers
+    // every node in the lineage, so an OCR-heavy workflow would otherwise
+    // issue a blob read per node on every preview poll. Pointers past the cap
+    // are reported as `request-limit`, never silently dropped.
+    const budget = new BlobExcerptBudget();
     const previews: Record<string, ActivityOutputPreviewDto> = {};
     for (const row of rows) {
+      const blobExcerpts = await this.previewBlobExcerpt.resolveOutputCtx(
+        row.outputCtx,
+        wf.groupId,
+        budget,
+      );
       previews[row.nodeId] = {
         outputCtx: row.outputCtx as Record<string, unknown>,
         outputKind: row.outputKind,
         createdAt: row.createdAt.toISOString(),
         expiresAt: row.expiresAt.toISOString(),
+        ...(blobExcerpts !== undefined ? { blobExcerpts } : {}),
       };
     }
     return { previews };

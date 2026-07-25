@@ -15,6 +15,7 @@ import type {
   GraphWorkflowConfig,
   SourceCatalogEntry,
 } from "./graph-workflow-types";
+import { PreviewBlobExcerptService } from "./preview-blob-excerpt.service";
 import { SourceUploadService } from "./source-upload.service";
 import {
   INPUT_CTX_SUMMARY_CONCURRENCY,
@@ -106,6 +107,7 @@ describe("WorkflowController", () => {
   let activityOutputCache: jest.Mocked<ActivityOutputCacheRepository>;
   let documentDbService: jest.Mocked<DocumentDbService>;
   let auditService: jest.Mocked<AuditService>;
+  let previewBlobExcerpt: jest.Mocked<PreviewBlobExcerptService>;
 
   beforeEach(async () => {
     workflowService = {
@@ -161,6 +163,12 @@ describe("WorkflowController", () => {
       recordEvent: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuditService>;
 
+    // G-022: blob dereferencing is exercised in its own spec; here it is
+    // stubbed so the preview endpoints' own behaviour stays isolated.
+    previewBlobExcerpt = {
+      resolveOutputCtx: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<PreviewBlobExcerptService>;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WorkflowController],
       providers: [
@@ -191,6 +199,10 @@ describe("WorkflowController", () => {
         {
           provide: AuditService,
           useValue: auditService,
+        },
+        {
+          provide: PreviewBlobExcerptService,
+          useValue: previewBlobExcerpt,
         },
       ],
     }).compile();
@@ -2671,6 +2683,70 @@ describe("WorkflowController", () => {
         ),
       ).rejects.toThrow(unexpected);
     });
+
+    // -------------------------------------------------------------------
+    // G-022 — blob-backed values are dereferenced into bounded excerpts.
+    // -------------------------------------------------------------------
+    it("attaches bounded excerpts for blob-backed values, scoped to the workflow's group", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      activityOutputCache.findMostRecentFresh.mockResolvedValue({
+        ...cacheRow,
+        outputCtx: { ocrResult: { blobPath: "g/ocr/d/r.json" } },
+        outputKind: "OcrResult",
+      });
+      (previewBlobExcerpt.resolveOutputCtx as jest.Mock).mockResolvedValue({
+        "g/ocr/d/r.json": {
+          blobPath: "g/ocr/d/r.json",
+          status: "resolved",
+          excerpt: { fileName: "a.pdf" },
+          truncated: true,
+          omissions: ["pages: showing the first 5 of 300 items"],
+          limits: {
+            maxStringChars: 400,
+            maxArrayItems: 5,
+            maxObjectKeys: 40,
+            maxDepth: 6,
+            maxTotalChars: 8000,
+          },
+        },
+      });
+
+      const result = await controller.getPreviewCache(
+        "wf-1",
+        "node-1",
+        undefined,
+        mockReq(),
+      );
+
+      expect(result.blobExcerpts?.["g/ocr/d/r.json"].status).toBe("resolved");
+      expect(result.blobExcerpts?.["g/ocr/d/r.json"].omissions).toHaveLength(1);
+      expect(previewBlobExcerpt.resolveOutputCtx).toHaveBeenCalledWith(
+        { ocrResult: { blobPath: "g/ocr/d/r.json" } },
+        mockWorkflowInfo.groupId,
+        expect.anything(),
+      );
+    });
+
+    it("omits `blobExcerpts` entirely when the row holds no blob-backed values", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      activityOutputCache.findMostRecentFresh.mockResolvedValue(cacheRow);
+      (previewBlobExcerpt.resolveOutputCtx as jest.Mock).mockResolvedValue(
+        undefined,
+      );
+
+      const result = await controller.getPreviewCache(
+        "wf-1",
+        "node-1",
+        undefined,
+        mockReq(),
+      );
+
+      expect(result).not.toHaveProperty("blobExcerpts");
+    });
   });
 
   describe("getPreviewCacheBatch", () => {
@@ -2847,6 +2923,50 @@ describe("WorkflowController", () => {
   // ---------------------------------------------------------------------------
   // US-152 — `GET /:id/versions/:versionId/run-count` endpoint
   // ---------------------------------------------------------------------------
+  describe("getPreviewCacheBatch — blob excerpts (G-022)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({ "group-1": GroupRole.MEMBER }),
+      }) as unknown as Request;
+
+    it("shares ONE dereference budget across every row in the batch", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      activityOutputCache.findManyMostRecentFresh.mockResolvedValue([
+        {
+          nodeId: "a",
+          outputCtx: { r: 1 },
+          outputKind: "OcrResult",
+          createdAt: new Date("2026-05-24T12:00:00Z"),
+          expiresAt: new Date("2026-05-25T12:00:00Z"),
+        },
+        {
+          nodeId: "b",
+          outputCtx: { r: 2 },
+          outputKind: "OcrResult",
+          createdAt: new Date("2026-05-24T12:00:01Z"),
+          expiresAt: new Date("2026-05-25T12:00:01Z"),
+        },
+      ] as never);
+      (previewBlobExcerpt.resolveOutputCtx as jest.Mock).mockResolvedValue(
+        undefined,
+      );
+
+      await controller.getPreviewCacheBatch("wf-1", undefined, mockReq());
+
+      expect(previewBlobExcerpt.resolveOutputCtx).toHaveBeenCalledTimes(2);
+      const budgets = (
+        previewBlobExcerpt.resolveOutputCtx as jest.Mock
+      ).mock.calls.map((call) => call[2]);
+      // Same budget instance for every row — otherwise an OCR-heavy lineage
+      // would read one blob per node on every preview poll.
+      expect(budgets[0]).toBe(budgets[1]);
+    });
+  });
+
   describe("getVersionRunCount (US-152)", () => {
     const mockReq = () =>
       ({
@@ -3829,6 +3949,8 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
       const { AuditService: FreshAuditService } = await import(
         "@/audit/audit.service"
       );
+      const { PreviewBlobExcerptService: FreshPreviewBlobExcerptService } =
+        await import("./preview-blob-excerpt.service");
 
       const uploadSpy = jest.fn();
       const moduleRef = await Test.createTestingModule({
@@ -3852,6 +3974,10 @@ describe("uploadToSource — transport-layer fileSize ceiling (Item 9)", () => {
           {
             provide: FreshDocumentDbService,
             useValue: { createDocument: jest.fn(), updateDocument: jest.fn() },
+          },
+          {
+            provide: FreshPreviewBlobExcerptService,
+            useValue: { resolveOutputCtx: jest.fn() },
           },
           {
             provide: FreshAuditService,

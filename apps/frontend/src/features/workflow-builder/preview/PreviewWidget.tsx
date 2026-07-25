@@ -249,7 +249,7 @@ export function PreviewWidget({
           nothing to read.
         </Text>
       ) : (
-        renderKindValue(kind, value)
+        renderKindValue(kind, value, data.blobExcerpts)
       )}
     </Box>
   );

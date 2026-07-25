@@ -18,7 +18,6 @@ import { Alert, Paper, Skeleton, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
 import { CacheEvictedAlert } from "../preview/CacheEvictedAlert";
-import { JsonValuePreview } from "../preview/JsonValuePreview";
 import { NoOutputNotice } from "../preview/NoOutputNotice";
 import {
   describeNoOutput,
@@ -176,11 +175,13 @@ export function WirePeekPopover({
     );
   }
 
-  const widget = renderKindValue(wire.kind ?? null, value);
+  // G-022: `data.blobExcerpts` carries the server-side dereference of any
+  // blob-backed value in this row, so a peek at an OCR wire shows the extracted
+  // values rather than the blob pointer that flowed across it.
   return (
     <Shell state="ready" header={header}>
       <div data-testid="wire-peek-value">
-        {widget ?? <JsonValuePreview value={value} />}
+        {renderKindValue(wire.kind ?? null, value, data.blobExcerpts)}
       </div>
     </Shell>
   );
