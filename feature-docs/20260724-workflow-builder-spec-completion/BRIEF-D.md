@@ -11,7 +11,7 @@
   invent names for artifacts or surfaces.
 - **Do not read the other passes' outputs.** Independence is the point; overlap
   between passes is a priority signal and is handled at merge.
-- **`MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
+- **`docs-md/workflow-builder/MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
   Something being absent from it is not evidence the behaviour is correct or
   intentional — it is often evidence of exactly the gap you are looking for.
 - **Evidence must be real.** Every `evidence` value is either `path/to/file.ts:123`
@@ -70,17 +70,17 @@ A finding is any edge where behaviour is **undefined**, **silently destructive**
 was added specifically because the node-swap and node-delete cascades were missing
 from the original edge list. Two leads recorded there, both verified against source:
 
-- `canvas/swap-node-type.ts:156-167` returns `inputs: node.inputs` and
+- `apps/frontend/src/features/workflow-builder/canvas/swap-node-type.ts:156-167` returns `inputs: node.inputs` and
   `outputs: node.outputs` verbatim while changing `activityType` — so bindings
   survive onto an activity type that may not declare those ports.
-- `WorkflowEditorV2Page.tsx:730` (`deleteSelected`) removes the node, filters its
+- `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730` (`deleteSelected`) removes the node, filters its
   edges, reassigns the entry node and prunes groups — and touches no other node's
   `inputs[]`. A consumer bound to `__auto.<deletedId>.<port>` keeps a dangling
   reference.
 
 Then work the full table. Also cover:
 
-- Rename a ctx key (`settings/rename-ctx-key.ts`) — do all consumers follow,
+- Rename a ctx key (`apps/frontend/src/features/workflow-builder/settings/rename-ctx-key.ts`) — do all consumers follow,
   including condition refs and `outputs[]` materialisations?
 - Remove a group member that an `exposedParam` references.
 - Change a port's kind in the catalog while workflows bind to it.

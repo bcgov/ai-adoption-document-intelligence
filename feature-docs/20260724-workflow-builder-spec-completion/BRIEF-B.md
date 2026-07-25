@@ -11,7 +11,7 @@
   invent names for artifacts or surfaces.
 - **Do not read the other passes' outputs.** Independence is the point; overlap
   between passes is a priority signal and is handled at merge.
-- **`MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
+- **`docs-md/workflow-builder/MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
   Something being absent from it is not evidence the behaviour is correct or
   intentional — it is often evidence of exactly the gap you are looking for.
 - **Evidence must be real.** Every `evidence` value is either `path/to/file.ts:123`
@@ -76,12 +76,12 @@ evidence than the probe that found them:
 
 - No canvas-level undo/redo. The only `undo|redo` matches under
   `apps/frontend/src/features/workflow-builder/` are inside
-  `settings/rich-widgets/ConfusionMapEditor.tsx` and
-  `settings/control-flow/ChildWorkflowNodeSettings.tsx`.
+  `apps/frontend/src/features/workflow-builder/settings/rich-widgets/ConfusionMapEditor.tsx` and
+  `apps/frontend/src/features/workflow-builder/settings/control-flow/ChildWorkflowNodeSettings.tsx`.
 - No node duplicate / copy / paste.
 - No find-a-node.
 
-Node deletion **does** exist and cascades — `canvas/NodeContextMenu.tsx` (context
+Node deletion **does** exist and cascades — `apps/frontend/src/features/workflow-builder/canvas/NodeContextMenu.tsx` (context
 menu + keyboard), handler `deleteSelected` at
 `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:730`. Assess
 what that means with no undo behind it.

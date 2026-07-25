@@ -11,7 +11,7 @@
   invent names for artifacts or surfaces.
 - **Do not read the other passes' outputs.** Independence is the point; overlap
   between passes is a priority signal and is handled at merge.
-- **`MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
+- **`docs-md/workflow-builder/MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
   Something being absent from it is not evidence the behaviour is correct or
   intentional — it is often evidence of exactly the gap you are looking for.
 - **Evidence must be real.** Every `evidence` value is either `path/to/file.ts:123`

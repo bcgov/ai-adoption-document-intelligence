@@ -11,7 +11,7 @@
   invent names for artifacts or surfaces.
 - **Do not read the other passes' outputs.** Independence is the point; overlap
   between passes is a priority signal and is handled at merge.
-- **`MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
+- **`docs-md/workflow-builder/MANUAL_TEST_PLAN.md` is not an oracle.** It was written from the implementation.
   Something being absent from it is not evidence the behaviour is correct or
   intentional — it is often evidence of exactly the gap you are looking for.
 - **Evidence must be real.** Every `evidence` value is either `path/to/file.ts:123`
@@ -68,7 +68,7 @@ Axes, from the INVENTORY's §4 "State sources" section:
 2. **Port kind × binding state** — each kind family against every binding state.
    Note the INVENTORY records **six** binding states, not five: the engine's
    `PortResolution` (`packages/graph-workflow/src/auto-wire/resolve-input-port.ts:11`)
-   declares five, and `settings/input-row-resolution.ts:77` adds a frontend-only
+   declares five, and `apps/frontend/src/features/workflow-builder/settings/input-row-resolution.ts:77` adds a frontend-only
    `ctx-bound`. Grid all six.
 3. **Run status × surface** — every surface that renders run state, against every
    status it can receive. The INVENTORY records **three divergent unions** for this
