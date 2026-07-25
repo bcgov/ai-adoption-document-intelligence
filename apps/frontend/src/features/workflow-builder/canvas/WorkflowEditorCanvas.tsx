@@ -2742,7 +2742,7 @@ function WorkflowEditorCanvasInner({
       // or the input was already bound) → no toast. The port-to-port pin
       // path returned early above, so this never fires for explicit pins.
       const dataWireSig = (wire: DataWire) =>
-        `${wire.source} ${wire.target} ${wire.targetPort}`;
+        `${wire.source}\0${wire.target}\0${wire.targetPort}`;
       const boundAutoWireSigsBefore = new Set(
         deriveWires(config)
           .filter((wire): wire is DataWire => wire.variant === "data")
