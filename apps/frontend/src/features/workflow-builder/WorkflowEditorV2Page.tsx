@@ -49,6 +49,8 @@ import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
+  IconArrowBackUp,
+  IconArrowForwardUp,
   IconBolt,
   IconBookmark,
   IconCircleCheck,
@@ -117,6 +119,8 @@ import { RunHistoryDrawer } from "./run-history/RunHistoryDrawer";
 import { NodeSettingsPanel } from "./settings/NodeSettingsPanel";
 import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
+import { useConfigHistory } from "./use-config-history";
+import { useUndoRedoHotkeys } from "./use-undo-redo-hotkeys";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
@@ -173,15 +177,20 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // the editor doesn't open with everything stacked at the default
   // `x = 80 + i*220` position. Templates with full or partial positions
   // are passed through unchanged (Scenarios 2 + 3).
-  const [config, setConfig] = useState<GraphWorkflowConfig>(() =>
-    incomingTemplate
-      ? resolveBindings(
-          normaliseLocks(
-            layoutGraphIfMissingPositions(incomingTemplate.config),
-          ),
-        )
-      : EMPTY_CONFIG,
-  );
+  // G-003: `config` lives in an undo/redo history stack rather than a plain
+  // `useState`. `setConfig` records an undo step; `resetConfig` replaces state
+  // WITHOUT recording one and is reserved for lifecycle updates (initial
+  // load, server hydration, auto-layout) — see use-config-history.ts.
+  const { config, setConfig, resetConfig, undo, redo, canUndo, canRedo } =
+    useConfigHistory(() =>
+      incomingTemplate
+        ? resolveBindings(
+            normaliseLocks(
+              layoutGraphIfMissingPositions(incomingTemplate.config),
+            ),
+          )
+        : EMPTY_CONFIG,
+    );
   const [selectedNodeId, setSelectedNodeIdState] = useState<string | null>(
     null,
   );
@@ -339,6 +348,11 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   >(null);
   const validation = useGraphValidation(config);
 
+  // G-003: Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y. Mounted with the editor,
+  // and inert while focus is in a text field so native text undo still works
+  // in every settings input. See use-undo-redo-hotkeys.ts.
+  useUndoRedoHotkeys({ undo, redo });
+
   // Render-time synthesis of map-body groups (Spec §6).
   // Synthetic entries are NEVER persisted; they're stripped from any config
   // update the canvas dispatches back through `onConfigChange`.
@@ -351,12 +365,15 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     };
   }, [config]);
 
-  const handleCanvasConfigChange = useCallback((next: GraphWorkflowConfig) => {
-    const stripped = next.nodeGroups
-      ? { ...next, nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups) }
-      : next;
-    setConfig(resolveBindings(stripped));
-  }, []);
+  const handleCanvasConfigChange = useCallback(
+    (next: GraphWorkflowConfig) => {
+      const stripped = next.nodeGroups
+        ? { ...next, nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups) }
+        : next;
+      setConfig(resolveBindings(stripped));
+    },
+    [setConfig],
+  );
 
   // Live xyflow instance from the inner canvas — populated by
   // `onReactFlowReady`. Used by the "Auto-arrange" top-bar button to
@@ -387,7 +404,14 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     // Cluster each map's body members under dagre (and strip the synthetic
     // groups back out) so the body-container box wraps just its members
     // instead of sprawling after arrange. See layoutGraphWithMapBodies.
-    setConfig((prev) => layoutGraphWithMapBodies(prev, { nodeWidths }));
+    //
+    // G-003: `resetConfig`, not `setConfig`. This handler is shared by the
+    // top-bar action AND by `scheduleArrangeOnLoad`, which fires automatically
+    // ~1.5s after a `metadata.arrangeOnLoad` demo opens — recording that as an
+    // undo step would put a phantom entry at the bottom of every demo's stack.
+    // Auto-arrange is idempotent and one click away, so it is not worth
+    // splitting the two paths to make the manual one undoable.
+    resetConfig(layoutGraphWithMapBodies(configRef.current, { nodeWidths }));
     // §4.2: the canvas's structural fingerprint excludes metadata.position,
     // so this config-only position change won't re-project on its own. Bump
     // the layout nonce so the canvas re-applies the new positions to its
@@ -400,7 +424,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setTimeout(() => {
       reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
     }, 0);
-  }, []);
+  }, [resetConfig]);
 
   // "Open demos in the auto-arranged view" (metadata.arrangeOnLoad). The
   // measured-width Auto-arrange needs the cards to be mounted AND measured, so
@@ -454,7 +478,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     setConfig(nextConfig);
     setSelectedNodeIdState(null);
     setActiveGroupId(newGroupId);
-  }, [config, selectedNodeIds]);
+  }, [config, selectedNodeIds, setConfig]);
 
   // Clicking a node's problems badge ALWAYS opens the ValidationDrawer scoped
   // to that node — naming every problem (input-unsatisfied, unreachable, …)
@@ -523,7 +547,10 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     lastHydratedConfigRef.current = incoming;
     setName(existingWorkflow.name);
     setDescription(existingWorkflow.description ?? "");
-    setConfig(incoming);
+    // G-003: `resetConfig` — adopting the server's copy is a lifecycle
+    // update, not an author edit. Undo must never walk backwards INTO a
+    // hydration; it walks back through what the author did.
+    resetConfig(incoming);
     // Demos ship with `metadata.arrangeOnLoad` so they open in the tidy
     // measured-width Auto-arrange view without the viewer clicking the button.
     // Fire once per workflow id, after the canvas measures the cards.
@@ -535,7 +562,13 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
       arrangedForRef.current = workflowId;
       scheduleArrangeOnLoad();
     }
-  }, [existingWorkflow, isEditMode, workflowId, scheduleArrangeOnLoad]);
+  }, [
+    existingWorkflow,
+    isEditMode,
+    workflowId,
+    scheduleArrangeOnLoad,
+    resetConfig,
+  ]);
 
   // Both add handlers compute the new id from the current `config`
   // closure and call `setConfig` + `setSelectedNodeId` in the same
@@ -1012,6 +1045,39 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
 
           <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
             <TopBarReplayIndicator />
+            {/*
+              G-003 — visible undo/redo. The shortcuts exist too, but a
+              keyboard-only affordance is undiscoverable, which is the same
+              class of gap this batch closes.
+            */}
+            <Button.Group>
+              <Tooltip label="Undo (Ctrl+Z)" withArrow>
+                <Button
+                  variant="default"
+                  size="xs"
+                  px={8}
+                  onClick={undo}
+                  disabled={!canUndo}
+                  aria-label="Undo"
+                  data-testid="undo-button"
+                >
+                  <IconArrowBackUp size={16} />
+                </Button>
+              </Tooltip>
+              <Tooltip label="Redo (Ctrl+Shift+Z)" withArrow>
+                <Button
+                  variant="default"
+                  size="xs"
+                  px={8}
+                  onClick={redo}
+                  disabled={!canRedo}
+                  aria-label="Redo"
+                  data-testid="redo-button"
+                >
+                  <IconArrowForwardUp size={16} />
+                </Button>
+              </Tooltip>
+            </Button.Group>
             <ValidationButton
               errorCount={validation.errorCount}
               warningCount={validation.warningCount}

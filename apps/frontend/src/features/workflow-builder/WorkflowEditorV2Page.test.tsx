@@ -2281,3 +2281,167 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     expect(config.ctx.preparedFile).toBeDefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-003 — undo/redo. The two things worth pinning at the page level are the
+// routing decision (which state changes record a history entry and which are
+// lifecycle churn) and the interaction with the §4.4 hydration guard.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
+  function liveConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  function undoButton(): HTMLElement {
+    return screen.getByTestId("undo-button");
+  }
+  function redoButton(): HTMLElement {
+    return screen.getByTestId("redo-button");
+  }
+
+  function addNode(activityType = "data.transform") {
+    act(() => {
+      (capturedPaletteProps.current?.onAddActivity as (t: string) => void)(
+        activityType,
+      );
+    });
+  }
+
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedPaletteProps.current = null;
+    capturedSettingsPanelProps.current = null;
+    existingWorkflowRef.current = null;
+    fitViewMock.mockClear();
+    vi.restoreAllMocks();
+  });
+
+  it("renders undo/redo controls, both disabled on a fresh editor", () => {
+    renderPage();
+    expect(undoButton()).toBeDisabled();
+    expect(redoButton()).toBeDisabled();
+  });
+
+  it("undo reverses an add, redo re-applies it", () => {
+    renderPage();
+    addNode();
+    const addedId = Object.keys(liveConfig().nodes)[0];
+    expect(addedId).toBeDefined();
+    expect(undoButton()).toBeEnabled();
+
+    fireEvent.click(undoButton());
+    expect(liveConfig().nodes[addedId]).toBeUndefined();
+    expect(redoButton()).toBeEnabled();
+
+    fireEvent.click(redoButton());
+    expect(liveConfig().nodes[addedId]).toBeDefined();
+  });
+
+  it("a new edit after an undo drops the redo branch", () => {
+    renderPage();
+    addNode("data.transform");
+    fireEvent.click(undoButton());
+    expect(redoButton()).toBeEnabled();
+    addNode("data.transform");
+    expect(redoButton()).toBeDisabled();
+  });
+
+  it("loading a template is not itself an undo step", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    expect(undoButton()).toBeDisabled();
+  });
+
+  it("hydrating the server copy in edit mode is not an undo step", async () => {
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "Server workflow",
+      description: "",
+      config: buildTemplateConfig({ positions: "all" }),
+      workflowVersionId: "wf-1-v1",
+    };
+    renderEditPage("wf-1");
+    await waitFor(() =>
+      expect(Object.keys(liveConfig().nodes)).toHaveLength(3),
+    );
+    expect(undoButton()).toBeDisabled();
+  });
+
+  it("auto-arrange is not an undo step", async () => {
+    // Shared by the top-bar action AND the arrangeOnLoad path that fires
+    // automatically on demo workflows — recording it would seed a phantom
+    // entry at the bottom of every demo's stack.
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    fireEvent.click(screen.getByTestId("topbar-more-button"));
+    fireEvent.click(await screen.findByTestId("topbar-menu-auto-arrange"));
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    expect(undoButton()).toBeDisabled();
+  });
+
+  it("keeps the hydration guard honest: an undone-to state still blocks a refetch", async () => {
+    // §4.4 — the guard is a reference compare against the last hydrated
+    // config. Undo hands back an EARLIER object, not the hydrated one, so a
+    // background refetch must still be treated as "the author has unsaved
+    // edits" and left alone. Verified rather than assumed.
+    const serverConfig = buildTemplateConfig({ positions: "all" });
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "Server workflow",
+      description: "",
+      config: serverConfig,
+      workflowVersionId: "wf-1-v1",
+    };
+    renderEditPage("wf-1");
+    await waitFor(() =>
+      expect(Object.keys(liveConfig().nodes)).toHaveLength(3),
+    );
+
+    addNode("data.transform"); // edit 1 → 4 nodes
+    addNode("data.transform"); // edit 2 → 5 nodes
+    expect(Object.keys(liveConfig().nodes)).toHaveLength(5);
+    fireEvent.click(undoButton()); // back to the 4-node intermediate
+    expect(Object.keys(liveConfig().nodes)).toHaveLength(4);
+
+    // Simulate the agent-chat refetch loop handing back a different server
+    // copy, then force the page to re-read it.
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "Server workflow",
+      description: "",
+      config: { ...serverConfig, nodes: { a: serverConfig.nodes.a } },
+      workflowVersionId: "wf-1-v2",
+    };
+    act(() => {
+      (capturedCanvasProps.current?.onSelectNode as (id: string) => void)("a");
+    });
+
+    // Still the author's undone-to state — the refetch did not stomp it.
+    expect(Object.keys(liveConfig().nodes)).toHaveLength(4);
+  });
+
+  it("Ctrl+Z on the editor undoes; Ctrl+Z inside a settings text field does not", () => {
+    renderPage();
+    addNode();
+    const addedId = Object.keys(liveConfig().nodes)[0];
+
+    // Focus inside a text input → the browser's native text undo owns it.
+    const nameInput = screen.getByLabelText("Name");
+    fireEvent.keyDown(nameInput, { key: "z", ctrlKey: true });
+    expect(liveConfig().nodes[addedId]).toBeDefined();
+
+    // Anywhere else → the graph's undo runs.
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    expect(liveConfig().nodes[addedId]).toBeUndefined();
+
+    fireEvent.keyDown(document.body, {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(liveConfig().nodes[addedId]).toBeDefined();
+  });
+});
