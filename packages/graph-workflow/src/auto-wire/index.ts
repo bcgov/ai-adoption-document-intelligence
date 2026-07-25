@@ -1,4 +1,12 @@
 export {
+  collectCtxReaders,
+  type CtxKeyReferences,
+  type CtxReader,
+  type CtxReadVia,
+  findCtxKeyReferences,
+} from "./ctx-references";
+export {
+  collectCtxWriters,
   type CtxKeySource,
   type CtxWriter,
   nodeTypeCtxWrites,

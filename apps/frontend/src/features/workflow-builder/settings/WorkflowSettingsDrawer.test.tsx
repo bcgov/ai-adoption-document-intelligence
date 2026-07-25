@@ -9,7 +9,7 @@ import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { WorkflowSettingsDrawer } from "./WorkflowSettingsDrawer";
 
@@ -39,21 +39,26 @@ const noop = () => undefined;
 function Harness({
   initial,
   onConfig,
+  onSelectNode = noop,
+  onClose = noop,
 }: {
   initial: GraphWorkflowConfig;
   onConfig?: (next: GraphWorkflowConfig) => void;
+  onSelectNode?: (nodeId: string) => void;
+  onClose?: () => void;
 }) {
   const [config, setConfig] = useState(initial);
   return (
     <MantineProvider>
       <WorkflowSettingsDrawer
         opened={true}
-        onClose={noop}
+        onClose={onClose}
         config={config}
         onConfigChange={(next) => {
           setConfig(next);
           onConfig?.(next);
         }}
+        onSelectNode={onSelectNode}
       />
     </MantineProvider>
   );
@@ -236,5 +241,93 @@ describe("WorkflowSettingsDrawer — US-098 Kind Select column", () => {
 
     const select = screen.getByLabelText("Kind for docs") as HTMLInputElement;
     expect(select.value).toBe("Multi-page document (array)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-009 — what reads this variable, and what writes it
+// ---------------------------------------------------------------------------
+
+function makeReferencedConfig(): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "Test" },
+    entryNodeId: "prep",
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare the file",
+        activityType: "file.prepare",
+        outputs: [{ port: "preparedData", ctxKey: "preparedFile" }],
+      },
+      submit: {
+        id: "submit",
+        type: "activity",
+        label: "Send to OCR",
+        activityType: "azureOcr.submit",
+        inputs: [{ port: "fileData", ctxKey: "preparedFile" }],
+      },
+    },
+    edges: [],
+    ctx: {
+      preparedFile: { type: "object" },
+      unusedKey: { type: "string" },
+    },
+  };
+}
+
+describe("WorkflowSettingsDrawer — G-009 ctx references", () => {
+  it("reports what reads a given ctx variable", () => {
+    render(<Harness initial={makeReferencedConfig()} />);
+    fireEvent.click(screen.getByTestId("ctx-references-preparedFile"));
+    const readers = screen.getByTestId("ctx-readers-preparedFile");
+    expect(readers).toHaveTextContent("Send to OCR");
+    expect(readers).toHaveTextContent("fileData");
+  });
+
+  it("reports what writes it", () => {
+    render(<Harness initial={makeReferencedConfig()} />);
+    fireEvent.click(screen.getByTestId("ctx-references-preparedFile"));
+    const writers = screen.getByTestId("ctx-writers-preparedFile");
+    expect(writers).toHaveTextContent("Prepare the file");
+    expect(writers).toHaveTextContent("preparedData");
+  });
+
+  it("says so when nothing references it", () => {
+    render(<Harness initial={makeReferencedConfig()} />);
+    fireEvent.click(screen.getByTestId("ctx-references-unusedKey"));
+    expect(
+      screen.getByTestId("ctx-references-empty-unusedKey"),
+    ).toHaveTextContent(/nothing/i);
+    expect(screen.queryByTestId("ctx-readers-unusedKey")).toBeNull();
+  });
+
+  it("shows the reference count on the trigger before it is opened", () => {
+    render(<Harness initial={makeReferencedConfig()} />);
+    // 1 reader + 1 writer.
+    expect(screen.getByTestId("ctx-references-preparedFile")).toHaveTextContent(
+      "2",
+    );
+    expect(screen.getByTestId("ctx-references-unusedKey")).toHaveTextContent(
+      "0",
+    );
+  });
+
+  it("selects and reveals a referencing node, closing the drawer", () => {
+    const onSelectNode = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <Harness
+        initial={makeReferencedConfig()}
+        onSelectNode={onSelectNode}
+        onClose={onClose}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("ctx-references-preparedFile"));
+    fireEvent.click(screen.getByTestId("ctx-reference-preparedFile-submit"));
+    expect(onSelectNode).toHaveBeenCalledWith("submit");
+    // The node is on the canvas, which the drawer covers.
+    expect(onClose).toHaveBeenCalled();
   });
 });

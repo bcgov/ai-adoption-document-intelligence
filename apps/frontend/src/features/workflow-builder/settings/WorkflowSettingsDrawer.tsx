@@ -9,8 +9,14 @@
  * PortBinding (input or output) in the graph whose `ctxKey` matches the
  * old name is rewritten to the new name in the same atomic update. This
  * stops a rename from silently breaking bindings.
+ *
+ * G-009: each row also shows its BLAST RADIUS — what reads the variable and
+ * what writes it — because rename and delete are both destructive and an
+ * author could previously only discover the damage afterwards, by opening
+ * every node in turn.
  */
 
+import { findCtxKeyReferences } from "@ai-di/graph-workflow";
 import {
   ActionIcon,
   Box,
@@ -19,15 +25,18 @@ import {
   Divider,
   Drawer,
   Group,
+  Popover,
+  ScrollArea,
   Select,
   Stack,
   TagsInput,
   Text,
   TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import { IconArrowRight, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   CtxDeclaration,
   GraphWorkflowConfig,
@@ -49,6 +58,12 @@ interface WorkflowSettingsDrawerProps {
   onClose: () => void;
   config: GraphWorkflowConfig;
   onConfigChange: (next: GraphWorkflowConfig) => void;
+  /**
+   * G-009 — take the author to a node that references a ctx key. The page
+   * routes this through its one select-and-reveal helper; the drawer only
+   * names the node (and closes itself, since it covers the canvas).
+   */
+  onSelectNode: (nodeId: string) => void;
 }
 
 export function WorkflowSettingsDrawer({
@@ -56,6 +71,7 @@ export function WorkflowSettingsDrawer({
   onClose,
   config,
   onConfigChange,
+  onSelectNode,
 }: WorkflowSettingsDrawerProps) {
   const setMetadata = (patch: Partial<GraphWorkflowConfig["metadata"]>) =>
     onConfigChange({
@@ -154,12 +170,19 @@ export function WorkflowSettingsDrawer({
           </Group>
           <Text size="10px" c="dimmed" mb="xs">
             Named values that flow between nodes. Renaming a key rewrites every
-            binding that references it.
+            binding that references it — open “Used by” to see what that is
+            before you change or remove one.
           </Text>
           <CtxDeclarationsEditor
+            config={config}
             ctx={config.ctx}
             onUpdate={setCtx}
             onRename={renameCtxKey}
+            onSelectNode={(nodeId) => {
+              // The node lives on the canvas this drawer covers.
+              onClose();
+              onSelectNode(nodeId);
+            }}
           />
         </Box>
       </Stack>
@@ -168,15 +191,19 @@ export function WorkflowSettingsDrawer({
 }
 
 interface CtxDeclarationsEditorProps {
+  config: GraphWorkflowConfig;
   ctx: Record<string, CtxDeclaration>;
   onUpdate: (next: Record<string, CtxDeclaration>) => void;
   onRename: (oldKey: string, newKey: string) => void;
+  onSelectNode: (nodeId: string) => void;
 }
 
 function CtxDeclarationsEditor({
+  config,
   ctx,
   onUpdate,
   onRename,
+  onSelectNode,
 }: CtxDeclarationsEditorProps) {
   const rows = Object.entries(ctx);
 
@@ -209,11 +236,13 @@ function CtxDeclarationsEditor({
       {rows.map(([key, decl]) => (
         <CtxRow
           key={key}
+          config={config}
           ctxKey={key}
           declaration={decl}
           onRename={(next) => onRename(key, next)}
           onUpdate={(next) => updateDeclaration(key, next)}
           onDelete={() => deleteKey(key)}
+          onSelectNode={onSelectNode}
         />
       ))}
       <Button
@@ -230,19 +259,23 @@ function CtxDeclarationsEditor({
 }
 
 interface CtxRowProps {
+  config: GraphWorkflowConfig;
   ctxKey: string;
   declaration: CtxDeclaration;
   onRename: (next: string) => void;
   onUpdate: (next: CtxDeclaration) => void;
   onDelete: () => void;
+  onSelectNode: (nodeId: string) => void;
 }
 
 function CtxRow({
+  config,
   ctxKey,
   declaration,
   onRename,
   onUpdate,
   onDelete,
+  onSelectNode,
 }: CtxRowProps) {
   // Local name state so typing doesn't fight the parent's rename pipeline
   // (rename only commits on blur; intermediate keystrokes stay local).
@@ -316,6 +349,11 @@ function CtxRow({
         style={{ flex: 2, minWidth: 120 }}
         aria-label={`Kind for ${ctxKey}`}
       />
+      <CtxReferencesPopover
+        config={config}
+        ctxKey={ctxKey}
+        onSelectNode={onSelectNode}
+      />
       <Tooltip
         label="Mark this ctx entry as a caller-supplied input. Surfaced in the workflow's Run panel and the /run-spec endpoint."
         multiline
@@ -347,5 +385,156 @@ function CtxRow({
         <IconTrash size={14} />
       </ActionIcon>
     </Group>
+  );
+}
+
+/**
+ * G-009 — the blast radius of one ctx variable, on the row that owns it.
+ *
+ * "What else reads this before I change it?" was previously answerable only
+ * by opening every node in turn (the settings panel shows a node's inbound
+ * sources; nothing listed consumers). `findCtxKeyReferences` answers both
+ * halves from the shared enumeration in `@ai-di/graph-workflow` — the same
+ * data the auto-wire resolver and the rename sweep use, so this can never
+ * disagree with what a rename would actually rewrite.
+ */
+function CtxReferencesPopover({
+  config,
+  ctxKey,
+  onSelectNode,
+}: {
+  config: GraphWorkflowConfig;
+  ctxKey: string;
+  onSelectNode: (nodeId: string) => void;
+}) {
+  const [opened, setOpened] = useState(false);
+  const refs = useMemo(
+    () => findCtxKeyReferences(config, ctxKey),
+    [config, ctxKey],
+  );
+
+  const label = (nodeId: string) => config.nodes[nodeId]?.label || nodeId;
+  const pick = (nodeId: string) => {
+    setOpened(false);
+    onSelectNode(nodeId);
+  };
+
+  return (
+    <Popover
+      opened={opened}
+      onChange={setOpened}
+      position="bottom-end"
+      shadow="md"
+      width={280}
+      withinPortal
+      transitionProps={{ duration: 0 }}
+    >
+      <Popover.Target>
+        <Button
+          size="compact-xs"
+          variant={refs.total > 0 ? "light" : "subtle"}
+          color={refs.total > 0 ? "blue" : "gray"}
+          onClick={() => setOpened((o) => !o)}
+          data-testid={`ctx-references-${ctxKey}`}
+          aria-label={`References to ${ctxKey}`}
+          mb={4}
+          style={{ flexShrink: 0 }}
+        >
+          Used by {refs.total}
+        </Button>
+      </Popover.Target>
+      <Popover.Dropdown p="xs">
+        {refs.total === 0 ? (
+          <Text
+            size="xs"
+            c="dimmed"
+            data-testid={`ctx-references-empty-${ctxKey}`}
+          >
+            Nothing in this workflow reads or writes{" "}
+            <Text span fw={600}>
+              {ctxKey}
+            </Text>
+            {refs.declared
+              ? " — it is declared but unused."
+              : " — it is not even declared."}
+          </Text>
+        ) : (
+          <ScrollArea.Autosize mah={260} type="auto">
+            <Stack gap={8}>
+              {refs.writers.length > 0 && (
+                <Box data-testid={`ctx-writers-${ctxKey}`}>
+                  <Text size="10px" fw={600} c="dimmed" tt="uppercase" mb={2}>
+                    Written by ({refs.writers.length})
+                  </Text>
+                  <Stack gap={2}>
+                    {refs.writers.map((writer) => (
+                      <ReferenceRow
+                        key={`w-${writer.nodeId}-${writer.port}`}
+                        testId={`ctx-reference-${ctxKey}-${writer.nodeId}`}
+                        label={label(writer.nodeId)}
+                        detail={`${writer.nodeId} · ${writer.port} → ${writer.ctxKey}`}
+                        onClick={() => pick(writer.nodeId)}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+              {refs.readers.length > 0 && (
+                <Box data-testid={`ctx-readers-${ctxKey}`}>
+                  <Text size="10px" fw={600} c="dimmed" tt="uppercase" mb={2}>
+                    Read by ({refs.readers.length})
+                  </Text>
+                  <Stack gap={2}>
+                    {refs.readers.map((reader) => (
+                      <ReferenceRow
+                        key={`r-${reader.nodeId}-${reader.via}-${reader.port}`}
+                        testId={`ctx-reference-${ctxKey}-${reader.nodeId}`}
+                        label={label(reader.nodeId)}
+                        detail={`${reader.nodeId} · ${reader.port} ← ${reader.ref}`}
+                        onClick={() => pick(reader.nodeId)}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
+            </Stack>
+          </ScrollArea.Autosize>
+        )}
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
+
+function ReferenceRow({
+  testId,
+  label,
+  detail,
+  onClick,
+}: {
+  testId: string;
+  label: string;
+  detail: string;
+  onClick: () => void;
+}) {
+  return (
+    <UnstyledButton
+      onClick={onClick}
+      data-testid={testId}
+      px={6}
+      py={3}
+      style={{ borderRadius: 4 }}
+    >
+      <Group gap={4} wrap="nowrap">
+        <Box style={{ minWidth: 0, flex: 1 }}>
+          <Text size="xs" fw={600} lineClamp={1}>
+            {label}
+          </Text>
+          <Text size="10px" c="dimmed" lineClamp={1}>
+            {detail}
+          </Text>
+        </Box>
+        <IconArrowRight size={12} />
+      </Group>
+    </UnstyledButton>
   );
 }

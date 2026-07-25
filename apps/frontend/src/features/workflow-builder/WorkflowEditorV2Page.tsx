@@ -106,6 +106,7 @@ import {
   SaveAsLibraryModal,
   type SaveAsLibrarySubmission,
 } from "./library/SaveAsLibraryModal";
+import { NodeSearchBox } from "./NodeSearchBox";
 import { ActivityPalette } from "./palette/ActivityPalette";
 import {
   buildControlFlowSkeleton,
@@ -353,10 +354,11 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
       nodes: nodeIds.map((id) => ({ id })),
     });
   }, []);
-  // Item 6X — click a real-producer input row: select the producer so its
-  // selection sticks (same helper the problems deep-link uses) and pan it
-  // into view.
-  const handleJumpToProducer = useCallback(
+  // Select a node so the selection sticks (same helper the problems deep-link
+  // uses) and pan it into view. The one "take me to that node" path: used by
+  // the settings-panel producer rows (item 6X), by the find-a-node box and by
+  // the ctx-references list (G-009). A second mechanism would be a regression.
+  const selectAndRevealNode = useCallback(
     (nodeId: string) => {
       selectNodeSticky(nodeId);
       revealNodes([nodeId]);
@@ -1231,6 +1233,13 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
               size="xs"
               style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
             />
+            {/*
+              G-009 — find a node in THIS graph. Sits beside the metadata
+              fields rather than in the palette, because the palette's search
+              answers the other question (what can I add?). Picking a result
+              goes through the batch-8 select+reveal helpers.
+            */}
+            <NodeSearchBox config={config} onSelectNode={selectAndRevealNode} />
           </Group>
 
           <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
@@ -1437,6 +1446,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           onClose={() => setSettingsOpen(false)}
           config={config}
           onConfigChange={setConfig}
+          onSelectNode={selectAndRevealNode}
         />
 
         <ValidationDrawer
@@ -1654,7 +1664,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
             workflowId={isEditMode ? workflowId : undefined}
             focusInput={focusInput}
             onFocusInputConsumed={clearFocusInput}
-            onJumpToProducer={handleJumpToProducer}
+            onJumpToProducer={selectAndRevealNode}
             onHoverProducer={handleHoverProducer}
           />
         </Box>
