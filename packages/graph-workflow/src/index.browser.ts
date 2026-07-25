@@ -115,8 +115,6 @@ export type {
   TsCheckError,
 } from "./dynamic-nodes/types";
 export * from "./types";
-// Runtime config-override application (develop). Browser-safe — no node:crypto.
-export { GraphValidationError, GraphWorkflowConfig } from "./types";
 export * from "./types/index";
 export {
   applyCtxNamespace,
@@ -128,6 +126,7 @@ export {
 export { isValidTemporalDuration } from "./validator/duration";
 export type { ValidateGraphConfigOptions } from "./validator/validator";
 export { validateGraphConfig } from "./validator/validator";
+// Runtime config-override application (develop). Browser-safe — no node:crypto.
 export {
   applyWorkflowConfigOverrides,
   isSafeOverridePathSegment,

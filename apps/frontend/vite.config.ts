@@ -68,7 +68,19 @@ export default defineConfig({
     },
   ],
   optimizeDeps: {
-    include: ["@ai-di/graph-workflow"],
+    // G-105: `@ai-di/graph-workflow` must NOT be pre-bundled. It is aliased to
+    // source below, so pre-bundling snapshots that source into
+    // `node_modules/.vite/deps` — and the snapshot does not follow later edits
+    // to the package. The dev server then serves a bundle missing any newly
+    // added export and the editor dies with `does not provide an export
+    // named …`, which is indistinguishable from a code error. This silently
+    // broke the running editor for three batches of the 2026-07 fix effort.
+    //
+    // The `include` here was added by 3fb92206 (2026-06-10) two days AFTER the
+    // source alias (8a8e9a5b), alongside a missing `index.ts` re-export in the
+    // same commit — that re-export is what actually fixed the import failure.
+    // Excluding it keeps the package on Vite's source path, with working HMR.
+    exclude: ["@ai-di/graph-workflow"],
   },
   // Resolve needed to address plugin-react v5 fast refresh issue.
   resolve: {
