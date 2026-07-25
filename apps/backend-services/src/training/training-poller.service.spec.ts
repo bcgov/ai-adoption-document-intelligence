@@ -1,6 +1,8 @@
 import { BuildMode, TrainingStatus } from "@generated/client";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { TrainingDbService } from "./training-db.service";
@@ -37,6 +39,7 @@ describe("TrainingPollerService", () => {
   const mockTemplateModel = {
     id: "tm-1",
     model_id: "model-123",
+    group_id: "group-1",
   };
 
   const mockTrainingJob = {
@@ -72,7 +75,11 @@ describe("TrainingPollerService", () => {
       findAllTrainedModels: jest.fn(),
       buildTrainedModelSnapshot: jest.fn().mockResolvedValue({ documents: [] }),
       demoteActiveTrainedModels: jest.fn().mockResolvedValue(0),
-      replaceActiveTrainedModel: jest.fn(),
+      replaceActiveTrainedModel: jest.fn().mockResolvedValue({
+        id: "trained-1",
+        model_id: "model-123",
+        version: 1,
+      }),
     };
 
     // Mock Azure client methods
@@ -117,6 +124,16 @@ describe("TrainingPollerService", () => {
           useValue: mockTrainingDb,
         },
         {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(async (fn) => fn({})),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
           provide: ConfigService,
           useValue: mockConfig,
         },
@@ -148,6 +165,16 @@ describe("TrainingPollerService", () => {
           { provide: AppLoggerService, useValue: mockAppLogger },
           { provide: TrainingDbService, useValue: mockTrainingDb },
           {
+            provide: PrismaService,
+            useValue: {
+              transaction: jest.fn(async (fn) => fn({})),
+            },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          },
+          {
             provide: ConfigService,
             useValue: mockConfigNoCredentials,
           },
@@ -176,6 +203,16 @@ describe("TrainingPollerService", () => {
           {
             provide: TrainingDbService,
             useValue: mockTrainingDb,
+          },
+          {
+            provide: PrismaService,
+            useValue: {
+              transaction: jest.fn(async (fn) => fn({})),
+            },
+          },
+          {
+            provide: AuditService,
+            useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
           },
           {
             provide: ConfigService,
@@ -456,10 +493,14 @@ describe("TrainingPollerService", () => {
         "operation-123",
       );
 
-      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith("job-1", {
-        status: TrainingStatus.SUCCEEDED,
-        completed_at: expect.any(Date),
-      });
+      expect(mockTrainingDb.updateTrainingJob).toHaveBeenCalledWith(
+        "job-1",
+        {
+          status: TrainingStatus.SUCCEEDED,
+          completed_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
 
       expect(mockTrainingDb.replaceActiveTrainedModel).toHaveBeenCalledWith(
         "tm-1",
@@ -474,6 +515,7 @@ describe("TrainingPollerService", () => {
           field_count: 2,
           dataset_snapshot: { documents: [] },
         }),
+        expect.anything(),
       );
     });
 
@@ -538,6 +580,7 @@ describe("TrainingPollerService", () => {
           field_count: 3,
           dataset_snapshot: { documents: [] },
         }),
+        expect.anything(),
       );
     });
 
@@ -629,6 +672,7 @@ describe("TrainingPollerService", () => {
           max_training_hours: 2,
           actual_training_hours: 0.42,
         }),
+        expect.anything(),
       );
       expect(documentModelsGet).toHaveBeenCalledTimes(1);
     });
@@ -676,6 +720,7 @@ describe("TrainingPollerService", () => {
           build_mode: BuildMode.template,
           actual_training_hours: null,
         }),
+        expect.anything(),
       );
       expect(documentModelsGet).toHaveBeenCalledTimes(1);
     });
@@ -724,6 +769,7 @@ describe("TrainingPollerService", () => {
           max_training_hours: null,
           actual_training_hours: null,
         }),
+        expect.anything(),
       );
       expect(documentModelsGet).not.toHaveBeenCalled();
     });
@@ -765,6 +811,7 @@ describe("TrainingPollerService", () => {
           build_mode: BuildMode.template,
           actual_training_hours: null,
         }),
+        expect.anything(),
       );
     });
 
@@ -805,6 +852,7 @@ describe("TrainingPollerService", () => {
           max_training_hours: 2,
           actual_training_hours: 0.75,
         }),
+        expect.anything(),
       );
       expect(documentModelsGet).not.toHaveBeenCalled();
     });
@@ -850,6 +898,7 @@ describe("TrainingPollerService", () => {
           doc_types: {},
           field_count: 0,
         }),
+        expect.anything(),
       );
     });
   });

@@ -722,6 +722,10 @@ export class WorkflowController {
       normalized_file_path: null,
       file_type: file.mimetype === "application/pdf" ? "pdf" : "image",
       file_size: file.size,
+      // No content hash for an ad-hoc builder upload: dedup/lookup by hash is
+      // a document-library concern and this record exists only so the graph
+      // engine has a `documentId` to run against.
+      content_hash: null,
       metadata: {},
       source: "workflow-upload",
       status: DocumentStatus.pre_ocr,

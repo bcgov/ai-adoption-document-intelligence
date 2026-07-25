@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -70,18 +71,25 @@ const mockVersion = {
 
 const mockQueryRaw = jest.fn();
 
+const mockTransaction = jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
+  fn({
+    workflowLineage: mockLineage,
+    workflowVersion: mockVersion,
+  }),
+);
+
 const mockPrismaService = {
   prisma: {
     workflowLineage: mockLineage,
     workflowVersion: mockVersion,
     $queryRaw: mockQueryRaw,
-    $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        workflowLineage: mockLineage,
-        workflowVersion: mockVersion,
-      }),
-    ),
+    $transaction: mockTransaction,
   },
+  // The real `PrismaService.transaction` is a thin wrapper over
+  // `prisma.$transaction`, so the mock delegates to the same jest.fn. Tests
+  // that override the transaction behaviour (the slug-race retry cases) take
+  // effect through either seam.
+  transaction: mockTransaction,
 };
 
 const mockTemporalClient = {
@@ -137,6 +145,10 @@ describe("WorkflowService", () => {
             listForGroup: jest.fn().mockResolvedValue([]),
             findVersionByNumber: jest.fn().mockResolvedValue(null),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -591,7 +603,7 @@ describe("WorkflowService", () => {
       });
 
       expect(result).toBeDefined();
-      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.transaction).toHaveBeenCalledTimes(2);
     });
 
     it("propagates the slug violation once retries are exhausted", async () => {
@@ -715,7 +727,7 @@ describe("WorkflowService", () => {
           },
         );
 
-      mockPrismaService.prisma.$transaction.mockImplementation(
+      mockPrismaService.transaction.mockImplementationOnce(
         async (fn: (tx: any) => Promise<unknown>) =>
           fn({
             workflowLineage: {

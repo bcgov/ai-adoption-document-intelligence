@@ -13,8 +13,8 @@
  * work unchanged for call sites that don't have a group context
  * (benchmark candidates, test fixtures, etc.).
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.2 +
- * docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md §7.2.
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 9.2 +
+ * docs-md/workflows/DYNAMIC_NODES_DESIGN.md §7.2.
  */
 
 import {

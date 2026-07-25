@@ -433,7 +433,7 @@ describe("SwitchNodeSettings — US-026 Scenario 2: default-edge picker conditio
 describe("SwitchNodeSettings — US-026 Scenario 3: segmentRouter template populates all four pickers", () => {
   it("each case row's EdgePicker shows the bound edge value and the default picker shows edge-to-unknown", () => {
     // Mirror the segmentRouter switch + outgoing edges from
-    // docs-md/graph-workflows/templates/multi-page-report-workflow.json.
+    // docs-md/workflows/templates/multi-page-report-workflow.json.
     const segmentRouter = switchNode(
       "segmentRouter",
       "Route by Document Type",

@@ -8,7 +8,7 @@
  * Must be deterministic: no I/O, no Date.now(). The catalog adapter uses
  * Zod's pure `safeParse`, so this property is preserved.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.2 step 1
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 5.2 step 1
  */
 
 import type {

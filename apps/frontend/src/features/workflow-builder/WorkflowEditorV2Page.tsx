@@ -717,7 +717,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
 
   // Hydrate state when the workflow loads in edit mode.
   // Run auto-layout when the loaded config carries no node positions — e.g.
-  // seeded workflows (docs-md/graph-workflows/templates/*.json) and any
+  // seeded workflows (docs-md/workflows/templates/*.json) and any
   // workflow authored via the API/agent without positions. Without this they
   // render stacked/out-of-order on the canvas. Configs that already have
   // positions pass through unchanged (layoutGraphIfMissingPositions is a no-op

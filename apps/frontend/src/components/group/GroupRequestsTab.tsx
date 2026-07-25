@@ -132,7 +132,7 @@ export function GroupRequestsTab({
       <Modal
         opened={approveModalOpen}
         onClose={() => setApproveModalOpen(false)}
-        title="Approve Membership Request"
+        title="Approve membership request"
         data-testid="approve-modal"
       >
         <Stack gap="md">
@@ -170,7 +170,7 @@ export function GroupRequestsTab({
       <Modal
         opened={denyModalOpen}
         onClose={() => setDenyModalOpen(false)}
-        title="Deny Membership Request"
+        title="Deny membership request"
         data-testid="deny-modal"
       >
         <Stack gap="md">

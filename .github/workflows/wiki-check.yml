@@ -1,0 +1,24 @@
+name: Wiki Check
+permissions:
+  contents: read
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+    paths:
+      - "docs-md/wiki/**"
+      - "scripts/validate-wiki.js"
+      - "scripts/build-docs-wiki.js"
+      - "package.json"
+      - ".github/workflows/wiki-check.yml"
+  workflow_dispatch:
+
+jobs:
+  wiki-check:
+    name: Validate repo wiki
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Validate wiki
+        run: npm run docs:wiki:check

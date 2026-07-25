@@ -1,7 +1,7 @@
 /**
  * Static bundle of workflow templates.
  *
- * Templates are JSON files in `docs-md/graph-workflows/templates/`. They
+ * Templates are JSON files in `docs-md/workflows/templates/`. They
  * are not API-backed today — the picker reads them straight out of the
  * bundle, hydrates the editor's local state, and saves create a brand
  * new workflow record. To add a template, drop a new JSON file into the
@@ -11,7 +11,7 @@
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 
 const templateModules = import.meta.glob<GraphWorkflowConfig>(
-  "@docs/graph-workflows/templates/*.json",
+  "@docs/workflows/templates/*.json",
   { eager: true, import: "default" },
 );
 

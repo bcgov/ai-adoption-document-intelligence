@@ -115,7 +115,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
       <PanelCard>
         <Stack gap="xs">
           <Text fw={600} size="sm">
-            Expected vs Actual
+            Expected vs actual
           </Text>
           {groundTruth === undefined && prediction === undefined ? (
             <Text size="sm" c="dimmed">
@@ -126,7 +126,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
             <Grid>
               <Grid.Col span={6}>
                 <Text size="xs" fw={500} c="dimmed" mb={4}>
-                  Ground Truth (Expected)
+                  Ground truth (expected)
                 </Text>
                 <JsonInput
                   value={
@@ -143,7 +143,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
               </Grid.Col>
               <Grid.Col span={6}>
                 <Text size="xs" fw={500} c="dimmed" mb={4}>
-                  Prediction (Actual)
+                  Prediction (actual)
                 </Text>
                 <JsonInput
                   value={
@@ -167,7 +167,7 @@ const DefaultDrillDownPanel: DrillDownPanelComponent = ({
         <PanelCard>
           <Stack gap="xs">
             <Text fw={600} size="sm">
-              Evaluation Details
+              Evaluation details
             </Text>
             <JsonInput
               value={
@@ -252,7 +252,7 @@ export function ResultsDrillDownPage() {
     return (
       <Alert
         color="red"
-        title="Run Not Found"
+        title="Run not found"
         icon={<IconAlertCircle />}
         mt="md"
       >
@@ -265,7 +265,7 @@ export function ResultsDrillDownPage() {
     return (
       <Alert
         color="yellow"
-        title="Results Not Available"
+        title="Results not available"
         icon={<IconAlertCircle />}
         mt="md"
       >
@@ -313,18 +313,18 @@ export function ResultsDrillDownPage() {
             }
             data-testid="back-to-run-details-btn"
           >
-            Back to Run Details
+            Back to run details
           </Button>
           <div>
-            <Title order={2}>Sample Results: {run.definitionName}</Title>
+            <Title order={2}>Sample results: {run.definitionName}</Title>
             <Text size="sm" c="dimmed">
-              {project?.name || projectId} • Run ID: {runId}
+              {project?.name || projectId} • run ID: {runId}
             </Text>
           </div>
         </Group>
       </Group>
 
-      {/* Filter Panel */}
+      {/* Filter panel */}
       <PanelCard>
         <Stack gap="md">
           <Group justify="space-between">
@@ -345,7 +345,7 @@ export function ResultsDrillDownPage() {
                 onClick={clearFilters}
                 data-testid="clear-all-filters-btn"
               >
-                Clear All
+                Clear all
               </Button>
             )}
           </Group>
@@ -381,7 +381,7 @@ export function ResultsDrillDownPage() {
         </Stack>
       </PanelCard>
 
-      {/* Results Summary */}
+      {/* Results summary */}
       <PanelCard>
         <Group justify="space-between">
           <Text size="sm" fw={500} data-testid="sample-count">
@@ -411,7 +411,7 @@ export function ResultsDrillDownPage() {
       ) : results.length === 0 ? (
         <Alert
           color="blue"
-          title="No Results"
+          title="No results"
           icon={<IconAlertCircle />}
           data-testid="empty-results-alert"
         >
@@ -517,7 +517,7 @@ export function ResultsDrillDownPage() {
         position="right"
         size="xl"
         title={
-          <Text fw={600}>Sample Details: {selectedSample?.sampleId || ""}</Text>
+          <Text fw={600}>Sample details: {selectedSample?.sampleId || ""}</Text>
         }
         data-testid="sample-detail-drawer"
       >
@@ -526,7 +526,7 @@ export function ResultsDrillDownPage() {
             {customPanels.length > 0 ? (
               <Tabs defaultValue="default">
                 <Tabs.List>
-                  <Tabs.Tab value="default">Default View</Tabs.Tab>
+                  <Tabs.Tab value="default">Default view</Tabs.Tab>
                   {customPanels.map(({ name }) => (
                     <Tabs.Tab key={name} value={name}>
                       {name}

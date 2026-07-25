@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -178,6 +179,7 @@ export class WorkflowService {
     private readonly prismaService: PrismaService,
     private readonly logger: AppLoggerService,
     private readonly dynamicNodeRepository: DynamicNodeRepository,
+    private readonly auditService: AuditService,
   ) {}
 
   private get prisma() {
@@ -328,7 +330,10 @@ export class WorkflowService {
   ): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.prisma.$transaction(run);
+        // Go through PrismaService.transaction (a thin wrapper over
+        // `$transaction`) rather than the raw client, so this shares one
+        // transaction seam with the rest of the service.
+        return await this.prismaService.transaction(run);
       } catch (err) {
         if (
           attempt < WORKFLOW_SLUG_CREATE_MAX_RETRIES &&
@@ -718,6 +723,24 @@ export class WorkflowService {
           `Workflow not found after create: ${lineageRow.id}`,
         );
       }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "workflow_created",
+          resource_type: "workflow_lineage",
+          resource_id: loaded.id,
+          actor_id: actorId,
+          group_id: dto.groupId,
+          payload: {
+            workflow_version_id: loaded.headVersion.id,
+            version_number: loaded.headVersion.version_number,
+            slug: loaded.slug,
+            name: loaded.name,
+          },
+        },
+        tx,
+      );
+
       return loaded;
     });
 
@@ -789,7 +812,7 @@ export class WorkflowService {
         attempt++
       ) {
         try {
-          versioned = await this.prisma.$transaction(async (tx) => {
+          versioned = await this.prismaService.transaction(async (tx) => {
             const current = await tx.workflowLineage.findUnique({
               where: { id: lineageId },
               include: this.lineageWithHead,
@@ -830,6 +853,22 @@ export class WorkflowService {
             if (!updatedLineage?.headVersion) {
               throw new NotFoundException(`Workflow not found: ${lineageId}`);
             }
+
+            await this.auditService.recordEvent(
+              {
+                event_type: "workflow_version_appended",
+                resource_type: "workflow_lineage",
+                resource_id: lineageId,
+                actor_id: actorId,
+                group_id: updatedLineage.group_id,
+                payload: {
+                  workflow_version_id: updatedLineage.headVersion.id,
+                  version_number: updatedLineage.headVersion.version_number,
+                },
+              },
+              tx,
+            );
+
             return {
               lineage: updatedLineage,
               version: updatedLineage.headVersion,
@@ -890,6 +929,18 @@ export class WorkflowService {
     this.logger.log(
       `Workflow metadata updated: ${lineageId} by actor ${actorId} (version unchanged)`,
     );
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_updated",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: lineageOnly.group_id,
+      payload: {
+        workflow_version_id: lineageOnly.headVersion.id,
+        fields_updated: Object.keys(lineageUpdates),
+      },
+    });
 
     return this.mapLineageAndVersion(lineageOnly, lineageOnly.headVersion);
   }
@@ -976,6 +1027,23 @@ export class WorkflowService {
           `Candidate workflow not found after create: ${lineageRow.id}`,
         );
       }
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "workflow_candidate_created",
+          resource_type: "workflow_lineage",
+          resource_id: loaded.id,
+          actor_id: actorId,
+          group_id: loaded.group_id,
+          payload: {
+            source_workflow_version_id: sourceWorkflowVersionId,
+            source_lineage_id: baseLineageId,
+            workflow_version_id: loaded.headVersion.id,
+          },
+        },
+        tx,
+      );
+
       return loaded;
     });
 
@@ -1170,6 +1238,18 @@ export class WorkflowService {
       throw error;
     }
 
+    await this.auditService.recordEvent({
+      event_type: "workflow_deleted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: existing.group_id,
+      payload: {
+        slug: existing.slug,
+        name: existing.name,
+      },
+    });
+
     this.logger.log(
       `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
     );
@@ -1230,6 +1310,19 @@ export class WorkflowService {
     if (!updated.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    await this.auditService.recordEvent({
+      event_type: "workflow_head_reverted",
+      resource_type: "workflow_lineage",
+      resource_id: lineageId,
+      actor_id: actorId,
+      group_id: lineage.group_id,
+      payload: {
+        workflow_version_id: workflowVersionId,
+        version_number: version.version_number,
+      },
+    });
+
     return this.mapLineageAndVersion(updated, updated.headVersion);
   }
 }

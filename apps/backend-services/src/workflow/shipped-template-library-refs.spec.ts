@@ -38,7 +38,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const TEMPLATE_DIR = path.join(REPO_ROOT, "docs-md/graph-workflows/templates");
+const TEMPLATE_DIR = path.join(REPO_ROOT, "docs-md/workflows/templates");
 const SEED_FILE = path.join(REPO_ROOT, "apps/shared/prisma/seed.ts");
 
 /**

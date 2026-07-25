@@ -11,7 +11,7 @@
  *
  * Must be deterministic: no I/O, no Date.now().
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md
  */
 
 import { isAutoCtxKey, resolveCtxKeySource } from "../auto-wire";

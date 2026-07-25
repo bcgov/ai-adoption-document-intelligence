@@ -4,7 +4,7 @@
  * This workflow function replaces the legacy hardcoded workflow with a generic
  * data-driven interpreter that can execute any workflow graph definition.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 5
  */
 
 import {
@@ -102,7 +102,9 @@ function redactCtxForQuery(
         ];
       }
       const valueStr = JSON.stringify(value);
-      if (valueStr.length > 1000) {
+      // JSON.stringify(undefined) returns undefined, not a string — guard so a
+      // ctx key holding `undefined` doesn't crash the getStatus query handler.
+      if (valueStr !== undefined && valueStr.length > 1000) {
         return [key, "<redacted: large value>"];
       }
       return [key, value];

@@ -14,10 +14,10 @@ import { TemplatesPickerModal } from "../features/workflow-builder/templates/Tem
 import {
   Badge,
   Button,
+  ConfirmActionModal,
   DataTable,
   Group,
   IconActionButton,
-  Modal,
   notifications,
   PageHeader,
   PanelCard,
@@ -122,7 +122,7 @@ export function WorkflowListPage() {
         leftSection={<IconPlus size={16} />}
         onClick={() => navigate("/workflows/create")}
       >
-        Create Workflow
+        Create workflow
       </Button>
     </Group>
   );
@@ -159,7 +159,7 @@ export function WorkflowListPage() {
           actions={listActions}
         />
         <Text c="red">
-          {error instanceof Error ? error.message : "Failed to load workflows"}
+          {error instanceof Error ? error.message : "failed to load workflows"}
         </Text>
       </Stack>
     );
@@ -312,32 +312,15 @@ export function WorkflowListPage() {
         onClose={() => setTemplatesOpen(false)}
         onSelect={handleTemplateSelect}
       />
-      <Modal
+      <ConfirmActionModal
         opened={deleteModalOpen}
         onClose={handleDeleteCancel}
-        title="Delete Workflow"
-        centered
-      >
-        <Stack gap="md">
-          <Text>
-            Are you sure you want to delete workflow "{workflowToDelete?.name}"?
-            This action cannot be undone.
-          </Text>
-          <Group justify="flex-end" gap="xs">
-            <Button type="button" variant="subtle" onClick={handleDeleteCancel}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              color="red"
-              onClick={handleDeleteConfirm}
-              loading={deleteWorkflowMutation.isPending}
-            >
-              Delete
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        onConfirm={handleDeleteConfirm}
+        title="Delete workflow"
+        message={`Are you sure you want to delete workflow "${workflowToDelete?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmLoading={deleteWorkflowMutation.isPending}
+      />
     </>
   );
 }

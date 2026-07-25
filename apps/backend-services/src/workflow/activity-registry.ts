@@ -6,7 +6,7 @@
  * temporal worker). It provides the set of valid activity type strings
  * and their descriptions.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
  */
 
 export interface RegisteredActivityType {
@@ -29,7 +29,23 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.extract": { description: "Extract structured OCR data" },
     "mistralOcr.process": {
       description:
-        "Mistral Document AI OCR (sync) with optional document annotation",
+        "Mistral Document AI OCR (sync, native or Azure Foundry transport) with optional document annotation",
+    },
+    "azureContentUnderstanding.deployAnalyzer": {
+      description:
+        "Deploy (idempotent PUT) an Azure Content Understanding analyzer derived from a TemplateModel field schema",
+    },
+    "azureContentUnderstanding.analyze": {
+      description:
+        "Azure Content Understanding analyze (async; polls until terminal); deploys analyzer first if a template schema is supplied",
+    },
+    "vlmDirect.extract": {
+      description:
+        "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+    },
+    "vlmOcrHybrid.extract": {
+      description:
+        "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
     },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {

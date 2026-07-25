@@ -20,7 +20,7 @@ describe("document.validateFields catalog entry", () => {
 
   describe("parameter validation", () => {
     // Mirrors the actual rule the multi-page-report-workflow template
-    // ships with — see docs-md/graph-workflows/templates/multi-page-report-workflow.json.
+    // ships with — see docs-md/workflows/templates/multi-page-report-workflow.json.
     // This is the canonical shape the runtime activity consumes
     // (apps/temporal/src/activities/document-validate-fields.ts → ValidationRule).
     it("accepts the template's arithmetic rule with a nested expression", () => {

@@ -503,7 +503,7 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
 
 // ---------------------------------------------------------------------------
 // Edit-mode hydration auto-layout — an opened workflow that carries no node
-// positions (seeded workflows from docs-md/graph-workflows/templates/*.json,
+// positions (seeded workflows from docs-md/workflows/templates/*.json,
 // or any API/agent-authored workflow) must be auto-laid-out on open, mirroring
 // the create-from-template path. Regression: such workflows rendered
 // stacked/out-of-order because hydration skipped layoutGraphIfMissingPositions.
@@ -1677,7 +1677,7 @@ describe("WorkflowEditorV2Page — Multi-Page Report template integration (Task 
     // `nodeGroups` entry directly from `capturedCanvasProps.current`.
     const templateConfig = (
       await import(
-        "../../../../../docs-md/graph-workflows/templates/multi-page-report-workflow.json"
+        "../../../../../docs-md/workflows/templates/multi-page-report-workflow.json"
       )
     ).default as unknown as GraphWorkflowConfig;
 

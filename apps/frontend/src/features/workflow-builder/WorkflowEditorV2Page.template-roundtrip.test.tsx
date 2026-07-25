@@ -5,8 +5,8 @@ import {
   stripRedundantLocks,
 } from "@ai-di/graph-workflow";
 import { describe, expect, it } from "vitest";
-import multiPageReport from "../../../../../docs-md/graph-workflows/templates/multi-page-report-workflow.json";
-import standardOcr from "../../../../../docs-md/graph-workflows/templates/standard-ocr-workflow.json";
+import multiPageReport from "../../../../../docs-md/workflows/templates/multi-page-report-workflow.json";
+import standardOcr from "../../../../../docs-md/workflows/templates/standard-ocr-workflow.json";
 
 describe("Auto-wire round-trip stability against shipped templates", () => {
   it("multi-page-report-workflow.json is byte-stable through load + save", () => {

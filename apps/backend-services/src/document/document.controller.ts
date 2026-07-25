@@ -267,13 +267,18 @@ export class DocumentController {
     }
 
     await this.auditService.recordEvent({
-      event_type: "document_accessed",
+      event_type: "document_updated",
       resource_type: "document",
       resource_id: documentId,
       actor_id: req.resolvedIdentity.actorId,
       document_id: documentId,
       group_id: document.group_id ?? undefined,
-      payload: { action: "metadata" },
+      payload: {
+        fields_updated: [
+          ...(body.title !== undefined ? ["title"] : []),
+          ...(body.metadata !== undefined ? ["metadata"] : []),
+        ],
+      },
     });
 
     this.logger.debug("=== DocumentController.updateDocument completed ===");
@@ -347,7 +352,8 @@ export class DocumentController {
   @ApiQuery({
     name: "search",
     required: false,
-    description: "Search documents by title or original filename.",
+    description:
+      "Search documents by title, original filename, or content hash (Content ID).",
   })
   @ApiQuery({
     name: "status",
@@ -370,6 +376,12 @@ export class DocumentController {
     required: false,
     description: 'Filter by document source (e.g., "api").',
   })
+  @ApiQuery({
+    name: "content_hash",
+    required: false,
+    description:
+      "Filter by SHA-256 hex digest of the original upload bytes (exact match).",
+  })
   @ApiOkResponse({
     description: "Returns a paginated list of documents",
     type: PaginatedDocumentsDto,
@@ -387,6 +399,7 @@ export class DocumentController {
     @Query("sort_by") sortBy?: string,
     @Query("sort_dir") sortDir?: string,
     @Query("source") source?: string,
+    @Query("content_hash") contentHash?: string,
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
@@ -413,6 +426,7 @@ export class DocumentController {
           sortBy: sortBy || "created_at",
           sortDir: sortDir === "asc" || sortDir === "desc" ? sortDir : "desc",
           source: source || undefined,
+          contentHash: contentHash?.trim() || undefined,
         },
       );
 

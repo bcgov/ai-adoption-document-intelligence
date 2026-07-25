@@ -8,6 +8,7 @@ export type LabelingDocumentData = {
   normalized_file_path: string | null;
   file_type: string;
   file_size: number;
+  content_hash?: string | null;
   metadata?: Record<string, unknown> | null;
   source: string;
   status: import("@generated/client").DocumentStatus;
