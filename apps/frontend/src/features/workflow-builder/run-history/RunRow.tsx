@@ -41,6 +41,7 @@ import {
 import { IconPlayerPlay } from "@tabler/icons-react";
 import type { MouseEvent } from "react";
 
+import type { ReplayVersionRef } from "../run/RunStateContext";
 import type { RunSummary, RunSummaryStatus } from "./useWorkflowRuns";
 
 /** Status → colour mapping mirrors `NodeStatusBadge` (US-138). */
@@ -112,10 +113,11 @@ export interface RunRowProps {
   headVersionId?: string;
   /**
    * Click handler for the Replay button AND the row body. Receives the
-   * `runId` so the parent can set `activeRunId` / `isReplay` and close
-   * the drawer.
+   * `runId` AND the version that run executed against, so the parent can
+   * pin replay to the graph that actually ran (G-004) rather than painting
+   * the run's statuses onto whatever config is currently on screen.
    */
-  onReplay: (runId: string) => void;
+  onReplay: (runId: string, version: ReplayVersionRef) => void;
 }
 
 export function RunRow({ run, headVersionId, onReplay }: RunRowProps) {
@@ -133,14 +135,19 @@ export function RunRow({ run, headVersionId, onReplay }: RunRowProps) {
   const ctxSummaryFull = summariseCtx(run.inputCtxSummary, 4);
   const hasCtxSummary = ctxSummaryShort.length > 0;
 
+  const replayVersion: ReplayVersionRef = {
+    id: run.workflowVersionId,
+    versionNumber: run.versionNumber,
+  };
+
   const handleRowClick = () => {
-    onReplay(run.runId);
+    onReplay(run.runId, replayVersion);
   };
 
   const handleReplayClick = (e: MouseEvent<HTMLButtonElement>) => {
     // Prevent the row-level click handler from double-firing.
     e.stopPropagation();
-    onReplay(run.runId);
+    onReplay(run.runId, replayVersion);
   };
 
   return (

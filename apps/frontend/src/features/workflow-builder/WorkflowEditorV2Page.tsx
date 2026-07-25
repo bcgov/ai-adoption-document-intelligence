@@ -76,6 +76,7 @@ import {
   useRevertWorkflowHead,
   useUpdateWorkflow,
   useWorkflow,
+  useWorkflowVersion,
 } from "../../data/hooks/useWorkflows";
 import type {
   ActivityNode,
@@ -110,7 +111,11 @@ import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
 } from "./palette/control-flow-skeletons";
-import { RunStateProvider, useRunState } from "./run/RunStateContext";
+import {
+  type ReplayVersionRef,
+  RunStateProvider,
+  useRunState,
+} from "./run/RunStateContext";
 import {
   RunWorkflowDrawer,
   type RunWorkflowDrawerOpenMode,
@@ -150,11 +155,46 @@ interface WorkflowEditorV2PageProps {
   mode: "create" | "edit";
 }
 
+/**
+ * Public entry point. Mounts `RunStateProvider` ABOVE the editor body so the
+ * body itself can read run state — G-004 needs `isReplay` + `replayVersion`
+ * at the top of the editor to render the historical graph, and a component
+ * cannot consume a context it renders. (US-149's reason for hoisting the
+ * provider to wrap the whole editor is unchanged; this just moves it one
+ * level further out, which also means it is mounted during the loading
+ * state instead of only after.)
+ */
 export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
+  const { workflowId } = useParams<{ workflowId: string }>();
+  return (
+    <RunStateProvider workflowId={workflowId ?? ""}>
+      <WorkflowEditorV2PageBody mode={mode} />
+    </RunStateProvider>
+  );
+}
+
+function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
   const location = useLocation();
   const isEditMode = mode === "edit";
+
+  // G-004 — replay is a VIEW of a past run, on the graph that ran. The run's
+  // own version is loaded here and rendered instead of the editing config;
+  // the editing config, its undo stack and the unsaved-changes baseline are
+  // never touched, so entering/leaving replay cannot lose the author's work.
+  const { isReplay, replayVersion } = useRunState();
+  const replayVersionQuery = useWorkflowVersion(
+    workflowId ?? "",
+    isReplay && replayVersion ? replayVersion.id : "",
+  );
+  const replayConfig =
+    isReplay && replayVersion ? replayVersionQuery.data?.config : undefined;
+  // The run's version could not be loaded (deleted, or the request failed).
+  // Better to say so than to silently paint the run's statuses onto today's
+  // graph, which is exactly the bug G-004 is about.
+  const replayVersionUnavailable =
+    isReplay && replayVersion != null && replayVersionQuery.isError;
 
   const { data: existingWorkflow, isLoading } = useWorkflow(
     isEditMode ? (workflowId ?? "") : "",
@@ -418,22 +458,30 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // Synthetic entries are NEVER persisted; they're stripped from any config
   // update the canvas dispatches back through `onConfigChange`.
   const displayConfig = useMemo<GraphWorkflowConfig>(() => {
-    const synthetic = synthesizeMapBodyGroups(config);
-    if (Object.keys(synthetic).length === 0) return config;
+    // G-004 — while replaying, the canvas renders the version that RAN.
+    // Falls back to the editing config until the version resolves (and when
+    // it can't be resolved at all, which the banner calls out).
+    const base = replayConfig ?? config;
+    const synthetic = synthesizeMapBodyGroups(base);
+    if (Object.keys(synthetic).length === 0) return base;
     return {
-      ...config,
-      nodeGroups: mergeNodeGroups(config.nodeGroups ?? {}, synthetic),
+      ...base,
+      nodeGroups: mergeNodeGroups(base.nodeGroups ?? {}, synthetic),
     };
-  }, [config]);
+  }, [config, replayConfig]);
 
   const handleCanvasConfigChange = useCallback(
     (next: GraphWorkflowConfig) => {
+      // G-004 — replay is a view. Never let a canvas/settings edit made
+      // while looking at a historical graph land in the editing config; that
+      // would silently overwrite the author's work with an old version.
+      if (isReplay) return;
       const stripped = next.nodeGroups
         ? { ...next, nodeGroups: stripSyntheticMapBodyGroups(next.nodeGroups) }
         : next;
       setConfig(resolveBindings(stripped));
     },
-    [setConfig],
+    [setConfig, isReplay],
   );
 
   // Live xyflow instance from the inner canvas — populated by
@@ -1128,13 +1176,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   }
 
   return (
-    // US-149: `RunStateProvider` wraps the entire editor so the
-    // `RunWorkflowDrawer`'s Try tab can call `setActiveRunId` BEFORE
-    // closing — the canvas's polling loops (US-138) need to see the
-    // new run id before the drawer unmounts. Previously this provider
-    // only wrapped the canvas Box; lifting it here keeps both the
-    // canvas AND the drawer inside the same run-state scope.
-    <RunStateProvider workflowId={workflowId ?? ""}>
+    <>
       <Stack
         gap={0}
         style={{
@@ -1192,7 +1234,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           </Group>
 
           <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
-            <TopBarReplayIndicator />
+            <TopBarReplayIndicator
+              versionUnavailable={replayVersionUnavailable}
+            />
             {/*
               G-003 — visible undo/redo. The shortcuts exist too, but a
               keyboard-only affordance is undiscoverable, which is the same
@@ -1615,7 +1659,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           />
         </Box>
       </Stack>
-    </RunStateProvider>
+    </>
   );
 }
 
@@ -1669,18 +1713,34 @@ function ValidationButton({
  * that the canvas is displaying historical state. Must be mounted
  * inside the `RunStateProvider` subtree.
  */
-function TopBarReplayIndicator() {
-  const { isReplay, setActiveRunId, setIsReplay } = useRunState();
+function TopBarReplayIndicator({
+  versionUnavailable,
+}: {
+  versionUnavailable?: boolean;
+}) {
+  const { isReplay, replayVersion, setActiveRunId, setIsReplay } =
+    useRunState();
   if (!isReplay) return null;
   const handleClear = () => {
     setActiveRunId(null);
     setIsReplay(false);
   };
+  // G-004 — an author who cannot tell WHICH graph they are looking at has
+  // the same problem in a new form, so name the version on the chip and say
+  // plainly when it could not be loaded.
+  const label = versionUnavailable
+    ? replayVersion
+      ? `Replay mode — v${replayVersion.versionNumber} unavailable, showing current graph`
+      : "Replay mode — version unavailable"
+    : replayVersion
+      ? `Replay mode — v${replayVersion.versionNumber} (read-only)`
+      : "Replay mode";
   return (
     <Badge
       size="md"
-      color="blue"
+      color={versionUnavailable ? "orange" : "blue"}
       variant="filled"
+      data-version-number={replayVersion?.versionNumber ?? ""}
       leftSection={<IconRewindBackward10 size={12} />}
       rightSection={
         <Tooltip label="Clear replay mode" withArrow>
@@ -1698,7 +1758,7 @@ function TopBarReplayIndicator() {
       }
       data-testid="replay-mode-indicator"
     >
-      Replay mode
+      {label}
     </Badge>
   );
 }
@@ -1723,10 +1783,11 @@ function RunHistoryDrawerBody({
   headVersionId?: string;
   onClose: () => void;
 }) {
-  const { setActiveRunId, setIsReplay } = useRunState();
-  const handleReplay = (runId: string) => {
-    setActiveRunId(runId);
-    setIsReplay(true);
+  const { startReplay } = useRunState();
+  // G-004 — carry the run's own version into replay so the canvas renders
+  // the graph that actually ran, not whatever is on screen now.
+  const handleReplay = (runId: string, version: ReplayVersionRef) => {
+    startReplay(runId, version);
     onClose();
   };
   return (

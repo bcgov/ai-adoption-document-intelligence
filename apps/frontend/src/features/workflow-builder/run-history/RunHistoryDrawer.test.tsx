@@ -316,3 +316,47 @@ describe("RunHistoryDrawer (US-153)", () => {
     expect(lastUseWorkflowRunsCall.filters.status).toBe("succeeded");
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-004 — a Replay click must carry the version the run executed against, so
+// the editor can render the graph that ran rather than the one on screen.
+// ---------------------------------------------------------------------------
+
+describe("RunHistoryDrawer — G-004 replay carries the run's version", () => {
+  beforeEach(() => {
+    setHookReturn({
+      data: {
+        pages: [{ runs: sampleRuns, nextCursor: null }],
+        pageParams: [undefined],
+      },
+    });
+  });
+
+  it("passes the run's workflowVersionId + versionNumber to onReplay", () => {
+    const onReplay = vi.fn();
+    render(
+      <MantineProvider>
+        <RunHistoryDrawer workflowId="workflow-1" onReplay={onReplay} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("run-row-replay-run-1"));
+    expect(onReplay).toHaveBeenCalledWith("run-1", {
+      id: "wv-1",
+      versionNumber: 1,
+    });
+  });
+
+  it("carries the version from a row-body click too", () => {
+    const onReplay = vi.fn();
+    render(
+      <MantineProvider>
+        <RunHistoryDrawer workflowId="workflow-1" onReplay={onReplay} />
+      </MantineProvider>,
+    );
+    fireEvent.click(screen.getByTestId("run-row-run-2"));
+    expect(onReplay).toHaveBeenCalledWith("run-2", {
+      id: "wv-1",
+      versionNumber: 1,
+    });
+  });
+});

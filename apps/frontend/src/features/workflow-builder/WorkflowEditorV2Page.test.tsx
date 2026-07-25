@@ -48,6 +48,9 @@ const {
   setNodesMock,
   setEdgesMock,
   existingWorkflowRef,
+  versionQueryRef,
+  capturedVersionQueryArgs,
+  capturedRunHistoryProps,
 } = vi.hoisted(() => {
   return {
     capturedCanvasProps: { current: null as null | Record<string, unknown> },
@@ -81,6 +84,19 @@ const {
     // programmatic selection STICKS. These record that it did.
     setNodesMock: vi.fn(),
     setEdgesMock: vi.fn(),
+    // G-004 — what `useWorkflowVersion` resolves to, and the (lineageId,
+    // versionId) it was asked for.
+    versionQueryRef: {
+      current: { data: undefined, isLoading: false, isError: false } as {
+        data?: { config: GraphWorkflowConfig };
+        isLoading: boolean;
+        isError: boolean;
+      },
+    },
+    capturedVersionQueryArgs: { current: null as null | [string, string] },
+    capturedRunHistoryProps: {
+      current: null as null | Record<string, unknown>,
+    },
     // Item 6X — the jump-to-producer handler pans via the live instance's
     // `setCenter`; capture calls so the page test can assert the pan fired.
     setCenterMock: vi.fn(),
@@ -168,6 +184,15 @@ vi.mock("./settings/NodeSettingsPanel", () => ({
         ) : null}
       </div>
     );
+  },
+}));
+
+// G-004 — capture the run-history drawer's onReplay so tests can enter
+// replay without driving the real list UI.
+vi.mock("./run-history/RunHistoryDrawer", () => ({
+  RunHistoryDrawer: (props: Record<string, unknown>) => {
+    capturedRunHistoryProps.current = props;
+    return <div data-testid="run-history-drawer" />;
   },
 }));
 
@@ -267,7 +292,10 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   // US-081 — hook is exported alongside the others; the page itself
   // does not call it directly, but the version-history drawer body
   // (mounted in US-082) does, so the mock must surface it.
-  useWorkflowVersion: () => ({ data: undefined, isLoading: false }),
+  useWorkflowVersion: (lineageId: string, versionId: string) => {
+    capturedVersionQueryArgs.current = [lineageId, versionId];
+    return versionQueryRef.current;
+  },
   // US-082 — `VersionHistoryDrawer` calls `useWorkflowVersions` to list
   // the lineage's versions. Default to an empty list so the drawer
   // renders its empty-state text instead of querying the network.
@@ -2736,5 +2764,235 @@ describe("WorkflowEditorV2Page — G-010 validation navigation", () => {
     expect(
       screen.getByTestId("workflow-settings-drawer-stub"),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-004 — replay must show the graph that ran.
+//   Statuses used to be matched to nodes BY ID and painted onto whatever
+//   config was on screen: edit the workflow, look at yesterday's run, and you
+//   were reading old results on today's diagram. Replay now loads the run's
+//   own version — and, being a view, must not put unsaved edits at risk.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", () => {
+  /** The graph as it is TODAY: a, b, c. */
+  const headConfig = () => buildTemplateConfig({ positions: "all" });
+
+  /** The graph as it was WHEN THE RUN HAPPENED: a, b — no `c`, plus `old`. */
+  function historicalConfig(): GraphWorkflowConfig {
+    const base = buildTemplateConfig({ positions: "all" });
+    const { c: _dropped, ...kept } = base.nodes;
+    return {
+      ...base,
+      nodes: {
+        ...kept,
+        old: {
+          ...(base.nodes.a as ActivityNode),
+          id: "old",
+          label: "Removed since",
+        },
+      },
+      edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
+    };
+  }
+
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedRunHistoryProps.current = null;
+    capturedVersionQueryArgs.current = null;
+    versionQueryRef.current = {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    };
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "WF",
+      description: "",
+      slug: "wf",
+      version: 3,
+      workflowVersionId: "v-head",
+      config: headConfig(),
+    };
+  });
+
+  async function openHistoryAndReplay() {
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-more-button"));
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByTestId("topbar-menu-run-history"));
+    });
+    await screen.findByTestId("run-history-drawer");
+    const onReplay = capturedRunHistoryProps.current?.onReplay as
+      | ((runId: string, v: { id: string; versionNumber: number }) => void)
+      | undefined;
+    if (!onReplay) throw new Error("run-history stub captured no onReplay");
+    act(() => {
+      onReplay("run-42", { id: "v-old", versionNumber: 2 });
+    });
+  }
+
+  it("loads the run's own version when replaying", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    // Before replay: today's graph.
+    expect(
+      Object.keys(
+        (capturedCanvasProps.current?.config as GraphWorkflowConfig).nodes,
+      ).sort(),
+    ).toEqual(["a", "b", "c"]);
+
+    await openHistoryAndReplay();
+
+    // The version fetch was asked for the RUN's version, not head.
+    expect(capturedVersionQueryArgs.current).toEqual(["wf-1", "v-old"]);
+    // And the canvas now renders that version's graph.
+    expect(
+      Object.keys(
+        (capturedCanvasProps.current?.config as GraphWorkflowConfig).nodes,
+      ).sort(),
+    ).toEqual(["a", "b", "old"]);
+  });
+
+  it("does not paint statuses for nodes absent from the replayed version", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    await openHistoryAndReplay();
+    const rendered = (
+      capturedCanvasProps.current?.config as GraphWorkflowConfig
+    ).nodes;
+    // `c` was added after the run — it is not on the replayed graph at all,
+    // so it cannot be shown wearing a status it never had.
+    expect(rendered.c).toBeUndefined();
+    // `old` existed at the time and IS shown, so its result is not lost.
+    expect(rendered.old).toBeDefined();
+  });
+
+  it("shows the live config again when leaving replay", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    await openHistoryAndReplay();
+    expect(screen.getByTestId("replay-mode-indicator")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("replay-mode-clear"));
+
+    expect(screen.queryByTestId("replay-mode-indicator")).toBeNull();
+    expect(
+      Object.keys(
+        (capturedCanvasProps.current?.config as GraphWorkflowConfig).nodes,
+      ).sort(),
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("names the version on the replay chip so the graph on screen is identifiable", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    await openHistoryAndReplay();
+    const chip = screen.getByTestId("replay-mode-indicator");
+    expect(chip).toHaveTextContent("v2");
+    expect(chip).toHaveTextContent(/read-only/i);
+  });
+
+  it("says so when the run's version cannot be loaded, instead of silently using head", async () => {
+    versionQueryRef.current = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    await openHistoryAndReplay();
+    expect(screen.getByTestId("replay-mode-indicator")).toHaveTextContent(
+      /unavailable/i,
+    );
+  });
+
+  it("entering and leaving replay cannot lose unsaved work", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+
+    // Author makes an unsaved edit: rename node `b`.
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as
+      | ((c: GraphWorkflowConfig) => void)
+      | undefined;
+    const live = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange?.({
+        ...live,
+        nodes: {
+          ...live.nodes,
+          b: { ...(live.nodes.b as ActivityNode), label: "EDITED" },
+        },
+      });
+    });
+    expect(
+      (capturedCanvasProps.current?.config as GraphWorkflowConfig).nodes.b
+        ?.label,
+    ).toBe("EDITED");
+
+    await openHistoryAndReplay();
+
+    // While replaying, an edit attempt must NOT reach the editing config.
+    const replayOnChange = capturedCanvasProps.current?.onConfigChange as
+      | ((c: GraphWorkflowConfig) => void)
+      | undefined;
+    const replayed = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      replayOnChange?.({
+        ...replayed,
+        nodes: {
+          ...replayed.nodes,
+          a: { ...(replayed.nodes.a as ActivityNode), label: "CLOBBERED" },
+        },
+      });
+    });
+
+    fireEvent.click(screen.getByTestId("replay-mode-clear"));
+
+    // The unsaved edit survived the round trip, and the replayed version's
+    // content did not leak into it.
+    const after = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    expect(after.nodes.b?.label).toBe("EDITED");
+    expect(after.nodes.a?.label).not.toBe("CLOBBERED");
+    expect(Object.keys(after.nodes).sort()).toEqual(["a", "b", "c"]);
   });
 });

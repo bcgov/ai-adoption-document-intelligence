@@ -15,6 +15,7 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useMemo,
   useState,
@@ -32,12 +33,31 @@ import { useNodeStatuses } from "./useNodeStatuses";
  * object (never undefined) so consumer renderers can treat `absent ===
  * pending` without a guard.
  */
+/**
+ * G-004 — identifies the workflow version a replayed run executed against
+ * (`RunSummary.workflowVersionId` / `.versionNumber`). Replay renders the
+ * graph THIS names, not whatever happens to be on screen.
+ */
+export interface ReplayVersionRef {
+  id: string;
+  versionNumber: number;
+}
+
 export interface RunStateContextValue {
   workflowId: string;
   activeRunId: string | null;
   setActiveRunId: (id: string | null) => void;
   isReplay: boolean;
   setIsReplay: (b: boolean) => void;
+  /**
+   * G-004 — the version the replayed run ran against, or `null` when not
+   * replaying. Cleared automatically whenever replay is left (`setIsReplay(false)`)
+   * or the run is cleared (`setActiveRunId(null)`), so no exit path can strand
+   * the canvas on a historical graph.
+   */
+  replayVersion: ReplayVersionRef | null;
+  /** Enter replay for `runId`, pinned to the version that run executed. */
+  startReplay: (runId: string, version: ReplayVersionRef) => void;
   nodeStatuses: NodeStatusesMap;
 }
 
@@ -60,8 +80,36 @@ export function RunStateProvider({
   workflowId,
   children,
 }: RunStateProviderProps): ReactNode {
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [isReplay, setIsReplay] = useState<boolean>(false);
+  const [activeRunId, setActiveRunIdState] = useState<string | null>(null);
+  const [isReplay, setIsReplayState] = useState<boolean>(false);
+  const [replayVersion, setReplayVersion] = useState<ReplayVersionRef | null>(
+    null,
+  );
+
+  // G-004 — every path out of replay must also drop the version pin,
+  // otherwise the canvas is left rendering a historical graph with nothing
+  // saying so. Wrapping the two setters covers all of them (the top-bar
+  // "Clear", the Try tab's `setIsReplay(false)`, the cache-evicted re-run)
+  // without each caller having to remember.
+  const setActiveRunId = useCallback((id: string | null) => {
+    setActiveRunIdState(id);
+    if (id === null) {
+      setIsReplayState(false);
+      setReplayVersion(null);
+    }
+  }, []);
+  const setIsReplay = useCallback((b: boolean) => {
+    setIsReplayState(b);
+    if (!b) setReplayVersion(null);
+  }, []);
+  const startReplay = useCallback(
+    (runId: string, version: ReplayVersionRef) => {
+      setActiveRunIdState(runId);
+      setIsReplayState(true);
+      setReplayVersion(version);
+    },
+    [],
+  );
 
   const statusesQuery = useNodeStatuses(workflowId, activeRunId, {
     active: !isReplay,
@@ -76,9 +124,20 @@ export function RunStateProvider({
       setActiveRunId,
       isReplay,
       setIsReplay,
+      replayVersion,
+      startReplay,
       nodeStatuses,
     }),
-    [workflowId, activeRunId, isReplay, nodeStatuses],
+    [
+      workflowId,
+      activeRunId,
+      setActiveRunId,
+      isReplay,
+      setIsReplay,
+      replayVersion,
+      startReplay,
+      nodeStatuses,
+    ],
   );
 
   return (
@@ -218,6 +277,8 @@ export function buildRunStateContextValue(
     setActiveRunId: partial.setActiveRunId ?? (() => undefined),
     isReplay: partial.isReplay ?? false,
     setIsReplay: partial.setIsReplay ?? (() => undefined),
+    replayVersion: partial.replayVersion ?? null,
+    startReplay: partial.startReplay ?? (() => undefined),
     nodeStatuses: partial.nodeStatuses ?? {},
   };
 }

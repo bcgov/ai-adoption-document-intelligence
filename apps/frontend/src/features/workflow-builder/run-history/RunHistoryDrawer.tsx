@@ -24,6 +24,7 @@
 import { Alert, Box, Skeleton, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { ReplayVersionRef } from "../run/RunStateContext";
 import { RunHistoryFilters } from "./RunHistoryFilters";
 import { RunRow } from "./RunRow";
 import { type ListRunsFilters, useWorkflowRuns } from "./useWorkflowRuns";
@@ -38,10 +39,11 @@ export interface RunHistoryDrawerProps {
   headVersionId?: string;
   /**
    * Replay click handler — fired by `<RunRow>` when the user clicks the
-   * row body or its Replay button. The parent owns the side effects
-   * (setting `activeRunId` / `isReplay` and closing the drawer).
+   * row body or its Replay button. Carries the run id AND the version that
+   * run executed against (G-004). The parent owns the side effects
+   * (entering replay pinned to that version, and closing the drawer).
    */
-  onReplay: (runId: string) => void;
+  onReplay: (runId: string, version: ReplayVersionRef) => void;
 }
 
 export function RunHistoryDrawer({
