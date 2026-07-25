@@ -82,17 +82,13 @@ function isOnTimeoutValue(value: string): value is HumanGateNode["onTimeout"] {
 }
 
 /**
- * Common signal names offered as autocomplete suggestions. The name is
- * author-chosen (any string works) — these are just conventional starting
- * points so authors don't have to invent one blind. `humanApproval` is what
- * the HITL Review flow sends.
+ * Signal names offered as autocomplete suggestions. Only `humanApproval` is
+ * ever sent by this system (the HITL review flow — see
+ * `TemporalClientService.sendHumanApproval`), so it is the only name suggested.
+ * The field stays free-text: a gate may be resumed by an external system that
+ * sends its own name.
  */
-const SIGNAL_NAME_PRESETS = [
-  "humanApproval",
-  "approve",
-  "review",
-  "reject",
-] as const;
+const SIGNAL_NAME_PRESETS = ["humanApproval"] as const;
 
 // ---------------------------------------------------------------------------
 // Component

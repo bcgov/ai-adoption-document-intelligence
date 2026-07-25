@@ -166,6 +166,7 @@ export function validateGraphConfig(
   validateActivityTypes(config, errors, options);
   validateSourceNodes(config, errors, options);
   validateSwitchNodes(config, errors);
+  validateHumanGateNodes(config, errors);
   validateMapJoinNodes(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
@@ -564,6 +565,32 @@ function validateSwitchNodes(
           });
         }
       }
+    }
+  }
+}
+
+/**
+ * A `humanGate` blocks until a signal naming that gate arrives. The signal
+ * name is the only handle anything — the built-in HITL review flow or an
+ * external caller — has to resume the gate, so an empty name produces a gate
+ * that can never be opened and a workflow that can only ever time out.
+ * Free-typed names stay legal; only the missing/blank case is rejected.
+ */
+function validateHumanGateNodes(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "humanGate") continue;
+    const gateNode = node as HumanGateNode;
+
+    const signalName = gateNode.signal?.name;
+    if (typeof signalName !== "string" || signalName.trim() === "") {
+      errors.push({
+        path: `nodes.${nodeId}.signal.name`,
+        message: `Human gate "${gateNode.label || nodeId}" has no signal name, so nothing can ever resume it.`,
+        severity: "error",
+      });
     }
   }
 }

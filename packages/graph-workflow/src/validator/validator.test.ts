@@ -624,6 +624,70 @@ describe("US-051 Scenario 4: coverage across the four duration fields", () => {
 });
 
 // ---------------------------------------------------------------------------
+// G-017: a human gate needs a signal name or nothing can ever resume it
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds a single-node config whose only node is a `humanGate` carrying the
+ * supplied signal name. Every other field is valid so each test only varies
+ * the signal name under inspection.
+ */
+function makeGateConfig(signalName: string): GraphWorkflowConfig {
+  const gate: HumanGateNode = {
+    id: "gate1",
+    type: "humanGate",
+    label: "Wait for approval",
+    signal: { name: signalName },
+    timeout: "1h",
+    onTimeout: "fail",
+  };
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: "gate1",
+    ctx: {},
+    nodes: { gate1: gate },
+    edges: [],
+  };
+}
+
+describe("G-017: humanGate signal name validation", () => {
+  it("errors when a humanGate has an empty signal name", () => {
+    const result = validateGraphConfig(
+      makeGateConfig(""),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+
+    const signalError = result.errors.find((e) => e.path.includes("signal"));
+    expect(signalError).toBeDefined();
+    expect(signalError?.path).toBe("nodes.gate1.signal.name");
+    expect(signalError?.severity).toBe("error");
+    expect(signalError?.message).toMatch(/signal name/i);
+    expect(result.valid).toBe(false);
+  });
+
+  it("errors when a humanGate signal name is only whitespace", () => {
+    const result = validateGraphConfig(
+      makeGateConfig("   "),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+
+    expect(
+      result.errors.find((e) => e.path === "nodes.gate1.signal.name"),
+    ).toBeDefined();
+  });
+
+  it("accepts a humanGate with a non-empty signal name", () => {
+    const result = validateGraphConfig(
+      makeGateConfig("humanApproval"),
+      ALWAYS_REGISTERED_OPTIONS,
+    );
+
+    expect(result.errors.find((e) => e.path.includes("signal"))).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // US-056: Validator accepts the new library-workflow metadata fields
 // ---------------------------------------------------------------------------
 
