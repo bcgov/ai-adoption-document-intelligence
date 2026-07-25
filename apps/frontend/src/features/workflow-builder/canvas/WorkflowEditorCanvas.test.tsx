@@ -4594,3 +4594,307 @@ describe("WorkflowEditorCanvas — auto-wire supersession toast", () => {
     expect(notifications.show).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-002 — every delete path warns before orphaning ctx variables, and the
+// prune itself lives in the shared `removeNodesFromConfig` so no path can
+// forget it. Covers the two canvas entry points; the settings-panel trash
+// button is covered in WorkflowEditorV2Page.test.tsx.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
+  function producerConsumerConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "orphan" },
+      ctx: { preparedFile: { type: "object" } },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          label: "Prepare File",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "preparedFile" }],
+        },
+        ocr: {
+          id: "ocr",
+          type: "activity",
+          label: "Submit OCR",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "preparedFile" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [{ id: "e1", source: "prep", target: "ocr", type: "normal" }],
+      entryNodeId: "prep",
+    } as GraphWorkflowConfig;
+  }
+
+  /** Two independent producer→consumer pairs, for the multi-select case. */
+  function twoPairsConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "orphan-2" },
+      ctx: { k1: { type: "object" }, k2: { type: "object" } },
+      nodes: {
+        prepA: {
+          id: "prepA",
+          type: "activity",
+          label: "Prepare A",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "k1" }],
+        },
+        prepB: {
+          id: "prepB",
+          type: "activity",
+          label: "Prepare B",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "k2" }],
+        },
+        ocrA: {
+          id: "ocrA",
+          type: "activity",
+          label: "OCR A",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "k1" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+        ocrB: {
+          id: "ocrB",
+          type: "activity",
+          label: "OCR B",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "k2" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [],
+      entryNodeId: "prepA",
+    } as GraphWorkflowConfig;
+  }
+
+  function getOnBeforeDelete(): (args: {
+    nodes: FlowNode[];
+    edges: Edge[];
+  }) => Promise<boolean | { nodes: FlowNode[]; edges: Edge[] }> {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onBeforeDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onBeforeDelete");
+    }
+    return props.onBeforeDelete as (args: {
+      nodes: FlowNode[];
+      edges: Edge[];
+    }) => Promise<boolean | { nodes: FlowNode[]; edges: Edge[] }>;
+  }
+
+  function getUnifiedOnDelete(): (args: {
+    nodes: FlowNode[];
+    edges: Edge[];
+  }) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onDelete");
+    }
+    return props.onDelete as (args: {
+      nodes: FlowNode[];
+      edges: Edge[];
+    }) => void;
+  }
+
+  const flowNode = (id: string): FlowNode =>
+    ({ id, data: {}, position: { x: 0, y: 0 } }) as unknown as FlowNode;
+
+  function openContextMenuOn(nodeId: string) {
+    const props = latestReactFlowProps.current;
+    const handler = props?.onNodeContextMenu as (
+      event: React.MouseEvent,
+      node: FlowNode,
+    ) => void;
+    act(() => {
+      handler(
+        {
+          preventDefault: vi.fn(),
+          clientX: 10,
+          clientY: 10,
+        } as unknown as React.MouseEvent,
+        flowNode(nodeId),
+      );
+    });
+  }
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // -- context-menu path ----------------------------------------------------
+
+  it("context menu: asks before deleting a sole producer, and prunes on confirm", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    const { onConfigChange } = renderCanvas(producerConsumerConfig());
+    openContextMenuOn("prep");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
+    await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0]).toBe(
+      'Deleting "Prepare File" leaves 1 variable without a source; 1 step reads it. Continue?',
+    );
+    const calls = onConfigChange.mock.calls;
+    const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    expect(next.nodes).not.toHaveProperty("prep");
+    expect(next.ctx.preparedFile).toBeUndefined();
+  });
+
+  it("context menu: cancelling emits no config change at all", async () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => false);
+    const { onConfigChange } = renderCanvas(producerConsumerConfig());
+    openContextMenuOn("prep");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("context menu: stays silent when the deleted node orphans nothing", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    const { onConfigChange } = renderCanvas(producerConsumerConfig());
+    openContextMenuOn("ocr");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-delete-node"));
+    await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  // -- keyboard / multi-select path -----------------------------------------
+
+  it("keyboard: onBeforeDelete vetoes the gesture when the author cancels", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => false);
+    renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    const allowed = await getOnBeforeDelete()({
+      nodes: [flowNode("prep")],
+      edges: [],
+    });
+    expect(allowed).toBe(false);
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keyboard: onBeforeDelete allows the gesture, and onDelete prunes", async () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
+    const { onConfigChange } = renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    const allowed = await getOnBeforeDelete()({
+      nodes: [flowNode("prep")],
+      edges: [],
+    });
+    expect(allowed).toBe(true);
+    act(() => {
+      getUnifiedOnDelete()({ nodes: [flowNode("prep")], edges: [] });
+    });
+    const calls = onConfigChange.mock.calls;
+    const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    expect(next.nodes).not.toHaveProperty("prep");
+    expect(next.ctx.preparedFile).toBeUndefined();
+  });
+
+  it("keyboard: a multi-node selection asks ONCE with counts spanning the whole selection", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderCanvas(twoPairsConfig());
+    await flushAnimationFrame();
+    await getOnBeforeDelete()({
+      nodes: [flowNode("prepA"), flowNode("prepB")],
+      edges: [],
+    });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(confirmSpy.mock.calls[0][0]).toBe(
+      "Deleting these 2 steps leaves 2 variables without a source; 2 steps read them. Continue?",
+    );
+  });
+
+  it("keyboard: a multi-node delete prunes every orphaned key in one pass", async () => {
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
+    const { onConfigChange } = renderCanvas(twoPairsConfig());
+    await flushAnimationFrame();
+    act(() => {
+      getUnifiedOnDelete()({
+        nodes: [flowNode("prepA"), flowNode("prepB")],
+        edges: [],
+      });
+    });
+    const calls = onConfigChange.mock.calls;
+    const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    expect(next.ctx.k1).toBeUndefined();
+    expect(next.ctx.k2).toBeUndefined();
+  });
+
+  it("keyboard: deleting a producer together with its only reader asks nothing", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    const allowed = await getOnBeforeDelete()({
+      nodes: [flowNode("prep"), flowNode("ocr")],
+      edges: [],
+    });
+    expect(allowed).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it("keyboard: a mixed node+edge gesture still sees the real readers", async () => {
+    // `handleDelete` removes nodes first and strips edges in a LATER pass, so
+    // `removeNodesFromConfig` receives the un-stripped config. Consumer
+    // detection reads port bindings and conditions — never edges — so it is
+    // unaffected either way; this pins both facts.
+    vi.spyOn(window, "confirm").mockImplementation(() => true);
+    const { onConfigChange } = renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    const allowed = await getOnBeforeDelete()({
+      nodes: [flowNode("prep")],
+      edges: [{ id: "e1", source: "prep", target: "ocr" } as unknown as Edge],
+    });
+    expect(allowed).toBe(true);
+    act(() => {
+      getUnifiedOnDelete()({
+        nodes: [flowNode("prep")],
+        edges: [{ id: "e1", source: "prep", target: "ocr" } as unknown as Edge],
+      });
+    });
+    const calls = onConfigChange.mock.calls;
+    const next = calls[calls.length - 1][0] as GraphWorkflowConfig;
+    expect(next.nodes).not.toHaveProperty("prep");
+    expect(next.ctx.preparedFile).toBeUndefined();
+    expect(next.edges).toHaveLength(0);
+  });
+
+  it("keyboard: an edges-only gesture never asks", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => true);
+    renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    const allowed = await getOnBeforeDelete()({ nodes: [], edges: [] });
+    expect(allowed).toBe(true);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+});

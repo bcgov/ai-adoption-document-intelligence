@@ -58,6 +58,28 @@ export function describeOrphanedDelete(
   };
 }
 
+/**
+ * The shared guard every delete entry point calls: returns `true` to proceed
+ * (silently, when nothing is orphaned) and `false` when the author cancels.
+ *
+ * ONE dialog per gesture, whatever the selection size — the counts are rolled
+ * up across every node being removed, so a three-node delete asks once.
+ *
+ * The blocking `window.confirm` is a **stopgap for the absence of undo**
+ * (G-003), matching the idiom group deletion already uses. Once an undo stack
+ * exists this should become: delete silently, prune, and show a toast naming
+ * what broke with an Undo action — see AUTO_WIRE_DESIGN.md §2.3b.
+ */
+export function confirmOrphanedDelete(
+  config: GraphWorkflowConfig,
+  removedNodeIds: ReadonlySet<string>,
+): boolean {
+  const warning = describeOrphanedDelete(config, removedNodeIds);
+  if (!warning) return true;
+  // biome-ignore lint/suspicious/noAlert: native confirm matches existing UX patterns elsewhere in the editor for accidental-deletion guards.
+  return window.confirm(warning.message);
+}
+
 /** `Deleting "Prepare File"` for one node; `Deleting these 3 steps` for many. */
 function describeSubject(
   config: GraphWorkflowConfig,

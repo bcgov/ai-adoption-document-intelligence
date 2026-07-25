@@ -74,8 +74,8 @@ import {
   type ControlFlowVisualHints,
   getControlFlowVisualHints,
 } from "../control-flow-visual-hints";
+import { confirmOrphanedDelete } from "../delete-orphan-warning";
 import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
-import { pruneNodesFromGroups } from "../group/prune-node-from-groups";
 import {
   buildControlFlowSkeleton,
   type ControlFlowNodeType,
@@ -133,6 +133,7 @@ import {
   type PortRowModel,
   rendersPerPortHandle,
 } from "./port-rows";
+import { removeNodesFromConfig } from "./remove-nodes";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
 import { WireContextMenu } from "./WireContextMenu";
@@ -1663,36 +1664,6 @@ function buildStructuralFingerprint(
   });
 }
 
-/**
- * Removes the given node ids from the config: the nodes themselves, every
- * edge touching one, the entry pointer (re-seated onto any survivor), and
- * group memberships (pruned via `pruneNodesFromGroups` — emptied groups +
- * orphaned exposedParams go too, so the save-time validator doesn't report
- * "references non-existent node"). Pure; shared by the context menu's
- * `handleNodesDelete` and the unified `handleDelete` pass.
- */
-function removeNodesFromConfig(
-  config: GraphWorkflowConfig,
-  removedIds: ReadonlySet<string>,
-): GraphWorkflowConfig {
-  const nodesCopy = { ...config.nodes };
-  for (const id of removedIds) delete nodesCopy[id];
-  const filteredEdges = config.edges.filter(
-    (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
-  );
-  const nextEntryNodeId = removedIds.has(config.entryNodeId)
-    ? (Object.keys(nodesCopy)[0] ?? "")
-    : config.entryNodeId;
-  const prunedGroups = pruneNodesFromGroups(config, removedIds);
-  return {
-    ...config,
-    nodes: nodesCopy,
-    edges: filteredEdges,
-    entryNodeId: nextEntryNodeId,
-    nodeGroups: prunedGroups.nodeGroups,
-  };
-}
-
 export function WorkflowEditorCanvas(props: WorkflowEditorCanvasProps) {
   // `useReactFlow` is only available inside a `<ReactFlowProvider>`, so
   // the public component wraps the inner implementation. The provider
@@ -2248,6 +2219,10 @@ function WorkflowEditorCanvasInner({
     (deleted: Node[]) => {
       if (deleted.length === 0) return;
       const removedIds = new Set(deleted.map((n) => n.id));
+      // G-002: ask before orphaning ctx variables other steps still read.
+      // Safe to gate here — this path is driven by our own context menu, not
+      // by xyflow's store, so an early return leaves the canvas untouched.
+      if (!confirmOrphanedDelete(config, removedIds)) return;
       onConfigChange(removeNodesFromConfig(config, removedIds));
       if (selectedNodeId && removedIds.has(selectedNodeId)) {
         onSelectNode(null);
@@ -2368,6 +2343,29 @@ function WorkflowEditorCanvasInner({
    *     and no hint; deleted directly with both endpoints surviving →
    *     routed through `disconnectWires` (pinned unbound + hint).
    */
+  /**
+   * G-002 guard for the keyboard / multi-select gesture. It has to run here
+   * rather than inside `handleDelete`: by the time xyflow fires `onDelete` it
+   * has ALREADY removed the elements from its internal store, and the
+   * config→canvas projection is fingerprint-gated on `config`, so a cancel
+   * that simply skipped `onConfigChange` would leave the nodes visually gone
+   * while still present in the config. `onBeforeDelete` vetoes before the
+   * store is touched, so a cancel is a true no-op.
+   *
+   * Fires ONCE per gesture with the whole selection, so a multi-node delete
+   * asks a single question whose counts span every node being removed.
+   */
+  const handleBeforeDelete = useCallback(
+    async ({ nodes: deletedNodes }: { nodes: Node[]; edges: Edge[] }) => {
+      if (deletedNodes.length === 0) return true;
+      return confirmOrphanedDelete(
+        config,
+        new Set(deletedNodes.map((n) => n.id)),
+      );
+    },
+    [config],
+  );
+
   const handleDelete = useCallback(
     ({
       nodes: deletedNodes,
@@ -3057,6 +3055,7 @@ function WorkflowEditorCanvasInner({
           onEdgesChange={onInternalEdgesChange}
           onNodeDragStop={handleNodeDragStop}
           onSelectionChange={handleSelectionChange}
+          onBeforeDelete={handleBeforeDelete}
           onDelete={handleDelete}
           onConnect={handleConnect}
           isValidConnection={isValidConnection}

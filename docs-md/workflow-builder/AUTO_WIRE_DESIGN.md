@@ -114,11 +114,25 @@ The only point at which "this key just lost its source" is knowable is the delet
 - `findOrphanedCtxKeys(config, removedNodeIds)` — the ctx keys the removed nodes are the **sole** writer of that at least one **surviving** node still reads. Producers come from `collectCtxWriters` (the same enumeration §2.3a answers from, so the two can never disagree); readers are `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and the refs inside `switch` / `pollUntil` conditions. A key nothing reads is **not** reported — deleting a leaf whose output nobody uses is an ordinary edit and must stay silent.
 - `pruneCtxDeclarations(config, ctxKeys)` — drops those declarations. Never drops one marked `isInput`, and never drops one another node still writes.
 
-`deleteSelected` ([WorkflowEditorV2Page.tsx](../../apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx)) asks first — *"Deleting "Prepare File" leaves 2 variables without a source; 3 steps read them. Continue?"* via the same `window.confirm` idiom group deletion uses — and prunes on confirm. The prune is what makes the consequence chain fire: declaration gone → the key has neither producer nor declaration → §2.3a returns `null` → the badge, the drawer and the settings row all report it. **The confirmation is currently the only safety net: there is no undo (G-003).**
+**Where each piece lives.** The prune is **unconditional and inside `removeNodesFromConfig`** ([canvas/remove-nodes.ts](../../apps/frontend/src/features/workflow-builder/canvas/remove-nodes.ts)) — the choke point every delete path funnels through, so no future path can forget it. The *confirmation* stays at each entry point, all three calling one shared `confirmOrphanedDelete`:
 
-**Remaining gaps.** Two, both deliberately out of scope:
-1. **`deleteKey` in `WorkflowSettingsDrawer`** deletes a ctx declaration directly, from a bare trash icon, with no usage count and no reverse lookup — while its sibling *rename* is backed by a full graph sweep. Same class of problem, different surface, different fix.
-2. **The canvas delete paths** (`handleDelete` keyboard/multi-select and the context menu's `handleNodesDelete`, both via `removeNodesFromConfig`) neither confirm nor prune. `findOrphanedCtxKeys` accepts a set of ids precisely so they can adopt the same guard; wiring a confirmation through the canvas is a larger change than this batch took on.
+| Entry point | Guard |
+|---|---|
+| Settings-panel trash (`deleteSelected`) | `confirmOrphanedDelete` → early return on cancel |
+| Canvas context menu (`handleNodesDelete`) | same; the menu drives our own callback, not xyflow's store, so an early return leaves the canvas untouched |
+| Keyboard / multi-select (`onDelete` → `handleDelete`) | **`onBeforeDelete`**, not `handleDelete` |
+
+That last row matters. By the time xyflow fires `onDelete` it has **already** removed the elements from its internal store, and the config→canvas projection is fingerprint-gated on `config` — so a cancel that merely skipped `onConfigChange` would leave the nodes visually gone while still present in the config. `onBeforeDelete` vetoes before the store is touched, making a cancel a true no-op. It also fires **once per gesture with the whole selection**, so a three-node delete asks one question whose counts span all three (`findOrphanedCtxKeys` takes a set for exactly this reason).
+
+`handleDelete` removes nodes first and strips edges in a later pass, so `removeNodesFromConfig` sees the un-stripped config; consumer detection reads port bindings, `map.collectionCtxKey`, childWorkflow input mappings and condition refs — **never edges** — so it is unaffected either way.
+
+The prune is what makes the consequence chain fire: declaration gone → the key has neither producer nor declaration → §2.3a returns `null` → the badge, the drawer and the settings row all report it.
+
+**The warning fires for resolver-made connections too**, not just hand-authored ones — if the resolver wired a consumer to the producer's key, deleting the producer breaks it identically, so the signal must be identical. Narrowing it to "author-made only" would recreate exactly the blind spot this section exists to remove: a distinction the user cannot see, used to decide whether to warn them.
+
+**The blocking confirm is a stopgap for missing undo.** There is no history stack (G-003), so a modal question is the only safety net available. That is why the guard is more intrusive than it should be. **When G-003 lands, revisit this as: delete silently, prune, and show a non-blocking toast naming what broke, with an Undo action** — no dialog at all. Tracked as a dependent item on the G-003 work.
+
+**Remaining gap.** `deleteKey` in `WorkflowSettingsDrawer` deletes a ctx declaration *directly*, from a bare trash icon, with no usage count and no reverse lookup — while its sibling *rename* is backed by a full graph sweep. Same class of problem, different surface, different fix.
 
 ### 2.4 What gets resolved vs. left alone
 
