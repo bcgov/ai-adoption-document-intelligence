@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "metadata": {
-    "name": "Standard OCR Workflow",
+    "name": "Standard OCR Workflow (Normalized Fields)",
     "description": "Standard OCR processing workflow (equivalent to legacy ocrWorkflow)",
     "tags": ["ocr", "azure", "standard"]
   },
