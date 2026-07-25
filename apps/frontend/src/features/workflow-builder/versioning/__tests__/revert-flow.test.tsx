@@ -32,7 +32,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   WorkflowInfo,
@@ -186,14 +186,22 @@ function renderEditor() {
       <MantineProvider>
         <ModalsProvider>
           <Notifications />
-          <MemoryRouter initialEntries={["/workflows/wf-lineage-1/edit"]}>
-            <Routes>
-              <Route
-                path="/workflows/:workflowId/edit"
-                element={<WorkflowEditorV2Page mode="edit" />}
-              />
-            </Routes>
-          </MemoryRouter>
+          {/*
+            A DATA router (as `App.tsx` builds with `createBrowserRouter`) —
+            G-027's leave-guard calls `useBlocker`, which does not exist on the
+            plain `<MemoryRouter>` harness.
+          */}
+          <RouterProvider
+            router={createMemoryRouter(
+              [
+                {
+                  path: "/workflows/:workflowId/edit",
+                  element: <WorkflowEditorV2Page mode="edit" />,
+                },
+              ],
+              { initialEntries: ["/workflows/wf-lineage-1/edit"] },
+            )}
+          />
         </ModalsProvider>
       </MantineProvider>
     </QueryClientProvider>,

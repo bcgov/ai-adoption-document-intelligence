@@ -121,6 +121,7 @@ import { WorkflowSettingsDrawer } from "./settings/WorkflowSettingsDrawer";
 import type { WorkflowTemplate } from "./templates";
 import { useConfigHistory } from "./use-config-history";
 import { useUndoRedoHotkeys } from "./use-undo-redo-hotkeys";
+import { useUnsavedGuard } from "./use-unsaved-guard";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
@@ -512,9 +513,45 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // render is the standard "latest value" pattern.
   const configRef = useRef(config);
   configRef.current = config;
-  // The config we last hydrated from the server. `null` until the first
-  // hydration (or after a save, which re-baselines). §4.4.
+  // The config we last took as the "matches what's persisted" baseline.
+  // `null` until the first hydration (or after an edit-mode save, which
+  // re-baselines by clearing it and letting the follow-up refetch re-adopt).
+  // §4.4.
   const lastHydratedConfigRef = useRef<GraphWorkflowConfig | null>(null);
+  // Create mode never hydrates from the server, so seed the baseline with the
+  // config the editor opened on (blank, or the picked template). Without this
+  // G-027 could not tell an untouched new workflow from an edited one, and
+  // would either warn on every exit or on none.
+  if (!isEditMode && lastHydratedConfigRef.current === null) {
+    lastHydratedConfigRef.current = config;
+  }
+
+  /**
+   * The editor's single notion of "the author has edits that aren't
+   * persisted": the live config is no longer the object we baselined against.
+   * A local edit always replaces `config` with a new object, so a reference
+   * compare is both cheap and exact.
+   *
+   * Read by the §4.4 hydration guard (don't let a background refetch stomp
+   * unsaved work) AND by the G-027 leave-guard. Deliberately a getter over
+   * refs: `handleSave` re-baselines and navigates in the same tick, before
+   * React re-renders, and the leave-guard must see the re-baseline.
+   */
+  const hasUnsavedChanges = useCallback(
+    () =>
+      lastHydratedConfigRef.current !== null &&
+      configRef.current !== lastHydratedConfigRef.current,
+    [],
+  );
+  // Render-time mirror of the same compare, for anything that needs to react
+  // to it (the beforeunload registration).
+  const isDirty =
+    lastHydratedConfigRef.current !== null &&
+    config !== lastHydratedConfigRef.current;
+
+  // G-027: warn before a reload / tab close / in-app navigation discards the
+  // session. Reuses the dirty signal above — no second source of truth.
+  useUnsavedGuard({ isDirty, isDirtyNow: hasUnsavedChanges });
 
   // Hydrate state when the workflow loads in edit mode.
   // Run auto-layout when the loaded config carries no node positions — e.g.
@@ -535,12 +572,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   // server state (e.g. the agent's write). `handleSave` re-baselines.
   useEffect(() => {
     if (!isEditMode || !existingWorkflow) return;
-    if (
-      lastHydratedConfigRef.current !== null &&
-      configRef.current !== lastHydratedConfigRef.current
-    ) {
-      return;
-    }
+    if (hasUnsavedChanges()) return;
     const incoming = resolveBindings(
       normaliseLocks(layoutGraphIfMissingPositions(existingWorkflow.config)),
     );
@@ -568,6 +600,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
     workflowId,
     scheduleArrangeOnLoad,
     resetConfig,
+    hasUnsavedChanges,
   ]);
 
   // Both add handlers compute the new id from the current `config`
@@ -810,6 +843,9 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
           title: "Created",
           message: `Workflow "${cleanedName}" saved.`,
         });
+        // G-027: re-baseline BEFORE navigating, or the leave-guard would
+        // challenge the very navigation that follows a successful save.
+        lastHydratedConfigRef.current = configRef.current;
         navigate(`/workflows/${created.id}/edit`, { replace: true });
       }
     } catch (err) {

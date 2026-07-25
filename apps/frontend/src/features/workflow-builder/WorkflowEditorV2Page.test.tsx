@@ -24,7 +24,7 @@ import {
   within,
 } from "@testing-library/react";
 import React from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityNode, GraphWorkflowConfig } from "../../types/workflow";
 
@@ -337,20 +337,33 @@ function renderPage(template?: WorkflowTemplate) {
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <Notifications />
-        <MemoryRouter initialEntries={[initialEntry]}>
-          <Routes>
-            <Route
-              path="/workflows/create"
-              element={<WorkflowEditorV2Page mode="create" />}
-            />
-            <Route
-              path="/workflows/:workflowId/edit"
-              element={<WorkflowEditorV2Page mode="edit" />}
-            />
-          </Routes>
-        </MemoryRouter>
+        <RouterProvider router={makeEditorRouter([initialEntry])} />
       </MantineProvider>
     </QueryClientProvider>,
+  );
+}
+
+/**
+ * G-027's leave-guard uses react-router's `useBlocker`, which only exists on a
+ * DATA router — the same kind `App.tsx` builds with `createBrowserRouter`. The
+ * old `<MemoryRouter><Routes>` harness is a non-data router and would throw, so
+ * every page render goes through this helper instead.
+ */
+function makeEditorRouter(
+  initialEntries: (string | { pathname: string; state?: unknown })[],
+) {
+  return createMemoryRouter(
+    [
+      {
+        path: "/workflows/create",
+        element: <WorkflowEditorV2Page mode="create" />,
+      },
+      {
+        path: "/workflows/:workflowId/edit",
+        element: <WorkflowEditorV2Page mode="edit" />,
+      },
+    ],
+    { initialEntries },
   );
 }
 
@@ -787,20 +800,11 @@ function renderEditPage(workflowId: string) {
     <QueryClientProvider client={queryClient}>
       <MantineProvider>
         <Notifications />
-        <MemoryRouter
-          initialEntries={[{ pathname: `/workflows/${workflowId}/edit` }]}
-        >
-          <Routes>
-            <Route
-              path="/workflows/create"
-              element={<WorkflowEditorV2Page mode="create" />}
-            />
-            <Route
-              path="/workflows/:workflowId/edit"
-              element={<WorkflowEditorV2Page mode="edit" />}
-            />
-          </Routes>
-        </MemoryRouter>
+        <RouterProvider
+          router={makeEditorRouter([
+            { pathname: `/workflows/${workflowId}/edit` },
+          ])}
+        />
       </MantineProvider>
     </QueryClientProvider>,
   );
@@ -2443,5 +2447,78 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
       shiftKey: true,
     });
     expect(liveConfig().nodes[addedId]).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-027 — leaving the editor with unsaved changes asks first. The guard's own
+// mechanics live in use-unsaved-guard.test.tsx; what matters here is that the
+// page feeds it the SAME dirty signal the §4.4 hydration guard uses, and that
+// a successful save re-baselines before navigating.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — unsaved-changes guard (G-027)", () => {
+  function fireBeforeUnload(): boolean {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }
+
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    capturedPaletteProps.current = null;
+    existingWorkflowRef.current = null;
+    vi.restoreAllMocks();
+  });
+
+  it("an untouched new workflow does not warn on unload", () => {
+    renderPage();
+    expect(fireBeforeUnload()).toBe(false);
+  });
+
+  it("an untouched template-loaded workflow does not warn on unload", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    expect(fireBeforeUnload()).toBe(false);
+  });
+
+  it("warns on unload once a node has been added", () => {
+    renderPage();
+    act(() => {
+      (capturedPaletteProps.current?.onAddActivity as (t: string) => void)(
+        "data.transform",
+      );
+    });
+    expect(fireBeforeUnload()).toBe(true);
+  });
+
+  it("undoing every edit makes the editor clean again", () => {
+    // Same reference compare backs both the guard and §4.4, so undoing back to
+    // the baseline object is genuinely clean — not merely equal-looking.
+    renderPage();
+    act(() => {
+      (capturedPaletteProps.current?.onAddActivity as (t: string) => void)(
+        "data.transform",
+      );
+    });
+    expect(fireBeforeUnload()).toBe(true);
+    fireEvent.click(screen.getByTestId("undo-button"));
+    expect(fireBeforeUnload()).toBe(false);
+  });
+
+  it("does not challenge the navigation that follows a successful create-save", async () => {
+    const confirmSpy = vi
+      .spyOn(window, "confirm")
+      .mockImplementation(() => false);
+    renderPage();
+    act(() => {
+      (capturedPaletteProps.current?.onAddActivity as (t: string) => void)(
+        "data.transform",
+      );
+    });
+    fireEvent.click(screen.getByTestId("save-button"));
+    await waitFor(() => expect(capturedCreateDto.current).not.toBeNull());
+    await waitFor(() => expect(fireBeforeUnload()).toBe(false));
+    expect(confirmSpy).not.toHaveBeenCalled();
   });
 });
