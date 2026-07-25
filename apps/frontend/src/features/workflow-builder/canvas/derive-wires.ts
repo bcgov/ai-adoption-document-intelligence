@@ -27,6 +27,7 @@ import {
   isAutoCtxKey,
   type KindRef,
   nodeTypeCtxWrites,
+  producerCtxKeyForPort,
   resolveInputPort,
 } from "@ai-di/graph-workflow";
 import type { GraphEdge, GraphWorkflowConfig } from "../../../types/workflow";
@@ -161,27 +162,31 @@ function buildProducerIndex(
     }
   }
 
-  // G-007 follow-up: control-flow producers. `join`, `childWorkflow` and
-  // `humanGate` write ctx through their own fields (`resultsCtxKey`,
-  // `outputMappings`, the `<nodeId>Payload` key) rather than through
-  // `outputs[]`, so before this pass a consumer the resolver auto-bound to one
-  // of them rendered NO wire — a correct binding the author could neither see
-  // nor delete. `nodeTypeCtxWrites` is the same enumeration the resolver's
-  // `outputPortsFor` uses, so the two can never disagree about what a node
-  // produces. `switch` writes nothing and contributes nothing.
+  // G-007 follow-up: control-flow producers. `map`, `join`, `childWorkflow`
+  // and `humanGate` write ctx through their own fields (`itemCtxKey`,
+  // `resultsCtxKey`, `outputMappings`, the `<nodeId>Payload` key) rather than
+  // through `outputs[]`, so before this pass a consumer the resolver
+  // auto-bound to one of them rendered NO wire — a correct binding the author
+  // could neither see nor delete. `nodeTypeCtxWrites` is the same enumeration
+  // the resolver's `outputPortsFor` uses, so the two can never disagree about
+  // what a node produces. `switch` writes nothing and contributes nothing.
   //
-  // Two node types are deliberately NOT indexed here:
-  //   - `source` — already handled by the branch above, which owns the
-  //     per-subtype kinds (`outputKind` / per-field `kind`).
-  //   - `map` — its item key is reported by the resolver as
-  //     `producerPort = itemCtxKey`, not the `"item"` port name this
-  //     enumeration uses, so indexing it would draw a wire the `via` lookup
-  //     below could never stamp provenance on. Map-item wires have always
-  //     been invisible (this predates G-007) and making them visible is a
-  //     separate change that also has to reckon with `MapBodyContainer`.
+  // `map` joined this pass in G-104. It was held back because the resolver
+  // reported `producerPort = itemCtxKey` while this enumeration reports the
+  // stable port name `"item"`, so a map wire's provenance lookup below could
+  // never match; the resolver now reports `"item"` too.
+  //
+  // `source` is still deliberately NOT indexed here — the branch above owns
+  // its per-subtype kinds (`outputKind` / per-field `kind`), which
+  // `nodeTypeCtxWrites` does not carry for an untyped `source.api` field.
   for (const producerNode of Object.values(config.nodes)) {
-    if (producerNode.type === "source" || producerNode.type === "map") continue;
+    if (producerNode.type === "source") continue;
     for (const write of nodeTypeCtxWrites(producerNode.id, producerNode)) {
+      // An empty ctx key is not a write — the same rule `writerSourcesKey`
+      // applies. A half-configured control-flow node (a freshly dropped map
+      // has `itemCtxKey: ""`) must not become the producer every equally
+      // blank binding matches.
+      if (write.ctxKey === "") continue;
       if (index.has(write.ctxKey)) continue;
       index.set(write.ctxKey, {
         nodeId: producerNode.id,
@@ -230,8 +235,27 @@ function deriveDataWires(
       // binding was written) the resolver may pick a different producer —
       // the wire still renders where the binding points, but claiming the
       // resolver's mechanism for it would be a lie, so `via` stays unset.
+      //
+      // "The resolver owns this binding" is `auto` for an activity producer,
+      // whose key really is `__auto.<node>.<port>` unless an `outputs[]` row
+      // says otherwise. A control-flow producer never has an auto key: it
+      // writes through a dedicated field the AUTHOR names (`itemCtxKey`,
+      // `resultsCtxKey`), so `auto` is false and this gate used to close on
+      // every one of them (G-104 — a map-item wire could never claim the
+      // `map-item` provenance `WorkflowEdge` already renders). The
+      // equivalent test there is that the binding's key IS the key the
+      // producer's type-level write emits for this port. That stays
+      // conservative for `outputs[]`-based producers: `producerCtxKeyForPort`
+      // returns undefined for activity/pollUntil, so a hand-authored ctx
+      // binding to one still gets no `via`.
       let via: AutoBoundVia | undefined;
-      if (auto && !pinned && inputDescriptor) {
+      const producerNode = config.nodes[producer.nodeId];
+      const resolverOwnsBinding =
+        auto ||
+        (producerNode !== undefined &&
+          producerCtxKeyForPort(producerNode, producer.port) ===
+            binding.ctxKey);
+      if (resolverOwnsBinding && !pinned && inputDescriptor) {
         const resolution = resolveInputPort(config, consumerNode.id, {
           name: inputDescriptor.name,
           kind: inputDescriptor.kind,

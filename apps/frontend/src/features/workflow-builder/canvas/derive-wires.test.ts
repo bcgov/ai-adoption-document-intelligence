@@ -11,6 +11,7 @@ import type {
   GraphWorkflowConfig,
   HumanGateNode,
   JoinNode,
+  MapNode,
   SourceNode,
   SwitchNode,
 } from "../../../types/workflow";
@@ -633,5 +634,201 @@ describe("deriveWires — control-flow producers (G-007)", () => {
         kind: "Artifact",
       }),
     );
+  });
+});
+
+/**
+ * G-104 — a map writes the current loop item into its `itemCtxKey`. Before
+ * this fix `map` was excluded from the producer index outright, so a body
+ * node correctly auto-bound to the map's item drew NO wire at all: a binding
+ * the author could neither see nor delete. Fan-out is the most common shape
+ * in the product, so this was the binding most likely to be invisible.
+ */
+describe("deriveWires — map-item producers (G-104)", () => {
+  /**
+   * SPLIT (`document.split`, emits `Segment[]`) → MAP → BODY
+   * (`document.classify`, wants a `Segment` on its `segment` port). The map's
+   * item key is the author's own name, `currentSegment` — NOT an `__auto.*`
+   * key, because a map writes ctx through its dedicated field.
+   */
+  function mapChainConfig(): GraphWorkflowConfig {
+    return config({
+      nodes: {
+        SPLIT: node<ActivityNode>({
+          id: "SPLIT",
+          type: "activity",
+          activityType: "document.split",
+          outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+        }),
+        MAP: node<MapNode>({
+          id: "MAP",
+          type: "map",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        }),
+        BODY: node<ActivityNode>({
+          id: "BODY",
+          type: "activity",
+          activityType: "document.classify",
+          inputs: [{ port: "segment", ctxKey: "currentSegment" }],
+        }),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+    });
+  }
+
+  it("draws a data wire from a map to a body node bound to its item", () => {
+    const dataWires = deriveWires(mapChainConfig()).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0]).toMatchObject({
+      source: "MAP",
+      // The stable port name, not the author's ctx key.
+      sourcePort: "item",
+      target: "BODY",
+      targetPort: "segment",
+      ctxKey: "currentSegment",
+      edgeId: "e1",
+    });
+    // The pair's edge is stamped onto the data wire, so no sequence wire.
+    expect(
+      deriveWires(mapChainConfig()).filter(
+        (w) => w.variant === "sequence" && w.id === "e1",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("stamps map-item provenance on the wire", () => {
+    // The whole reason `map` was excluded: the resolver reported the ctx key
+    // as the port, so this lookup could never match and the wire could never
+    // claim its mechanism. `WorkflowEdge` renders `via: "map-item"` as
+    // "Connected automatically — item from the loop".
+    const dataWires = deriveWires(mapChainConfig()).filter(isDataWire);
+    expect(dataWires[0].via).toBe("map-item");
+  });
+
+  it("draws nothing for a map whose item nothing reads", () => {
+    const cfg = mapChainConfig();
+    cfg.nodes.BODY = node<ActivityNode>({
+      id: "BODY",
+      type: "activity",
+      activityType: "document.classify",
+      inputs: [],
+    });
+    expect(deriveWires(cfg).filter(isDataWire)).toHaveLength(0);
+  });
+
+  it("indexes a map's index key too, distinctly from its item key", () => {
+    const cfg = mapChainConfig();
+    cfg.nodes.MAP = node<MapNode>({
+      id: "MAP",
+      type: "map",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "currentSegment",
+      indexCtxKey: "segmentIndex",
+      bodyEntryNodeId: "BODY",
+      bodyExitNodeId: "BODY",
+    });
+    cfg.nodes.BODY = node<ActivityNode>({
+      id: "BODY",
+      type: "activity",
+      activityType: "document.classify",
+      inputs: [
+        { port: "segment", ctxKey: "currentSegment" },
+        { port: "documentId", ctxKey: "segmentIndex" },
+      ],
+    });
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(2);
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({ sourcePort: "item", targetPort: "segment" }),
+    );
+    expect(dataWires).toContainEqual(
+      expect.objectContaining({
+        sourcePort: "index",
+        targetPort: "documentId",
+      }),
+    );
+  });
+
+  it("draws no wire for a half-configured map whose item key is still blank", () => {
+    // A freshly dropped map has `itemCtxKey: ""` until the author names it
+    // (`control-flow-skeletons.ts`). An empty key is not a write — the same
+    // rule `writerSourcesKey` already applies — so it must not become a
+    // producer that any equally blank binding matches.
+    const cfg = mapChainConfig();
+    cfg.nodes.MAP = node<MapNode>({
+      id: "MAP",
+      type: "map",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "",
+      bodyEntryNodeId: "BODY",
+      bodyExitNodeId: "BODY",
+    });
+    cfg.nodes.BODY = node<ActivityNode>({
+      id: "BODY",
+      type: "activity",
+      activityType: "document.classify",
+      inputs: [{ port: "segment", ctxKey: "" }],
+    });
+    expect(deriveWires(cfg).filter(isDataWire)).toHaveLength(0);
+  });
+
+  it("still excludes source nodes from the control-flow pass", () => {
+    // Regression guard: sources are indexed by the branch ABOVE, which owns
+    // their per-subtype kinds. `nodeTypeCtxWrites` reports no kind for an
+    // untyped `source.api` field, so if the control-flow pass claimed a
+    // source the `Artifact` default would be lost.
+    const cfg = config({
+      nodes: {
+        API: node<SourceNode>({
+          id: "API",
+          type: "source",
+          sourceType: "source.api",
+          parameters: {
+            fields: [{ name: "caseNumber", type: "string", required: true }],
+          },
+        }),
+        P: node<ActivityNode>({
+          id: "P",
+          type: "activity",
+          activityType: "file.prepare",
+          inputs: [{ port: "fileName", ctxKey: "caseNumber" }],
+        }),
+      },
+    });
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].kind).toBe("Artifact");
+  });
+
+  it("leaves via unset for a hand-authored ctx binding to an activity producer", () => {
+    // The `via` gate must stay conservative for producers that bind through
+    // `outputs[]`: a non-auto key there is the author's own wiring, and the
+    // wire must not claim the resolver made it.
+    const cfg = config({
+      nodes: {
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "myDoc" }],
+        }),
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "myDoc" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+    });
+    const dataWires = deriveWires(cfg).filter(isDataWire);
+    expect(dataWires).toHaveLength(1);
+    expect(dataWires[0].via).toBeUndefined();
   });
 });
