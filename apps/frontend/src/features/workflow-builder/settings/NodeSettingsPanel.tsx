@@ -68,6 +68,10 @@ import { DynamicNodeSettings } from "./dynamic-node/DynamicNodeSettings";
 import { ErrorPolicySection, supportsErrorPolicy } from "./ErrorPolicySection";
 import { GroupNodeSettings } from "./group/GroupNodeSettings";
 import { InputsSection } from "./InputsSection";
+import {
+  findOrphanedParameterKeys,
+  removeParameterKeys,
+} from "./orphaned-parameters";
 
 interface NodeSettingsPanelProps {
   config: GraphWorkflowConfig;
@@ -642,6 +646,22 @@ function ActivityNodeBody({
   const setParameters = (parameters: Record<string, unknown>) =>
     onConfigChange(replaceNode(config, node.id, { ...node, parameters }));
 
+  // G-099 — values the current schema no longer declares are invisible in the
+  // form (it renders from `schema.properties`) and survive every edit, because
+  // the write-back spreads the existing object. Name them and offer removal
+  // rather than pruning silently: a `dyn.` version pin can legitimately drop a
+  // property while the value is still wanted.
+  // No schema means the activity is unregistered, not that it declares
+  // nothing — claiming every saved value is unused would be a false alarm on
+  // exactly the node the author most needs to trust.
+  const orphanedParamKeys = useMemo(
+    () =>
+      paramsSchema
+        ? findOrphanedParameterKeys(node.parameters, paramsSchema.properties)
+        : [],
+    [node.parameters, paramsSchema],
+  );
+
   return (
     <Box>
       <Text size="xs" fw={600} mb={4}>
@@ -652,6 +672,36 @@ function ActivityNodeBody({
         value={node.parameters ?? {}}
         onChange={setParameters}
       />
+      {orphanedParamKeys.length > 0 && (
+        <Alert
+          color="gray"
+          variant="light"
+          mt={8}
+          p={8}
+          data-testid="orphaned-parameters"
+        >
+          <Text size="10px">
+            {orphanedParamKeys.length} saved setting
+            {orphanedParamKeys.length === 1 ? "" : "s"} this step no longer
+            uses: <b>{orphanedParamKeys.join(", ")}</b>. They are ignored when
+            the workflow runs.
+          </Text>
+          <Button
+            size="compact-xs"
+            variant="subtle"
+            color="gray"
+            mt={4}
+            data-testid="orphaned-parameters-remove"
+            onClick={() =>
+              setParameters(
+                removeParameterKeys(node.parameters ?? {}, orphanedParamKeys),
+              )
+            }
+          >
+            Remove {orphanedParamKeys.length === 1 ? "it" : "them"}
+          </Button>
+        </Alert>
+      )}
       {validation && !validation.success && (
         <Text size="10px" c="red" mt={6}>
           {validation.error.issues.length} validation issue
