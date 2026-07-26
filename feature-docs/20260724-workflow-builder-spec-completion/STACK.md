@@ -123,7 +123,10 @@ Cheap-and-unblocking first, then the design decision that shapes the tests, then
 
 *Steps 1–7 are complete.* Remaining:
 
-8. **Gate the ~79 register entries** — the big remaining Layer 1 gap.
+8. **Gate the 76 ungated register entries** — the big remaining Layer 1 gap. Triaged into
+   8 immediate rulings + a verification backlog in [DECISION_SHEET.md](DECISION_SHEET.md).
+   Note the register is materially stale (2 of 4 sampled entries were already fixed), so
+   verification precedes ruling for the `fix` proposals.
 9. **Decide PR #230.**
 10. **Walk the remaining ~15 checks**, then re-walk Parts 3–9 → closes Layer 0.
 
