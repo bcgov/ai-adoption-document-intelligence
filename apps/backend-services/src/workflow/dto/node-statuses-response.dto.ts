@@ -15,13 +15,82 @@
 
 import { ApiProperty } from "@nestjs/swagger";
 
-/** Per-node live run status surfaced to the canvas (US-135 shape). */
+/**
+ * Per-node live run status surfaced to the canvas (US-135 shape).
+ *
+ * `cancelled` is terminal and is NOT written by the workflow — the runtime has
+ * no chance to record it, because cancellation stops the execution. The
+ * endpoint derives it: when the run itself is CANCELED/TERMINATED, any node
+ * still sitting at `pending`/`running` is reported as `cancelled` (G-047).
+ * Without it those nodes stayed `running` forever, the canvas's terminal-stop
+ * check never fired, and the poll ran at 1.5 s until the component unmounted.
+ */
 export type NodeRunStatusValue =
   | "pending"
   | "running"
   | "succeeded"
   | "failed"
-  | "skipped";
+  | "skipped"
+  | "cancelled";
+
+/** Node states that will never change again on their own. */
+const TERMINAL_NODE_STATUSES: readonly NodeRunStatusValue[] = [
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+];
+
+/** Temporal execution states that mean the run stopped without finishing. */
+const ABORTED_RUN_STATUSES: readonly string[] = ["CANCELLED", "TERMINATED"];
+
+/**
+ * True when at least one node could still change state. The endpoint uses this
+ * to decide whether asking Temporal for the run's own status is worth a round
+ * trip — a fully settled map cannot be affected by it.
+ */
+export function hasUnfinishedNodes(
+  statuses: Record<string, { status: NodeRunStatusValue }>,
+): boolean {
+  return Object.values(statuses).some(
+    (entry) => !TERMINAL_NODE_STATUSES.includes(entry.status),
+  );
+}
+
+/**
+ * Report nodes left mid-flight by an aborted run as `cancelled` (G-047).
+ *
+ * Cancellation stops the execution, so the workflow never gets to write a
+ * terminal status for the nodes it was in the middle of. They stay `running`
+ * in the query result forever, the canvas's all-terminal check never fires,
+ * and it polls at 1.5 s until unmounted.
+ *
+ * Pure, and exported for tests. Returns the input untouched for a run that is
+ * still going or that finished normally, so the common path allocates nothing.
+ */
+export function applyAbortedRunStatus<T extends { status: NodeRunStatusValue }>(
+  statuses: Record<string, T>,
+  runStatusName: string | undefined,
+): Record<string, T> {
+  // Temporal spells it CANCELED (one L); accept both so a client-library
+  // change in either direction cannot silently reintroduce the endless poll.
+  const normalised = (runStatusName ?? "")
+    .toUpperCase()
+    .replace("CANCELED", "CANCELLED");
+  if (!ABORTED_RUN_STATUSES.includes(normalised)) return statuses;
+
+  let changed = false;
+  const out: Record<string, T> = {};
+  for (const [nodeId, entry] of Object.entries(statuses)) {
+    if (TERMINAL_NODE_STATUSES.includes(entry.status)) {
+      out[nodeId] = entry;
+      continue;
+    }
+    changed = true;
+    out[nodeId] = { ...entry, status: "cancelled" as NodeRunStatusValue };
+  }
+  return changed ? out : statuses;
+}
 
 export class CacheHitDto {
   @ApiProperty({
@@ -40,8 +109,8 @@ export class CacheHitDto {
 export class NodeRunStatusDto {
   @ApiProperty({
     description:
-      "Lifecycle state of the node within this run. `pending` is reserved for callers that seed entries — the workflow itself never writes pending (untouched nodes are absent, and the canvas treats absent as pending).",
-    enum: ["pending", "running", "succeeded", "failed", "skipped"],
+      "Lifecycle state of the node within this run. `pending` is reserved for callers that seed entries — the workflow itself never writes pending (untouched nodes are absent, and the canvas treats absent as pending). `cancelled` is derived by this endpoint, not written by the workflow: when the run is CANCELED/TERMINATED, nodes left at `pending`/`running` are reported as `cancelled` so the canvas's terminal-stop check can fire.",
+    enum: ["pending", "running", "succeeded", "failed", "skipped", "cancelled"],
   })
   status!: NodeRunStatusValue;
 

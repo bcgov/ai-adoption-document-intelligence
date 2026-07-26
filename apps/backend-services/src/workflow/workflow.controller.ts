@@ -78,7 +78,9 @@ import {
   type RunSummaryStatus,
 } from "./dto/list-runs.dto";
 import {
+  applyAbortedRunStatus,
   CacheHitDto,
+  hasUnfinishedNodes,
   NODE_STATUSES_RESPONSE_SCHEMA,
   NodeRunStatusDto,
   type NodeStatusesResponseDto,
@@ -897,8 +899,25 @@ export class WorkflowController {
         });
       }
 
-      const statuses = await this.temporalClient.queryNodeStatuses(runId);
-      return statuses as NodeStatusesResponseDto;
+      const statuses = (await this.temporalClient.queryNodeStatuses(
+        runId,
+      )) as NodeStatusesResponseDto;
+
+      // G-047: a cancelled run's nodes stay `running` in the query result —
+      // cancellation stops the execution before the workflow can write a
+      // terminal status — so the canvas never satisfied its all-terminal stop
+      // and polled at 1.5 s forever. Ask Temporal what actually happened and
+      // report those nodes as `cancelled`.
+      //
+      // Only when something is still non-terminal: that is exactly the case
+      // that would otherwise keep polling, and it keeps the extra describe off
+      // the path where the map is already settled.
+      if (!hasUnfinishedNodes(statuses)) return statuses;
+
+      const description = await this.temporalClient
+        .getWorkflowStatus(runId)
+        .catch(() => undefined);
+      return applyAbortedRunStatus(statuses, description?.status);
     } catch (error) {
       // Ownership rejections propagate unchanged — never remap to 404/410.
       if (error instanceof ForbiddenException) {

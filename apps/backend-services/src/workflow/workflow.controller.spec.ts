@@ -127,6 +127,9 @@ describe("WorkflowController", () => {
     temporalClient = {
       startGraphWorkflow: jest.fn().mockResolvedValue("graph-adhoc-fake-run"),
       queryNodeStatuses: jest.fn(),
+      // Consulted only when the status map still has unfinished nodes, to see
+      // whether the run was cancelled/terminated underneath them (G-047).
+      getWorkflowStatus: jest.fn().mockResolvedValue({ status: "RUNNING" }),
       getRunWindow: jest.fn(),
       getRunInput: jest.fn(),
       listRunningInLineage: jest.fn().mockResolvedValue([]),
@@ -2305,6 +2308,45 @@ describe("WorkflowController", () => {
       expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
         "wf-1",
       );
+    });
+
+    // G-047: a cancelled run left its nodes at `running` forever, so the
+    // canvas's all-terminal stop never fired and it polled at 1.5s until
+    // unmounted. The endpoint now asks Temporal what really happened.
+    it("reports a cancelled run's unfinished nodes as cancelled (G-047)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.queryNodeStatuses as jest.Mock).mockResolvedValue({
+        "node-1": { status: "succeeded" as const },
+        "node-2": { status: "running" as const },
+      });
+      (temporalClient.getWorkflowStatus as jest.Mock).mockResolvedValue({
+        status: "CANCELLED",
+      });
+
+      const result = await controller.getNodeStatuses(
+        "wf-1",
+        "graph-adhoc-xyz",
+        mockReq(),
+      );
+
+      expect(result["node-1"].status).toBe("succeeded");
+      expect(result["node-2"].status).toBe("cancelled");
+    });
+
+    it("does not consult the run's status when every node has finished (G-047)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      (temporalClient.queryNodeStatuses as jest.Mock).mockResolvedValue({
+        "node-1": { status: "succeeded" as const },
+      });
+      (temporalClient.getWorkflowStatus as jest.Mock).mockClear();
+
+      await controller.getNodeStatuses("wf-1", "graph-adhoc-xyz", mockReq());
+
+      expect(temporalClient.getWorkflowStatus).not.toHaveBeenCalled();
     });
 
     // Scenario 3: Unknown runId → 404
