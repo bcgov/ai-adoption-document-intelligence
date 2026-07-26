@@ -26,6 +26,8 @@
 		"test:all": "RUN_INTEGRATION=1 npm test --workspaces --if-present && RUN_INFRA=1 npm run test:e2e",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
+		"workflows:lint": "node scripts/lint-workflows.mjs",
+		"workflows:lint:all": "node scripts/lint-workflows.mjs --db",
 		"test:file": "playwright test",
 		"test:dir": "playwright test",
 		"test:db:reset": "cd apps/backend-services && PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"yes\" npx prisma migrate reset --force && npm run db:seed",

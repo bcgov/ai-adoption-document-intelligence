@@ -122,11 +122,22 @@ export interface RunRowProps {
 
 export function RunRow({ run, headVersionId, onReplay }: RunRowProps) {
   const dotColor = STATUS_COLOR[run.status];
+  // A run whose start-time memo carried no version arrives as
+  // `workflowVersionId: ""` / `versionNumber: 0` (the API's `?? ""` / `?? 0`
+  // fallbacks). Printing that raw claimed the run executed "v0 — head", a
+  // version that does not exist — on the one surface whose whole job is
+  // telling you which graph ran. Two empty strings also compared equal, so an
+  // unversioned run badged ITSELF as head.
+  const hasKnownVersion = !!run.workflowVersionId && run.versionNumber > 0;
   const isHead =
-    headVersionId !== undefined && run.workflowVersionId === headVersionId;
-  const versionPin = isHead
-    ? `v${run.versionNumber} — head`
-    : `v${run.versionNumber}`;
+    hasKnownVersion &&
+    headVersionId !== undefined &&
+    run.workflowVersionId === headVersionId;
+  const versionPin = !hasKnownVersion
+    ? "version unknown"
+    : isHead
+      ? `v${run.versionNumber} — head`
+      : `v${run.versionNumber}`;
 
   const relativeStarted = formatRelativeTime(run.startedAt);
   const absoluteStarted = run.startedAt;

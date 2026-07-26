@@ -180,6 +180,23 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 ---
 
+## Editor invariants (graph-specific)
+
+Two obligations that only make sense for a graph editor. The repo-wide four are
+in [CLAUDE.md](../../CLAUDE.md) (Cross-feature obligations).
+
+- **Rules are depth-independent.** A validation rule that holds for the outer
+  graph holds inside an inline child graph, at any nesting depth. Before G-015 no
+  rule descended into `workflowRef.inline`, so every rule the product enforces was
+  dropped one level down and the graph still saved clean. Any rule added later
+  inherits this obligation — it is a claim about rules that do not exist yet.
+- **Wrappers inherit affordances.** A node that wraps another node's behaviour
+  inherits its affordances, not just its data. A `pollUntil` wrapping a catalog
+  activity renders that activity's port rows (G-016) — otherwise the settings
+  panel lists inputs the canvas gives you nothing to drag to.
+
+---
+
 ## Part 3 — Canvas & Node Basics (Foundation)
 
 **▶ Demo:** [Node settings & canvas basics](http://localhost:3000/workflows/by-slug/demo-node-settings-panel-canvas-basics-part-3/edit)

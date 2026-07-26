@@ -124,6 +124,50 @@ export function useWorkflowBySlug(slug: string) {
   });
 }
 
+/** One anchored problem from the backend graph validator. */
+export interface WorkflowValidationIssue {
+  path: string;
+  message: string;
+  severity?: string;
+}
+
+/**
+ * A save rejection that keeps the validator's anchors.
+ *
+ * The API answers a bad graph with the exact node and field it objected to
+ * (`nodes.switch_1.defaultEdge — Switch node "switch_1" must have a
+ * defaultEdge`). Throwing a bare Error discarded all of that and left the
+ * author a generic "Invalid workflow configuration" plus a hunt.
+ */
+export class WorkflowSaveError extends Error {
+  readonly issues: WorkflowValidationIssue[];
+
+  constructor(message: string, issues: WorkflowValidationIssue[]) {
+    super(message);
+    this.name = "WorkflowSaveError";
+    this.issues = issues;
+  }
+}
+
+/** Pull `errors[]` off a 400 body, tolerating any other shape. */
+function validationIssuesFrom(payload: unknown): WorkflowValidationIssue[] {
+  if (!payload || typeof payload !== "object") return [];
+  const errors = (payload as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return [];
+  return errors.flatMap((entry): WorkflowValidationIssue[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const { path, message, severity } = entry as Record<string, unknown>;
+    if (typeof path !== "string" || typeof message !== "string") return [];
+    return [
+      {
+        path,
+        message,
+        ...(typeof severity === "string" ? { severity } : {}),
+      },
+    ];
+  });
+}
+
 export function useCreateWorkflow() {
   const queryClient = useQueryClient();
   const { activeGroup } = useGroup();
@@ -138,7 +182,11 @@ export function useCreateWorkflow() {
         groupId: activeGroup.id,
       });
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to create workflow");
+        throw new WorkflowSaveError(
+          response.message || "Failed to create workflow",
+          // On failure apiService puts the raw error body in `data`.
+          validationIssuesFrom(response.data),
+        );
       }
       return response.data.workflow;
     },
@@ -164,7 +212,10 @@ export function useUpdateWorkflow() {
         dto,
       );
       if (!response.success || !response.data) {
-        throw new Error(response.message || "Failed to update workflow");
+        throw new WorkflowSaveError(
+          response.message || "Failed to update workflow",
+          validationIssuesFrom(response.data),
+        );
       }
       return response.data.workflow;
     },

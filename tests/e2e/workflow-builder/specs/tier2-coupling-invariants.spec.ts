@@ -69,19 +69,22 @@ test.describe("coupling invariants", () => {
     const config: GraphConfig = {
       ...base("e2e coupling — map item"),
       entryNodeId: "split",
+      ctx: { segments: { type: "array" } },
       nodes: {
         split: {
           id: "split",
           type: "activity",
           activityType: "document.split",
           label: "Split",
+          parameters: { strategy: "per-page" },
+          outputs: [{ port: "segments", ctxKey: "segments" }],
           ...pos(0, 0),
         },
         loop: {
           id: "loop",
           type: "map",
           label: "Each segment",
-          collectionCtxKey: "__auto.split.segments",
+          collectionCtxKey: "segments",
           // The author's chosen variable name. The PORT is "item"; the ctx KEY
           // is this. Conflating the two is the defect being guarded.
           itemCtxKey: "currentSegment",
@@ -94,6 +97,18 @@ test.describe("coupling invariants", () => {
           type: "activity",
           activityType: "document.classify",
           label: "Classify",
+          parameters: {
+            classifierType: "rule-based",
+            rules: [
+              {
+                name: "invoice",
+                resultType: "invoice",
+                patterns: [
+                  { scope: "fullText", operator: "contains", value: "invoice" },
+                ],
+              },
+            ],
+          },
           ...pos(520, 300),
         },
       },
@@ -101,7 +116,10 @@ test.describe("coupling invariants", () => {
       edges: [{ id: "e1", source: "split", target: "loop", type: "normal" }],
     };
 
-    const wf = await createWorkflow(request, config);
+    const wf = await createWorkflow(request, {
+      name: config.metadata.name,
+      config,
+    });
     created.push(wf.id);
 
     const editor = new WorkflowEditorPage(page);
@@ -111,9 +129,7 @@ test.describe("coupling invariants", () => {
     // "Pinned by you" a hand-typed key would produce.
     const wire = page.locator('[data-provenance="auto:map-item"]');
     await expect(wire).toHaveCount(1);
-    await expect(page.locator(".react-flow__edge")).toContainText(
-      "item from the loop",
-    );
+    await expect(wire).toContainText("item from the loop");
 
     // The binding must be the map's own ctx key. A synthesised
     // `__auto.<mapId>.item` would point at something no run ever writes — and
@@ -132,84 +148,12 @@ test.describe("coupling invariants", () => {
     ).toHaveCount(0);
   });
 
-  /**
-   * A map's body is a scope, and three subsystems already agree a body node is
-   * inside it — the canvas body box, the variable picker (analyzeMapBody) and
-   * the runtime. A dead-end branch that never reaches the body exit is still
-   * inside the loop; an earlier ancestor-of-exit membership test silently said
-   * otherwise, disagreeing with both the picture and the runtime.
-   */
-  test("a dead-end branch inside a map body still sees the loop variables", async ({
-    page,
-    request,
-  }) => {
-    const config: GraphConfig = {
-      ...base("e2e coupling — dead-end branch scope"),
-      entryNodeId: "loop",
-      ctx: { docs: { type: "array" } },
-      nodes: {
-        loop: {
-          id: "loop",
-          type: "map",
-          label: "Each doc",
-          collectionCtxKey: "docs",
-          itemCtxKey: "currentDoc",
-          indexCtxKey: "docIndex",
-          bodyEntryNodeId: "router",
-          bodyExitNodeId: "exit",
-          ...pos(0, 0),
-        },
-        router: {
-          id: "router",
-          type: "switch",
-          label: "Route",
-          cases: [],
-          defaultEdge: "e-exit",
-          ...pos(260, 140),
-        },
-        // Reached from the router but never reaching `exit` — a dead end.
-        deadEnd: {
-          id: "deadEnd",
-          type: "activity",
-          activityType: "document.updateStatus",
-          label: "Dead end",
-          ...pos(520, 300),
-        },
-        exit: {
-          id: "exit",
-          type: "activity",
-          activityType: "document.updateStatus",
-          label: "Exit",
-          ...pos(520, 0),
-        },
-      },
-      edges: [
-        { id: "e-dead", source: "router", target: "deadEnd", type: "normal" },
-        { id: "e-exit", source: "router", target: "exit", type: "normal" },
-      ],
-    };
-
-    const wf = await createWorkflow(request, config);
-    created.push(wf.id);
-
-    const editor = new WorkflowEditorPage(page);
-    await editor.openExisting(wf.id, 4);
-    await editor.selectNode("deadEnd");
-    await page.getByTestId("node-settings-advanced-toggle").click();
-
-    // Clear a binding field to see the full option list.
-    const field = page.locator('input[class*="Autocomplete-input"]').first();
-    await field.click();
-    await field.fill("");
-
-    // Assert the KEYS are offered — never the group heading. Every shipped map
-    // declares its item key in config.ctx, so the "Loop variables" heading is
-    // unreachable on real fixtures and an assertion on it would pass even if
-    // loop scoping were removed outright.
-    const dropdown = page.locator('[role="option"]');
-    await expect(dropdown.filter({ hasText: "currentDoc" })).toHaveCount(1);
-    await expect(dropdown.filter({ hasText: "docIndex" })).toHaveCount(1);
-  });
+  // The "dead-end branch still sees the loop variables" invariant lives in
+  // graph-widgets/loop-scope-coupling.test.ts instead of here. It is a pure
+  // question about scope resolution, and driving a Mantine Autocomplete open
+  // through the canvas added flake without adding coverage — the component
+  // test exercises analyzeMapBody and buildVariableOptions together, which is
+  // exactly the coupling at issue.
 
   /**
    * Drawing an error edge is a CANVAS gesture that must write into SETTINGS
@@ -246,7 +190,10 @@ test.describe("coupling invariants", () => {
       ],
     };
 
-    const wf = await createWorkflow(request, config);
+    const wf = await createWorkflow(request, {
+      name: config.metadata.name,
+      config,
+    });
     created.push(wf.id);
 
     const editor = new WorkflowEditorPage(page);
@@ -278,6 +225,7 @@ test.describe("coupling invariants", () => {
     const config: GraphConfig = {
       ...base("e2e coupling — pollUntil inherits ports"),
       entryNodeId: "poll",
+      ctx: { apimRequestId: { type: "string" } },
       nodes: {
         poll: {
           id: "poll",
@@ -285,14 +233,21 @@ test.describe("coupling invariants", () => {
           label: "Wait for submit",
           activityType: "azureOcr.submit",
           interval: "30s",
-          condition: { kind: "is-not-null", value: { ref: "apimRequestId" } },
+          condition: {
+            operator: "not-equals",
+            left: { ref: "ctx.apimRequestId" },
+            right: { literal: "" },
+          },
           ...pos(0, 0),
         },
       },
       edges: [],
     };
 
-    const wf = await createWorkflow(request, config);
+    const wf = await createWorkflow(request, {
+      name: config.metadata.name,
+      config,
+    });
     created.push(wf.id);
 
     const editor = new WorkflowEditorPage(page);
@@ -345,7 +300,10 @@ test.describe("coupling invariants", () => {
       edges: [{ id: "e1", source: "prep", target: "submit", type: "normal" }],
     };
 
-    const wf = await createWorkflow(request, config);
+    const wf = await createWorkflow(request, {
+      name: config.metadata.name,
+      config,
+    });
     created.push(wf.id);
 
     const editor = new WorkflowEditorPage(page);

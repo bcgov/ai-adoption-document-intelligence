@@ -77,6 +77,7 @@ import {
   useUpdateWorkflow,
   useWorkflow,
   useWorkflowVersion,
+  WorkflowSaveError,
 } from "../../data/hooks/useWorkflows";
 import type {
   ActivityNode,
@@ -641,6 +642,20 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     setConfig(nextConfig);
     setSelectedNodeIdState(null);
     setActiveGroupId(newGroupId);
+    // Clear xyflow's own selection too. Without this the grouped nodes stay
+    // selected on the canvas, the config change re-projects, xyflow re-fires
+    // `onSelectionChange` with those still-selected nodes, and the host routes
+    // that back through `setSelectedNodeId` — which clears `activeGroupId`
+    // again. The panel we just asked for is closed before it renders, so
+    // grouping appears to do nothing at all.
+    reactFlowRef.current?.setNodes((ns) =>
+      ns.map((n) => (n.selected ? { ...n, selected: false } : n)),
+    );
+    notifications.show({
+      color: "green",
+      title: "Grouped",
+      message: `${eligibleIds.length} steps grouped. Turn on More ▸ Simplified view to see the group chip.`,
+    });
   }, [config, selectedNodeIds, setConfig]);
 
   // Clicking a node's problems badge ALWAYS opens the ValidationDrawer scoped
@@ -1011,10 +1026,23 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         navigate(`/workflows/${created.id}/edit`, { replace: true });
       }
     } catch (err) {
+      // The validator answers with the exact node + field it objected to.
+      // Repeating the headline alone ("Invalid workflow configuration") throws
+      // that away and leaves the author to go looking for it.
+      const issues = err instanceof WorkflowSaveError ? err.issues : [];
+      const headline = err instanceof Error ? err.message : "Unknown error.";
+      const shown = issues.slice(0, 3);
+      const detail = shown.map((i) => `${i.path} — ${i.message}`).join("\n");
+      const more =
+        issues.length > shown.length
+          ? `\n…and ${issues.length - shown.length} more.`
+          : "";
       notifications.show({
         color: "red",
         title: "Save failed",
-        message: err instanceof Error ? err.message : "Unknown error.",
+        message: detail ? `${headline}\n${detail}${more}` : headline,
+        autoClose: detail ? 10_000 : undefined,
+        style: { whiteSpace: "pre-line" },
       });
     }
   }, [
@@ -1178,498 +1206,496 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   }
 
   return (
-    <>
-      <Stack
-        gap={0}
+    <Stack
+      gap={0}
+      style={{
+        height: "100%",
+        overflow: "hidden",
+      }}
+    >
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        gap="md"
+        p="sm"
         style={{
-          height: "100%",
-          overflow: "hidden",
+          borderBottom:
+            "1px solid var(--mantine-color-default-border, #2c2e33)",
+          background: "var(--mantine-color-body, #1a1b1e)",
         }}
       >
-        <Group
-          justify="space-between"
-          wrap="nowrap"
-          gap="md"
-          p="sm"
-          style={{
-            borderBottom:
-              "1px solid var(--mantine-color-default-border, #2c2e33)",
-            background: "var(--mantine-color-body, #1a1b1e)",
-          }}
+        <Stack
+          gap={2}
+          style={{ minWidth: 0, flexShrink: 0 }}
+          data-testid="topbar-zone-left"
         >
-          <Stack
-            gap={2}
-            style={{ minWidth: 0, flexShrink: 0 }}
-            data-testid="topbar-zone-left"
-          >
-            <Title order={5} m={0}>
-              Workflow editor (visual)
-            </Title>
-            <Text size="xs" c="dimmed">
-              {nodeCount} node{nodeCount === 1 ? "" : "s"} ·{" "}
-              {config.edges.length} edge
-              {config.edges.length === 1 ? "" : "s"}
-              {isEditMode ? " · editing" : " · creating"}
-            </Text>
-          </Stack>
+          <Title order={5} m={0}>
+            Workflow editor (visual)
+          </Title>
+          <Text size="xs" c="dimmed">
+            {nodeCount} node{nodeCount === 1 ? "" : "s"} · {config.edges.length}{" "}
+            edge
+            {config.edges.length === 1 ? "" : "s"}
+            {isEditMode ? " · editing" : " · creating"}
+          </Text>
+        </Stack>
 
-          <Group
-            gap="xs"
-            wrap="nowrap"
-            style={{ flex: 1, minWidth: 0 }}
-            data-testid="topbar-zone-center"
-          >
-            <TextInput
-              label="Name"
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-              size="xs"
-              style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
-            />
-            <TextInput
-              label="Description"
-              value={description}
-              onChange={(e) => setDescription(e.currentTarget.value)}
-              size="xs"
-              style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
-            />
-            {/*
+        <Group
+          gap="xs"
+          wrap="nowrap"
+          style={{ flex: 1, minWidth: 0 }}
+          data-testid="topbar-zone-center"
+        >
+          <TextInput
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            size="xs"
+            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
+          />
+          <TextInput
+            label="Description"
+            value={description}
+            onChange={(e) => setDescription(e.currentTarget.value)}
+            size="xs"
+            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
+          />
+          {/*
               G-009 — find a node in THIS graph. Sits beside the metadata
               fields rather than in the palette, because the palette's search
               answers the other question (what can I add?). Picking a result
               goes through the batch-8 select+reveal helpers.
             */}
-            <NodeSearchBox config={config} onSelectNode={selectAndRevealNode} />
-          </Group>
+          <NodeSearchBox config={config} onSelectNode={selectAndRevealNode} />
+        </Group>
 
-          <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
-            <TopBarReplayIndicator
-              versionUnavailable={replayVersionUnavailable}
-            />
-            {/*
+        <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
+          <TopBarReplayIndicator
+            versionUnavailable={replayVersionUnavailable}
+          />
+          {/*
               G-003 — visible undo/redo. The shortcuts exist too, but a
               keyboard-only affordance is undiscoverable, which is the same
               class of gap this batch closes.
             */}
-            <Button.Group>
-              <Tooltip label="Undo (Ctrl+Z)" withArrow>
-                <Button
-                  variant="default"
-                  size="xs"
-                  px={8}
-                  onClick={undo}
-                  disabled={!canUndo}
-                  aria-label="Undo"
-                  data-testid="undo-button"
-                >
-                  <IconArrowBackUp size={16} />
-                </Button>
-              </Tooltip>
-              <Tooltip label="Redo (Ctrl+Shift+Z)" withArrow>
-                <Button
-                  variant="default"
-                  size="xs"
-                  px={8}
-                  onClick={redo}
-                  disabled={!canRedo}
-                  aria-label="Redo"
-                  data-testid="redo-button"
-                >
-                  <IconArrowForwardUp size={16} />
-                </Button>
-              </Tooltip>
-            </Button.Group>
-            <ValidationButton
-              errorCount={validation.errorCount}
-              warningCount={validation.warningCount}
-              isPending={validation.isPending}
-              onClick={() => {
-                setValidationFocusNodeId(null);
-                setValidationFilterNodeId(null);
-                setValidationOpen(true);
-              }}
-            />
-            <Button
-              leftSection={<IconDeviceFloppy size={14} />}
-              onClick={handleSave}
-              loading={isSaving}
-              size="xs"
-              data-testid="save-button"
-            >
-              Save
-            </Button>
-            {tryButtonVisible && (
-              <Tooltip
-                label="Save the workflow first"
-                disabled={isEditMode && !!workflowId}
+          <Button.Group>
+            <Tooltip label="Undo (Ctrl+Z)" withArrow>
+              <Button
+                variant="default"
+                size="xs"
+                px={8}
+                onClick={undo}
+                disabled={!canUndo}
+                aria-label="Undo"
+                data-testid="undo-button"
               >
-                <Button
-                  variant="filled"
-                  color="blue"
-                  leftSection={<IconBolt size={14} />}
-                  onClick={() => setRunDrawerMode("try")}
-                  size="xs"
-                  data-testid="try-button"
-                  disabled={!isEditMode || !workflowId}
-                >
-                  Try
-                </Button>
-              </Tooltip>
-            )}
-            <Button
-              variant="light"
-              leftSection={<IconPlayerPlay size={14} />}
-              onClick={() => setRunDrawerMode("run")}
-              size="xs"
-              data-testid="run-this-workflow-button"
-              disabled={!isEditMode || !workflowId}
-              title={
-                !isEditMode || !workflowId
-                  ? "Save the workflow first to enable Run."
-                  : "Open the run-trigger panel for this workflow"
-              }
-            >
-              Run this workflow
-            </Button>
-            <Menu position="bottom-end" withArrow shadow="md">
-              <Menu.Target>
-                <Button
-                  variant="light"
-                  leftSection={<IconDots size={14} />}
-                  size="xs"
-                  data-testid="topbar-more-button"
-                >
-                  More
-                </Button>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Item
-                  leftSection={<IconHistory size={14} />}
-                  disabled={!workflowId}
-                  onClick={() => setHistoryDrawerOpen(true)}
-                  data-testid="topbar-menu-history"
-                  data-disabled={!workflowId}
-                  title={!workflowId ? "Save the workflow first" : undefined}
-                >
-                  History
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconClipboardList size={14} />}
-                  disabled={!workflowId}
-                  onClick={() => setRunHistoryDrawerOpen(true)}
-                  data-testid="topbar-menu-run-history"
-                  data-disabled={!workflowId}
-                  title={!workflowId ? "Save the workflow first" : undefined}
-                >
-                  Run history
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconBookmark size={14} />}
-                  disabled={nodeCount === 0}
-                  onClick={() => setSaveAsLibraryOpen(true)}
-                  data-testid="topbar-menu-save-as-library"
-                  data-disabled={nodeCount === 0}
-                  title={
-                    nodeCount === 0
-                      ? "Add at least one node before saving as a library"
-                      : undefined
-                  }
-                >
-                  Save as library
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item
-                  leftSection={<IconLayoutDistributeHorizontal size={14} />}
-                  disabled={nodeCount === 0}
-                  onClick={handleAutoArrange}
-                  data-testid="topbar-menu-auto-arrange"
-                  data-disabled={nodeCount === 0}
-                >
-                  Auto-arrange
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconUsersGroup size={14} />}
-                  disabled={selectedNodeIds.length < 2}
-                  onClick={handleGroupSelected}
-                  data-testid="topbar-menu-group-selected"
-                  data-disabled={selectedNodeIds.length < 2}
-                  title={
-                    selectedNodeIds.length < 2
-                      ? "Select 2+ nodes to group them"
-                      : undefined
-                  }
-                >
-                  Group selected
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={
-                    <Switch
-                      size="xs"
-                      checked={simplifiedView}
-                      onChange={(e) =>
-                        handleSimplifiedViewChange(e.currentTarget.checked)
-                      }
-                      aria-label="Toggle simplified view"
-                      data-testid="simplified-view-toggle"
-                      styles={{ track: { cursor: "pointer" } }}
-                    />
-                  }
-                  closeMenuOnClick={false}
-                  data-testid="topbar-menu-simplified-view"
-                >
-                  Simplified view
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item
-                  leftSection={<IconSettings size={14} />}
-                  onClick={() => setSettingsOpen(true)}
-                  data-testid="topbar-menu-workflow-settings"
-                >
-                  Workflow settings
-                </Menu.Item>
-                <Menu.Item
-                  leftSection={<IconHelp size={14} />}
-                  component="a"
-                  href="/workflows/dev-form-preview"
-                  target="_blank"
-                  data-testid="topbar-menu-form-preview"
-                >
-                  Form preview
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
-          </Group>
-        </Group>
-
-        <WorkflowSettingsDrawer
-          opened={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          config={config}
-          onConfigChange={setConfig}
-          onSelectNode={selectAndRevealNode}
-        />
-
-        <ValidationDrawer
-          opened={validationOpen}
-          onClose={() => {
-            setValidationOpen(false);
-            // Reset the node filter so the next top-bar open is global.
-            setValidationFilterNodeId(null);
-          }}
-          result={validation}
-          config={config}
-          onNavigate={handleValidationNavigate}
-          focusedNodeId={validationFocusNodeId}
-          filterNodeId={validationFilterNodeId}
-          onShowAll={() => setValidationFilterNodeId(null)}
-        />
-
-        <SaveAsLibraryModal
-          opened={saveAsLibraryOpen}
-          onClose={() => setSaveAsLibraryOpen(false)}
-          initialName={name}
-          initialDescription={description}
-          isSaving={createWorkflow.isPending}
-          onSubmit={handleSaveAsLibrary}
-        />
-
-        {isEditMode && workflowId && (
-          <RunWorkflowDrawer
-            opened={runDrawerMode !== null}
-            onClose={() => setRunDrawerMode(null)}
-            workflowId={workflowId}
-            headVersionId={existingWorkflow?.workflowVersionId}
-            openMode={runDrawerMode ?? "run"}
+                <IconArrowBackUp size={16} />
+              </Button>
+            </Tooltip>
+            <Tooltip label="Redo (Ctrl+Shift+Z)" withArrow>
+              <Button
+                variant="default"
+                size="xs"
+                px={8}
+                onClick={redo}
+                disabled={!canRedo}
+                aria-label="Redo"
+                data-testid="redo-button"
+              >
+                <IconArrowForwardUp size={16} />
+              </Button>
+            </Tooltip>
+          </Button.Group>
+          <ValidationButton
+            errorCount={validation.errorCount}
+            warningCount={validation.warningCount}
+            isPending={validation.isPending}
+            onClick={() => {
+              setValidationFocusNodeId(null);
+              setValidationFilterNodeId(null);
+              setValidationOpen(true);
+            }}
           />
-        )}
+          <Button
+            leftSection={<IconDeviceFloppy size={14} />}
+            onClick={handleSave}
+            loading={isSaving}
+            size="xs"
+            data-testid="save-button"
+          >
+            Save
+          </Button>
+          {tryButtonVisible && (
+            <Tooltip
+              label="Save the workflow first"
+              disabled={isEditMode && !!workflowId}
+            >
+              <Button
+                variant="filled"
+                color="blue"
+                leftSection={<IconBolt size={14} />}
+                onClick={() => setRunDrawerMode("try")}
+                size="xs"
+                data-testid="try-button"
+                disabled={!isEditMode || !workflowId}
+              >
+                Try
+              </Button>
+            </Tooltip>
+          )}
+          <Button
+            variant="light"
+            leftSection={<IconPlayerPlay size={14} />}
+            onClick={() => setRunDrawerMode("run")}
+            size="xs"
+            data-testid="run-this-workflow-button"
+            disabled={!isEditMode || !workflowId}
+            title={
+              !isEditMode || !workflowId
+                ? "Save the workflow first to enable Run."
+                : "Open the run-trigger panel for this workflow"
+            }
+          >
+            Run this workflow
+          </Button>
+          <Menu position="bottom-end" withArrow shadow="md">
+            <Menu.Target>
+              <Button
+                variant="light"
+                leftSection={<IconDots size={14} />}
+                size="xs"
+                data-testid="topbar-more-button"
+              >
+                More
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                leftSection={<IconHistory size={14} />}
+                disabled={!workflowId}
+                onClick={() => setHistoryDrawerOpen(true)}
+                data-testid="topbar-menu-history"
+                data-disabled={!workflowId}
+                title={!workflowId ? "Save the workflow first" : undefined}
+              >
+                History
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconClipboardList size={14} />}
+                disabled={!workflowId}
+                onClick={() => setRunHistoryDrawerOpen(true)}
+                data-testid="topbar-menu-run-history"
+                data-disabled={!workflowId}
+                title={!workflowId ? "Save the workflow first" : undefined}
+              >
+                Run history
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconBookmark size={14} />}
+                disabled={nodeCount === 0}
+                onClick={() => setSaveAsLibraryOpen(true)}
+                data-testid="topbar-menu-save-as-library"
+                data-disabled={nodeCount === 0}
+                title={
+                  nodeCount === 0
+                    ? "Add at least one node before saving as a library"
+                    : undefined
+                }
+              >
+                Save as library
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item
+                leftSection={<IconLayoutDistributeHorizontal size={14} />}
+                disabled={nodeCount === 0}
+                onClick={handleAutoArrange}
+                data-testid="topbar-menu-auto-arrange"
+                data-disabled={nodeCount === 0}
+              >
+                Auto-arrange
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconUsersGroup size={14} />}
+                disabled={selectedNodeIds.length < 2}
+                onClick={handleGroupSelected}
+                data-testid="topbar-menu-group-selected"
+                data-disabled={selectedNodeIds.length < 2}
+                title={
+                  selectedNodeIds.length < 2
+                    ? "Select 2+ nodes to group them"
+                    : undefined
+                }
+              >
+                Group selected
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  <Switch
+                    size="xs"
+                    checked={simplifiedView}
+                    onChange={(e) =>
+                      handleSimplifiedViewChange(e.currentTarget.checked)
+                    }
+                    aria-label="Toggle simplified view"
+                    data-testid="simplified-view-toggle"
+                    styles={{ track: { cursor: "pointer" } }}
+                  />
+                }
+                closeMenuOnClick={false}
+                data-testid="topbar-menu-simplified-view"
+              >
+                Simplified view
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item
+                leftSection={<IconSettings size={14} />}
+                onClick={() => setSettingsOpen(true)}
+                data-testid="topbar-menu-workflow-settings"
+              >
+                Workflow settings
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconHelp size={14} />}
+                component="a"
+                href="/workflows/dev-form-preview"
+                target="_blank"
+                data-testid="topbar-menu-form-preview"
+              >
+                Form preview
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </Group>
 
-        {/*
+      <WorkflowSettingsDrawer
+        opened={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        config={config}
+        onConfigChange={setConfig}
+        onSelectNode={selectAndRevealNode}
+      />
+
+      <ValidationDrawer
+        opened={validationOpen}
+        onClose={() => {
+          setValidationOpen(false);
+          // Reset the node filter so the next top-bar open is global.
+          setValidationFilterNodeId(null);
+        }}
+        result={validation}
+        config={config}
+        onNavigate={handleValidationNavigate}
+        focusedNodeId={validationFocusNodeId}
+        filterNodeId={validationFilterNodeId}
+        onShowAll={() => setValidationFilterNodeId(null)}
+      />
+
+      <SaveAsLibraryModal
+        opened={saveAsLibraryOpen}
+        onClose={() => setSaveAsLibraryOpen(false)}
+        initialName={name}
+        initialDescription={description}
+        isSaving={createWorkflow.isPending}
+        onSubmit={handleSaveAsLibrary}
+      />
+
+      {isEditMode && workflowId && (
+        <RunWorkflowDrawer
+          opened={runDrawerMode !== null}
+          onClose={() => setRunDrawerMode(null)}
+          workflowId={workflowId}
+          headVersionId={existingWorkflow?.workflowVersionId}
+          openMode={runDrawerMode ?? "run"}
+        />
+      )}
+
+      {/*
         US-081 mounted the open/close plumbing for the version-history
         drawer; US-082 fills the drawer body with the real
         `VersionHistoryDrawer` list. The `<Drawer>` wrapper itself stays
         here so the editor owns drawer-open state in one place. The
         Revert / Compare click handlers are wired in US-083 and US-084.
       */}
-        <Drawer
-          opened={historyDrawerOpen}
-          onClose={() => setHistoryDrawerOpen(false)}
-          position="right"
-          title="Version history"
-          data-testid="history-drawer"
-        >
-          {workflowId && (
-            <VersionHistoryDrawer
-              lineageId={workflowId}
-              headVersionId={existingWorkflow?.workflowVersionId}
-              onRevert={handleRevert}
-              onCompare={handleCompare}
-            />
-          )}
-        </Drawer>
+      <Drawer
+        opened={historyDrawerOpen}
+        onClose={() => setHistoryDrawerOpen(false)}
+        position="right"
+        title="Version history"
+        data-testid="history-drawer"
+      >
+        {workflowId && (
+          <VersionHistoryDrawer
+            lineageId={workflowId}
+            headVersionId={existingWorkflow?.workflowVersionId}
+            onRevert={handleRevert}
+            onCompare={handleCompare}
+          />
+        )}
+      </Drawer>
 
-        {/*
+      {/*
           US-153 — Phase 4 Run-history drawer. Right-side, large, mounted
           here so the editor owns drawer-open state in one place
           (sibling to the Version-history drawer above). Body
           (`RunHistoryDrawer`) handles filters + infinite-scroll list.
         */}
-        <Drawer
-          opened={runHistoryDrawerOpen}
-          onClose={() => setRunHistoryDrawerOpen(false)}
-          position="right"
-          size="lg"
-          title="Run history"
-          data-testid="run-history-drawer-wrapper"
-        >
-          {workflowId && (
-            <RunHistoryDrawerBody
-              workflowId={workflowId}
-              headVersionId={existingWorkflow?.workflowVersionId}
-              onClose={() => setRunHistoryDrawerOpen(false)}
-            />
-          )}
-        </Drawer>
-
-        {compareState && existingWorkflow && workflowId && (
-          <CompareToHeadModal
-            opened={true}
-            onClose={() => setCompareState(null)}
-            lineageId={workflowId}
-            selectedVersionId={compareState.versionId}
-            selectedVersionNumber={compareState.versionNumber}
-            selectedCreatedAt={compareState.createdAt}
-            headWorkflow={existingWorkflow}
+      <Drawer
+        opened={runHistoryDrawerOpen}
+        onClose={() => setRunHistoryDrawerOpen(false)}
+        position="right"
+        size="lg"
+        title="Run history"
+        data-testid="run-history-drawer-wrapper"
+      >
+        {workflowId && (
+          <RunHistoryDrawerBody
+            workflowId={workflowId}
+            headVersionId={existingWorkflow?.workflowVersionId}
+            onClose={() => setRunHistoryDrawerOpen(false)}
           />
         )}
+      </Drawer>
 
+      {compareState && existingWorkflow && workflowId && (
+        <CompareToHeadModal
+          opened={true}
+          onClose={() => setCompareState(null)}
+          lineageId={workflowId}
+          selectedVersionId={compareState.versionId}
+          selectedVersionNumber={compareState.versionNumber}
+          selectedCreatedAt={compareState.createdAt}
+          headWorkflow={existingWorkflow}
+        />
+      )}
+
+      <Box
+        style={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+        }}
+      >
+        <ActivityPalette
+          onAddActivity={addActivity}
+          onAddControlFlowNode={addControlFlowNode}
+          onAddSource={addSource}
+          onAddDynamicNode={addDynamicNode}
+        />
         <Box
-          style={{
-            display: "flex",
-            flex: 1,
-            minHeight: 0,
+          style={{ flex: 1, minWidth: 0, position: "relative" }}
+          data-testid="workflow-editor-canvas-drop"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={(e) => {
+            const raw = e.dataTransfer.getData(
+              "application/x-workflow-palette",
+            );
+            if (!raw) return;
+            e.preventDefault();
+            let payload: unknown;
+            try {
+              payload = JSON.parse(raw);
+            } catch {
+              return;
+            }
+            if (!payload || typeof payload !== "object") return;
+            const p = payload as {
+              kind?: string;
+              activityType?: string;
+              type?: string;
+              sourceType?: string;
+              slug?: string;
+            };
+            const instance = reactFlowRef.current;
+            const position =
+              instance && typeof instance.screenToFlowPosition === "function"
+                ? instance.screenToFlowPosition({
+                    x: e.clientX,
+                    y: e.clientY,
+                  })
+                : undefined;
+            switch (p.kind) {
+              case "activity":
+                if (p.activityType) addActivity(p.activityType, position);
+                break;
+              case "controlFlow":
+                if (p.type)
+                  addControlFlowNode(p.type as ControlFlowNodeType, position);
+                break;
+              case "source":
+                if (p.sourceType) addSource(p.sourceType, position);
+                break;
+              case "dynamic":
+                if (p.slug) addDynamicNode(p.slug, position);
+                break;
+              default:
+                break;
+            }
           }}
         >
-          <ActivityPalette
-            onAddActivity={addActivity}
-            onAddControlFlowNode={addControlFlowNode}
-            onAddSource={addSource}
-            onAddDynamicNode={addDynamicNode}
-          />
-          <Box
-            style={{ flex: 1, minWidth: 0, position: "relative" }}
-            data-testid="workflow-editor-canvas-drop"
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = "copy";
-            }}
-            onDrop={(e) => {
-              const raw = e.dataTransfer.getData(
-                "application/x-workflow-palette",
-              );
-              if (!raw) return;
-              e.preventDefault();
-              let payload: unknown;
-              try {
-                payload = JSON.parse(raw);
-              } catch {
-                return;
-              }
-              if (!payload || typeof payload !== "object") return;
-              const p = payload as {
-                kind?: string;
-                activityType?: string;
-                type?: string;
-                sourceType?: string;
-                slug?: string;
-              };
-              const instance = reactFlowRef.current;
-              const position =
-                instance && typeof instance.screenToFlowPosition === "function"
-                  ? instance.screenToFlowPosition({
-                      x: e.clientX,
-                      y: e.clientY,
-                    })
-                  : undefined;
-              switch (p.kind) {
-                case "activity":
-                  if (p.activityType) addActivity(p.activityType, position);
-                  break;
-                case "controlFlow":
-                  if (p.type)
-                    addControlFlowNode(p.type as ControlFlowNodeType, position);
-                  break;
-                case "source":
-                  if (p.sourceType) addSource(p.sourceType, position);
-                  break;
-                case "dynamic":
-                  if (p.slug) addDynamicNode(p.slug, position);
-                  break;
-                default:
-                  break;
-              }
-            }}
-          >
-            {nodeCount === 0 && (
-              <Box
+          {nodeCount === 0 && (
+            <Box
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            >
+              <Stack
+                gap={4}
+                align="center"
                 style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  pointerEvents: "none",
-                  zIndex: 1,
+                  background: "rgba(0,0,0,0.5)",
+                  padding: "12px 24px",
+                  borderRadius: 8,
+                  pointerEvents: "auto",
                 }}
               >
-                <Stack
-                  gap={4}
-                  align="center"
-                  style={{
-                    background: "rgba(0,0,0,0.5)",
-                    padding: "12px 24px",
-                    borderRadius: 8,
-                    pointerEvents: "auto",
-                  }}
-                >
-                  <Text size="sm" c="dimmed">
-                    Click an activity in the palette to start your workflow.
-                  </Text>
-                </Stack>
-              </Box>
-            )}
-            <WorkflowEditorCanvas
-              config={displayConfig}
-              selectedNodeId={selectedNodeId}
-              onConfigChange={handleCanvasConfigChange}
-              onSelectNode={setSelectedNodeId}
-              onSelectionChangeMany={setSelectedNodeIds}
-              errorsByNode={validation.errorsByNode}
-              onNodeBadgeClick={handleProblemBadgeClick}
-              onReactFlowReady={handleReactFlowReady}
-              simplifiedView={simplifiedView}
-              onGroupChipClick={setActiveGroupId}
-              onSelectMapBodyNode={selectNodeSticky}
-              layoutNonce={layoutNonce}
-              onFixNodeInput={handleFixNodeInput}
-              highlightedNodeId={highlightedNodeId}
-              onUndo={undo}
-            />
-          </Box>
-          <NodeSettingsPanel
+                <Text size="sm" c="dimmed">
+                  Click an activity in the palette to start your workflow.
+                </Text>
+              </Stack>
+            </Box>
+          )}
+          <WorkflowEditorCanvas
             config={displayConfig}
             selectedNodeId={selectedNodeId}
-            activeGroupId={activeGroupId}
             onConfigChange={handleCanvasConfigChange}
-            onDeleteSelected={deleteSelected}
-            workflowId={isEditMode ? workflowId : undefined}
-            focusInput={focusInput}
-            onFocusInputConsumed={clearFocusInput}
-            onJumpToProducer={selectAndRevealNode}
-            onHoverProducer={handleHoverProducer}
+            onSelectNode={setSelectedNodeId}
+            onSelectionChangeMany={setSelectedNodeIds}
+            errorsByNode={validation.errorsByNode}
+            onNodeBadgeClick={handleProblemBadgeClick}
+            onReactFlowReady={handleReactFlowReady}
+            simplifiedView={simplifiedView}
+            onGroupChipClick={setActiveGroupId}
+            onSelectMapBodyNode={selectNodeSticky}
+            layoutNonce={layoutNonce}
+            onFixNodeInput={handleFixNodeInput}
+            highlightedNodeId={highlightedNodeId}
+            onUndo={undo}
           />
         </Box>
-      </Stack>
-    </>
+        <NodeSettingsPanel
+          config={displayConfig}
+          selectedNodeId={selectedNodeId}
+          activeGroupId={activeGroupId}
+          onConfigChange={handleCanvasConfigChange}
+          onDeleteSelected={deleteSelected}
+          workflowId={isEditMode ? workflowId : undefined}
+          focusInput={focusInput}
+          onFocusInputConsumed={clearFocusInput}
+          onJumpToProducer={selectAndRevealNode}
+          onHoverProducer={handleHoverProducer}
+        />
+      </Box>
+    </Stack>
   );
 }
 
@@ -1738,13 +1764,18 @@ function TopBarReplayIndicator({
   // G-004 — an author who cannot tell WHICH graph they are looking at has
   // the same problem in a new form, so name the version on the chip and say
   // plainly when it could not be loaded.
+  // A run started without a version memo reports `versionNumber: 0` (the
+  // API's `?? 0` fallback). v0 is not a version that exists, so say the
+  // version is unknown rather than inventing one — same rule as RunRow.
+  const namedVersion =
+    replayVersion && replayVersion.versionNumber > 0 ? replayVersion : null;
   const label = versionUnavailable
-    ? replayVersion
-      ? `Replay mode — v${replayVersion.versionNumber} unavailable, showing current graph`
+    ? namedVersion
+      ? `Replay mode — v${namedVersion.versionNumber} unavailable, showing current graph`
       : "Replay mode — version unavailable"
-    : replayVersion
-      ? `Replay mode — v${replayVersion.versionNumber} (read-only)`
-      : "Replay mode";
+    : namedVersion
+      ? `Replay mode — v${namedVersion.versionNumber} (read-only)`
+      : "Replay mode — version unknown (read-only)";
   return (
     <Badge
       size="md"

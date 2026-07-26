@@ -50,7 +50,6 @@ import {
   Table,
   Tabs,
   Text,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { Dropzone } from "@mantine/dropzone";
@@ -160,13 +159,16 @@ export function RunWorkflowDrawer({
   // exists).
   const showApiSection = !!runSpec && (!uploadSpec || hasInputSchemaFields);
 
+  // Mantine's Drawer renders its `title` inside an <h2>. Passing a <Title
+  // order={4}> here produced <h2><h4>…</h4></h2> — invalid nesting and a React
+  // hydration warning — so the title is plain text.
   return (
     <Drawer
       opened={opened}
       onClose={onClose}
       position="right"
       size={520}
-      title={<Title order={4}>Run this workflow</Title>}
+      title="Run this workflow"
       padding="md"
       data-testid="run-workflow-drawer"
       data-open-mode={openMode}
