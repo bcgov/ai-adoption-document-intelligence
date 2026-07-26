@@ -718,6 +718,8 @@ The engine writes both `nodeStatuses` (the `NodeStatusValue` union, with `comple
 
 **Merge note:** **Dispositions differ:** C-040 `fix`, C-049 `defer` (the cancel UX, US-141, owns the real answer for the DTO half).
 
+**RULED 2026-07-26 — SPLIT.** The live defect (a cancelled run polled forever) is FIXED in `7c0ad059`: the endpoint now reports unfinished nodes of a CANCELLED/TERMINATED run as `cancelled`, so the canvas's terminal-stop fires. The cleanup half — three divergent node-status unions, one with no consumer — stays DEFERRED.
+
 ### G-048 — Two divergent node-delete implementations; the settings-panel one bypasses `resolveBindings` so the resolver never re-runs after a panel delete
 
 **Found by:** D (1 pass) · **Severity:** major · **Type:** impl-gap
@@ -839,6 +841,8 @@ Simplified view projects one chip per `config.nodeGroups` entry (`chipIdForGroup
 
 **Proposed disposition:** defer
 
+**RULED 2026-07-26 — FIXED** (`5b154167`). Most of the entry had already shipped: `CorrectionHistory` renders field, action, timestamp and before/after from a real query. What was genuinely missing was WHO — the session now returns `reviewerEmail` and the trail names the reviewer. Also deleted `useCorrections`, a dead stub returning an empty list.
+
 ### G-059 — J7.7 — two runs cannot be compared; Compare-to-head diffs configs, never run values
 
 **Found by:** A (1 pass) · **Severity:** major · **Type:** design-gap
@@ -882,6 +886,8 @@ The panel tells the user order matters — 'Cases are evaluated in order.' (cite
 The backend rejects an invalid config with a structured body — `throw new BadRequestException({ message: 'Invalid workflow configuration', errors: validation.errors })` (`apps/backend-services/src/workflow/workflow.service.ts:734`–`:738`) where `errors` is the `GraphValidationError[]` carrying path/message/severity per node. The frontend transport extracts `message` and nothing else (cited line and the branches at `:168`–`:179`; the sibling `errors` key is never read), `useUpdateWorkflow` re-wraps that string (`apps/frontend/src/data/hooks/useWorkflows.ts:167`), and `handleSave`'s catch renders it as a red notification (`WorkflowEditorV2Page.tsx:794`–`:800`). Result: 'Save failed — Invalid workflow configuration', with no node, no path, and nothing routed into `validation-drawer`. This is not covered by the client-side validator, because the backend runs the dynamic-node-aware pass (`validateGraphConfigWithDynamicNodes`, `workflow.service.ts:728`) that the client cannot reproduce — so there is a real class of saves that fail with zero actionable feedback and no retry path other than guessing.
 
 **Proposed disposition:** fix
+
+**RULED 2026-07-26 — SHIPPED.** Fixed by D-4 (`1d8ad3ad`): `WorkflowSaveError` carries the validator's anchors through to the toast. The commit never named this entry, which is why it still read as open.
 
 ### G-063 — Two tabs on one workflow silently lose the first author's changes — no lost-update detection on save
 
@@ -940,6 +946,8 @@ D67/D63. `buildKindSelectOptions` iterates `Object.keys(ARTIFACT_REGISTRY)` — 
 
 **Proposed disposition:** fix
 
+**RULED 2026-07-26 — FIXED** (`8fb19d57`). The palette skeleton seeds a concurrency limit and the validator warns when one is absent.
+
 ### G-068 — J5.5 — escalation cannot be modelled: an escalated review session sets a status and stops; nothing routes it to a different person or back to the run
 
 **Found by:** A (1 pass) · **Severity:** major · **Type:** design-gap
@@ -997,6 +1005,8 @@ Two narrower divergences ride along. The from-ctx chip uses an exact `config.ctx
 
 **Proposed disposition:** fix (C-022, C-023) / defer (C-024) — **passes disagree**
 
+**RULED 2026-07-26 — SPLIT.** The live defect (`locked-unbound` rendering as satisfied, so canvas and settings panel disagreed about one port) is FIXED in `514a0896`. The wider six-state canvas fidelity stays DEFERRED.
+
 ### G-073 — Two raw NUL bytes in WorkflowEditorCanvas.tsx make grep/ripgrep classify the feature's largest source file as binary
 
 **Found by:** C (1 pass) · **Severity:** major · **Type:** impl-gap
@@ -1009,6 +1019,8 @@ Two narrower divergences ride along. The from-ctx chip uses an exact `config.ctx
 **Proposed disposition:** fix
 
 **Merge note:** Tooling, not product: it is the reason one finding (C-041) had to be withdrawn during re-verification, and two of the four passes hit it independently. Any negative claim about this file made without `grep -a` should be treated as unverified.
+
+**RULED 2026-07-26 — SHIPPED.** Verified: 0 NUL bytes in `WorkflowEditorCanvas.tsx` today. The file reads as UTF-8 text and greps normally.
 
 ### G-074 — Ctx-key rename collision is a silent no-op and leaves the Name field displaying the rejected new name
 
@@ -1056,6 +1068,8 @@ The unified problems surface merges core validator errors, auto-wire input healt
 
 **Merge note:** A deliberate roll-up by Pass A of five "the problems badge doesn't count this" observations. The underlying fixes are the individually-ranked entries elsewhere in this register.
 
+**RULED 2026-07-26 — PARTIAL FIX** (`8fb19d57`). The one check unambiguous from the config alone — a map with no concurrency limit — now warns, paired with a palette skeleton default (G-067). The other two the entry names are NOT being added: measured against the shipped set, "output nothing consumes" would fire on 23 of 111 bound outputs (mostly deliberate diagnostics) and "no error policy" on nearly every node. Both need the model to carry information it does not have — a way to mark an output terminal, and a notion of failure-prone activities — so they are design questions, not rules.
+
 ### G-078 — Cache-hit metadata is fetched on every poll and rendered nowhere, leaving `skipped` ambiguous
 
 **Found by:** B (1 pass) · **Severity:** minor · **Type:** impl-gap
@@ -1077,6 +1091,8 @@ The unified problems surface merges core validator errors, auto-wire input healt
 The modal's own header states the shape and the deferral: 'two JsonInput blocks is the explicit Track 3 deliverable. Structural diff is filed for Phase 4' (cited line). Three consequences for a Parts 3–9 author. (1) Comparing a 40-node config as two raw JSON panes does not answer 'which node changed' — node order in the object, `metadata.position` churn from any drag, and `configHash` restamping all move together with real edits. (2) Only version-vs-head is offered: `handleCompare` passes a single version id (`versioning/VersionHistoryDrawer.tsx:147`) and the Compare button is disabled on head itself (`:219`), so two historical versions cannot be compared. (3) There is no in-session diff — nothing shows the delta between the loaded config and the unsaved working copy, even though `lastHydratedConfigRef` (`WorkflowEditorV2Page.tsx:492`) already holds exactly that baseline. Deferred: the capability is acknowledged and scheduled, and (3) is the piece worth pulling forward because the baseline is already in hand.
 
 **Proposed disposition:** defer
+
+**RULED 2026-07-26 — DEFER.** Same underlying fact as G-094 (the diff is textual, not structural). Consider merging the two entries.
 
 ### G-080 — Breakpoints, stepping, and mid-run intervention are out of scope for the editor
 
@@ -1227,6 +1243,8 @@ Recording deliberately so it stops being rediscovered: the builder is a workflow
 
 **Proposed disposition:** won't-support
 
+**RULED 2026-07-26 — ROUTED, not dropped.** Correct as won't-support *for the builder* — removing failed documents belongs to the documents module — but it is a real requirement from J2 step 6, and "won't-support" reads as "no". To be raised against the documents module so it is not silently lost.
+
 ### G-093 — J3.4 — routing the unmatched section works, and reads correctly on the canvas
 
 **Found by:** A (1 pass) · **Severity:** minor · **Type:** non-goal
@@ -1240,6 +1258,8 @@ Recorded as a deliberate PASS so the merge does not treat J3 step 4 as an open g
 
 **Merge note:** Records a behaviour that **works**, so that J3 step 4 does not read as unexplored at the disposition gate. Not a gap; kept in the register for traceability.
 
+**RULED 2026-07-26 — CLOSED, not a gap.** This entry records a PASS: routing an unmatched section works and reads correctly on the canvas. Keeping it in a gap register overstates the backlog.
+
 ### G-094 — J6.7 — "what changed" is answered with two raw JSON blobs side by side, not a structural diff
 
 **Found by:** A (1 pass) · **Severity:** minor · **Type:** non-goal
@@ -1250,6 +1270,8 @@ Recorded as a deliberate PASS so the merge does not treat J3 step 4 as an open g
 Test-plan 12.3 states "modal with two read-only JSON blocks side-by-side (`v{n}` vs `head`); no structural diff (by design)". Recording it as a deliberate decision so it stops being rediscovered. Sam's step 7 ("verify the change is what was intended by comparing against how it was before") is technically answerable by eye on a one-line change, and `version-history` Revert covers "know how to get back if it was wrong" cleanly.
 
 **Proposed disposition:** won't-support
+
+**RULED 2026-07-26 — WON'T-SUPPORT, as proposed.** Same underlying fact as G-079; the two describe one decision from different journeys.
 
 ### G-095 — getAggregateStatus returns only 4 of 6 statuses — an all-cache-hit group reads succeeded, cancelled members read pending
 
@@ -1273,6 +1295,8 @@ Test-plan 12.3 states "modal with two read-only JSON blocks side-by-side (`v{n}`
 
 **Proposed disposition:** defer
 
+**RULED 2026-07-26 — FIXED** (`514a0896`). Anchors now resolve against the graph's real node ids, longest match first.
+
 ### G-097 — topbar:validation-button reports errors+warnings as one red "N issues" count
 
 **Found by:** C (1 pass) · **Severity:** minor · **Type:** design-gap
@@ -1283,6 +1307,8 @@ Test-plan 12.3 states "modal with two read-only JSON blocks side-by-side (`v{n}`
 `total = errorCount + warningCount` is used for the label whenever `errorCount > 0`, so 1 error plus 5 warnings reads '6 issues' in red — the severity split is only recoverable by opening the drawer. The per-node buckets and the node badge both keep the two counts separate, so the top bar is the one surface that erases the severity axis it summarises.
 
 **Proposed disposition:** defer
+
+**RULED 2026-07-26 — FIXED** (`514a0896`). `validationButtonState` keeps errors and warnings apart.
 
 ### G-098 — Ctx declarations are never garbage-collected — implicitly created keys and keys orphaned by node deletion accumulate silently
 
@@ -1295,6 +1321,8 @@ D105. `declareCtxKey` is called from five settings surfaces via the VariablePick
 
 **Proposed disposition:** defer
 
+**RULED 2026-07-26 — SHIPPED.** Both halves are addressed. `removeNodesFromConfig` prunes orphaned ctx declarations unconditionally at the single choke point every delete path funnels through (`findOrphanedCtxKeys` + `pruneCtxDeclarations`), with an author prompt via `describeOrphanedDelete`; and `WorkflowSettingsDrawer` renders `Used by {n}` plus an explicit "declared but unused" row at zero.
+
 ### G-099 — Removing a key from an activity's `parametersSchema` leaves the saved value on the node forever, invisible and uneditable
 
 **Found by:** D (1 pass) · **Severity:** minor · **Type:** design-gap
@@ -1305,6 +1333,8 @@ D105. `declareCtxKey` is called from five settings surfaces via the VariablePick
 D25. The form renders from `Object.entries(schema.properties)`, so a saved key with no property is never shown, and the write-back spreads the existing object and only touches the edited field, so the orphan survives every edit. No activity `parametersSchema` uses `.strict()`, so Zod strips the key during validation and reports nothing. The value is inert at run time (the activity ignores it) — hence minor — but it inflates the cache `configHash` input and makes two logically identical nodes hash differently, and there is no config-migration mechanism to clean it up (`SUPPORTED_SCHEMA_VERSIONS` has one member).
 
 **Proposed disposition:** defer
+
+**RULED 2026-07-26 — FIXED** (`1998f887`). Orphaned parameter values are named with an explicit removal action, rather than pruned silently.
 
 ### G-100 — join.strategy "any" (first-to-complete fan-in) is deliberately not supported
 
@@ -1447,6 +1477,8 @@ exactly like a pass-proposed disposition. G-104 has since been fixed (batch 10) 
 Outcome block; G-106 was found while fixing it.
 
 Ids continue the register's sequence (the merged findings run to G-103).
+
+**RULED 2026-07-26 — DEFER, not won't-support.** The entry's own note defers to US-141 (the cancel UX). It is a park with an owner, not a permanent non-goal; relabelled so it is revisited when that lands.
 
 ### G-104 — Map-item wires can never render: the resolver names a map's item producer by `itemCtxKey` while `nodeTypeCtxWrites` names it by the port `"item"`
 
