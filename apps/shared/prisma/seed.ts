@@ -1996,13 +1996,23 @@ async function seedExperimentWorkflows() {
     const workflowName = config.metadata?.name ?? `Experiment ${slug}`;
     const workflowDescription = config.metadata?.description ?? null;
 
+    // `slug` is required on WorkflowLineage and is what `/workflows/by-slug/…`
+    // resolves against. Omitting it aborts the whole seed run (P2012) partway
+    // through, after `migrate reset` has already emptied the database.
+    const lineageSlug = `experiment-${slug}-workflow`;
+
     await prisma.workflowLineage.upsert({
       where: { id: lineageId },
-      update: { name: workflowName, description: workflowDescription },
+      update: {
+        name: workflowName,
+        description: workflowDescription,
+        slug: lineageSlug,
+      },
       create: {
         id: lineageId,
         name: workflowName,
         description: workflowDescription,
+        slug: lineageSlug,
         actor_id: TEST_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },

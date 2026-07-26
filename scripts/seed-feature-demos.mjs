@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Seed a set of "feature demo" workflows into the local seed group and generate
- * a click-through guide (docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md) with a
+ * a click-through guide (docs-md/workflows/FEATURE_DEMO_GUIDE.md) with a
  * deep link + instructions for each visual feature of the workflow builder.
  *
  * Why: the full MANUAL_TEST_PLAN.md walks every feature from scratch. This lets
@@ -72,7 +72,7 @@ const NAME_PREFIX = "🎯 Demo — ";
 const AGENT_DEMO_FIXTURES = ["scenario-1.json"];
 const GUIDE_PATH = resolve(
   __dirname,
-  "../docs-md/workflow-builder/FEATURE_DEMO_GUIDE.md",
+  "../docs-md/workflows/FEATURE_DEMO_GUIDE.md",
 );
 
 let apiKey = ""; // resolved by resolveApiKey() before any write
