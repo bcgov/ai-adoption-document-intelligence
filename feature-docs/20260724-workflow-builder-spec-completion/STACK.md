@@ -66,13 +66,31 @@ Methodology, not product. Each traces to a concrete failure rather than a prefer
 
 | Item | Status |
 |---|---|
-| Should we build a regression suite? → re-ranked to **5 coupling specs + page object** | ❌ open, sized to the G-106 ruling |
-| **Cross-feature obligations** into `CLAUDE.md` (+2 graph-specific into workflow docs) | ❌ open |
-| **Workflow conformance linter** + **shape-coverage report** | ❌ open |
+| Should we build a regression suite? → re-ranked to **5 coupling specs + page object** | ✅ done — 4 e2e + 1 component guard (`1d8ad3ad`) |
+| **Cross-feature obligations** into `CLAUDE.md` (+2 graph-specific into workflow docs) | ✅ done — kept local to `MANUAL_TEST_PLAN.md` "Editor invariants" (`79aed3a5`); CLAUDE.md deliberately not touched |
+| **Workflow conformance linter** + **shape-coverage report** | ✅ done — `npm run workflows:lint`; all 9 predicates audited |
 | `writing-checks` skill (falsifiability, check-vs-description labelling) | ❌ open |
 
 **Exit criterion:** the obligations are written where they fire upstream, and the linter runs
-in CI.
+in CI. *(CI wiring still outstanding — the script exists and passes `--strict` locally.)*
+
+### Shape coverage — dispositioned
+
+The linter's first run named two "required" shapes with no shipped example. Both were
+downgraded rather than filled, because a check that BUILDS its own shape is already
+falsifiable and needs no shipped example:
+
+| Shape | Disposition |
+|---|---|
+| map whose item key is NOT ctx-declared | constructed by `tier2-coupling-invariants.spec.ts` + `loop-scope-coupling.test.ts`. **Cannot** exist in a shipped workflow: any expression referencing the item fails validation unless the key is declared, so every real map declares it. |
+| map with a real edge to its body entry | constructed by `upstream-walk.test.ts` — guards that G-106's implicit predecessor does not double-count an explicit edge. |
+
+All nine predicates were then audited: six have a known-true shipped example; two zeros are
+proven by complementary sum (declared+undeclared = 4 = every workflow with a map;
+by-edge+by-setting = 4 likewise); one by direct inspection of the inline child graph. This
+matters because the linter had already fabricated one gap from a wrong field path
+(`workflowRef.inline` vs `workflowRef.type === "inline"`) — an unaudited predicate is not
+evidence in either direction.
 
 **Why this layer exists:** the specs, plans, TDD and 25 e2e specs were all present and the
 defects shipped anyway — because every artifact was written by the same mind from the same
@@ -101,6 +119,12 @@ Cheap-and-unblocking first, then the design decision that shapes the tests, then
 5. **D-2, D-3, D-4** — small, independent.
 6. **Linter + shape coverage** — independent; pays for itself the next time the catalog moves.
 7. **CLAUDE.md obligations** — ~15 minutes, independent.
+
+*Steps 1–7 are complete.* Remaining:
+
 8. **Gate the ~79 register entries** — the big remaining Layer 1 gap.
 9. **Decide PR #230.**
 10. **Walk the remaining ~15 checks**, then re-walk Parts 3–9 → closes Layer 0.
+
+Two small loose ends outside the numbered order: wire `workflows:lint` into CI, and delete the
+three `WalkTest *` workflows the walkthrough left in the dev database.
