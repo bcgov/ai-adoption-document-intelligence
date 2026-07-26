@@ -344,6 +344,13 @@ export class HitlService {
       id: session.id,
       documentId: session.document_id,
       reviewerId: session.actor_id,
+      // G-058 — who made the corrections. The trail recorded what changed and
+      // when, never who; `actor_id` alone is a cuid, which answers nobody's
+      // question. Undefined for an API-key actor with no linked user, which
+      // the UI renders as "unknown reviewer" rather than inventing a name.
+      reviewerEmail: (
+        session as { actor?: { user?: { email?: string } | null } }
+      ).actor?.user?.email,
       status: session.status,
       startedAt: session.started_at,
       completedAt: session.completed_at,

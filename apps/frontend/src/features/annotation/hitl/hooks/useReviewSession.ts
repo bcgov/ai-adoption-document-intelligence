@@ -39,6 +39,8 @@ interface ReviewSession {
   id: string;
   documentId: string;
   reviewerId: string;
+  /** G-058 — who is reviewing. Absent for an API-key actor with no user. */
+  reviewerEmail?: string;
   status: string;
   startedAt: string;
   completedAt?: string;
