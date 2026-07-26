@@ -72,7 +72,8 @@ Methodology, not product. Each traces to a concrete failure rather than a prefer
 | `writing-checks` skill (falsifiability, check-vs-description labelling) | ❌ open |
 
 **Exit criterion:** the obligations are written where they fire upstream, and the linter runs
-in CI. *(CI wiring still outstanding — the script exists and passes `--strict` locally.)*
+in CI. ✅ met — wired into `backend-qa.yml` (`50157461`), documented in
+[WORKFLOW_LINTER.md](../../docs-md/workflows/WORKFLOW_LINTER.md) (`37f35509`).
 
 ### Shape coverage — dispositioned
 
