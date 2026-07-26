@@ -111,7 +111,21 @@ const SHAPES = [
     label: "childWorkflow with an inline graph",
     required: true,
     why: "validation rules must hold at depth (G-015); an outer-only fixture cannot show that",
-    test: (c) => nodesOf(c).some((n) => n.workflowRef?.inline),
+    test: (c) =>
+      nodesOf(c).some((n) => n.workflowRef?.type === "inline" && n.workflowRef?.graph),
+  },
+  {
+    id: "inline-child-graph-nested",
+    label: "inline graph that itself contains an inline graph",
+    required: false,
+    test: (c) =>
+      nodesOf(c).some(
+        (n) =>
+          n.workflowRef?.type === "inline" &&
+          Object.values(n.workflowRef.graph?.nodes ?? {}).some(
+            (inner) => inner?.workflowRef?.type === "inline",
+          ),
+      ),
   },
   {
     id: "pollUntil-wrapping-activity",
