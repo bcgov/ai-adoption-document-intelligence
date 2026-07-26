@@ -190,3 +190,24 @@ extrapolate from, and I should not have implied a rate from it.
 established: *a reference survives the thing it points at*. The rename sweep and
 the ctx prune both exist; most of these are "do what those already do" for a
 different reference type.
+
+## C5 verification — 2026-07-26 (partial)
+
+| Entry | State | Evidence |
+|---|---|---|
+| G-067 map fan-out unbounded | ✅ **fixed this session** | `8fb19d57` — skeleton default + validator warning |
+| G-060 multi-selection move not persisted | ❌ still true | `handleNodeDragStop(_event, node)` writes the position of the ONE dragged node; the rest of the selection moves visually and is never saved |
+| G-061 switch cases cannot be reordered | ❌ still true | no reorder affordance in `SwitchNodeSettings` |
+| G-070 humanGate signal collision inside a map | ❌ still true | no validator rule pairs a humanGate's signal name with map iteration |
+| G-071 map body-entry picker unfiltered | ❌ still true | `MapNodeSettings`' own docstring: "each a `NodePicker` over all nodes (no `filterType`)". A reachability filter does apply *after* an entry is chosen, so the entry overstates it slightly |
+| G-032, G-046, G-066, G-069, G-081, G-091 | ⏳ **not yet verified** | need more than a grep — deliberately left unmarked rather than guessed at |
+
+**Not extrapolating from this.** C1 came out 18% stale after the first sample
+suggested 50%; the honest position is that each cluster has to be measured, and
+six C5 entries are still unmeasured.
+
+## Remaining verification
+
+C2 (validation surfacing, 7), C3 (composition & authoring, 6), C4 (run
+observability, 8), plus the six C5 entries above — 27 entries. The method is
+established and mechanical; it is the volume that remains.
