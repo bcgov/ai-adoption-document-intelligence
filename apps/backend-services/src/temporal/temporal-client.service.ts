@@ -1,4 +1,9 @@
+import { gunzipSync } from "node:zlib";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
+import {
+  GZIP_ORIGINAL_ENCODING_METADATA_KEY,
+  GZIP_PAYLOAD_CODEC_ENCODING,
+} from "@ai-di/temporal-payload-codec";
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
@@ -7,7 +12,7 @@ import {
   defaultPayloadConverter,
   WorkflowNotFoundError,
 } from "@temporalio/client";
-import type { Payload } from "@temporalio/common";
+import { METADATA_ENCODING_KEY, type Payload } from "@temporalio/common";
 import type { temporal } from "@temporalio/proto";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { getRequestContext } from "@/logging/request-context";
@@ -1144,8 +1149,52 @@ function tsToDate(
 }
 
 /**
+ * Undo `GzipPayloadCodec` for a single payload, synchronously.
+ *
+ * Payload CODECS are not applied to `memo` fields on the way back out: the
+ * SDK runs them over workflow args and results, but `describe` / `list`
+ * hand back the memo as raw protobuf. So a memo written through the gzip
+ * codec arrives still compressed, carrying `encoding: "binary/gzip"` — an
+ * encoding `defaultPayloadConverter` does not know, so it throws.
+ *
+ * The codec preserves the pre-gzip encoding in `gzip-original-encoding`
+ * precisely so decode can restore it; this reverses that. Synchronous
+ * because the only caller (`decodeListRunsExecution`) is sync and exported
+ * for test injection, and one memo field is a few bytes.
+ */
+function ungzipPayload(
+  payload: temporal.api.common.v1.IPayload,
+): temporal.api.common.v1.IPayload {
+  const metadata = payload.metadata;
+  const encodingBytes = metadata?.[METADATA_ENCODING_KEY];
+  if (!encodingBytes || !payload.data) {
+    return payload;
+  }
+  const encoding = new TextDecoder().decode(encodingBytes);
+  if (encoding !== GZIP_PAYLOAD_CODEC_ENCODING) {
+    return payload;
+  }
+  const original = metadata?.[GZIP_ORIGINAL_ENCODING_METADATA_KEY];
+  const restored: Record<string, Uint8Array> = { ...metadata };
+  delete restored[GZIP_ORIGINAL_ENCODING_METADATA_KEY];
+  if (original) {
+    restored[METADATA_ENCODING_KEY] = original;
+  }
+  return {
+    metadata: restored,
+    data: gunzipSync(Buffer.from(payload.data)),
+  };
+}
+
+/**
  * Decode `memo.workflowVersion` from a Temporal execution's memo map.
  * Returns `null` when the memo entry is absent or not a number.
+ *
+ * Gzip-aware: without `ungzipPayload` every run reports a null version
+ * number, because the memo is written through the gzip codec while the
+ * sibling `workflowVersionId` — a SEARCH ATTRIBUTE, which codecs never
+ * touch — decodes fine. That asymmetry is what made the bug look like
+ * "some runs have no version" rather than "no run has one".
  */
 function decodeWorkflowVersion(
   memo: temporal.api.common.v1.IMemo | null | undefined,
@@ -1156,7 +1205,7 @@ function decodeWorkflowVersion(
   }
   try {
     const value = defaultPayloadConverter.fromPayload(
-      payload as temporal.api.common.v1.IPayload & {
+      ungzipPayload(payload) as temporal.api.common.v1.IPayload & {
         metadata: Record<string, Uint8Array>;
         data: Uint8Array;
       },
