@@ -9,7 +9,7 @@ rulings. Ordered so the cheapest decisions come first.
 2. **What should we do about it?** — the ruling. Yours.
 
 Ruling on a stale entry wastes your time, so every batch below states its verification status
-plainly. Batches A and B are rulable now. Batch D is not, and says so.
+plainly. Batches A and B are rulable now. Batch C is not, and says so.
 
 ## Why verification is needed at all
 
