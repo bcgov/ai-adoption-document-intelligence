@@ -455,3 +455,42 @@ describe("rendersPerPortHandle — per-port handle mount predicate", () => {
     );
   });
 });
+
+describe("computePortRows — a ctxKey-less binding is not a source (G-072)", () => {
+  /**
+   * Deleting a data wire can leave an input stub behind with no ctxKey. The
+   * resolver classifies that as `locked-unbound` — "Disconnected by you", a red
+   * CTA in the settings panel — but the canvas tested only `binding !==
+   * undefined`, so it drew the port as satisfied. Two surfaces, one port,
+   * opposite answers.
+   */
+  const withBinding = (ctxKey: string) =>
+    config({
+      nodes: {
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        }),
+      },
+    });
+
+  it("marks a required port with an empty-string ctxKey as needing a source", () => {
+    const cfg = withBinding("");
+    const { inputs } = computePortRows(cfg, "B", deriveWires(cfg));
+    const fileData = inputs.find((r) => r.name === "fileData");
+    expect(fileData?.bound).toBe(false);
+    expect(fileData?.needsSource).toBe(true);
+    expect(fileData?.fromCtx).toBeUndefined();
+  });
+
+  it("still treats a real ctxKey as bound", () => {
+    const cfg = withBinding("preparedFile");
+    const { inputs } = computePortRows(cfg, "B", deriveWires(cfg));
+    const fileData = inputs.find((r) => r.name === "fileData");
+    expect(fileData?.bound).toBe(true);
+    expect(fileData?.needsSource).toBe(false);
+  });
+});

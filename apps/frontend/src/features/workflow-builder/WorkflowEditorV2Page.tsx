@@ -132,6 +132,7 @@ import { useUnsavedGuard } from "./use-unsaved-guard";
 import type { AnchorTarget } from "./validation/anchor-target";
 import { useGraphValidation } from "./validation/useGraphValidation";
 import { ValidationDrawer } from "./validation/ValidationDrawer";
+import { validationButtonState } from "./validation/validation-button-label";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
 import { VersionHistoryDrawer } from "./versioning/VersionHistoryDrawer";
 
@@ -1712,19 +1713,18 @@ function ValidationButton({
   isPending,
   onClick,
 }: ValidationButtonProps) {
-  const total = errorCount + warningCount;
-  let color: "red" | "yellow" | "green" = "green";
-  let Icon = IconCircleCheck;
-  let label = "Valid";
-  if (errorCount > 0) {
-    color = "red";
-    Icon = IconExclamationCircle;
-    label = `${total} issue${total === 1 ? "" : "s"}`;
-  } else if (warningCount > 0) {
-    color = "yellow";
-    Icon = IconAlertTriangle;
-    label = `${total} warning${warningCount === 1 ? "" : "s"}`;
-  }
+  // Severity split lives in `validationButtonState` (G-097) so it can be
+  // tested without mounting this page.
+  const { tone: color, label } = validationButtonState(
+    errorCount,
+    warningCount,
+  );
+  const Icon =
+    color === "red"
+      ? IconExclamationCircle
+      : color === "yellow"
+        ? IconAlertTriangle
+        : IconCircleCheck;
   return (
     <Button
       variant="light"

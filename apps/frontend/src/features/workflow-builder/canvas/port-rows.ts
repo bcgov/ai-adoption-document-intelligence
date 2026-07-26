@@ -143,10 +143,18 @@ export function computePortRows(
     const wireTargeting = dataWires.find(
       (wire) => wire.target === nodeId && wire.targetPort === descriptor.name,
     );
-    const bound = wireTargeting !== undefined || binding !== undefined;
+    // A binding with a falsy ctxKey is NOT a source (G-072). Deleting a data
+    // wire can leave a ctxKey-less input stub behind; the resolver classifies
+    // that as `locked-unbound` — "Disconnected by you", a red CTA in the
+    // settings panel — but a bare `binding !== undefined` test reads it as
+    // satisfied, so the canvas drew a healthy port while the panel called it
+    // broken. Two surfaces, one port, opposite answers.
+    const hasSource = binding !== undefined && Boolean(binding.ctxKey);
+    const bound = wireTargeting !== undefined || hasSource;
     const fromCtx =
       wireTargeting === undefined &&
       binding !== undefined &&
+      Boolean(binding.ctxKey) &&
       config.ctx[binding.ctxKey] !== undefined
         ? binding.ctxKey
         : undefined;

@@ -103,12 +103,13 @@ export function useGraphValidation(
   return useMemo(() => {
     const errorsByNode = new Map<string, GraphValidationError[]>();
     const workflowLevelErrors: GraphValidationError[] = [];
+    const knownNodeIds = Object.keys(config.nodes ?? {});
     let errorCount = 0;
     let warningCount = 0;
     for (const err of errors) {
       if (err.severity === "error") errorCount += 1;
       else warningCount += 1;
-      const nodeId = nodeIdFromPath(err.path);
+      const nodeId = nodeIdFromPath(err.path, knownNodeIds);
       if (nodeId) {
         let bucket = errorsByNode.get(nodeId);
         if (!bucket) {
@@ -128,12 +129,41 @@ export function useGraphValidation(
       workflowLevelErrors,
       isPending,
     };
-  }, [errors, isPending]);
+    // `config` joins the deps because bucketing now resolves anchors against
+    // the graph's real node ids (G-096).
+  }, [errors, isPending, config]);
 }
 
-function nodeIdFromPath(path: string): string | null {
+/**
+ * Bucket a validation anchor under the node it names.
+ *
+ * Node ids are author- and agent-supplied strings with no charset rule, so one
+ * can contain a dot. Splitting at the first dot filed `nodes.my.node.inputs.x`
+ * under a node called `my`, which exists nowhere: the drawer heading fell back
+ * to the raw key and clicking the row selected nothing (G-096). Its greedy
+ * counterpart `parseInputPortPath` (`/^nodes\.(.+)\.inputs\./`) disagreed with
+ * it on exactly these paths.
+ *
+ * Matching against the ids the graph actually has removes the guess. Longest
+ * match wins, so `a.b` beats `a` when both exist. The positional split stays as
+ * a fallback for an anchor naming a node that has since been deleted — such an
+ * error still belongs somewhere rather than vanishing from the drawer.
+ */
+export function nodeIdFromPath(
+  path: string,
+  knownNodeIds: readonly string[],
+): string | null {
   if (!path.startsWith("nodes.")) return null;
   const rest = path.slice("nodes.".length);
+
+  let best: string | null = null;
+  for (const id of knownNodeIds) {
+    if (rest === id || rest.startsWith(`${id}.`)) {
+      if (best === null || id.length > best.length) best = id;
+    }
+  }
+  if (best !== null) return best;
+
   const dot = rest.indexOf(".");
   return dot === -1 ? rest : rest.slice(0, dot);
 }
