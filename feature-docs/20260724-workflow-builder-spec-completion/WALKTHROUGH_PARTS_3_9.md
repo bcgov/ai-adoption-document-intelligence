@@ -220,3 +220,69 @@ item genuinely blocking map-item bindings from being automatic rather than hand-
 3. **D-2** is a two-line feedback fix.
 4. **Rule on G-106** — now corroborated from two independent directions.
 5. The unreached checks above are the natural second pass.
+
+---
+
+# Second pass — 2026-07-26: the checks Parts 3–9 had not reached
+
+Driven headless via Playwright against the live stack (frontend :3000, backend :3002,
+Temporal + worker on `ocr-processing`, deno-runner). Real runs, real DB.
+
+## Scope correction
+
+Two checks came off the manual list before walking: **5.7** (inline child-graph validation)
+and **7.6** (save-time binding walk) are marked by the plan's own coverage map as
+unit/integration-backstopped, with named specs behind each.
+
+## Results
+
+| Check | Verdict | Evidence |
+|---|---|---|
+| 5.3 validateFields rich editor | ✅ PASS | 4 rule editors; `field-match / arithmetic / array-match`; name `pay-stub-arithmetic` preserved across a type switch |
+| 6.1 Rich parameter widgets | ✅ PASS | 47 nodes across 5 workflows, zero `Unsupported field schema` stubs |
+| 7.7 Ctx Kind column | ✅ PASS | 19 `Kind for <key>` controls, one per ctx declaration |
+| 8.3 Change source / Revert | ✅ PASS | via the `input-row-menu-*` overflow: pick → `PINNED` → Revert → back to `AUTO` |
+| 8.6 Locked-binding preservation | ✅ PASS | all 16 master-template bindings byte-identical across a real save+reload |
+| 8.11 Wire delete → revert | ✅ PASS | wire removed, port → `data-needs-source`, *"Execution order kept"* toast |
+| 8.12 Wire context menu | ✅ PASS | Disconnect present; Revert **absent** (wire is `auto:nearest-kind`, unpinned); View data **absent** (pre-run) |
+| 8.13 Connect summary popover | ✅ PASS | node-to-node drag opened `connect-summary-popover`, edges 1 → 2 |
+| 8.14 Identifier-port problems | ✅ PASS | ring + badge, drawer reads *Input "Prepared file data" needs a source — choose where it comes from* |
+| 9.6 Incremental re-run (cache) | ✅ PASS | identical re-run: `prep` → `skipped` with `cacheHit{configHash,inputHash}` |
+| 9.8 Version pin in run history | ✅ PASS | rows render `V1` under a Version column (no `— head`, correctly — head is v3, runs are v1) |
+| 9.9a Replay renders the version that RAN | ✅ PASS | added a node + saved; replay canvas shows `prep,upload1` while live shows `walkProbe`; chip *REPLAY MODE — V1 (READ-ONLY)* |
+| 9.10b Re-run targets the replayed version | ✅ PASS | button reads **Re-run v1**; POST carried `workflowVersionId` of the replayed version, not head |
+| 9.10c Retention | ✅ PASS | cache rows `expiresAt − createdAt = 13 days 23:59:59.995` ≈ 14 days. Tunability is unit-backstopped (`resolveCacheTtlMs`) |
+| 7.5 Variable-picker dimming | ⏸ NOT VERIFIED | the Advanced toggle did not render on any of five master-template nodes via automation; logic is unit-backstopped (`variable-picker-utils.test.ts` asserts the exact tooltip) |
+| 7.8 Library port kinds | ⏸ NOT WALKED | |
+| 9.9b / 9.9c Replay safety + unloadable version | ⏸ NOT WALKED | |
+
+## D-5 — every run reported version 0 (fixed, `09ce5b4d`)
+
+The one product defect this pass found, and it was blocking three checks.
+
+`versionNumber` is read from `memo.workflowVersion`. The memo is written through
+`GzipPayloadCodec`, but **payload codecs are not applied to memo fields on the way back
+out** — `describe`/`list` hand back raw protobuf. The decoder passed a `binary/gzip`
+payload to `defaultPayloadConverter`, which rejects that encoding; the `catch` swallowed it
+and returned null.
+
+The sibling `workflowVersionId` decodes fine because it is a **search attribute**, and
+codecs never touch those. That asymmetry is why this read as "some runs have no version"
+rather than "no run has one" — and why **D-1 looked like a display bug**. The UI was
+honestly reporting "version unknown" for a version that was recoverable all along.
+
+Found from 9.10c: a fresh run reported `versionNumber: 0` while its `workflowVersionId`
+resolved to `version_number = 1`. 9.9a and 9.10b both went green immediately after the fix,
+and now assert real version identity rather than a placeholder.
+
+## Two near-misses worth recording
+
+Both were my checks being wrong, not the product:
+
+- **Case-sensitivity, twice.** `/\bAuto\b/` missed the `AUTO` badge, and `/v\d+/` missed
+  the `V1` pins. The first nearly filed 8.3 as a failure; the second nearly filed 9.8.
+- **Whole-page regex.** 7.7 first "passed" on `\bKind\b` matched anywhere in the document —
+  including the nav. Re-done against `aria-label="Kind for <key>"`, which is falsifiable.
+
+The pattern is the same one this whole effort has been about: a check that cannot fail is
+worth nothing, and a check that fails for its own reasons is worse than none.
