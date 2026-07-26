@@ -286,3 +286,51 @@ Both were my checks being wrong, not the product:
 
 The pattern is the same one this whole effort has been about: a check that cannot fail is
 worth nothing, and a check that fails for its own reasons is worse than none.
+
+---
+
+# Third pass — 2026-07-26: walking it as a gallery, not a bug hunt
+
+The earlier passes scored checks. This one asks the question that actually
+matters: **can someone follow the written step and see the thing?** Those differ,
+and the difference is where the findings are.
+
+## Steps that misdescribe the product (fixed in the plan)
+
+The product is fine in both cases; the instruction is not. That still counts as a
+failure — someone following it concludes the feature is broken.
+
+- **8.3 / 8.2 — "Change source button".** There is no button. Change source and
+  Revert to automatic are items in the input row's **⋯ More actions** menu
+  (`input-row-menu-<port>`). The row shows only the producer and the badge, so
+  looking for a button finds nothing. Both steps now name the menu, and 8.3
+  states the badge transition (**AUTO → PINNED → AUTO**) so the pass condition is
+  observable rather than inferred.
+
+## An empty room in the gallery
+
+- **7.5 variable-picker dimming — unreachable.** Dimming needs a port with both a
+  compatible and an incompatible candidate, so at least two distinct `kind`s in
+  `config.ctx`. **0 of 25 shipped workflows declare two.** The picker has nothing
+  to dim, so the check passes whatever the code does — the same
+  unfalsifiability that P-1..P-4 had.
+
+  This is the shape-coverage problem wearing its other face: a shape nothing
+  demonstrates is both an unfalsifiable check *and* a room with nothing in it.
+  Added to the linter as `two-distinct-ctx-kinds` so it is caught mechanically
+  instead of by a person walking into it.
+
+## Checks that passed
+
+- **9.3 Upload & Try** — ✅ dropping a real PDF on the source node uploads it and
+  starts a run, which succeeded on v3. My first reading called this a failure
+  because I watched for a `POST /runs` that never comes: the upload endpoint
+  starts the run server-side. The check was wrong, not the product.
+- **9.10c retention** — ✅ (second pass) cache TTL ≈ 14 days.
+
+## What the version-pin fix bought
+
+Everything version-related in Part 9 now asserts real identity rather than a
+placeholder: the run history rows read `V1`/`V3`, the replay chip names the
+version that ran, and **Re-run v1** targets it. Before `09ce5b4d` all of that
+read "version unknown".

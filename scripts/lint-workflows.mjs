@@ -178,6 +178,20 @@ const SHAPES = [
     why: "MANUAL_TEST_PLAN 9.1/9.2 need a workflow where the Try button is visible",
     test: (c) => nodesOf(c).some((n) => n.sourceType === "source.api"),
   },
+  {
+    id: "two-distinct-ctx-kinds",
+    label: "workflow declaring TWO distinct ctx kinds",
+    required: true,
+    why: "MANUAL_TEST_PLAN 7.5 (variable-picker dimming) needs a port with both a compatible and an incompatible candidate. One kind — or none — can never dim, so the check has nothing to show and cannot fail",
+    test: (c) => {
+      const kinds = new Set(
+        Object.values(c.ctx ?? {})
+          .map((d) => (d && typeof d === "object" ? d.kind : undefined))
+          .filter(Boolean),
+      );
+      return kinds.size >= 2;
+    },
+  },
 ];
 
 const nodesOf = (c) => Object.values(c.nodes ?? {});
