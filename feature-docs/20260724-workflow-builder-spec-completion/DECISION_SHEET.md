@@ -51,9 +51,34 @@ fastest.
 | A5 | **Deliberate badge/indicator choices** — ambiguous & unsatisfied carry no settings badge; `ctx-bound` shows neither badge nor CTA; severity × anchor cross-product not a target | G-090, G-101, G-102 | confirm won't-support |
 | A6 | **Long-tail hygiene** — ctx declarations never GC'd, orphaned param values, dotted-node-id path split, one merged error+warning count, and the rest | G-045, G-053, G-058, G-068, G-077, G-083, G-092, G-093, G-096, G-097, G-098, G-099 | confirm defer / won't-support as proposed |
 
-**Recommendation:** confirm all six as proposed. A6 is the one worth a skim — it is the
-grab-bag, and G-098 (ctx declarations never garbage-collected) is the entry most likely to
-deserve promotion, since it is the same reference-integrity family as the shipped G-002.
+### Per-item recommendations
+
+I agree with the proposal on 21 of the 29. The eight below I would not rubber-stamp. Full
+itemisation, in plain language, is in the companion status page (see *Related* at the bottom).
+
+| Entry | Proposed | Recommend | Why |
+|---|---|---|---|
+| G-098 | defer | **promote to fix** | Ctx declarations are never garbage-collected. Same reference-integrity family as the shipped G-002/G-104, and the sweep machinery already exists. |
+| G-099 | defer | **promote to fix** | A key removed from a `parametersSchema` leaves its saved value on the node forever, invisible and uneditable. Same family as G-098 — pair them. |
+| G-077 | defer | **promote to fix** | The node problems badge counts unbound inputs and almost nothing else, missing most failure modes the journeys hit. The badge is the primary trust signal; this belongs with the "surface says fine when it isn't" group we cleared first, not in a long tail. |
+| G-058 | defer | **promote to fix** | Human corrections leave no readable trail. Notable because the data is *already recorded* — `submitCorrections` writes reviewer, timestamp, original and corrected values plus an audit event. Nothing renders it. This is a viewer, not a feature. |
+| G-096 | defer | **fix — cheap** | `nodeIdFromPath` splits at the first dot while `parseInputPortPath` is greedy, so a dotted node id buckets under a non-existent node and clicking selects nothing. Small, self-contained, currently misleading. |
+| G-097 | defer | **fix — cheap** | The top bar sums errors + warnings into one red count (1 error + 5 warnings reads "6 issues"). Every other surface keeps the split. Cheaper to fix than to keep re-reading. |
+| G-092 | won't-support | **route, don't drop** | Correct for the builder — removing failed documents belongs to the documents module — but it is a real journey requirement, and "won't-support" reads as "no". Raise it against the documents module. |
+| G-093 | won't-support | **close — not a gap** | Records that routing an unmatched section *works*. A pass written into a gap register; leaving it inflates the backlog. |
+
+Two further notes that need no action:
+
+- **G-103** is filed `won't-support` but its own note defers to US-141. It is a park with an
+  owner, not a permanent no — worth relabelling so it is revisited when the cancel UX lands.
+- **G-079** and **G-094** are the same underlying fact (the diff is textual, not structural).
+  Consider merging them into one entry.
+- **G-053** (no way to exercise a failure path without really breaking a file) is the deferral
+  that most directly contradicts a stated user need — Marcus asks for it explicitly. I still
+  recommend deferring, because a simulation mode is a genuine feature, but it is the largest
+  thing we are choosing not to build.
+
+**Recommendation:** confirm A1–A5 as proposed, then work A6 item by item using the table above.
 
 ---
 
@@ -67,9 +92,22 @@ disagreed, so neither can be rubber-stamped.
 | **G-047** | major | C-040 says fix / C-049 says defer |
 | **G-072** | major | C-022 + C-023 say fix / C-024 says defer |
 
-**Recommendation:** read these two in full before ruling. They are the only entries where the
-discovery passes reached opposite conclusions from the same evidence, which usually means the
-entry bundles two claims of different value. Splitting them is often the real answer.
+I read both. In each case the disagreement is real and resolves the same way: **the entry
+bundles a live defect with a piece of cleanup.** Split them and both passes are right.
+
+**G-047 — three divergent node-status unions.**
+
+| Half | Recommend |
+|---|---|
+| A cancelled run polls forever | **fix now** — a live defect burning requests on every cancelled run |
+| Three overlapping status unions, one with no consumer, converter or renderer | **defer** — real tidiness, not urgent |
+
+**G-072 — canvas port rows collapse the six-state binding model.**
+
+| Half | Recommend |
+|---|---|
+| `locked-unbound` renders as *satisfied* — the canvas says fine while the settings panel says "Disconnected by you" | **fix now** — squarely in the "surface lies" category we agreed to clear first |
+| The canvas shows two states where the model has six | **defer** — fidelity, can wait |
 
 ---
 
@@ -114,3 +152,10 @@ verification backlog that shrinks predictably.
 Two entries should be marked shipped regardless of any ruling: **G-062** (fixed by D-4) and
 **G-073** (0 NUL bytes today). Neither was credited because the commits never named them.
 Worth fixing the register as verification proceeds, so this drift does not compound.
+
+## Related
+
+- [GAP_REGISTER.md](GAP_REGISTER.md) — the 106 entries themselves
+- [FIX_SET_EXPLAINED.md](FIX_SET_EXPLAINED.md) — plain-language companion for the 24 already approved
+- [STACK.md](STACK.md) — the whole work stack, layer by layer
+- Status page (browser) — https://claude.ai/code/artifact/e91c2835-1d4d-4ff9-958a-73aebe708342
