@@ -634,6 +634,22 @@ function validateMapJoinNodes(
           severity: "error",
         });
       }
+
+      // G-067 / G-077 — an absent `maxConcurrency` is not "some sensible
+      // default", it is UNBOUNDED: a map over 200 segments starts 200
+      // activities at once, swamping the worker and the upstream API. A
+      // warning, not an error: unbounded is a legal configuration and may be
+      // deliberate for a small, known collection, so it must never block Save.
+      if (
+        mapNode.maxConcurrency === undefined ||
+        mapNode.maxConcurrency === null
+      ) {
+        errors.push({
+          path: `nodes.${nodeId}.maxConcurrency`,
+          message: `Map node "${mapNode.label || nodeId}" has no concurrency limit, so every item starts at once. Set one if the collection can be large.`,
+          severity: "warning",
+        });
+      }
     }
 
     if (node.type === "join") {

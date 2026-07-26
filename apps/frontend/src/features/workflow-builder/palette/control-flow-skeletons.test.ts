@@ -14,7 +14,10 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
-import { buildControlFlowSkeleton } from "./control-flow-skeletons";
+import {
+  buildControlFlowSkeleton,
+  DEFAULT_MAP_MAX_CONCURRENCY,
+} from "./control-flow-skeletons";
 
 describe("buildControlFlowSkeleton", () => {
   it("switch → returns a SwitchNode with empty cases", () => {
@@ -110,5 +113,18 @@ describe("buildControlFlowSkeleton", () => {
       const node = buildControlFlowSkeleton(type, `${type}_1`);
       expect(node.metadata).toBeUndefined();
     }
+  });
+});
+
+describe("map skeleton seeds a concurrency limit (G-067)", () => {
+  it("gives a newly dropped map a bounded fan-out", () => {
+    const skeleton = buildControlFlowSkeleton("map", "m1");
+    expect(skeleton.type).toBe("map");
+    // Omitting maxConcurrency means UNBOUNDED, not "a sensible default" — a
+    // map over 200 segments would start 200 activities at once.
+    expect((skeleton as { maxConcurrency?: number }).maxConcurrency).toBe(
+      DEFAULT_MAP_MAX_CONCURRENCY,
+    );
+    expect(DEFAULT_MAP_MAX_CONCURRENCY).toBeGreaterThan(0);
   });
 });

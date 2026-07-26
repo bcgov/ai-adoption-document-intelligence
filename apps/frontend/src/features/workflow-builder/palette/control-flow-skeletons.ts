@@ -57,6 +57,21 @@ function buildSwitchSkeleton(id: string): SwitchNode {
   };
 }
 
+/**
+ * Default fan-out width for a newly dropped map (G-067).
+ *
+ * Omitting `maxConcurrency` does not mean "some sensible number" — it means
+ * UNBOUNDED, so a map over 200 segments starts 200 activities at once and
+ * swamps the worker and the upstream API. Every shipped workflow sets a limit
+ * by hand; only palette-created maps carried the unbounded default, so the
+ * defect only ever bit newly authored graphs.
+ *
+ * The two shipped maps use 5 and 10; 5 is the conservative end of that range,
+ * and a default that is too small only costs wall-clock, while one that is too
+ * large costs a rate-limit breach. The author can raise it in the map's form.
+ */
+export const DEFAULT_MAP_MAX_CONCURRENCY = 5;
+
 function buildMapSkeleton(id: string): MapNode {
   return {
     id,
@@ -64,6 +79,7 @@ function buildMapSkeleton(id: string): MapNode {
     label: entryFor("map").displayName,
     collectionCtxKey: "",
     itemCtxKey: "",
+    maxConcurrency: DEFAULT_MAP_MAX_CONCURRENCY,
     bodyEntryNodeId: "",
     bodyExitNodeId: "",
   };
