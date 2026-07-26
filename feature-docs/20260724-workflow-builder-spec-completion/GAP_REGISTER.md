@@ -1539,6 +1539,41 @@ the auto-wire spec does not currently answer. Deliberately left undispositioned.
 
 **Proposed disposition:** needs a ruling
 
+---
+
+**RULED 2026-07-25 — option A. FIXED.**
+
+Alex ruled that a map's body is **inside the map's scope**: a body node inherits the map's whole
+upstream view, with the map itself ranked nearest.
+
+The argument was coherence rather than preference. Three subsystems already treat a body node as
+inside the map — the canvas body box, the variable picker's scope (`analyzeMapBody`) and the
+runtime. Auto-wire was the lone dissenter, and ruling A makes four surfaces agree instead of
+three-against-one.
+
+**Implementation:** `upstream-walk.ts` now treats `map ⇢ bodyEntryNodeId` as an edge for
+reachability. Plain BFS then yields the ordering the ruling asks for at no extra cost — an
+in-body producer outranks the map (a value produced inside the iteration is more local than the
+item), and the map outranks anything outside the loop (so the item wins a same-kind tie instead
+of turning every in-loop binding ambiguous). A hand-drawn `map → bodyEntry` edge is de-duplicated
+against the implicit one, and a self-referential body is skipped so a map cannot become its own
+predecessor.
+
+**Blast radius:** additive. Auto-wire only fills *unbound* ports and never rewrites a
+non-`__auto.` key (8.6), so every existing hand-authored binding is untouched — the master
+template's wires still read "Pinned by you", correctly, because they are.
+
+**Verified:** 8 new unit tests in `upstream-walk.test.ts` (1034 green in the package, 1694 in the
+frontend), plus a browser check on the exact broken shape — `document.split → map` with the body
+reached **only** by the *Body entry* setting and no map→body edge. The item wire now draws with
+`data-provenance="auto:map-item"`, the tooltip *"Connected automatically — item from the loop"*,
+Inputs reading `Segment metadata ← Run for each item AUTO`, and the binding resolving to
+`currentSegment` — the map's own key, not a synthesised `__auto.<mapId>.item`.
+
+**Note for the next reader:** neither shipped demo can demonstrate this. The part-4 demo has
+nothing upstream of its map, and the master template's bindings are already hand-authored (so
+correctly stay pinned). That is a fixture-coverage gap, not a code gap — see STACK.md.
+
 ### G-105 — A stale Vite dep cache silently serves a bundle missing the new exports, and the editor dies with `does not provide an export named …`
 
 **Found by:** batches 2–8 (remediation, retrospectively) · **Severity:** major · **Type:** tooling/process
