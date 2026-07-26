@@ -180,11 +180,25 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 ---
 
-## Editor invariants (graph-specific)
+## Editor invariants
 
-Two obligations that only make sense for a graph editor. The repo-wide four are
-in [CLAUDE.md](../../CLAUDE.md) (Cross-feature obligations).
+Obligations that span features rather than describing one. Every defect the
+2026-07-25 walkthrough found was two individually-correct decisions that were
+wrong in combination, so these are the joins worth checking when something in
+the editor changes.
 
+- **Authorable.** Anything the config can express, the UI can set — no model
+  field without an authoring path. *(`errorPolicy` was supported by the engine
+  and the schema and had no form for months.)*
+- **Visible and reversible.** Anything the system decides for the author is
+  shown, and can be undone or overridden. *(Auto-wire bound a map's loop item
+  and drew no wire, so the binding could be neither seen nor deleted.)*
+- **Surfaces agree.** If a fact appears in more than one place, name every place
+  and make them agree. *(The amber port ring and the problems badge disagreed for
+  a release; each was individually correct.)*
+- **Fail before the run.** A state the runtime cannot satisfy is reported at
+  author time. *(A ctx key colliding with a reserved expression namespace saved
+  clean and silently read a different value at run time — 5.6.)*
 - **Rules are depth-independent.** A validation rule that holds for the outer
   graph holds inside an inline child graph, at any nesting depth. Before G-015 no
   rule descended into `workflowRef.inline`, so every rule the product enforces was

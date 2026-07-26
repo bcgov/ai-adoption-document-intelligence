@@ -56,13 +56,28 @@ RUN_LLM=1 npm run test:e2e -- tests/e2e/workflow-builder
 RUN_INFRA=1 RUN_LLM=1 npm run test:e2e -- tests/e2e/workflow-builder
 ```
 
-**Running without wiping the DB.** Set `PLAYWRIGHT_SKIP_DB_RESET=1` to skip the
-global reset+seed and run against your already-seeded local stack — useful while
-developing (the seed fixtures these tests rely on must already exist):
+**⚠️ Running without wiping the DB.** By default `tests/global-setup.ts` runs
+`prisma migrate reset --force && npm run db:seed` before *any* spec — so a single
+test run **destroys your local database**: documents, uploads, run history and
+the seeded feature demos. Set `PLAYWRIGHT_SKIP_DB_RESET=1` to run against your
+already-seeded stack instead (the seed fixtures these tests rely on must already
+exist):
 
 ```bash
 PLAYWRIGHT_SKIP_DB_RESET=1 npm run test:e2e -- tests/e2e/workflow-builder
 ```
+
+If it does get wiped: `cd apps/backend-services && npm run db:seed` restores the
+templates and benchmarking fixtures, then `node scripts/seed-feature-demos.mjs`
+(backend running) restores the 16 `demo-*` workflows. Documents and uploads are
+not reproducible.
+
+**Type-check gate.** Global setup type-checks the frontend first, before the
+database reset. The suite drives the running dev server, and Vite transforms
+modules lazily — so a broken component never surfaces as a build failure, it
+surfaces as "canvas never mounted" on every spec. Checking first turns twenty
+minutes of debugging tests into one compiler error, and aborts before the
+destructive reset. `PLAYWRIGHT_SKIP_TYPE_CHECK=1` bypasses it.
 
 **Parallelism vs the backend rate limiter.** All workers share ONE backend
 instance behind a global throttle (`THROTTLE_GLOBAL_LIMIT`, default 100
