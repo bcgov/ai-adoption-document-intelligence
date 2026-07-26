@@ -159,3 +159,34 @@ Worth fixing the register as verification proceeds, so this drift does not compo
 - [FIX_SET_EXPLAINED.md](FIX_SET_EXPLAINED.md) — plain-language companion for the 24 already approved
 - [STACK.md](STACK.md) — the whole work stack, layer by layer
 - Status page (browser) — https://claude.ai/code/artifact/e91c2835-1d4d-4ff9-958a-73aebe708342
+
+---
+
+## C1 verification — 2026-07-26
+
+The reference-integrity cluster, checked against current code. Verify-before-rule
+in practice: **2 of 11 had already been fixed** and would have been ruled on as
+though open.
+
+| Entry | State | Evidence |
+|---|---|---|
+| G-030 exposed params destroyed by mutations | ✅ **already fixed** | `prune-node-from-groups.ts` drops any `exposedParams[i]` whose `nodeId` referenced a deleted node |
+| G-048 two divergent node-delete implementations | ✅ **already fixed** | Both `WorkflowEditorV2Page` and `WorkflowEditorCanvas` import the same `removeNodesFromConfig`, whose docstring names it "the single node-removal implementation, shared by every delete path" |
+| G-029 control-flow edge-id refs never swept | ❌ still true | `remove-nodes.ts` handles nodes, edges, entry pointer, groups and ctx — but never `switch.cases[].edgeId`, `switch.defaultEdge`, or a humanGate's fallback edge |
+| G-040 `source.api` field rename orphans consumers | ❌ still true | no rename sweep in the source settings |
+| G-049 ctx kind retype never re-checks consumers | ❌ still true | `onUpdate({ ...declaration, kind: next })` writes the new kind with no consumer pass |
+| G-050 lineage delete cascades to pinned versions | ❌ still true | `onDelete: Cascade` on `WorkflowVersion.lineage` |
+| G-063 lost update when two tabs save | ❌ still true | no `If-Match` / `expectedVersion` / 409 path on the update endpoint |
+| G-065 `isInput` rename rewrites the public run-spec silently | ❌ still true | no warning on the toggle |
+| G-074 ctx rename collision is a silent no-op | ❌ still true | no collision handling in the drawer |
+| G-039 entry-node reassignment on delete | ⚠️ partial | reassignment happens in `remove-nodes.ts`; whether it is *announced* needs a UI check — `describeOrphanedDelete` exists and may already cover it |
+| G-051 dynamic-node soft-delete breaks pinned nodes | ⚠️ partial | soft-delete + restore semantics exist in `dynamic-node.repository.ts`; whether a version-pinned node is guarded at run time needs a runtime check |
+
+**Staleness in this cluster: 2 of 11 (18%)** — lower than the 50% the first
+four-entry sample suggested, which is worth knowing: the sample was too small to
+extrapolate from, and I should not have implied a rate from it.
+
+**The seven that remain are one shape**, and it is the shape G-002 already
+established: *a reference survives the thing it points at*. The rename sweep and
+the ctx prune both exist; most of these are "do what those already do" for a
+different reference type.
