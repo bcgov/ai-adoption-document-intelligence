@@ -282,7 +282,20 @@ if (validate && invalid === 0) console.log("  ✓ all documents valid\n");
 
 /* --------------------------------------------------------- shape coverage */
 
-console.log("Shape coverage across the collection\n");
+/**
+ * Shape coverage is a property of the WHOLE collection, so it can only be
+ * judged when the whole collection is loaded. Three shapes
+ * (error-policy-fallback, inline-child-graph, source-api) exist only in the
+ * seeded demos — reporting them as gaps when `--db` was not passed would name
+ * gaps that are not real, which is precisely how a linter earns being ignored.
+ * Without `--db` the counts are printed for information and no gap is claimed.
+ */
+console.log(
+  useDb
+    ? "Shape coverage across the collection\n"
+    : "Shape coverage — TEMPLATES ONLY (informational)\n" +
+        "  Several shapes live only in the seeded demos; pass --db to judge gaps.\n",
+);
 
 const parsed = workflows.filter((w) => !w.parseError);
 let missingRequired = 0;
@@ -297,12 +310,13 @@ for (const shape of SHAPES) {
   });
   const n = holders.length;
   // ✓ shipped example · absent but constructed by a test · ✗ genuine gap
-  const mark = n > 0 ? "✓" : shape.coveredBy ? "·" : shape.required ? "✗" : "·";
+  const claimsGap = useDb && shape.required && !shape.coveredBy;
+  const mark = n > 0 ? "✓" : claimsGap ? "✗" : "·";
   console.log(`  ${mark} ${String(n).padStart(3)}  ${shape.label}`);
   if (n === 0 && shape.coveredBy) {
     console.log(`         constructed by ${shape.coveredBy}`);
   }
-  if (n === 0 && shape.required && !shape.coveredBy) {
+  if (n === 0 && claimsGap) {
     missingRequired++;
     console.log(`         GAP — ${shape.why}`);
   }
