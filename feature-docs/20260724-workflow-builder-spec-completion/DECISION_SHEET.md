@@ -58,7 +58,7 @@ itemisation, in plain language, is in the companion status page (see *Related* a
 
 | Entry | Proposed | Recommend | Why |
 |---|---|---|---|
-| G-098 | defer | **promote to fix** | Ctx declarations are never garbage-collected. Same reference-integrity family as the shipped G-002/G-104, and the sweep machinery already exists. |
+| G-098 | defer | ~~promote to fix~~ → **already shipped** | **My recommendation was wrong — verified 2026-07-26.** `removeNodesFromConfig` prunes orphaned ctx declarations unconditionally at the single choke point every delete path funnels through (`findOrphanedCtxKeys` + `pruneCtxDeclarations`), with an author prompt via `describeOrphanedDelete`; and `WorkflowSettingsDrawer` already renders `Used by {n}` plus an explicit "declared but unused" row at zero. Both halves of the entry are addressed. Mark shipped, do not reimplement. |
 | G-099 | defer | **promote to fix** | A key removed from a `parametersSchema` leaves its saved value on the node forever, invisible and uneditable. Same family as G-098 — pair them. |
 | G-077 | defer | **promote to fix** | The node problems badge counts unbound inputs and almost nothing else, missing most failure modes the journeys hit. The badge is the primary trust signal; this belongs with the "surface says fine when it isn't" group we cleared first, not in a long tail. |
 | G-058 | defer | **promote to fix** | Human corrections leave no readable trail. Notable because the data is *already recorded* — `submitCorrections` writes reviewer, timestamp, original and corrected values plus an audit event. Nothing renders it. This is a viewer, not a feature. |
