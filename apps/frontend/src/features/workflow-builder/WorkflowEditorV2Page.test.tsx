@@ -778,7 +778,15 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
   });
 
   it("Scenario 5: a chip click opens GroupNodeSettings for that group via onGroupChipClick", () => {
-    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    // A chip only exists for a group that IS in the config — chips are
+    // projected from `nodeGroups`. Since G-091 the page drops an
+    // `activeGroupId` whose group has gone, so the fixture has to declare the
+    // group the click names rather than inventing an id.
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.nodeGroups = {
+      g_42: { label: "Stage one", nodeIds: Object.keys(cfg.nodes).slice(0, 1) },
+    };
+    renderPage(makeTemplate(cfg));
     // Drive the canvas-mock's `onGroupChipClick` so the page promotes
     // the clicked group into `activeGroupId`. The right-rail stub
     // surfaces the value via `data-active-group-id`.
@@ -797,7 +805,11 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
   });
 
   it("clears any activeGroupId when the simplified-view toggle flips OFF", async () => {
-    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.nodeGroups = {
+      g_42: { label: "Stage one", nodeIds: Object.keys(cfg.nodes).slice(0, 1) },
+    };
+    renderPage(makeTemplate(cfg));
     await openMoreMenu();
     const toggle = await screen.findByTestId("simplified-view-toggle");
     // Flip ON, then click a chip to set activeGroupId.
@@ -3005,5 +3017,78 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
     expect(after.nodes.b?.label).toBe("EDITED");
     expect(after.nodes.a?.label).not.toBe("CLOBBERED");
     expect(Object.keys(after.nodes).sort()).toEqual(["a", "b", "c"]);
+  });
+});
+
+/**
+ * G-091 — `deleteGroup` writes `nodeGroups` and nothing else, so the right rail
+ * stayed mounted on a group that no longer existed and fell through to its
+ * "Group not found" placeholder — a dead end reached by the panel's own Delete
+ * button.
+ */
+describe("WorkflowEditorV2Page — G-091 active group cleared on removal", () => {
+  function configWithGroup() {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.nodeGroups = {
+      g_42: { label: "Stage one", nodeIds: Object.keys(cfg.nodes).slice(0, 1) },
+    };
+    return cfg;
+  }
+
+  it("drops the active group when its entry disappears from the config", () => {
+    renderPage(makeTemplate(configWithGroup()));
+    const onGroupChipClick = capturedCanvasProps.current?.onGroupChipClick as
+      | ((groupId: string) => void)
+      | undefined;
+    if (!onGroupChipClick) {
+      throw new Error("Canvas stub did not capture onGroupChipClick");
+    }
+    act(() => {
+      onGroupChipClick("g_42");
+    });
+    expect(
+      screen
+        .getByTestId("node-settings-stub")
+        .getAttribute("data-active-group-id"),
+    ).toBe("g_42");
+
+    // The group panel's own Delete writes a config without the group.
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as (
+      next: GraphWorkflowConfig,
+    ) => void;
+    const current = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange({ ...current, nodeGroups: {} });
+    });
+
+    // The stub renders the cleared state as an empty attribute.
+    expect(
+      screen
+        .getByTestId("node-settings-stub")
+        .getAttribute("data-active-group-id"),
+    ).toBe("");
+  });
+
+  it("keeps the active group while its entry is still there", () => {
+    renderPage(makeTemplate(configWithGroup()));
+    const onGroupChipClick = capturedCanvasProps.current?.onGroupChipClick as (
+      groupId: string,
+    ) => void;
+    act(() => {
+      onGroupChipClick("g_42");
+    });
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as (
+      next: GraphWorkflowConfig,
+    ) => void;
+    const current = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    // An unrelated edit must not close the panel.
+    act(() => {
+      onConfigChange({ ...current, metadata: { ...current.metadata } });
+    });
+    expect(
+      screen
+        .getByTestId("node-settings-stub")
+        .getAttribute("data-active-group-id"),
+    ).toBe("g_42");
   });
 });

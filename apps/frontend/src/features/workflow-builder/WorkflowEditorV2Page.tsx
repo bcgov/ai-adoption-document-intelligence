@@ -278,6 +278,22 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   }, []);
 
   /**
+   * G-091 — `deleteGroup` writes `nodeGroups` and nothing else, so the right
+   * rail was left mounted on a group that no longer existed and fell through
+   * to its "Group not found. It may have been deleted or renamed." placeholder
+   * — a dead end reached by the panel's own Delete button.
+   *
+   * Guarded on derived state rather than inside `deleteGroup`, so it holds for
+   * every path that can remove a group: the panel, an undo, an agent write, or
+   * a group emptied by `pruneNodesFromGroups` during a node delete.
+   */
+  useEffect(() => {
+    if (activeGroupId === null) return;
+    if (config.nodeGroups?.[activeGroupId]) return;
+    setActiveGroupId(null);
+  }, [activeGroupId, config.nodeGroups]);
+
+  /**
    * Wraps `setSelectedNodeId` so any non-null node selection also clears
    * the active group (Node selection wins over the group panel per
    * US-042).

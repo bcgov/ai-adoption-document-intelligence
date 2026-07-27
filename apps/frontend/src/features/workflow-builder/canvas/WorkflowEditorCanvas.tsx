@@ -2638,7 +2638,35 @@ function WorkflowEditorCanvasInner({
       edges: Edge[];
     }) => {
       if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
-      const removedNodeIds = new Set(deletedNodes.map((n) => n.id));
+
+      // G-091 — a selected chip is deletable, so Delete routed its synthetic
+      // `group-chip-<id>` here, where it matched no node, edge or group and
+      // nothing happened. Neither reading of the gesture (delete the group,
+      // delete its members) was offered OR refused; it was simply inert.
+      //
+      // Refused, with the affordance that does work named. Deleting a group is
+      // not the same act as deleting the steps inside it, and guessing which
+      // one was meant is exactly the sort of assumption that loses work.
+      const chipIds = deletedNodes.filter(
+        (n) => groupIdFromChipId(n.id) !== null,
+      );
+      const realDeletedNodes = deletedNodes.filter(
+        (n) => groupIdFromChipId(n.id) === null,
+      );
+      if (chipIds.length > 0) {
+        notifications.show({
+          color: "gray",
+          title: "Groups are deleted from the panel",
+          message:
+            chipIds.length === 1
+              ? "Select the group and use “Delete group” in the right-hand panel. That removes the grouping and leaves its steps on the canvas — to delete the steps themselves, turn off Simplified view first."
+              : `${chipIds.length} groups were selected. Delete them one at a time from the right-hand panel — that removes the grouping and leaves the steps in place.`,
+          autoClose: 8000,
+        });
+      }
+      if (realDeletedNodes.length === 0 && deletedEdges.length === 0) return;
+
+      const removedNodeIds = new Set(realDeletedNodes.map((n) => n.id));
       const survivorDataWires: DataWire[] = [];
       const removedEdgeIds = new Set<string>();
       for (const e of deletedEdges) {

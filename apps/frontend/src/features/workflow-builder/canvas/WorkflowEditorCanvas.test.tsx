@@ -5097,3 +5097,76 @@ describe("WorkflowEditorCanvas — G-060 multi-node drag", () => {
     expect(next.nodes["group-chip-abc"]).toBeUndefined();
   });
 });
+
+/**
+ * G-091 — a selected chip is deletable, so Delete routed its synthetic
+ * `group-chip-<id>` into `handleDelete`, where it matched no node, edge or
+ * group. Nothing happened and nothing said why; neither reading of the gesture
+ * (delete the group, delete its members) was offered OR refused.
+ */
+describe("WorkflowEditorCanvas — G-091 deleting a group chip", () => {
+  /** Local copies — the shared helpers are scoped to their own describe. */
+  function unifiedOnDelete(): (args: {
+    nodes: Array<{ id: string }>;
+    edges: Edge[];
+  }) => void {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onDelete");
+    }
+    return props.onDelete as (args: {
+      nodes: Array<{ id: string }>;
+      edges: Edge[];
+    }) => void;
+  }
+
+  function chipConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "chips" },
+      ctx: {},
+      entryNodeId: "a",
+      nodes: {
+        a: {
+          id: "a",
+          type: "activity",
+          label: "A",
+          activityType: "file.prepare",
+        },
+      },
+      edges: [],
+      nodeGroups: { g1: { label: "Stage one", nodeIds: ["a"] } },
+    } as GraphWorkflowConfig;
+  }
+
+  it("explains that a group is deleted from the panel instead of doing nothing", () => {
+    const { onConfigChange } = renderCanvas(chipConfig(), {
+      simplifiedView: true,
+    });
+    act(() => {
+      unifiedOnDelete()({ nodes: [{ id: "group-chip-g1" }], edges: [] });
+    });
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Groups are deleted from the panel",
+      }),
+    );
+    // Refused, not guessed at — the config is untouched.
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("still deletes real nodes in a mixed chip + node gesture", () => {
+    const { onConfigChange } = renderCanvas(chipConfig(), {
+      simplifiedView: true,
+    });
+    act(() => {
+      unifiedOnDelete()({
+        nodes: [{ id: "group-chip-g1" }, { id: "a" }],
+        edges: [],
+      });
+    });
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a).toBeUndefined();
+  });
+});

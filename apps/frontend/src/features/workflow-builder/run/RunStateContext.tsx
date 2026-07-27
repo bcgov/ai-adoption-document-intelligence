@@ -200,17 +200,27 @@ export function useNodeRunStatus(nodeId: string): NodeRunStatus {
 /**
  * Pure helper computing the aggregate status of a collapsed group.
  *
- *   - `running`   — any member is running
  *   - `failed`    — any member has failed
- *   - `succeeded` — every member is succeeded or skipped
- *   - `pending`   — otherwise (the default — empty member list or any
- *                   member still pending / cancelled)
+ *   - `running`   — any member is running
+ *   - `cancelled` — no member is running and any member was cancelled
+ *   - `skipped`   — every member is skipped (nothing actually executed)
+ *   - `succeeded` — every member is terminal, at least one really ran
+ *   - `pending`   — otherwise (empty member list, or work still to start)
  *
- * Precedence is `failed` > `running` > `succeeded` > `pending` —
- * surfacing the most-urgent state at a glance. (`failed` over
- * `running` because a single failure is the canvas-level signal the
- * user must act on; xyflow batches re-renders so two adjacent ticks
- * can't visibly flip between the two.)
+ * Precedence is `failed` > `running` > `cancelled` > `skipped` >
+ * `succeeded` > `pending` — surfacing the most-urgent state at a glance.
+ * (`failed` over `running` because a single failure is the canvas-level signal
+ * the user must act on; xyflow batches re-renders so two adjacent ticks can't
+ * visibly flip between the two.)
+ *
+ * G-095 — this used to return only four of the six statuses, so collapsing a
+ * group DESTROYED information its expanded members were showing:
+ *   - `skipped` folded into `succeeded`, so a group served entirely from cache
+ *     showed a green tick instead of the violet bolt every member carried;
+ *   - `cancelled` fell through to `pending`, so an aborted run's group read as
+ *     "not started yet" — the opposite of what happened. That case became
+ *     reachable rather than hypothetical when G-047 made `cancelled` a real
+ *     `NodeRunStatusValue`.
  */
 export function getAggregateStatus(
   memberIds: readonly string[],
@@ -219,7 +229,9 @@ export function getAggregateStatus(
   if (memberIds.length === 0) return "pending";
 
   let hasRunning = false;
-  let allTerminalSucceededOrSkipped = true;
+  let hasCancelled = false;
+  let allTerminal = true;
+  let allSkipped = true;
 
   for (const id of memberIds) {
     const entry = nodeStatuses[id];
@@ -229,16 +241,29 @@ export function getAggregateStatus(
     }
     if (status === "running") {
       hasRunning = true;
-      allTerminalSucceededOrSkipped = false;
+      allTerminal = false;
+      allSkipped = false;
       continue;
     }
+    if (status === "cancelled") {
+      hasCancelled = true;
+      allSkipped = false;
+      continue;
+    }
+    if (status !== "skipped") {
+      allSkipped = false;
+    }
     if (status !== "succeeded" && status !== "skipped") {
-      allTerminalSucceededOrSkipped = false;
+      allTerminal = false;
     }
   }
 
   if (hasRunning) return "running";
-  if (allTerminalSucceededOrSkipped) return "succeeded";
+  // A cancelled member is terminal, so it must be reported before the
+  // all-terminal checks below claim the group finished normally.
+  if (hasCancelled) return "cancelled";
+  if (allSkipped) return "skipped";
+  if (allTerminal) return "succeeded";
   return "pending";
 }
 
