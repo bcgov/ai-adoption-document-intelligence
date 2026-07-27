@@ -155,6 +155,38 @@ export interface WireableInputRow {
  * callers that need to distinguish "no such node" from "node with zero
  * wireable ports" should check those conditions themselves before calling.
  */
+/**
+ * G-046 — which input ports the Inputs panel lets an author SEE and edit.
+ *
+ * `shouldAutoWirePort(p) || (p.kind === "Artifact" && required)` is the
+ * deliberate base rule (PORT_WIRING §4.2 ring/badge reconciliation): OPTIONAL
+ * base-`Artifact` identifier ports stay hidden so the panel is not padded with
+ * always-empty rows — `file.prepare` alone has three.
+ *
+ * The defect is narrower than "they are hidden". There are 26 such ports across
+ * the catalog, and EVERY one owns an `in-<port>` canvas handle that
+ * `computePortRows` renders and a user can drag onto — so a binding made by
+ * dragging was invisible to the panel, the badge and the drawer, with no way to
+ * see or undo it short of the raw advanced-bindings editor.
+ *
+ * So the rule is "hidden until it holds something". An unbound optional
+ * identifier port stays out of the way; a bound one becomes visible and
+ * editable, which is the only state where hiding it destroyed information.
+ *
+ * Kindless ports stay excluded, and that is not a gap: zero of the catalog's
+ * activities declare one, so the branch would have no population.
+ */
+function isEditableInputPort(
+  port: { name: string; kind?: string; required?: boolean },
+  boundPorts: ReadonlySet<string>,
+): boolean {
+  if (shouldAutoWirePort(port as Parameters<typeof shouldAutoWirePort>[0])) {
+    return true;
+  }
+  if (port.kind !== "Artifact") return false;
+  return port.required === true || boundPorts.has(port.name);
+}
+
 export function resolveWireableInputRows(
   config: GraphWorkflowConfig,
   nodeId: string,
@@ -167,9 +199,11 @@ export function resolveWireableInputRows(
   const entry = getActivityCatalogEntry(node.activityType);
   if (!entry) return [];
 
-  const wireableInputs = entry.inputs.filter(
-    (p) =>
-      shouldAutoWirePort(p) || (p.kind === "Artifact" && p.required === true),
+  const boundPorts = new Set(
+    (node.inputs ?? []).filter((b) => b.ctxKey).map((b) => b.port),
+  );
+  const wireableInputs = entry.inputs.filter((p) =>
+    isEditableInputPort(p, boundPorts),
   );
 
   return wireableInputs.map((port) => {

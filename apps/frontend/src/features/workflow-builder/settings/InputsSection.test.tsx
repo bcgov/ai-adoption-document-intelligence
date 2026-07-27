@@ -1024,3 +1024,84 @@ describe("InputsSection", () => {
     expect(screen.queryByTestId("input-producer-row-fileData")).toBeNull();
   });
 });
+
+/**
+ * G-046 — every optional base-`Artifact` identifier port (26 across the
+ * catalog) owns an `in-<port>` canvas handle a user can drag onto, while the
+ * Inputs panel hid it. A binding made by dragging was therefore invisible to
+ * the panel, the badge and the drawer, with no way to see or undo it short of
+ * the raw advanced-bindings editor.
+ *
+ * Hiding UNBOUND ones is deliberate (PORT_WIRING §4.2 — otherwise
+ * `file.prepare` alone shows three always-empty rows). The fix is narrower:
+ * hidden until it holds something.
+ */
+describe("InputsSection — G-046 bound optional identifier ports", () => {
+  function filePrepare(
+    inputs?: Array<{ port: string; ctxKey: string }>,
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "A",
+          ...(inputs ? { inputs } : {}),
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: { uploadName: { type: "string", isInput: true } },
+    } as GraphWorkflowConfig;
+  }
+
+  it("still hides an UNBOUND optional identifier port", () => {
+    mount(
+      <InputsSection
+        config={filePrepare()}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("File name")).not.toBeInTheDocument();
+  });
+
+  it("shows one the author bound by dragging onto its canvas handle", () => {
+    mount(
+      <InputsSection
+        config={filePrepare([{ port: "fileName", ctxKey: "uploadName" }])}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("File name")).toBeInTheDocument();
+  });
+
+  it("leaves its siblings hidden — only the bound one appears", () => {
+    mount(
+      <InputsSection
+        config={filePrepare([{ port: "fileName", ctxKey: "uploadName" }])}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("File type")).not.toBeInTheDocument();
+    expect(screen.queryByText("Content type (MIME)")).not.toBeInTheDocument();
+  });
+
+  it("does not count an empty ctxKey as bound", () => {
+    // A ctxKey-less input stub can slip into the in-memory config on an edge
+    // delete; it is not a binding and must not surface a row.
+    mount(
+      <InputsSection
+        config={filePrepare([{ port: "fileName", ctxKey: "" }])}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("File name")).not.toBeInTheDocument();
+  });
+});

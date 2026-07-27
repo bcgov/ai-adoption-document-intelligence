@@ -6,6 +6,17 @@ import {
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../types/workflow";
 
+/**
+ * The aggregate a node's input health rolls up to.
+ *
+ * G-081 — there used to be a `computeNodeStatus(config, nodeId)` returning this
+ * directly. It had NO production caller: every real surface goes through
+ * `autoWireIssuesToValidationErrors`, which applies a `manuallyBoundPorts`
+ * filter that `computeNodeStatus` did not, so the two disagreed about a
+ * ctx-bound port — one concept, two implementations, and the unreachable one
+ * was the wrong one. Deleted rather than reconciled: an unused second answer is
+ * a drift trap waiting for someone to call it.
+ */
 export type NodeStatus = "ok" | "ambiguous" | "unsatisfied";
 
 /** A single input port that couldn't be auto-resolved. */
@@ -91,11 +102,4 @@ export function computeNodeInputIssues(
       ? "unsatisfied"
       : "ok";
   return { status, problemPorts };
-}
-
-export function computeNodeStatus(
-  config: GraphWorkflowConfig,
-  nodeId: string,
-): NodeStatus {
-  return computeNodeInputIssues(config, nodeId).status;
 }

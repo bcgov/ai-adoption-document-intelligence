@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GraphWorkflowConfig } from "../../types/workflow";
-import { computeNodeInputIssues, computeNodeStatus } from "./auto-wire-status";
+import { computeNodeInputIssues } from "./auto-wire-status";
 
 function makeConfig(
   nodes: Record<string, GraphWorkflowConfig["nodes"][string]>,
@@ -34,7 +34,7 @@ function ctxVars(...keys: string[]): GraphWorkflowConfig["ctx"] {
   );
 }
 
-describe("computeNodeStatus", () => {
+describe("computeNodeInputIssues — aggregate status", () => {
   it("returns 'ok' when every typed input is auto-bound or locked", () => {
     const cfg = makeConfig(
       {
@@ -55,7 +55,7 @@ describe("computeNodeStatus", () => {
       },
       [{ source: "A", target: "B" }],
     );
-    expect(computeNodeStatus(cfg, "B")).toBe("ok");
+    expect(computeNodeInputIssues(cfg, "B").status).toBe("ok");
   });
 
   it("returns 'ambiguous' when any port is ambiguous", () => {
@@ -85,7 +85,7 @@ describe("computeNodeStatus", () => {
         { source: "Y", target: "Z" },
       ],
     );
-    expect(computeNodeStatus(cfg, "Z")).toBe("ambiguous");
+    expect(computeNodeInputIssues(cfg, "Z").status).toBe("ambiguous");
   });
 
   it("returns 'unsatisfied' when any port is unsatisfied (and none ambiguous)", () => {
@@ -97,7 +97,7 @@ describe("computeNodeStatus", () => {
         label: "Z",
       },
     });
-    expect(computeNodeStatus(cfg, "Z")).toBe("unsatisfied");
+    expect(computeNodeInputIssues(cfg, "Z").status).toBe("unsatisfied");
   });
 
   it("returns 'ok' when required ports are resolved and OPTIONAL Artifact ports stay invisible", () => {
@@ -125,7 +125,7 @@ describe("computeNodeStatus", () => {
       [],
       ctxVars("myDocId", "myBlobKey"),
     );
-    expect(computeNodeStatus(cfg, "A")).toBe("ok");
+    expect(computeNodeInputIssues(cfg, "A").status).toBe("ok");
   });
 });
 
