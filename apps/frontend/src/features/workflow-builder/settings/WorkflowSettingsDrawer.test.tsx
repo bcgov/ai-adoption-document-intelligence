@@ -331,3 +331,62 @@ describe("WorkflowSettingsDrawer — G-009 ctx references", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("WorkflowSettingsDrawer — G-074 rename collision", () => {
+  const twoKeys = () =>
+    makeConfig({
+      ctx: {
+        customerId: { type: "string" },
+        orderId: { type: "string" },
+      },
+    });
+
+  it("says so when the typed name is already declared", () => {
+    render(<Harness initial={twoKeys()} />);
+    fireEvent.change(screen.getByLabelText("Name for customerId"), {
+      target: { value: "orderId" },
+    });
+    expect(
+      screen.getByText(/“orderId” is already declared/),
+    ).toBeInTheDocument();
+  });
+
+  it("refuses the rename and keeps what the author typed", () => {
+    const onConfig = vi.fn();
+    render(<Harness initial={twoKeys()} onConfig={onConfig} />);
+    const input = screen.getByLabelText("Name for customerId");
+    fireEvent.change(input, { target: { value: "orderId" } });
+    fireEvent.blur(input);
+    // Not silently reverted — the author still sees the colliding text AND is
+    // still told why it did not take. (The pre-fix drawer also left the text
+    // in place, so the surviving message is what makes this check bite.)
+    expect(input).toHaveValue("orderId");
+    expect(
+      screen.getByText(/“orderId” is already declared/),
+    ).toBeInTheDocument();
+    expect(onConfig).not.toHaveBeenCalled();
+  });
+
+  it("clears the message and commits once the collision is resolved", () => {
+    const onConfig = vi.fn();
+    render(<Harness initial={twoKeys()} onConfig={onConfig} />);
+    const input = screen.getByLabelText("Name for customerId");
+    fireEvent.change(input, { target: { value: "orderId" } });
+    fireEvent.change(input, { target: { value: "buyerId" } });
+    expect(screen.queryByText(/already declared/)).not.toBeInTheDocument();
+    fireEvent.blur(input);
+    expect(onConfig).toHaveBeenCalledTimes(1);
+    expect(Object.keys(onConfig.mock.calls[0][0].ctx)).toEqual([
+      "buyerId",
+      "orderId",
+    ]);
+  });
+
+  it("does not flag a row for its own current name", () => {
+    render(<Harness initial={twoKeys()} />);
+    fireEvent.change(screen.getByLabelText("Name for customerId"), {
+      target: { value: "customerId" },
+    });
+    expect(screen.queryByText(/already declared/)).not.toBeInTheDocument();
+  });
+});

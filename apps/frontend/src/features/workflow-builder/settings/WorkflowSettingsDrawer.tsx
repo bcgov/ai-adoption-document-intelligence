@@ -239,6 +239,7 @@ function CtxDeclarationsEditor({
           config={config}
           ctxKey={key}
           declaration={decl}
+          takenNames={new Set(rows.map(([k]) => k).filter((k) => k !== key))}
           onRename={(next) => onRename(key, next)}
           onUpdate={(next) => updateDeclaration(key, next)}
           onDelete={() => deleteKey(key)}
@@ -266,6 +267,8 @@ interface CtxRowProps {
   onUpdate: (next: CtxDeclaration) => void;
   onDelete: () => void;
   onSelectNode: (nodeId: string) => void;
+  /** Every OTHER declared key — a rename onto one of these must be refused. */
+  takenNames: ReadonlySet<string>;
 }
 
 function CtxRow({
@@ -276,6 +279,7 @@ function CtxRow({
   onUpdate,
   onDelete,
   onSelectNode,
+  takenNames,
 }: CtxRowProps) {
   // Local name state so typing doesn't fight the parent's rename pipeline
   // (rename only commits on blur; intermediate keystrokes stay local).
@@ -284,7 +288,22 @@ function CtxRow({
     setLocalName(ctxKey);
   }, [ctxKey]);
 
+  /**
+   * G-074 — a rename onto a name that is already declared used to be a silent
+   * no-op: the drawer refused it and the field snapped back, so the author was
+   * left believing the rename had happened. `renameCtxKeyInConfig` merges the
+   * two declarations if it is ever called with a colliding key, so the refusal
+   * itself is right; what was missing was saying so. The message shows live
+   * while the typed name collides, and the typed text is KEPT on blur — the
+   * author has to see and resolve the collision rather than have it undone.
+   */
+  const collides = localName !== ctxKey && takenNames.has(localName);
+  const nameError = collides
+    ? `“${localName}” is already declared. Pick another name.`
+    : undefined;
+
   const commitRename = () => {
+    if (collides) return;
     if (localName === "" || localName === ctxKey) {
       setLocalName(ctxKey);
       return;
@@ -296,8 +315,10 @@ function CtxRow({
     <Group gap={6} wrap="nowrap" align="flex-end">
       <TextInput
         label="Name"
+        aria-label={`Name for ${ctxKey}`}
         size="xs"
         value={localName}
+        error={nameError}
         onChange={(e) => setLocalName(e.currentTarget.value)}
         onBlur={commitRename}
         onKeyDown={(e) => {
