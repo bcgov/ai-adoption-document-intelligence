@@ -42,6 +42,10 @@ import type {
   GraphWorkflowConfig,
   KindRef,
 } from "../../../types/workflow";
+import {
+  describeKindMismatch,
+  findKindMismatchedConsumers,
+} from "./ctx-kind-consumers";
 import { KindSelect } from "./KindSelect";
 import { renameCtxKeyInConfig } from "./rename-ctx-key";
 
@@ -311,101 +315,134 @@ function CtxRow({
     onRename(localName);
   };
 
+  /**
+   * G-049 — retyping a kind used to be silent at the point of the edit: the
+   * new kind was written straight into the config, and the pinned inputs it
+   * had just stopped satisfying were only discoverable by opening every node
+   * or reading the validation drawer. Reported as STATE, not as an event, so
+   * it also catches a graph that loads already mismatched and clears itself
+   * the moment the mismatch is resolved from either end.
+   */
+  const kindMismatches = useMemo(
+    () => findKindMismatchedConsumers(config, ctxKey),
+    [config, ctxKey],
+  );
+
   return (
-    <Group gap={6} wrap="nowrap" align="flex-end">
-      <TextInput
-        label="Name"
-        aria-label={`Name for ${ctxKey}`}
-        size="xs"
-        value={localName}
-        error={nameError}
-        onChange={(e) => setLocalName(e.currentTarget.value)}
-        onBlur={commitRename}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
-        }}
-        style={{ flex: 2, minWidth: 0 }}
-      />
-      <Select
-        label="Type"
-        size="xs"
-        data={CTX_TYPES}
-        value={declaration.type}
-        onChange={(v) => {
-          if (v)
-            onUpdate({ ...declaration, type: v as CtxDeclaration["type"] });
-        }}
-        style={{ flex: 1, minWidth: 80 }}
-        allowDeselect={false}
-      />
-      <TextInput
-        label="Description"
-        size="xs"
-        placeholder="optional"
-        value={declaration.description ?? ""}
-        onChange={(e) =>
-          onUpdate({
-            ...declaration,
-            description: e.currentTarget.value || undefined,
-          })
-        }
-        style={{ flex: 3, minWidth: 0 }}
-      />
-      <KindSelect
-        label="Kind"
-        size="xs"
-        placeholder="—"
-        value={declaration.kind}
-        onChange={(next: KindRef | undefined) => {
-          // Strip the `kind` property entirely when wildcard is picked —
-          // `kind?` is optional, not nullable (TYPED_IO_DESIGN.md §5.1).
-          // Mirrors the `isInput` strip-on-false pattern.
-          if (next === undefined) {
-            const { kind: _omitted, ...rest } = declaration;
-            onUpdate(rest);
-          } else {
-            onUpdate({ ...declaration, kind: next });
-          }
-        }}
-        style={{ flex: 2, minWidth: 120 }}
-        aria-label={`Kind for ${ctxKey}`}
-      />
-      <CtxReferencesPopover
-        config={config}
-        ctxKey={ctxKey}
-        onSelectNode={onSelectNode}
-      />
-      <Tooltip
-        label="Mark this ctx entry as a caller-supplied input. Surfaced in the workflow's Run panel and the /run-spec endpoint."
-        multiline
-        w={260}
-        withArrow
-        position="top"
-      >
-        <Checkbox
-          label="Input"
+    <Stack gap={2}>
+      <Group gap={6} wrap="nowrap" align="flex-end">
+        <TextInput
+          label="Name"
+          aria-label={`Name for ${ctxKey}`}
           size="xs"
-          checked={declaration.isInput === true}
+          value={localName}
+          error={nameError}
+          onChange={(e) => setLocalName(e.currentTarget.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+          }}
+          style={{ flex: 2, minWidth: 0 }}
+        />
+        <Select
+          label="Type"
+          size="xs"
+          data={CTX_TYPES}
+          value={declaration.type}
+          onChange={(v) => {
+            if (v)
+              onUpdate({ ...declaration, type: v as CtxDeclaration["type"] });
+          }}
+          style={{ flex: 1, minWidth: 80 }}
+          allowDeselect={false}
+        />
+        <TextInput
+          label="Description"
+          size="xs"
+          placeholder="optional"
+          value={declaration.description ?? ""}
           onChange={(e) =>
             onUpdate({
               ...declaration,
-              isInput: e.currentTarget.checked ? true : undefined,
+              description: e.currentTarget.value || undefined,
             })
           }
-          mb={4}
-          aria-label={`Mark ${ctxKey} as caller-supplied input`}
+          style={{ flex: 3, minWidth: 0 }}
         />
-      </Tooltip>
-      <ActionIcon
-        variant="subtle"
-        color="red"
-        onClick={onDelete}
-        aria-label={`Remove ${ctxKey}`}
-        mb={4}
-      >
-        <IconTrash size={14} />
-      </ActionIcon>
-    </Group>
+        <KindSelect
+          label="Kind"
+          size="xs"
+          placeholder="—"
+          value={declaration.kind}
+          onChange={(next: KindRef | undefined) => {
+            // Strip the `kind` property entirely when wildcard is picked —
+            // `kind?` is optional, not nullable (TYPED_IO_DESIGN.md §5.1).
+            // Mirrors the `isInput` strip-on-false pattern.
+            if (next === undefined) {
+              const { kind: _omitted, ...rest } = declaration;
+              onUpdate(rest);
+            } else {
+              onUpdate({ ...declaration, kind: next });
+            }
+          }}
+          style={{ flex: 2, minWidth: 120 }}
+          aria-label={`Kind for ${ctxKey}`}
+        />
+        <CtxReferencesPopover
+          config={config}
+          ctxKey={ctxKey}
+          onSelectNode={onSelectNode}
+        />
+        <Tooltip
+          label="Mark this ctx entry as a caller-supplied input. Surfaced in the workflow's Run panel and the /run-spec endpoint."
+          multiline
+          w={260}
+          withArrow
+          position="top"
+        >
+          <Checkbox
+            label="Input"
+            size="xs"
+            checked={declaration.isInput === true}
+            onChange={(e) =>
+              onUpdate({
+                ...declaration,
+                isInput: e.currentTarget.checked ? true : undefined,
+              })
+            }
+            mb={4}
+            aria-label={`Mark ${ctxKey} as caller-supplied input`}
+          />
+        </Tooltip>
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          onClick={onDelete}
+          aria-label={`Remove ${ctxKey}`}
+          mb={4}
+        >
+          <IconTrash size={14} />
+        </ActionIcon>
+      </Group>
+      {kindMismatches.length > 0 && (
+        <Group gap={4} wrap="nowrap">
+          <Text size="10px" c="red" data-testid={`ctx-kind-impact-${ctxKey}`}>
+            {describeKindMismatch(kindMismatches)}:
+          </Text>
+          {kindMismatches.map((consumer) => (
+            <UnstyledButton
+              key={`${consumer.nodeId}.${consumer.port}`}
+              onClick={() => onSelectNode(consumer.nodeId)}
+              aria-label={`Open ${consumer.nodeLabel} — ${consumer.portLabel}`}
+            >
+              <Text size="10px" c="red" td="underline">
+                {consumer.nodeLabel} · {consumer.portLabel}
+              </Text>
+            </UnstyledButton>
+          ))}
+        </Group>
+      )}
+    </Stack>
   );
 }
 

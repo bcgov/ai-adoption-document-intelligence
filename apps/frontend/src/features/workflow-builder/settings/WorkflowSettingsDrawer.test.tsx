@@ -390,3 +390,46 @@ describe("WorkflowSettingsDrawer — G-074 rename collision", () => {
     expect(screen.queryByText(/already declared/)).not.toBeInTheDocument();
   });
 });
+
+describe("WorkflowSettingsDrawer — G-049 kind retype impact", () => {
+  /** `B.ocrResult` is PINNED to `myVal`; `ocr.cleanup` types that port. */
+  const pinnedConfig = (kind: string) =>
+    makeConfig({
+      entryNodeId: "B",
+      nodes: {
+        B: {
+          id: "B",
+          type: "activity",
+          label: "Clean up",
+          activityType: "ocr.cleanup",
+          inputs: [{ port: "ocrResult", ctxKey: "myVal" }],
+          metadata: { lockedInputPorts: ["ocrResult"] },
+        },
+      },
+      ctx: { myVal: { type: "object", kind, isInput: true } },
+    } as Partial<GraphWorkflowConfig>);
+
+  it("says nothing while the declared kind still satisfies the pin", () => {
+    render(<Harness initial={pinnedConfig("OcrResult")} />);
+    expect(screen.queryByTestId("ctx-kind-impact-myVal")).toBeNull();
+  });
+
+  it("names what a retype broke, without waiting for the validation drawer", () => {
+    render(<Harness initial={pinnedConfig("Document")} />);
+    expect(screen.getByTestId("ctx-kind-impact-myVal")).toHaveTextContent(
+      "1 input no longer accepts this kind",
+    );
+  });
+
+  it("links straight to the node whose input broke", () => {
+    const onSelectNode = vi.fn();
+    render(
+      <Harness
+        initial={pinnedConfig("Document")}
+        onSelectNode={onSelectNode}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText(/^Open Clean up —/));
+    expect(onSelectNode).toHaveBeenCalledWith("B");
+  });
+});
