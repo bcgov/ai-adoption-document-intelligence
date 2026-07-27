@@ -595,6 +595,7 @@ function validateHumanGateNodes(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
 ): void {
+  const mapBodyNodeIds = collectMapBodyNodeIds(config);
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type !== "humanGate") continue;
     const gateNode = node as HumanGateNode;
@@ -607,7 +608,65 @@ function validateHumanGateNodes(
         severity: "error",
       });
     }
+
+    // G-070 — a gate inside a map body cannot work, and failed silently.
+    //
+    // `executeHumanGateNode` calls `setHandler(defineSignal(node.signal.name))`
+    // every time it runs, and a map body runs once per item — so N iterations
+    // register N handlers under ONE name and the last registration wins.
+    // Resuming is worse: the backend signals the workflow by id with the fixed
+    // name "humanApproval", so there is no per-iteration address to send to
+    // even if the handlers were distinct. One approval, N waiting branches.
+    //
+    // Refused rather than worked around: per-iteration signal routing is a
+    // feature, not a fix, and the runtime cannot honour this shape today.
+    if (mapBodyNodeIds.has(nodeId)) {
+      errors.push({
+        path: `nodes.${nodeId}`,
+        message: `Human gate "${gateNode.label || nodeId}" is inside a loop body. Each item would register the same signal name, and an approval has no way to say which item it is for — move the gate outside the loop.`,
+        severity: "error",
+      });
+    }
   }
+}
+
+/**
+ * Every node reachable from some map's `bodyEntryNodeId` without passing its
+ * `bodyExitNodeId` — i.e. the nodes that execute once per item.
+ *
+ * Deliberately a local walk rather than a reuse of `markBodyNodesReachable`:
+ * that one exists to suppress unreachable-node warnings and marks the exit's
+ * successors too, which is the wrong population for "runs per iteration".
+ */
+function collectMapBodyNodeIds(config: GraphWorkflowConfig): Set<string> {
+  const adjacency = new Map<string, string[]>();
+  for (const edge of config.edges ?? []) {
+    const list = adjacency.get(edge.source);
+    if (list) list.push(edge.target);
+    else adjacency.set(edge.source, [edge.target]);
+  }
+
+  const bodyIds = new Set<string>();
+  for (const node of Object.values(config.nodes ?? {})) {
+    if (node.type !== "map") continue;
+    const mapNode = node as MapNode;
+    const queue: string[] = [mapNode.bodyEntryNodeId];
+    const seen = new Set<string>(queue);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || !(current in (config.nodes ?? {}))) continue;
+      bodyIds.add(current);
+      // The exit node is the body's last step — do not walk past it, or every
+      // node downstream of the map would count as per-iteration.
+      if (current === mapNode.bodyExitNodeId) continue;
+      for (const next of adjacency.get(current) ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return bodyIds;
 }
 
 /**
