@@ -4960,7 +4960,19 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
   });
 
   it("keyboard: deleting a producer together with its only reader says nothing", async () => {
-    renderCanvas(producerConsumerConfig());
+    // The fixture's entry node is `prep`, and G-039 now reports the promotion
+    // that follows deleting it. Keep a surviving `start` node as the entry so
+    // this test stays about ORPHANS alone — the promotion notice has its own
+    // coverage in delete-orphan-warning.test.ts.
+    const cfg = producerConsumerConfig();
+    cfg.nodes.start = {
+      id: "start",
+      type: "activity",
+      label: "Start",
+      activityType: "file.prepare",
+    } as GraphWorkflowConfig["nodes"][string];
+    cfg.entryNodeId = "start";
+    renderCanvas(cfg);
     await flushAnimationFrame();
     act(() => {
       getUnifiedOnDelete()({
@@ -4969,6 +4981,19 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
       });
     });
     expect(orphanToastCalls()).toHaveLength(0);
+  });
+
+  it("keyboard: deleting the ENTRY step reports the promotion (G-039)", async () => {
+    renderCanvas(producerConsumerConfig());
+    await flushAnimationFrame();
+    act(() => {
+      getUnifiedOnDelete()({
+        nodes: [flowNode("prep"), flowNode("ocr")],
+        edges: [],
+      });
+    });
+    const calls = orphanToastCalls();
+    expect(calls).toHaveLength(1);
   });
 
   it("keyboard: a mixed node+edge gesture still sees the real readers", async () => {

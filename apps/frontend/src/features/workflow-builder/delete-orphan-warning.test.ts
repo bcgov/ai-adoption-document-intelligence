@@ -30,9 +30,17 @@ function activity(
   } as Nodes[string];
 }
 
-/** prep (one output) → one or more consumers reading the same key. */
+/**
+ * prep (one output) → one or more consumers reading the same key.
+ *
+ * `entryNodeId` is pinned to a dedicated `start` node rather than defaulting
+ * to `prep`, so these fixtures exercise the ORPHAN message alone. Deleting the
+ * entry node adds a promotion clause (G-039), which has its own describe block
+ * below — keeping the two apart is what lets each set of assertions stay exact.
+ */
 function graph(consumerIds: string[], ctxKey = "preparedFile") {
   const nodes: Nodes = {
+    start: activity("start", "Start", "file.prepare"),
     prep: activity("prep", "Prepare File", "file.prepare", {
       outputs: [{ port: "preparedData", ctxKey }],
     }),
@@ -85,6 +93,7 @@ describe("describeOrphanedDelete", () => {
   it("counts a step once even when it reads two orphaned variables", () => {
     const cfg = makeConfig(
       {
+        start: activity("start", "Start", "file.prepare"),
         prep: activity("prep", "Prepare File", "file.prepare", {
           outputs: [
             { port: "preparedData", ctxKey: "k1" },
@@ -134,5 +143,85 @@ describe("describeOrphanedDelete", () => {
     expect(describeOrphanedDelete(cfg, new Set(["prep"]))?.message).toContain(
       'Deleted "prep"',
     );
+  });
+});
+
+/**
+ * G-039 — deleting the entry step silently promoted whichever node happened to
+ * be first in the record. That is a change to where the workflow STARTS, and
+ * it was reported nowhere.
+ */
+describe("describeOrphanedDelete — entry-node promotion (G-039)", () => {
+  it("reports the promotion even when nothing is orphaned", () => {
+    const cfg = graph([]);
+    cfg.entryNodeId = "prep";
+    const warning = describeOrphanedDelete(cfg, new Set(["prep"]));
+    expect(warning?.message).toContain("that was the starting step");
+    expect(warning?.message).toContain('"Start" now starts the workflow');
+    expect(warning?.ctxKeys).toEqual([]);
+  });
+
+  it("names the node the delete will actually adopt", () => {
+    const cfg = graph([]);
+    cfg.entryNodeId = "prep";
+    const warning = describeOrphanedDelete(cfg, new Set(["prep"]));
+    expect(warning?.promotedEntryNodeId).toBe("start");
+  });
+
+  it("prefers a source node over an arbitrary survivor", () => {
+    const cfg = makeConfig({
+      prep: activity("prep", "Prepare File", "file.prepare"),
+      later: activity("later", "Later", "azureOcr.submit"),
+      intake: {
+        id: "intake",
+        type: "source",
+        label: "Upload",
+        sourceType: "source.upload",
+      } as Nodes[string],
+    });
+    cfg.entryNodeId = "prep";
+    expect(
+      describeOrphanedDelete(cfg, new Set(["prep"]))?.promotedEntryNodeId,
+    ).toBe("intake");
+  });
+
+  it("prefers a survivor with no inbound edges over one with them", () => {
+    const cfg = makeConfig({
+      prep: activity("prep", "Prepare File", "file.prepare"),
+      downstream: activity("downstream", "Downstream", "azureOcr.submit"),
+      root: activity("root", "Root", "file.prepare"),
+    });
+    cfg.entryNodeId = "prep";
+    cfg.edges = [
+      { id: "e1", source: "root", target: "downstream", type: "normal" },
+    ];
+    // `downstream` comes first in the record but has an inbound edge, so it
+    // cannot be a starting step — `root` is the only real root.
+    expect(
+      describeOrphanedDelete(cfg, new Set(["prep"]))?.promotedEntryNodeId,
+    ).toBe("root");
+  });
+
+  it("says so when nothing is left to start from", () => {
+    const cfg = makeConfig({
+      only: activity("only", "Only", "file.prepare"),
+    });
+    const warning = describeOrphanedDelete(cfg, new Set(["only"]));
+    expect(warning?.message).toContain("nothing is left to start from");
+    expect(warning?.promotedEntryNodeId).toBe("");
+  });
+
+  it("adds the promotion clause to an orphan message rather than replacing it", () => {
+    const cfg = graph(["ocr"]);
+    cfg.entryNodeId = "prep";
+    const message = describeOrphanedDelete(cfg, new Set(["prep"]))?.message;
+    expect(message).toContain("1 variable lost its source");
+    expect(message).toContain("that was the starting step");
+  });
+
+  it("stays silent about promotion when the entry node survives", () => {
+    const warning = describeOrphanedDelete(graph(["ocr"]), new Set(["prep"]));
+    expect(warning?.message).not.toContain("starting step");
+    expect(warning?.promotedEntryNodeId).toBeUndefined();
   });
 });

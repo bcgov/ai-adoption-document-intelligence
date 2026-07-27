@@ -20,6 +20,7 @@ import {
   type OrphanedCtxKey,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../types/workflow";
+import { resolveNextEntryNodeId } from "./canvas/remove-nodes";
 
 export interface OrphanedDeleteWarning {
   /** Toast copy, already pluralised. */
@@ -28,6 +29,13 @@ export interface OrphanedDeleteWarning {
   ctxKeys: string[];
   /** The full finding, for callers that want to render more detail. */
   orphaned: OrphanedCtxKey[];
+  /**
+   * G-039 — set when the delete removed the entry node, naming the node the
+   * config will promote in its place. Read from `resolveNextEntryNodeId`, the
+   * same function the delete uses, so the toast cannot name a different node
+   * from the one actually adopted.
+   */
+  promotedEntryNodeId?: string;
 }
 
 /**
@@ -44,7 +52,25 @@ export function describeOrphanedDelete(
   removedNodeIds: ReadonlySet<string>,
 ): OrphanedDeleteWarning | null {
   const orphaned = findOrphanedCtxKeys(config, removedNodeIds);
-  if (orphaned.length === 0) return null;
+
+  // G-039 — deleting the entry node silently promotes a survivor. That is a
+  // change to where the workflow STARTS, which is at least as consequential as
+  // an orphaned variable and was reported nowhere at all. It can fire on its
+  // own, so it is checked before the orphan early-return.
+  const entryRemoved = removedNodeIds.has(config.entryNodeId);
+  const promotedEntryNodeId = entryRemoved
+    ? resolveNextEntryNodeId(config, removedNodeIds)
+    : undefined;
+
+  if (orphaned.length === 0) {
+    if (!entryRemoved) return null;
+    return {
+      message: `${describeSubject(config, removedNodeIds)} — ${describePromotion(config, promotedEntryNodeId)}`,
+      ctxKeys: [],
+      orphaned: [],
+      promotedEntryNodeId,
+    };
+  }
 
   const readers = new Set<string>();
   for (const entry of orphaned) {
@@ -59,11 +85,28 @@ export function describeOrphanedDelete(
   const object = orphaned.length === 1 ? "it" : "them";
   const possessive = orphaned.length === 1 ? "its" : "their";
 
+  const entryClause = entryRemoved
+    ? ` ${describePromotion(config, promotedEntryNodeId)}`
+    : "";
+
   return {
-    message: `${subject} — ${variables} lost ${possessive} source; ${steps} ${verb} ${object}.`,
+    message: `${subject} — ${variables} lost ${possessive} source; ${steps} ${verb} ${object}.${entryClause}`,
     ctxKeys: orphaned.map((entry) => entry.ctxKey),
     orphaned,
+    ...(promotedEntryNodeId === undefined ? {} : { promotedEntryNodeId }),
   };
+}
+
+/** `"Prepare File" is now the starting step.` / the empty-graph wording. */
+function describePromotion(
+  config: GraphWorkflowConfig,
+  promotedEntryNodeId: string | undefined,
+): string {
+  if (!promotedEntryNodeId) {
+    return "that was the starting step, and nothing is left to start from.";
+  }
+  const label = config.nodes[promotedEntryNodeId]?.label || promotedEntryNodeId;
+  return `that was the starting step, so "${label}" now starts the workflow.`;
 }
 
 /** `Deleted "Prepare File"` for one node; `Deleted 3 steps` for many. */

@@ -2327,9 +2327,20 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     const loneProducer = prepThenOcrTemplate(false);
     loneProducer.config = {
       ...loneProducer.config,
-      nodes: { prep: loneProducer.config.nodes.prep },
+      nodes: {
+        prep: loneProducer.config.nodes.prep,
+        // A surviving entry node: without one, deleting `prep` also moves
+        // where the workflow starts, which G-039 now reports. This test is
+        // about ORPHANS, so it keeps that second concern out of the way.
+        start: {
+          id: "start",
+          type: "activity",
+          label: "Start",
+          activityType: "file.prepare",
+        },
+      },
       edges: [],
-      entryNodeId: "prep",
+      entryNodeId: "start",
     };
     renderPage(loneProducer);
     selectAndDelete("prep");

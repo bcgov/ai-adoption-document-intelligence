@@ -42,6 +42,46 @@ import { pruneNodesFromGroups } from "../group/prune-node-from-groups";
  *
  * Pure; never mutates the input config.
  */
+/**
+ * G-039 — which node becomes the entry point when the current one is deleted.
+ *
+ * This used to be `Object.keys(nodesCopy)[0]`: whichever node happened to be
+ * first in the record. That is arbitrary (record order is insertion order, not
+ * graph order), so it usually promoted a node with inbound edges — an entry
+ * point that cannot be an entry point — and the graph was invalid the instant
+ * the delete landed.
+ *
+ * The preference order picks something that can actually start a run:
+ *   1. a surviving `source` node — the graph's own declared front door;
+ *   2. a survivor with no inbound edges — a real root;
+ *   3. any survivor, as a last resort (a fully-cyclic remainder).
+ *
+ * Exported so `describeOrphanedDelete` can name the SAME node the delete will
+ * choose. Two implementations of "which node is promoted" would drift, and the
+ * toast would eventually name a node the config did not adopt.
+ */
+export function resolveNextEntryNodeId(
+  config: GraphWorkflowConfig,
+  removedIds: ReadonlySet<string>,
+): string {
+  if (!removedIds.has(config.entryNodeId)) return config.entryNodeId;
+
+  const survivors = Object.keys(config.nodes).filter(
+    (id) => !removedIds.has(id),
+  );
+  if (survivors.length === 0) return "";
+
+  const source = survivors.find((id) => config.nodes[id]?.type === "source");
+  if (source) return source;
+
+  const hasInbound = new Set(
+    config.edges
+      .filter((e) => !removedIds.has(e.source) && !removedIds.has(e.target))
+      .map((e) => e.target),
+  );
+  return survivors.find((id) => !hasInbound.has(id)) ?? survivors[0];
+}
+
 export function removeNodesFromConfig(
   config: GraphWorkflowConfig,
   removedIds: ReadonlySet<string>,
@@ -55,9 +95,7 @@ export function removeNodesFromConfig(
   const filteredEdges = config.edges.filter(
     (e) => !removedIds.has(e.source) && !removedIds.has(e.target),
   );
-  const nextEntryNodeId = removedIds.has(config.entryNodeId)
-    ? (Object.keys(nodesCopy)[0] ?? "")
-    : config.entryNodeId;
+  const nextEntryNodeId = resolveNextEntryNodeId(config, removedIds);
   const prunedGroups = pruneNodesFromGroups(config, removedIds);
   const withoutNodes: GraphWorkflowConfig = {
     ...config,
