@@ -5170,3 +5170,102 @@ describe("WorkflowEditorCanvas — G-091 deleting a group chip", () => {
     expect(next.nodes.a).toBeUndefined();
   });
 });
+
+/**
+ * G-031 — the badge-sync effect skipped source nodes and group chips, so the
+ * top bar could report "N issues" with nothing marked anywhere on the graph.
+ * Source nodes carry ERROR-severity rules; a chip collapses members whose
+ * badges leave the canvas with them.
+ */
+describe("WorkflowEditorCanvas — G-031 validation state on source cards and chips", () => {
+  function sourceConfig(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "src" },
+      ctx: {},
+      entryNodeId: "intake",
+      nodes: {
+        intake: {
+          id: "intake",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+          parameters: {},
+        },
+        a: {
+          id: "a",
+          type: "activity",
+          label: "A",
+          activityType: "file.prepare",
+        },
+      },
+      edges: [],
+      nodeGroups: { g1: { label: "Stage one", nodeIds: ["a"] } },
+    } as GraphWorkflowConfig;
+  }
+
+  it("marks a source card that carries a validation error", async () => {
+    renderCanvas(sourceConfig(), {
+      errorsByNode: new Map([
+        [
+          "intake",
+          [
+            {
+              path: "nodes.intake.sourceType",
+              message: "Unknown source subtype",
+              severity: "error",
+            },
+          ],
+        ],
+      ]),
+    });
+    await flushAnimationFrame();
+    expect(await screen.findByTestId("node-badge-intake")).toHaveTextContent(
+      "1",
+    );
+  });
+
+  it("leaves a clean source card unmarked", async () => {
+    renderCanvas(sourceConfig(), { errorsByNode: new Map() });
+    await flushAnimationFrame();
+    expect(screen.queryByTestId("node-badge-intake")).toBeNull();
+  });
+
+  it("rolls a collapsed group's member issues onto its chip", async () => {
+    renderCanvas(sourceConfig(), {
+      simplifiedView: true,
+      errorsByNode: new Map([
+        [
+          "a",
+          [
+            {
+              path: "nodes.a.parameters.x",
+              message: "Required",
+              severity: "error",
+            },
+            {
+              path: "nodes.a.inputs.fileData",
+              message: "Needs a source",
+              severity: "warning",
+            },
+          ],
+        ],
+      ]),
+    });
+    await flushAnimationFrame();
+    // One error + one warning on the hidden member → the chip shows the
+    // error count, matching how the badge renders elsewhere.
+    expect(
+      await screen.findByTestId("node-badge-group-chip-g1"),
+    ).toHaveTextContent("1");
+  });
+
+  it("leaves a chip unmarked when its members are clean", async () => {
+    renderCanvas(sourceConfig(), {
+      simplifiedView: true,
+      errorsByNode: new Map(),
+    });
+    await flushAnimationFrame();
+    expect(screen.queryByTestId("node-badge-group-chip-g1")).toBeNull();
+  });
+});

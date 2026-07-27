@@ -30,6 +30,7 @@ import { memo } from "react";
 
 import { colorForKind } from "../canvas/artifact-kind-colour";
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
+import { ValidationBadge } from "../canvas/ValidationBadge";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import type { PreviewOutputBinding } from "../preview/preview.types";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
@@ -67,7 +68,13 @@ function resolveHeaderColor(colorHint: string | undefined): string {
  * `Record<string, unknown>` widening keeps the shape compatible with
  * xyflow's `Node<Data>` constraint without an unsafe cast.
  */
-export type SourceNodeData = SourceNode & Record<string, unknown>;
+export type SourceNodeData = SourceNode &
+  Record<string, unknown> & {
+    /** G-031 — validation counts, synced by the canvas's badge effect. */
+    errorCount?: number;
+    warningCount?: number;
+    onBadgeClick?: (nodeId: string) => void;
+  };
 
 type SourceFlowNode = Node<SourceNodeData, "source">;
 type SourceFlowNodeProps = NodeProps<SourceFlowNode>;
@@ -161,6 +168,18 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
         position: "relative",
       }}
     >
+      {/*
+        G-031 — source nodes carry ERROR-severity rules
+        (`nodes.<id>.sourceType`, `nodes.<id>.parameters<suffix>`) that reached
+        the validation drawer and the top-bar count with NOTHING on the card.
+        They now mount the same corner badge every other node type does.
+      */}
+      <ValidationBadge
+        nodeId={id}
+        errorCount={data.errorCount ?? 0}
+        warningCount={data.warningCount ?? 0}
+        onBadgeClick={data.onBadgeClick}
+      />
       <NodeStatusBadgeOverlay nodeId={id} />
       <div
         data-testid={`source-node-header-${id}`}

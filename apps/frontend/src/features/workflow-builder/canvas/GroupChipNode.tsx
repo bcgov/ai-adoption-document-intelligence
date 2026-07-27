@@ -19,6 +19,7 @@ import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 import { GROUP_ICONS } from "../group/group-icons";
 import { GroupAggregateStatusBadgeOverlay } from "../run/NodeStatusBadge";
+import { ValidationBadge } from "./ValidationBadge";
 
 export interface GroupChipNodeData extends Record<string, unknown> {
   /** Underlying `nodeGroups[<id>]` key — needed so the canvas can map a
@@ -33,6 +34,14 @@ export interface GroupChipNodeData extends Record<string, unknown> {
    * aggregate `NodeStatusBadge` (US-138 Scenario 5).
    */
   memberNodeIds: readonly string[];
+  /**
+   * G-031 — validation counts ROLLED UP from `memberNodeIds`. Collapsing a
+   * group takes its members' badges off the canvas with them, so without this
+   * the top bar could report issues that nothing on screen marked. The chip
+   * already aggregates run status; validation was the missing axis.
+   */
+  errorCount?: number;
+  warningCount?: number;
 }
 
 export type GroupChipFlowNode = Node<GroupChipNodeData, "group-chip">;
@@ -69,6 +78,11 @@ export const GroupChipNode = memo(function GroupChipNode({
         position: "relative",
       }}
     >
+      <ValidationBadge
+        nodeId={id}
+        errorCount={data.errorCount ?? 0}
+        warningCount={data.warningCount ?? 0}
+      />
       <GroupAggregateStatusBadgeOverlay memberIds={data.memberNodeIds} />
       <div
         style={{

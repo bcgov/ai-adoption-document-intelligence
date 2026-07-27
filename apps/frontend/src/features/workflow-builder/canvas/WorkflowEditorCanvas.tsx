@@ -94,7 +94,11 @@ import {
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
 import { firstMatchingInputPort } from "./extend-filter";
-import { type GroupChipFlowNode, GroupChipNode } from "./GroupChipNode";
+import {
+  type GroupChipFlowNode,
+  GroupChipNode,
+  type GroupChipNodeData,
+} from "./GroupChipNode";
 import {
   type GroupChip,
   groupIdFromChipId,
@@ -141,6 +145,7 @@ import { recordErrorEdge } from "./record-error-edge";
 import { removeNodesFromConfig } from "./remove-nodes";
 import { swapActivityType } from "./swap-node-type";
 import { useHoverExtend } from "./use-hover-extend";
+import { ValidationBadge } from "./ValidationBadge";
 import { WireContextMenu } from "./WireContextMenu";
 import {
   dataWireStroke,
@@ -427,91 +432,6 @@ function readPosition(
 // ---------------------------------------------------------------------------
 // Shared sub-components
 // ---------------------------------------------------------------------------
-
-interface ValidationBadgeProps {
-  nodeId: string;
-  errorCount: number;
-  warningCount: number;
-  onBadgeClick?: (nodeId: string) => void;
-}
-
-/**
- * Red / amber corner badge surfacing validation issues on a node.
- * Shared by all node renderers so activity and control-flow nodes look
- * the same. When `onBadgeClick` is provided, the badge becomes clickable
- * and the host opens the validation drawer scrolled to the relevant
- * entry.
- */
-const ValidationBadge = memo(function ValidationBadge({
-  nodeId,
-  errorCount,
-  warningCount,
-  onBadgeClick,
-}: ValidationBadgeProps) {
-  if (errorCount === 0 && warningCount === 0) return null;
-  const title =
-    errorCount > 0
-      ? `${errorCount} error${errorCount === 1 ? "" : "s"}${warningCount > 0 ? `, ${warningCount} warning${warningCount === 1 ? "" : "s"}` : ""}`
-      : `${warningCount} warning${warningCount === 1 ? "" : "s"}`;
-  const background = errorCount > 0 ? "#e03131" : "#f59f00";
-  const ariaLabel = `${title} — click to open validation drawer`;
-  const commonStyle: React.CSSProperties = {
-    position: "absolute",
-    top: -7,
-    // Top-LEFT so the diagnostics badge never collides with the run-status
-    // badge (top-right). This is the single per-node "problems" indicator —
-    // it now folds in the auto-wire input issues that used to be a separate
-    // left-edge status dot.
-    left: -7,
-    background,
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: 700,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0 5px",
-    boxShadow: "0 0 0 2px var(--mantine-color-body, #1a1b1e)",
-    zIndex: 2,
-  };
-  const content = errorCount > 0 ? errorCount : warningCount;
-  if (!onBadgeClick) {
-    return (
-      <div
-        title={title}
-        style={commonStyle}
-        data-testid={`node-badge-${nodeId}`}
-      >
-        {content}
-      </div>
-    );
-  }
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={ariaLabel}
-      data-testid={`node-badge-${nodeId}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        onBadgeClick(nodeId);
-      }}
-      // Stop xyflow from initiating a drag when the user mouses down on
-      // the badge.
-      onMouseDown={(e) => e.stopPropagation()}
-      style={{
-        ...commonStyle,
-        border: "none",
-        cursor: "pointer",
-      }}
-    >
-      {content}
-    </button>
-  );
-});
 
 interface NodeHandlesProps {
   /** Id of the node owning these handles — used by the hover bridge. */
@@ -1533,7 +1453,13 @@ function projectFlowNodes(
         type: "source",
         position,
         selected: node.id === selectedNodeId,
-        data: node as SourceNodeData,
+        // G-031 — the badge needs the same deep-link callback every other
+        // node type gets, or a source's issues would be visible but not
+        // clickable.
+        data: {
+          ...(node as SourceNodeData),
+          onBadgeClick: callbacks.onBadgeClick,
+        },
       };
       return flowNode;
     }
@@ -2179,23 +2105,26 @@ function WorkflowEditorCanvasInner({
     if (!errorsByNode) return;
     setInternalNodes((prev) =>
       prev.map((n): FlowNode => {
-        // Chips don't render a validation badge — they're a pure visual
-        // collapse, so they have no per-node counts to sync.
-        if (n.type === "group-chip") return n;
         // Synthetic map-body containers are background-only decor — no
         // validation counts to sync.
         if (n.type === "map-body-container") return n;
-        // Source nodes don't surface a validation badge in US-117 (no
-        // `errorCount` / `warningCount` fields on `SourceNodeData`).
-        // Skip the patch to avoid stamping undefined → 0 mutations and
-        // re-rendering for no reason.
-        if (n.type === "source") return n;
-        const bucket = errorsByNode.get(n.id) ?? [];
+
+        // G-031 — a chip COLLAPSES its members, so the members' badges leave
+        // the canvas with them. Rolling their counts onto the chip is what
+        // stops the top bar reading "N issues" while simplified view shows
+        // nothing marked anywhere. (The chip already aggregates run status
+        // this way; validation was the missing axis.)
+        const countedIds =
+          n.type === "group-chip"
+            ? ((n.data as GroupChipNodeData).memberNodeIds ?? [])
+            : [n.id];
         let errorCount = 0;
         let warningCount = 0;
-        for (const err of bucket) {
-          if (err.severity === "error") errorCount += 1;
-          else warningCount += 1;
+        for (const id of countedIds) {
+          for (const err of errorsByNode.get(id) ?? []) {
+            if (err.severity === "error") errorCount += 1;
+            else warningCount += 1;
+          }
         }
         if (
           n.data.errorCount === errorCount &&
@@ -2215,6 +2144,23 @@ function WorkflowEditorCanvasInner({
         }
         if (n.type === "pollUntil") {
           const updated: PollUntilFlowNode = {
+            ...n,
+            data: { ...n.data, errorCount, warningCount },
+          };
+          return updated;
+        }
+        // G-031 — source nodes carry ERROR-severity rules
+        // (`nodes.<id>.sourceType`, `nodes.<id>.parameters<suffix>`) that
+        // reached the drawer and the top-bar count with nothing on the card.
+        if (n.type === "source") {
+          const updated: SourceFlowNode = {
+            ...n,
+            data: { ...n.data, errorCount, warningCount },
+          };
+          return updated;
+        }
+        if (n.type === "group-chip") {
+          const updated: GroupChipFlowNode = {
             ...n,
             data: { ...n.data, errorCount, warningCount },
           };
