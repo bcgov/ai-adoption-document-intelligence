@@ -302,6 +302,31 @@ of what the catalog or the call graph actually contains. The second kind found
 all three latent entries; grepping the cited line alone would have confirmed
 every one of them as "still true" and been useless.
 
+## Correction: G-051 is TRUE, not inverted (2026-07-27)
+
+An earlier note in this document and in the register called G-051 "inverted".
+**That was wrong.** It read `dynamic-node.repository.ts` — the backend CRUD path
+— and never reached `resolve-lineage.activity.ts`, which is the path the
+RUNTIME takes.
+
+The two contradict each other:
+
+- the repository documents the promise ("version rows are kept so workflows
+  pinned to a specific version of a soft-deleted lineage continue to resolve at
+  runtime") and `findVersionByNumber` does not filter on `deletedAt`;
+- `resolve-lineage.activity.ts:67` throws `DynamicNodeDeletedError` as soon as
+  `deletedAt !== null`, **before** the pinned branch at :72. The pin is never
+  consulted.
+
+Soft-deleting a lineage therefore breaks every consumer, pinned or not — and
+the pinned case is precisely the one the design promised would survive.
+
+**The lesson is about method, not this entry.** Verification that reads only
+the file the register cites will confirm whatever that file says. G-051 needed
+BOTH ends — where the promise is written and where it is honoured — and only
+the second one is the truth. Any entry describing a contract between two
+modules deserves the same treatment.
+
 ## Ship-readiness batch — 10 fixes, 2026-07-27
 
 Alex's steer: *"I'm not too interested in new features, I just want to ship an

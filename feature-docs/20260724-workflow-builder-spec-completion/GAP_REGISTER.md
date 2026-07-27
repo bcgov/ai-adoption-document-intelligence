@@ -828,9 +828,28 @@ D70/D73/D74. `WorkflowVersion.lineage` is `onDelete: Cascade`. Ground-truth jobs
 D76/D77. `apps/shared/prisma/schema.prisma:909` states that 'pinned versions of soft-deleted lineages continue to resolve at runtime'. The resolver throws `DynamicNodeDeletedError` on `lineage.deletedAt !== null` *before* the pinned-version branch is reached, so a node carrying an explicit `dynamicNodeVersion` fails anyway. This is the one place in the repo where the delete cascade was actually designed — the delete endpoint counts referencing workflows, the tombstone supports restore-on-republish, and the canvas shows a red 'Deleted' badge — which makes the divergence between the stated contract and the implementation the more important thing to fix: authors were told pinning protects them.
 
 
-**VERIFIED 2026-07-27: FALSE — the premise is inverted.** Soft-delete is lineage-only and version rows are deliberately kept; `findVersionByNumber` does NOT filter on `deletedAt`, and the repository docstring states the intent outright ("version rows are kept so workflows pinned to a specific version of a soft-deleted lineage continue to resolve at runtime"). A **pinned** node is the PROTECTED case.
+**VERIFIED 2026-07-27: TRUE, exactly as written.**
 
-The real exposure is the opposite one, and it is not in the register: a node with NO `dynamicNodeVersion` resolves the lineage head, and the head resolver returns `null` for any lineage whose `deletedAt` is set. **Unpinned** dynamic nodes are what a soft-delete breaks. Rule this entry rejected and open the inverse as a new finding.
+*(An earlier annotation on this entry called it inverted. That was wrong: it
+read `dynamic-node.repository.ts`, which is the backend CRUD path, and never
+reached `resolve-lineage.activity.ts`, which is the path the RUNTIME takes.
+Corrected here rather than deleted, because the mistake is the useful part —
+the repository is where the promise is written and the activity is where it is
+broken, so checking either one alone gets the wrong answer.)*
+
+The two disagree outright:
+
+- `dynamic-node.repository.ts:325` states the contract — "version rows are kept
+  so workflows pinned to a specific version of a soft-deleted lineage continue
+  to resolve at runtime" — and `findVersionByNumber` duly does not filter on
+  `deletedAt`.
+- `resolve-lineage.activity.ts:67` throws `DynamicNodeDeletedError` the moment
+  `lineage.deletedAt !== null` — **before** the pinned-version branch at :72 is
+  ever reached. The pin is never consulted.
+
+So soft-deleting a lineage breaks every consumer, pinned or not, and the pinned
+case is the one the design explicitly promised would survive. Preserving the
+version rows achieves nothing at run time today.
 
 **Proposed disposition:** fix
 
