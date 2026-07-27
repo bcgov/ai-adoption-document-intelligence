@@ -104,11 +104,22 @@ export class UsageQueryService {
     startDate?: Date,
     endDate?: Date,
   ): Promise<GroupActivityHistoryItemDto[]> {
+    // Default to a 24-month lookback when no start date is given so the query
+    // is bounded even for the "all time" view. This matches the retention policy.
+    const effectiveStart =
+      startDate ??
+      (() => {
+        const d = new Date();
+        d.setUTCMonth(d.getUTCMonth() - 24);
+        d.setUTCDate(1);
+        d.setUTCHours(0, 0, 0, 0);
+        return d;
+      })();
     const events = await this.prismaService.prisma.usageEvent.findMany({
       where: {
         group_id: groupId,
         created_at: {
-          gte: startDate,
+          gte: effectiveStart,
           lte: endDate,
         },
       },
