@@ -76,7 +76,10 @@ export class ActivityBillingInterceptor
 
     const info = activityInfo();
     const activityType = info.activityType;
-    const workflowExecutionId = info.workflowExecution.workflowId;
+    // Use runId (not workflowId) so each reprocess of the same document gets
+    // its own isolated billing ledger. workflowId = "graph-<docId>" is reused
+    // across runs; runId is unique per execution attempt.
+    const workflowExecutionId = info.workflowExecution.runId;
 
     const resolvedGroupId = extractGroupId(input);
     if (!resolvedGroupId) {

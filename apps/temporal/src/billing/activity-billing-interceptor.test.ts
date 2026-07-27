@@ -35,13 +35,10 @@ function makeInput(args: unknown[]): ActivityExecuteInput {
   return { args, headers: {} } as ActivityExecuteInput;
 }
 
-function makeActivityInfoMock(
-  activityType: string,
-  workflowId = "graph-doc-1",
-) {
+function makeActivityInfoMock(activityType: string, runId = "run-abc-123") {
   return {
     activityType,
-    workflowExecution: { workflowId },
+    workflowExecution: { workflowId: "graph-doc-1", runId },
   };
 }
 
@@ -82,7 +79,7 @@ describe("ActivityBillingInterceptor", () => {
           activity_name: "azureOcr.submit",
           units_consumed: 10,
           group_id: "group-1",
-          workflow_execution_id: "graph-doc-1",
+          workflow_execution_id: "run-abc-123",
           metered_quantity: undefined,
         }),
       );
