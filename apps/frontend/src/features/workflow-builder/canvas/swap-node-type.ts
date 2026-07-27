@@ -10,8 +10,21 @@
  *     schema but missing from the source get a sensible default
  *     (matches `JsonSchemaForm.defaultValueForSchema()`'s rules: first
  *     enum value, empty string, `false`, schema minimum, or 1).
- *   - all other fields (`id`, `label`, `inputs`, `outputs`, `errorPolicy`,
- *     `retry`, `timeout`, `metadata`) are carried over verbatim.
+ *   - `inputs` / `outputs` keep only the bindings whose PORT the new type
+ *     declares — the same intersection rule the parameters already follow
+ *     (G-032). Carrying them verbatim was silent data corruption: the engine
+ *     writes `result[binding.port]` for every persisted output row, and
+ *     `writeToCtx` has no undefined guard (`current[finalKey] = value`), so a
+ *     stale row overwrote the ctx key downstream consumers read — with the
+ *     canvas still drawing the wire, because the wire index reads
+ *     `node.outputs` and only decorates from the catalog.
+ *   - lock metadata is pruned to the surviving ports for the same reason.
+ *   - all other fields (`id`, `label`, `errorPolicy`, `retry`, `timeout`) are
+ *     carried over verbatim.
+ *
+ * Dropped bindings are RETURNED, not swallowed: the caller names them, the way
+ * the delete paths name orphaned ctx keys. Pruning silently would trade one
+ * invisible failure for another.
  *
  * The helper drives off the new type's JSON Schema (`z.toJSONSchema()`),
  * which makes it framework-agnostic and matches what the form renderer
@@ -34,6 +47,19 @@ import type {
   JsonSchemaProperty,
 } from "../json-schema-form/types";
 import { isObjectSchema } from "../json-schema-form/types";
+
+/** A port binding the swap dropped because the new type does not declare it. */
+export interface DroppedBinding {
+  direction: "input" | "output";
+  port: string;
+  ctxKey: string;
+}
+
+export interface SwapResult {
+  node: ActivityNode;
+  /** Bindings the new type cannot honour, in input-then-output order. */
+  dropped: DroppedBinding[];
+}
 
 /**
  * Returns a sensible default value for a JSON Schema property, mirroring
@@ -142,7 +168,7 @@ export function swapActivityType(
   node: ActivityNode,
   newActivityType: string,
   catalog: Record<string, ActivityCatalogEntry> = ACTIVITY_CATALOG,
-): ActivityNode {
+): SwapResult {
   const entry = catalog[newActivityType];
   if (!entry) {
     throw new Error(
@@ -153,17 +179,77 @@ export function swapActivityType(
   const oldParameters = node.parameters ?? {};
   const newParameters = buildSwappedParameters(entry, oldParameters);
 
+  const inputPorts = new Set(entry.inputs.map((p) => p.name));
+  const outputPorts = new Set(entry.outputs.map((p) => p.name));
+
+  const dropped: DroppedBinding[] = [];
+  const keptInputs = (node.inputs ?? []).filter((binding) => {
+    if (inputPorts.has(binding.port)) return true;
+    dropped.push({
+      direction: "input",
+      port: binding.port,
+      ctxKey: binding.ctxKey,
+    });
+    return false;
+  });
+  const keptOutputs = (node.outputs ?? []).filter((binding) => {
+    if (outputPorts.has(binding.port)) return true;
+    dropped.push({
+      direction: "output",
+      port: binding.port,
+      ctxKey: binding.ctxKey,
+    });
+    return false;
+  });
+
   return {
-    id: node.id,
-    type: "activity",
-    label: node.label,
-    activityType: newActivityType,
-    parameters: newParameters,
-    inputs: node.inputs,
-    outputs: node.outputs,
-    errorPolicy: node.errorPolicy,
-    retry: node.retry,
-    timeout: node.timeout,
-    metadata: node.metadata,
+    node: {
+      id: node.id,
+      type: "activity",
+      label: node.label,
+      activityType: newActivityType,
+      parameters: newParameters,
+      ...(node.inputs === undefined ? {} : { inputs: keptInputs }),
+      ...(node.outputs === undefined ? {} : { outputs: keptOutputs }),
+      errorPolicy: node.errorPolicy,
+      retry: node.retry,
+      timeout: node.timeout,
+      metadata: pruneLockMetadata(node.metadata, inputPorts, outputPorts),
+    },
+    dropped,
   };
+}
+
+/**
+ * Locks name a port, so a lock on a port the new type does not declare is as
+ * stale as the binding was — and worse, it is durable and invisible:
+ * `stripRedundantLocks` deliberately keeps a lock whose port has no binding
+ * ("preserve explicit intent") and `normaliseLocks` re-infers it on load. If
+ * the new type later gains a port with that name, the resolver refuses to
+ * auto-wire it and reports `locked-unbound` with nothing the author can act on.
+ */
+function pruneLockMetadata(
+  metadata: ActivityNode["metadata"],
+  inputPorts: ReadonlySet<string>,
+  outputPorts: ReadonlySet<string>,
+): ActivityNode["metadata"] {
+  if (!metadata) return metadata;
+  const meta = metadata as {
+    lockedInputPorts?: unknown;
+    lockedOutputPorts?: unknown;
+  };
+  const next = { ...metadata } as Record<string, unknown>;
+  if (Array.isArray(meta.lockedInputPorts)) {
+    next.lockedInputPorts = meta.lockedInputPorts.filter(
+      (port): port is string =>
+        typeof port === "string" && inputPorts.has(port),
+    );
+  }
+  if (Array.isArray(meta.lockedOutputPorts)) {
+    next.lockedOutputPorts = meta.lockedOutputPorts.filter(
+      (port): port is string =>
+        typeof port === "string" && outputPorts.has(port),
+    );
+  }
+  return next as ActivityNode["metadata"];
 }

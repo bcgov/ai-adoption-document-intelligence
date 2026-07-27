@@ -88,7 +88,7 @@ describe("swapActivityType — Scenario 2: intersecting parameters preserved, no
       parameters: { x: 1, y: "foo" },
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.activityType).toBe("B");
     // `x` is preserved (intersects), `y` is dropped (not in B), `z` is
@@ -96,7 +96,7 @@ describe("swapActivityType — Scenario 2: intersecting parameters preserved, no
     expect(result.parameters).toEqual({ x: 1, z: "" });
   });
 
-  it("preserves id, label, inputs/outputs, errorPolicy, retry, timeout and metadata verbatim", () => {
+  it("preserves id, label, errorPolicy, retry and timeout verbatim", () => {
     const oldEntry = makeActivityCatalogEntry("A", z.object({ x: z.number() }));
     const newEntry = makeActivityCatalogEntry("B", z.object({ x: z.number() }));
     const catalog: Record<string, ActivityCatalogEntry> = {
@@ -108,17 +108,81 @@ describe("swapActivityType — Scenario 2: intersecting parameters preserved, no
       parameters: { x: 42 },
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.id).toBe(node.id);
     expect(result.label).toBe(node.label);
-    expect(result.inputs).toEqual(node.inputs);
-    expect(result.outputs).toEqual(node.outputs);
     expect(result.errorPolicy).toEqual(node.errorPolicy);
     expect(result.retry).toEqual(node.retry);
     expect(result.timeout).toEqual(node.timeout);
-    expect(result.metadata).toEqual(node.metadata);
     expect(result.type).toBe("activity");
+  });
+
+  /**
+   * G-032 — bindings are NOT carried verbatim. They follow the same
+   * intersection rule the parameters already do: a binding survives only when
+   * the new type declares its port. `makeActivityCatalogEntry` declares no
+   * ports at all, so these fixtures drop both bindings — which is exactly the
+   * shape the old test was asserting as correct.
+   */
+  it("keeps a binding whose port the new type declares", () => {
+    const entryWithPorts = {
+      ...makeActivityCatalogEntry("B", z.object({ x: z.number() })),
+      inputs: [{ name: "in", kind: "Document" as const, required: true }],
+      outputs: [{ name: "out", kind: "Document" as const }],
+    } as ActivityCatalogEntry;
+    const catalog: Record<string, ActivityCatalogEntry> = {
+      A: makeActivityCatalogEntry("A", z.object({ x: z.number() })),
+      B: entryWithPorts,
+    };
+    const node = makeActivityNode({ activityType: "A", parameters: { x: 1 } });
+
+    const { node: result, dropped } = swapActivityType(node, "B", catalog);
+
+    expect(result.inputs).toEqual([{ port: "in", ctxKey: "ctx.in" }]);
+    expect(result.outputs).toEqual([{ port: "out", ctxKey: "ctx.out" }]);
+    expect(dropped).toEqual([]);
+  });
+
+  it("drops a binding whose port the new type does not declare, and reports it", () => {
+    const catalog: Record<string, ActivityCatalogEntry> = {
+      A: makeActivityCatalogEntry("A", z.object({ x: z.number() })),
+      B: makeActivityCatalogEntry("B", z.object({ x: z.number() })),
+    };
+    const node = makeActivityNode({ activityType: "A", parameters: { x: 1 } });
+
+    const { node: result, dropped } = swapActivityType(node, "B", catalog);
+
+    expect(result.inputs).toEqual([]);
+    expect(result.outputs).toEqual([]);
+    expect(dropped).toEqual([
+      { direction: "input", port: "in", ctxKey: "ctx.in" },
+      { direction: "output", port: "out", ctxKey: "ctx.out" },
+    ]);
+  });
+
+  it("prunes lock metadata for ports the new type does not declare", () => {
+    const catalog: Record<string, ActivityCatalogEntry> = {
+      A: makeActivityCatalogEntry("A", z.object({ x: z.number() })),
+      B: makeActivityCatalogEntry("B", z.object({ x: z.number() })),
+    };
+    const node = makeActivityNode({
+      activityType: "A",
+      parameters: { x: 1 },
+      metadata: {
+        position: { x: 0, y: 0 },
+        lockedInputPorts: ["in"],
+        lockedOutputPorts: ["out"],
+      },
+    });
+
+    const { node: result } = swapActivityType(node, "B", catalog);
+
+    expect(result.metadata).toEqual({
+      position: { x: 0, y: 0 },
+      lockedInputPorts: [],
+      lockedOutputPorts: [],
+    });
   });
 });
 
@@ -141,7 +205,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: { x: 1 },
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.parameters).toEqual({ x: 1, z: "" });
     // The Zod schema requires `z` to be at least 1 char if we'd written
@@ -167,7 +231,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: {},
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.parameters).toEqual({ format: "json" });
   });
@@ -189,7 +253,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: {},
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.parameters).toEqual({ size: 5 });
   });
@@ -211,7 +275,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: {},
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.parameters).toEqual({ enabled: false });
   });
@@ -233,7 +297,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: {},
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     expect(result.parameters).toEqual({ format: "json" });
   });
@@ -256,7 +320,7 @@ describe("swapActivityType — Scenario 4: required new field defaulted; validat
       parameters: {},
     });
 
-    const result = swapActivityType(node, "B", catalog);
+    const { node: result } = swapActivityType(node, "B", catalog);
 
     // `note` is optional — no default is supplied so the param key is
     // absent. `x` is required and gets the unconstrained-number default.
@@ -279,7 +343,7 @@ describe("swapActivityType — picking the same type is an idempotent identity s
       parameters: { x: 1, y: "foo" },
     });
 
-    const result = swapActivityType(node, "A", catalog);
+    const { node: result } = swapActivityType(node, "A", catalog);
 
     expect(result.activityType).toBe("A");
     expect(result.parameters).toEqual({ x: 1, y: "foo" });

@@ -2831,11 +2831,36 @@ function WorkflowEditorCanvasInner({
         setSwapState(null);
         return;
       }
-      const updated = swapActivityType(existing, newActivityType);
+      const { node: updated, dropped } = swapActivityType(
+        existing,
+        newActivityType,
+      );
       onConfigChange({
         ...config,
         nodes: { ...config.nodes, [swapState.nodeId]: updated },
       });
+      // G-032 — the new type cannot honour every binding the old one had, and
+      // dropping them quietly would trade a silent corruption for a silent
+      // loss. Name them, as the delete paths name orphaned ctx variables.
+      if (dropped.length > 0) {
+        const outputs = dropped.filter((d) => d.direction === "output");
+        notifications.show({
+          color: "yellow",
+          title: `Changed to ${newActivityType}`,
+          message: [
+            `${dropped.length} connection${dropped.length === 1 ? "" : "s"} could not carry over: ${dropped
+              .map((d) => `${d.port} → ${d.ctxKey}`)
+              .join(", ")}.`,
+            outputs.length > 0
+              ? `Steps reading ${outputs.map((d) => `"${d.ctxKey}"`).join(", ")} now have no source.`
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          autoClose: 10_000,
+          style: { whiteSpace: "pre-line" },
+        });
+      }
       setSwapState(null);
     },
     [swapState, config, onConfigChange],

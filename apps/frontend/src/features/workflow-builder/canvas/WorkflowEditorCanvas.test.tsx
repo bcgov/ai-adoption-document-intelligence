@@ -3358,8 +3358,18 @@ describe("WorkflowEditorCanvas — US-047: change activity type via context menu
     expect(updatedNode.activityType).toBe("file.prepare");
     // Carried-over fields stay untouched.
     expect(updatedNode.label).toBe("My transform");
-    expect(updatedNode.inputs).toEqual([{ port: "in", ctxKey: "ctx.in" }]);
-    expect(updatedNode.outputs).toEqual([{ port: "out", ctxKey: "ctx.out" }]);
+    // G-032 — `file.prepare` declares neither `in` nor `out`, so those
+    // bindings CANNOT carry over: the engine would write `undefined` through
+    // the stale output row and overwrite `ctx.out` for every downstream
+    // reader, while the canvas kept drawing the wire.
+    expect(updatedNode.inputs).toEqual([]);
+    expect(updatedNode.outputs).toEqual([]);
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        color: "yellow",
+        message: expect.stringContaining("could not carry over"),
+      }),
+    );
     expect(updatedNode.errorPolicy).toEqual({
       retryable: true,
       onError: "fail",
