@@ -9,8 +9,10 @@
 
 import {
   ApplicationFailure,
+  CancellationScope,
   defineQuery,
   defineSignal,
+  isCancellation,
   proxyActivities,
   setHandler,
   workflowInfo,
@@ -283,18 +285,20 @@ export async function graphWorkflow(
       }
     }
 
-    // US-006: Record workflow terminal lifecycle billing event
+    // Record workflow terminal lifecycle billing event
     if (input.groupId) {
       try {
         const billingProxy = proxyActivities<BillingActivities>({
           startToCloseTimeout: "30s",
           retry: { maximumAttempts: 3 },
         });
-        await billingProxy["billing.recordWorkflowLifecycle"]({
-          workflowExecutionId: workflowInfo().workflowId,
-          groupId: input.groupId,
-          status: result.status,
-        });
+        await CancellationScope.nonCancellable(() =>
+          billingProxy["billing.recordWorkflowLifecycle"]({
+            workflowExecutionId: workflowInfo().runId,
+            groupId: input.groupId,
+            status: result.status,
+          }),
+        );
       } catch (billingError) {
         console.warn(
           `[GraphWorkflow] Billing lifecycle event failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
@@ -304,20 +308,24 @@ export async function graphWorkflow(
 
     return result;
   } catch (error) {
-    overallStatus = "failed";
+    overallStatus = isCancellation(error) ? "cancelled" : "failed";
 
-    // US-006: Record workflow_failed billing event before rethrowing
+    // Record workflow_failed/cancelled billing event before rethrowing.
+    // Wrapped in nonCancellable so the activity fires even when Temporal delivers
+    // a CancelledFailure (e.g. workflowExecutionTimeout or client.cancel()).
     if (input.groupId) {
       try {
         const billingProxy = proxyActivities<BillingActivities>({
           startToCloseTimeout: "30s",
           retry: { maximumAttempts: 3 },
         });
-        await billingProxy["billing.recordWorkflowLifecycle"]({
-          workflowExecutionId: workflowInfo().workflowId,
-          groupId: input.groupId,
-          status: "failed",
-        });
+        await CancellationScope.nonCancellable(() =>
+          billingProxy["billing.recordWorkflowLifecycle"]({
+            workflowExecutionId: workflowInfo().runId,
+            groupId: input.groupId,
+            status: overallStatus as "completed" | "failed" | "cancelled",
+          }),
+        );
       } catch (billingError) {
         console.warn(
           `[GraphWorkflow] Billing lifecycle event (failed) failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
