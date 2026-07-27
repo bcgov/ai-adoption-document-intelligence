@@ -156,17 +156,29 @@ contradictions with the pre-implementation spec are tracked in
 [wiki/open-questions.md](../wiki/open-questions.md).
 
 - **Cap is soft (TOCTOU).** The pre-flight check does not reserve budget, so concurrent
-  starts can collectively exceed the cap. The `feature-docs` REQUIREMENTS still describe
-  it as "atomic"; the shipped behavior is a soft cap.
+  starts can collectively exceed the cap. The `feature-docs` REQUIREMENTS have been updated
+  to reflect this as a best-effort soft cap.
 - **No idempotency on retries.** `usage_events` has no idempotency key; a Temporal
   activity retry after a completed billing write, or a nightly-job retry, can double-charge.
-- **Benchmarks are metered but not cap-checked.** Benchmark workflows can accrue cost
-  past a cap.
+- **Benchmarks are metered but not cap-checked.** Benchmark workflows bypass `requestOcr`
+  and start Temporal directly, so the pre-flight cap check never runs for benchmark runs.
+  Benchmark cost accrues against the group but cannot be blocked by the cap.
 - **Page-assumption undercount.** `max_pages_assumption` (currently `3`) means large
   documents pass the pre-flight check well under their real per-page cost.
 - **Temporal write-inventory gating.** With `CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`
   off (the recommended default), Temporal-written blobs are not added to the storage
   ledger, so storage can be under-counted; deletes are always tombstoned regardless.
+- **Missed-day catch-up window.** The nightly storage charge schedule runs at `00:05 UTC`.
+  If the billing worker is down when the schedule fires, Temporal will catch up missed runs
+  for up to 25 hours after the scheduled time (configured via `catchupWindow`). Outages
+  longer than 25 hours will permanently skip storage charges for the missed days.
+  Catch-up runs use Temporal deterministic time (the originally scheduled start time), so
+  they correctly charge for the day they were meant to cover.
+- **Lifecycle event lost on Temporal termination.** Graceful cancellation via the cancel
+  signal correctly records `workflow_cancelled`. If a workflow is externally terminated
+  via the Temporal API or UI (`workflow.terminate()`), the cancellation cleanup code
+  cannot run and the lifecycle billing event is silently lost. This is a Temporal
+  platform limitation; termination is intentionally immediate and irrecoverable.
 
 ## Related
 
