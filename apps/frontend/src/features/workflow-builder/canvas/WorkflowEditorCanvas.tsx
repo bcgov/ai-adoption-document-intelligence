@@ -57,6 +57,7 @@ import {
   useNodesState,
   useReactFlow,
   useUpdateNodeInternals,
+  type XYPosition,
 } from "@xyflow/react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -2369,53 +2370,79 @@ function WorkflowEditorCanvasInner({
   }, [activeEdges, takenEdges, setInternalEdges]);
 
   // Persist final positions to the outer config once the drag finishes.
+  /**
+   * G-060 — persists EVERY node the gesture moved, not just the one under the
+   * cursor.
+   *
+   * xyflow hands `onNodeDragStop` three arguments; the third is the full set of
+   * dragged nodes, and a multi-selection drag moves all of them. Reading only
+   * the second meant the other members moved on screen, were never written to
+   * the config, and snapped back on the next structural re-project or reload —
+   * a silent loss of work with no error anywhere.
+   *
+   * `dragged` is defaulted rather than assumed: the mocked xyflow harness used
+   * in tests calls the handler with two arguments.
+   */
   const handleNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      const existing = config.nodes[node.id];
-      if (!existing) return;
-      const prevPos = (
-        existing.metadata as { position?: { x: number; y: number } }
-      )?.position;
-      if (prevPos?.x === node.position.x && prevPos?.y === node.position.y) {
-        return;
-      }
+    (_event: React.MouseEvent, node: Node, dragged?: Node[]) => {
+      const moved = dragged?.length ? dragged : [node];
+
       // Build the position-updated node while preserving the
       // discriminated-union narrowing. Each branch produces the same
       // shape with a fresh `metadata.position`.
-      const withPosition = (n: GraphNode): GraphNode => ({
+      const withPosition = (n: GraphNode, at: XYPosition): GraphNode => ({
         ...n,
-        metadata: {
-          ...n.metadata,
-          position: { x: node.position.x, y: node.position.y },
-        },
+        metadata: { ...n.metadata, position: { x: at.x, y: at.y } },
       });
-      let updated: GraphNode;
-      switch (existing.type) {
-        case "activity":
-          updated = withPosition(existing) as ActivityNode;
-          break;
-        case "switch":
-        case "map":
-        case "join":
-        case "childWorkflow":
-        case "pollUntil":
-        case "humanGate":
-          updated = withPosition(existing);
-          break;
-        case "source":
-          updated = withPosition(existing) as SourceNode;
-          break;
-        default: {
-          const exhaustive: never = existing;
-          throw new Error(
-            `handleNodeDragStop: unsupported node type "${String(exhaustive)}"`,
-          );
+
+      const nextNodes = { ...config.nodes };
+      let changed = false;
+      for (const flowNode of moved) {
+        // Chips and synthetic map-body containers can ride along in the
+        // dragged set; neither is a graph node, so neither has a position to
+        // persist.
+        const existing = config.nodes[flowNode.id];
+        if (!existing) continue;
+        const prevPos = (
+          existing.metadata as { position?: { x: number; y: number } }
+        )?.position;
+        if (
+          prevPos?.x === flowNode.position.x &&
+          prevPos?.y === flowNode.position.y
+        ) {
+          continue;
         }
+        let updated: GraphNode;
+        switch (existing.type) {
+          case "activity":
+            updated = withPosition(existing, flowNode.position) as ActivityNode;
+            break;
+          case "switch":
+          case "map":
+          case "join":
+          case "childWorkflow":
+          case "pollUntil":
+          case "humanGate":
+            updated = withPosition(existing, flowNode.position);
+            break;
+          case "source":
+            updated = withPosition(existing, flowNode.position) as SourceNode;
+            break;
+          default: {
+            const exhaustive: never = existing;
+            throw new Error(
+              `handleNodeDragStop: unsupported node type "${String(exhaustive)}"`,
+            );
+          }
+        }
+        nextNodes[flowNode.id] = updated;
+        changed = true;
       }
+      if (!changed) return;
+
       // Bump the fingerprint ref forward by hand so the structural sync
       // useEffect doesn't immediately re-project the nodes and stamp
       // over the local drag commit.
-      const nextNodes = { ...config.nodes, [node.id]: updated };
       const nextFingerprint = buildStructuralFingerprint(
         {
           ...config,

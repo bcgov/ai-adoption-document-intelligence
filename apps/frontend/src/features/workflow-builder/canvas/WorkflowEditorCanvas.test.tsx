@@ -4991,3 +4991,74 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     expect(orphanToastCalls()).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-060 — a multi-selection drag persists EVERY node it moved
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — G-060 multi-node drag", () => {
+  /** Invoke xyflow's `onNodeDragStop` the way the real library does. */
+  function dragStop(
+    node: { id: string; position: { x: number; y: number } },
+    all?: Array<{ id: string; position: { x: number; y: number } }>,
+  ) {
+    const handler = latestReactFlowProps.current?.onNodeDragStop as (
+      e: unknown,
+      n: unknown,
+      nodes?: unknown,
+    ) => void;
+    act(() => {
+      handler({} as MouseEvent, node, all);
+    });
+  }
+
+  it("persists every node in the dragged set, not just the one under the cursor", () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+
+    dragStop({ id: "activity_1", position: { x: 100, y: 100 } }, [
+      { id: "activity_1", position: { x: 100, y: 100 } },
+      { id: "switch_1", position: { x: 200, y: 250 } },
+    ]);
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.activity_1.metadata?.position).toEqual({
+      x: 100,
+      y: 100,
+    });
+    expect(next.nodes.switch_1.metadata?.position).toEqual({ x: 200, y: 250 });
+  });
+
+  it("still handles a single-node drag (no third argument)", () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+
+    dragStop({ id: "activity_1", position: { x: 42, y: 7 } });
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.activity_1.metadata?.position).toEqual({ x: 42, y: 7 });
+  });
+
+  it("writes nothing when the gesture moved nothing", () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+
+    // `activity_1` starts at 0,0 — dropping it back there is a no-op.
+    dragStop({ id: "activity_1", position: { x: 0, y: 0 } }, [
+      { id: "activity_1", position: { x: 0, y: 0 } },
+    ]);
+
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("ignores ids in the dragged set that are not graph nodes", () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+
+    dragStop({ id: "activity_1", position: { x: 5, y: 5 } }, [
+      { id: "activity_1", position: { x: 5, y: 5 } },
+      { id: "group-chip-abc", position: { x: 900, y: 900 } },
+    ]);
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.activity_1.metadata?.position).toEqual({ x: 5, y: 5 });
+    expect(next.nodes["group-chip-abc"]).toBeUndefined();
+  });
+});
