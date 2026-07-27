@@ -766,6 +766,12 @@ In both cases the canvas offers an affordance the rest of the editor cannot desc
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `467d7405`.** **Half fixed, half closed — the two are not comparable.**
+
+*Optional base-`Artifact` ports (26 in the catalog): FIXED.* Hidden until bound. Hiding UNBOUND ones is deliberate, not an oversight — an existing test pins it and `file.prepare` alone would show three always-empty rows — so the fix is narrower than the entry implies. The real defect was that a binding made by dragging onto the canvas handle was invisible and un-undoable; a bound port is now visible and editable. An empty `ctxKey` does not count as bound.
+
+*Kindless ports: CLOSED, no work.* Zero of the catalog's activities declare one. The five unreachable binding states describe an empty port family.
+
 ### G-047 — One node-status concept, three divergent unions — the API contract is the narrowest, and a cancelled run polls forever
 
 **Found by:** C (1 pass) · **Severity:** major · **Type:** design-gap
@@ -852,6 +858,8 @@ case is the one the design explicitly promised would survive. Preserving the
 version rows achieves nothing at run time today.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `7e88a7f4`.** The `deletedAt` check now applies only to head-tracking consumers, honouring the contract `softDelete` documents and keeps version rows for. A missing lineage, a missing pinned version and a head-tracking consumer all still fail exactly as before. Design doc updated — it described the deleted-node affordance without stating that a pinned consumer survives, which is why the drift went unnoticed.
 
 ### G-052 — J1.5 — a workflow that extracts and then stores nothing validates as "Valid"; nothing warns that a produced result is never consumed or persisted
 
@@ -1246,6 +1254,8 @@ Recorded so roster item 8 is not read as demanding a step-debugger. Execution ha
 `NodeInputProblem.status` has three members and `computeNodeInputIssues` calls the 5-state resolver directly, so a ctx-bound port comes back `unsatisfied` and is only rescued downstream by an independently-implemented `manuallyBoundPorts` filter in auto-wire-validation.ts:27. Re-verified: `computeNodeStatus`, the unfiltered aggregate that would misreport a fully-bound node, has NO production caller (only auto-wire-status.test.ts), so there is no wrong pixel today. Downgraded to minor for that reason - the gap is that one concept has two implementations and one of them is unreachable dead code, which is a drift trap rather than a live defect.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `467d7405`.** Closed by DELETING `computeNodeStatus` rather than reconciling it. It had no production caller and disagreed with the reachable implementation about a ctx-bound port, so it was a drift trap waiting for someone to call it. Its tests now assert the same behaviour through `computeNodeInputIssues`.
 
 **Merge note:** Pass C re-verified that `computeNodeStatus`, the unfiltered aggregate that would misreport a fully-bound node, has **no production caller** — so there is no wrong pixel today. This is a drift trap (one concept, two implementations, one unreachable), not a live defect.
 
