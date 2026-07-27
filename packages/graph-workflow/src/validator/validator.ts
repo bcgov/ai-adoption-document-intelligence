@@ -610,6 +610,30 @@ function validateHumanGateNodes(
   }
 }
 
+/**
+ * G-037 — the palette's control-flow skeletons ship these four fields as `""`.
+ *
+ * Every OTHER required field in the same objects has an existence check
+ * (`bodyEntryNodeId`, `bodyExitNodeId`, `sourceMapNodeId`, `defaultEdge`,
+ * `pollUntil.activityType`), and `computeNodeInputIssues` short-circuits for
+ * every non-activity node — so a map, join or childWorkflow dropped from the
+ * palette and left unconfigured carried no badge, no drawer row and no Save
+ * objection. It looked exactly as healthy as a finished one, and failed at
+ * execution.
+ *
+ * These are ERRORS, not warnings: unlike an absent `maxConcurrency` (a legal
+ * configuration), an empty collection key cannot run under any circumstances.
+ */
+function requireNonEmpty(
+  value: unknown,
+  path: string,
+  message: string,
+  errors: GraphValidationError[],
+): void {
+  if (typeof value === "string" && value.trim() !== "") return;
+  errors.push({ path, message, severity: "error" });
+}
+
 function validateMapJoinNodes(
   config: GraphWorkflowConfig,
   errors: GraphValidationError[],
@@ -619,6 +643,20 @@ function validateMapJoinNodes(
   for (const [nodeId, node] of Object.entries(config.nodes)) {
     if (node.type === "map") {
       const mapNode = node as MapNode;
+      const label = mapNode.label || nodeId;
+
+      requireNonEmpty(
+        mapNode.collectionCtxKey,
+        `nodes.${nodeId}.collectionCtxKey`,
+        `Map node "${label}" has no collection to loop over — pick the variable holding the list.`,
+        errors,
+      );
+      requireNonEmpty(
+        mapNode.itemCtxKey,
+        `nodes.${nodeId}.itemCtxKey`,
+        `Map node "${label}" has no item variable, so its body cannot read the current item — name one.`,
+        errors,
+      );
 
       if (!nodeIds.has(mapNode.bodyEntryNodeId)) {
         errors.push({
@@ -654,6 +692,13 @@ function validateMapJoinNodes(
 
     if (node.type === "join") {
       const joinNode = node as JoinNode;
+
+      requireNonEmpty(
+        joinNode.resultsCtxKey,
+        `nodes.${nodeId}.resultsCtxKey`,
+        `Join node "${joinNode.label || nodeId}" has nowhere to put the collected results — name a variable.`,
+        errors,
+      );
 
       if (!nodeIds.has(joinNode.sourceMapNodeId)) {
         errors.push({
@@ -1759,6 +1804,19 @@ function validateInlineChildGraphs(
   for (const [nodeId, node] of Object.entries(config.nodes ?? {})) {
     if (!node || node.type !== "childWorkflow") continue;
     const ref = node.workflowRef;
+
+    // G-037 — the palette ships `workflowRef: { type: "library", workflowId: "" }`.
+    // The inline branch below validates its graph thoroughly; the library
+    // branch had no check at all, so an unconfigured childWorkflow saved clean.
+    if (ref?.type === "library") {
+      requireNonEmpty(
+        ref.workflowId,
+        `nodes.${nodeId}.workflowRef.workflowId`,
+        `Sub-workflow node "${node.label || nodeId}" has no workflow selected — pick one from the library.`,
+        errors,
+      );
+    }
+
     if (!ref || ref.type !== "inline") continue;
 
     const anchor = `nodes.${nodeId}.inline`;
