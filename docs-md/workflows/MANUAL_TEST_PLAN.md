@@ -173,11 +173,11 @@ Each test below is one of: **✅ E2E** (a Playwright spec guards it), **🔬 uni
 
 ## Part 2 — Smoke Test (bring-up verification)
 
-- [ ] **2.1** `curl -H "x-api-key: <KEY>" http://localhost:3002/api/workflows` returns `200` with a JSON array.
-- [ ] **2.2** `curl http://localhost:9099/health` returns `{"ok":true,"denoVersion":"2.1.4"}`. ⚙️
+- [x] **2.1** `curl -H "x-api-key: <KEY>" http://localhost:3002/api/workflows` returns `200` with a JSON array.
+- [x] **2.2** `curl http://localhost:9099/health` returns `{"ok":true,"denoVersion":"2.1.4"}`. ⚙️
 - [ ] **2.3** Browse to http://localhost:3000, complete IDIR login, land on the app shell. 🔑
-- [ ] **2.4** Temporal UI at http://localhost:8088 loads and shows the `default` namespace.
-- [ ] **2.5** Navigate to `/workflows` → list page renders with the kind filter (`Workflows / Libraries / All`).
+- [x] **2.4** Temporal UI at http://localhost:8088 loads and shows the `default` namespace.
+- [x] **2.5** Navigate to `/workflows` → list page renders with the kind filter (`Workflows / Libraries / All`).
 
 ---
 
@@ -583,36 +583,40 @@ One `source.api` and one `source.upload` max per workflow.
 `DYNAMIC_NODE_ALLOW_NET` must be set **identically on both the backend and the Temporal worker** (read at startup — restart both to change). Unset = only the API base host is auto-granted.
 
 ### Publish / manage (API)
-- [ ] **14.1 Publish (create).**
+- [x] **14.1 Publish (create).**
   ```bash
+  # NOTE: `deno check` runs under `noImplicitAny` — an untyped
+  # `dynamicNode(ctx, params)` fails with `400 stage:"ts-check"` before the
+  # lineage is ever created. Type the parameters, as the editor boilerplate and
+  # `seed-feature-demos.mjs` both do.
   curl -X POST http://localhost:3002/api/dynamic-nodes -H "x-api-key: <KEY>" \
     -H "content-type: application/json" \
-    -d '{"script":"/**\n * @workflow-node\n * @name uppercase-url\n * @description Uppercases the document URL.\n * @inputs { document: { kind: \"Document\", required: true } }\n * @outputs { uppercased: { kind: \"Artifact\" } }\n */\nexport default async function dynamicNode(ctx, params){ return { uppercased: { url: ctx.document.url.toUpperCase() } }; }"}'
+    -d '{"script":"import type { Document } from \"@ai-di/graph-workflow/kinds\";\n\n/**\n * @workflow-node\n * @name uppercase-url\n * @description Uppercases the document URL.\n * @inputs { document: { kind: \"Document\", required: true } }\n * @outputs { uppercased: { kind: \"Artifact\" } }\n */\nexport default async function dynamicNode(\n  ctx: { document: Document },\n  _params: Record<string, unknown>,\n): Promise<{ uppercased: { url: string } }> {\n  const url = String((ctx.document as { url?: string }).url ?? \"\");\n  return { uppercased: { url: url.toUpperCase() } };\n}"}'
   ```
   **Pass:** `201 {slug:"uppercase-url", version:1, signature:{…}, errors:[]}`.
-- [ ] **14.2 Publish negative cases.** Malformed JSDoc → `400 stage:"jsdoc-parse"`; unknown kind → `400 stage:"signature-semantics"`; TS type error → `400 stage:"ts-check"` (from runner); duplicate of a **live** slug → `409 DUPLICATE_SLUG` (a *soft-deleted* slug re-POST **restores** instead — see 14.14).
-- [ ] **14.3 New version (update).** `PUT /api/dynamic-nodes/uppercase-url` with a modified script. **Pass:** `200 {version:2}`. `@name` ≠ path → `409 NAME_MISMATCH`; unknown/soft-deleted → `404`.
-- [ ] **14.4 List / detail.** `GET /api/dynamic-nodes` (+ `/:slug`). **Pass:** list sorted by slug, excludes soft-deleted, includes `headVersion`, `versionCount`, `usedInWorkflowCount`.
-- [ ] **14.5 Soft-delete.** `DELETE /api/dynamic-nodes/uppercase-url`. **Pass:** `200 {slug, deletedAt}`, idempotent, returns used-in-N count.
-- [ ] **14.6 Merged catalog.** `GET /api/activity-catalog`. **Pass:** includes `dyn.uppercase-url` with `dynamicNodeSlug/Version` + `colorHint:"dyn"` after static entries. A different group’s key does **not** see it (30s cache — allow a moment).
-- [ ] **14.14 Restore-on-republish.** Publish `uppercase-url` (v1) → **14.5 soft-delete** it → `POST /api/dynamic-nodes` with the **same** `@name`. **Pass:** `201` and the lineage is **restored** — `version` continues the history (`v2`, not a fresh v1), `GET /:slug` is live again (`deletedAt:null`) with both versions. Re-POST once more while live → `409 DUPLICATE_SLUG` (the guard still fires for a genuine live clash). In the UI: delete a custom node, then **New custom node** with the same name — it re-appears instead of dead-ending. (`@infra` e2e: `tier1-dynamic-node`.)
+- [x] **14.2 Publish negative cases.** Malformed JSDoc → `400 stage:"jsdoc-parse"`; unknown kind → `400 stage:"signature-semantics"`; TS type error → `400 stage:"ts-check"` (from runner); duplicate of a **live** slug → `409 DUPLICATE_SLUG` (a *soft-deleted* slug re-POST **restores** instead — see 14.14).
+- [x] **14.3 New version (update).** `PUT /api/dynamic-nodes/uppercase-url` with a modified script. **Pass:** `200 {version:2}`. `@name` ≠ path → `409 NAME_MISMATCH`; unknown/soft-deleted → `404`.
+- [x] **14.4 List / detail.** `GET /api/dynamic-nodes` (+ `/:slug`). **Pass:** list sorted by slug, excludes soft-deleted, includes `headVersion`, `versionCount`, `usedInWorkflowCount`.
+- [x] **14.5 Soft-delete.** `DELETE /api/dynamic-nodes/uppercase-url`. **Pass:** `200 {slug, deletedAt}`, idempotent, returns used-in-N count.
+- [x] **14.6 Merged catalog.** `GET /api/activity-catalog`. **Pass:** includes `dyn.uppercase-url` with `dynamicNodeSlug/Version` + `colorHint:"dyn"` after static entries. A different group’s key does **not** see it (30s cache — allow a moment).
+- [x] **14.14 Restore-on-republish.** Publish `uppercase-url` (v1) → **14.5 soft-delete** it → `POST /api/dynamic-nodes` with the **same** `@name`. **Pass:** `201` and the lineage is **restored** — `version` continues the history (`v2`, not a fresh v1), `GET /:slug` is live again (`deletedAt:null`) with both versions. Re-POST once more while live → `409 DUPLICATE_SLUG` (the guard still fires for a genuine live clash). In the UI: delete a custom node, then **New custom node** with the same name — it re-appears instead of dead-ending. (`@infra` e2e: `tier1-dynamic-node`.)
 
 ### Editor UI
-- [ ] **14.7 Management page.** Left-nav **Dynamic nodes** → `/dynamic-nodes` list → **New dynamic node** → editor with prefilled boilerplate → edit → watch the **live parse strip** (300ms debounce) show green “Signature OK” or red line-anchored errors → Publish. **Pass:** on success the palette/catalog refresh **without a Vite restart**; on `400`, errors also show as Monaco gutter squiggles and clicking jumps to the line.
+- [x] **14.7 Management page.** Left-nav **Dynamic nodes** → `/dynamic-nodes` list → **New dynamic node** → editor with prefilled boilerplate → edit → watch the **live parse strip** (300ms debounce) show green “Signature OK” or red line-anchored errors → Publish. **Pass:** on success the palette/catalog refresh **without a Vite restart**; on `400`, errors also show as Monaco gutter squiggles and clicking jumps to the line.
 - [ ] **14.8 In-canvas custom node.** Palette **Custom** section → **New custom node** modal → publish → node auto-drops as `dyn.<slug>` with a grape **DYN** badge. Right-click a `dyn.*` node → **Edit script**. **Pass:** deleted-lineage node shows a red **Deleted** badge, settings Alert, Try disabled.
 
 ### Execute + security
 - [ ] **14.9 Execute (Try).** Build `source.api → dyn.uppercase-url`, wire `document`, Save → **Try** with `{"documentUrl":"https://example.com/foo.pdf"}`. **Pass:** node goes blue→green; preview shows the uppercased URL. Publish v2 (reverse) → Try → cache miss → preview shows reversed URL.
-- [ ] **14.10 Runtime errors.** Script `throw` → `errorMessage` prefixed `[DynamicNodeRuntimeError] exitCode=1 …`; timeout (>60s) / stdout >5MB / invalid JSON / missing output port each map to their typed error (truncated 2KB).
-- [ ] **14.11 🔒 Network egress blocked.** Publish/run a node doing `await fetch("https://blocked.example.com")` with that host **not** in `DYNAMIC_NODE_ALLOW_NET`. Fast path — hit the runner directly:
+- [x] **14.10 Runtime errors.** Script `throw` → `errorMessage` prefixed `[DynamicNodeRuntimeError] exitCode=1 …`; timeout (>60s) / stdout >5MB / invalid JSON / missing output port each map to their typed error (truncated 2KB).
+- [x] **14.11 🔒 Network egress blocked.** Publish/run a node doing `await fetch("https://blocked.example.com")` with that host **not** in `DYNAMIC_NODE_ALLOW_NET`. Fast path — hit the runner directly:
   ```bash
   curl -X POST http://localhost:9099/execute -H "content-type: application/json" -d '{
     "script":"export default async function(){ await fetch(\"https://blocked.example.com\"); return {ok:true}; }",
     "inputCtx":{},"parameters":{},"allowNet":[],"ambientEnv":{},"timeoutMs":5000,"maxMemoryMB":128}'
   ```
   **Pass:** `exitCode != 0`, stderr mentions Deno net permission denied. Add the host to `allowNet` → same script succeeds (proves the allowlist is the gate). ⚠️ Locally the container still has NAT internet — you’re verifying the per-script Deno permission gate, not container isolation (true isolation only in OpenShift).
-- [ ] **14.12 🔒 Remote import blocked.** Script with `import … from "https://blocked.example.com/mod.ts"` where the host isn’t allowlisted. **Pass:** either `400 stage:"allowlist"` at publish (rejected host listed) or a runtime net-permission failure — never an actual outbound fetch.
-- [ ] **14.13 🔒 Env isolation.** A script reading `Deno.env.get("PATH")` (or anything beyond the 4 ambient vars `AI_DI_API_BASE_URL/API_KEY/GROUP_ID/WORKFLOW_RUN_ID`) returns undefined/fails. **Pass:** no host env leaks into the subprocess.
+- [x] **14.12 🔒 Remote import blocked.** Script with `import … from "https://blocked.example.com/mod.ts"` where the host isn’t allowlisted. **Pass:** either `400 stage:"allowlist"` at publish (rejected host listed) or a runtime net-permission failure — never an actual outbound fetch.
+- [x] **14.13 🔒 Env isolation.** A script reading `Deno.env.get("PATH")` (or anything beyond the 4 ambient vars `AI_DI_API_BASE_URL/API_KEY/GROUP_ID/WORKFLOW_RUN_ID`) returns undefined/fails. **Pass:** no host env leaks into the subprocess.
 
 ---
 
