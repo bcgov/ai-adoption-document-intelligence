@@ -29,6 +29,10 @@ import { useMemo } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
 import { replaceNode } from "../replace-node";
+import {
+  applySourceFieldRenames,
+  readFields,
+} from "../settings/source-field-rename";
 import { SourceUploadButton } from "./SourceUploadButton";
 import { resolveSourceColor, resolveSourceIcon } from "./source-catalog-utils";
 
@@ -119,7 +123,19 @@ export function SourceNodeSettings({
 
   const setParameters = (parameters: Record<string, unknown>) => {
     const updated: SourceNode = { ...node, parameters };
-    onConfigChange(replaceNode(config, node.id, updated));
+    const withParams = replaceNode(config, node.id, updated);
+    // G-040 — a `source.api` field name IS a ctx key (each descriptor becomes
+    // one after body validation), so renaming one has to sweep the graph
+    // exactly as renaming a ctx declaration does. Runs AFTER the parameters
+    // write, so the source already carries the new name and only its consumers
+    // are rewritten.
+    onConfigChange(
+      applySourceFieldRenames(
+        withParams,
+        readFields(node.parameters),
+        readFields(parameters),
+      ),
+    );
   };
 
   if (!entry) {

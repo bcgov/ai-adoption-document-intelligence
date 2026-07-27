@@ -40,7 +40,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { KindSelect } from "../settings/KindSelect";
 
@@ -112,10 +112,23 @@ function isFieldType(v: string): v is FieldType {
  * user actually types something.
  */
 function nameErrorFor(fields: FieldDescriptor[], index: number): string | null {
-  const name = fields[index]?.name ?? "";
-  if (name.length === 0) return null;
-  if (!FIELD_NAME_REGEX.test(name)) return FIELD_NAME_REGEX_ERROR;
-  const duplicate = fields.some((f, i) => i !== index && f.name === name);
+  return nameErrorForCandidate(fields, index, fields[index]?.name ?? "");
+}
+
+/**
+ * As {@link nameErrorFor}, but for a name the row is still TYPING — the name
+ * input commits on blur (G-040: a rename must reach the graph once, not once
+ * per keystroke), so the committed array cannot answer "is what I am typing
+ * valid" on its own.
+ */
+function nameErrorForCandidate(
+  fields: FieldDescriptor[],
+  index: number,
+  candidate: string,
+): string | null {
+  if (candidate.length === 0) return null;
+  if (!FIELD_NAME_REGEX.test(candidate)) return FIELD_NAME_REGEX_ERROR;
+  const duplicate = fields.some((f, i) => i !== index && f.name === candidate);
   if (duplicate) return FIELD_NAME_DUPLICATE_ERROR;
   return null;
 }
@@ -227,7 +240,9 @@ export function FieldListEditor({ value, onChange }: FieldListEditorProps) {
                 key={`field-${index}`}
                 index={index}
                 value={row}
-                nameError={nameErrorFor(value, index)}
+                nameErrorFor={(candidate) =>
+                  nameErrorForCandidate(value, index, candidate)
+                }
                 defaultJsonError={defaultJsonErrors[index] ?? null}
                 onChange={(next) => updateAt(index, next)}
                 onDefaultJsonError={(err) => updateDefaultJsonError(index, err)}
@@ -261,7 +276,8 @@ export function FieldListEditor({ value, onChange }: FieldListEditorProps) {
 interface FieldRowProps {
   index: number;
   value: FieldDescriptor;
-  nameError: string | null;
+  /** Validates a name the row is typing, not just the committed one. */
+  nameErrorFor: (candidate: string) => string | null;
   defaultJsonError: string | null;
   onChange: (next: FieldDescriptor) => void;
   onDefaultJsonError: (error: string | null) => void;
@@ -271,7 +287,7 @@ interface FieldRowProps {
 function FieldRow({
   index,
   value,
-  nameError,
+  nameErrorFor,
   defaultJsonError,
   onChange,
   onDefaultJsonError,
@@ -283,10 +299,28 @@ function FieldRow({
     stringifyDefault(value.defaultValue),
   );
 
+  /**
+   * G-040 — the name commits on BLUR, not per keystroke. A field name is a ctx
+   * key, so committing it rewrites every consumer that reads it; typing
+   * `customerId` → `clientId` one character at a time would run that sweep
+   * eight times and leave eight undo steps. Mirrors the `rawDefault` pattern
+   * above and the ctx drawer's own name field.
+   */
+  const [localName, setLocalName] = useState(value.name);
+  useEffect(() => {
+    setLocalName(value.name);
+  }, [value.name]);
+
+  const nameError = nameErrorFor(localName);
+
   const testIdBase = `field-list-editor-row-${index}`;
 
-  const setName = (next: string) => {
-    onChange({ ...value, name: next });
+  const commitName = () => {
+    if (localName === value.name) return;
+    // A name that fails validation is not written to the graph — it would
+    // rename consumers onto a key the source can never produce.
+    if (nameError !== null) return;
+    onChange({ ...value, name: localName });
   };
 
   const setType = (next: FieldType) => {
@@ -362,9 +396,13 @@ function FieldRow({
         <TextInput
           label="Name"
           withAsterisk
-          value={value.name}
+          value={localName}
           error={nameError ?? undefined}
-          onChange={(e) => setName(e.currentTarget.value)}
+          onChange={(e) => setLocalName(e.currentTarget.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+          }}
           data-testid={`field-list-editor-name-${index}`}
         />
 

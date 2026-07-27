@@ -346,12 +346,15 @@ describe("FieldListEditor — Scenario 5: validation messages", () => {
     ) as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: "my field" } });
 
-    expect(spy).toHaveBeenCalled();
     expect(
       screen.getByText(
         /Field name must match \/\^\[a-zA-Z_\]\[a-zA-Z0-9_\]\*\$\//,
       ),
     ).toBeInTheDocument();
+    // G-040 — the name commits on blur, and an invalid one never commits at
+    // all: a field name is a ctx key, so writing it renames every consumer.
+    fireEvent.blur(nameInput);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("shows a duplicate-name error inline when two rows share the same name", () => {
@@ -365,13 +368,15 @@ describe("FieldListEditor — Scenario 5: validation messages", () => {
     ) as HTMLInputElement;
     fireEvent.change(secondName, { target: { value: "documentUrl" } });
 
-    expect(spy).toHaveBeenCalled();
-    // Both rows surface the duplicate-name error (the error is computed
-    // relative to the full fields[] array, so once a duplicate exists
-    // every duplicating row carries it).
+    // The row typing the duplicate carries the error. Since G-040 the name
+    // commits on blur and a duplicate never commits, so the OTHER row stays
+    // clean — a duplicate can no longer reach `fields[]` at all, which is a
+    // stronger form of the same guarantee.
     expect(
       screen.getAllByText("Field name must be unique within this source"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
+    fireEvent.blur(secondName);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('disables "Add field" while any row is invalid (empty / duplicate / regex-failing)', () => {

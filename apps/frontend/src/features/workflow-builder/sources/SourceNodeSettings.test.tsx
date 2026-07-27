@@ -325,3 +325,78 @@ describe("SourceNodeSettings — US-124 Scenario 1: 'Upload & Try' button visibi
     expect(screen.queryByTestId("source-upload-button")).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// G-040 — renaming a field carries its consumers
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — G-040 field rename sweep", () => {
+  /** `src-api-1` declares `customerId`; `B` reads it on its `docId` input. */
+  function configWithConsumer(node: SourceNode): GraphWorkflowConfig {
+    return {
+      ...makeConfig(node),
+      nodes: {
+        [node.id]: node,
+        B: {
+          id: "B",
+          type: "activity",
+          label: "Fetch",
+          activityType: "file.prepare",
+          inputs: [{ port: "docId", ctxKey: "customerId" }],
+        },
+      },
+    };
+  }
+
+  it("rewrites a consumer binding when the field it read is renamed", () => {
+    const node = makeSourceApiNode({
+      parameters: {
+        fields: [{ name: "customerId", type: "string", required: false }],
+      },
+    });
+    const onConfigChange = vi.fn();
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={configWithConsumer(node)}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    const nameInput = screen.getByTestId("field-list-editor-name-0");
+    fireEvent.change(nameInput, { target: { value: "clientId" } });
+    // Nothing is written while typing — the sweep must run once, on commit.
+    expect(onConfigChange).not.toHaveBeenCalled();
+    fireEvent.blur(nameInput);
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.B.inputs?.[0].ctxKey).toBe("clientId");
+    const fields = (next.nodes[node.id] as SourceNode).parameters
+      ?.fields as Array<{ name: string }>;
+    expect(fields[0].name).toBe("clientId");
+  });
+
+  it("leaves consumers alone when a field is added rather than renamed", () => {
+    const node = makeSourceApiNode({
+      parameters: {
+        fields: [{ name: "customerId", type: "string", required: false }],
+      },
+    });
+    const onConfigChange = vi.fn();
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={configWithConsumer(node)}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("field-list-editor-add"));
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.B.inputs?.[0].ctxKey).toBe("customerId");
+  });
+});
