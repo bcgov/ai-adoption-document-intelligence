@@ -170,7 +170,7 @@ export class OcrService {
         } catch (e) {
           // Cap check throws if a cap was reached.
           // We'll mark document as failed and re-throw the error
-          this.documentService.updateDocument(document.id, {
+          await this.documentService.updateDocument(document.id, {
             status: DocumentStatus.failed,
           });
           throw e;
