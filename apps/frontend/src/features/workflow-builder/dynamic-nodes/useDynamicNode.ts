@@ -16,6 +16,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useGroup } from "../../../auth/GroupContext";
 import { ApiError } from "../sources/useSourceUpload";
 import { type DynamicNodeDetail, fetchDynamicNode } from "./dynamic-node-api";
 
@@ -31,15 +32,21 @@ export function dynamicNodeQueryKey(slug: string): readonly [string, string] {
 }
 
 export function useDynamicNode(slug: string | undefined) {
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   return useQuery<DynamicNodeDetail, ApiError>({
-    queryKey: slug ? dynamicNodeQueryKey(slug) : ["dynamic-node", null],
+    // Group-suffixed so switching groups refetches; the mutation hooks
+    // invalidate the bare `dynamicNodeQueryKey(slug)`, matching by prefix.
+    queryKey: slug
+      ? [...dynamicNodeQueryKey(slug), activeGroupId ?? "no-group"]
+      : ["dynamic-node", null],
     queryFn: () => {
       // `enabled: !!slug` below guards against this branch — TanStack
       // never calls `queryFn` when the query is disabled.
       if (slug === undefined) {
         throw new Error("useDynamicNode: queryFn called without slug");
       }
-      return fetchDynamicNode(slug);
+      return fetchDynamicNode(slug, activeGroupId);
     },
     enabled: slug !== undefined,
     retry: false,

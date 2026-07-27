@@ -12,6 +12,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useGroup } from "../../../auth/GroupContext";
 import { ApiError } from "../sources/useSourceUpload";
 import {
   type DynamicNodeListResponse,
@@ -26,9 +27,14 @@ export type {
 export const DYNAMIC_NODE_LIST_QUERY_KEY = ["dynamic-node-list"] as const;
 
 export function useDynamicNodeList() {
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   return useQuery<DynamicNodeListResponse, ApiError>({
-    queryKey: DYNAMIC_NODE_LIST_QUERY_KEY,
-    queryFn: () => fetchDynamicNodeList(),
+    // The group is part of the key so switching groups refetches rather than
+    // serving another group's lineages from cache. Mutation hooks invalidate
+    // the bare `DYNAMIC_NODE_LIST_QUERY_KEY`, which still matches by prefix.
+    queryKey: [...DYNAMIC_NODE_LIST_QUERY_KEY, activeGroupId ?? "no-group"],
+    queryFn: () => fetchDynamicNodeList(activeGroupId),
     retry: false,
   });
 }

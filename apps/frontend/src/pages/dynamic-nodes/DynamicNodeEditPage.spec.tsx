@@ -11,7 +11,25 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Group } from "../../auth/AuthContext";
 import DynamicNodeEditPage from "./DynamicNodeEditPage";
+
+// The dynamic-node hooks scope every request to the active group
+// (`x-group-id`). Mock `useGroup` rather than mounting `GroupProvider`, which
+// transitively needs `AuthProvider`.
+vi.mock("../../auth/GroupContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../auth/GroupContext")
+  >("../../auth/GroupContext");
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [] as Group[],
+      activeGroup: { id: "test-group-id", name: "Test Group" } as Group,
+      setActiveGroup: vi.fn(),
+    }),
+  };
+});
 
 // Stub CodeMirror (browser primitives jsdom lacks).
 vi.mock("@uiw/react-codemirror", () => ({

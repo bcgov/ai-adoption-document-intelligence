@@ -18,6 +18,24 @@ interface ErrorResponseBody {
 }
 
 /**
+ * Group hint every `/api/dynamic-nodes/*` call must carry.
+ *
+ * The backend's `resolveCallingGroupId` derives the scope from the caller's
+ * identity, but a system administrator has no single group — `getIdentityGroupIds`
+ * returns `undefined` for that role — so admins MUST name the group explicitly
+ * or the request 400s before it reaches the handler. `x-group-id` covers every
+ * verb (the controller also accepts `?groupId=` and a body field, but a single
+ * mechanism keeps GET, POST, PUT and DELETE identical here).
+ *
+ * `null` means "no active group" (a user with no memberships), in which case we
+ * send nothing and let the backend produce its own membership error rather than
+ * inventing a group id.
+ */
+function groupHeaders(groupId: string | null): Record<string, string> {
+  return groupId === null ? {} : { "x-group-id": groupId };
+}
+
+/**
  * Server-returned signature (mirrors backend's
  * `DynamicNodeSignatureDto`). Surfaced to the editor's preview pane.
  */
@@ -151,10 +169,11 @@ async function parseErrorResponse(response: Response): Promise<never> {
 
 export async function publishDynamicNode(
   script: string,
+  groupId: string | null,
 ): Promise<DynamicNodePublishResult> {
   const response = await builderFetch(`${API_BASE_URL}/dynamic-nodes`, {
     method: "POST",
-    headers: JSON_HEADERS,
+    headers: { ...JSON_HEADERS, ...groupHeaders(groupId) },
     body: JSON.stringify({ script }),
   });
   if (!response.ok) await parseErrorResponse(response);
@@ -164,12 +183,13 @@ export async function publishDynamicNode(
 export async function updateDynamicNode(
   slug: string,
   script: string,
+  groupId: string | null,
 ): Promise<DynamicNodePublishResult> {
   const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "PUT",
-      headers: JSON_HEADERS,
+      headers: { ...JSON_HEADERS, ...groupHeaders(groupId) },
       body: JSON.stringify({ script }),
     },
   );
@@ -179,11 +199,13 @@ export async function updateDynamicNode(
 
 export async function deleteDynamicNode(
   slug: string,
+  groupId: string | null,
 ): Promise<DynamicNodeDeletedResult> {
   const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "DELETE",
+      headers: groupHeaders(groupId),
     },
   );
   if (!response.ok) await parseErrorResponse(response);
@@ -196,11 +218,13 @@ export async function deleteDynamicNode(
  */
 export async function fetchDynamicNode(
   slug: string,
+  groupId: string | null,
 ): Promise<DynamicNodeDetail> {
   const response = await builderFetch(
     `${API_BASE_URL}/dynamic-nodes/${encodeURIComponent(slug)}`,
     {
       method: "GET",
+      headers: groupHeaders(groupId),
     },
   );
   if (!response.ok) await parseErrorResponse(response);
@@ -211,9 +235,12 @@ export async function fetchDynamicNode(
  * `GET /api/dynamic-nodes` — list the calling group's non-deleted
  * lineages. Backs the `useDynamicNodeList` hook (Phase 6 US-176).
  */
-export async function fetchDynamicNodeList(): Promise<DynamicNodeListResponse> {
+export async function fetchDynamicNodeList(
+  groupId: string | null,
+): Promise<DynamicNodeListResponse> {
   const response = await builderFetch(`${API_BASE_URL}/dynamic-nodes`, {
     method: "GET",
+    headers: groupHeaders(groupId),
   });
   if (!response.ok) await parseErrorResponse(response);
   return (await response.json()) as DynamicNodeListResponse;

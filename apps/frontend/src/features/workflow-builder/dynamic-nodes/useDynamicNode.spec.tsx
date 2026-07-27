@@ -7,11 +7,37 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Group } from "../../../auth/AuthContext";
 import { API_BASE_URL } from "../../../shared/constants";
 import { useDynamicNode } from "./useDynamicNode";
 import { useDynamicNodeDelete } from "./useDynamicNodeDelete";
 import { useDynamicNodeList } from "./useDynamicNodeList";
 import { useDynamicNodePublish } from "./useDynamicNodePublish";
+
+// These hooks call `useGroup()` to scope each request to the active group
+// (`x-group-id`). Mock it rather than dragging in `GroupProvider` (which
+// transitively pulls in `AuthProvider`) — the same convention the sibling
+// `useActivityCatalog.spec.tsx` uses.
+vi.mock("../../../auth/GroupContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../../auth/GroupContext")
+  >("../../../auth/GroupContext");
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [] as Group[],
+      activeGroup: { id: "test-group-id", name: "Test Group" } as Group,
+      setActiveGroup: vi.fn(),
+    }),
+  };
+});
+
+/** Read the `x-group-id` header off a recorded `fetch` call. */
+function groupHeaderOf(call: Parameters<typeof fetch>): string | undefined {
+  const init = call[1];
+  const headers = (init?.headers ?? {}) as Record<string, string>;
+  return headers["x-group-id"];
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
   return new Response(JSON.stringify(body), {
@@ -246,5 +272,112 @@ describe("Cross-hook invalidation (US-176 Scenario 4)", () => {
     await waitFor(() => {
       expect(result.current.detail.error).not.toBeNull();
     });
+  });
+});
+
+/**
+ * Every `/api/dynamic-nodes/*` endpoint resolves the calling group via the
+ * backend's `resolveCallingGroupId`, which returns `undefined` group ids for a
+ * system administrator and therefore REQUIRES an explicit group hint. Without
+ * one the whole feature 400s ("System-admin callers must include a `groupId`
+ * …") for every admin user — the list page, the editor, and the canvas's "Edit
+ * script" action alike.
+ *
+ * `useActivityCatalog` already sent the hint; these five calls did not, so the
+ * backend fix that taught the controller to accept it (5c777d61) never reached
+ * the management surface.
+ */
+describe("group scoping — every call carries the active group", () => {
+  it("sends x-group-id on GET /dynamic-nodes/:slug", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ slug: "alpha", headVersion: {}, versions: [] }),
+    );
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNode("alpha"), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => {
+      expect(result.current.data?.slug).toBe("alpha");
+    });
+    expect(groupHeaderOf(fetchSpy.mock.calls[0])).toBe("test-group-id");
+  });
+
+  it("sends x-group-id on GET /dynamic-nodes", async () => {
+    fetchSpy.mockResolvedValue(jsonResponse({ items: [] }));
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNodeList(), {
+      wrapper: Wrapper,
+    });
+    await waitFor(() => {
+      expect(result.current.data?.items).toEqual([]);
+    });
+    expect(groupHeaderOf(fetchSpy.mock.calls[0])).toBe("test-group-id");
+  });
+
+  it("sends x-group-id on POST /dynamic-nodes (create-mode publish)", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ slug: "alpha", version: 1, signature: {}, errors: [] }),
+    );
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNodePublish(), {
+      wrapper: Wrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ script: "// v1" });
+    });
+    expect(fetchSpy.mock.calls[0][0]).toBe(`${API_BASE_URL}/dynamic-nodes`);
+    expect(groupHeaderOf(fetchSpy.mock.calls[0])).toBe("test-group-id");
+  });
+
+  it("sends x-group-id on PUT /dynamic-nodes/:slug (update-mode publish)", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ slug: "alpha", version: 2, signature: {}, errors: [] }),
+    );
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNodePublish(), {
+      wrapper: Wrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ slug: "alpha", script: "// v2" });
+    });
+    expect(groupHeaderOf(fetchSpy.mock.calls[0])).toBe("test-group-id");
+  });
+
+  it("sends x-group-id on DELETE /dynamic-nodes/:slug", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        slug: "alpha",
+        deletedAt: "2026-07-27T00:00:00.000Z",
+        usedInWorkflowCount: 0,
+      }),
+    );
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNodeDelete(), {
+      wrapper: Wrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync("alpha");
+    });
+    expect(groupHeaderOf(fetchSpy.mock.calls[0])).toBe("test-group-id");
+  });
+
+  it("keeps the JSON content-type alongside the group header on publish", async () => {
+    // The header object is merged, not replaced — a lost Content-Type would
+    // make Nest reject the body before `resolveCallingGroupId` ever runs.
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ slug: "alpha", version: 1, signature: {}, errors: [] }),
+    );
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDynamicNodePublish(), {
+      wrapper: Wrapper,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ script: "// v1" });
+    });
+    const headers = (fetchSpy.mock.calls[0][1]?.headers ?? {}) as Record<
+      string,
+      string
+    >;
+    expect(headers["Content-Type"]).toBe("application/json");
   });
 });

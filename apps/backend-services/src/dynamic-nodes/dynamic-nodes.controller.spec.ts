@@ -359,6 +359,32 @@ describe("DynamicNodesController", () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
+    it("accepts a system-admin caller that names the group via x-group-id", async () => {
+      // The other end of the contract the frontend depends on: the
+      // dynamic-node management surface has no group of its own to fall back
+      // on for an admin, so it sends the active group as a header. If this
+      // stopped resolving, every admin would be locked out of the feature.
+      service.publish.mockResolvedValue({
+        slug: "my-node",
+        version: 1,
+        signature: SAMPLE_SIGNATURE,
+      });
+      const req = {
+        headers: { "x-group-id": "g-9" },
+        query: {},
+        body: {},
+        resolvedIdentity: {
+          isSystemAdmin: true,
+          groupRoles: {},
+          actorId: "actor-1",
+        },
+      } as unknown as Request;
+      await controller.create({ script: "/* */" }, req);
+      expect(service.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ groupId: "g-9" }),
+      );
+    });
+
     it("rejects system-admin callers without explicit group context (400)", async () => {
       const req = {
         headers: {},

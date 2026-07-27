@@ -49,7 +49,8 @@ cd apps/temporal && npm run dev   # Temporal worker
 ### 1.3 Auth & roles
 
 - Browser access needs an IDIR/Keycloak login. The API key maps to a **group**; workflow endpoints enforce **group membership** (workflow-author is the only role needed for the builder itself).
-- **Agent endpoints** (`/api/agent/*`) additionally require a **`groupId`** when the caller is a system-admin (via body, `?groupId=`, or `x-group-id` header) — otherwise 401. The UI supplies this automatically from the active group.
+- **Agent** (`/api/agent/*`), **dynamic-node** (`/api/dynamic-nodes/*`) and **activity-catalog** (`/api/activity-catalog`) endpoints additionally require an explicit **`groupId`** when the caller is a system-admin (via body, `?groupId=`, or `x-group-id` header) — otherwise 400. A system admin belongs to no single group, so the server cannot infer one. The UI supplies it automatically from the active group.
+- **Testing implication:** the `x-api-key` path resolves to exactly one group, so an API-key caller (and any Playwright run using the mock-auth bypass) never exercises the admin branch. Anything that depends on the group hint must be walked **while logged in as a real system admin** in the browser, or it will look fine and be broken in production.
 
 ### 1.4 Which services each area needs
 

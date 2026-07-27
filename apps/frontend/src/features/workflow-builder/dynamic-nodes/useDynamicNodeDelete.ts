@@ -14,6 +14,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "../../../auth/GroupContext";
 import { ApiError } from "../sources/useSourceUpload";
 import { ACTIVITY_CATALOG_QUERY_KEY } from "./activity-catalog.types";
 import {
@@ -35,8 +36,10 @@ export type { DynamicNodeDeletedResult } from "./dynamic-node-api";
  */
 export function useDynamicNodeDelete() {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   return useMutation<DynamicNodeDeletedResult, ApiError, string>({
-    mutationFn: (slug) => deleteDynamicNode(slug),
+    mutationFn: (slug) => deleteDynamicNode(slug, activeGroupId),
     onSuccess: (result) => {
       // US-175 Scenario 4 — invalidate the merged catalog key so
       // `useActivityCatalog` refetches and the deleted entry

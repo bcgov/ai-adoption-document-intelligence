@@ -16,8 +16,26 @@ import {
 } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Group } from "../../auth/AuthContext";
 import { API_BASE_URL } from "../../shared/constants";
 import DynamicNodesListPage from "./DynamicNodesListPage";
+
+// The dynamic-node hooks scope every request to the active group
+// (`x-group-id`). Mock `useGroup` rather than mounting `GroupProvider`, which
+// transitively needs `AuthProvider`.
+vi.mock("../../auth/GroupContext", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../auth/GroupContext")
+  >("../../auth/GroupContext");
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [] as Group[],
+      activeGroup: { id: "test-group-id", name: "Test Group" } as Group,
+      setActiveGroup: vi.fn(),
+    }),
+  };
+});
 
 function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
   return new Response(JSON.stringify(body), {

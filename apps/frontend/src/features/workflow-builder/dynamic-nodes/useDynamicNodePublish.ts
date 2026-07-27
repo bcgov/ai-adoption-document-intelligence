@@ -17,6 +17,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useGroup } from "../../../auth/GroupContext";
 import { ApiError } from "../sources/useSourceUpload";
 import { ACTIVITY_CATALOG_QUERY_KEY } from "./activity-catalog.types";
 import {
@@ -49,6 +50,8 @@ export interface PublishDynamicNodeInput {
  */
 export function useDynamicNodePublish() {
   const queryClient = useQueryClient();
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
   return useMutation<
     DynamicNodePublishResult,
     ApiError,
@@ -56,9 +59,9 @@ export function useDynamicNodePublish() {
   >({
     mutationFn: async (input) => {
       if (input.slug === undefined) {
-        return publishDynamicNode(input.script);
+        return publishDynamicNode(input.script, activeGroupId);
       }
-      return updateDynamicNode(input.slug, input.script);
+      return updateDynamicNode(input.slug, input.script, activeGroupId);
     },
     onSuccess: (result) => {
       // US-175 Scenarios 2 + 3 — invalidate the merged catalog key so
