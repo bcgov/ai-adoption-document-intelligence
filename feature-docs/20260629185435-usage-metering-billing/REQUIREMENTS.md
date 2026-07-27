@@ -124,7 +124,7 @@ Before the workflow is submitted to Temporal:
    - HTTP 402 (Payment Required) with a body indicating the shortfall in dollars.
 5. If the check passes, proceed to start the workflow.
 
-The cap check is **atomic** — it must be performed in a database transaction or with a row-level lock on the group's current-period record to prevent concurrent runs from simultaneously passing the check and collectively exceeding the cap.
+The cap check is a **best-effort soft cap** — it is performed inside a serializable database transaction with a row-level lock on the group's current-period record, which significantly reduces, but does not eliminate, the possibility of concurrent workflow starts collectively exceeding the cap under high contention. The shipped behaviour should be treated as a soft guardrail, not a hard atomic limit.
 
 ---
 
@@ -413,7 +413,7 @@ Usage data is accessible via authenticated REST endpoints (JWT or API key). Grou
 
 | Requirement | Specification |
 |-------------|---------------|
-| **Correctness** | Cap check must be atomic; no two concurrent workflow starts for the same group may both pass a cap check they would collectively exceed |
+| **Correctness** | Cap check is a best-effort soft cap; a serializable transaction with a row-level lock greatly reduces the chance of concurrent workflow starts collectively exceeding the cap, but small over-runs are possible under extreme contention |
 | **Auditability** | Every `UsageEvent` references a `rate_version_id`; historical dollar values are always reproducible |
 | **Performance** | Cap check adds ≤ 100ms to workflow start latency (single indexed read on `UsagePeriodSummary`) |
 | **Retention** | `UsageEvent` records are retained for a configurable period (default: 2 years). After that, raw event rows may be purged — `UsagePeriodSummary` preserves the monthly totals permanently, so billing history is never lost. `UsagePeriodSummary` records are never deleted. Retention period is a deployment-level environment variable. |

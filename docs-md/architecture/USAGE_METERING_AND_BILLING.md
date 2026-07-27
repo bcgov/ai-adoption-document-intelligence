@@ -118,13 +118,11 @@ for per-page and fan-out nodes.
 | `BILLING_TASK_QUEUE` | temporal | `billing-maintenance` | Task queue for the nightly storage charge and archival workflows. |
 | `USAGE_EVENT_RETENTION_DAYS` | temporal | `730` | Retention window for `usage_events` before month-end archival purges them. A blank/`0`/invalid value falls back to the default (guards against wiping the audit log). |
 
-> **Known drift:** `.env.sample` currently lists this flag as `CHARGE_FOR_BLOB_TRANSACTION`
-> (no value), but the code reads `CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`. Use
-> the code name. Tracked in [wiki/open-questions.md](../wiki/open-questions.md).
-
 ### Setting a spending cap
 
 `PATCH /api/groups/:groupId/billing-config` — group **ADMIN** (or system admin).
+
+The spending cap is a **group-level guardrail**: group admins can set or remove their own group’s cap as a self-imposed cost control. Platform admins can configure any group’s cap. Omitting `monthly_cap_dollars` from the request body returns HTTP 400 — pass `null` explicitly to remove the cap.
 
 ```jsonc
 { "monthly_cap_dollars": 250.00 }   // set/raise the cap
