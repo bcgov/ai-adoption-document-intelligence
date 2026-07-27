@@ -253,8 +253,44 @@ unit/integration-backstopped, with named specs behind each.
 | 9.10b Re-run targets the replayed version | ✅ PASS | button reads **Re-run v1**; POST carried `workflowVersionId` of the replayed version, not head |
 | 9.10c Retention | ✅ PASS | cache rows `expiresAt − createdAt = 13 days 23:59:59.995` ≈ 14 days. Tunability is unit-backstopped (`resolveCacheTtlMs`) |
 | 7.5 Variable-picker dimming | ⏸ NOT VERIFIED | the Advanced toggle did not render on any of five master-template nodes via automation; logic is unit-backstopped (`variable-picker-utils.test.ts` asserts the exact tooltip) |
-| 7.8 Library port kinds | ⏸ NOT WALKED | |
-| 9.9b / 9.9c Replay safety + unloadable version | ⏸ NOT WALKED | |
+| 7.8 Library port kinds | ✅ PASS | authored `WALK-7.8 typed ports` (input `PreparedFile`, output `DocumentContent`); all three surfaces annotate — port editor, picker preview (*Inputs: Prepared file (object, PreparedFile)*), ChildWorkflow settings summary — and the kinds survive the server round-trip |
+| 9.9b Replay never risks unsaved work | ✅ PASS (after a fix) | see D-6 below |
+| 9.9c Version that can't be loaded | ✅ PASS | version detail forced to 404: chip turns `rgb(253,126,20)` orange reading *REPLAY MODE — V3 UNAVAILABLE, SHOWING CURRENT GRAPH*; unsaved rename intact throughout |
+
+## D-6 — Undo during replay silently rewound the hidden editing config (fixed)
+
+Found walking 9.9b, and the only defect this batch turned up.
+
+`handleCanvasConfigChange` already refused edits while replaying, so the check's four
+stated criteria all passed on the first run: the unsaved rename survived, the replayed
+version's content did not leak, the leave-guard stayed armed, and Undo stepped through the
+author's own history only. What the check does not name is the **Undo button itself**.
+
+Undo/redo bypassed the canvas guard entirely and stepped the editing config's history —
+the config that is *hidden behind the historical graph while replaying*. Nothing on screen
+moves, so there is no feedback at all; the author discovers the loss only after leaving
+replay. Live: two Undo presses during replay discarded two unsaved renames, and the canvas
+looked identical the whole time.
+
+Fixed by refusing at the two `undo` / `redo` wrappers, which is the single choke point for
+all three entry points (top-bar buttons, the Ctrl+Z / Ctrl+Shift+Z hotkeys, and the
+canvas's own `onUndo`), plus disabling both buttons while `isReplay`. Two tests, both
+verified failing against the pre-fix source.
+
+Worth noting *why the walkthrough found it and the register did not*: the register asks
+"is this claim about the code still true?", which the code answered correctly — the guard
+was there and worked. Only driving the real UI surfaced the second door into the same
+room.
+
+### Two observations from 9.9b that are not defects
+
+- The settings-panel label input stays focusable during replay, but it is a controlled
+  input bound to the historical config: typing reverts on the next render and never reaches
+  the editing config. Honest, if slightly rough — a `readOnly` attribute would say it
+  sooner.
+- A `groupId`-less request fires once on mount before `GroupContext` resolves, then
+  refetches with the group. The transient rejection is never rendered (React Query has
+  switched keys by then). Same shape as `useActivityCatalog`; left alone.
 
 ## D-5 — every run reported version 0 (fixed, `09ce5b4d`)
 

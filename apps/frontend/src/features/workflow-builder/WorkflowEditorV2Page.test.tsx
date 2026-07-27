@@ -3018,6 +3018,72 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
     expect(after.nodes.a?.label).not.toBe("CLOBBERED");
     expect(Object.keys(after.nodes).sort()).toEqual(["a", "b", "c"]);
   });
+
+  /**
+   * Found while walking MANUAL_TEST_PLAN 9.9b. `onConfigChange` was guarded,
+   * but undo/redo were not — and they are the worse path, because they rewind
+   * the EDITING config while the canvas is showing the historical graph. The
+   * screen does not move, so an author has no way to notice their unsaved work
+   * being wound back; they only find out after leaving replay. Two Undo presses
+   * during replay silently discarded two renames in the live app.
+   */
+  async function editAndReplay() {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as
+      | ((c: GraphWorkflowConfig) => void)
+      | undefined;
+    const live = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange?.({
+        ...live,
+        nodes: {
+          ...live.nodes,
+          b: { ...(live.nodes.b as ActivityNode), label: "EDITED" },
+        },
+      });
+    });
+    await openHistoryAndReplay();
+  }
+
+  it("undo triggered while replaying does not rewind the hidden editing config", async () => {
+    await editAndReplay();
+
+    // Every undo entry point — the top-bar button, the Ctrl+Z hotkey and the
+    // canvas's own onUndo — funnels through the same callback, so exercising
+    // the canvas prop covers all three.
+    const onUndo = capturedCanvasProps.current?.onUndo as
+      | (() => void)
+      | undefined;
+    expect(onUndo).toBeDefined();
+    act(() => {
+      onUndo?.();
+      onUndo?.();
+    });
+
+    fireEvent.click(screen.getByTestId("replay-mode-clear"));
+
+    const after = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    expect(after.nodes.b?.label).toBe("EDITED");
+  });
+
+  it("disables the undo and redo buttons while replaying", async () => {
+    await editAndReplay();
+    expect(screen.getByTestId("undo-button")).toBeDisabled();
+    expect(screen.getByTestId("redo-button")).toBeDisabled();
+
+    // …and they come back once replay is left, so this is a mode, not a
+    // one-way door.
+    fireEvent.click(screen.getByTestId("replay-mode-clear"));
+    expect(screen.getByTestId("undo-button")).toBeEnabled();
+  });
 });
 
 /**

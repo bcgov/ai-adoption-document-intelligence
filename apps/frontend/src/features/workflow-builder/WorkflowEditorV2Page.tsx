@@ -528,14 +528,22 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
    * Bumping on every step re-applies them; it is a no-op when the step changed
    * no positions.
    */
+  // G-004 — replay is a view, and undo/redo are the one edit path that can do
+  // damage invisibly: they rewind the EDITING config while the canvas is
+  // showing the historical graph, so nothing on screen moves and the author
+  // only discovers the loss after leaving replay. Refusing at the two wrappers
+  // covers every entry point at once — the top-bar buttons, the Ctrl+Z /
+  // Ctrl+Shift+Z hotkeys, and the canvas's own `onUndo` all call these.
   const undo = useCallback(() => {
+    if (isReplay) return;
     undoHistory();
     setLayoutNonce((n) => n + 1);
-  }, [undoHistory]);
+  }, [isReplay, undoHistory]);
   const redo = useCallback(() => {
+    if (isReplay) return;
     redoHistory();
     setLayoutNonce((n) => n + 1);
-  }, [redoHistory]);
+  }, [isReplay, redoHistory]);
 
   // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z / Ctrl+Y. Mounted with the editor, and
   // inert while focus is in a text field so native text undo still works in
@@ -1328,7 +1336,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
                 size="xs"
                 px={8}
                 onClick={undo}
-                disabled={!canUndo}
+                disabled={!canUndo || isReplay}
                 aria-label="Undo"
                 data-testid="undo-button"
               >
@@ -1341,7 +1349,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
                 size="xs"
                 px={8}
                 onClick={redo}
-                disabled={!canRedo}
+                disabled={!canRedo || isReplay}
                 aria-label="Redo"
                 data-testid="redo-button"
               >
