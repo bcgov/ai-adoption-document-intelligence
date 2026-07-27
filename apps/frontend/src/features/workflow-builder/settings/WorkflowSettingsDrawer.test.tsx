@@ -433,3 +433,51 @@ describe("WorkflowSettingsDrawer — G-049 kind retype impact", () => {
     expect(onSelectNode).toHaveBeenCalledWith("B");
   });
 });
+
+describe("WorkflowSettingsDrawer — G-065 run-contract consequence", () => {
+  it("says nothing for a variable that is not a caller input", () => {
+    render(
+      <Harness
+        initial={makeConfig({ ctx: { internalCounter: { type: "number" } } })}
+      />,
+    );
+    expect(screen.queryByTestId("ctx-run-contract-internalCounter")).toBeNull();
+  });
+
+  it("warns that ticking Input makes callers responsible for the value", () => {
+    render(
+      <Harness
+        initial={makeConfig({ ctx: { customerId: { type: "string" } } })}
+      />,
+    );
+    fireEvent.click(
+      screen.getByLabelText("Mark customerId as caller-supplied input"),
+    );
+    expect(screen.getByTestId("ctx-run-contract-customerId")).toHaveTextContent(
+      "Callers must send this when starting a run",
+    );
+  });
+
+  it("says so when the flag has no effect because an API source supplies inputs", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          entryNodeId: "api",
+          nodes: {
+            api: {
+              id: "api",
+              type: "source",
+              label: "API",
+              sourceType: "source.api",
+              parameters: { fields: [] },
+            },
+          },
+          ctx: { customerId: { type: "string", isInput: true } },
+        })}
+      />,
+    );
+    expect(screen.getByTestId("ctx-run-contract-customerId")).toHaveTextContent(
+      /No effect/,
+    );
+  });
+});

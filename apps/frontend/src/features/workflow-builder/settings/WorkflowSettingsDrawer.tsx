@@ -46,6 +46,7 @@ import {
   describeKindMismatch,
   findKindMismatchedConsumers,
 } from "./ctx-kind-consumers";
+import { ctxRunContract, describeRunContract } from "./ctx-run-contract";
 import { KindSelect } from "./KindSelect";
 import { renameCtxKeyInConfig } from "./rename-ctx-key";
 
@@ -328,6 +329,16 @@ function CtxRow({
     [config, ctxKey],
   );
 
+  /**
+   * G-065 — `Input` is not a display preference: it adds a property to the
+   * schema `/run-spec` publishes and `/runs` validates bodies against, and a
+   * REQUIRED one unless a default fills the gap. It is also inert when a
+   * `source.api` node or the library kind supplies the inputs instead. Say
+   * which of those is true, in the caller's terms, on the row itself.
+   */
+  const runContract = ctxRunContract(config, declaration);
+  const runContractCopy = describeRunContract(runContract);
+
   return (
     <Stack gap={2}>
       <Group gap={6} wrap="nowrap" align="flex-end">
@@ -424,6 +435,15 @@ function CtxRow({
           <IconTrash size={14} />
         </ActionIcon>
       </Group>
+      {runContractCopy !== null && (
+        <Text
+          size="10px"
+          c={runContract.status === "ignored" ? "dimmed" : "blue"}
+          data-testid={`ctx-run-contract-${ctxKey}`}
+        >
+          {runContractCopy}
+        </Text>
+      )}
       {kindMismatches.length > 0 && (
         <Group gap={4} wrap="nowrap">
           <Text size="10px" c="red" data-testid={`ctx-kind-impact-${ctxKey}`}>
