@@ -470,6 +470,9 @@ Every node-creation path produces a **blank** node — `addActivity` / `addDynam
 
 Cross-workflow transfer has no substitute either: no clipboard code exists anywhere in the feature, the More menu has no Export/Import/Duplicate-workflow, the list page has Open/Run/Delete only, and there is no JSON download. The two adjacent affordances are not substitutes — "Save as library" serialises the *entire* config and yields a by-reference childWorkflow, not pasteable nodes, and templates only seed a brand-new workflow. Net: a three-node OCR-cleanup chain perfected in workflow A can only reach workflow B by being rebuilt from the palette, node by node, parameter by parameter.
 
+
+**VERIFIED 2026-07-27: still true.** No duplicate, copy/paste or export affordance exists in the feature.
+
 **Proposed disposition:** fix
 
 ### G-029 — Edge-id references held by control-flow nodes are never swept on delete, and humanGate's fallback edge is not even validated
@@ -517,6 +520,9 @@ The badge-sync effect explicitly skips `source` nodes ("no `errorCount`/`warning
 
 Source nodes carry ERROR-severity rules (`nodes.<sourceId>.sourceType`, `nodes.<sourceId>.parameters<suffix>`) that appear in the drawer and in the top-bar count with no corner badge on the card. Group chips DO mount `GroupAggregateStatusBadgeOverlay` for run status, so the aggregate-to-chip rule exists for one axis and not the other — collapsing a group in simplified view removes every member's problems badge from the canvas while the count keeps rising. And five anchor shapes name an edge (`edges[i]`, `.source`, `.target`, `edges.<edgeId>`, `edges.<edgeId>.source`); all five are invisible on the canvas and inert in the drawer. Either the data shapes gain the missing fields or the scoped-out decisions need restating now that these elements carry error-severity rules.
 
+
+**VERIFIED 2026-07-27: still true.** The badge-sync effect still returns early for `group-chip`, `map-body-container` and `source` nodes, each with its stated reason.
+
 **Proposed disposition:** fix
 
 ### G-032 — An activity-type swap carries bindings, output rows and lock metadata the new type does not declare — and nothing ever checks that a bound port exists in the catalog
@@ -533,6 +539,9 @@ The carry-over itself is specified — the guide says the swap "keeps the label,
 
 All three are also reachable by a catalog port rename between releases, for which there is no migration mechanism.
 
+
+**VERIFIED 2026-07-27: still true.** `swapActivityType` returns `inputs`, `outputs` and `metadata` verbatim, and no port-name membership check exists in the validator.
+
 **Proposed disposition:** fix
 
 **Merge note:** Pass D deliberately typed (2) as a `design-gap` (the carry-over is specified; what happens when the new type lacks the ports is not) and (1)/(3) as `impl-gap`s (unambiguous misbehaviour). Filed as one entry because a port-membership check is the common precondition for repairing any of them.
@@ -546,6 +555,9 @@ All three are also reachable by a catalog port rename between releases, for whic
 
 `rg -n 'tabIndex' ` and `rg -n 'role="'` over `apps/frontend/src/features/workflow-builder/` (excluding tests) each return ZERO hits. Every palette row — the only way to create a node — is a Mantine `<Group>` (a plain div) carrying `onClick` + `draggable` and nothing else: activity rows at the cited line (`onClick` `:337`, `draggable` `:338`), dynamic rows `:441`, source rows `:528`, control-flow rows `:590`. Not focusable, no `role`, no key handler: a keyboard user cannot add a single node. The other authoring gestures are equally mouse-bound — port drag-to-bind via `<Handle>` plus `onMouseEnter`/`onMouseLeave` (`canvas/PortRows.tsx:202`, `:212`, `:221`), `hover-extend` driven purely by hover (`canvas/use-hover-extend.ts`), and both context menus opened from `onNodeContextMenu` / `onEdgeContextMenu` (`canvas/WorkflowEditorCanvas.tsx:3065`–`:3066`). What DOES work comes free from xyflow defaults, not from this code: nodes are focusable and arrow-movable (`disableKeyboardA11y = false`) and Delete/Backspace deletes (`:3079`) — i.e. the one keyboard-reachable operation in the editor is the destructive one. Mantine drawers and forms are natively keyboard-usable, so the gap is specifically the canvas + palette authoring loop.
 
+
+**VERIFIED 2026-07-27: still true, exactly as measured.** `tabIndex` and `role="` each still return **zero** non-test hits across the whole feature directory.
+
 **Proposed disposition:** fix
 
 ### G-034 — J3.3/J3.5 — per-section branching forces a map+join shape, and a branch that dead-ends inside the map body silently drops that section's result with only a yellow warning
@@ -557,6 +569,9 @@ All three are also reachable by a catalog port rename between releases, for whic
 
 A join's `sourceMapNodeId` must resolve to a node whose type is `map` (validated at :602/:610), so "reassemble the per-section results" is only expressible as switch-inside-a-map-body. The product's own showcase demo ships two of three branches dead-ending short of the body exit (MANUAL_TEST_PLAN.md 4.15 documents this as intentional), and the only signal is a *warning* from `map-body-validation.ts:38` — Save still succeeds and the run still completes, minus those sections. Marcus's step 4 requirement ("he does not want an unrecognised page silently dropped") is exactly the state the product tolerates with a yellow badge.
 
+
+**VERIFIED 2026-07-27: still true.** `map-body-validation.ts` still emits `severity: "warning"` for both dead-end cases, so Save still succeeds.
+
 **Proposed disposition:** fix
 
 ### G-035 — No extract-to-sub-workflow and no inline-a-sub-workflow — the two refactors that make composition usable
@@ -567,6 +582,9 @@ A join's `sourceMapNodeId` must resolve to a node whose type is `map` (validated
 **Evidence:** apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:816
 
 The system supports composition (childWorkflow nodes, library workflows, `LibraryPickerModal`) but offers no refactor into or out of it. Extract: 'Save as library' takes the WHOLE config — `const persisted = stripRedundantLocks(config)` (cited line), never a selection — so a user who has built a reusable 4-node cleanup chain inside a larger workflow cannot promote just that chain; there is no 'Extract selection to sub-workflow' on the More menu (`:1090`–`:1184`), the node context menu (`canvas/NodeContextMenu.tsx:15`) or the group panel, even though `selectedNodeIds` and `NodeGroup` already give the selection and the boundary. Inline: nothing expands a childWorkflow back into its parent — `rg -ni 'extract to|extract selection|inline the|expand inline'` over the feature returns nothing. Both directions are the standard escape hatches when a decomposition turns out wrong; without them, the choice of where a boundary sits is made once and permanently.
+
+
+**VERIFIED 2026-07-27: still true.** A case-insensitive search for extract/inline refactor affordances returns zero hits.
 
 **Proposed disposition:** fix
 
@@ -581,6 +599,9 @@ The system supports composition (childWorkflow nodes, library workflows, `Librar
 
 The picker makes both likely rather than exotic: `filterType="map"` is its only filter, so maps inside another map's body, inside an unreached switch branch, or downstream of the join itself are all offered with no dimming and no warning.
 
+
+**VERIFIED 2026-07-27: still true.** `validateMapJoinNodes` checks existence and type only; `JoinNodeSettings` still passes `filterType="map"` as its sole filter.
+
 **Proposed disposition:** fix
 
 ### G-037 — Palette control-flow skeletons ship required fields as empty strings that no validator rule ever checks, so an unconfigured node saves clean and fails at execution
@@ -591,6 +612,9 @@ The picker makes both likely rather than exotic: `filterType="map"` is its only 
 **Evidence:** apps/frontend/src/features/workflow-builder/palette/control-flow-skeletons.ts:65 · :88
 
 `map.collectionCtxKey`, `map.itemCtxKey`, `join.resultsCtxKey` and `childWorkflow.workflowRef.workflowId` all ship as `""`. The validator has existence checks for the *node-id* fields in the same objects (`bodyEntryNodeId`, `bodyExitNodeId`, `sourceMapNodeId`, `switch.defaultEdge`, `pollUntil.activityType`) and no rule at all for these four; `itemCtxKey` gets only a reserved-namespace check. `computeNodeInputIssues` short-circuits for every non-activity/pollUntil node, so a half-configured map, join or childWorkflow carries no badge and no drawer row while its neighbours do — the graph looks clean and detonates at run time.
+
+
+**VERIFIED 2026-07-27: still true.** The skeletons still ship `collectionCtxKey: ""`, `itemCtxKey: ""`, `resultsCtxKey: ""` and `workflowId: ""`, and the validator has no rule referencing `collectionCtxKey` or `resultsCtxKey` at all.
 
 **Proposed disposition:** fix
 
@@ -606,6 +630,9 @@ The picker makes both likely rather than exotic: `filterType="map"` is its only 
 The workflow-level bucket passes `onClick={undefined}` unconditionally. `edges.<edgeId>.source`, `nodeGroups.<id>.nodeIds[i]`, `nodeGroups.<id>.exposedParams[i].path`, `entryNodeId`, `ctx.<key>` and `metadata.inputs[i].path` all identify a single artifact with a real editing surface, and all six are completely inert — not even "Select node →". Nine of the 32 anchor shapes land there.
 
 Two of those buckets are *misrouted* rather than genuinely workflow-level. `nodeIdFromPath` requires the literal `nodes.` prefix, so group anchors fall through even though `settings-panel:group` is their editing surface and the first of them names a node id outright. And `ctx.<key>` / `metadata.ctx` point at rows the `WorkflowSettingsDrawer` ctx table renders and edits. Because two of the four anchor shapes that can carry `warning` severity land in this bucket, warnings are disproportionately unactionable.
+
+
+**VERIFIED 2026-07-27: ALREADY FIXED by G-010.** `resolveAnchorTarget` routes edge, group, `entryNodeId`, `ctx.*` and library-port anchors; the workflow-level bucket passes a real `onClick` for all of them. Only the genuinely workflow-level anchors stay inert, which is correct.
 
 **Proposed disposition:** fix
 
@@ -646,6 +673,9 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 
 `TemplatesPickerModal` is mounted only by `WorkflowListPage`; nothing in the editor (`topbar:more-menu` included) can reach it. Once on `/workflows/create` the only guidance is the palette's "Search activities…" box over 41 entries in 12 categories. Priya's step 3 assumption — "the tool already knows how to read a document, I am choosing from what it can do" — requires her to guess that a document read is `file.prepare` → `azureOcr.submit` → (`pollUntil` on `azureOcr.poll`) → `azureOcr.extract`. `hover-extend` partly rescues this by offering kind-compatible next nodes off a source handle, but it only fires on hover of a handle she has no reason to hover, and the wildcard `Artifact` output ports of `azureOcr.submit` make its suggestion list unfiltered.
 
+
+**VERIFIED 2026-07-27: still true.** `TemplatesPickerModal` is still mounted only by `WorkflowListPage`.
+
 **Proposed disposition:** fix
 
 ### G-042 — J2.3 — nothing distinguishes "slow" from "wedged": a run shows `running` with a start time and no deadline, heartbeat, or last-progress signal
@@ -656,6 +686,9 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 **Evidence:** apps/frontend/src/features/workflow-builder/run/node-status.types.ts:47
 
 `NodeRunStatus` carries `startedAt` / `endedAt` / `errorMessage` / `cacheHit` — no attempt count, no deadline, no heartbeat. `RunRow` shows a status dot and a relative start time. Neither surface exposes the activity's effective `startToClose` timeout (defaulted to `"2m"` in the engine at apps/temporal/src/graph-engine/node-executors.ts:313) or its retry budget, so "is this still working or is it stuck" is unanswerable without the Temporal UI. This is the exact failure Marcus says burned him before, and it is the step of J2 that a batch surface (A-006) alone would not fix.
+
+
+**VERIFIED 2026-07-27: still true.** `NodeRunStatus` carries no attempt count, deadline or heartbeat field.
 
 **Proposed disposition:** fix
 
@@ -668,6 +701,9 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 
 `errorMessage` reaches the frontend on the node-statuses wire but is rendered only as a Mantine `<Tooltip label={errorMessage}>` on the failed node's canvas badge — not selectable, not copyable, not listed, and gone as soon as `activeRunId` is cleared (a page reload clears it). `run-row` shows only a red dot. To read the reason for one of Marcus's 240 files he must replay that specific run, find the failed node, and hover it. Distinguishing "password-protected" from "service rejected the content" from "not a readable PDF" — his stated routing requirement — is possible only if the underlying activity happens to phrase the message that way, and there is no place that message is retained.
 
+
+**VERIFIED 2026-07-27: still true.** `errorMessage` is read only by `NodeStatusBadge`, and only inside the `status === "failed"` tooltip branch.
+
 **Proposed disposition:** fix
 
 ### G-044 — J7.1 — a run cannot be found by its document: run history filters on status, date range and version only
@@ -678,6 +714,9 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 **Evidence:** apps/frontend/src/features/workflow-builder/run-history/RunHistoryFilters.tsx:43
 
 `STATUS_OPTIONS` plus From/To `DateInput`s plus a version Select is the whole filter row; `ListRunsFilters` has no free-text or ctx-value predicate. The only per-run identifier on screen is `run-row`'s `inputCtxSummary` chip, which truncates to the first two keys — for an upload-started run that is a blob storage key and a UUID (workflow.controller.ts:736–739 sets `initialCtx = {<ctxKey>: blobKey, documentId}`), never the filename. Dana's step 1 is explicit that she must find it "by the document rather than by remembering when it ran"; in practice she must already know the documentId and then scroll.
+
+
+**VERIFIED 2026-07-27: still true.** The filter row is still status + two `DateInput`s + version; no free-text or document predicate.
 
 **Proposed disposition:** fix
 
@@ -706,6 +745,9 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 **Optional `Artifact` ports.** The wireable-row filter admits `shouldAutoWirePort(p) || (p.kind === "Artifact" && p.required === true)`, and `computeNodeInputIssues` applies the same rule — so an *optional* base-`Artifact` port is invisible to the settings panel, the badge and the drawer while still owning a canvas handle a user can drag onto. The `Artifact × {ambiguous, unsatisfied, locked, locked-unbound, ctx-bound}` cells are unrenderable for it.
 
 In both cases the canvas offers an affordance the rest of the editor cannot describe or diagnose.
+
+
+**VERIFIED 2026-07-27: the two halves are not comparable and should be ruled separately.** *Kindless ports*: **0 of the catalog's activities declare one** — five unreachable binding states for an empty port family. *Optional base-`Artifact` ports*: **26 across the catalog** (`file.prepare.fileName`/`.fileType`/`.contentType`, `azureOcr.poll.modelId`, `azureOcr.extract.fileName`, …), each owning a canvas handle that is invisible to the Inputs panel, the badge and the drawer. The second half is also the population behind the agent scenario-1 catalog-vs-runtime mismatch.
 
 **Proposed disposition:** fix
 
@@ -781,6 +823,9 @@ D76/D77. `apps/shared/prisma/schema.prisma:909` states that 'pinned versions of 
 
 The only whole-graph warnings the validator emits are unreachable-node (`nodes.<id>`, :1045) and multi-group membership (:1150). There is no check that a terminal node's output ctx key is read by anything or handed to `ocr.storeResults`. Priya's step 5 explicitly anticipates the failure mode "the result is being read but not kept anywhere" — the product gives her a green "Valid" badge in exactly that state. She would only discover it by noticing that nothing exists at the end, which is the same problem she was trying to avoid.
 
+
+**VERIFIED 2026-07-27: still true.** No unconsumed-output or terminal-persistence check exists anywhere in the validator.
+
 **Proposed disposition:** fix
 
 ### G-053 — J2 edge branch — no way to exercise the failure path without actually breaking a file: no dry-run, no simulated error, no branch preview
@@ -803,6 +848,9 @@ The only whole-graph warnings the validator emits are unreachable-node (`nodes.<
 
 `KeywordPatternEditor` renders pattern + segment-type rows with an inline invalid-regex error and nothing else — no sample text, no match count, no "which pages would this catch". Marcus's step 2 is explicit: "He expects to be able to see, on a real sample, which pages each pattern matched before he commits to it." The only way to find out is to save, run a package, and read `preview:segments` on the `document.splitAndClassify` node — i.e. after committing, and only if the run reached that node and its cache row is still fresh.
 
+
+**VERIFIED 2026-07-27: still true.** `KeywordPatternEditor` still offers no sample text, match count or preview.
+
 **Proposed disposition:** fix
 
 ### G-055 — J5.3 — a threshold cannot be varied per group at run time: exposed params are authorable but only the benchmark module can supply values for them
@@ -813,6 +861,9 @@ The only whole-graph warnings the validator emits are unreachable-node (`nodes.<
 **Evidence:** apps/backend-services/src/benchmark/workflow-config-overrides.ts:18
 
 `NodeGroup.exposedParams` is the product's answer to "a value I can change without touching the structure", and the engine threads `workflowConfigOverrides` down through map child workflows. But the only code that turns exposed params into overrides lives under `apps/backend-services/src/benchmark/`, and `StartRunRequestDto` accepts only `initialCtx` and `workflowVersionId` (apps/backend-services/src/workflow/dto/start-run.dto.ts:21) — no overrides field, and `run-drawer` renders no exposed-param inputs. Dana's step 3 ("change it for one group without affecting another") therefore reduces to editing the node's parameter and cutting a new version, which changes it for everyone.
+
+
+**VERIFIED 2026-07-27: still true.** `StartRunRequestDto` still exposes only `initialCtx` and `workflowVersionId` — no overrides field.
 
 **Proposed disposition:** fix
 
@@ -825,6 +876,9 @@ The only whole-graph warnings the validator emits are unreachable-node (`nodes.<
 
 Simplified view projects one chip per `config.nodeGroups` entry (`chipIdForGroup`). With no groups authored it is a no-op and Sam gets 16 undifferentiated nodes — precisely the state J6 step 1 says must not happen ("Sam expects the structure to be legible at a scale larger than individual steps"). Grouping is an optional authoring act by the person who has left; nothing infers stages from reachability, kind families, or `document.*`/`ocr.*` category boundaries, and `auto-arrange` only re-positions.
 
+
+**VERIFIED 2026-07-27: still true.** Nothing infers stages from the graph; simplified view still projects `config.nodeGroups` only.
+
 **Proposed disposition:** fix
 
 ### G-057 — J7.5 — a step's INPUTS are never shown; only outputs are cached, so "handed bad input" vs "corrupted good input" must be inferred from the neighbour's preview
@@ -835,6 +889,9 @@ Simplified view projects one chip per `config.nodeGroups` entry (`chipIdForGroup
 **Evidence:** apps/frontend/src/features/workflow-builder/preview/preview.types.ts:23
 
 `ActivityOutputPreview` is `{outputCtx, outputKind, createdAt, expiresAt}` and the cache decorator snapshots only the node's declared output leaf paths (`collectOutputLeafPaths` / `snapshotCtxDelta`, apps/temporal/src/graph-engine/node-executors.ts:223/:246). `wire-peek` partially rescues step 5 — clicking the incoming data wire reads the PRODUCER's `outputCtx` at that ctx key and works in replay (WirePeekPopover.tsx:79 uses `activeRunId` regardless of `isReplay`). But that only works where a derived data wire exists: a port bound to a plain declared ctx key, an input satisfied by `initialCtx`, or any control-flow node produces no wire and therefore no peek, and A-003 means the peeked value is a blob pointer for the whole OCR chain anyway.
+
+
+**VERIFIED 2026-07-27: still true.** `ActivityOutputPreview` is still output-only, and the cache decorator still snapshots declared OUTPUT leaf paths only.
 
 **Proposed disposition:** fix
 
@@ -919,6 +976,9 @@ The backend rejects an invalid config with a structured body — `throw new BadR
 
 The popover branches on `isReplay` alone. `PreviewWidget.tsx:49` added `producedOutput(status)` precisely so a 404 on a `failed` / `pending` / branch-not-taken node stops blaming the cache; `WirePeekPopover` never reads `nodeStatuses` at all. Peeking a wire out of an untaken switch branch offers a 'Re-run to repopulate' button that will repopulate nothing.
 
+
+**VERIFIED 2026-07-27: ALREADY FIXED by G-012.** `WirePeekPopover` reads `producerStatus` from `nodeStatuses` and derives its copy through the shared `noOutputReasonForNode`, so it no longer blames the cache for a node that never ran.
+
 **Proposed disposition:** fix
 
 **Merge note:** Distinct from the 24 h-TTL entry despite sharing the `cache-evicted-alert` surface: that one is about values genuinely expiring and the remedy being wrong, this one is about the alert firing when eviction is not the cause.
@@ -944,6 +1004,9 @@ D43. `deriveFromCtx` builds the run-spec JSON Schema directly from `config.ctx` 
 **Evidence:** apps/frontend/src/features/workflow-builder/settings/kind-select-options.ts:106
 
 D67/D63. `buildKindSelectOptions` iterates `Object.keys(ARTIFACT_REGISTRY)` — the `Object.freeze`d v1 snapshot, whose own doc comment says it does not reflect runtime registrations and that callers needing the live view must use `getArtifactKindMeta`. A kind added via `registerArtifactKind` therefore has no option, so `kindRefToSelectValue` hands Mantine a value absent from `data` and the field renders empty; the next `onChange` writes whatever the author picks over a kind they could not see. This is the mutation-axis half of the frozen-vs-live split: the read degrades gracefully everywhere else, but here it silently destroys the stored value.
+
+
+**VERIFIED 2026-07-27: structurally true but NOT LIVE.** `buildKindSelectOptions` still reads the frozen `ARTIFACT_REGISTRY`, but `registerArtifactKind` has **zero production call sites** — only tests call it. No kind can be dynamically registered today, so the stored value this would destroy cannot exist. Rule it as a latent trap (like G-081), not as a live defect.
 
 **Proposed disposition:** fix
 
@@ -979,6 +1042,9 @@ D67/D63. `buildKindSelectOptions` iterates `Object.keys(ARTIFACT_REGISTRY)` — 
 **Evidence:** apps/frontend/src/features/workflow-builder/canvas/map-body-groups.ts:133
 
 `synthesizeMapBodyGroups` emits one group per map and its BFS walks straight through an inner map's body, so an inner body's nodes belong to both `__map_body_outer` and `__map_body_inner`. `mergeNodeGroups` filters only against user-named groups, never synthetic-vs-synthetic — two dashed green boxes claim the same cards. Map-inside-map was never specified as a supported nesting.
+
+
+**VERIFIED 2026-07-27: still true.** `mergeNodeGroups` filters synthetic ids against user-claimed nodes only; nothing de-conflicts synthetic-vs-synthetic.
 
 **Proposed disposition:** fix
 
@@ -1056,6 +1122,9 @@ D45. The guard `if (oldKey === newKey || newKey === "" || config.ctx[newKey]) re
 
 Failing closed on an unrecognised kind is the documented intent (TYPED_IO_DESIGN §8), but no validator pass checks `PortDescriptor.kind`, `CtxDeclaration.kind` or `LibraryPortDescriptor` against the live registry — so a typo presents as "Needs a source" on every consumer with no hint that the kind itself is the problem, and `handle-style.ts` greys the handle exactly as it does for a legitimate multi-port side. Separately, `isAssignable` rejects on `arrayDepth` before it ever walks `baseKind`, so a `Document` producer feeding a `Document[]` port is indistinguishable from an empty upstream; only `variable-picker`'s `data-incompatible-reason` comes close, and it is not shown by the Inputs CTA path.
 
+
+**VERIFIED 2026-07-27: still true.** No validator pass compares any `kind` field against the live registry.
+
 **Proposed disposition:** fix
 
 ### G-076 — No way to inspect the run's ctx blackboard as a whole — values are only visible node-by-node or wire-by-wire
@@ -1092,6 +1161,9 @@ The unified problems surface merges core validator errors, auto-wire input healt
 **Evidence:** apps/frontend/src/features/workflow-builder/run/node-status.types.ts:57
 
 `NodeRunStatus.cacheHit` (cited line) carries `{ configHash, inputHash }` and its doc comment states the intent outright: 'the Phase 4 cache decorator (US-128) records which cache row served the output so the canvas can surface "served from cache" UX' (`:35`–`:38`). No surface reads it — `rg -n 'cacheHit' apps/frontend/src --glob '!*.test.*'` returns only this declaration. Meanwhile `skipped` renders as a violet `IconBolt` with no tooltip and no distinguishing text (`run/NodeStatusBadge.tsx:62`; the tooltip branch at `:118` fires only for `failed`), and `PreviewWidget.producedOutput` treats `skipped` as 'produced output' (`preview/PreviewWidget.tsx:49`). So 'skipped because a cached row was reused' and 'skipped because the branch wasn't taken' are the same violet dot. That directly undercuts test-plan Part 9.6's cache story: the user cannot tell whether a re-Try actually hit cache. The data is already on the wire — this is a rendering gap, not a plumbing one.
+
+
+**VERIFIED 2026-07-27: still true.** `cacheHit` appears in `node-status.types.ts` and nowhere else in non-test frontend source.
 
 **Proposed disposition:** fix
 
@@ -1244,6 +1316,9 @@ Only 6 of the 32 anchor shapes ever carry `warning` (`metadata.ctx`, `nodes.<id>
 
 D59/D60. Chips are projected with `draggable: false` but no `deletable: false`, and `deleteKeyCode` is armed, so selecting a chip in simplified view and pressing Delete calls `handleDelete` with the synthetic id `group-chip-<id>`, which `removeNodesFromConfig` finds in no node map, edge list or group membership — nothing happens and nothing explains why. Neither reasonable interpretation (delete the group, delete its members) is offered or refused. Separately, `deleteGroup` never clears `activeGroupId`, so the right rail falls through to a 'Group not found. It may have been deleted or renamed.' placeholder rather than closing.
 
+
+**VERIFIED 2026-07-27: still true, both halves.** Chips are still projected `draggable: false` with no `deletable: false`, and `deleteGroup` still writes only `nodeGroups` — nothing clears `activeGroupId`.
+
 **Proposed disposition:** fix
 
 ### G-092 — J2.6 — removing failed documents is not reachable from any Parts 3–9 surface
@@ -1295,6 +1370,9 @@ Test-plan 12.3 states "modal with two read-only JSON blocks side-by-side (`v{n}`
 **Evidence:** apps/frontend/src/features/workflow-builder/run/RunStateContext.tsx:182
 
 `allTerminalSucceededOrSkipped` folds `skipped` into `succeeded`, so a group every member of which was served from cache shows the green check rather than the violet lightning bolt that individually-rendered members would show. `cancelled` falls through to `pending`. Collapsing a group therefore loses two of the six statuses — the (skipped × group-chip) and (cancelled × group-chip) cells are unspecified.
+
+
+**VERIFIED 2026-07-27: still true, and now slightly wider.** `allTerminalSucceededOrSkipped` still folds `skipped` into `succeeded`. Since G-047 made `cancelled` a real `NodeRunStatusValue`, the `cancelled → pending` collapse is now reachable rather than hypothetical.
 
 **Proposed disposition:** fix
 

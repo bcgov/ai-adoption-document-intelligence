@@ -239,7 +239,70 @@ warning (`8fb19d57`, earlier this session) had broken a backend
 that shipped; the backend one was not. Recorded here rather than buried in the
 commit, because the lesson is about which suites a package-level change reaches.
 
-## Remaining verification
+## Verification complete — all 43 C-cluster entries measured, 2026-07-27
+
+The remaining 27 are verified. Combined with C1 and the earlier C5 pass, **every
+`fix` proposal in the register has now been checked against current source.**
+
+| Cluster | Verified | Already fixed | Still true |
+|---|---|---|---|
+| C1 reference integrity | 11 | 2 (G-030, G-048) | 9 → **all 7 remaining now shipped** |
+| C5 control-flow & registry | 11 | 1 (G-067, this session) | 10 |
+| C2 validation surfacing | 7 | **1 (G-038)** | 6 |
+| C4 run observability | 8 | **1 (G-064)** | 7 |
+| C3 composition & authoring | 6 | 0 | 6 |
+| **Total** | **43** | **5 (12%)** | **38** |
+
+**Measured staleness is 12%, not the 50% the first four-entry sample suggested
+and not the 33% I estimated from it.** The estimate was wrong in the safe
+direction, but it was still an extrapolation from four entries and should not
+have been offered as a rate. The clusters differ sharply — C1 ran 18%, C3 ran
+0% — and the only reason to know that is to have measured each.
+
+### The two newly-found stale entries
+
+- **G-038** (workflow-level validation rows inert) — fixed by G-010.
+  `resolveAnchorTarget` now routes edge, group, entryNodeId, ctx and
+  library-port anchors; only the genuinely workflow-level ones stay inert. The
+  fix commit says so in a comment, which is why this was cheap to confirm.
+- **G-064** (wire-peek blames the cache for a producer that never ran) — fixed
+  by G-012. `WirePeekPopover` reads `producerStatus` from `nodeStatuses` and
+  shares `noOutputReasonForNode` with the node card, so the two surfaces agree.
+
+### Three entries are TRUE but not LIVE — this changes what they are worth
+
+Verification turned up a distinct category the register does not have a column
+for: the code is exactly as described, but nothing shipped can reach it. These
+should not be ruled `fix` on the same footing as the rest.
+
+| Entry | Structurally true | But |
+|---|---|---|
+| **G-066** `KindSelect` reads the frozen registry snapshot | yes — `Object.keys(ARTIFACT_REGISTRY)` | `registerArtifactKind` has **zero production call sites** (tests only). No kind can be dynamically registered today, so the value it would destroy cannot exist. |
+| **G-046** half 1 — kindless input ports | yes — `resolveInputPort` returns `unsatisfied` on `kind === undefined` | **0 of the catalog's activities declare a kindless input port.** Five unreachable binding states, for an empty port family. |
+| **G-081** `ctx-bound` unmodelled | yes | already downgraded to minor in pass C for the same reason: `computeNodeStatus` has no production caller. |
+
+**G-046's other half is the opposite — much bigger than the entry implies.**
+There are **26 optional base-`Artifact` input ports** across the catalog
+(`file.prepare.fileName` / `.fileType` / `.contentType`, `azureOcr.poll.modelId`,
+`azureOcr.extract.fileName`, …). Every one owns a canvas handle you can drag
+onto while being invisible to the Inputs panel, the badge and the drawer. These
+are the same ports behind the agent scenario-1 catalog-vs-runtime mismatch, so
+this is a live gap with a known second symptom, not a theoretical one.
+
+The lesson is the same one the linter's shape-coverage pass taught: *a check
+nothing can exercise and a gap nothing can hit are the same kind of finding.*
+Both halves of G-046 were written as one entry because they share a code path;
+they should be ruled separately because one is empty and one is 26 ports wide.
+
+### Method note
+
+Every check was a direct read of the cited evidence line against current source,
+plus — where the claim was about reachability rather than code — an enumeration
+of what the catalog or the call graph actually contains. The second kind found
+all three latent entries; grepping the cited line alone would have confirmed
+every one of them as "still true" and been useless.
+
+## Remaining verification (historical — now complete)
 
 C2 (validation surfacing, 7), C3 (composition & authoring, 6), C4 (run
 observability, 8), plus the six C5 entries above — 27 entries. The method is
