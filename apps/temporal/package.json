@@ -16,7 +16,8 @@
     "lint:fix": "npm run lint -- --write",
     "pretest": "npm run build:logging && npm run build:graph-insertion-slots && npm run build:graph-workflow",
     "build:graph-workflow": "cd ../../packages/graph-workflow && npm run build",
-    "test": "jest",
+    "test": "jest --testPathIgnorePatterns experiment-",
+    "test:integration": "jest experiment-",
     "build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build",
     "type-check:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
@@ -30,6 +31,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@ai-di/billing": "file:../../packages/billing",
     "@ai-di/blob-storage-paths": "file:../../packages/blob-storage-paths",
     "@ai-di/graph-insertion-slots": "file:../../packages/graph-insertion-slots",
     "@ai-di/graph-workflow": "file:../../packages/graph-workflow",

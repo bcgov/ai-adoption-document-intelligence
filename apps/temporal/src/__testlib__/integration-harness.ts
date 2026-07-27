@@ -23,7 +23,11 @@
 import "../env-loader";
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
-import { DocumentStatus } from "@generated/client";
+import {
+  DocumentStatus,
+  FieldType,
+  TemplateModelStatus,
+} from "@generated/client";
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
 import { getPrismaClient } from "../activities/database-client";
@@ -44,6 +48,202 @@ export const TEMPORAL_NAMESPACE =
 
 /** Seeded default group every test document is attached to. */
 export const SEED_GROUP_ID = "seeddefaultgroup";
+const SEED_ACTOR_ID = "seed-test-actor";
+
+/** Tracks whether the seed group has been upserted in this process. */
+let seedGroupEnsured = false;
+
+/** SDPR Monthly Report field definitions — mirrors apps/shared/prisma/seed.ts */
+const SDPR_FIELDS: Array<{
+  fieldKey: string;
+  fieldType: FieldType;
+  fieldFormat?: string;
+}> = [
+  {
+    fieldKey: "checkbox_need_assistance_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_need_assistance_no",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_family_assets_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  { fieldKey: "checkbox_family_assets_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_shelter_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_shelter_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_dependants_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_dependants_no", fieldType: FieldType.selectionMark },
+  {
+    fieldKey: "checkbox_employment_changes_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_employment_changes_no",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_employment_changes_spouse_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_employment_changes_spouse_no",
+    fieldType: FieldType.selectionMark,
+  },
+  { fieldKey: "checkbox_school_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_school_no", fieldType: FieldType.selectionMark },
+  {
+    fieldKey: "checkbox_school_spouse_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  { fieldKey: "checkbox_school_spouse_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_spouse_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_work_spouse_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_moved_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_moved_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_moved_spouse_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_moved_spouse_no", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_warrant_yes", fieldType: FieldType.selectionMark },
+  { fieldKey: "checkbox_warrant_no", fieldType: FieldType.selectionMark },
+  {
+    fieldKey: "checkbox_warrant_spouse_yes",
+    fieldType: FieldType.selectionMark,
+  },
+  {
+    fieldKey: "checkbox_warrant_spouse_no",
+    fieldType: FieldType.selectionMark,
+  },
+  { fieldKey: "explain_changes", fieldType: FieldType.string },
+  { fieldKey: "signature", fieldType: FieldType.string },
+  { fieldKey: "spouse_signature", fieldType: FieldType.string },
+  { fieldKey: "date", fieldType: FieldType.date, fieldFormat: "ymd" },
+  { fieldKey: "spouse_date", fieldType: FieldType.date, fieldFormat: "ymd" },
+  { fieldKey: "name", fieldType: FieldType.string },
+  { fieldKey: "spouse_name", fieldType: FieldType.string },
+  { fieldKey: "phone", fieldType: FieldType.string },
+  { fieldKey: "spouse_phone", fieldType: FieldType.string },
+  { fieldKey: "sin", fieldType: FieldType.string },
+  { fieldKey: "spouse_sin", fieldType: FieldType.string },
+  { fieldKey: "applicant_net_employment_income", fieldType: FieldType.number },
+  { fieldKey: "applicant_employment_insurance", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_spousal_support_alimony",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "applicant_child_support", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_workbc_financial_support",
+    fieldType: FieldType.number,
+  },
+  {
+    fieldKey: "applicant_student_funding_loans_bursaries",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "applicant_rental_income", fieldType: FieldType.number },
+  { fieldKey: "applicant_room_board_income", fieldType: FieldType.number },
+  { fieldKey: "applicant_workers_compensation", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_private_pensions_retirement_disability",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "applicant_oas_gis", fieldType: FieldType.number },
+  { fieldKey: "applicant_trust_income", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_canada_pension_plan_cpp",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "applicant_tax_credits_gst_credit", fieldType: FieldType.number },
+  { fieldKey: "applicant_child_tax_benefits", fieldType: FieldType.number },
+  { fieldKey: "applicant_income_tax_refund", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_other_income_money_received",
+    fieldType: FieldType.number,
+  },
+  {
+    fieldKey: "applicant_income_of_dependent_children",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "spouse_net_employment_income", fieldType: FieldType.number },
+  { fieldKey: "spouse_employment_insurance", fieldType: FieldType.number },
+  { fieldKey: "spouse_spousal_support_alimony", fieldType: FieldType.number },
+  { fieldKey: "spouse_child_support", fieldType: FieldType.number },
+  { fieldKey: "spouse_workbc_financial_support", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_student_funding_loans_bursaries",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "spouse_rental_income", fieldType: FieldType.number },
+  { fieldKey: "spouse_room_board_income", fieldType: FieldType.number },
+  { fieldKey: "spouse_workers_compensation", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_private_pensions_retirement_disability",
+    fieldType: FieldType.number,
+  },
+  { fieldKey: "spouse_oas_gis", fieldType: FieldType.number },
+  { fieldKey: "spouse_trust_income", fieldType: FieldType.number },
+  { fieldKey: "spouse_canada_pension_plan_cpp", fieldType: FieldType.number },
+  { fieldKey: "spouse_tax_credits_gst_credit", fieldType: FieldType.number },
+  { fieldKey: "spouse_child_tax_benefits", fieldType: FieldType.number },
+  { fieldKey: "spouse_income_tax_refund", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_other_income_money_received",
+    fieldType: FieldType.number,
+  },
+];
+
+/**
+ * Upsert a minimal Actor, the default seed Group, and the SDPR Monthly Report
+ * TemplateModel so integration tests are self-contained and work even on a
+ * freshly-migrated (un-seeded) database.
+ */
+async function ensureSeedGroup(): Promise<void> {
+  if (seedGroupEnsured) return;
+  const prisma = getPrismaClient();
+  await prisma.actor.upsert({
+    where: { id: SEED_ACTOR_ID },
+    update: {},
+    create: { id: SEED_ACTOR_ID },
+  });
+  await prisma.group.upsert({
+    where: { id: SEED_GROUP_ID },
+    update: {},
+    create: {
+      id: SEED_GROUP_ID,
+      name: "Default",
+      created_by: SEED_ACTOR_ID,
+    },
+  });
+  // Upsert the SDPR template model so vlmDirect.extract and loadSeededFieldDefs
+  // can resolve field types without requiring the full seed script.
+  // Use model_id as the upsert key to avoid duplicate-model_id conflicts.
+  const template = await prisma.templateModel.upsert({
+    where: { model_id: "sdpr-monthly-report" },
+    update: {},
+    create: {
+      id: "seed-sdpr-monthly-report-template",
+      name: "SDPR Monthly Report",
+      model_id: "sdpr-monthly-report",
+      created_by: SEED_ACTOR_ID,
+      group_id: SEED_GROUP_ID,
+      status: TemplateModelStatus.trained,
+    },
+  });
+  await prisma.fieldDefinition.createMany({
+    data: SDPR_FIELDS.map((f, i) => ({
+      template_model_id: template.id,
+      field_key: f.fieldKey,
+      field_type: f.fieldType,
+      field_format: f.fieldFormat ?? null,
+      display_order: i,
+    })),
+    skipDuplicates: true,
+  });
+  seedGroupEnsured = true;
+}
 
 /**
  * Absolute path to a real sample image on disk. `file.prepare`/provider
@@ -97,6 +297,7 @@ export async function seedTestDocument(opts?: {
   id?: string;
   fileName?: string;
 }): Promise<{ documentId: string; cleanup: () => Promise<void> }> {
+  await ensureSeedGroup();
   const prisma = getPrismaClient();
   const documentId = opts?.id ?? `itest-${randomUUID()}`;
   const fileName = opts?.fileName ?? "1 81.jpg";
