@@ -128,6 +128,13 @@ async function ensureNightlyStorageChargeSchedule(opts: {
           // Run at 00:05 UTC daily so the previous day's data is fully written
           cronExpressions: ["5 0 * * *"],
         },
+        policies: {
+          // If the billing worker is down and misses a scheduled run, catch up
+          // for up to 25 hours so at most one day of charges can be lost.
+          // The workflow uses Temporal deterministic time, so catch-up runs
+          // correctly charge for their originally scheduled day, not "today".
+          catchupWindow: "25 hours",
+        },
         action: {
           type: "startWorkflow",
           workflowType: "nightlyStorageChargeWorkflow",
