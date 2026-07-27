@@ -209,7 +209,15 @@ describe("graph-schema-validator", () => {
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      // G-067 — a map with no `maxConcurrency` draws an advisory warning
+      // (unbounded fan-out). It is a warning, not an error: the graph is still
+      // valid and still saves.
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodes.mapNode.maxConcurrency",
+          severity: "warning",
+        }),
+      ]);
     });
 
     it("valid fallback edge policy passes when edge type is error", () => {

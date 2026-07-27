@@ -78,6 +78,7 @@ import {
   useWorkflow,
   useWorkflowVersion,
   WorkflowSaveError,
+  WorkflowVersionConflictError,
 } from "../../data/hooks/useWorkflows";
 import type {
   ActivityNode,
@@ -1004,7 +1005,18 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     };
     try {
       if (isEditMode && workflowId) {
-        await updateWorkflow.mutateAsync({ id: workflowId, dto });
+        // G-063 — the version this editor loaded IS the base these edits sit
+        // on. Sending it lets the backend refuse a save that would silently
+        // overwrite one another tab (or the agent) landed in the meantime.
+        if (existingWorkflow === undefined) {
+          throw new Error(
+            "Still loading this workflow — try saving again in a moment.",
+          );
+        }
+        await updateWorkflow.mutateAsync({
+          id: workflowId,
+          dto: { ...dto, expectedVersion: existingWorkflow.version },
+        });
         // §4.4: the save invalidates ['workflow'] → refetch. Re-baseline so
         // the post-save hydration re-adopts the (now-saved) server config and
         // future agent writes can hydrate again.
@@ -1027,6 +1039,19 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         navigate(`/workflows/${created.id}/edit`, { replace: true });
       }
     } catch (err) {
+      // G-063 — a stale base is not a config problem, so it gets its own
+      // message. Telling the author to check their graph would send them
+      // looking for a fault that is not there.
+      if (err instanceof WorkflowVersionConflictError) {
+        notifications.show({
+          color: "orange",
+          title: "Someone else saved first",
+          message: `This workflow moved from v${err.expectedVersion} to v${err.currentVersion} while you were editing. Reload to see their changes — your edits are still on screen, so copy anything you need first.`,
+          autoClose: false,
+          style: { whiteSpace: "pre-line" },
+        });
+        return;
+      }
       // The validator answers with the exact node + field it objected to.
       // Repeating the headline alone ("Invalid workflow configuration") throws
       // that away and leaves the author to go looking for it.
@@ -1050,6 +1075,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     config,
     createWorkflow,
     description,
+    existingWorkflow,
     isEditMode,
     name,
     navigate,

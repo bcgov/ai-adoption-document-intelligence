@@ -9,9 +9,38 @@
 
 - `GET /api/workflows` — lineages with **head** config (`WorkflowInfo` includes `id` = lineage, `workflowVersionId` = head row).
 - `GET /api/workflows/:lineageId` — same, by lineage id.
-- `PUT /api/workflows/:lineageId` — metadata and/or new config; config change **appends** a version and updates head.
+- `PUT /api/workflows/:lineageId` — metadata and/or new config; config change **appends** a version and updates head. **Requires `expectedVersion`** (see below).
 - `GET /api/workflows/:lineageId/versions` — version history (newest first).
 - `POST /api/workflows/:lineageId/revert-head` — body `{ "workflowVersionId": "..." }` sets **head only** (does not change benchmark definition pins).
+
+## Concurrent edits (G-063)
+
+`PUT` bodies MUST carry `expectedVersion`: the `version` the edits were based
+on, as returned by `GET`. If the lineage's head has moved on since, the write
+is refused with **409** and a `workflow_version_conflict` body naming both
+versions:
+
+```json
+{
+  "error": "workflow_version_conflict",
+  "message": "This workflow was saved by someone else (version 4). Reload to see their changes before saving yours.",
+  "expectedVersion": 3,
+  "currentVersion": 4
+}
+```
+
+Without this, two editors that both loaded version N would each append a
+version and the second write would silently become the head, carrying none of
+the first author's edits. Nothing was corrupted — version N+1 is still in
+history — but the head was wrong and neither author was told.
+
+The token is **required, not optional**: an optional one is only honoured by
+callers who already thought about concurrency, which are exactly the callers
+who did not need it. Requiring it forces every writer through read-then-write.
+
+The check runs twice — once on entry as an early exit, and again inside the
+append transaction, which is the one that decides (the head can move between
+the two).
 
 ## Benchmarking
 

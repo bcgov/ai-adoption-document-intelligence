@@ -128,6 +128,20 @@ export interface CreateWorkflowDto {
   kind?: "workflow" | "library";
 }
 
+/**
+ * G-063 — the service-level shape of a workflow update. `expectedVersion` is
+ * the version the caller's edits were based on; a write whose base is no
+ * longer the head is refused with 409 instead of silently becoming the head.
+ * Mirrors `UpdateWorkflowDto` (the HTTP body), kept here so in-process callers
+ * (the agent tools) are held to the same contract.
+ */
+export interface UpdateWorkflowDto {
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  config?: GraphWorkflowConfig;
+}
+
 /** Options for the three workflow-listing service methods. */
 export interface ListWorkflowsOptions {
   /** Include `workflow_kind: benchmark_candidate` rows; default false. */
@@ -757,10 +771,35 @@ export class WorkflowService {
     return this.mapLineageAndVersion(full, full.headVersion);
   }
 
+  /**
+   * G-063 — every write states the version it was based on, and a write based
+   * on a stale head is refused with 409 rather than silently becoming the head.
+   *
+   * The check is repeated INSIDE the append transaction as well as here: this
+   * first read is only an early exit for the common case, and the head can
+   * still move between the two. The transactional one is the one that decides.
+   */
+  private assertExpectedVersion(
+    lineageId: string,
+    expectedVersion: number,
+    currentVersion: number,
+  ): void {
+    if (expectedVersion === currentVersion) return;
+    this.logger.warn(
+      `Rejecting stale write to ${lineageId}: caller had v${expectedVersion}, head is v${currentVersion}`,
+    );
+    throw new ConflictException({
+      error: "workflow_version_conflict",
+      message: `This workflow was saved by someone else (version ${currentVersion}). Reload to see their changes before saving yours.`,
+      expectedVersion,
+      currentVersion,
+    });
+  }
+
   async updateWorkflow(
     lineageId: string,
     actorId: string,
-    dto: Partial<CreateWorkflowDto>,
+    dto: UpdateWorkflowDto,
   ): Promise<WorkflowInfo> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
@@ -770,6 +809,12 @@ export class WorkflowService {
     if (!existing?.headVersion) {
       throw new NotFoundException(`Workflow not found: ${lineageId}`);
     }
+
+    this.assertExpectedVersion(
+      lineageId,
+      dto.expectedVersion,
+      existing.headVersion.version_number,
+    );
 
     this.logger.debug(`updateWorkflow: ${lineageId} by actor ${actorId}`);
 
@@ -820,6 +865,13 @@ export class WorkflowService {
             if (!current?.headVersion) {
               throw new NotFoundException(`Workflow not found: ${lineageId}`);
             }
+            // The head can move between the pre-flight read and this
+            // transaction, so the decisive check is the one in here.
+            this.assertExpectedVersion(
+              lineageId,
+              dto.expectedVersion,
+              current.headVersion.version_number,
+            );
             const headConfig = this.asGraphConfig(current.headVersion.config);
             if (!this.configChanged(headConfig, nextConfig)) {
               return null;

@@ -6,8 +6,11 @@ import type { GraphWorkflowConfig } from "../../types/workflow";
 import { apiService } from "../services/api.service";
 import {
   useCreateWorkflow,
+  useUpdateWorkflow,
   useWorkflows,
   useWorkflowVersion,
+  WorkflowSaveError,
+  WorkflowVersionConflictError,
 } from "./useWorkflows";
 
 // ---------------------------------------------------------------------------
@@ -24,6 +27,7 @@ vi.mock("../services/api.service", () => ({
   apiService: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }));
 
@@ -391,6 +395,111 @@ describe("useWorkflowVersion (US-081)", () => {
             q.queryKey[2] === "wv-7",
         ),
       ).toBe(true);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-063 — a save based on a stale version is refused, and told apart from a
+// validation failure so the editor can offer the right remedy.
+// ---------------------------------------------------------------------------
+
+describe("useUpdateWorkflow — version conflict", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseGroup.mockReturnValue({ activeGroup });
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function renderUpdate() {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    return renderHook(() => useUpdateWorkflow(), {
+      wrapper: ({ children }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children),
+    });
+  }
+
+  it("raises a version-conflict error on the 409 body", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Conflict",
+      data: {
+        error: "workflow_version_conflict",
+        message: "This workflow was saved by someone else (version 4).",
+        expectedVersion: 3,
+        currentVersion: 4,
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    await expect(
+      result.current.mutateAsync({
+        id: "wf-1",
+        dto: { expectedVersion: 3, config: minimalConfig },
+      }),
+    ).rejects.toBeInstanceOf(WorkflowVersionConflictError);
+  });
+
+  it("carries both versions so the editor can name them", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Conflict",
+      data: {
+        error: "workflow_version_conflict",
+        message: "saved by someone else",
+        expectedVersion: 3,
+        currentVersion: 9,
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    const err = await result.current
+      .mutateAsync({ id: "wf-1", dto: { expectedVersion: 3 } })
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ expectedVersion: 3, currentVersion: 9 });
+  });
+
+  it("still raises an ordinary save error for a validation failure", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: false,
+      message: "Invalid workflow configuration",
+      data: {
+        errors: [{ path: "nodes.a", message: "bad", severity: "error" }],
+      },
+    } as never);
+
+    const { result } = renderUpdate();
+    const err = await result.current
+      .mutateAsync({ id: "wf-1", dto: { expectedVersion: 3 } })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WorkflowSaveError);
+    expect(err).not.toBeInstanceOf(WorkflowVersionConflictError);
+  });
+
+  it("sends expectedVersion in the body", async () => {
+    vi.mocked(apiService.put).mockResolvedValue({
+      success: true,
+      data: { workflow: workflowInfo },
+    } as never);
+
+    const { result } = renderUpdate();
+    await result.current.mutateAsync({
+      id: "wf-1",
+      dto: { expectedVersion: 5, config: minimalConfig },
+    });
+    await waitFor(() => {
+      expect(apiService.put).toHaveBeenCalledWith(
+        "/workflows/wf-1",
+        expect.objectContaining({ expectedVersion: 5 }),
+      );
     });
   });
 });

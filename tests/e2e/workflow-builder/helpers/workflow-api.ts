@@ -89,12 +89,22 @@ export async function createWorkflow(
 export async function getWorkflow(
   request: APIRequestContext,
   id: string,
-): Promise<{ id: string; name: string; config: GraphConfig }> {
+): Promise<{
+  id: string;
+  name: string;
+  config: GraphConfig;
+  version: number;
+}> {
   const res = await request.get(`${BACKEND_URL}/api/workflows/${id}`, {
     headers,
   });
   expect(res.ok(), `get workflow ${id} failed: ${res.status()}`).toBeTruthy();
-  type Single = { id: string; name: string; config: GraphConfig };
+  type Single = {
+    id: string;
+    name: string;
+    config: GraphConfig;
+    version: number;
+  };
   const body = (await res.json()) as Single | { workflow: Single };
   return "workflow" in body ? body.workflow : body;
 }
@@ -106,15 +116,29 @@ export async function deleteWorkflow(
   await request.delete(`${BACKEND_URL}/api/workflows/${id}`, { headers });
 }
 
-/** PUT /api/workflows/:id — publishes a new version on the lineage. */
+/**
+ * PUT /api/workflows/:id — publishes a new version on the lineage.
+ *
+ * G-063 — the endpoint requires `expectedVersion`. When the caller does not
+ * supply one this reads the current head first, which is the read-then-write
+ * discipline the requirement exists to force; pass one explicitly to exercise
+ * the conflict path.
+ */
 export async function updateWorkflow(
   request: APIRequestContext,
   id: string,
-  opts: { name: string; config: GraphConfig },
+  opts: { name: string; config: GraphConfig; expectedVersion?: number },
 ): Promise<void> {
+  const expectedVersion =
+    opts.expectedVersion ?? (await getWorkflow(request, id)).version;
   const res = await request.put(`${BACKEND_URL}/api/workflows/${id}`, {
     headers,
-    data: { name: opts.name, config: opts.config, groupId: SEED_GROUP_ID },
+    data: {
+      name: opts.name,
+      config: opts.config,
+      groupId: SEED_GROUP_ID,
+      expectedVersion,
+    },
   });
   expect(
     res.ok(),

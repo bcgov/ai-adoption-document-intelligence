@@ -20,6 +20,7 @@ import type {
   GraphWorkflowConfig,
 } from "@/workflow/graph-workflow-types";
 import type {
+  UpdateWorkflowDto,
   WorkflowInfo,
   WorkflowService,
 } from "@/workflow/workflow.service";
@@ -267,9 +268,13 @@ async function writeWorkflow(
   // write would validate and succeed. Callers that first read via
   // readWorkflow are already guarded, but the assertion is cheap and keeps
   // writeWorkflow safe on its own.
-  await fetchWorkflowInGroup(ctx, workflowId);
+  const current = await fetchWorkflowInGroup(ctx, workflowId);
   const resolved = resolveConfigForPersist(config);
+  // G-063 — the version just read IS the base these edits sit on, so passing
+  // it is not ceremony: it is what stops the agent overwriting a save the
+  // author made between this read and this write.
   await ctx.workflowService.updateWorkflow(workflowId, ctx.actorId, {
+    expectedVersion: current.version,
     config: resolved,
   });
 }
@@ -530,8 +535,10 @@ export function createAgentTools(ctx: AgentToolContext): ToolSet {
         const id = ensureNonNullWorkflowId(ctx, workflowId);
         // Assert group ownership before the metadata write (same tenancy
         // boundary as the graph-edit tools).
-        await fetchWorkflowInGroup(ctx, id);
-        const patch: { name?: string; description?: string } = {};
+        const current = await fetchWorkflowInGroup(ctx, id);
+        const patch: UpdateWorkflowDto = {
+          expectedVersion: current.version,
+        };
         if (name !== undefined) patch.name = name;
         if (description !== undefined) patch.description = description;
         const updated = await ctx.workflowService.updateWorkflow(

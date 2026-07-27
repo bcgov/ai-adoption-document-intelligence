@@ -782,7 +782,10 @@ describe("WorkflowService", () => {
     it("throws NotFoundException when lineage not found", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateWorkflow("lin-1", "actor-1", { name: "Updated" }),
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          name: "Updated",
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -794,9 +797,56 @@ describe("WorkflowService", () => {
         headVersion,
       });
       const result = await service.updateWorkflow("lin-1", "actor-1", {
+        expectedVersion: 1,
         name: "Updated",
       });
       expect(result.name).toBe("Updated");
+    });
+
+    // G-063 — a write based on a version that is no longer the head is a
+    // second editor about to overwrite the first, silently. It is refused.
+    it("refuses a write whose expectedVersion is behind the head", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow); // head is v1
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 0,
+          name: "Stale",
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("names both versions in the conflict so the caller can explain it", async () => {
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        headVersion: { ...headVersion, version_number: 4 },
+      });
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 3,
+          name: "Stale",
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          error: "workflow_version_conflict",
+          expectedVersion: 3,
+          currentVersion: 4,
+        },
+      });
+    });
+
+    it("never writes when the base is stale", async () => {
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        headVersion: { ...headVersion, version_number: 9 },
+      });
+      mockLineage.update.mockClear();
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          name: "Stale",
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockLineage.update).not.toHaveBeenCalled();
     });
   });
 

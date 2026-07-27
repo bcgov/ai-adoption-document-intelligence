@@ -18,6 +18,18 @@ export interface WorkflowInfo {
   updatedAt: string;
 }
 
+/**
+ * G-063 — `expectedVersion` is the `version` the edits were based on. The
+ * backend refuses a write whose base is no longer the head, so a second editor
+ * cannot silently overwrite the first.
+ */
+export interface UpdateWorkflowDto {
+  expectedVersion: number;
+  name?: string;
+  description?: string;
+  config?: GraphWorkflowConfig;
+}
+
 export interface CreateWorkflowDto {
   name: string;
   description?: string;
@@ -139,6 +151,51 @@ export interface WorkflowValidationIssue {
  * defaultEdge`). Throwing a bare Error discarded all of that and left the
  * author a generic "Invalid workflow configuration" plus a hunt.
  */
+/**
+ * G-063 — the workflow's head moved on before this save landed: another
+ * editor (another tab, another person, the agent) saved first. Distinct from
+ * `WorkflowSaveError` because the remedy is different — nothing about the
+ * config is wrong, the author just needs to see the other changes first.
+ */
+export class WorkflowVersionConflictError extends Error {
+  readonly expectedVersion: number;
+  readonly currentVersion: number;
+
+  constructor(
+    message: string,
+    expectedVersion: number,
+    currentVersion: number,
+  ) {
+    super(message);
+    this.name = "WorkflowVersionConflictError";
+    this.expectedVersion = expectedVersion;
+    this.currentVersion = currentVersion;
+  }
+}
+
+/** Reads the 409 body the backend's `WorkflowVersionConflictDto` describes. */
+function versionConflictFrom(
+  payload: unknown,
+): { expectedVersion: number; currentVersion: number; message: string } | null {
+  if (!payload || typeof payload !== "object") return null;
+  const body = payload as Record<string, unknown>;
+  if (body.error !== "workflow_version_conflict") return null;
+  if (
+    typeof body.expectedVersion !== "number" ||
+    typeof body.currentVersion !== "number"
+  ) {
+    return null;
+  }
+  return {
+    expectedVersion: body.expectedVersion,
+    currentVersion: body.currentVersion,
+    message:
+      typeof body.message === "string"
+        ? body.message
+        : "This workflow was saved by someone else.",
+  };
+}
+
 export class WorkflowSaveError extends Error {
   readonly issues: WorkflowValidationIssue[];
 
@@ -205,13 +262,24 @@ export function useUpdateWorkflow() {
       dto,
     }: {
       id: string;
-      dto: Partial<CreateWorkflowDto>;
+      dto: UpdateWorkflowDto;
     }): Promise<WorkflowInfo> => {
       const response = await apiService.put<WorkflowResponse>(
         `/workflows/${id}`,
         dto,
       );
       if (!response.success || !response.data) {
+        // G-063 — a stale-base rejection is not a validation failure; it needs
+        // its own error so the editor can offer "reload" rather than sending
+        // the author hunting for a config problem that does not exist.
+        const conflict = versionConflictFrom(response.data);
+        if (conflict) {
+          throw new WorkflowVersionConflictError(
+            conflict.message,
+            conflict.expectedVersion,
+            conflict.currentVersion,
+          );
+        }
         throw new WorkflowSaveError(
           response.message || "Failed to update workflow",
           validationIssuesFrom(response.data),

@@ -88,6 +88,10 @@ import {
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
 import { SourceUploadResponseDto } from "./dto/source-upload.dto";
 import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
+import {
+  UpdateWorkflowDto,
+  WorkflowVersionConflictDto,
+} from "./dto/update-workflow.dto";
 import { VersionRunCountDto } from "./dto/version-run-count.dto";
 import {
   RevertHeadDto,
@@ -1521,9 +1525,9 @@ export class WorkflowController {
   @ApiOperation({ summary: "Update an existing workflow" })
   @ApiParam({ name: "id", description: "Workflow ID" })
   @ApiBody({
-    type: CreateWorkflowDto,
+    type: UpdateWorkflowDto,
     description:
-      "Partial workflow data (name, description, and/or config). Only provided fields are updated.",
+      "Workflow data (name, description, and/or config) plus the required `expectedVersion` the edits were based on. Only provided fields are updated.",
   })
   @ApiOkResponse({
     description: "Workflow updated successfully. Returns the updated workflow.",
@@ -1534,9 +1538,14 @@ export class WorkflowController {
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "G-063 — the workflow's head has moved on since `expectedVersion`; another editor saved first. The caller should reload before saving again.",
+    type: WorkflowVersionConflictDto,
+  })
   async updateWorkflow(
     @Param("id") id: string,
-    @Body() dto: Partial<CreateWorkflowDto>,
+    @Body() dto: UpdateWorkflowDto,
     @Req() req: Request,
   ): Promise<{ workflow: WorkflowInfo }> {
     const actorId = req.resolvedIdentity.actorId;

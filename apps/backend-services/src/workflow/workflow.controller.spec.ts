@@ -1,5 +1,9 @@
 import { GroupRole } from "@generated/client";
-import { ForbiddenException, type INestApplication } from "@nestjs/common";
+import {
+  ConflictException,
+  ForbiddenException,
+  type INestApplication,
+} from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { WorkflowNotFoundError } from "@temporalio/client";
 import { Request } from "express";
@@ -2146,7 +2150,7 @@ describe("WorkflowController", () => {
           "group-1": GroupRole.MEMBER,
         }),
       } as Request;
-      const dto = { name: "Updated" };
+      const dto = { expectedVersion: 1, name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       workflowService.updateWorkflow.mockResolvedValue({
         ...mockWorkflowInfo,
@@ -2172,12 +2176,62 @@ describe("WorkflowController", () => {
           "other-group": GroupRole.MEMBER,
         }),
       } as Request;
-      const dto = { name: "Updated" };
+      const dto = { expectedVersion: 1, name: "Updated" };
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
       await expect(controller.updateWorkflow("wf-1", dto, req)).rejects.toThrow(
         ForbiddenException,
       );
       expect(workflowService.updateWorkflow).not.toHaveBeenCalled();
+    });
+
+    // G-063 — the stale-base rejection reaches the caller as a 409 with both
+    // versions named, not as a generic failure.
+    it("surfaces the service's version conflict to the caller", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
+      workflowService.updateWorkflow.mockRejectedValue(
+        new ConflictException({
+          error: "workflow_version_conflict",
+          message: "saved by someone else",
+          expectedVersion: 3,
+          currentVersion: 4,
+        }),
+      );
+      await expect(
+        controller.updateWorkflow(
+          "wf-1",
+          { expectedVersion: 3, name: "Updated" },
+          req,
+        ),
+      ).rejects.toMatchObject({
+        response: { error: "workflow_version_conflict", currentVersion: 4 },
+      });
+    });
+
+    it("passes the caller's expectedVersion through untouched", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
+      workflowService.updateWorkflow.mockResolvedValue(mockWorkflowInfo);
+      await controller.updateWorkflow(
+        "wf-1",
+        { expectedVersion: 7, name: "Updated" },
+        req,
+      );
+      expect(workflowService.updateWorkflow).toHaveBeenCalledWith(
+        "wf-1",
+        "user-1",
+        expect.objectContaining({ expectedVersion: 7 }),
+      );
     });
   });
 
