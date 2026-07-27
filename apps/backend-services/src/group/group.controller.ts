@@ -581,7 +581,9 @@ export class GroupController {
    */
   @ApiOperation({
     summary:
-      "Set or remove a group's monthly spending cap (platform admin only)",
+      "Set or remove a group's monthly spending cap (group admin or platform admin)",
+    description:
+      "Group admins can configure their own group's spending cap as a self-imposed guardrail. Platform admins can configure any group's cap.",
   })
   @ApiOkResponse({
     description: "Billing configuration updated successfully",
