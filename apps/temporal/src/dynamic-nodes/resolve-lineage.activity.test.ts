@@ -52,7 +52,7 @@ describe("dynamicNodeResolveLineage — Scenario 2: lineage lookup + deletion ch
     ).rejects.toBeInstanceOf(DynamicNodeDeletedError);
   });
 
-  it("soft-deleted lineage → DynamicNodeDeletedError", async () => {
+  it("soft-deleted lineage, no pin → DynamicNodeDeletedError", async () => {
     const prisma = mkPrisma({
       id: "ck1",
       deletedAt: new Date(),
@@ -126,5 +126,67 @@ describe("dynamicNodeResolveLineage — Scenario 3: version resolution", () => {
         { prisma },
       ),
     ).rejects.toBeInstanceOf(DynamicNodeVersionNotFoundError);
+  });
+});
+
+/**
+ * G-051 — `DynamicNodeRepository.softDelete` keeps every version row on
+ * purpose, documenting that "workflows pinned to a specific version of a
+ * soft-deleted lineage continue to resolve at runtime". This activity checked
+ * `deletedAt` BEFORE ever looking at the pin, so that promise was never kept
+ * and preserving the rows bought nothing.
+ *
+ * Soft-delete retires the lineage for anything tracking its head; a workflow
+ * that deliberately pinned an immutable version keeps working.
+ */
+describe("dynamicNodeResolveLineage — G-051: soft-delete honours a pin", () => {
+  const deletedLineage = {
+    id: "ck1",
+    deletedAt: new Date(),
+    headVersionId: "v-head",
+  };
+
+  it("resolves a PINNED version even though the lineage is soft-deleted", async () => {
+    const prisma = mkPrisma(deletedLineage, {
+      id: "v-pinned",
+      deterministic: true,
+    });
+    await expect(
+      dynamicNodeResolveLineage(
+        { groupId: "g1", slug: "retired", version: 2 },
+        { prisma },
+      ),
+    ).resolves.toEqual({ versionId: "v-pinned", deterministic: true });
+  });
+
+  it("still refuses a HEAD-tracking consumer of a soft-deleted lineage", async () => {
+    const prisma = mkPrisma(deletedLineage, {
+      id: "v-head",
+      deterministic: true,
+    });
+    await expect(
+      dynamicNodeResolveLineage({ groupId: "g1", slug: "retired" }, { prisma }),
+    ).rejects.toBeInstanceOf(DynamicNodeDeletedError);
+  });
+
+  it("still refuses a pin whose version row does not exist", async () => {
+    // Soft-delete keeps existing rows; it does not conjure missing ones.
+    const prisma = mkPrisma(deletedLineage, null);
+    await expect(
+      dynamicNodeResolveLineage(
+        { groupId: "g1", slug: "retired", version: 99 },
+        { prisma },
+      ),
+    ).rejects.toBeInstanceOf(DynamicNodeVersionNotFoundError);
+  });
+
+  it("still refuses a lineage that does not exist at all, pinned or not", async () => {
+    const prisma = mkPrisma(null);
+    await expect(
+      dynamicNodeResolveLineage(
+        { groupId: "g1", slug: "gone", version: 1 },
+        { prisma },
+      ),
+    ).rejects.toBeInstanceOf(DynamicNodeDeletedError);
   });
 });

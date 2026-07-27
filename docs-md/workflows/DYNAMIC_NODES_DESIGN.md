@@ -596,7 +596,18 @@ The modal closes after publish; the workflow editor stays put with the new/updat
 
 ### 9.5 Settings panel — "deleted dynamic node" affordance
 
-Detection mechanism: the workflow's saved config references `type: "dyn.<slug>"`, but the merged catalog (which excludes soft-deleted lineages — see §7.1) does not list that slug. When the canvas opens a workflow and finds a `dyn.*` node whose type is absent from the merged catalog, it renders the node with a red "deleted" badge in the settings panel and disables Try. The workflow can still be saved; running it will fail loudly with `DynamicNodeDeletedError` via Phase 4's status streaming.
+Detection mechanism: the workflow's saved config references `type: "dyn.<slug>"`, but the merged catalog (which excludes soft-deleted lineages — see §7.1) does not list that slug. When the canvas opens a workflow and finds a `dyn.*` node whose type is absent from the merged catalog, it renders the node with a red "deleted" badge in the settings panel and disables Try. The workflow can still be saved.
+
+**A soft-delete does not break a version-pinned consumer (G-051).** `softDelete`
+is lineage-only and deliberately keeps every version row, so a node carrying an
+explicit `dynamicNodeVersion` still resolves and still runs. Only a node
+tracking the lineage HEAD fails, with `DynamicNodeDeletedError` via Phase 4's
+status streaming — which is what retiring a lineage is for.
+
+Until G-051 was fixed, `resolveLineage` checked `deletedAt` *before* consulting
+the pin, so every consumer failed and preserving the version rows achieved
+nothing at run time. The repository documented the guarantee; the resolver did
+not honour it.
 
 ---
 

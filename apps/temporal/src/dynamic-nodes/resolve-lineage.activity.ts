@@ -11,7 +11,12 @@
  * directly. The graph executor proxies through this activity instead.
  *
  * Throws typed errors from US-168:
- *   - `DynamicNodeDeletedError`         — lineage missing OR soft-deleted
+ *   - `DynamicNodeDeletedError`         — lineage missing, or soft-deleted AND
+ *                                          the caller did not pin a version
+ *                                          (G-051: a pinned consumer of a
+ *                                          soft-deleted lineage still resolves,
+ *                                          which is what `softDelete` keeps the
+ *                                          version rows for)
  *   - `DynamicNodeVersionNotFoundError` — pinned version doesn't exist
  *   - `DynamicNodeHeadMissingError`     — head pointer is null (shouldn't
  *                                          happen in 6.0 — guards against
@@ -64,7 +69,23 @@ export async function dynamicNodeResolveLineage(
     select: { id: true, deletedAt: true, headVersionId: true },
   });
 
-  if (lineage === null || lineage.deletedAt !== null) {
+  if (lineage === null) {
+    throw new DynamicNodeDeletedError(args.slug);
+  }
+
+  // G-051 — a soft-deleted lineage refuses only the FLOATING consumers.
+  //
+  // This check used to run before the pinned branch below, so the pin was
+  // never consulted and a soft-delete broke every consumer. That directly
+  // contradicted the contract `DynamicNodeRepository.softDelete` documents and
+  // is built for: "deletion is lineage-only — version rows are kept so
+  // workflows pinned to a specific version of a soft-deleted lineage continue
+  // to resolve at runtime". Preserving those rows bought nothing at run time.
+  //
+  // Head-resolving consumers still fail, which is the point of the soft
+  // delete: it retires the lineage for anything tracking its head, while a
+  // workflow that deliberately pinned an immutable version keeps working.
+  if (lineage.deletedAt !== null && args.version === undefined) {
     throw new DynamicNodeDeletedError(args.slug);
   }
 
