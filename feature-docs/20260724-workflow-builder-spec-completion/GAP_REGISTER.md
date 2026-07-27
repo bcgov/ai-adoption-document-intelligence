@@ -485,6 +485,8 @@ No delete path prunes `SwitchCase.edgeId`, `SwitchNode.defaultEdge` or `HumanGat
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `11b627c3`.** `pruneEdgeReferences` sweeps all four edge-id fields (`switch.cases[].edgeId`, `switch.defaultEdge`, `humanGate.fallbackEdgeId`, `errorPolicy.fallbackEdgeId`) on every one of the three edge-removal paths. A `fallback` mode whose edge disappears is downgraded to `fail` — behaviour-preserving, since both fallback executors already threw a non-retryable `GRAPH_EXECUTION_ERROR` when the edge was missing. A dangling `switch.defaultEdge` is cleared, never replaced: which branch becomes the default is the author's call, and the validator already asks for one.
+
 ### G-030 — Exposed parameters have no reference integrity and are destroyed silently by the mutation paths that touch them most — while the least destructive path is the only one that warns
 
 **Found by:** D (1 pass) · **Severity:** major · **Type:** design-gap + impl-gap
@@ -631,6 +633,8 @@ D31/D30. The editor rewrites the whole `fields[]` array with no cascade to consu
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `11f18c2b`.** Renaming a field now drives `renameCtxKeyInConfig` — the same sweep G-008 already runs in the other direction, so the two stay symmetric. The name commits on blur rather than per keystroke, which is load-bearing: a ctx-key rename per character would sweep the graph once per character. A rename is only inferred from a same-length positional diff, because a shifted row is indistinguishable from a renamed one by position alone.
+
 **Merge note:** The mirror of the ctx-rename sweep entry: the same producer/consumer split reached from the source-field editor instead of the ctx table. Also changes the external run-spec contract, as does the `isInput` retype entry.
 
 ### G-041 — J1.3 — a first-timer landing on an empty canvas gets 41 ungrouped activities and no reachable starting recipe; the template picker lives only on the list page
@@ -742,6 +746,8 @@ D46/D20. `CtxDeclaration.kind` is only step 2 of `resolvePortKind` — a fallbac
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `71e1b61e`.** The ctx row names the pinned inputs the current kind no longer satisfies, each a link to the node. Reported as state rather than as an event, so a graph that loads already mismatched says so too. Reads the same `computeNodeInputIssues` resolution the validation drawer uses, so the two surfaces cannot disagree. Only pinned bindings are attributed — an auto-wired port that stops matching re-resolves elsewhere, and the resolver cannot attribute that to any one key.
+
 ### G-050 — Deleting a workflow lineage cascade-deletes every version, including versions pinned by completed runs and by other workflows' `childWorkflow` nodes
 
 **Found by:** D (1 pass) · **Severity:** major · **Type:** design-gap
@@ -752,6 +758,8 @@ D46/D20. `CtxDeclaration.kind` is only step 2 of `resolvePortKind` — a fallbac
 D70/D73/D74. `WorkflowVersion.lineage` is `onDelete: Cascade`. Ground-truth jobs (`Restrict`) and benchmark definitions (default `Restrict`) do block the delete, and `Document.workflowVersion` is `SetNull` — but runs are Temporal-side with no FK at all, so `RunSummaryDto.workflowVersionId` in the run-history drawer can point at a version row that no longer exists, and a `childWorkflow` version pin is just a number inside JSON that nothing scans. The protection model is therefore inconsistent by reference type rather than by consequence: the audit trail a run depends on is the least protected thing in the schema.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `5873aaa9`.** Scoped down on verification: benchmark definitions and ground-truth jobs are `Restrict` FKs and block the delete outright, and library references are caught by G-019's guard. The one silent loss is `Document.workflow_config_id` (`SetNull`) — the record of which graph produced each document. `GET /:id/delete-impact` lets the confirmation state that cost, and the `workflow_deleted` audit payload carries both counts so the loss stays attributable. The delete stays permitted: a workflow that has processed documents has to remain deletable.
 
 ### G-051 — Soft-deleting a dynamic node breaks version-pinned nodes at run time, directly contradicting the documented contract
 
@@ -900,6 +908,8 @@ The backend rejects an invalid config with a structured body — `throw new BadR
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `f9049ab3`.** `PUT /api/workflows/:id` requires `expectedVersion` and answers 409 `workflow_version_conflict` naming both versions. Required rather than optional on purpose — an optional token is only honoured by callers who already thought about concurrency, which are exactly the callers who did not need it. The check runs twice; the one inside the append transaction is the one that decides. The editor shows a distinct "Someone else saved first" notice, since a stale base is not a config problem.
+
 ### G-064 — wire-peek shows the cache-evicted recovery alert in replay for a producer that never ran or failed
 
 **Found by:** C (1 pass) · **Severity:** major · **Type:** impl-gap
@@ -923,6 +933,8 @@ The popover branches on `isReplay` alone. `PreviewWidget.tsx:49` added `produced
 D43. `deriveFromCtx` builds the run-spec JSON Schema directly from `config.ctx` entries flagged `isInput`, using the declaration's key as the property name and its `type` verbatim. So an in-editor rename or type change silently changes the request body every existing API caller must send, and the curl sample in the run drawer changes with it. Nothing warns that the key is part of an external contract; the drawer renders `isInput` as an ordinary checkbox column. `CtxDeclaration.type` is otherwise not validated against anything in the graph, so this is its only real consumer.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `15db9e5f`.** The ctx row states what the flag does to the public contract, in the caller's terms: required, optional (a default fills the gap), or inert. The inert case is the same defect from the other side — under a `source.api` node or the library kind the flag changes nothing at all, and the drawer said so no more clearly than it said the rest. `ctxRunContract` mirrors `derive-input-schema.ts`'s precedence and its tests assert that order, so a change there fails here rather than leaving the drawer describing a contract the backend does not publish.
 
 ### G-066 — `KindSelect` reads the frozen registry snapshot, so a dynamically registered kind renders blank and is overwritten on the next edit
 
@@ -1032,6 +1044,8 @@ Two narrower divergences ride along. The from-ctx chip uses an exact `config.ctx
 D45. The guard `if (oldKey === newKey || newKey === "" || config.ctx[newKey]) return;` rejects a collision by doing nothing. Because the parent config is unchanged, the row's `ctxKey` prop does not change either, so the effect that re-syncs `localName` never fires and the input keeps showing the name the model rejected. The author believes the rename happened. There is also no identifier validation on rename at all (contrast `NEW_CTX_KEY_RE` on the creation path in VariablePicker), so `"my key"` or a dotted name is accepted and silently breaks root-key resolution everywhere.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `eefa8389`.** The row knows the other declared names, shows the collision live, and keeps the typed text on blur instead of snapping back — the author has to see and resolve it rather than have it undone. The refusal itself was already correct (`renameCtxKeyInConfig` would merge the two declarations); what was missing was saying so.
 
 ### G-075 — "Needs a source" is the same message whether the kind is a typo, the cardinality is wrong, or no producer exists
 

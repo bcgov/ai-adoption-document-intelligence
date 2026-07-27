@@ -206,6 +206,39 @@ different reference type.
 suggested 50%; the honest position is that each cluster has to be measured, and
 six C5 entries are still unmeasured.
 
+## C1 — all seven ruled and shipped, 2026-07-27
+
+| Entry | Commit | Shape of the fix |
+|---|---|---|
+| G-029 edge-id refs never swept | `11b627c3` | `pruneEdgeReferences` on all three edge-removal paths; a `fallback` mode whose edge dies downgrades to `fail` (behaviour-preserving — both executors already threw) |
+| G-074 rename collision silent | `eefa8389` | the row shows the collision live and KEEPS the typed text; the refusal was already right, saying so was missing |
+| G-049 kind retype unchecked | `71e1b61e` | the row names the pinned inputs the kind no longer satisfies, read from the same resolution the validation drawer uses |
+| G-040 `source.api` field rename | `11f18c2b` | drives `renameCtxKeyInConfig` — G-008's sweep from the other end; the name commits on blur, which is load-bearing |
+| G-065 `isInput` rewrites run-spec | `15db9e5f` | the row states the contract effect, including the two cases where the flag is inert |
+| G-063 two-tab lost update | `f9049ab3` | `expectedVersion` REQUIRED on `PUT`; 409 `workflow_version_conflict`; checked again inside the append transaction |
+| G-050 lineage delete cascade | `5873aaa9` | scoped down on verification — see below |
+
+**G-050 is the one that changed shape under verification.** The entry read as
+"cascade-deletes versions pinned by runs and by other workflows' childWorkflow
+nodes". Both of those turn out to be already guarded: benchmark definitions and
+ground-truth jobs are `Restrict` FKs that block the delete outright, and library
+references are caught by G-019's guard. The single silent loss is
+`Document.workflow_config_id` (`SetNull`) — the record of which graph produced
+each document. That is what got fixed; the rest of the entry was already true.
+
+Two of the seven needed a **behavioural decision** rather than just code, and
+both were resolved by finding that the conservative option was already the
+runtime's behaviour: G-029's `fallback` → `fail` downgrade (both executors
+already threw a non-retryable error on a missing edge) and G-050's
+"permit-but-name" (refusing would make any workflow that had processed a
+document undeletable).
+
+**One pre-existing failure surfaced and was fixed**: G-067's map-concurrency
+warning (`8fb19d57`, earlier this session) had broken a backend
+`graph-schema-validator` spec. The frontend and package suites were run when
+that shipped; the backend one was not. Recorded here rather than buried in the
+commit, because the lesson is about which suites a package-level change reaches.
+
 ## Remaining verification
 
 C2 (validation surfacing, 7), C3 (composition & authoring, 6), C4 (run
