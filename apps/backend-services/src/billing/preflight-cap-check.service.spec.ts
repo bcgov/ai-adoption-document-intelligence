@@ -103,7 +103,7 @@ describe("PreflightCapCheckService", () => {
       expect(body.estimated_cost_dollars).toBeCloseTo(30);
     });
 
-    it("Scenario 4: transaction uses FOR UPDATE lock via $queryRaw", async () => {
+    it("Scenario 4: transaction uses FOR UPDATE lock via $queryRaw on usage_period_summaries", async () => {
       const { prisma, tx } = makeMockPrisma({
         billingConfig: { monthly_cap_dollars: 100 },
         summaryRows: [{ total_dollars_spent: 50 }],
@@ -113,6 +113,11 @@ describe("PreflightCapCheckService", () => {
       await service.checkCap("group-1", 10000, 0.001);
 
       expect(tx.$queryRaw).toHaveBeenCalled();
+      // Verify the raw SQL targets the correct table so a rename would fail this test.
+      const templateParts = tx.$queryRaw.mock.calls[0][0] as string[];
+      const sql = templateParts.join("");
+      expect(sql).toContain('"usage_period_summaries"');
+      expect(sql).toContain("FOR UPDATE");
     });
 
     it("Scenario 5: reads total_dollars_spent from UsagePeriodSummary (no existing row = $0)", async () => {
