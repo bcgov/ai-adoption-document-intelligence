@@ -294,6 +294,37 @@ export function useUpdateWorkflow() {
   });
 }
 
+/**
+ * G-050 — what deleting a workflow would take with it.
+ *
+ * Deleting a lineage cascades to every version under it, and each document
+ * pinned to one of those versions has its config link set to NULL — the record
+ * of which graph produced it is erased, with no error. This reads the counts so
+ * the confirmation can name that cost instead of a generic "cannot be undone".
+ *
+ * `enabled` is the caller's gate: the confirmation fetches it only while open.
+ */
+export function useWorkflowDeleteImpact(id: string | null) {
+  return useQuery({
+    queryKey: ["workflow", id, "delete-impact"],
+    enabled: id !== null,
+    queryFn: async (): Promise<WorkflowDeleteImpact> => {
+      const response = await apiService.get<WorkflowDeleteImpact>(
+        `/workflows/${id}/delete-impact`,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to read delete impact");
+      }
+      return response.data;
+    },
+  });
+}
+
+export interface WorkflowDeleteImpact {
+  versionCount: number;
+  documentCount: number;
+}
+
 export function useDeleteWorkflow() {
   const queryClient = useQueryClient();
 

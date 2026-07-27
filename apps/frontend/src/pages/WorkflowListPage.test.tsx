@@ -11,7 +11,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiService } from "../data/services/api.service";
-import { WorkflowListPage } from "./WorkflowListPage";
+import { describeDeleteImpact, WorkflowListPage } from "./WorkflowListPage";
 
 vi.mock("../data/services/api.service", () => ({
   apiService: {
@@ -102,5 +102,33 @@ describe("WorkflowListPage — US-074 kind filter", () => {
     await waitFor(() => expect(apiMock.get).toHaveBeenCalled());
     const url = apiMock.get.mock.calls[0][0] as string;
     expect(url).toContain("kind=all");
+  });
+});
+
+/**
+ * G-050 — the confirmation copy that names what deleting a workflow takes.
+ *
+ * The distinction it has to carry: documents are NOT deleted. Only the link
+ * recording which graph version produced them is, and that is the part that
+ * cannot be reconstructed afterwards.
+ */
+describe("describeDeleteImpact", () => {
+  it("says plainly when nothing references the versions", () => {
+    expect(describeDeleteImpact(3, 0)).toBe(
+      "3 saved versions will be deleted. No documents reference them.",
+    );
+  });
+
+  it("never claims the documents are deleted", () => {
+    const copy = describeDeleteImpact(4, 233);
+    expect(copy).toContain("keep their data");
+    expect(copy).toContain("lose the record of which version produced them");
+    expect(copy).not.toMatch(/documents will be deleted/);
+  });
+
+  it("agrees in number for a single version and a single document", () => {
+    const copy = describeDeleteImpact(1, 1);
+    expect(copy).toContain("1 saved version will be deleted");
+    expect(copy).toContain("1 document processed by this workflow keeps its");
   });
 });

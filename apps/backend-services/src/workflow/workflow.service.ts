@@ -1263,6 +1263,40 @@ export class WorkflowService {
     );
   }
 
+  /**
+   * G-050 — what deleting this lineage would take with it.
+   *
+   * `WorkflowVersion.lineage` cascades, so deleting a lineage deletes every
+   * version under it. Most things that pin a version are protected by a
+   * `Restrict` FK (benchmark definitions, ground-truth jobs) or by the
+   * library-reference guard, and the delete simply fails. Documents are the
+   * exception: `Document.workflowVersion` is `onDelete: SetNull`, so the
+   * record of WHICH graph produced a document is erased — silently, with no
+   * error and nothing in the audit trail to reconstruct it from.
+   *
+   * Nothing here refuses the delete. A workflow that has processed documents
+   * has to remain deletable; what it must not do is take their provenance
+   * without saying so.
+   */
+  async describeDeleteImpact(
+    lineageId: string,
+  ): Promise<{ documentCount: number; versionCount: number }> {
+    const lineage = await this.prisma.workflowLineage.findUnique({
+      where: { id: lineageId },
+      select: { id: true },
+    });
+    if (!lineage) {
+      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    }
+    const [versionCount, documentCount] = await Promise.all([
+      this.prisma.workflowVersion.count({ where: { lineage_id: lineageId } }),
+      this.prisma.document.count({
+        where: { workflowVersion: { lineage_id: lineageId } },
+      }),
+    ]);
+    return { documentCount, versionCount };
+  }
+
   async deleteWorkflow(lineageId: string, actorId: string): Promise<void> {
     const existing = await this.prisma.workflowLineage.findUnique({
       where: { id: lineageId },
@@ -1273,6 +1307,11 @@ export class WorkflowService {
     }
 
     await this.assertNotReferencedAsLibrary(existing);
+
+    // Counted BEFORE the delete — afterwards the versions are gone and the
+    // documents' `workflow_config_id` has already been nulled, so "how many
+    // lost their provenance" is no longer answerable from the data.
+    const impact = await this.describeDeleteImpact(lineageId);
 
     try {
       await this.prisma.workflowLineage.delete({
@@ -1299,11 +1338,17 @@ export class WorkflowService {
       payload: {
         slug: existing.slug,
         name: existing.name,
+        // G-050 — the delete nulls these documents' pinned config. Recording
+        // the counts is what makes the loss attributable afterwards; without
+        // them the audit trail says a workflow was deleted and nothing about
+        // the provenance that went with it.
+        version_count: impact.versionCount,
+        detached_document_count: impact.documentCount,
       },
     });
 
     this.logger.log(
-      `Workflow lineage deleted: ${lineageId} by actor ${actorId}`,
+      `Workflow lineage deleted: ${lineageId} by actor ${actorId} (${impact.versionCount} versions, ${impact.documentCount} documents detached)`,
     );
   }
 

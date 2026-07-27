@@ -69,6 +69,7 @@ import { deriveInputSchema } from "./derive-input-schema";
 import { ActivityOutputPreviewDto } from "./dto/activity-output-preview.dto";
 import { ActivityOutputPreviewBatchDto } from "./dto/activity-output-preview-batch.dto";
 import { CreateWorkflowDto } from "./dto/create-workflow.dto";
+import { WorkflowDeleteImpactDto } from "./dto/delete-impact.dto";
 import { InputCtxResponseDto } from "./dto/input-ctx-response.dto";
 import {
   LIST_RUNS_DEFAULT_LIMIT,
@@ -1564,6 +1565,37 @@ export class WorkflowController {
       dto,
     );
     return { workflow };
+  }
+
+  @Get(":id/delete-impact")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "What deleting this workflow would take with it",
+    description:
+      "G-050 — deleting a lineage cascades to every version under it. Benchmark definitions and ground-truth jobs are protected by Restrict FKs and block the delete outright; documents are not — their pinned config link is set to NULL, erasing the record of which graph produced them with no error raised. This pre-flight read exists so a confirmation can name that cost. It never blocks the delete.",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiOkResponse({
+    description: "Counts of what the delete would affect.",
+    type: WorkflowDeleteImpactDto,
+  })
+  @ApiNotFoundResponse({ description: "Workflow not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async getDeleteImpact(
+    @Param("id") id: string,
+    @Req() req: Request,
+  ): Promise<WorkflowDeleteImpactDto> {
+    const actorId = req.resolvedIdentity.actorId;
+
+    const existing = await this.workflowService.getWorkflow(id, actorId);
+
+    identityCanAccessGroup(
+      req.resolvedIdentity,
+      existing.groupId,
+      GroupRole.MEMBER,
+    );
+
+    return this.workflowService.describeDeleteImpact(id);
   }
 
   @Delete(":id")

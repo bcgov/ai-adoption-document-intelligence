@@ -11,6 +11,7 @@
 - `GET /api/workflows/:lineageId` — same, by lineage id.
 - `PUT /api/workflows/:lineageId` — metadata and/or new config; config change **appends** a version and updates head. **Requires `expectedVersion`** (see below).
 - `GET /api/workflows/:lineageId/versions` — version history (newest first).
+- `GET /api/workflows/:lineageId/delete-impact` — pre-flight: what a delete would take with it (see below).
 - `POST /api/workflows/:lineageId/revert-head` — body `{ "workflowVersionId": "..." }` sets **head only** (does not change benchmark definition pins).
 
 ## Concurrent edits (G-063)
@@ -41,6 +42,30 @@ who did not need it. Requiring it forces every writer through read-then-write.
 The check runs twice — once on entry as an early exit, and again inside the
 append transaction, which is the one that decides (the head can move between
 the two).
+
+## Deleting a lineage (G-050)
+
+`WorkflowVersion.lineage` is `onDelete: Cascade`, so deleting a lineage deletes
+every version under it. What each pinning relation does about that differs, and
+only one of them is silent:
+
+| Pins a version | On lineage delete |
+|---|---|
+| `BenchmarkDefinition.workflowVersionId` | `Restrict` — the delete fails (409) |
+| `DatasetGroundTruthJob.workflowVersionId` | `Restrict` — the delete fails (409) |
+| a `childWorkflow` library reference | blocked by the library-reference guard (G-019) |
+| `Document.workflow_config_id` | **`SetNull`** — the link is erased, no error |
+
+The document case is the one worth knowing about: the documents themselves are
+untouched, but the record of **which graph version produced each one** is gone,
+and cannot be reconstructed afterwards.
+
+`GET /api/workflows/:lineageId/delete-impact` returns
+`{ versionCount, documentCount }` so a confirmation can name that cost before
+the author commits. It never blocks — a workflow that has processed documents
+has to stay deletable. The same counts are written into the
+`workflow_deleted` audit payload (`version_count`, `detached_document_count`),
+so the loss stays attributable even when the caller skipped the pre-flight.
 
 ## Benchmarking
 

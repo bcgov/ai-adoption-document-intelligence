@@ -8,7 +8,11 @@ import {
 import { type ReactNode, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SlugChip } from "../components/workflow/SlugChip";
-import { useDeleteWorkflow, useWorkflows } from "../data/hooks/useWorkflows";
+import {
+  useDeleteWorkflow,
+  useWorkflowDeleteImpact,
+  useWorkflows,
+} from "../data/hooks/useWorkflows";
 import type { WorkflowTemplate } from "../features/workflow-builder/templates";
 import { TemplatesPickerModal } from "../features/workflow-builder/templates/TemplatesPickerModal";
 import {
@@ -53,6 +57,27 @@ export function WorkflowListPage() {
     name: string;
   } | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+
+  /**
+   * G-050 — deleting a lineage cascades to every version under it, and each
+   * document pinned to one of those versions loses the link recording which
+   * graph produced it. "This action cannot be undone" was true but said
+   * nothing about what would be undone; the counts do.
+   */
+  const { data: deleteImpact } = useWorkflowDeleteImpact(
+    deleteModalOpen ? (workflowToDelete?.id ?? null) : null,
+  );
+  const deleteMessage = [
+    `Are you sure you want to delete workflow "${workflowToDelete?.name}"? This action cannot be undone.`,
+    deleteImpact
+      ? describeDeleteImpact(
+          deleteImpact.versionCount,
+          deleteImpact.documentCount,
+        )
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   const handleTemplateSelect = (template: WorkflowTemplate) => {
     setTemplatesOpen(false);
@@ -317,10 +342,29 @@ export function WorkflowListPage() {
         onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
         title="Delete workflow"
-        message={`Are you sure you want to delete workflow "${workflowToDelete?.name}"? This action cannot be undone.`}
+        message={deleteMessage}
         confirmLabel="Delete"
         confirmLoading={deleteWorkflowMutation.isPending}
       />
     </>
   );
+}
+
+/**
+ * G-050 — one sentence naming what the cascade takes. Documents are NOT
+ * deleted; only the link recording which graph produced them, which is the
+ * part that is destroyed silently and cannot be reconstructed afterwards.
+ */
+export function describeDeleteImpact(
+  versionCount: number,
+  documentCount: number,
+): string {
+  const versions =
+    versionCount === 1 ? "1 saved version" : `${versionCount} saved versions`;
+  if (documentCount === 0) {
+    return `${versions} will be deleted. No documents reference them.`;
+  }
+  return documentCount === 1
+    ? `${versions} will be deleted. 1 document processed by this workflow keeps its data, but loses the record of which version produced it.`
+    : `${versions} will be deleted. ${documentCount} documents processed by this workflow keep their data, but lose the record of which version produced them.`;
 }

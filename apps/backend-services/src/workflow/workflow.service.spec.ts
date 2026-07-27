@@ -67,6 +67,12 @@ const mockVersion = {
   findFirst: jest.fn(),
   findMany: jest.fn(),
   create: jest.fn(),
+  count: jest.fn(),
+};
+
+/** G-050 — `describeDeleteImpact` counts documents pinned to the lineage. */
+const mockDocument = {
+  count: jest.fn(),
 };
 
 const mockQueryRaw = jest.fn();
@@ -82,6 +88,7 @@ const mockPrismaService = {
   prisma: {
     workflowLineage: mockLineage,
     workflowVersion: mockVersion,
+    document: mockDocument,
     $queryRaw: mockQueryRaw,
     $transaction: mockTransaction,
   },
@@ -90,6 +97,10 @@ const mockPrismaService = {
   // that override the transaction behaviour (the slug-race retry cases) take
   // effect through either seam.
   transaction: mockTransaction,
+};
+
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockTemporalClient = {
@@ -108,6 +119,8 @@ describe("WorkflowService", () => {
     mockVersion.findUnique.mockResolvedValue(null);
     mockVersion.findFirst.mockResolvedValue(null);
     mockVersion.findMany.mockResolvedValue([]);
+    mockVersion.count.mockResolvedValue(0);
+    mockDocument.count.mockResolvedValue(0);
     mockLineage.create.mockImplementation(
       async (args: { data: { id?: string } }) => ({
         ...args.data,
@@ -148,7 +161,7 @@ describe("WorkflowService", () => {
         },
         {
           provide: AuditService,
-          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -850,7 +863,60 @@ describe("WorkflowService", () => {
     });
   });
 
+  // G-050 — the lineage cascade nulls every pinned document's config link.
+  // Documents are NOT deleted; the record of which graph produced them is.
+  describe("describeDeleteImpact", () => {
+    it("throws NotFoundException when the lineage does not exist", async () => {
+      mockLineage.findUnique.mockResolvedValue(null);
+      await expect(service.describeDeleteImpact("lin-1")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("counts the versions and the documents pinned to them", async () => {
+      mockLineage.findUnique.mockResolvedValue({ id: "lin-1" });
+      mockVersion.count.mockResolvedValue(4);
+      mockDocument.count.mockResolvedValue(233);
+      await expect(service.describeDeleteImpact("lin-1")).resolves.toEqual({
+        versionCount: 4,
+        documentCount: 233,
+      });
+      expect(mockDocument.count).toHaveBeenCalledWith({
+        where: { workflowVersion: { lineage_id: "lin-1" } },
+      });
+    });
+
+    it("reports zero documents rather than omitting the count", async () => {
+      mockLineage.findUnique.mockResolvedValue({ id: "lin-1" });
+      mockVersion.count.mockResolvedValue(1);
+      mockDocument.count.mockResolvedValue(0);
+      await expect(service.describeDeleteImpact("lin-1")).resolves.toEqual({
+        versionCount: 1,
+        documentCount: 0,
+      });
+    });
+  });
+
   describe("deleteWorkflow", () => {
+    // G-050 — the counts are the only record of what the delete detached; the
+    // versions and the documents' links are both gone by the time it returns.
+    it("records what the delete detached in the audit payload", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      mockLineage.delete.mockResolvedValue(lineageRow);
+      mockVersion.count.mockResolvedValue(3);
+      mockDocument.count.mockResolvedValue(12);
+      await service.deleteWorkflow("lin-1", "actor-1");
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_deleted",
+          payload: expect.objectContaining({
+            version_count: 3,
+            detached_document_count: 12,
+          }),
+        }),
+      );
+    });
+
     it("throws NotFoundException when lineage not found", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
       await expect(service.deleteWorkflow("lin-1", "actor-1")).rejects.toThrow(
