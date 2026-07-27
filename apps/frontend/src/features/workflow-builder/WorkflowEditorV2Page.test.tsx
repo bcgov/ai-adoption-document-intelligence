@@ -25,7 +25,7 @@ import {
 } from "@testing-library/react";
 import React from "react";
 import { createMemoryRouter, RouterProvider } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityNode, GraphWorkflowConfig } from "../../types/workflow";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,7 @@ const {
   capturedCanvasProps,
   capturedCreateDto,
   capturedPaletteProps,
+  catalogEntriesRef,
   capturedRunDrawerProps,
   capturedSettingsPanelProps,
   capturedValidationDrawerProps,
@@ -62,6 +63,9 @@ const {
     // invoke `onAddSource(...)` directly without spinning up the real
     // palette UI.
     capturedPaletteProps: { current: null as null | Record<string, unknown> },
+    // The merged activity catalog, mutable so a test can model the entry
+    // arriving AFTER a publish (which is when `onAddDynamicNode` fires).
+    catalogEntriesRef: { current: [] as Array<Record<string, unknown>> },
     // US-148 — the Run drawer stub captures its props so the trigger
     // tests can verify `openMode` was set correctly by whichever
     // top-bar button opened the drawer.
@@ -229,7 +233,12 @@ vi.mock("./run/RunWorkflowDrawer", () => ({
 // app-level `GroupProvider` upstream. Tests don't mount that provider, so
 // stub the hook + the helper the page imports alongside it.
 vi.mock("./dynamic-nodes", () => ({
-  useActivityCatalog: () => ({ entries: [], isLoading: false, error: null }),
+  ACTIVITY_CATALOG_QUERY_KEY: ["activity-catalog"],
+  useActivityCatalog: () => ({
+    entries: catalogEntriesRef.current,
+    isLoading: false,
+    error: null,
+  }),
   materialiseParamDefaults: () => ({}),
 }));
 
@@ -3156,5 +3165,91 @@ describe("WorkflowEditorV2Page — G-091 active group cleared on removal", () =>
         .getByTestId("node-settings-stub")
         .getAttribute("data-active-group-id"),
     ).toBe("g_42");
+  });
+});
+
+/**
+ * Found walking MANUAL_TEST_PLAN 14.8: publishing from the palette's "New
+ * custom node" modal never dropped the node on the canvas.
+ *
+ * `DynamicNodeEditor.handlePublish` awaits `mutateAsync` and then calls
+ * `onAfterPublish` synchronously. The publish mutation's `onSuccess` fires
+ * `invalidateQueries` for the activity catalog WITHOUT returning the promise,
+ * so `mutateAsync` resolves a full network round-trip before the catalog holds
+ * the entry that was just published — and `addDynamicNode` bails on
+ * `if (!entry) return`, silently. The modal closes, a green "Published v1"
+ * toast appears, and the canvas is unchanged.
+ *
+ * Awaiting the invalidation is necessary but not sufficient: the modal's
+ * `onAfterPublish` closure holds the `onAddDynamicNode` identity from the
+ * render BEFORE the refetch, so the callback must read the catalog through a
+ * ref rather than a captured array. This test pins the second half — it calls
+ * the STALE callback after the catalog has moved on.
+ */
+describe("WorkflowEditorV2Page — 14.8 dynamic node drops after a publish", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedPaletteProps.current = null;
+    catalogEntriesRef.current = [];
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "WF",
+      description: "",
+      slug: "wf",
+      version: 1,
+      workflowVersionId: "v-head",
+      config: buildTemplateConfig({ positions: "all" }),
+    };
+  });
+
+  afterEach(() => {
+    catalogEntriesRef.current = [];
+    existingWorkflowRef.current = null;
+  });
+
+  it("drops the node even when the catalog entry arrives after the callback was captured", async () => {
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedPaletteProps.current?.onAddDynamicNode).toBeDefined();
+    });
+
+    // Captured while the catalog still knows nothing about the new lineage —
+    // exactly what the modal holds when it calls back after publishing.
+    const staleOnAddDynamicNode = capturedPaletteProps.current
+      ?.onAddDynamicNode as (slug: string) => void;
+
+    // The publish lands and the catalog refetch resolves.
+    catalogEntriesRef.current = [
+      {
+        activityType: "dyn.walk-14-8-node",
+        displayName: "walk-14-8-node",
+        category: "Custom",
+        inputs: [],
+        outputs: [],
+        paramsSchema: {},
+        dynamicNodeSlug: "walk-14-8-node",
+        dynamicNodeVersion: 1,
+        colorHint: "dyn",
+      },
+    ];
+    // Any state change re-renders the page, which is what makes it observe the
+    // refreshed catalog in production too.
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as (
+      c: GraphWorkflowConfig,
+    ) => void;
+    const current = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange({ ...current });
+    });
+
+    act(() => {
+      staleOnAddDynamicNode("walk-14-8-node");
+    });
+
+    const config = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    const added = Object.values(config.nodes).find(
+      (n) => (n as ActivityNode).activityType === "dyn.walk-14-8-node",
+    );
+    expect(added).toBeDefined();
   });
 });

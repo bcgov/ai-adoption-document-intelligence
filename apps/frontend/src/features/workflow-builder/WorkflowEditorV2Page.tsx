@@ -67,6 +67,7 @@ import {
   IconUsersGroup,
   IconX,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ReactFlowInstance } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -99,7 +100,12 @@ import {
 import { removeNodesFromConfig } from "./canvas/remove-nodes";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
 import { showOrphanedDeleteToast } from "./delete-orphan-toast";
-import { materialiseParamDefaults, useActivityCatalog } from "./dynamic-nodes";
+import {
+  ACTIVITY_CATALOG_QUERY_KEY,
+  type ActivityCatalogResponse,
+  materialiseParamDefaults,
+  useActivityCatalog,
+} from "./dynamic-nodes";
 import {
   createGroupFromSelection,
   filterOutSyntheticBodyMembers,
@@ -958,12 +964,43 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
    * seeding for declared ports, entryNodeId autoset on empty canvas).
    */
   const mergedCatalog = useActivityCatalog();
+  // 14.8 — the palette's "New custom node" modal publishes and then asks the
+  // canvas to drop `dyn.<slug>` immediately. Two things make the rendered
+  // catalog the wrong thing to read at that moment:
+  //
+  //   1. the modal's callback is a closure captured BEFORE the publish, so a
+  //      callback closing over `mergedCatalog.entries` sees the pre-publish
+  //      array; and
+  //   2. even after the publish awaits its cache invalidation, React has not
+  //      re-rendered this component yet, so a ref updated during render is
+  //      still a commit behind.
+  //
+  // The TanStack cache, by contrast, is correct the instant the refetch
+  // settles — so read that first and fall back to what is rendered. Without
+  // this the lookup below found nothing and `addDynamicNode` returned
+  // silently: modal closed, green "Published" toast, canvas unchanged.
+  const catalogEntriesRef = useRef(mergedCatalog.entries);
+  catalogEntriesRef.current = mergedCatalog.entries;
+  const queryClient = useQueryClient();
+  const findCatalogEntry = useCallback(
+    (activityType: string) => {
+      const cached = queryClient
+        .getQueriesData<ActivityCatalogResponse>({
+          queryKey: ACTIVITY_CATALOG_QUERY_KEY,
+        })
+        .flatMap(([, data]) => data?.entries ?? []);
+      return (
+        cached.find((e) => e.activityType === activityType) ??
+        catalogEntriesRef.current.find((e) => e.activityType === activityType)
+      );
+    },
+    [queryClient],
+  );
+
   const addDynamicNode = useCallback(
     (slug: string, position?: { x: number; y: number }) => {
       const activityType = `dyn.${slug}`;
-      const entry = mergedCatalog.entries.find(
-        (e) => e.activityType === activityType,
-      );
+      const entry = findCatalogEntry(activityType);
       if (!entry) return;
       const id = makeNodeId(config, activityType);
       const pos = position ?? defaultStaggerPosition(config);
@@ -994,7 +1031,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
       });
       setSelectedNodeId(id);
     },
-    [config, mergedCatalog.entries, setSelectedNodeId],
+    [config, findCatalogEntry, setSelectedNodeId],
   );
 
   const deleteSelected = useCallback(() => {

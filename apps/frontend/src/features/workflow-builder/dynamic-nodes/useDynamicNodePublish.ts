@@ -63,11 +63,18 @@ export function useDynamicNodePublish() {
       }
       return updateDynamicNode(input.slug, input.script, activeGroupId);
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       // US-175 Scenarios 2 + 3 — invalidate the merged catalog key so
       // `useActivityCatalog` refetches and consumers re-render with
       // the new dynamic entry.
-      queryClient.invalidateQueries({
+      //
+      // 14.8 — AWAITED deliberately. A mutation's `onSuccess` promise is
+      // awaited before `mutateAsync` resolves, and the caller that resolves
+      // next is the palette modal's `onAfterPublish`, which immediately asks
+      // the canvas to drop `dyn.<slug>`. Fire-and-forget left the catalog a
+      // whole round-trip behind that lookup, so the drop silently found
+      // nothing and the node never appeared.
+      await queryClient.invalidateQueries({
         queryKey: ACTIVITY_CATALOG_QUERY_KEY,
       });
       // US-176 Scenario 4 — invalidate the per-lineage detail + the
