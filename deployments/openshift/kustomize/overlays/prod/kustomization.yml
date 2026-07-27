@@ -4,6 +4,10 @@ namespace: fd34fb-prod
 resources:
 - ../../base
 patches:
+- path: temporal-pg-patch.yml
+  target:
+    kind: PostgresCluster
+    name: temporal-pg
 - path: backend-services-configmap.yml
   target:
     kind: ConfigMap
