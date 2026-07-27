@@ -132,3 +132,56 @@ Cheap-and-unblocking first, then the design decision that shapes the tests, then
 
 Two small loose ends outside the numbered order: wire `workflows:lint` into CI, and delete the
 three `WalkTest *` workflows the walkthrough left in the dev database.
+
+---
+
+# Roadmap snapshot — 2026-07-27
+
+## Layer 0 — the browser walkthrough · **97% done**
+
+~74 checks walked across Parts 3–9 over three passes. Three remain: **7.8**
+(library port kinds), **9.9b** and **9.9c** (replay safety, unloadable version).
+
+Third pass changed the standard from "does the check pass" to **"can someone
+follow the step and see the thing"** — the gallery framing. That found two steps
+that misdescribe a working product (8.2/8.3's "Change source button" is a
+More-actions menu item) and one check that is unreachable on anything shipped
+(7.5, now tracked by the linter as `two-distinct-ctx-kinds`).
+
+## Layer 1 — the gap register · **the bulk of what remains**
+
+106 entries. **17 now carry a ruling.**
+
+| Bucket | Count | Owner |
+|---|---|---|
+| Ruled or shipped | 17 + 30 earlier | done |
+| "Do nothing" proposals awaiting a ruling | **18** | **Alex** |
+| "Fix" proposals awaiting verify-then-rule | **39** (16 measured) | Claude verifies, Alex rules |
+
+Verification is not optional: three entries this session were **already fixed**
+and would have been rebuilt (G-098, most of G-058, plus G-030/G-048 in C1).
+Measured staleness so far: 50% in the first four-entry sample, 18% across C1.
+Too variable to extrapolate — each cluster gets measured.
+
+**Next batch: the 7 confirmed-true C1 entries** (G-029, G-040, G-049, G-050,
+G-063, G-065, G-074). One shape — a reference survives the thing it points at —
+and the rename sweep that already exists is the model for all seven.
+
+## Layer 2 — the G-106 design question · **closed**
+
+## Layer 3 — how we decide what to test · **closed but for one item**
+
+Coupling specs, the workflow linter (now in CI), and the pre-test type-check all
+shipped. Outstanding: the `writing-checks` skill (falsifiability, check-vs-
+description labelling) — the item that would have prevented P-1..P-4 upstream.
+
+## Orthogonal — PR #230 · **needs a decision, and growing**
+
+**488 commits, 1087 files, +208,822 / −4,536** against `develop`. Was quoted as
+464 commits three days ago; the growth is itself the argument. Independent of
+every layer above.
+
+## Fix stream — 9 shipped this session
+
+D-5 (`09ce5b4d`) · G-072/G-096/G-097 (`514a0896`) · G-047 (`7c0ad059`) ·
+G-099 (`1998f887`) · G-067+G-077 (`8fb19d57`) · G-058 (`5b154167`)
