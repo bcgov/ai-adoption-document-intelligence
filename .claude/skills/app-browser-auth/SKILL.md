@@ -9,6 +9,10 @@ The frontend at `http://localhost:3000` is protected by `NoGroupGuard` which cal
 
 Source of truth for the bypass is [tests/e2e/helpers/auth.ts](../../../tests/e2e/helpers/auth.ts). The patterns below mirror its `setupAuthenticatedTest()` function — if it changes, update this skill.
 
+> **⚠️ The bypass cannot see system-admin bugs.** The mock only fakes the *frontend's* idea of the session — every actual backend call still authenticates with `x-api-key`, which resolves to exactly **one** group. A real system admin resolves to **no** group (`getIdentityGroupIds` returns `undefined`), so endpoints that demand an explicit `groupId` for admins — `/api/agent/*`, `/api/dynamic-nodes/*`, `/api/activity-catalog` — take a branch this setup never reaches. A page can be green under the bypass and 400 for every admin in production; that is exactly how the `/dynamic-nodes` breakage survived (fixed in `dd6cdafb`).
+>
+> To check that branch, keep the API-key interception but **reject the admin case yourself**: 400 any request to those endpoints that arrives without `x-group-id` or `?groupId=`, and let the rest through. That reproduces the admin server faithfully without needing an admin JWT.
+
 ## When to use this skill
 
 Before any tool call that:
