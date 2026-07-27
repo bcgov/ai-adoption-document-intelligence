@@ -7,8 +7,9 @@
  *     each a `VariablePicker` so the author binds to an existing ctx
  *     variable.
  *   - `maxConcurrency` — optional integer `NumberInput` (>= 1).
- *   - `bodyEntryNodeId`, `bodyExitNodeId` — each a `NodePicker` over
- *     all nodes (no `filterType`).
+ *   - `bodyEntryNodeId` — a `NodePicker` restricted to node types that can
+ *     actually run once per item (G-071); `bodyExitNodeId` — restricted to
+ *     nodes reachable from the entry.
  *
  * The common header (label / type badge / delete) and footer
  * (input / output port bindings) live in the shared `NodeSettingsPanel`;
@@ -17,6 +18,7 @@
 
 import { Alert, Box, NumberInput, Stack, Text, Title } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
+import { useMemo } from "react";
 import type { GraphWorkflowConfig, MapNode } from "../../../../types/workflow";
 import { declareCtxKey, NodePicker, VariablePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
@@ -97,6 +99,33 @@ export function MapNodeSettings({
   const setBodyExitNodeId = (next: string | null) =>
     updateNode({ ...node, bodyExitNodeId: next ?? "" });
 
+  /**
+   * G-071 — the body-entry picker had no filter at all, so it offered node
+   * types that cannot be a per-item entry:
+   *   - `source` is the workflow's front door and has no upstream by
+   *     definition; it runs once, at intake, not once per item;
+   *   - `join` exists to collect a loop's results, so it can only follow one;
+   *   - `humanGate` inside a body is refused outright (G-070) — offering it
+   *     would be offering a guaranteed Save error.
+   *
+   * Nested loops stay on the list: a map inside a map is a legitimate shape
+   * that `validateJoinScope` reasons about explicitly.
+   */
+  const entryCandidates = useMemo(
+    () =>
+      new Set(
+        Object.entries(config.nodes)
+          .filter(
+            ([, n]) =>
+              n.type !== "source" &&
+              n.type !== "join" &&
+              n.type !== "humanGate",
+          )
+          .map(([id]) => id),
+      ),
+    [config.nodes],
+  );
+
   const entryId = node.bodyEntryNodeId || undefined;
   const exitId = node.bodyExitNodeId || undefined;
   // The exit must be reachable from the entry, so restrict the exit picker to
@@ -172,10 +201,11 @@ export function MapNodeSettings({
           <NodePicker
             config={config}
             currentNodeId={node.id}
+            restrictToIds={entryCandidates}
             value={node.bodyEntryNodeId === "" ? null : node.bodyEntryNodeId}
             onChange={setBodyEntryNodeId}
             label="Body entry node"
-            description="First node executed inside each iteration."
+            description="First node executed inside each iteration. Node types that cannot run per item are not listed."
             placeholder="Pick the entry node…"
             required
             data-testid="map-node-settings-body-entry"

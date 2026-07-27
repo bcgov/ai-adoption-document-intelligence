@@ -128,7 +128,11 @@ export {
 } from "./validator/context-utils";
 export { isValidTemporalDuration } from "./validator/duration";
 export type { ValidateGraphConfigOptions } from "./validator/validator";
-export { validateGraphConfig } from "./validator/validator";
+export {
+  collectMapBodyMembership,
+  joinableMapIds,
+  validateGraphConfig,
+} from "./validator/validator";
 // Runtime config-override application (develop). Browser-safe — no node:crypto.
 export {
   applyWorkflowConfigOverrides,

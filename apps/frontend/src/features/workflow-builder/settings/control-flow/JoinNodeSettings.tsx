@@ -13,7 +13,9 @@
  * component renders only the join-specific body.
  */
 
+import { joinableMapIds } from "@ai-di/graph-workflow";
 import { Box, Stack, Title } from "@mantine/core";
+import { useMemo } from "react";
 import type { GraphWorkflowConfig, JoinNode } from "../../../../types/workflow";
 import { declareCtxKey, NodePicker, VariablePicker } from "../../graph-widgets";
 import { replaceNode } from "../../replace-node";
@@ -94,6 +96,20 @@ export function JoinNodeSettings({
   const createCtxKey = (key: string) =>
     onConfigChange(declareCtxKey(config, key));
 
+  /**
+   * G-036 — the picker's only filter was `type === "map"`, so it offered maps
+   * whose results this join could never see: one nested in another loop's body
+   * (results discarded per item) or the join's own source loop. Both threw
+   * `No results found for map node <id>` at run time.
+   *
+   * Read from the same helper `validateJoinScope` uses, so the picker cannot
+   * offer a choice Save would then refuse.
+   */
+  const collectableMapIds = useMemo(
+    () => joinableMapIds(config, node.id),
+    [config, node.id],
+  );
+
   return (
     <Stack gap="md" data-testid="join-node-settings" data-node-id={node.id}>
       <Box>
@@ -104,10 +120,11 @@ export function JoinNodeSettings({
           config={config}
           currentNodeId={node.id}
           filterType="map"
+          restrictToIds={collectableMapIds}
           value={node.sourceMapNodeId === "" ? null : node.sourceMapNodeId}
           onChange={setSourceMapNodeId}
           label="Source Map node"
-          description="The Map node whose fan-out iterations this Join collects."
+          description="The Map node whose fan-out iterations this Join collects. Loops whose results this Join could never see are not listed."
           placeholder="Pick a Map node…"
           required
           data-testid="join-node-settings-source-map-node-id"

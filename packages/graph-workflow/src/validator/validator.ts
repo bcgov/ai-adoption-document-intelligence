@@ -182,6 +182,7 @@ function validateConfig(
   validateSwitchNodes(config, errors);
   validateHumanGateNodes(config, errors);
   validateMapJoinNodes(config, errors);
+  validateJoinScope(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
   validateDurations(config, errors);
@@ -639,6 +640,19 @@ function validateHumanGateNodes(
  * successors too, which is the wrong population for "runs per iteration".
  */
 function collectMapBodyNodeIds(config: GraphWorkflowConfig): Set<string> {
+  return new Set(collectMapBodyMembership(config).keys());
+}
+
+/**
+ * Which map bodies each node belongs to — `nodeId → set of map ids`.
+ *
+ * A node can belong to more than one when maps nest. The membership (not just
+ * "is in some body") is what makes the join-scope rule expressible: a join can
+ * only read a map's results if it sits in the same iteration scope.
+ */
+export function collectMapBodyMembership(
+  config: GraphWorkflowConfig,
+): Map<string, Set<string>> {
   const adjacency = new Map<string, string[]>();
   for (const edge of config.edges ?? []) {
     const list = adjacency.get(edge.source);
@@ -646,7 +660,7 @@ function collectMapBodyNodeIds(config: GraphWorkflowConfig): Set<string> {
     else adjacency.set(edge.source, [edge.target]);
   }
 
-  const bodyIds = new Set<string>();
+  const membership = new Map<string, Set<string>>();
   for (const node of Object.values(config.nodes ?? {})) {
     if (node.type !== "map") continue;
     const mapNode = node as MapNode;
@@ -655,7 +669,9 @@ function collectMapBodyNodeIds(config: GraphWorkflowConfig): Set<string> {
     while (queue.length > 0) {
       const current = queue.shift();
       if (!current || !(current in (config.nodes ?? {}))) continue;
-      bodyIds.add(current);
+      const owners = membership.get(current);
+      if (owners) owners.add(node.id);
+      else membership.set(current, new Set([node.id]));
       // The exit node is the body's last step — do not walk past it, or every
       // node downstream of the map would count as per-iteration.
       if (current === mapNode.bodyExitNodeId) continue;
@@ -666,7 +682,96 @@ function collectMapBodyNodeIds(config: GraphWorkflowConfig): Set<string> {
       }
     }
   }
-  return bodyIds;
+  return membership;
+}
+
+/**
+ * G-036 — the maps a join at `joinNodeId` could legally collect from.
+ *
+ * The picker and `validateJoinScope` MUST agree, or the editor offers a
+ * choice that Save then refuses. Both read this, so they cannot drift.
+ *
+ * `joinNodeId` may name a node that does not exist yet (a fresh join being
+ * configured); it simply has no body membership, which is the correct answer
+ * for a node at the top level.
+ */
+export function joinableMapIds(
+  config: GraphWorkflowConfig,
+  joinNodeId: string,
+): Set<string> {
+  const membership = collectMapBodyMembership(config);
+  const joinBodies = membership.get(joinNodeId) ?? new Set<string>();
+  const allowed = new Set<string>();
+  for (const [nodeId, node] of Object.entries(config.nodes ?? {})) {
+    if (node.type !== "map") continue;
+    // A join inside its own source's body would run before the map finished.
+    if (joinBodies.has(nodeId)) continue;
+    const sourceBodies = membership.get(nodeId) ?? new Set<string>();
+    const outOfScope = [...sourceBodies].some((id) => !joinBodies.has(id));
+    if (outOfScope) continue;
+    allowed.add(nodeId);
+  }
+  return allowed;
+}
+
+/**
+ * G-036 — a join can only read results a map actually handed it.
+ *
+ * `executeBranchSubgraph` allocates `mapBranchResults: new Map()` per
+ * ITERATION, so an inner map's results are discarded when its iteration ends.
+ * A join sitting outside that iteration scope therefore throws
+ * `No results found for map node <id>` at run time. Nothing rejected the shape
+ * statically, and the picker offered it with no dimming — `filterType="map"`
+ * was its only filter — so it was easy to build and impossible to foresee.
+ *
+ * Two shapes are refused:
+ *   - the source map runs inside a body the join is NOT inside (its results
+ *     die with the iteration);
+ *   - the join sits inside its own source map's body (the map has not
+ *     finished collecting when the join runs).
+ */
+function validateJoinScope(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  const membership = collectMapBodyMembership(config);
+  const bodiesOf = (nodeId: string): Set<string> =>
+    membership.get(nodeId) ?? new Set<string>();
+
+  for (const [nodeId, node] of Object.entries(config.nodes ?? {})) {
+    if (node.type !== "join") continue;
+    const joinNode = node as JoinNode;
+    const sourceId = joinNode.sourceMapNodeId;
+    const sourceNode = config.nodes[sourceId];
+    // Existence and type are already reported by `validateMapJoinNodes`;
+    // repeating them here would double-report the same anchor.
+    if (!sourceNode || sourceNode.type !== "map") continue;
+
+    const joinBodies = bodiesOf(nodeId);
+    const label = joinNode.label || nodeId;
+
+    if (joinBodies.has(sourceId)) {
+      errors.push({
+        path: `nodes.${nodeId}.sourceMapNodeId`,
+        message: `Join "${label}" is inside the body of the loop it collects from, so the loop has not finished when it runs — move it after the loop.`,
+        severity: "error",
+      });
+      continue;
+    }
+
+    const unreachableScopes = [...bodiesOf(sourceId)].filter(
+      (mapId) => !joinBodies.has(mapId),
+    );
+    if (unreachableScopes.length > 0) {
+      const outer = config.nodes[unreachableScopes[0]];
+      const outerLabel = outer?.label || unreachableScopes[0];
+      errors.push({
+        path: `nodes.${nodeId}.sourceMapNodeId`,
+        message: `Join "${label}" collects from a loop that runs inside "${outerLabel}", whose results are discarded when each item finishes — put the join inside "${outerLabel}" too, or collect from "${outerLabel}" instead.`,
+        severity: "error",
+      });
+    }
+  }
 }
 
 /**

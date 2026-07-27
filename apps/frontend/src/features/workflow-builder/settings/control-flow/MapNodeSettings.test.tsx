@@ -442,3 +442,106 @@ describe("MapNodeSettings — body reachability warnings", () => {
     expect(exitLabels.some((t) => t.includes("Store Results"))).toBe(false);
   });
 });
+
+/**
+ * G-071 — the body-entry picker had no filter at all, so it offered node types
+ * that cannot be a per-item entry. A `source` runs once at intake, a `join`
+ * exists to follow a loop, and a `humanGate` inside a body is refused outright
+ * by G-070 — offering it would be offering a guaranteed Save error.
+ */
+describe("MapNodeSettings — G-071 body-entry picker filter", () => {
+  function configWithEveryType(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: "m",
+      ctx: { segments: { type: "array" }, currentSegment: { type: "object" } },
+      edges: [],
+      nodes: {
+        m: {
+          id: "m",
+          type: "map",
+          label: "Loop",
+          collectionCtxKey: "segments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+        work: {
+          id: "work",
+          type: "activity",
+          label: "Work",
+          activityType: "azureOcr.submit",
+        },
+        intake: {
+          id: "intake",
+          type: "source",
+          label: "Upload",
+          sourceType: "source.upload",
+        },
+        collect: {
+          id: "collect",
+          type: "join",
+          label: "Collect",
+          sourceMapNodeId: "m",
+          strategy: "all",
+          resultsCtxKey: "results",
+        },
+        approve: {
+          id: "approve",
+          type: "humanGate",
+          label: "Approve",
+          signal: { name: "approve" },
+          timeout: "PT1H",
+          onTimeout: "fail",
+        },
+        inner: {
+          id: "inner",
+          type: "map",
+          label: "Inner loop",
+          collectionCtxKey: "segments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "work",
+          bodyExitNodeId: "work",
+        },
+      },
+    } as unknown as GraphWorkflowConfig;
+  }
+
+  function openEntryPicker() {
+    const picker = screen.getByTestId("map-node-settings-body-entry");
+    fireEvent.click(picker);
+  }
+
+  it("offers an ordinary activity", () => {
+    mountWithSpy(configWithEveryType(), "m");
+    openEntryPicker();
+    expect(screen.getByRole("option", { name: /Work/ })).toBeInTheDocument();
+  });
+
+  it("does not offer a source node", () => {
+    mountWithSpy(configWithEveryType(), "m");
+    openEntryPicker();
+    expect(screen.queryByRole("option", { name: /Upload/ })).toBeNull();
+  });
+
+  it("does not offer a join node", () => {
+    mountWithSpy(configWithEveryType(), "m");
+    openEntryPicker();
+    expect(screen.queryByRole("option", { name: /Collect/ })).toBeNull();
+  });
+
+  it("does not offer a human gate, which G-070 would refuse anyway", () => {
+    mountWithSpy(configWithEveryType(), "m");
+    openEntryPicker();
+    expect(screen.queryByRole("option", { name: /Approve/ })).toBeNull();
+  });
+
+  it("still offers a nested loop — that shape is legitimate", () => {
+    mountWithSpy(configWithEveryType(), "m");
+    openEntryPicker();
+    expect(
+      screen.getByRole("option", { name: /Inner loop/ }),
+    ).toBeInTheDocument();
+  });
+});
