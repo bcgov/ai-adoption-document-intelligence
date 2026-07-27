@@ -525,6 +525,10 @@ Source nodes carry ERROR-severity rules (`nodes.<sourceId>.sourceType`, `nodes.<
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `affb5cd9`.** Source cards and group chips only. Both stale early-returns are gone: source cards mount the shared badge with the same deep-link callback, and chips roll up their members' counts (they already aggregated run status; validation was the missing axis). `ValidationBadge` moved to its own module to make that possible.
+
+**The five edge anchor shapes are NOT fixed and stay open.** Marking an edge needs a visual language for "this connection has a problem" that the canvas does not have, and inventing one is a design decision rather than a fix. The anchors are navigable from the drawer today (G-010); they are just not marked in place.
+
 ### G-032 — An activity-type swap carries bindings, output rows and lock metadata the new type does not declare — and nothing ever checks that a bound port exists in the catalog
 
 **Found by:** D (1 pass) · **Severity:** major · **Type:** design-gap + impl-gap
@@ -543,6 +547,8 @@ All three are also reachable by a catalog port rename between releases, for whic
 **VERIFIED 2026-07-27: still true.** `swapActivityType` returns `inputs`, `outputs` and `metadata` verbatim, and no port-name membership check exists in the validator.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `e188f58c`.** Bindings now follow the same intersection rule the parameters already did — a binding survives only when the new type declares its port — and lock metadata is pruned the same way. Confirmed the corruption first: `writeToCtx` ends `current[finalKey] = value` with no undefined guard, so a stale output row wrote `undefined` over the ctx key downstream steps read. Dropped bindings are returned and named by the caller rather than pruned silently.
 
 **Merge note:** Pass D deliberately typed (2) as a `design-gap` (the carry-over is specified; what happens when the new type lacks the ports is not) and (1)/(3) as `impl-gap`s (unambiguous misbehaviour). Filed as one entry because a port-membership check is the common precondition for repairing any of them.
 
@@ -604,6 +610,8 @@ The picker makes both likely rather than exotic: `filterType="map"` is its only 
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `9de30797`.** `validateJoinScope` refuses a join whose source map runs inside a body the join is outside of (results discarded per iteration) and a join inside its own source's body (the loop has not finished). The picker reads `joinableMapIds` — the same helper — so the editor cannot offer a choice Save would refuse. The switch-branch-not-taken half of the entry is NOT covered: that is a reachability question, not a scope one.
+
 ### G-037 — Palette control-flow skeletons ship required fields as empty strings that no validator rule ever checks, so an unconfigured node saves clean and fails at execution
 
 **Found by:** C (1 pass) · **Severity:** major · **Type:** design-gap
@@ -617,6 +625,8 @@ The picker makes both likely rather than exotic: `filterType="map"` is its only 
 **VERIFIED 2026-07-27: still true.** The skeletons still ship `collectionCtxKey: ""`, `itemCtxKey: ""`, `resultsCtxKey: ""` and `workflowId: ""`, and the validator has no rule referencing `collectionCtxKey` or `resultsCtxKey` at all.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `df343e19`.** Four new validator ERRORS for the fields the palette ships as `""` (`map.collectionCtxKey`, `map.itemCtxKey`, `join.resultsCtxKey`, library `childWorkflow.workflowId`). Errors rather than warnings: unlike an absent `maxConcurrency`, an empty collection key cannot run under any circumstances. Verified against all 15 shipped templates first — 2 maps, 1 join, 4 childWorkflows, none empty — so the rules bite only on palette-created nodes.
 
 **Merge note:** `humanGate.signal.name` is the fifth field in this family; it is filed separately because its failure mode (a gate nothing can open) is different in kind.
 
@@ -645,7 +655,12 @@ Two of those buckets are *misrouted* rather than genuinely workflow-level. `node
 
 D3. Both delete implementations do `Object.keys(nodes)[0] ?? ""` (also canvas/WorkflowEditorCanvas.tsx:1683). Insertion order carries no topological meaning, and the validator forbids an entry node with incoming edges (validator.ts:277), so the auto-picked node is frequently invalid the instant it is chosen. There is no notification — the only signal is a workflow-level row in the validation drawer, which does not light the node badge because the anchor `entryNodeId` does not start with `nodes.`. Deleting the last node yields `entryNodeId: ""` and a hard 'entryNodeId is required' error.
 
+
+**VERIFIED 2026-07-27: still true.** `remove-nodes.ts` re-seats `entryNodeId` onto `Object.keys(nodesCopy)[0]` — an arbitrary survivor — and neither `describeOrphanedDelete` nor the delete toast mentions `entryNodeId` at all. The reassignment happens; it is never announced.
+
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `117a6801`.** Two fixes. `resolveNextEntryNodeId` prefers a surviving source node, then a node with no inbound edges, instead of `Object.keys()[0]` — which is insertion order and usually promoted a node that cannot be an entry point. And the promotion is now announced, on its own when nothing is orphaned and appended to the orphan message otherwise. The toast reads the promoted id from the same function the delete uses, so the two cannot drift.
 
 **Merge note:** Pass B independently noted the arbitrary `entryNodeId` reassignment as part of node-delete's blast radius (in B-002, merged into the undo/guards entry above), but did not file it separately — so this is corroborated in substance without being a second source finding.
 
@@ -812,6 +827,11 @@ D70/D73/D74. `WorkflowVersion.lineage` is `onDelete: Cascade`. Ground-truth jobs
 
 D76/D77. `apps/shared/prisma/schema.prisma:909` states that 'pinned versions of soft-deleted lineages continue to resolve at runtime'. The resolver throws `DynamicNodeDeletedError` on `lineage.deletedAt !== null` *before* the pinned-version branch is reached, so a node carrying an explicit `dynamicNodeVersion` fails anyway. This is the one place in the repo where the delete cascade was actually designed — the delete endpoint counts referencing workflows, the tombstone supports restore-on-republish, and the canvas shows a red 'Deleted' badge — which makes the divergence between the stated contract and the implementation the more important thing to fix: authors were told pinning protects them.
 
+
+**VERIFIED 2026-07-27: FALSE — the premise is inverted.** Soft-delete is lineage-only and version rows are deliberately kept; `findVersionByNumber` does NOT filter on `deletedAt`, and the repository docstring states the intent outright ("version rows are kept so workflows pinned to a specific version of a soft-deleted lineage continue to resolve at runtime"). A **pinned** node is the PROTECTED case.
+
+The real exposure is the opposite one, and it is not in the register: a node with NO `dynamicNodeVersion` resolves the lineage head, and the head resolver returns `null` for any lineage whose `deletedAt` is set. **Unpinned** dynamic nodes are what a soft-delete breaks. Rule this entry rejected and open the inverse as a new finding.
+
 **Proposed disposition:** fix
 
 ### G-052 — J1.5 — a workflow that extracts and then stores nothing validates as "Valid"; nothing warns that a produced result is never consumed or persisted
@@ -929,6 +949,8 @@ The only comparison surface in the product compares a version's config against h
 xyflow types the drag callback as `OnNodeDrag = (event, node, nodes) => void` (node_modules/@xyflow/react/dist/esm/types/nodes.d.ts:36) — the third argument is the full dragged set. `handleNodeDragStop` destructures only `(_event: React.MouseEvent, node: Node)` (cited line) and writes `metadata.position` for that single `node` (`:2196`, `:2205`). It then bumps `lastFingerprintRef` by hand (`:2204`) so the structural-sync effect will NOT re-project — meaning the other selected nodes keep their new on-screen positions locally while their config positions are stale, and the divergence is invisible until reload. `onSelectionDragStop` (a distinct prop, `component-props.d.ts:144`) is not wired at all, so dragging via the selection-box handle persists nothing whatsoever. Repro: shift-drag a box over three nodes, drag them 200px right, hit Save, reload — the two non-grabbed nodes snap back. This is the only multi-select operation the editor claims to support besides delete and 'Group selected' (`WorkflowEditorV2Page.tsx:1138`), and it is silently lossy.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `9e6a1515`.** xyflow hands `onNodeDragStop` the full dragged set as its third argument; the handler read only the second. Every moved node is now persisted, with non-graph ids in the set (chips, map-body containers) skipped.
 
 ### G-061 — Switch cases cannot be reordered even though the UI states evaluation is order-dependent
 
@@ -1059,6 +1081,8 @@ D67/D63. `buildKindSelectOptions` iterates `Object.keys(ARTIFACT_REGISTRY)` — 
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `7702e5e8`.** Refused at validation time. Confirmed unfixable-as-is first: the backend resumes by signalling the workflow id with the FIXED name `"humanApproval"`, so there is no per-iteration address even if the handlers were distinct. Per-iteration signal routing would be a new feature; the shape simply cannot work today. 12 human gates ship, none in a loop body, so the rule invalidates nothing.
+
 ### G-071 — Map body-entry/exit pickers have no node-type filter — source, join, humanGate or another map can be a body entry
 
 **Found by:** C (1 pass) · **Severity:** major · **Type:** design-gap
@@ -1069,6 +1093,8 @@ D67/D63. `buildKindSelectOptions` iterates `Object.keys(ARTIFACT_REGISTRY)` — 
 The body-entry `NodePicker` passes no `filterType` and only excludes the map itself; body-exit adds reachability but no type filter. A `source` node as a body entry is meaningless (no inputs, runs once at graph entry), and a nested `map`/`join` entry walks straight into C-002/C-003. Which node types may open or close an iteration was never specified.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `9de30797`.** The body-entry picker excludes `source` (runs once at intake, not per item), `join` (exists to follow a loop) and `humanGate` (refused inside a body by G-070, so offering it was offering a guaranteed Save error). Nested loops stay listed — that shape is legitimate and `validateJoinScope` reasons about it explicitly.
 
 ### G-072 — Canvas port rows collapse the six-state binding model into bound/needs-source, and get one state backwards — `locked-unbound` renders as satisfied
 
@@ -1321,6 +1347,8 @@ D59/D60. Chips are projected with `draggable: false` but no `deletable: false`, 
 
 **Proposed disposition:** fix
 
+**RULING (2026-07-27): fix — SHIPPED `4544ab19`.** Both halves. The chip's Delete is refused with the working affordance named, rather than guessed at — deleting a group is not the same act as deleting the steps inside it. And `activeGroupId` is cleared on derived state rather than inside `deleteGroup`, so it holds for every path that can remove a group: the panel, an undo, an agent write, or a group emptied by `pruneNodesFromGroups`.
+
 ### G-092 — J2.6 — removing failed documents is not reachable from any Parts 3–9 surface
 
 **Found by:** A (1 pass) · **Severity:** minor · **Type:** non-goal
@@ -1375,6 +1403,8 @@ Test-plan 12.3 states "modal with two read-only JSON blocks side-by-side (`v{n}`
 **VERIFIED 2026-07-27: still true, and now slightly wider.** `allTerminalSucceededOrSkipped` still folds `skipped` into `succeeded`. Since G-047 made `cancelled` a real `NodeRunStatusValue`, the `cancelled → pending` collapse is now reachable rather than hypothetical.
 
 **Proposed disposition:** fix
+
+**RULING (2026-07-27): fix — SHIPPED `4544ab19`.** `getAggregateStatus` now returns all six statuses. Both missing cells already had a badge treatment, so nothing new had to be drawn — the information was being discarded, not unrepresentable.
 
 ### G-096 — nodeIdFromPath splits at the first dot while parseInputPortPath is greedy — a dotted node id buckets under a non-existent node
 

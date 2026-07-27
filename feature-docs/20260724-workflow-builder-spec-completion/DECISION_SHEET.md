@@ -302,6 +302,65 @@ of what the catalog or the call graph actually contains. The second kind found
 all three latent entries; grepping the cited line alone would have confirmed
 every one of them as "still true" and been useless.
 
+## Ship-readiness batch — 10 fixes, 2026-07-27
+
+Alex's steer: *"I'm not too interested in new features, I just want to ship an
+initial implementation, bug free."* That reframes the 27 confirmed gaps — **16
+are missing capability** (copy/paste, keyboard authoring, run search,
+extract-to-sub-workflow) and were set aside. The other 11 are things BROKEN in
+what already ships; 10 were fixed (the 11th is G-031's edge half, see below).
+
+| Entry | Commit | What was actually wrong |
+|---|---|---|
+| G-037 | `df343e19` | Palette skeletons ship 4 required fields as `""`; no rule referenced any of them |
+| G-060 | `9e6a1515` | xyflow passes the whole dragged set; the handler read one node |
+| G-032 | `e188f58c` | Stale output rows wrote `undefined` over live ctx (`writeToCtx` has no guard) |
+| G-070 | `7702e5e8` | One signal name per iteration; resume address is fixed, so unfixable as-is |
+| G-039 | `117a6801` | `Object.keys()[0]` promoted a node that usually cannot be an entry, unannounced |
+| G-036 | `9de30797` | Join scope unchecked; picker offered the configurations that throw |
+| G-071 | `9de30797` | Body-entry picker had no filter at all |
+| G-091 | `4544ab19` | Chip Delete inert; `activeGroupId` stranded on a deleted group |
+| G-095 | `4544ab19` | 4 of 6 statuses; collapsing a group destroyed two |
+| G-031 | `affb5cd9` | Source cards and chips had no badge (edges deferred) |
+
+### What verification changed before any code was written
+
+I re-checked the five highest-ranked entries against source rather than trusting
+the register — G-051 had just turned out to be describing the opposite of the
+truth. Two came back **worse** than written:
+
+- **G-032** — the register said the engine "writes `undefined` through stale
+  output rows". Confirmed at the leaf: `writeToCtx` ends `current[finalKey] =
+  value` with no undefined guard. It is real data corruption, not a display bug.
+- **G-070** — the register said the gate registers duplicate handlers. Also
+  true, but the resume path is worse: the backend signals by workflow id with
+  the FIXED name `"humanApproval"`, so there is no per-iteration address even if
+  the handlers were distinct. That is what made "refuse it" the honest fix
+  rather than "route it".
+
+### Two entries where refusing was the fix
+
+G-070 and G-091 were both resolved by **declining to guess**. A human gate in a
+loop cannot work, so Save refuses it and says why; a chip's Delete has two
+plausible readings (drop the grouping, drop the steps) so it refuses and names
+the affordance that does work. Building either behaviour would have been a new
+feature, and picking one for the author is how work gets lost.
+
+### What was deliberately NOT fixed
+
+- **G-031's edge half.** Five anchor shapes name an edge. Marking one needs a
+  visual language for "this connection has a problem" that the canvas does not
+  have, and inventing it is a design decision. They are navigable from the
+  drawer (G-010) — just not marked in place. Stays open.
+- **G-036's untaken-switch-branch half.** A map behind a branch that is not
+  taken leaves its join ready. That is a reachability question, not a scope one.
+- **G-052** (extract-then-store-nothing validates Valid). The underlying check
+  was measured earlier this session: it fires on **23 of 111 nodes** across
+  shipped workflows. It would be noise on day one.
+- **G-034** (a branch dead-ending in a loop body drops results with a warning)
+  is documented as INTENTIONAL in the test plan and ships that way in the
+  showcase demo. A design decision to revisit, not a bug to fix.
+
 ## Remaining verification (historical — now complete)
 
 C2 (validation surfacing, 7), C3 (composition & authoring, 6), C4 (run
