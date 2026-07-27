@@ -21,6 +21,11 @@ export {
   pruneCtxDeclarations,
 } from "./orphaned-ctx-keys";
 export {
+  type DanglingEdgeReference,
+  findDanglingEdgeReferences,
+  pruneEdgeReferences,
+} from "./prune-edge-references";
+export {
   type AutoBoundVia,
   type PortResolution,
   resolveInputPort,

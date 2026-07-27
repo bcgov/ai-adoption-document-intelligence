@@ -7,6 +7,7 @@
 import {
   findOrphanedCtxKeys,
   pruneCtxDeclarations,
+  pruneEdgeReferences,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { pruneNodesFromGroups } from "../group/prune-node-from-groups";
@@ -29,6 +30,15 @@ import { pruneNodesFromGroups } from "../group/prune-node-from-groups";
  * childWorkflow input mappings and condition refs — never edges — so it is
  * unaffected by the edge filtering below and by callers that strip edges in a
  * later pass (`handleDelete`).
+ *
+ * **The edge-reference sweep runs last** (G-029). Four node fields name an edge
+ * by id rather than through the edge list — `switch.cases[].edgeId`,
+ * `switch.defaultEdge`, `humanGate.fallbackEdgeId` and any node's
+ * `errorPolicy.fallbackEdgeId` — so an edge removed here as collateral of a
+ * node delete would otherwise leave them pointing at nothing. It runs on the
+ * post-filter config because that is when "which edges are gone" is knowable.
+ * Callers that strip further edges afterwards must sweep again; `handleDelete`
+ * does.
  *
  * Pure; never mutates the input config.
  */
@@ -56,8 +66,9 @@ export function removeNodesFromConfig(
     entryNodeId: nextEntryNodeId,
     nodeGroups: prunedGroups.nodeGroups,
   };
-  return pruneCtxDeclarations(
+  const withoutCtx = pruneCtxDeclarations(
     withoutNodes,
     orphaned.map((entry) => entry.ctxKey),
   );
+  return pruneEdgeReferences(withoutCtx);
 }

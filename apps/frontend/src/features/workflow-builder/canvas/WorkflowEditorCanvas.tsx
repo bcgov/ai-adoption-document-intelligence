@@ -30,6 +30,7 @@ import {
   getLockedInputPorts,
   isAssignable,
   type KindRef,
+  pruneEdgeReferences,
   resolveBindings,
 } from "@ai-di/graph-workflow";
 import { Anchor, Badge, Modal, Tooltip } from "@mantine/core";
@@ -2499,7 +2500,9 @@ function WorkflowEditorCanvasInner({
       const current = configRef.current;
       const remaining = current.edges.filter((e) => !edgeIds.has(e.id));
       if (remaining.length !== current.edges.length) {
-        onConfigChange({ ...current, edges: remaining });
+        // G-029 — a detached edge may still be named by a switch case, a
+        // switch default, a gate fallback or an errorPolicy fallback.
+        onConfigChange(pruneEdgeReferences({ ...current, edges: remaining }));
       }
       notifications.hide(DETACH_FULLY_TOAST_ID);
     },
@@ -2629,10 +2632,12 @@ function WorkflowEditorCanvasInner({
         next = removeNodesFromConfig(next, removedNodeIds);
       }
       if (removedEdgeIds.size > 0) {
-        next = {
+        // G-029 — this pass strips edges AFTER `removeNodesFromConfig` already
+        // swept, so the control-flow references have to be swept again.
+        next = pruneEdgeReferences({
           ...next,
           edges: next.edges.filter((e) => !removedEdgeIds.has(e.id)),
-        };
+        });
       }
       next = disconnectWires(survivorDataWires, next);
       if (next !== config) onConfigChange(next);
