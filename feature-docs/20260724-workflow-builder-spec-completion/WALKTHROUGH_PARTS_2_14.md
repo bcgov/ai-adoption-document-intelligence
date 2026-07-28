@@ -146,3 +146,46 @@ route so the 14.7/14.8 editor checks could run.
 
 Parts **4, 10, 11, 12, 13, 15, 16** in full, plus the open checks in Parts 3, 5,
 6, 7, 8, 9. Part 15 additionally needs cloud credentials.
+
+---
+
+# Parts 10, 11, 12 (same pass)
+
+All three have seeded demos, so all three walked without me building anything —
+which is what a gallery part should feel like.
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 10.1 Save as library | ✅ PASS | disabled at 0 nodes (`data-disabled`, and a real mouse click does **not** reach it); toast *"Saved as library — Library "…" created. Open it from the library picker on any childWorkflow node."*; editor stays on the current workflow (URL + name unchanged); modal closes |
+| 10.2 Kind filter (list) | ✅ PASS | 27 / 2 / 29 — the tabs partition exactly |
+| 10.3 Kind filter (API) | ✅ PASS | default ≡ `kind=workflow` (27), `library` (2), `all` (29). Libraries absent from the workflow kind |
+| 10.4 Library picker | ✅ PASS | picker lists libraries with signature; writes `workflowRef`; read-only summary + HEAD badge; **round-trips** through save + reload |
+| 11.1 Mark inputs | ✅ PASS | `ctx-references-{documentId,documentUrl,priority}` rows with 3 Input checkboxes; the derived schema carries only the flagged keys |
+| 11.2 Run drawer | ✅ PASS | trigger URL, field list, sample `curl`, `x-api-key` auth notes, paste-JSON, 2 copy buttons |
+| 11.3 run-spec API | ✅ PASS | `200 {triggerUrl, inputSchema, authNotes, sampleCurl}`; schema requires `documentUrl`, defaults `priority: 0` |
+| 11.4 runs API | ✅ PASS | `200 {runs, nextCursor}` |
+| 12.1 History drawer | ✅ PASS | `V2, V1` newest-first, head badge on the head row, per-row Revert + Compare |
+| 12.2 Revert | ✅ PASS | confirm modal → `POST /revert-head` → toast *"Reverted to v2 — The editor now reflects the reverted version."* **Demo restored to its seeded head (v1) afterwards** — revert is a pure `head_version_id` pointer move, so nothing was lost |
+| 12.3 Compare to head | ✅ PASS | head row's Compare correctly **disabled**; the other opens a dialog with two read-only blocks and no structural diff, by design |
+| 12.4 Run a specific version | ⚠️ PARTIAL | version Select present, options `[head-labelled v1, v2]`, value `"v1 — head"`. The *schema-refetch-per-version* half is left to `tier1-versioning.spec.ts` |
+| 12.5 Library version pinning | ⚠️ BLOCKED | mechanism is there — version Select, `HEAD` badge, Change version, persists across reload — but **no seeded library has a v2**, so "pick `v2` → stamps `version:2`" cannot be walked. Demo gap **D4** |
+| 12.6 Version APIs | ✅ PASS | `/versions` newest-first `[2,1]`; per-version detail `200` with config |
+
+## Two non-findings worth recording
+
+Both were my probe technique, not the product — the same shape as the D-11
+timing error:
+
+- **`force: true` manufactures clicks users cannot make.** A forced click opened
+  the "disabled" Save-as-library item; a real `page.mouse.click` at the same
+  coordinates does not. The gate is real.
+- **`Compare to head` on the head row is disabled by design.** My first pass
+  clicked `.last()`, hit the disabled one, and read the empty dialog as a
+  failure.
+
+## Demo-quality gap found while walking
+
+`Demo — Library workflow (Part 10)` declares **0 inputs / 0 outputs**, so the
+childWorkflow signature summary a user is sent to look at renders empty, and it
+has only one version. That single demo is why 7.8, 12.5 and part of 10.4 all
+needed fixtures. Logged as **D4**.

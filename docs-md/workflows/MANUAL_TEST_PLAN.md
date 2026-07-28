@@ -501,16 +501,16 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 **▶ Demo:** [Library workflow](http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10/edit)
 
-- [ ] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); a **“Saved as library”** success toast appears (plain message pointing to the library picker on any childWorkflow node — no link).
-- [ ] **10.2 Kind filter (list page).** `/workflows` SegmentedControl `Workflows / Libraries / All`. **Pass:** switching changes the row set; libraries appear under Libraries/All only.
-- [ ] **10.3 Kind filter (API).**
+- [x] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); a **“Saved as library”** success toast appears (plain message pointing to the library picker on any childWorkflow node — no link).
+- [x] **10.2 Kind filter (list page).** `/workflows` SegmentedControl `Workflows / Libraries / All`. **Pass:** switching changes the row set; libraries appear under Libraries/All only.
+- [x] **10.3 Kind filter (API).**
   ```bash
   curl -s 'http://localhost:3002/api/workflows'            -H "x-api-key: <KEY>"   # excludes libraries
   curl -s 'http://localhost:3002/api/workflows?kind=library' -H "x-api-key: <KEY>"
   curl -s 'http://localhost:3002/api/workflows?kind=all'     -H "x-api-key: <KEY>"
   ```
   **Pass:** default omits libraries; `library`/`workflow`/`all` filter correctly; invalid `kind` → `400`.
-- [ ] **10.4 Library picker in ChildWorkflow.** Sub-workflow node → library branch → **Pick library workflow** → LibraryPickerModal (lists libraries w/ signature) → pick one. **Pass:** writes `workflowRef={type:library, workflowId}`, shows read-only signature; round-trips.
+- [x] **10.4 Library picker in ChildWorkflow.** Sub-workflow node → library branch → **Pick library workflow** → LibraryPickerModal (lists libraries w/ signature) → pick one. **Pass:** writes `workflowRef={type:library, workflowId}`, shows read-only signature; round-trips.
 
 ---
 
@@ -518,14 +518,14 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 **▶ Demo:** [Workflow-as-API — trigger URL & schema](http://localhost:3000/workflows/by-slug/demo-workflow-as-api-trigger-url-schema-part-11/edit)
 
-- [ ] **11.1 Mark inputs.** **More ▸ Workflow settings** → ctx list → per-row **Input** checkbox. **Pass:** sets `ctx[key].isInput`; only flagged entries enter the derived input schema.
-- [ ] **11.2 Run drawer.** Top-bar **Run this workflow** (disabled in create mode). **Pass:** drawer shows Trigger URL (+copy), input schema field list, sample curl (+copy), auth notes, Paste-JSON + Run.
-- [ ] **11.3 run-spec API.**
+- [x] **11.1 Mark inputs.** **More ▸ Workflow settings** → ctx list → per-row **Input** checkbox. **Pass:** sets `ctx[key].isInput`; only flagged entries enter the derived input schema.
+- [x] **11.2 Run drawer.** Top-bar **Run this workflow** (disabled in create mode). **Pass:** drawer shows Trigger URL (+copy), input schema field list, sample curl (+copy), auth notes, Paste-JSON + Run.
+- [x] **11.3 run-spec API.**
   ```bash
   curl -s 'http://localhost:3002/api/workflows/<ID>/run-spec' -H "x-api-key: <KEY>"
   ```
   **Pass:** `{triggerUrl, inputSchema, authNotes, sampleCurl}` (+ `uploadSpec` only if a source.upload node exists). Unknown id → 404; no published version → 409.
-- [ ] **11.4 runs API.**
+- [x] **11.4 runs API.**
   ```bash
   curl -sX POST 'http://localhost:3002/api/workflows/<ID>/runs' -H "x-api-key: <KEY>" \
     -H 'Content-Type: application/json' -d '{"initialCtx":{"yourInput":"value"}}'
@@ -540,12 +540,12 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 Prereq: a workflow **saved 2+ times**.
 
-- [ ] **12.1 History drawer.** **More ▸ History** (disabled in create mode). **Pass:** versions newest-first with `v{n}` badge + timestamp; head row shows **head** badge; per-row **Revert** / **Compare to head** (disabled on head).
-- [ ] **12.2 Revert.** Revert to an older version → confirm modal. **Pass:** `POST /:id/revert-head`; canvas reloads reverted config; that row becomes head; success toast.
-- [ ] **12.3 Compare to head.** **Pass:** modal with two read-only JSON blocks side-by-side (`v{n}` vs `head`); no structural diff (by design).
+- [x] **12.1 History drawer.** **More ▸ History** (disabled in create mode). **Pass:** versions newest-first with `v{n}` badge + timestamp; head row shows **head** badge; per-row **Revert** / **Compare to head** (disabled on head).
+- [x] **12.2 Revert.** Revert to an older version → confirm modal. **Pass:** `POST /:id/revert-head`; canvas reloads reverted config; that row becomes head; success toast.
+- [x] **12.3 Compare to head.** **Pass:** modal with two read-only JSON blocks side-by-side (`v{n}` vs `head`); no structural diff (by design).
 - [ ] **12.4 Run a specific version.** Run drawer → **Version** Select → pick an older version. **Pass:** schema + prefilled JSON refetch for that version; Run includes `workflowVersionId`; backend validates against the **selected version’s** schema.
 - [ ] **12.5 Library version pinning.** LibraryPickerModal → after picking, **Version** Select → pick `v2`. **Pass:** stamps `workflowRef={…, version:2}`; ChildWorkflow settings shows a `v2`/`head` badge + Change version; persists.
-- [ ] **12.6 Version APIs.**
+- [x] **12.6 Version APIs.**
   ```bash
   curl -s 'http://localhost:3002/api/workflows/<ID>/versions' -H "x-api-key: <KEY>"
   curl -s 'http://localhost:3002/api/workflows/<ID>/versions/<VERSION_ID>' -H "x-api-key: <KEY>"
