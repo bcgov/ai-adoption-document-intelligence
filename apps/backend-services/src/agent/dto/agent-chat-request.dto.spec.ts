@@ -1,3 +1,4 @@
+import { ValidationPipe } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import {
@@ -57,5 +58,60 @@ describe("AgentChatRequestDto", () => {
       make({ messages: [{}], model: "x".repeat(201) }),
     );
     expect(errors.map((e) => e.property)).toContain("model");
+  });
+});
+
+/**
+ * The AI SDK's `DefaultChatTransport` puts its own envelope fields — `id` and
+ * `trigger` — alongside our payload. The global pipe runs with
+ * `forbidNonWhitelisted: true`, so an undeclared property is a hard 400 and
+ * EVERY message from the chat drawer fails:
+ *
+ *   400 {"message":["property id should not exist",
+ *                   "property trigger should not exist"]}
+ *
+ * class-validator alone cannot see this — whitelisting is a ValidationPipe
+ * concern — so this block goes through the pipe exactly as the controller does.
+ */
+describe("AgentChatRequestDto — transport envelope fields (whitelisted pipe)", () => {
+  const pipe = new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  });
+  const meta = {
+    type: "body" as const,
+    metatype: AgentChatRequestDto,
+    data: "",
+  };
+  const body = (extra: Record<string, unknown>) => ({
+    groupId: "g-1",
+    provider: "azure",
+    model: "gpt-5.4",
+    messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+    ...extra,
+  });
+
+  it("accepts the transport's `id` and `trigger`", async () => {
+    await expect(
+      pipe.transform(
+        body({ id: "__LOCALID_abc", trigger: "submit-message" }),
+        meta,
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("still refuses a genuinely unknown property", async () => {
+    // Nest carries the detail on the exception's response payload, not on
+    // `.message`, so read it rather than regexing the Error.
+    const err = await pipe
+      .transform(body({ definitelyNotOurs: true }), meta)
+      .then(
+        () => null,
+        (e: { getResponse?: () => unknown }) => e,
+      );
+    expect(err).not.toBeNull();
+    const detail = JSON.stringify(err?.getResponse?.() ?? err);
+    expect(detail).toContain("definitelyNotOurs");
   });
 });

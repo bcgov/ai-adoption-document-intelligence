@@ -66,6 +66,31 @@ export class AgentChatRequestDto {
   @MaxLength(200)
   model?: string;
 
+  /**
+   * Envelope fields the AI SDK's `DefaultChatTransport` sends alongside our
+   * payload. We do not read them — they are declared solely so the global
+   * pipe's `forbidNonWhitelisted` does not reject the request. Without these
+   * every message from the chat drawer failed with
+   * `400 ["property id should not exist", "property trigger should not exist"]`.
+   */
+  @ApiPropertyOptional({
+    description:
+      "Client-generated message id from the AI SDK transport. Accepted and ignored.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  id?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "AI SDK transport trigger (e.g. `submit-message`). Accepted and ignored.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  trigger?: string;
+
   @ApiProperty({
     description:
       "UI messages forwarded from the assistant-ui composer (Vercel AI SDK `UIMessage[]`). Validated as a bounded array of objects; per-message content shape is owned by the AI SDK.",
