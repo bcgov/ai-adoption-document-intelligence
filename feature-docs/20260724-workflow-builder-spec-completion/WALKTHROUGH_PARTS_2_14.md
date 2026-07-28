@@ -613,3 +613,33 @@ a product defect:
 
 Also: `activity-palette-entry-<activityType>` is a stable palette testid. Use
 it instead of matching display text.
+
+## Part 8 — the map checks (2026-07-27)
+
+| # | Verdict | Evidence |
+|---|---|---|
+| **8.7** Map iteration wiring | ✅ PASS | one edge from `document.split` to **Run for each item** sets **Collection ctx key** to `__auto.document_split_1.segments` with no author input |
+| **8.15** Loop item draws a wire | ◐ PARTIAL | the wire renders — `wire:document_classify_1:segment`, `data-provenance="auto:map-item"`, `data-wire-variant="data"`, stroke `rgb(64,192,87)` (green = `DocumentSegment`) — and the body port's amber ring clears. The settings panel reads *"Segment metadata ← Run for each item · Auto"*. Four later clauses unverified (see the plan's sub-bullet) |
+
+**A map with no item key produces no wire, and that is correct.** My first pass
+drew both edges but never named the **Item ctx key**, so no wire appeared and
+the body port kept its ring — which reads exactly like the G-104 bug this check
+exists to catch. Setting `currentSegment` made the wire appear immediately. A
+map with no item variable has no item to bind, so there is nothing to draw.
+Worth knowing before anyone re-walks this and files a regression.
+
+**Why 8.15 is not ticked.** Its remaining clauses (the stored binding key vs a
+synthesised `__auto.<mapId>.item`, the map's absent `outputs[]` row, the pin
+round-trip, the body-container crossing, the G-106 body-entry-only variant) all
+need a *saved* graph, and Save legitimately refuses while `document.split` and
+`document.classify` have unfilled required parameters — `strategy`,
+`classifierType`, `rules`. That is the product working; it just means this
+check costs a fully-configured graph, not three palette clicks. The clauses are
+unit/e2e-backed by `756910e5` and `2a0b4d7b`, but nobody has seen them.
+
+**Two more probe traps** (adding to the three above):
+
+4. **Mantine spreads `data-testid` onto the `<input>` itself**, not a wrapper —
+   `[data-testid="x"] input` matches nothing. Target `[data-testid="x"]`.
+5. **Body entry / body exit are Selects, not text inputs.** `.fill()` on them
+   fails silently, so a probe can believe it configured a map that it didn't.
