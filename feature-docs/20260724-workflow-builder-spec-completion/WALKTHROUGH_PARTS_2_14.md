@@ -719,3 +719,33 @@ could carry out.
 renders `REPLAY MODE — V1 (READ-ONLY)`, so a `/Replay mode/` match reports "not
 in replay" while replay is plainly active — and every downstream conclusion
 inverts. Match case-insensitively.
+
+## D-19 — *Fit view* doesn't fit (open)
+
+Found while capturing screenshots for the gallery. The **⛶** control at the
+bottom-left of the canvas is the primary orientation gesture — the first thing
+anyone does on an unfamiliar workflow — and on the larger graphs it leaves most
+of the diagram off-screen.
+
+Measured on **Standard OCR Workflow** (10 nodes, one mostly-linear chain), in a
+1500×900 viewport:
+
+| | steps on screen |
+|---|---|
+| after load + one Fit view | 2 of 10 |
+| after **More ▸ Auto-arrange**, then Fit view twice | 3 of 10 |
+| at 1920×1080, same sequence | 6 of 10 |
+
+The viewport transform after fitting reads `translate(-1138px, 33px) scale(0.5)`
+— it *has* zoomed out, but the translate puts the content off to the left. So
+the fit is being computed against bounds much wider than the visible nodes.
+**Multi-Page Report Workflow** (16 nodes, contains a map body container) is worse:
+2 of 16, and neither a second Fit view nor zooming out changes the frame.
+
+The map-body container is the obvious suspect for the multi-page case — a
+container node with a large measured box would inflate the bounds — but Standard
+OCR has no map, so that can't be the whole story.
+
+Not investigated further; logged where it was found. Worth taking seriously
+despite being cosmetic: it is the control people reach for first, and it makes a
+10-step workflow look broken on first open.

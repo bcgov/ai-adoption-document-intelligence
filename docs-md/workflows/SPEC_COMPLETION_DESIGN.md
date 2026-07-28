@@ -320,7 +320,7 @@ controlled.
 | This design | `docs-md/workflow-builder/SPEC_COMPLETION_DESIGN.md` |
 | Pass outputs, gap register | `feature-docs/20260724-workflow-builder-spec-completion/` |
 | Spec artifacts (§5.1–5.6) | `docs-md/workflow-builder/` |
-| Regenerated test plan | `docs-md/workflow-builder/MANUAL_TEST_PLAN.md` |
+| Regenerated test plan | `docs-md/workflows/MANUAL_TEST_PLAN.md` |
 
 ---
 

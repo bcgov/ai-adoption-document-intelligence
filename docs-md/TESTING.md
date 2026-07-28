@@ -41,7 +41,10 @@ Tests that need a live dependency are **opt-in**, and the two states are honest:
 
 Dynamic-node **run** tests additionally need the worker started with a
 `PLATFORM_API_KEY` (any non-empty value locally) — see
-[workflow-builder/MANUAL_TEST_PLAN.md](workflow-builder/MANUAL_TEST_PLAN.md).
+[workflows/MANUAL_TEST_PLAN.md](workflows/MANUAL_TEST_PLAN.md).
+
+For a friendlier pass over the same product — 16 stops, screenshots, no setup —
+see [workflows/GALLERY.md](workflows/GALLERY.md).
 
 `test:all` intentionally does **not** set `RUN_LLM` — those tests cost money and
 need credentials, so they stay an explicit opt-in (`RUN_LLM=1 npm run test:all`).

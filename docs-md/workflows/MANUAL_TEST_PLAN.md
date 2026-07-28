@@ -1,5 +1,11 @@
 # Visual Workflow Builder — Manual Test Plan
 
+> **Looking for the friendly version?** [GALLERY.md](./GALLERY.md) is a
+> 16-stop guided tour of the same product — screenshots, plain language, no
+> setup, about 45 minutes. Use it to *see* the builder work. Use this plan to
+> *prove* a feature was exercised: it keeps the awkward checks (SQL, `curl`,
+> environment flags) that make coverage real and would derail a tour.
+
 End-to-end manual testing script for everything shipped in the `feature/visual-workflow-builder` branch (PR #230). It covers the visual builder foundation, typed I/O, auto-wire, try-in-place, library/versioning, workflow-as-API, document sources, dynamic (custom-code) nodes, and the AI agent.
 
 > **How to use this doc.** Work top-to-bottom — later sections assume the environment from [Part 1](#part-1--environment--prerequisites) and skills built in earlier sections. Each test is a checklist item with concrete **steps** and a **Pass** criterion. Boxes: `[ ]` not run, `[x]` pass, `[!]` fail (file a bug with the test number).
