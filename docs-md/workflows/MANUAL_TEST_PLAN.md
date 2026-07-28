@@ -269,39 +269,39 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
 
 > **About the first demo workflow.** It is a **forms showcase, not a runnable pipeline** — one graph that packs all six control-flow node types so you can open each form in isolation. It maps over a `documents` array (**Run for each document**), and for each document a switch (**Branch by condition**) routes by type down one of three demo branches: *invoice* → a **Sub-workflow**, *receipt* → **Wait until condition** (poll) → **Extract OCR result**, and the *default* → **Wait for approval** (a human gate). A **join** (**Collect results**) would gather the per-document results into `results`, then **Store Results** persists them. **Two of the three branches (Sub-workflow, Wait for approval) deliberately dead-end** — they never reach the map body's exit node (**Extract OCR result**), so only the receipt branch completes a real chain. That is intentional here (the point is to inspect every form), but it would **not** be a valid production workflow — a real map body wants every branch to converge on the exit node. `documents`/`currentDoc` are **untyped trigger data** (no schema), so conditions on them (e.g. `currentDoc.type`) are typed by hand, not picked from a field list.
 
-- [ ] **4.1 Switch — route each item down one edge.** *A switch tests its cases top-to-bottom; the first match sends the item down that case's **edge**, else the default edge. Key model: a case does **not** point at a target node directly — it points at a **conditional edge** that runs from this switch to a target. So a case is "condition → which outgoing edge to take."*
+- [x] **4.1 Switch — route each item down one edge.** *A switch tests its cases top-to-bottom; the first match sends the item down that case's **edge**, else the default edge. Key model: a case does **not** point at a target node directly — it points at a **conditional edge** that runs from this switch to a target. So a case is "condition → which outgoing edge to take."*
   1. Click **Branch by condition** (the yellow diamond) → its settings open on the right. It already has two cases plus a default, each bound to one conditional edge leaving the diamond (to **Sub-workflow**, to **Wait until condition**, and — as default — to **Wait for approval**).
   2. Click **Add Case** → a new empty case row appears. Click its **condition** → build a test (e.g. `currentDoc.type` **equals** `"invoice"`). *(`currentDoc` is an untyped loop item, so type the `.type` path by hand — see the untyped-data note above.)*
   3. Open the case's **Edge** dropdown. **What this dropdown is:** the outgoing edge this case fires. It lists **every conditional edge that starts at *this* switch** — normal edges, error edges, and edges leaving *other* switches are excluded, because a switch can only route down its own conditional branches. In this demo that's the three existing edges (Sub-workflow / Wait until condition / Wait for approval). **To route a new case somewhere *new*, first draw a new conditional edge** on the canvas from the switch's output handle to the target node; it then appears in this dropdown alongside the others. *(Note: the dropdown does not currently grey out edges already used by another case, so it's on you not to point two cases at the same edge.)*
   4. Optionally set a **Default edge** (taken when no case matches).
   **Pass:** the Edge dropdown lists this switch's conditional edges (and only those); **Save + reload** keeps every case and its edge.
-- [ ] **4.2 Map — run a body once per item.** *A map iterates a collection and runs its "body" sub-graph for each element; the body is delimited by an entry and exit node (the dashed green box on the canvas).*
+- [x] **4.2 Map — run a body once per item.** *A map iterates a collection and runs its "body" sub-graph for each element; the body is delimited by an entry and exit node (the dashed green box on the canvas).*
   1. Click **Run for each document** → its settings open.
   2. Set **collection ctx key** (`documents`), **item ctx key** (`currentDoc`), optional **index ctx key**, and **max concurrency** (≥ 1).
   3. Set **body entry node** and **body exit node** via their pickers (each excludes the map node itself).
   **Pass:** all fields are editable; the green **body box** wraps the nodes between the entry and exit you chose.
-- [ ] **4.3 Join — collect a map's results.** *A join gathers the per-item outputs a map produced back into one array.*
+- [x] **4.3 Join — collect a map's results.** *A join gathers the per-item outputs a map produced back into one array.*
   1. Click **Collect results** → its settings open.
   2. Open the **Source Map node** picker → it lists **only map nodes** (not activities/switches).
   3. Set the **Results ctx key** (where the collected array is written).
   **Pass:** only map nodes are selectable as the source. *(Join strategy is fixed to `all` and isn't shown in the form.)*
-- [ ] **4.4 Sub-workflow (childWorkflow) — call another graph.** *Runs a whole other workflow — either a saved Library workflow or an inline graph shipped with this node.*
+- [x] **4.4 Sub-workflow (childWorkflow) — call another graph.** *Runs a whole other workflow — either a saved Library workflow or an inline graph shipped with this node.*
   1. Click **Sub-workflow (inline OCR)** → its settings open.
   2. Toggle **Library / Inline**. In **Inline** mode an **editable** JSON textarea of the embedded child graph shows, with a live problems list beneath it (see 5.7).
   3. Edit the **input** and **output mapping** lists (which parent ctx keys feed the child, and where its outputs land).
   **Pass:** the Library/Inline toggle switches modes; inline shows the JSON editor and, under it, either *"No problems in the inline graph."* or a red/amber panel listing them. *(Library-picker modal is a manual spot-check; inline round-trip is `tier2-control-flow` e2e.)*
-- [ ] **4.5 Wait until condition (pollUntil) — poll until true.** *Re-runs an activity on an interval until a condition holds (or it times out).*
+- [x] **4.5 Wait until condition (pollUntil) — poll until true.** *Re-runs an activity on an interval until a condition holds (or it times out).*
   1. Click **Wait until condition** → its settings open.
   2. Pick an **activity type** → its own parameters sub-form renders below.
   3. Set the **condition**, an **interval** (e.g. `30s`), **max attempts**, and optional **initial delay** / **timeout**.
   4. Type an invalid duration (e.g. `30` with no unit) in a duration field.
   **Pass:** the invalid duration shows an inline error; the picked activity's nested params render. *(Interval / invalid-duration / maxAttempts round-trips are `tier2-control-flow` e2e; the activity sub-form is a manual spot-check.)*
-- [ ] **4.6 Wait for approval (humanGate) — pause for a human.** *Suspends the run until a named signal arrives, with a timeout fallback.*
+- [x] **4.6 Wait for approval (humanGate) — pause for a human.** *Suspends the run until a named signal arrives, with a timeout fallback.*
   1. Click **Wait for approval** → its settings open.
   2. Note the **signal name**, the read-only **payload schema**, and the required **timeout**.
   3. Set **On timeout** to `fail`, then `continue`, then `fallback`.
   **Pass:** the **fallback edge** picker appears **only** when On timeout = `fallback` (gone for `fail`/`continue`).
-- [ ] **4.7 Condition editor — nested expressions.** *Builds boolean trees (AND/OR/NOT + comparisons) to any depth; each value is a **Ref** (a variable) or a **Literal**.*
+- [x] **4.7 Condition editor — nested expressions.** *Builds boolean trees (AND/OR/NOT + comparisons) to any depth; each value is a **Ref** (a variable) or a **Literal**.*
   1. On **Branch by condition**, open the **second case**'s condition — this demo ships a 3-level tree `AND( OR(EQ, GTE), NOT(IS-NULL) )`.
   2. Confirm the nesting renders indented per level.
   3. Pick a leaf value and toggle it **Ref** ↔ **Literal** (Ref = variable autocomplete; Literal = plain input).

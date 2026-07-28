@@ -50,6 +50,17 @@ cannot* see the failure.
 | **E1** | `tier1-dynamic-node` — **system-admin identity** variant | the `/dynamic-nodes` breakage (`dd6cdafb`) | The one that actually bit us. Unit tests mock `fetch` and never assert what reaches the wire; the `x-api-key` path resolves to exactly one group, so **no** existing layer reaches the admin branch. Needs the request-level admin simulation recorded in the `app-browser-auth` skill | S |
 | **E2** | `tier1-dynamic-node` — publish from the palette modal drops the node | 14.8 auto-drop (`64d86d73`) | The decisive argument: my unit test passes, but the live bug had a **second** cause (React render timing) the unit test did not model. I only found it in a browser | S |
 
+### ⚠️ G2 is now second priority — see D-14
+
+`.github/workflows/` contains **no Playwright job**. 76 e2e specs exist and
+nothing runs them, so **11 specs are failing today** and one of the failures was
+a regression I introduced a day earlier (`f9049ab3` whitelisted
+`UpdateWorkflowDto`; the e2e helper still sent `groupId`). It was caught only
+because I ran the suite by hand during this walk.
+
+Adding E1/E2 to a suite nobody runs buys very little. **Wire the existing suite
+into CI first**, then triage the 11 pre-existing failures, then add E1/E2.
+
 **Explicitly not adding e2e for:** undo-during-replay (`fd3194bb`) and the 9.9c
 replay chip. Both are fully pinned by falsifiable unit tests; an e2e would be
 duplicate cost.

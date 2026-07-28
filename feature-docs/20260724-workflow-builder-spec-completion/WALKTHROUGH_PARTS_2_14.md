@@ -250,3 +250,65 @@ Running tally of first-pass "failures" that were my technique, not the product:
 D-11 timing, `force: true` on a disabled item, Compare-to-head on the head row,
 and this. **Any first-pass failure is now unverified until re-probed a second
 way.**
+
+---
+
+# Part 4, the e2e suite, and Part 15
+
+## Part 4 — control-flow settings forms
+
+Walked manually on the Part-4 demo (which carries all six control-flow node
+types plus a map body).
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 4.1–4.6 forms | ✅ PASS | every type opens its own panel on a genuine click: `switch-node-settings`, `map-node-settings`, `join-node-settings` (`source-map-node-id`, `results-ctx-key`), `child-workflow-node-settings` (`ref-type`, `inline-editor`, `inline-problems-none`, `input-row-0`), `poll-until-node-settings` (+ `poll-until-wrapped-pollOcr` and full port rows — G-016's "wrappers inherit affordances"), `human-gate-node-settings` (`signal-name`, `payload-schema-editor`, `timeout`) |
+| 4.7 Nested conditions | ✅ PASS | depth-3 tree — `case-1-condition-operand-0-editor-operand-0-editor-left-ref-input` — with the readable summary *"ALL OF THESE MUST BE TRUE — (ctx.currentDoc.type is "receipt" or ctx.currentDoc.confidence ≥ 0.8) and not (…)"* |
+| 4.8–4.15 | ◑ e2e-backstopped | `tier2-condition-step-ref` covers the step-picker/persistence half; 4.12 and 4.15 need a run |
+
+## D-14 — the e2e suite has rotted, and nothing runs it (open)
+
+Running the workflow-builder suite (`PLAYWRIGHT_SKIP_DB_RESET=1`, so Alex's dev
+DB was left alone):
+
+```
+first run:  14 failed, 51 passed
+after fix:  11 failed, 54 passed
+```
+
+**Three of the fourteen were mine, and I fixed them.** `f9049ab3` (G-063) gave
+`UpdateWorkflowDto` a whitelist so a save must state the version it was based
+on. The e2e helper had been updated to send `expectedVersion` but still sent
+`groupId`, which the whitelisted DTO now rejects:
+
+```
+update workflow failed: 400 {"message":["property groupId should not exist"]}
+```
+
+A workflow's group is fixed at create time, so the helper was the wrong side —
+`groupId` removed from the PUT payload.
+
+**The other 11 are pre-existing and un-triaged**: 7 in `tier2-control-flow`
+(all the same `selectNode` timeout), 3 in `tier2-port-wiring`, 1 in
+`tier2-validation`. I did **not** establish their cause. What I did establish is
+that **the product works**: a genuine `page.mouse.click` selects `eachDoc`,
+`collect`, `routeByType` and `pollOcr` and opens `map-node-settings`,
+`join-node-settings`, `switch-node-settings` and `poll-until-node-settings`
+respectively. So this is test rot, not broken selection.
+
+**The reason it went unnoticed: `.github/workflows/` has no Playwright job at
+all.** 76 e2e specs exist and nothing runs them. That reframes gap **G2** — E1
+and E2 are worth much less than wiring the existing suite into CI, because a
+spec nobody runs is a spec that silently rots. My own regression sat there for a
+day and was caught only because I happened to run the suite by hand.
+
+Recommended order: **wire e2e into CI first**, then triage the 11, then add
+E1/E2.
+
+## Part 15 — AI agent ☁️🔑
+
+⏭ **NOT RUNNABLE HERE.** No agent credentials in the environment
+(`ANTHROPIC_API_KEY`, `AZURE_OPENAI_*` all unset — checked by presence only,
+never read). The stubbed half is covered by `tier3-agent-stubbed`, which passes
+in the suite run above. The live half (15.x against a real model) is manual-only
+and needs Alex.

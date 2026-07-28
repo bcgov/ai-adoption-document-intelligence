@@ -133,10 +133,12 @@ export async function updateWorkflow(
     opts.expectedVersion ?? (await getWorkflow(request, id)).version;
   const res = await request.put(`${BACKEND_URL}/api/workflows/${id}`, {
     headers,
+    // No `groupId`: a workflow's group is fixed at create time, and
+    // `UpdateWorkflowDto` is whitelisted, so sending it is a 400
+    // ("property groupId should not exist") rather than a no-op.
     data: {
       name: opts.name,
       config: opts.config,
-      groupId: SEED_GROUP_ID,
       expectedVersion,
     },
   });
