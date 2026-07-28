@@ -68,7 +68,7 @@ round-trip early), and even once awaited, React has not re-rendered at that
 instant — so a closed-over array *and* a ref updated during render are both a
 commit behind. Reads the TanStack cache first now. Verified live: 4 → 5 nodes.
 
-## D-11 — Try stays enabled on a graph that cannot run (open — needs a ruling)
+## D-11 — Try stays enabled on a graph that cannot run (FIXED, `20624c1f`)
 
 A workflow whose `dyn.*` lineage has been soft-deleted is correctly diagnosed:
 red **DELETED** badge, settings alert, and `1 error — Activity type
@@ -88,7 +88,7 @@ different products. Needs Alex.
 > doubt until it resolves. At 6.5s the error is there. Any check touching
 > `dyn.*` validation must wait for the catalog.
 
-## D-12 — a succeeded dynamic node previews an untrue message (open)
+## D-12 — a succeeded dynamic node previews an untrue message (FIXED, `20624c1f`)
 
 After a green run, the dyn node's preview reads:
 
@@ -105,7 +105,7 @@ an action that cannot work, for a reason that never happened.
 non-deterministic", which needs the widget to see the entry's `deterministic`
 flag.
 
-## D-13 — the script editor loads Monaco from a public CDN (open)
+## D-13 — the script editor loads Monaco from a public CDN (FIXED, `907ceaac`)
 
 The only external request the app makes:
 
@@ -398,7 +398,7 @@ wrong at the join — and only reachable by driving the real UI.**
 | 9.7 Cancel-on-new-Try | ⚠️ INCONCLUSIVE | my fixture cannot test it — the dyn node completes in ~85 ms, so there is no window in which a second Try could cancel the first. Needs a deliberately slow workflow (a sleeping dynamic node or a `pollUntil`) |
 | 9.5 / 9.5a / 9.5b / 9.5c / 9.10 / 9.10a / 9.4a | ⏳ NOT WALKED | need OCR-shaped outputs and a switch-heavy graph |
 
-## D-16 — Try silently runs a different graph than the one on screen (open)
+## D-16 — Try silently runs a different graph than the one on screen (FIXED, `20624c1f` + `1a8ab34b`)
 
 9.12 says: *"Try on a workflow with unsaved changes. **Pass:** a new version is
 saved before Temporal starts."* That does not happen, and the behaviour is not
@@ -433,7 +433,7 @@ Two defensible fixes, and the choice is a product decision:
 
 Not implemented unilaterally. Needs Alex.
 
-## D-17 — no editor run is ever stamped "try", so cancel-on-new-Try never fires (open)
+## D-17 — no editor run is ever stamped "try", so cancel-on-new-Try never fires (FIXED, `5b37af8d`)
 
 9.7 asks: start a Try, Try again mid-run → *"prior run cancelled server-side
 (shows cancelled in Run history); **exactly one active run**."*
@@ -516,3 +516,49 @@ preview family (9.5/9.5a/9.5b/9.5c/9.10/9.10a/9.4a), which needs OCR-shaped
 outputs and a switch-heavy graph; then Part 4's condition deep-half
 (4.8–4.12, 4.14); then Part 15's three long agent builds. 12.4/12.5 stay blocked
 on demo gap **D4**, 14.8/14.9 on rulings **D-11/D-12**, and 2.3 needs real IDIR.
+
+---
+
+# Dispositions — the six findings that needed a ruling (2026-07-27)
+
+Alex approved the recommended option on all six, deferring only CI:
+*"don't worry about ci for now, but you can run heavy tests locally (temporal,
+deno, etc) as needed. Otherwise i'm good with your choices."*
+
+| # | Ruling | Shipped as |
+|---|---|---|
+| **D-11** | Refuse to Try/Run a graph with validation errors | `20624c1f` |
+| **D-12** | Say "not cached" for a never-cached node; offer no Re-run | `20624c1f` |
+| **D-13** | Bundle Monaco locally + bound the bring-up | `907ceaac` |
+| **D-14** | **Deferred** — no CI work this pass | — |
+| **D-16** | Refuse while dirty (option 2), NOT auto-save on Try | `20624c1f`, `1a8ab34b` |
+| **D-17** | Dedicated `POST /:id/tries` (option b), NOT a public `trigger` field | `5b37af8d` |
+
+D-16 and D-17 were decided together, as flagged — both are the Try path, and
+taking option 2/b for each gives a clean split: Try has its own endpoint that
+stamps `"try"` server-side and refuses while the canvas is ahead of the saved
+graph, and the public run API is untouched.
+
+**One regression, caught only by live verification.** D-16's gate disabled
+Try/Run on every *freshly opened* demo, before any edit: every demo ships
+`metadata.arrangeOnLoad`, and the auto-arrange rewrites `config` ~1.5s after
+mount, so `config !== lastHydratedConfigRef.current` and the editor considered
+itself dirty from the moment it opened. That was already wrong for the G-027
+leave-guard (it would warn on a workflow nobody had touched); D-16 only made it
+visible by turning "dirty" into a refusal. Fixed in `1a8ab34b` by re-basing the
+baseline inside `handleArrangeOnLoad`. The unit suite was green throughout.
+
+**Re-walked after the fixes**
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 9.7 Cancel-on-new-Try | ✅ PASS | two Trys 1.8s apart on the 15s `walk-slow-node` fixture → first `cancelled`, second `succeeded`. Before D-17: both `succeeded`, none cancelled |
+| 9.12 (rewritten) | ✅ PASS | clean demo → Try enabled; after dragging a node → both disabled with *"Save your changes first…"*; **0** run/try POSTs across the whole pass |
+| 14.8 In-canvas custom node | ✅ PASS | deleted-lineage demo → red **DELETED** badge on the node, `1 error` on the top bar, settings Alert *"This dynamic node was deleted. Restore from the management page…"*, Try + Run both disabled with *"Fix 1 validation error first"* |
+
+**9.12's expectation changed, and the plan now says so.** It used to read "a new
+version is saved before Temporal starts" — the auto-save design. The shipped
+behaviour is the refusal. Both satisfy the underlying invariant (never run a
+graph the author is not looking at); the refusal is the one that does not mint
+a version on every Try.
+
