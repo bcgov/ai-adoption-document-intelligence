@@ -762,6 +762,33 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   // session. Reuses the dirty signal above — no second source of truth.
   useUnsavedGuard({ isDirty, isDirtyNow: hasUnsavedChanges });
 
+  /**
+   * Why Try / Run are unavailable, or `null` when they are. Doubles as the
+   * tooltip, so the button can never be disabled without saying why.
+   *
+   * D-11 and D-16 are the same defect wearing two hats — the canvas asserting
+   * one thing while the run does another:
+   *
+   *   - **D-11**: a graph with validation errors was still runnable. A deleted
+   *     `dyn.*` lineage is diagnosed at author time (red Deleted badge,
+   *     "not registered") and the run then dies at
+   *     `dynamicNode.resolveLineage`. The plan's own invariant is "a state the
+   *     runtime cannot satisfy is reported at author time" — so refuse here.
+   *     Warnings are advisory and deliberately do NOT block.
+   *   - **D-16**: with unsaved edits, Try ran the PREVIOUSLY SAVED graph and
+   *     said nothing. Refusing while dirty keeps version history meaningful
+   *     (the alternative, auto-saving, mints a version on every Try) and makes
+   *     "what you see is what runs" true again.
+   */
+  const runBlockedReason: string | null =
+    !isEditMode || !workflowId
+      ? "Save the workflow first"
+      : validation.errorCount > 0
+        ? `Fix ${validation.errorCount} validation ${validation.errorCount === 1 ? "error" : "errors"} first — this graph cannot run as it stands`
+        : isDirty
+          ? "Save your changes first — a run always executes the saved graph, not the canvas"
+          : null;
+
   // Hydrate state when the workflow loads in edit mode.
   // Run auto-layout when the loaded config carries no node positions — e.g.
   // seeded workflows (docs-md/workflows/templates/*.json) and any
@@ -1414,10 +1441,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
             Save
           </Button>
           {tryButtonVisible && (
-            <Tooltip
-              label="Save the workflow first"
-              disabled={isEditMode && !!workflowId}
-            >
+            <Tooltip label={runBlockedReason ?? "Run this graph now"}>
               <Button
                 variant="filled"
                 color="blue"
@@ -1425,7 +1449,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
                 onClick={() => setRunDrawerMode("try")}
                 size="xs"
                 data-testid="try-button"
-                disabled={!isEditMode || !workflowId}
+                disabled={runBlockedReason !== null}
               >
                 Try
               </Button>
@@ -1437,11 +1461,9 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
             onClick={() => setRunDrawerMode("run")}
             size="xs"
             data-testid="run-this-workflow-button"
-            disabled={!isEditMode || !workflowId}
+            disabled={runBlockedReason !== null}
             title={
-              !isEditMode || !workflowId
-                ? "Save the workflow first to enable Run."
-                : "Open the run-trigger panel for this workflow"
+              runBlockedReason ?? "Open the run-trigger panel for this workflow"
             }
           >
             Run this workflow

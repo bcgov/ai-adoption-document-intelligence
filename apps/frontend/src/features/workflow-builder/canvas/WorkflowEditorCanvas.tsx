@@ -666,10 +666,14 @@ const ActivityNodeRenderer = memo(
     // lineage was soft-deleted) render a red "Deleted" pill instead.
     const isDynamic = data.activityType.startsWith("dyn.");
     const catalog = useActivityCatalog();
+    const catalogEntry = catalog.entries.find(
+      (e) => e.activityType === data.activityType,
+    );
     const isMissingFromCatalog =
-      isDynamic &&
-      !catalog.isLoading &&
-      !catalog.entries.some((e) => e.activityType === data.activityType);
+      isDynamic && !catalog.isLoading && catalogEntry === undefined;
+    // D-12: a `@deterministic:false` dynamic node is never written to the
+    // output cache, so its empty preview is "not cached", not "evicted".
+    const neverCached = catalogEntry?.nonCacheable === true;
     // Node-level flow handles: the unnamed left target + the `id="out"`
     // right source keep today's connect gesture AND anchor everything the
     // wire projection doesn't route to a per-port dot. Source handles are
@@ -821,7 +825,11 @@ const ActivityNodeRenderer = memo(
           onOutputHandleEnter={data.onOutputHandleEnter}
           onOutputHandleLeave={data.onOutputHandleLeave}
         />
-        <NodePreviewOverlay nodeId={id} outputs={data.previewOutputs} />
+        <NodePreviewOverlay
+          nodeId={id}
+          outputs={data.previewOutputs}
+          neverCached={neverCached}
+        />
       </div>
     );
   },

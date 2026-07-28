@@ -102,6 +102,14 @@ export interface PreviewWidgetProps {
    * so they stay silent instead of showing a misleading "cache evicted" alert.
    */
   producesOutput?: boolean;
+  /**
+   * D-12 — true when this node's output is never cached at all (a dynamic node
+   * whose script is `@deterministic:false`, surfaced by the catalog as
+   * `nonCacheable`). Without it a green run reported "cache evicted — re-run to
+   * repopulate", blaming a TTL that never applied and offering a recovery that
+   * cannot work.
+   */
+  neverCached?: boolean;
 }
 
 /**
@@ -120,6 +128,7 @@ export function PreviewWidget({
   outputs,
   nodeStatus,
   producesOutput = true,
+  neverCached = false,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -170,6 +179,7 @@ export function PreviewWidget({
       runFinished: isReplay && hasRun,
       producesOutput,
       hasActiveRun: hasRun,
+      neverCached,
     });
     const copy = describeNoOutput(reason);
 
@@ -271,6 +281,14 @@ export interface NodePreviewOverlayProps {
    * output-cache row). Defaults to `true`.
    */
   producesOutput?: boolean;
+  /**
+   * D-12 — true when this node's output is never cached at all (a dynamic node
+   * whose script is `@deterministic:false`, surfaced by the catalog as
+   * `nonCacheable`). Without it a green run reported "cache evicted — re-run to
+   * repopulate", blaming a TTL that never applied and offering a recovery that
+   * cannot work.
+   */
+  neverCached?: boolean;
 }
 
 /**
@@ -284,6 +302,7 @@ export function NodePreviewOverlay({
   nodeId,
   outputs,
   producesOutput = true,
+  neverCached = false,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
   if (!ctx) {
@@ -316,6 +335,7 @@ export function NodePreviewOverlay({
       outputs={outputs}
       nodeStatus={ctx.nodeStatuses[nodeId]?.status}
       producesOutput={producesOutput}
+      neverCached={neverCached}
     />
   );
 }

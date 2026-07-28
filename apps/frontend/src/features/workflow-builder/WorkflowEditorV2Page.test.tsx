@@ -40,6 +40,7 @@ const {
   capturedCreateDto,
   capturedPaletteProps,
   catalogEntriesRef,
+  validationRef,
   capturedRunDrawerProps,
   capturedSettingsPanelProps,
   capturedValidationDrawerProps,
@@ -66,6 +67,16 @@ const {
     // The merged activity catalog, mutable so a test can model the entry
     // arriving AFTER a publish (which is when `onAddDynamicNode` fires).
     catalogEntriesRef: { current: [] as Array<Record<string, unknown>> },
+    // D-11: mutable so a test can put the graph into an error state.
+    validationRef: {
+      current: {
+        errorCount: 0,
+        warningCount: 0,
+        isPending: false,
+        errorsByNode: new Map(),
+        errors: [] as Array<Record<string, unknown>>,
+      },
+    },
     // US-148 — the Run drawer stub captures its props so the trigger
     // tests can verify `openMode` was set correctly by whichever
     // top-bar button opened the drawer.
@@ -243,13 +254,7 @@ vi.mock("./dynamic-nodes", () => ({
 }));
 
 vi.mock("./validation/useGraphValidation", () => ({
-  useGraphValidation: () => ({
-    errorCount: 0,
-    warningCount: 0,
-    isPending: false,
-    errorsByNode: new Map(),
-    errors: [],
-  }),
+  useGraphValidation: () => validationRef.current,
 }));
 
 // US-153 — the Run-history drawer body calls `useWorkflowRuns`, which
@@ -3251,5 +3256,127 @@ describe("WorkflowEditorV2Page — 14.8 dynamic node drops after a publish", () 
       (n) => (n as ActivityNode).activityType === "dyn.walk-14-8-node",
     );
     expect(added).toBeDefined();
+  });
+});
+
+/**
+ * D-11 + D-16 — Try and Run must refuse a graph the run would not honour.
+ *
+ * Both were found walking the plan and are the same bug wearing two hats: the
+ * canvas asserted one thing and the run did another.
+ *
+ *   D-11 (14.8) — a workflow whose `dyn.*` lineage is deleted is diagnosed
+ *   correctly (red Deleted badge, "not registered" error) and Try stayed
+ *   enabled. The run then failed at `dynamicNode.resolveLineage` — knowable at
+ *   author time, which is what "fail before the run" asks for.
+ *
+ *   D-16 (9.12) — with unsaved edits, Try ran the PREVIOUSLY SAVED graph.
+ *   Measured live: the rename landed on the canvas, the editor reported dirty,
+ *   and after Try no version existed and the server still held the old label.
+ *   The author watched badges light up for a graph they were not looking at.
+ */
+describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable graph", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedPaletteProps.current = null;
+    validationRef.current = {
+      errorCount: 0,
+      warningCount: 0,
+      isPending: false,
+      errorsByNode: new Map(),
+      errors: [],
+    };
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "WF",
+      description: "",
+      slug: "wf",
+      version: 1,
+      workflowVersionId: "v-head",
+      config: buildTemplateConfig({ positions: "all" }),
+    };
+  });
+
+  afterEach(() => {
+    validationRef.current = {
+      errorCount: 0,
+      warningCount: 0,
+      isPending: false,
+      errorsByNode: new Map(),
+      errors: [],
+    };
+    existingWorkflowRef.current = null;
+  });
+
+  it("enables Try and Run on a clean, saved, valid graph", async () => {
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    expect(screen.getByTestId("try-button")).toBeEnabled();
+    expect(screen.getByTestId("run-this-workflow-button")).toBeEnabled();
+  });
+
+  it("D-11 — disables Try and Run while the graph has validation errors", async () => {
+    validationRef.current = {
+      errorCount: 1,
+      warningCount: 0,
+      isPending: false,
+      errorsByNode: new Map(),
+      errors: [
+        {
+          path: "nodes.a.activityType",
+          message: 'Activity type "dyn.gone" is not registered',
+          severity: "error",
+        },
+      ],
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    expect(screen.getByTestId("try-button")).toBeDisabled();
+    expect(screen.getByTestId("run-this-workflow-button")).toBeDisabled();
+  });
+
+  it("D-11 — a warning alone does NOT disable them", async () => {
+    validationRef.current = {
+      errorCount: 0,
+      warningCount: 3,
+      isPending: false,
+      errorsByNode: new Map(),
+      errors: [],
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    expect(screen.getByTestId("try-button")).toBeEnabled();
+    expect(screen.getByTestId("run-this-workflow-button")).toBeEnabled();
+  });
+
+  it("D-16 — disables Try and Run once there are unsaved edits", async () => {
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    expect(screen.getByTestId("try-button")).toBeEnabled();
+
+    const onConfigChange = capturedCanvasProps.current?.onConfigChange as (
+      c: GraphWorkflowConfig,
+    ) => void;
+    const live = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    act(() => {
+      onConfigChange({
+        ...live,
+        nodes: {
+          ...live.nodes,
+          b: { ...(live.nodes.b as ActivityNode), label: "EDITED-NOT-SAVED" },
+        },
+      });
+    });
+
+    expect(screen.getByTestId("try-button")).toBeDisabled();
+    expect(screen.getByTestId("run-this-workflow-button")).toBeDisabled();
   });
 });

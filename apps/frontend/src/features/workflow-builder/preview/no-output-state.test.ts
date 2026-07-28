@@ -112,3 +112,55 @@ describe("describeNoOutput", () => {
     ).toThrowError(/unhandled variant/);
   });
 });
+
+/**
+ * D-12 — a succeeded node with no cache row was always reported as `evicted`,
+ * offering a Re-run to "repopulate" it. For a `@deterministic:false` dynamic
+ * node that is untrue twice over: nothing was evicted (it was never cached),
+ * and re-running can never repopulate it, because §3.3 says such scripts must
+ * re-execute every run and are deliberately not cached.
+ *
+ * Measured live on the Part-14 demo before it was tagged deterministic: a green
+ * run, and the widget reading "Preview unavailable — cache evicted. Re-run to
+ * repopulate."
+ */
+describe("noOutputReasonForNode — D-12 never-cached vs evicted", () => {
+  const base = {
+    runFinished: true,
+    producesOutput: true,
+    hasActiveRun: true,
+  } as const;
+
+  it("reports `not-cached` for a succeeded node that is never cached", () => {
+    expect(
+      noOutputReasonForNode({
+        ...base,
+        status: "succeeded",
+        neverCached: true,
+      }),
+    ).toBe("not-cached");
+  });
+
+  it("still reports `evicted` for a succeeded node that IS cacheable", () => {
+    expect(
+      noOutputReasonForNode({
+        ...base,
+        status: "succeeded",
+        neverCached: false,
+      }),
+    ).toBe("evicted");
+  });
+
+  it("never-cached does not mask a failure", () => {
+    expect(
+      noOutputReasonForNode({ ...base, status: "failed", neverCached: true }),
+    ).toBe("failed");
+  });
+
+  it("offers no Re-run for `not-cached`, and says why rather than blaming an eviction", () => {
+    const copy = describeNoOutput("not-cached");
+    expect(copy.offersRerun).toBe(false);
+    expect(copy.message).toMatch(/non-deterministic/i);
+    expect(copy.message).not.toMatch(/evict/i);
+  });
+});

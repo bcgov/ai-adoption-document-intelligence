@@ -51,6 +51,7 @@ export const NO_OUTPUT_REASONS = [
   "failed",
   "cancelled",
   "evicted",
+  "not-cached",
   "not-previewable",
 ] as const;
 
@@ -156,6 +157,18 @@ export function describeNoOutput(reason: NoOutputReason): NoOutputCopy {
         offersRerun: true,
         tone: "notable",
       };
+    case "not-cached":
+      // D-12: distinct from `evicted`. Nothing expired — a
+      // `@deterministic:false` script must re-execute every run (§3.3), so its
+      // output is never written to the cache at all. Offering "Re-run to
+      // repopulate" here promises something that cannot happen.
+      return {
+        reason,
+        message:
+          "This step ran, but its output isn't cached: the script is marked non-deterministic, so it re-executes every run instead of being stored. Tag it `@deterministic true` to make its output previewable.",
+        offersRerun: false,
+        tone: "notable",
+      };
     case "not-previewable":
       return {
         reason,
@@ -181,6 +194,13 @@ export interface NoOutputInput {
    */
   runFinished: boolean;
   /**
+   * True when this node's output is never written to the cache at all — a
+   * dynamic node whose script is `@deterministic:false` (surfaced by the
+   * catalog as `nonCacheable`). Distinguishes D-12's "not-cached" from a real
+   * TTL eviction.
+   */
+  neverCached?: boolean;
+  /**
    * False for nodes that never write an output-cache row (switch / map / join
    * / humanGate / childWorkflow / pollUntil). Short-circuits to
    * `not-previewable`: for them a missing row is neither an eviction nor a
@@ -197,7 +217,8 @@ export interface NoOutputInput {
  * compile error, which is the regression floor for this class of bug.
  */
 export function noOutputReasonForNode(input: NoOutputInput): NoOutputReason {
-  const { status, runFinished, producesOutput, hasActiveRun } = input;
+  const { status, runFinished, producesOutput, hasActiveRun, neverCached } =
+    input;
   if (!producesOutput) return "not-previewable";
   if (!hasActiveRun) return "no-run";
   if (status === undefined) {
@@ -217,9 +238,13 @@ export function noOutputReasonForNode(input: NoOutputInput): NoOutputReason {
       return "cancelled";
     case "succeeded":
     case "skipped":
-      // The node DID produce output (ran fresh, or was served from cache), so
-      // a missing cache row is a genuine TTL eviction — the one reason with a
-      // working recovery.
+      // D-12: a node the engine never caches (a `@deterministic:false` dynamic
+      // node) has no row to have lost, so "evicted" would blame a TTL that
+      // never applied and offer a recovery that cannot work.
+      if (neverCached === true) return "not-cached";
+      // Otherwise the node DID produce output (ran fresh, or was served from
+      // cache), so a missing cache row is a genuine TTL eviction — the one
+      // reason with a working recovery.
       return "evicted";
     default:
       return assertNever(status, "noOutputReasonForNode");
