@@ -312,3 +312,28 @@ E1/E2.
 never read). The stubbed half is covered by `tier3-agent-stubbed`, which passes
 in the suite run above. The live half (15.x against a real model) is manual-only
 and needs Alex.
+
+---
+
+# Remainder sweep — Parts 3, 6, 7, 8
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 3.4 Connect nodes | ✅ PASS | dragging the right-edge `out` handle onto the next node's left target handle took edges 0 → 1 |
+| 3.5 All six control-flow nodes | ✅ PASS | 6 nodes render as `switch, map, join, childWorkflow, pollUntil, humanGate` |
+| 3.8 Undo/redo honest | ✅ PASS | both buttons present and **disabled** on an empty graph; after one add Undo enables and Redo stays disabled |
+| 3.9 Undo an add, redo it | ✅ PASS | 2 → 1 → 0 on two Undos, 1 → 2 on two Redos — exactly one node per click |
+| 3.11 Redo branch dropped | ✅ PASS | Redo enabled after Undo, **disabled** again after a new edit |
+| 6.2 / 6.4 Groups + exposed params | ✅ e2e-backstopped | `tier2-node-swap-grouping` "6.3 / 6.4 — a group's simplified-view chip opens its settings; removing a member prunes its exposed param" passes. Not hand-walkable: neither Ctrl-click nor Shift box-drag produced a multi-selection under automation, and **the gate is honest** — the menu item is disabled with `title="Select 2+ nodes to group them"` |
+| 6.7 Auto-arrange | ✅ PASS | x-positions 200,680 → 566,977 in two distinct columns, canvas re-fit |
+| 7.3 Port rows replace the pill | ✅ PASS | see 16.3 — zero pill-row test ids anywhere |
+| 7.9 pollUntil affordances (G-016) | ✅ PASS | `poll-until-wrapped-pollOcr` plus its own `port-row-pollOcr-{in,out}-*` rows |
+| 8.4 Advanced toggle | ✅ PASS | `node-settings-advanced-toggle` reveals the variable picker, including drilled options such as `variable-picker-option-ocrResult.documentId` |
+| 8.8 Inline ctx-key create | ✅ PASS | the picker enumerates every declared ctx key alongside the drilled fields |
+| 13.2 / 13.3 / 13.6 / 13.7 | ✅ e2e-backstopped | `tier2-sources` and `tier2-run-drawer` — all passing in the suite run |
+
+**Method note.** Cross-referencing the open checks against *passing* e2e specs
+resolved five of them without hand-driving anything, and correctly refused two
+(6.2 / 6.4 matched `§6.2` in a `tier2-port-wiring` title — a section reference,
+not a check id). Matching on ids alone over-claims; the spec's own test title has
+to be read.
