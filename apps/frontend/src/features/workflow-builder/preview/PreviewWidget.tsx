@@ -110,6 +110,12 @@ export interface PreviewWidgetProps {
    * cannot work.
    */
   neverCached?: boolean;
+  /**
+   * D-18a — true only for `dyn.*` nodes. Splits the never-cached copy: a
+   * dynamic node's author can tag the script `@deterministic true`; the author
+   * of a built-in `nonCacheable` activity cannot, and must not be told to.
+   */
+  isDynamicNode?: boolean;
 }
 
 /**
@@ -129,6 +135,7 @@ export function PreviewWidget({
   nodeStatus,
   producesOutput = true,
   neverCached = false,
+  isDynamicNode = false,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -181,7 +188,7 @@ export function PreviewWidget({
       hasActiveRun: hasRun,
       neverCached,
     });
-    const copy = describeNoOutput(reason);
+    const copy = describeNoOutput(reason, { isDynamicNode });
 
     // Eviction is the ONE reason with a working recovery: the node genuinely
     // produced output and re-running repopulates the row. Every other reason
@@ -289,6 +296,12 @@ export interface NodePreviewOverlayProps {
    * cannot work.
    */
   neverCached?: boolean;
+  /**
+   * D-18a — true only for `dyn.*` nodes. Splits the never-cached copy: a
+   * dynamic node's author can tag the script `@deterministic true`; the author
+   * of a built-in `nonCacheable` activity cannot, and must not be told to.
+   */
+  isDynamicNode?: boolean;
 }
 
 /**
@@ -303,6 +316,7 @@ export function NodePreviewOverlay({
   outputs,
   producesOutput = true,
   neverCached = false,
+  isDynamicNode = false,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
   if (!ctx) {
@@ -336,6 +350,7 @@ export function NodePreviewOverlay({
       nodeStatus={ctx.nodeStatuses[nodeId]?.status}
       producesOutput={producesOutput}
       neverCached={neverCached}
+      isDynamicNode={isDynamicNode}
     />
   );
 }

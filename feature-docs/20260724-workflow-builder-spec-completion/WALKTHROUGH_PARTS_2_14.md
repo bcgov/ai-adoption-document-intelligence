@@ -672,3 +672,50 @@ into, or typed into. Six attempts. Rather than guess, the honest record is
 drilled dotted ref on the loop item. What remains unseen is whether the picker
 *offers* those fields, and the outside-the-body contrast that the plan itself
 calls "the actual check, because it is the only part that can fail".
+
+## Part 9 — the preview cluster (2026-07-27)
+
+Unblocked by finding that **Azure OCR works**: the whole `standard-ocr` chain
+(prepare → submit → poll → extract → cleanup → confidence → switch → store)
+finished in under 12s on `sample-invoice.pdf`, producing a real `apimRequestId`,
+real polygons and real extracted text. Every earlier attempt at this cluster
+had assumed it needed credentials nobody had. Walked in **Replay** on that run.
+
+| # | Verdict | Evidence |
+|---|---|---|
+| **9.4a** Path the run took | ✅ PASS | in replay the full path is drawn in the taken-path stroke — `rgb(145,196,250)`, which is this theme's `blue-4` (`#91C4FA`), the exact `TAKEN_STROKE`. Of the switch's two outgoing edges only `edge-switch-to-store` is on the path; `edge-switch-to-humanGate` stays `rgb(250,204,21)`, its resting conditional style. API: `reviewSwitch` carries `selectedEdgeId: "edge-switch-to-store"`, every other node omits it. *(The "while running, both cues at once" clause is unverified — the run finished too fast to catch mid-flight.)* |
+| **9.5a** Multi-output preview | ✅ PASS | `checkConfidence` renders a chip row of both catalog labels (**Average confidence** / **Requires review**, ports `averageConfidence` / `requiresReview`) with the first selected and its value shown. Single-output `extractResults` renders **no** chip row |
+| **9.10** Cache-evicted preview | ✅ PASS | `DELETE FROM "ActivityOutputCache" … nodeId='postOcrCleanup'` → *"Preview unavailable — cache evicted. Re-run v1 (the version you are viewing) to repopulate."* with a **Re-run v1** button, `data-state="evicted"` |
+| **9.5** Preview widgets | ◐ PARTIAL | generic view verbatim: *"Artifact — no dedicated preview, showing the raw value"* over the value. **No node rendered an empty card** across 10 nodes (G-011). The four kind-specific widgets need a graph producing Document / Segment[] / Classification |
+| **9.5b** Bound-but-empty / unbound | ◐ PARTIAL | unbound clause verbatim on `storeResults`: *"This step's output isn't bound to a workflow value yet, so there's nothing to read."* Bound-but-empty not exercised |
+| **9.5c** OCR shows values | ◐ PARTIAL | the K/V table leads with the **payload's** keys (`success`, `status`, `apimRequestId`, `fileName`, `extractedText`, `pages`…), not `blobPath`/`storage`/`byteLength`, and the truncation line names **every** omission — down to `documents[0].fields: showing 40 of 74 fields`. Blob-deleted clause not exercised |
+| **9.10a** Distinct no-output states | ◐ PARTIAL | control-flow clause holds on all three (`reviewSwitch`, `humanReview`, `pollOcrResults`): `data-state="not-previewable"`, **empty**, no cache-evicted alert. The other five states not exercised |
+
+## D-18a — the never-cached copy told built-in authors to edit a script (FIXED, this pass)
+
+Found by walking 9.5. `updateApimRequestId` (`document.updateStatus`) showed:
+
+> "This step ran, but its output isn't cached: the script is marked
+> non-deterministic… Tag it `@deterministic true` to make its output
+> previewable."
+
+That is **my own D-12 copy**, and it is wrong here. `document.updateStatus` is
+`nonCacheable: true` in the catalog — there is no script, no JSDoc tag, and
+nothing the author can do. The instruction is unfollowable. Every `nonCacheable`
+built-in hits it: `azureOcr.submit`, `document.storeRejection`, every
+`benchmark.*` writer.
+
+`describeNoOutput` now takes `{ isDynamicNode }` and splits the copy — the
+dynamic-node text keeps the actionable advice, and a built-in reads *"this
+activity never caches its output — it re-executes on every run instead of being
+stored, so there's nothing here to preview."* Verified live on two nodes;
+the test is falsified against the fix removed.
+
+The lesson is the D-12 one again, one level down: I checked that the *state* was
+right (never-cached vs evicted) and not that the *remedy* was one this author
+could carry out.
+
+**Probe trap 6.** `innerText` returns CSS-**uppercased** text. The replay chip
+renders `REPLAY MODE — V1 (READ-ONLY)`, so a `/Replay mode/` match reports "not
+in replay" while replay is plainly active — and every downstream conclusion
+inverts. Match case-insensitively.

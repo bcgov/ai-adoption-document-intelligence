@@ -829,6 +829,7 @@ const ActivityNodeRenderer = memo(
           nodeId={id}
           outputs={data.previewOutputs}
           neverCached={neverCached}
+          isDynamicNode={isDynamic}
         />
       </div>
     );

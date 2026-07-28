@@ -104,7 +104,19 @@ export interface NoOutputCopy {
 /**
  * The copy + affordances for each reason. Exhaustive over `NoOutputReason`.
  */
-export function describeNoOutput(reason: NoOutputReason): NoOutputCopy {
+export function describeNoOutput(
+  reason: NoOutputReason,
+  options?: {
+    /**
+     * D-18a — only a dynamic node's author can change whether its output is
+     * cached (by tagging the script `@deterministic true`). A built-in
+     * activity is `nonCacheable` by catalog design — `document.updateStatus`,
+     * `azureOcr.submit`, every `benchmark.*` writer — and telling that author
+     * to edit a script they do not have is an instruction they cannot follow.
+     */
+    isDynamicNode?: boolean;
+  },
+): NoOutputCopy {
   switch (reason) {
     case "no-run":
       return {
@@ -165,7 +177,9 @@ export function describeNoOutput(reason: NoOutputReason): NoOutputCopy {
       return {
         reason,
         message:
-          "This step ran, but its output isn't cached: the script is marked non-deterministic, so it re-executes every run instead of being stored. Tag it `@deterministic true` to make its output previewable.",
+          options?.isDynamicNode === true
+            ? "This step ran, but its output isn't cached: the script is marked non-deterministic, so it re-executes every run instead of being stored. Tag it `@deterministic true` to make its output previewable."
+            : "This step ran, but this activity never caches its output — it re-executes on every run instead of being stored, so there's nothing here to preview.",
         offersRerun: false,
         tone: "notable",
       };

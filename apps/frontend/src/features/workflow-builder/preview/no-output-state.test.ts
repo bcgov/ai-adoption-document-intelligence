@@ -158,9 +158,29 @@ describe("noOutputReasonForNode — D-12 never-cached vs evicted", () => {
   });
 
   it("offers no Re-run for `not-cached`, and says why rather than blaming an eviction", () => {
-    const copy = describeNoOutput("not-cached");
+    const copy = describeNoOutput("not-cached", { isDynamicNode: true });
     expect(copy.offersRerun).toBe(false);
     expect(copy.message).toMatch(/non-deterministic/i);
     expect(copy.message).not.toMatch(/evict/i);
+  });
+
+  // D-18a — found by walking 9.5 on the standard-OCR workflow, where
+  // `document.updateStatus` (a catalog-level `nonCacheable` activity, no
+  // script anywhere) told the author to "Tag it `@deterministic true`". Every
+  // `nonCacheable` built-in hits this: azureOcr.submit, document.storeRejection,
+  // every benchmark writer.
+  it("does NOT tell a built-in activity's author to edit a script they do not have", () => {
+    const builtIn = describeNoOutput("not-cached");
+    expect(builtIn.offersRerun).toBe(false);
+    expect(builtIn.message).not.toMatch(/@deterministic/i);
+    expect(builtIn.message).not.toMatch(/\bscript\b/i);
+    expect(builtIn.message).not.toMatch(/evict/i);
+    // Still says what happened and why there is nothing to show.
+    expect(builtIn.message).toMatch(/never caches/i);
+
+    // The dynamic-node copy keeps the actionable advice — it is actionable there.
+    expect(
+      describeNoOutput("not-cached", { isDynamicNode: true }).message,
+    ).toMatch(/@deterministic/i);
   });
 });
