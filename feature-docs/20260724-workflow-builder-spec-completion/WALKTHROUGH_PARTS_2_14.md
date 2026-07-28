@@ -432,3 +432,54 @@ Two defensible fixes, and the choice is a product decision:
    the run" invariant and leaving version semantics alone.
 
 Not implemented unilaterally. Needs Alex.
+
+## D-17 — no editor run is ever stamped "try", so cancel-on-new-Try never fires (open)
+
+9.7 asks: start a Try, Try again mid-run → *"prior run cancelled server-side
+(shows cancelled in Run history); **exactly one active run**."*
+
+Measured against a purpose-built 15-second dynamic node (`walk-slow-node`, so
+there is a real window to cancel in):
+
+| | |
+|---|---|
+| after first Try | 1 run `running` |
+| after second Try, mid-flight | **2 runs `running`** |
+| at completion | both `succeeded`, **none cancelled** |
+
+The backend machinery exists and is correct. `startRun` calls
+`cancelInFlightTriesForLineage(id)` before starting, and G-021 deliberately
+narrows it: *"only runs stamped `RunTrigger = "try"` are cancelled — production
+runs started through this endpoint run to completion regardless"*, so that
+feeding 240 documents through does not have document #2 cancel document #1.
+
+**The frontend never stamps one.** The drawer's Try and the Run tab both call
+`useStartWorkflowRun` → `POST /workflows/:id/runs`, and that endpoint hard-codes
+the new run as `"api"`:
+
+```ts
+// G-021: this is the public run API — a production run, not an editor
+// preview. Marking it `"api"` keeps it out of every later cancel set.
+"api",
+```
+
+So the `"try"` side of the distinction has no producer. `cancelInFlightTriesForLineage`
+runs on every start and always finds an empty set. G-021's careful narrowing is
+inert because the category it protects never gets created.
+
+Consequences: every editor Try is treated as a production run, two Trys race
+each other with the canvas badges fed by whichever statuses land last, and on an
+expensive graph (OCR, LLM) the abandoned run keeps spending.
+
+Two shapes of fix, and the choice is a product decision:
+
+1. **Add `trigger` to `StartRunRequestDto`** and have the drawer send `"try"`.
+   Smallest change, but it puts a field on the *public* run API that lets a
+   caller opt their own runs into being cancelled by editor activity.
+2. **Give Try its own endpoint** (`POST /workflows/:id/tries`) that stamps
+   `"try"` server-side. No public-API surface change and the trigger stops being
+   client-assertable, at the cost of a second route.
+
+Not implemented unilaterally — this is the third Try-path item (with **D-16**)
+where the documented behaviour and the shipped behaviour differ, and the two
+should probably be decided together.
