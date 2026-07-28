@@ -561,7 +561,8 @@ Prereq: a workflow **saved 2+ times**.
 
 One `source.api` and one `source.upload` max per workflow.
 
-- [ ] **13.1 Add source.api.** Palette **Sources** → **API endpoint** → drop on empty canvas. **Pass:** no input handle, one gray Artifact output; as first node it auto-sets `entryNodeId`.
+- [x] **13.1 Add source.api.** Palette **Sources** → **API endpoint** → drop on empty canvas. **Pass:** no input handle, one gray Artifact output; as first node it auto-sets `entryNodeId`.
+  - Verified 2026-07-27: 0 input handles, 1 output handle at `rgb(159,157,156)` (gray) labelled `ARTIFACT — see Settings → Fields for typed field-level kinds`, and the saved config carries `entryNodeId: "source_api_1"`. See **D-18** — the node renders no **ENTRY** badge even though it *is* the entry node.
 - [x] **13.2 Configure source.api fields.** Select node → SourceNodeSettings → FieldListEditor → add `documentUrl` (string, kind Document, required) + `priority` (number, optional) → Save → reload. **Pass:** fields persist with kinds; empty fields allowed.
 - [x] **13.3 Add source.upload.** Palette **Sources** → **File upload**. **Pass:** blue Document output; settings expose `allowedMimeTypes` (default `["application/pdf","image/*"]`), `maxFileSizeMB` (50), `ctxKey` (`documentUrl`).
 - [x] **13.4 Upload endpoint.**

@@ -562,3 +562,21 @@ behaviour is the refusal. Both satisfy the underlying invariant (never run a
 graph the author is not looking at); the refusal is the one that does not mint
 a version on every Try.
 
+
+---
+
+## D-18 — a `source.*` entry node wears no ENTRY badge (open, cosmetic)
+
+Walking 13.1: dropping **API endpoint** onto an empty canvas produces the right
+node (no input handle, one gray `ARTIFACT` output) and saving stamps
+`entryNodeId: "source_api_1"` into the config — the behaviour the check asks
+for. But the node never renders the **ENTRY** badge, before or after save,
+while an activity entry node does (`file.prepare` wears it on the Part-14
+deleted-node demo).
+
+So the canvas has an entry node it doesn't mark as one. Cosmetic — nothing
+executes differently — but the badge is the only on-canvas signal of where a
+run starts, and a source node is the *most* likely thing to be the entry point.
+
+Not investigated further; logged rather than fixed because it was found while
+walking a different check.
