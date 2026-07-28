@@ -35,6 +35,7 @@ npm run seed:demos
 - [Versioning — history & revert (Part 12)](#versioning-history-revert-part-12)
 - [Library workflow (Part 10)](#library-workflow-part-10)
 - [Dynamic (custom-code) node — DYN pill & script editor (Part 14)](#dynamic-customcode-node-dyn-pill-script-editor-part-14)
+- [Deleted custom node — Deleted badge & catalog error (Part 14)](#deleted-custom-node-deleted-badge-catalog-error-part-14)
 - [🤖 AI agent chat logs](#-ai-agent-chat-logs)
 
 ---
@@ -215,7 +216,20 @@ npm run seed:demos
 1. Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).
 1. **+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).
 1. **Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).
+1. **Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node shows a real **preview** after a run — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so it has no preview to show.
 1. ⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).
+
+---
+
+## Deleted custom node — Deleted badge & catalog error (Part 14)
+
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-deleted-custom-node-deleted-badge-catalog-error-part-14/edit](http://localhost:3000/workflows/by-slug/demo-deleted-custom-node-deleted-badge-catalog-error-part-14/edit)
+
+1. This workflow references a custom node whose **lineage has been deleted**. Nothing to set up — it ships in that state.
+1. The canvas node carries a red **Deleted** badge and its settings show *(deleted dynamic node)*.
+1. The validation chip reads **1 error** — *Activity type `dyn.demo-deleted-node` is not registered*. Give the activity catalog a moment to load: `dyn.*` types are deliberately given the benefit of the doubt while it is still fetching, so the error appears a beat after the canvas.
+1. ⚠️ **Known gap (D-11):** **Try** and **Run** are still enabled here even though the graph cannot run — a run fails at `dynamicNode.resolveLineage`. Whether *any* validation error should disable Try, or only errors that make the graph structurally unrunnable, is an open product decision.
+1. Restoring it is one step: publish a node with the **same name** from **Dynamic nodes ▸ New custom node** and the lineage comes back with its history continued (14.14).
 
 ---
 

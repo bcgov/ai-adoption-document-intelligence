@@ -26,6 +26,13 @@ Create, Publish, Author, Drag, Declare); only **10 of 16 parts** carry a
 
 ## G1 — Demos to seed (`scripts/seed-feature-demos.mjs`)
 
+> **D1–D4 shipped.** D2 is a *Deleted custom node* demo that ships already
+> tombstoned — red **Deleted** badge, `(deleted dynamic node)` alert and the
+> catalog error, with no destructive step for the reader. D3 tagged the Part-14
+> dynamic node `@deterministic true` **and bound its output**, which is what
+> makes 14.9's preview show the real value:
+> `{"fileName":"901E42EB-…-WALK-14-9.PDF"}`.
+>
 > **D1 + D4 shipped.** The Part-10 library demo now declares a typed signature
 > (input *Prepared file* `PreparedFile`, output *OCR result* `OcrResult`) and
 > carries **two versions**. That unblocked 7.8, 10.4, 12.4 and 12.5 in one
@@ -35,8 +42,8 @@ Create, Publish, Author, Drag, Declare); only **10 of 16 parts** carry a
 | # | Demo | Covers | Why it's a gap | Size |
 |---|---|---|---|---|
 | ~~**D1**~~ ✅ **DONE** | **Library workflow with typed ports** — declare an input `kind: PreparedFile` and an output `kind: DocumentContent` | **7.8**, and enriches Part 10 | 7.8 is the only check for typed library ports, and no seeded library declares a `kind`. I had to author `WALK-7.8 typed ports` to walk it at all | S |
-| **D2** | **Workflow referencing a deleted `dyn.*` lineage**, seeded already-deleted | **14.8** (deleted half) | The plan asks you to delete a lineage yourself — destructive, and it consumes the Part-14 demo for the next walker. Seeded in the end state, the user just opens it and sees the red **DELETED** badge, the settings alert and the validator error | S |
-| **D3** | **Runnable dynamic node** — extend the existing Part-14 demo rather than add one | **14.9** | 14.9 says "build `source.api → dyn.uppercase-url`". The existing Part-14 demo shows the DYN pill and script editor but is not wired to run. Also the natural home for **D-12** once the preview message is fixed | M |
+| ~~**D2**~~ ✅ **DONE** | **Workflow referencing a deleted `dyn.*` lineage**, seeded already-deleted | **14.8** (deleted half) | The plan asks you to delete a lineage yourself — destructive, and it consumes the Part-14 demo for the next walker. Seeded in the end state, the user just opens it and sees the red **DELETED** badge, the settings alert and the validator error | S |
+| ~~**D3**~~ ✅ **DONE** | **Runnable dynamic node** — extend the existing Part-14 demo rather than add one | **14.9** | 14.9 says "build `source.api → dyn.uppercase-url`". The existing Part-14 demo shows the DYN pill and script editor but is not wired to run. Also the natural home for **D-12** once the preview message is fixed | M |
 
 | ~~**D4**~~ ✅ **DONE** | **Part-10 demo library needs declared ports and a second version** | **7.8**, **12.5**, **10.4** | The seeded `Demo — Library workflow (Part 10)` declares **0 inputs / 0 outputs**, so the childWorkflow signature summary renders empty — nothing to look at. It also has **only one version**, so 12.5's "pick `v2` → stamps `version:2`" cannot be walked at all. Giving this one demo typed ports and a v2 closes D1 as well | S |
 

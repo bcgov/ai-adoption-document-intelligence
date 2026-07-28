@@ -1426,6 +1426,7 @@ function demoDynamicNodeScript() {
  * @workflow-node
  * @name ${DYN_DEMO_NAME}
  * @description Uppercases the prepared file's fileName.
+ * @deterministic true
  * @inputs { document: { kind: "Document", required: true } }
  * @outputs { result: { kind: "Artifact" } }
  */
@@ -1481,6 +1482,7 @@ function dynamicNodeConfig(name, slugName) {
       blobKey: { type: "string" },
       documentId: { type: "string" },
       preparedFileData: { type: "object" },
+      uppercasedName: { type: "object" },
     },
     nodes: {
       prep: {
@@ -1503,6 +1505,11 @@ function dynamicNodeConfig(name, slugName) {
         // The dynamic-node binding walk requires the required `document`
         // input to be explicitly bound (auto-wire doesn't cover dyn nodes).
         inputs: [{ port: "document", ctxKey: "preparedFileData" }],
+        // 14.9 — bind the OUTPUT too, or the preview has nothing to read and
+        // honestly says so ("this step's output isn't bound to a workflow
+        // value yet"). With the binding AND `@deterministic true` the run
+        // caches the result and the widget shows the uppercased fileName.
+        outputs: [{ port: "result", ctxKey: "uppercasedName" }],
         ...pos(460, 140),
       },
     },
@@ -1510,12 +1517,87 @@ function dynamicNodeConfig(name, slugName) {
   };
 }
 
+/**
+ * D2 (14.8) — a workflow that references a dynamic node whose lineage has been
+ * SOFT-DELETED, seeded already in that end state.
+ *
+ * The plan asks the reader to go and delete a lineage themselves. That is
+ * destructive, it consumes the Part-14 demo for whoever walks next, and it
+ * leaves the group's catalog different from how it started. Seeding the end
+ * state instead means the reader just opens this and sees the failure modes.
+ */
+const DELETED_DYN_SLUG = "demo-deleted-node";
+
+function deletedDynScript() {
+  return `import type { Document } from "@ai-di/graph-workflow/kinds";
+
+/**
+ * @workflow-node
+ * @name ${DELETED_DYN_SLUG}
+ * @description Exists only to be deleted, so a workflow can reference a tombstone.
+ * @deterministic true
+ * @inputs { document: { kind: "Document", required: true } }
+ * @outputs { result: { kind: "Artifact" } }
+ */
+export default async function dynamicNode(
+  ctx: { document: Document },
+  _params: Record<string, unknown>,
+): Promise<{ result: unknown }> {
+  return { result: ctx.document };
+}`;
+}
+
+function deletedDynConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "prep",
+    ctx: {
+      blobKey: { type: "string" },
+      documentId: { type: "string" },
+      preparedFileData: { type: "object" },
+    },
+    nodes: {
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "blobKey" },
+        ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...pos(120, 140),
+      },
+      goneNode: {
+        id: "goneNode",
+        type: "activity",
+        label: "Custom step (lineage deleted)",
+        activityType: `dyn.${DELETED_DYN_SLUG}`,
+        inputs: [{ port: "document", ctxKey: "preparedFileData" }],
+        ...pos(460, 140),
+      },
+    },
+    edges: [{ id: "e1", source: "prep", target: "goneNode", type: "normal" }],
+  };
+}
+
+const DELETED_DYN_STEPS = [
+  "This workflow references a custom node whose **lineage has been deleted**. Nothing to set up — it ships in that state.",
+  "The canvas node carries a red **Deleted** badge and its settings show *(deleted dynamic node)*.",
+  "The validation chip reads **1 error** — *Activity type `dyn.demo-deleted-node` is not registered*. Give the activity catalog a moment to load: `dyn.*` types are deliberately given the benefit of the doubt while it is still fetching, so the error appears a beat after the canvas.",
+  "⚠️ **Known gap (D-11):** **Try** and **Run** are still enabled here even though the graph cannot run — a run fails at `dynamicNode.resolveLineage`. Whether *any* validation error should disable Try, or only errors that make the graph structurally unrunnable, is an open product decision.",
+  "Restoring it is one step: publish a node with the **same name** from **Dynamic nodes ▸ New custom node** and the lineage comes back with its history continued (14.14).",
+];
+
 const DYN_DEMO_STEPS = [
   "The **CUSTOM** section of the activity palette lists **demo-uppercase** with a **DYN** badge — click it to drop another instance.",
   "The canvas node carries a purple **DYN** pill; select it → the Inputs section shows its `document` port bound to *Prepare*'s output.",
   "Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).",
   "**+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).",
   "**Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).",
+  "**Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node shows a real **preview** after a run — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so it has no preview to show.",
   "⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).",
 ];
 
@@ -1582,6 +1664,48 @@ async function createDemo(demo) {
  * Returns its guide-result row, or null when the dynamic node couldn't be
  * published.
  */
+/**
+ * D2 — publish a lineage, build a workflow on it, then soft-delete the
+ * lineage so the demo ships already broken. Best-effort like its sibling: no
+ * deno-runner means no publish, so the demo is skipped rather than failing the
+ * whole seeder.
+ */
+async function createDeletedDynDemo() {
+  let published;
+  try {
+    published = await api("POST", "/api/dynamic-nodes", {
+      script: deletedDynScript(),
+    });
+  } catch {
+    console.log("  – deleted-dyn    skipped (deno-runner unavailable)");
+    return null;
+  }
+  if (!published?.slug) return null;
+  const title = "Deleted custom node — Deleted badge & catalog error (Part 14)";
+  const name = `${NAME_PREFIX}${title}`;
+  const created = unwrap(
+    await api("POST", "/api/workflows", {
+      name,
+      config: withArrangeOnLoad(deletedDynConfig(name)),
+      groupId: GROUP_ID,
+    }),
+  );
+  // Tombstone the lineage AFTER the workflow references it — that ordering is
+  // the whole point of the fixture.
+  await api("DELETE", `/api/dynamic-nodes/${DELETED_DYN_SLUG}`);
+  console.log(
+    `  ✓ ${"deleted-dyn".padEnd(14)} ${created.id} (dyn.${DELETED_DYN_SLUG} tombstoned)`,
+  );
+  return {
+    key: "deleted-dyn",
+    title,
+    steps: DELETED_DYN_STEPS,
+    id: created.id,
+    slug: created.slug,
+    dyn: true,
+  };
+}
+
 async function createDynamicNodeDemo() {
   const dynSlug = await publishDemoDynamicNode();
   if (!dynSlug) return null;
@@ -1624,6 +1748,7 @@ async function seed() {
   // the previous one — reliable in practice because every create is a
   // separate awaited HTTP round-trip.
   const dynResult = await createDynamicNodeDemo();
+  const deletedDynResult = await createDeletedDynDemo();
 
   const mainReversed = [];
   for (let i = DEMOS.length - 1; i >= 0; i--) {
@@ -1631,7 +1756,7 @@ async function seed() {
   }
   const mainResults = mainReversed.reverse();
 
-  return dynResult ? [...mainResults, dynResult] : mainResults;
+  return [...mainResults, dynResult, deletedDynResult].filter(Boolean);
 }
 
 function renderGuide(results, agentResults = []) {

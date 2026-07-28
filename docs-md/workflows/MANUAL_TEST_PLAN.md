@@ -606,7 +606,7 @@ One `source.api` and one `source.upload` max per workflow.
 - [ ] **14.8 In-canvas custom node.** Palette **Custom** section → **New custom node** modal → publish → node auto-drops as `dyn.<slug>` with a grape **DYN** badge. Right-click a `dyn.*` node → **Edit script**. **Pass:** deleted-lineage node shows a red **Deleted** badge, settings Alert, Try disabled.
 
 ### Execute + security
-- [ ] **14.9 Execute (Try).** Build `source.api → dyn.uppercase-url`, wire `document`, Save → **Try** with `{"documentUrl":"https://example.com/foo.pdf"}`. **Pass:** node goes blue→green; preview shows the uppercased URL. Publish v2 (reverse) → Try → cache miss → preview shows reversed URL.
+- [x] **14.9 Execute (Try).** Build `source.api → dyn.uppercase-url`, wire `document`, Save → **Try** with `{"documentUrl":"https://example.com/foo.pdf"}`. **Pass:** node goes blue→green; preview shows the uppercased URL. Publish v2 (reverse) → Try → cache miss → preview shows reversed URL.
 - [x] **14.10 Runtime errors.** Script `throw` → `errorMessage` prefixed `[DynamicNodeRuntimeError] exitCode=1 …`; timeout (>60s) / stdout >5MB / invalid JSON / missing output port each map to their typed error (truncated 2KB).
 - [x] **14.11 🔒 Network egress blocked.** Publish/run a node doing `await fetch("https://blocked.example.com")` with that host **not** in `DYNAMIC_NODE_ALLOW_NET`. Fast path — hit the runner directly:
   ```bash
