@@ -26,19 +26,27 @@
  * Live parse + publish errors render *both* in the strip + the editor
  * gutter; the strip is the explicit list (clickable + sortable), the
  * gutter is the inline anchor.
+ *
+ * D-13 — Monaco is bundled locally (`./monaco-loader`), not fetched from a
+ * CDN, and the mount is bounded: if the loader rejects or the editor never
+ * reaches `onMount` inside {@link EDITOR_MOUNT_TIMEOUT_MS}, the pane says so
+ * and reports upward via `onEditorUnavailable` so Publish can refuse. An
+ * editor that cannot render must never leave Publish live — the author would
+ * be shipping a script they have not been shown.
  */
 
 import {
   type ParseError,
   parseDynamicNodeSignature,
 } from "@ai-di/graph-workflow";
-import { Alert, Anchor, Box, Group, Stack, Text } from "@mantine/core";
+import { Alert, Anchor, Box, Group, Loader, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import type { editor } from "monaco-editor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
+import { ensureLocalMonaco } from "./monaco-loader";
 
 export interface CodePaneProps {
   /** Source text. Empty string in create-mode → boilerplate is shown. */
@@ -54,10 +62,26 @@ export interface CodePaneProps {
   publishErrors?: ParseError[];
   /** Pixel height of the editor surface. Defaults to 480. */
   height?: number;
+  /**
+   * D-13 — called whenever the editor's availability changes: a human-readable
+   * reason while the code surface cannot be shown, `null` once it is live.
+   * The parent MUST refuse Publish while a reason is set.
+   */
+  onEditorUnavailable?: (reason: string | null) => void;
 }
 
 const PARSE_DEBOUNCE_MS = 300;
 const ONCHANGE_DEBOUNCE_MS = 150;
+/**
+ * How long the editor may take to reach `onMount` before we call it dead.
+ * Generous — a cold local Monaco chunk on a slow machine is well under this.
+ * The point is that *some* finite bound exists: the failure this replaces was
+ * an indefinite "Loading…".
+ */
+const EDITOR_MOUNT_TIMEOUT_MS = 15_000;
+
+const EDITOR_LOAD_FAILED_REASON =
+  "The script editor failed to load, so the code below cannot be shown or edited.";
 /**
  * Owner string Monaco associates with our publish-time markers. Used as the
  * second argument to `monaco.editor.setModelMarkers` so we can clear them
@@ -120,6 +144,7 @@ export function CodePane({
   onChange,
   publishErrors,
   height,
+  onEditorUnavailable,
 }: CodePaneProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -139,6 +164,61 @@ export function CodePane({
       setInternalText(script || DYNAMIC_NODE_BOILERPLATE);
     }
   }, [script]);
+
+  // ── D-13: bounded editor bring-up ─────────────────────────────────────
+  // "configuring" → the local Monaco chunk is still loading, so `<Editor>`
+  // is not rendered yet (the wrapper reads `loader.config` once, at first
+  // init — configuring afterwards silently falls back to the CDN).
+  // "mounting"    → `<Editor>` is rendered and we are waiting for onMount.
+  // "ready"       → the editor is live.
+  // "failed"      → the chunk rejected, or onMount never arrived in time.
+  const [editorStatus, setEditorStatus] = useState<
+    "configuring" | "mounting" | "ready" | "failed"
+  >("configuring");
+
+  const onEditorUnavailableRef = useRef(onEditorUnavailable);
+  useEffect(() => {
+    onEditorUnavailableRef.current = onEditorUnavailable;
+  }, [onEditorUnavailable]);
+
+  useEffect(() => {
+    let cancelled = false;
+    ensureLocalMonaco().then(
+      () => {
+        if (!cancelled) setEditorStatus("mounting");
+      },
+      () => {
+        if (!cancelled) setEditorStatus("failed");
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A bound on the whole bring-up, not just the chunk fetch: `loader.init()`
+  // resolving is not the same as the editor rendering, and the old failure
+  // mode was a hang somewhere in between.
+  useEffect(() => {
+    if (editorStatus === "ready" || editorStatus === "failed") return;
+    const timer = setTimeout(
+      () => setEditorStatus("failed"),
+      EDITOR_MOUNT_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [editorStatus]);
+
+  // Report availability upward so Publish can refuse once the code surface is
+  // known to be missing. Only the terminal `failed` state blocks: the loading
+  // window is transient, and the text that gets published lives in React
+  // state (hydrated from the server or the boilerplate), not in Monaco — so a
+  // click during load publishes exactly what a click after load would. What
+  // must never happen is publishing from a pane that will never render.
+  useEffect(() => {
+    onEditorUnavailableRef.current?.(
+      editorStatus === "failed" ? EDITOR_LOAD_FAILED_REASON : null,
+    );
+  }, [editorStatus]);
 
   // ── Live parse strip — debounced 300 ms client-side parse ─────────────
   const [debouncedParseInput] = useDebouncedValue(
@@ -212,6 +292,7 @@ export function CodePane({
   const handleMount: OnMount = (mountedEditor, mountedMonaco) => {
     editorRef.current = mountedEditor;
     monacoRef.current = mountedMonaco;
+    setEditorStatus("ready");
     // Disable Monaco's built-in TS checker — publish-time `deno check`
     // is the source of truth (per US-177 technical notes). Monaco's
     // type-system has different libs/strictness than Deno's, so leaving
@@ -244,21 +325,50 @@ export function CodePane({
           overflow: "hidden",
         }}
       >
-        <Editor
-          value={internalText}
-          language="typescript"
-          theme="vs-dark"
-          height={`${height ?? 480}px`}
-          onMount={handleMount}
-          onChange={(v) => setInternalText(v ?? "")}
-          options={{
-            automaticLayout: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            wordWrap: "on",
-            fontSize: 13,
-          }}
-        />
+        {editorStatus === "failed" ? (
+          <Alert
+            color="red"
+            variant="light"
+            icon={<IconAlertTriangle size={16} />}
+            title="Script editor unavailable"
+            data-testid="code-pane-editor-failed"
+            style={{ height: `${height ?? 480}px` }}
+          >
+            <Text size="sm">
+              {EDITOR_LOAD_FAILED_REASON} Publishing is blocked until it loads —
+              reload the page to try again. If it keeps failing, the editor
+              bundle is not reaching your browser.
+            </Text>
+          </Alert>
+        ) : editorStatus === "configuring" ? (
+          <Group
+            justify="center"
+            align="center"
+            style={{ height: `${height ?? 480}px` }}
+            data-testid="code-pane-editor-loading"
+          >
+            <Loader size="sm" />
+            <Text size="sm" c="dimmed">
+              Loading the script editor…
+            </Text>
+          </Group>
+        ) : (
+          <Editor
+            value={internalText}
+            language="typescript"
+            theme="vs-dark"
+            height={`${height ?? 480}px`}
+            onMount={handleMount}
+            onChange={(v) => setInternalText(v ?? "")}
+            options={{
+              automaticLayout: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              wordWrap: "on",
+              fontSize: 13,
+            }}
+          />
+        )}
       </Box>
 
       {parseStrip.ok ? (

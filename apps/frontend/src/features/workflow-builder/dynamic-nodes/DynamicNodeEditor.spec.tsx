@@ -52,6 +52,16 @@ vi.mock("../../../auth/GroupContext", async () => {
 // so we stub the editor with a plain <textarea>. The shell tests just
 // need to read `value` + drive `onChange`. The `codemirror-stub`
 // testid name is preserved so older test assertions keep working.
+// D-13 — `CodePane` bundles Monaco locally and awaits the chunk before
+// rendering `<Editor>`. Stub the loader so the 70 MB `monaco-editor` import
+// never runs under jsdom; the editor surface itself is stubbed just below.
+const ensureLocalMonacoMock = vi.hoisted(() =>
+  vi.fn((): Promise<void> => Promise.resolve()),
+);
+vi.mock("./monaco-loader", () => ({
+  ensureLocalMonaco: ensureLocalMonacoMock,
+}));
+
 vi.mock("@monaco-editor/react", () => ({
   default: ({
     value,
@@ -73,6 +83,7 @@ const fetchSpy = vi.spyOn(globalThis, "fetch");
 beforeEach(() => {
   fetchSpy.mockReset();
   vi.useRealTimers();
+  ensureLocalMonacoMock.mockImplementation(() => Promise.resolve());
 });
 
 afterEach(() => {
@@ -190,9 +201,12 @@ describe("DynamicNodeEditor (US-176)", () => {
   // -----------------------------------------------------------------------
   // Scenario 1 + 6 — boilerplate flows into the code pane in create mode
   // -----------------------------------------------------------------------
-  it("seeds the editor with the boilerplate when no slug is provided", () => {
+  it("seeds the editor with the boilerplate when no slug is provided", async () => {
     renderEditor({});
-    const editor = screen.getByTestId("codemirror-stub") as HTMLTextAreaElement;
+    // D-13 — the editor renders only after the local Monaco chunk resolves.
+    const editor = (await screen.findByTestId(
+      "codemirror-stub",
+    )) as HTMLTextAreaElement;
     expect(editor.value).toBe(DYNAMIC_NODE_BOILERPLATE);
   });
 
@@ -369,5 +383,33 @@ describe("DynamicNodeEditor (US-176)", () => {
     expect(
       screen.getByTestId("dynamic-node-editor").getAttribute("data-layout"),
     ).toBe("full-page");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D-13 — Publish must refuse while the code pane cannot render the script.
+// Publishing a script the author was never shown is worse than not publishing.
+// ---------------------------------------------------------------------------
+describe("DynamicNodeEditor — editor unavailable (D-13)", () => {
+  it("disables Publish and explains why when the script editor fails to load", async () => {
+    ensureLocalMonacoMock.mockImplementation(() =>
+      Promise.reject(new Error("Failed to fetch dynamically imported module")),
+    );
+    const detail = sampleDetail("alpha");
+    fetchSpy.mockResolvedValue(jsonResponse(detail));
+
+    // Edit mode: the signature parses cleanly, so the ONLY thing that can
+    // block Publish here is the editor's own availability.
+    renderEditor({ slug: "alpha" });
+
+    await screen.findByTestId("code-pane-editor-failed");
+    const publish = screen.getByTestId("dynamic-node-editor-publish");
+    await waitFor(() => {
+      expect(publish).toBeDisabled();
+    });
+    expect(publish).toHaveAttribute(
+      "title",
+      expect.stringContaining("Publishing is blocked"),
+    );
   });
 });

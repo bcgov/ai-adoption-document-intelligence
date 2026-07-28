@@ -187,13 +187,27 @@ export function DynamicNodeEditor({
   // ── Publish-time errors — flow into the CodePane via `publishErrors`
   const [publishErrors, setPublishErrors] = useState<ParseError[]>([]);
 
+  // D-13 — non-null while the CodePane cannot render the script.
+  const [editorUnavailable, setEditorUnavailable] = useState<string | null>(
+    null,
+  );
+
   const isEditMode = slug !== undefined;
 
   // Publish disabled until the script parses cleanly (we always send
   // the raw script; the server re-parses + re-validates — but blocking
-  // the click on parse failure shortens the round-trip).
+  // the click on parse failure shortens the round-trip). D-13 adds the
+  // editor's own availability: publishing a script the author was never
+  // shown is worse than not publishing at all.
+  const publishBlockedReason: string | null =
+    editorUnavailable !== null
+      ? `${editorUnavailable} Publishing is blocked until it loads.`
+      : liveSignature === null && !isEditMode
+        ? "Add a @workflow-node JSDoc header — the script has no valid signature yet"
+        : null;
+
   const publishDisabled =
-    publishMutation.isPending || (liveSignature === null && !isEditMode);
+    publishMutation.isPending || publishBlockedReason !== null;
 
   const handlePublish = async () => {
     try {
@@ -318,6 +332,7 @@ export function DynamicNodeEditor({
             <Button
               onClick={handlePublish}
               disabled={publishDisabled}
+              title={publishBlockedReason ?? undefined}
               data-testid="dynamic-node-editor-publish"
               loading={publishMutation.isPending}
             >
@@ -357,6 +372,7 @@ export function DynamicNodeEditor({
               script={currentText}
               onChange={setCurrentText}
               publishErrors={publishErrors}
+              onEditorUnavailable={setEditorUnavailable}
             />
           </Grid.Col>
           <Grid.Col

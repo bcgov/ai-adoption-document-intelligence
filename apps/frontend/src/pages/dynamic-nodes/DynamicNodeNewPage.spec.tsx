@@ -32,6 +32,13 @@ vi.mock("../../auth/GroupContext", async () => {
 });
 
 // Stub the CodeMirror editor (browser primitives jsdom lacks).
+// D-13 — `CodePane` bundles Monaco locally and awaits the chunk before
+// rendering `<Editor>`. Stub the loader so the 70 MB `monaco-editor` import
+// never runs under jsdom.
+vi.mock("@/features/workflow-builder/dynamic-nodes/monaco-loader", () => ({
+  ensureLocalMonaco: () => Promise.resolve(),
+}));
+
 vi.mock("@uiw/react-codemirror", () => ({
   default: ({
     value,
