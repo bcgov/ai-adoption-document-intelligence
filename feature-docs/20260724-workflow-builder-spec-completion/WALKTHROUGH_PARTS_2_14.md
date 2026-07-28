@@ -189,3 +189,64 @@ timing error:
 childWorkflow signature summary a user is sent to look at renders empty, and it
 has only one version. That single demo is why 7.8, 12.5 and part of 10.4 all
 needed fixtures. Logged as **D4**.
+
+---
+
+# Parts 16 and 13 (same pass)
+
+## Part 16 — UX polish
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 16.1 Three-zone top bar | ✅ PASS | zones non-overlapping at 1600px **and** 900px; More menu is exactly the 8 documented items in order |
+| 16.2 Simplified view / map-body grouping | ✅ PASS | Part-4 demo: normal = 9 nodes + 1 `map-body-container`, simplified = 4 nodes + **1 group chip**, restores to 9/1/0. Part-6 demo: 5 nodes → 2 nodes + **2 chips** → 5. Collapse and restore are both clean |
+| 16.3 No pill row | ✅ PASS | the only `*pill*` test ids on the page are palette DYN pills; a selected switch renders no pill row and no empty wrapper, while activity cards render 13 port rows |
+| 16.4 Hover popover (node-level) | ✅ PASS | hovering `data-handleid="out"` opens the **unfiltered** popover — 29 entries, Flow Control section present, correctly **no** "Show all" (nothing is filtered) |
+| 16.5 Switch diamond | ✅ PASS | 45° rotation matrix on the switch card; branch edges labelled *if ctx.currentDoc.type is "invoice"* / *if all of (2)* / *otherwise* |
+| 16.6 ⚠️ Light-mode toggle | ✅ PASS (as a scope discrepancy) | no colour-scheme control anywhere; Simplified view is the only top-bar toggle |
+| 16.7 Kind-aware extend popover | ✅ PASS | hovering the typed `port-row-prep-out-preparedData` handle filters **29 → 2** — `azureOcr.submit` and `mistralOcr.process`, precisely the prepared-file consumers — with `hover-extend-show-all` present as the escape |
+
+The drag halves of 16.4/16.7 (palette drag-drop, pre-wiring on pick, port-to-port
+release over empty canvas) are left to `tier2-canvas-drag` / `tier2-port-wiring`.
+
+## Part 13 — Document sources
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 13.1 Add source.api | ◑ PARTIAL | on the demo the source card carries **no** input handle, which is the observable half. "Drop on empty canvas → auto-sets `entryNodeId`" is a construction step |
+| 13.2 Configure source.api fields | ⏳ CONSTRUCTION STEP | needs a fixture — see gap **D6** |
+| 13.3 Add source.upload | ◑ PARTIAL | demo's upload node exposes the MIME allowlist; its `maxFileSizeMB` is **25**, an intentional demo override, so the documented *default* of 50 is only observable on a freshly added node |
+| 13.4 Upload endpoint | ✅ PASS | valid PDF → `200 {documentUrl, documentId, runId}` (upload-then-run); `text/plain` → `400 "File MIME type 'text/plain' is not permitted by this source. Allowed: [application/pdf, image/*]"`; 26 MB → `413` with exact byte counts. Unusually good error copy |
+| 13.5 run-spec upload block | ✅ PASS | `uploadSpec {sourceNodeId, uploadUrl, allowedMimeTypes, maxFileSizeMB, ctxKey}` — all five fields |
+| 13.6 Run drawer sections | ◑ PARTIAL | upload section + dropzone + upload-run button all render. The **both-sources-present** case has no demo — gap **D5** |
+| 13.7 Single-source validator | ⏳ CONSTRUCTION STEP | needs a deliberately-invalid fixture — gap **D6** |
+
+## A refinement to the conversion worklist
+
+16.2 reads *"**Build** a map node with body nodes"* — but the Part-4 demo
+already **has** a map with a body, and the Part-6 demo already has two groups. So
+the construction verb was unnecessary: the step converts to "open this, toggle
+that" for free, with no seeding work at all.
+
+That means the 29 construction-verb steps split three ways, not two:
+
+1. **already covered by an existing demo** — rewrite the words only (free);
+2. **needs a new demo** — D1–D6;
+3. **already automated** — move to the coverage index and stop asking a human.
+
+Worth triaging the 29 before estimating the split, because bucket 1 may be the
+largest and costs nothing.
+
+## Fourth self-caught false positive
+
+My first three passes at 16.2 clicked the More-menu *row* for Simplified view.
+That never flips the switch — the control is a visually-hidden Mantine
+`input[role=switch]` (`data-testid="simplified-view-toggle"`), and `data-checked`
+stayed `"false"` throughout. Measuring then gave identical node counts in both
+"views", which reads exactly like *"simplified view collapses nothing"*. It
+collapses fine. Clicking the input directly is what proves it.
+
+Running tally of first-pass "failures" that were my technique, not the product:
+D-11 timing, `force: true` on a disabled item, Compare-to-head on the head row,
+and this. **Any first-pass failure is now unverified until re-probed a second
+way.**

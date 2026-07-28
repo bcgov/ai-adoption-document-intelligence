@@ -34,6 +34,9 @@ Create, Publish, Author, Drag, Declare); only **10 of 16 parts** carry a
 
 | **D4** | **Part-10 demo library needs declared ports and a second version** | **7.8**, **12.5**, **10.4** | The seeded `Demo — Library workflow (Part 10)` declares **0 inputs / 0 outputs**, so the childWorkflow signature summary renders empty — nothing to look at. It also has **only one version**, so 12.5's "pick `v2` → stamps `version:2`" cannot be walked at all. Giving this one demo typed ports and a v2 closes D1 as well | S |
 
+| **D5** | **A workflow with BOTH `source.api` and `source.upload`** | **13.6** | The Part-13 demo has only an upload source, so the drawer's documented "both present → both render" case cannot be observed at all | S |
+| **D6** | **A deliberately-invalid two-source workflow**, seeded already-broken | **13.2**, **13.7** | 13.7 asks you to add a second source and watch the validator refuse it. Seeded in the end state the user opens it and reads the error — no destructive step, and it stays walkable | S |
+
 Each replaces a throwaway I created. Everything I built is listed under
 "Artifacts created" in `WALKTHROUGH_PARTS_2_14.md`.
 
@@ -73,6 +76,14 @@ Proposed split, to do **after** the walk finishes:
   already doing — its own "unit/integration-backstopped" notes are exactly that
   index, written in the margins.
 
-The 29 construction-verb steps are the conversion worklist: each is either
-`→ Gallery` (seed a demo, rewrite as "open this") or `→ Coverage index`
-(already automated; stop asking a human).
+The 29 construction-verb steps are the conversion worklist, and they split
+**three** ways, not two:
+
+1. **already covered by an existing demo** — rewrite the words only, no seeding
+   (16.2 is one: it says "build a map node", but the Part-4 demo already has a
+   map with a body and Part-6 already has two groups);
+2. **needs a new demo** — D1–D6 above;
+3. **already automated** — move to the coverage index and stop asking a human.
+
+Triage the 29 into these buckets before estimating the split: bucket 1 may be
+the largest and costs nothing.
