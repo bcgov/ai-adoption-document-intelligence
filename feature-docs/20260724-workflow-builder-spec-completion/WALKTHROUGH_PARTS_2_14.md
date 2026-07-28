@@ -483,3 +483,36 @@ Two shapes of fix, and the choice is a product decision:
 Not implemented unilaterally — this is the third Try-path item (with **D-16**)
 where the documented behaviour and the shipped behaviour differ, and the two
 should probably be decided together.
+
+---
+
+# Parts 5, 7, 8 remainder
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 5.2 Error edges | ✅ PASS | `error-policy-add` reveals a SegmentedControl offering exactly *Stop the workflow / Follow the error path / Skip this step and continue*; choosing the error path **adds a handle** (6 → 7 on the node) and reveals `error-policy-fallback-edge` + `error-policy-retryable` |
+| 5.4 Validation surfacing | ✅ PASS | dropping a switch with no cases gives **"1 error · 1 warning"** on the top bar, one node badge, and a drawer entry naming the switch |
+| 5.5 Backend legacy-shape rejection | ✅ PASS | the flat `{operation, fields, equals}` rule → `400` at path `nodes.v1.parameters.rules.0.type`, exactly the documented shape. *Plan nit: the activity is registered as `document.validateFields`, not `validateFields` — the doc's own snippet uses the short name and 400s on "not registered" before it ever reaches the rule check.* |
+| 5.7 Inline sub-workflow rules (G-015) | ✅ unit-backstopped | `packages/graph-workflow` validator suite — 9 files / 161 tests green |
+| 7.5 Variable-picker dimming | ✅ unit-backstopped | `variable-picker-utils.test.ts` + the validation suite — 6 files / 92 tests green. The prior pass left this ⏸ NOT VERIFIED; the Advanced toggle now renders and the picker opens with drilled options, but the port I reached had no incompatible candidates to dim |
+| 7.6 Save-time binding walk | ✅ unit-backstopped | same suites; the plan already classes this one as unit-backed |
+| 7.2 Row tooltip | ⏳ NOT WALKED | `port-tooltip-*` elements exist but render into a portal only while hovering; my locators never caught one. Content check, low risk |
+
+## Final state of this walkthrough
+
+**121 / 152 (79%)**, up from 3 ticked when the pass began.
+
+Defects **fixed**: dynamic-nodes group scoping (`dd6cdafb`), undo-during-replay
+(`fd3194bb`), 14.8 auto-drop (`64d86d73`), the e2e update helper (`76bb745a`),
+and the agent chat 400 (`672868d8`).
+
+Defects **found and left for a ruling**: D-11 (Try enabled on an unrunnable
+graph), D-12 (untrue preview message), D-13 (Monaco CDN), D-14 (11 failing e2e
+specs and no CI job), D-16 (Try runs the last-saved graph, not the canvas),
+D-17 (cancel-on-new-Try never fires).
+
+The 31 still open are listed in the plan. The largest cluster is Part 9's
+preview family (9.5/9.5a/9.5b/9.5c/9.10/9.10a/9.4a), which needs OCR-shaped
+outputs and a switch-heavy graph; then Part 4's condition deep-half
+(4.8–4.12, 4.14); then Part 15's three long agent builds. 12.4/12.5 stay blocked
+on demo gap **D4**, 14.8/14.9 on rulings **D-11/D-12**, and 2.3 needs real IDIR.
