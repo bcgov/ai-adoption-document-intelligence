@@ -609,6 +609,14 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   );
 
   /**
+   * The config as last hydrated from the server (or as last saved). `isDirty`
+   * is "the current config differs from this", so anything that rewrites the
+   * config WITHOUT the author asking must re-base it — see
+   * `handleArrangeOnLoad`.
+   */
+  const lastHydratedConfigRef = useRef<GraphWorkflowConfig | null>(null);
+
+  /**
    * The `metadata.arrangeOnLoad` path. Fires by itself ~1.5s after a demo
    * opens, with nobody asking for it, so it goes through `resetConfig` and is
    * NOT an undo step — otherwise every demo would open with a phantom entry
@@ -618,7 +626,17 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
    * Same layout, different persistence. That is the whole distinction.
    */
   const handleArrangeOnLoad = useCallback(
-    () => runAutoArrange(resetConfig),
+    () =>
+      runAutoArrange((next) => {
+        resetConfig(next);
+        // ...and re-base the unsaved-changes baseline. Every demo ships
+        // `arrangeOnLoad`, so without this the editor is "dirty" the moment it
+        // opens, before the author has touched anything — which made the
+        // leave-guard warn on a workflow nobody edited and, once Try/Run began
+        // refusing a dirty graph (D-16), disabled them on every demo. `isDirty`
+        // has to keep meaning "the AUTHOR changed something".
+        lastHydratedConfigRef.current = next;
+      }),
     [runAutoArrange, resetConfig],
   );
 
@@ -726,7 +744,6 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   // `null` until the first hydration (or after an edit-mode save, which
   // re-baselines by clearing it and letting the follow-up refetch re-adopt).
   // §4.4.
-  const lastHydratedConfigRef = useRef<GraphWorkflowConfig | null>(null);
   // Create mode never hydrates from the server, so seed the baseline with the
   // config the editor opened on (blank, or the picked template). Without this
   // G-027 could not tell an untouched new workflow from an edited one, and
