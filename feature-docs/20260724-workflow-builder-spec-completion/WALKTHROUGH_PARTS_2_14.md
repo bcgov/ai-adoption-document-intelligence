@@ -643,3 +643,32 @@ unit/e2e-backed by `756910e5` and `2a0b4d7b`, but nobody has seen them.
    `[data-testid="x"] input` matches nothing. Target `[data-testid="x"]`.
 5. **Body entry / body exit are Selects, not text inputs.** `.fill()` on them
    fails silently, so a probe can believe it configured a map that it didn't.
+
+## Part 4 — the condition deep-half (2026-07-27)
+
+Walked on the *Conditions from node outputs — step picker* demo.
+
+| # | Verdict | Evidence |
+|---|---|---|
+| **4.8** Ref defaults to the step-picker | ✅ PASS | the Value field ships in Ref mode rendering `condition-producer-picker` (no empty state, no raw-key box) with exactly one row: **"Prepare file → Prepared file data — preparedData · PreparedFile · 1 step upstream"**, `data-selected="true"` |
+| **4.9** Caption persists | ✅ PASS | after a full page reload with **no** save, the row still renders the resolved *Node → Port* caption and stays selected — it resolves from the producer's output binding on load, as the check says |
+| **4.10** Manual escape + back | ✅ PASS | *"Enter a variable manually"* replaces the picker with the autocomplete and reveals *"Back to steps"*; clicking that brings the picker back |
+| **4.11** Unresolved key re-opens in manual | ✅ PASS | typing `notAProducer`, deselecting the node and re-selecting it re-opens in manual with the value intact — **not** stranded on an empty step-picker |
+| **4.12** Condition reads a step output at run time | ⏳ NOT WALKED | needs a live Temporal run driven by a file upload |
+| **4.14** step 3 — sibling-kind rejection | ✅ PASS | `blob.read.base64` (`DocumentContent`) → `document.extractToBase64.blobKey` (`DocumentRef`) is rejected with *"This input needs DocumentRef — DocumentContent can't be used here"*; the canvas ends with **0** wires |
+| **4.14** steps 1–2 — loop-item drill-down | ⏳ NOT WALKED | see below |
+
+**4.8's kind hint is now typed.** The plan's example says the hint reads `any`
+"for a kind-less port". The shipped row reads `PreparedFile` — the port gained a
+kind in the taxonomy wave. Same feature, stale example.
+
+**Why 4.14 steps 1–2 are not walked.** The manual variable picker's dropdown
+could not be driven to enumerate its options from a probe: it opens (the
+*"Workflow context"* group heading renders) but no
+`variable-picker-option-*` rows appear, whether the field is cleared, arrowed
+into, or typed into. Six attempts. Rather than guess, the honest record is
+"not walked" — and the *outcome* the check is about is independently visible:
+`segmentRouter`'s two cases both store `ctx.currentSegment.segmentType`, a
+drilled dotted ref on the loop item. What remains unseen is whether the picker
+*offers* those fields, and the outside-the-body contrast that the plan itself
+calls "the actual check, because it is the only part that can fail".

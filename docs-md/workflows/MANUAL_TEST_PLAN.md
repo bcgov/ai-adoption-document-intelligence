@@ -306,19 +306,19 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   2. Confirm the nesting renders indented per level.
   3. Pick a leaf value and toggle it **Ref** ↔ **Literal** (Ref = variable autocomplete; Literal = plain input).
   **Pass:** the deep expression renders indented; **Save + reload** round-trips the whole tree.
-- [ ] **4.8 Ref defaults to the step-picker.** *(second demo)* *When a condition value references another node's output, the editor offers a "step → port" picker instead of a raw ctx key.*
+- [x] **4.8 Ref defaults to the step-picker.** *(second demo)* *When a condition value references another node's output, the editor offers a "step → port" picker instead of a raw ctx key.*
   1. Click **Route by prepared data** (the switch) → open the first case's **condition** (an `is-not-null` check, so it has a single **Value** field).
   2. The Value field **ships already in Ref mode** — nothing to toggle. Confirm it renders the **step → port picker** (a list of clickable **"Node → Port"** rows), not a raw-key box.
   **Pass:** the field shows the **step → port picker** (not a raw-key box) and lists the upstream producer as a **"Node → Port"** row — here **Prepare file → Prepared file data** — with the port kind as a hint (`any` for a kind-less port; no kind filter, every upstream output is offered). Because this graph has one upstream producer, you see exactly one row; a graph with more upstream steps would list one row per output port. (The row **is** the source selector — clicking a different row re-points the ref; the separate **Field (optional)** box drills into the port's sub-fields.)
-- [ ] **4.9 Step output caption persists.** *A producer-port ref shows a friendly caption that survives save/reload.*
+- [x] **4.9 Step output caption persists.** *A producer-port ref shows a friendly caption that survives save/reload.*
   1. The Value already references **Prepare file → Prepared file data** (that row renders **selected/highlighted** — the demo ships pre-wired; clicking it just re-selects the same output).
   2. **Save + reload** the workflow.
   **Pass:** the field shows the resolved **"Node → Port"** caption both before and after reload (not the raw `__auto.prep.preparedData` key) — it resolves on load from the producer's output binding, no Save needed to see it.
-- [ ] **4.10 Manual escape + back.** *You can bypass the step-picker to type a raw ctx key, and return.*
+- [x] **4.10 Manual escape + back.** *You can bypass the step-picker to type a raw ctx key, and return.*
   1. In a Ref field, click **"Enter a variable manually"** → a raw-key autocomplete replaces the picker.
   2. Click **"Back to steps"**.
   **Pass:** manual mode shows the autocomplete; "Back to steps" returns to the step-picker.
-- [ ] **4.11 Unresolved hand-typed key re-opens in manual.** *A ref to a key no node produces can't resolve to a step, so the field remembers it's manual.*
+- [x] **4.11 Unresolved hand-typed key re-opens in manual.** *A ref to a key no node produces can't resolve to a step, so the field remembers it's manual.*
   1. In manual mode, type a ctx key that **no** node produces (e.g. `notAProducer`).
   2. Close and re-open the field.
   **Pass:** it re-opens in **manual mode** (not stranded on an empty step-picker).
@@ -331,13 +331,14 @@ Each item is one control-flow node's settings form. **4.1–4.7** use the **firs
   2. Select **Store Results** → open its **OCR result** input binding picker.
   3. Also open a **Ref** value on a switch/pollUntil condition in manual-variable mode.
   **Pass:** the picker lists `ocrResult` **and** its fields (`ocrResult.documentId`, `.blobPath`, `.storage`, `.byteLength`, `.pageCount`, `.status`), each captioned with `type · optional`; picking a field stores the dotted ref. **`documents` / `currentDoc` (untyped trigger data) show NO field rows** — they stay free-typed. *(Resolution + expansion are unit-tested in `graph-widgets`; this is the visual spot-check.)*
-- [ ] **4.14 Loop-item (Segment) field drill-down + sibling-kind rejection.** *A map's per-item variable now drills its fields inside the loop body, and a sibling subkind under the same family is still rejected where the runtime shapes differ.*
+- [ ] **4.14 Loop-item (Segment) field drill-down + sibling-kind rejection.** *(step 3 walked and passing 2026-07-27; steps 1–2 not walked)* *A map's per-item variable now drills its fields inside the loop body, and a sibling subkind under the same family is still rejected where the runtime shapes differ.*
   1. Load `multi-page-report-workflow` (3.7). Its map **`processSegments`** iterates `currentSegment` — a **Typed segment** (from `splitAndClassify`'s `segments` output); the map **body** starts at the **`segmentRouter`** switch, which routes each segment by type.
   2. Select the **`segmentRouter`** switch → in its settings open a case **condition**'s left **Ref** value → click **"Enter a variable manually"**.
   **Pass:** the picker offers **`currentSegment`** *and drills its fields* — `currentSegment.segmentIndex`, `.pageRange`, `.blobKey`, `.pageCount`, `.segmentType`, `.keywordMatch` (optional), `.confidence` — each captioned with its type; picking `.segmentType` stores the dotted ref. **A node OUTSIDE the loop body (e.g. `prepareFileData`) does NOT offer `currentSegment`** — that contrast is the actual check, because it is the only part that can fail.
   - ⚠️ **Do not assert the group heading.** `currentSegment` appears under **"Workflow context"**, not "Loop variables", because this template *also* declares it in `config.ctx` and [`buildVariableOptions`](../../apps/frontend/src/features/workflow-builder/graph-widgets/VariablePicker.tsx) de-duplicates a loop var that is already a ctx declaration. Every shipped map declares its item key, so the "Loop variables" heading is unreachable on current fixtures — an assertion on it would pass even if loop-variable scoping were removed entirely. See the shape-coverage gap in [STACK.md](../../feature-docs/20260724-workflow-builder-spec-completion/STACK.md).
   3. Separately, sibling-kind rejection: drag `blob.read`'s `base64` output onto `document.extractToBase64`'s `blobKey` input (port-to-port drag-to-bind). *(In the palette this activity now reads **"Extract Page to Blob"** — renamed off the taxonomy-wave's "Extract Page Range", which collided with `document.extractPageRange`.)*
   **Pass:** the drop is rejected with the "…can't be used here" notice — base64 content (`DocumentContent`) is a sibling of, not assignable to, a blob key (`DocumentRef`) — and no wire is created.
+  - ✅ **Step 3 verified 2026-07-27:** the notice reads *"This input needs DocumentRef — DocumentContent can't be used here"* and the canvas ends with **0** wires. Steps 1–2 (the picker offering `currentSegment`'s drilled fields, and a node outside the body not offering it) are **not walked** — the manual picker's dropdown could not be driven to enumerate options from a probe. What *is* confirmed is the outcome: `segmentRouter`'s two cases both store `ctx.currentSegment.segmentType`, a drilled dotted ref on the loop item.
 
 - [x] **4.15 Loop variables reach dead-end branch nodes.** *A map body node on a branch that never rejoins the body exit is still inside the loop, so it must see the loop variables — matching the canvas body box and the runtime.*
   1. Load the **Control-flow forms & condition editor** demo (Part 4, first demo). Its map **`eachDoc`** (item `currentDoc`, index `docIndex`) has a body starting at the **`routeByType`** switch, whose branches **`childOcr`** (invoice) and **`approve`** (default) are **dead-ends** — they never reach the body exit **`extractOcr`**.
