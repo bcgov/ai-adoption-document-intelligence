@@ -384,3 +384,51 @@ a control asserting a genuinely unknown property is still refused.
 This is the same shape as the `/dynamic-nodes` bug that started the whole
 thread: **a contract between two layers, correct on each side in isolation,
 wrong at the join — and only reachable by driving the real UI.**
+
+---
+
+# Part 9 — try-in-place (remainder)
+
+| # | Verdict | Evidence |
+|---|---|---|
+| 9.1 Try button | ✅ PASS | drawer opens on the Try tab (`data-active="true"`), closes on Try, badges appear and both nodes reach `succeeded` |
+| 9.2 Run vs Try tabs | ✅ PASS | the Run tab keeps the drawer open and shows the trigger URL — Phase-2 behaviour intact |
+| 9.11 Version run-count badge | ✅ PASS | per-version badges: `V2 HEAD — 1 RUNS`, `V1 — 3 RUNS`. *Copy nit: "1 RUNS" should read "1 run".* |
+| 9.12 Lazy deploy + auto-save on first Try | ❌ **FAIL** | see D-16 |
+| 9.7 Cancel-on-new-Try | ⚠️ INCONCLUSIVE | my fixture cannot test it — the dyn node completes in ~85 ms, so there is no window in which a second Try could cancel the first. Needs a deliberately slow workflow (a sleeping dynamic node or a `pollUntil`) |
+| 9.5 / 9.5a / 9.5b / 9.5c / 9.10 / 9.10a / 9.4a | ⏳ NOT WALKED | need OCR-shaped outputs and a switch-heavy graph |
+
+## D-16 — Try silently runs a different graph than the one on screen (open)
+
+9.12 says: *"Try on a workflow with unsaved changes. **Pass:** a new version is
+saved before Temporal starts."* That does not happen, and the behaviour is not
+implemented at all — `RunWorkflowDrawer.handleTry` calls `startRun.mutateAsync`
+directly, with no dirty check, no save, no lazy deploy.
+
+Measured, with the leave-guard as the dirty oracle:
+
+| | |
+|---|---|
+| dirty before edit | `false` |
+| rename landed on canvas | `true` (`RENAMED-912-6487`) |
+| dirty after edit | `true` |
+| versions before / after Try | `[2,1]` / `[2,1]` — **no new version** |
+| server's stored label after Try | `uppercase-url` — **the old one** |
+
+So the author renames a node, hits Try, watches badges light up on *their*
+canvas — and Temporal ran the **previously saved** graph. Nothing says so.
+
+This is the same family as G-004 (replay showing a graph that isn't what ran)
+and D-12 (a preview claiming a cache eviction that never happened): **the canvas
+asserts one thing and the system does another.** It is arguably the most
+consequential of the three, because it silently produces *results* for a graph
+the author is not looking at.
+
+Two defensible fixes, and the choice is a product decision:
+
+1. **Save first** — what the plan documents. Implicitly creates a version on
+   every dirty Try, which changes what the version history means.
+2. **Refuse while dirty** — Try is disabled or warns, matching the "fail before
+   the run" invariant and leaving version semantics alone.
+
+Not implemented unilaterally. Needs Alex.
