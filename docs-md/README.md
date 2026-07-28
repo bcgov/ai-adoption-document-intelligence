@@ -14,6 +14,7 @@ Canonical markdown documentation for the Document Intelligence platform, organiz
 | [operations/](operations/) | OpenShift deployment, CI workflows overview, environment configuration, backups, Azure infrastructure, secrets management, npm hardening |
 | [monitoring/](monitoring/) | PLG stack (Prometheus, Loki, Grafana), Helm charts, Promtail sidecars, dashboards, metrics, alerting, logging |
 | [benchmarking/](benchmarking/) | Benchmarking system, load testing runbooks and stress run sheets |
+| [testing/](testing/) | Test strategy and catalogs: the e2e spec catalog, and the [four-oracle gap discovery method](testing/GAP_DISCOVERY_METHOD.md) for finding gaps a test plan derived from its own implementation cannot |
 | [frontend/](frontend/) | BC Design System migration, reference data tables UI, confirmation-modal and sentence-case standardization, header/upload UI |
 | [archive/](archive/) | Point-in-time artifacts (reports, audits, completed plans) — historical only, see [archive/README.md](archive/README.md) |
 | [wiki/](wiki/) | Repo wiki: routing map for humans and LLM agents — see [wiki/README.md](wiki/README.md) for rules |
