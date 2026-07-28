@@ -56,6 +56,7 @@ import { DocumentStatus, GroupRole } from "@/generated";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import {
   type ListRunsExecution,
+  type RunTrigger,
   TemporalClientService,
   type TemporalExecutionStatusFilter,
 } from "@/temporal/temporal-client.service";
@@ -89,6 +90,7 @@ import {
 import { RunSpecResponseDto } from "./dto/run-spec.dto";
 import { SourceUploadResponseDto } from "./dto/source-upload.dto";
 import { StartRunRequestDto, StartRunResponseDto } from "./dto/start-run.dto";
+import { StartTryRequestDto, StartTryResponseDto } from "./dto/start-try.dto";
 import {
   UpdateWorkflowDto,
   WorkflowVersionConflictDto,
@@ -523,6 +525,67 @@ export class WorkflowController {
     @Body() body: StartRunRequestDto,
     @Req() req: Request,
   ): Promise<StartRunResponseDto> {
+    // G-021: this is the public run API — a production run, not an editor
+    // preview. Stamping `"api"` keeps it out of every later cancel set.
+    return this.startLineageRun(id, body, req, "api");
+  }
+
+  @Post(":id/tries")
+  @HttpCode(HttpStatus.CREATED)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Start a canvas Try run (disposable editor preview)",
+    description:
+      "Same execution path as `POST /:id/runs`, but the run is stamped " +
+      '`RunTrigger = "try"` so the next Try for this lineage cancels it. ' +
+      "The trigger is assigned server-side and is not a request field: a " +
+      "production run started through `/runs` can never be swept up by " +
+      "editor activity (D-17).",
+  })
+  @ApiParam({ name: "id", description: "Workflow lineage ID" })
+  @ApiBody({
+    type: StartTryRequestDto,
+    description:
+      "`initialCtx` is validated against the workflow's derived input schema (see `GET /api/workflows/:id/run-spec`). `workflowVersionId` is optional and defaults to the head version.",
+  })
+  @ApiCreatedResponse({
+    description:
+      "Try started successfully. Any in-flight Try for this lineage has been cancelled.",
+    type: StartTryResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Body fails input-schema validation, or `workflowVersionId` does not belong to this lineage.",
+  })
+  @ApiNotFoundResponse({ description: "Workflow or version not found" })
+  @ApiConflictResponse({
+    description: "Workflow has no published version yet",
+  })
+  @ApiUnauthorizedResponse({ description: "Authentication required" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async startTry(
+    @Param("id") id: string,
+    @Body() body: StartTryRequestDto,
+    @Req() req: Request,
+  ): Promise<StartTryResponseDto> {
+    // D-17: the editor's Try button lands here. Before this endpoint existed
+    // the canvas started its previews through `/runs`, so every Try was
+    // stamped `"api"` and `cancelInFlightTriesForLineage` had nothing to
+    // cancel — the cancel-on-new-Try behaviour was dead code in practice.
+    return this.startLineageRun(id, body, req, "try");
+  }
+
+  /**
+   * Shared implementation behind `POST /:id/runs` and `POST /:id/tries`.
+   * The two endpoints differ only in the `RunTrigger` they stamp — which is
+   * exactly why `trigger` is a parameter here and NOT a field on either DTO.
+   */
+  private async startLineageRun(
+    id: string,
+    body: StartRunRequestDto | StartTryRequestDto,
+    req: Request,
+    trigger: RunTrigger,
+  ): Promise<StartRunResponseDto> {
     const wf = await this.workflowService.resolveLineageAndVersion(
       id,
       body.workflowVersionId,
@@ -542,11 +605,11 @@ export class WorkflowController {
     // Phase 4 (US-149): cancel any in-flight editor Try for this lineage
     // BEFORE starting the new run, so a stale canvas preview doesn't keep
     // running alongside it. G-021: only runs stamped `RunTrigger = "try"`
-    // are cancelled — production runs started through this endpoint run to
-    // completion regardless of how many others are in flight for the same
-    // lineage (feeding 240 documents through must not have document #2
-    // cancel document #1). Cancel is best-effort inside the helper (errors
-    // are swallowed there), so this never blocks the new run.
+    // are cancelled — production runs run to completion regardless of how
+    // many others are in flight for the same lineage (feeding 240 documents
+    // through must not have document #2 cancel document #1). Cancel is
+    // best-effort inside the helper (errors are swallowed there), so this
+    // never blocks the new run.
     await this.temporalClient.cancelInFlightTriesForLineage(id);
 
     // Item 4 (security): the caller's `x-api-key` is intentionally NOT
@@ -560,13 +623,24 @@ export class WorkflowController {
       wf.workflowVersionId,
       initialCtx,
       wf.groupId,
-      // G-021: this is the public run API — a production run, not an editor
-      // preview. Marking it `"api"` keeps it out of every later cancel set.
-      "api",
+      trigger,
     );
 
+    await this.auditService.recordEvent({
+      event_type: "workflow_run_started",
+      resource_type: "workflow_run",
+      resource_id: workflowId,
+      actor_id: req.resolvedIdentity.actorId,
+      workflow_execution_id: workflowId,
+      group_id: wf.groupId,
+      payload: {
+        workflow_config_id: wf.workflowVersionId,
+        trigger,
+      },
+    });
+
     this.logger.log(
-      `Workflow run started: ${workflowId} (lineage ${id}, version ${wf.workflowVersionId}, ctx keys: [${Object.keys(initialCtx).join(", ")}])`,
+      `Workflow run started: ${workflowId} (lineage ${id}, version ${wf.workflowVersionId}, trigger ${trigger}, ctx keys: [${Object.keys(initialCtx).join(", ")}])`,
     );
 
     return {

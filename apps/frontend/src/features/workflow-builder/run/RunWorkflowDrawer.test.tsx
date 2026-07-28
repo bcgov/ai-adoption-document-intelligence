@@ -828,13 +828,20 @@ describe("RunWorkflowDrawer", () => {
       });
 
       await waitFor(() => {
+        // D-17 — the Try tab posts `/tries`, never `/runs`. Only a run
+        // stamped `RunTrigger = "try"` server-side is eligible for
+        // cancel-on-new-Try; `/runs` stamps `"api"` and the cancel misses it.
         expect(apiMock.post).toHaveBeenCalledWith(
-          "/workflows/wf-1/runs",
+          "/workflows/wf-1/tries",
           expect.objectContaining({
             initialCtx: expect.objectContaining({ customerId: "", count: 5 }),
           }),
         );
       });
+      expect(apiMock.post).not.toHaveBeenCalledWith(
+        "/workflows/wf-1/runs",
+        expect.anything(),
+      );
       await waitFor(() => {
         expect(setActiveRunId).toHaveBeenCalledWith("graph-try-success-1");
       });

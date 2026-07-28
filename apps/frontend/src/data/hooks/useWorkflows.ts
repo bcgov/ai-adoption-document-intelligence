@@ -457,6 +457,44 @@ export function useStartWorkflowRun() {
   });
 }
 
+/**
+ * Starts a canvas Try via `POST /workflows/:id/tries` (D-17).
+ *
+ * Identical wire body to {@link useStartWorkflowRun} — the difference is the
+ * endpoint, which is what stamps `RunTrigger = "try"` server-side. The editor
+ * MUST use this and not `/runs`: a run stamped `"api"` is invisible to
+ * `cancelInFlightTriesForLineage`, so before this existed a second Try left
+ * the first one running to completion on the worker.
+ */
+export function useStartWorkflowTry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      workflowId,
+      body,
+    }: {
+      workflowId: string;
+      body: StartRunRequest;
+    }): Promise<StartRunResponse> => {
+      const response = await apiService.post<StartRunResponse>(
+        `/workflows/${workflowId}/tries`,
+        body,
+      );
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to start Try");
+      }
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      // A Try shows up in run history like any other run — same
+      // invalidation as the production path.
+      queryClient.invalidateQueries({
+        queryKey: ["workflow-runs", variables.workflowId],
+      });
+    },
+  });
+}
+
 export function useWorkflowVersions(lineageId: string | undefined) {
   return useQuery({
     queryKey: ["workflow-versions", lineageId],

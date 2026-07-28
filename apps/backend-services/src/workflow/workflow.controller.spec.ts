@@ -15,6 +15,7 @@ import { DocumentDbService } from "@/document/document-db.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import type { StartTryRequestDto } from "./dto/start-try.dto";
 import type {
   GraphWorkflowConfig,
   SourceCatalogEntry,
@@ -1562,6 +1563,189 @@ describe("WorkflowController", () => {
           "api",
         );
       });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // D-17 — `POST /:id/tries`. The editor's Try button used to POST `/runs`,
+  // which stamps `RunTrigger = "api"`, so `cancelInFlightTriesForLineage`
+  // (which filters on `RunTrigger = "try"`) never had anything to cancel:
+  // two Trys on a slow graph both ran to completion. This endpoint exists so
+  // the trigger is assigned by the ROUTE, server-side — a public API caller
+  // has no field with which to opt their production run into the cancel set.
+  // ---------------------------------------------------------------------------
+  describe("startTry (D-17)", () => {
+    const mockReq = () =>
+      ({
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      }) as unknown as Request;
+
+    const wfWithCustomerInput: WorkflowInfo = {
+      ...mockWorkflowInfo,
+      config: {
+        ...mockGraphConfig,
+        ctx: {
+          customerId: { type: "string", isInput: true },
+        },
+      },
+    };
+
+    it("stamps RunTrigger 'try' — NOT 'api' — on the started execution", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-try");
+
+      const result = await controller.startTry(
+        "wf-1",
+        { initialCtx: { customerId: "cust-001" } },
+        mockReq(),
+      );
+
+      expect(result).toEqual({
+        workflowId: "graph-adhoc-try",
+        workflowVersionId: "wv-wf-1",
+        status: "started",
+      });
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-wf-1",
+        { customerId: "cust-001" },
+        "group-1",
+        "try",
+      );
+    });
+
+    // The whole point of the endpoint: a second Try sweeps the first away.
+    it("cancels in-flight Tries for the lineage BEFORE starting the new one", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      const callOrder: string[] = [];
+      temporalClient.cancelInFlightTriesForLineage.mockImplementation(
+        async () => {
+          callOrder.push("cancel");
+          return { cancelledCount: 1 };
+        },
+      );
+      temporalClient.startGraphWorkflow.mockImplementation(async () => {
+        callOrder.push("start");
+        return "graph-adhoc-try-2";
+      });
+
+      await controller.startTry("wf-1", { initialCtx: {} }, mockReq());
+
+      expect(temporalClient.cancelInFlightTriesForLineage).toHaveBeenCalledWith(
+        "wf-1",
+      );
+      expect(callOrder).toEqual(["cancel", "start"]);
+    });
+
+    // A Try is not a validation escape hatch — same schema gate as /runs.
+    it("returns 400 when initialCtx is missing a required field", async () => {
+      const { BadRequestException } = await import("@nestjs/common");
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+
+      await expect(
+        controller.startTry("wf-1", { initialCtx: {} }, mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    it("throws ForbiddenException when caller cannot access the workflow's group", async () => {
+      const req = {
+        protocol: "http",
+        headers: { host: "localhost:3002" },
+        resolvedIdentity: identityWithGroups({
+          "other-group": GroupRole.MEMBER,
+        }),
+      } as unknown as Request;
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+
+      await expect(controller.startTry("wf-1", {}, req)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
+    // G-024 parity with the Run tab: the editor sends the version it is
+    // SHOWING, so a Try while replaying an old version runs that graph.
+    it("passes through an explicit workflowVersionId", async () => {
+      const olderVersion: WorkflowInfo = {
+        ...mockWorkflowInfo,
+        workflowVersionId: "wv-older",
+        version: 3,
+      };
+      workflowService.resolveLineageAndVersion.mockResolvedValue(olderVersion);
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-tryver");
+
+      const result = await controller.startTry(
+        "wf-1",
+        { workflowVersionId: "wv-older" },
+        mockReq(),
+      );
+
+      expect(workflowService.resolveLineageAndVersion).toHaveBeenCalledWith(
+        "wf-1",
+        "wv-older",
+      );
+      expect(result.workflowVersionId).toBe("wv-older");
+    });
+
+    it("records a workflow_run_started audit event carrying the trigger", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-audit");
+
+      await controller.startTry("wf-1", { initialCtx: {} }, mockReq());
+
+      expect(auditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_run_started",
+          resource_type: "workflow_run",
+          resource_id: "graph-adhoc-audit",
+          actor_id: "user-1",
+          workflow_execution_id: "graph-adhoc-audit",
+          group_id: "group-1",
+          payload: expect.objectContaining({ trigger: "try" }),
+        }),
+      );
+    });
+
+    // The route is the only thing that decides the trigger. Over HTTP a body
+    // `trigger` never reaches the handler at all (the DTO declares no such
+    // field and the global pipe runs `forbidNonWhitelisted`), but the handler
+    // must not read one either — this asserts the handler side directly,
+    // since a controller unit test bypasses the pipe.
+    it("ignores a caller-supplied trigger in the body", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-smug");
+
+      await controller.startTry(
+        "wf-1",
+        { initialCtx: {}, trigger: "api" } as StartTryRequestDto,
+        mockReq(),
+      );
+
+      expect(temporalClient.startGraphWorkflow).toHaveBeenCalledWith(
+        undefined,
+        "wv-wf-1",
+        {},
+        "group-1",
+        "try",
+      );
     });
   });
 

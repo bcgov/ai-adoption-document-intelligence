@@ -7,7 +7,7 @@
  * Re-run button that:
  *   1. fetches the original run's `initialCtx` from
  *      `GET /api/workflows/:id/runs/:runId/input-ctx` (US-151);
- *   2. starts a fresh Try via `POST /api/workflows/:id/runs` with the
+ *   2. starts a fresh Try via `POST /api/workflows/:id/tries` with the
  *      historical `initialCtx`;
  *   3. swaps the editor out of replay mode into the new live run via the
  *      `RunStateContext` setters (`setActiveRunId` + `setIsReplay(false)`).
@@ -61,8 +61,8 @@ export interface InputCtxResponse {
 }
 
 /**
- * Wire shape returned by `POST /api/workflows/:id/runs`. Mirrors the
- * backend's `StartRunResponse` DTO; locally typed here so this module
+ * Wire shape returned by `POST /api/workflows/:id/tries`. Mirrors the
+ * backend's `StartTryResponseDto`; locally typed here so this module
  * stays independent of `data/hooks/useWorkflows.ts` (which uses axios via
  * `apiService` — we use inline `fetch` for symmetry with the sibling
  * Phase 4 hooks and so we can branch on HTTP status code).
@@ -129,8 +129,13 @@ export async function fetchInputCtx(
 }
 
 /**
- * Starts a fresh Try via `POST /api/workflows/:id/runs` with the supplied
+ * Starts a fresh Try via `POST /api/workflows/:id/tries` with the supplied
  * `initialCtx`. Exported so unit tests can stub the network surface.
+ *
+ * D-17 — `/tries`, not `/runs`. Re-running to repopulate an evicted preview
+ * row is canvas iteration, not a production run: it must be stamped
+ * `RunTrigger = "try"` so the next Try can cancel it, and so it doesn't read
+ * as a production execution in run history.
  *
  * G-024 — `workflowVersionId` targets the version the user is LOOKING AT.
  * Omitting it makes the backend default to head, so a re-run offered while
@@ -143,7 +148,7 @@ export async function startRunWithCtx(
   initialCtx: Record<string, unknown>,
   workflowVersionId?: string,
 ): Promise<StartRunResponseBody> {
-  const url = `${API_BASE_URL}/workflows/${workflowId}/runs`;
+  const url = `${API_BASE_URL}/workflows/${workflowId}/tries`;
   const response = await builderFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

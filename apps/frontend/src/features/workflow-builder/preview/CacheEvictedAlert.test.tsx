@@ -2,7 +2,7 @@
  * Unit tests for `CacheEvictedAlert` (US-155 Scenarios 1 → 6).
  *
  * The Alert encapsulates the entire Re-run flow: input-ctx fetch, fresh
- * `/runs` POST, and `RunStateContext` state transitions. Tests stub
+ * `/tries` POST, and `RunStateContext` state transitions. Tests stub
  * `globalThis.fetch` so both endpoints are covered without MSW, mirroring
  * the convention used by `PreviewWidget.test.tsx` and the sibling Phase 4
  * hook tests.
@@ -11,7 +11,7 @@
  * where the scenario demands more than one assertion):
  *
  *   - Scenario 1: default Alert renders with Re-run button.
- *   - Scenario 3: clicking Re-run fetches input-ctx, POSTs `/runs`, and
+ *   - Scenario 3: clicking Re-run fetches input-ctx, POSTs `/tries`, and
  *                 toggles `setActiveRunId` + `setIsReplay(false)`.
  *   - Scenario 4: while the requests are in flight the button shows a
  *                 Loader, is disabled, and the Alert text reads
@@ -131,11 +131,11 @@ describe("Scenario 1 — default Alert + Re-run button", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario 3 — Re-run fetches input-ctx + POSTs /runs + toggles
+// Scenario 3 — Re-run fetches input-ctx + POSTs /tries + toggles
 // `setActiveRunId` + `setIsReplay(false)`.
 // ---------------------------------------------------------------------------
 
-describe("Scenario 3 — Re-run fetches input-ctx then POSTs /runs", () => {
+describe("Scenario 3 — Re-run fetches input-ctx then POSTs /tries", () => {
   it("calls the two endpoints in order and updates RunStateContext", async () => {
     const initialCtx = { documentUrl: "blob://group-1/doc-1.pdf" };
     fetchSpy.mockImplementation(
@@ -145,7 +145,7 @@ describe("Scenario 3 — Re-run fetches input-ctx then POSTs /runs", () => {
           return Promise.resolve(jsonResponse({ initialCtx }));
         }
         if (
-          u.endsWith(`/workflows/${WORKFLOW_ID}/runs`) &&
+          u.endsWith(`/workflows/${WORKFLOW_ID}/tries`) &&
           init?.method === "POST"
         ) {
           return Promise.resolve(
@@ -193,7 +193,9 @@ describe("Scenario 3 — Re-run fetches input-ctx then POSTs /runs", () => {
 
     const secondCallUrl = String(fetchSpy.mock.calls[1][0]);
     const secondCallInit = fetchSpy.mock.calls[1][1];
-    expect(secondCallUrl).toContain(`/workflows/${WORKFLOW_ID}/runs`);
+    // D-17 — repopulating an evicted preview row is canvas iteration, so
+    // it starts a Try (`/tries`), not a production run (`/runs`).
+    expect(secondCallUrl).toContain(`/workflows/${WORKFLOW_ID}/tries`);
     expect(secondCallInit?.method).toBe("POST");
     expect(secondCallInit?.body).toBe(JSON.stringify({ initialCtx }));
 
@@ -209,7 +211,7 @@ describe("Scenario 3 — Re-run fetches input-ctx then POSTs /runs", () => {
 
 describe("Scenario 4 — loading state on Re-run", () => {
   it("shows a Loader, disables the button, and flips the text to 'Re-running...'", async () => {
-    // Resolve input-ctx instantly; hold `/runs` POST open so we can
+    // Resolve input-ctx instantly; hold the `/tries` POST open so we can
     // inspect the in-flight UI state without races.
     let resolveRunsPost: (value: Response) => void = () => undefined;
     const runsPostPromise = new Promise<Response>((res) => {
@@ -291,7 +293,7 @@ describe("Scenario 5 — 404 input-ctx path", () => {
     const closeLink = screen.getByTestId(`cache-evicted-close-${NODE_ID}`);
     expect(closeLink).toBeInTheDocument();
 
-    // Only one fetch happened (input-ctx). No `/runs` POST attempted.
+    // Only one fetch happened (input-ctx). No `/tries` POST attempted.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 

@@ -25,8 +25,8 @@
  * existing Phase 2 Track 2 API-validation surface (paste body → see
  * workflowId inline, drawer stays open). The "Try" tab uses the same
  * JsonInput but submits with canvas-iteration semantics: cancel any
- * in-flight Try (server-side via the existing `POST /runs` cancel
- * extension), call `setActiveRunId` so the canvas's polling loops
+ * in-flight Try (server-side, via `POST /tries` — D-17), call
+ * `setActiveRunId` so the canvas's polling loops
  * start, and close the drawer immediately. The Upload section (US-123)
  * stays below the tabs and keeps its existing upload-then-run chain —
  * Tabs are JsonInput-only.
@@ -69,6 +69,7 @@ import {
   type RunSpecUploadSpec,
   type StartRunRequest,
   useStartWorkflowRun,
+  useStartWorkflowTry,
   useWorkflowRunSpec,
   useWorkflowVersions,
   type WorkflowRunSpec,
@@ -645,7 +646,7 @@ function UploadSourceSection({
 // ---------------------------------------------------------------------------
 // Try source section (Phase 4 — US-149). Uses the same JsonInput shape as
 // the API/Run tab but submits with canvas-iteration semantics: cancel
-// in-flight Try (server-side via `POST /runs` — extended in this story),
+// in-flight Try (server-side via `POST /tries` — D-17),
 // set `activeRunId` so the canvas's polling loops start BEFORE the drawer
 // closes, then close the drawer. No inline workflowId result — the canvas
 // is the result surface. Errors keep the drawer open with a red Alert.
@@ -672,7 +673,10 @@ function TrySourceSection({
   isHeadSelected,
   onClose,
 }: TrySourceSectionProps) {
-  const startRun = useStartWorkflowRun();
+  // D-17: `/tries`, not `/runs`. Only a run stamped `RunTrigger = "try"` is
+  // eligible for cancel-on-new-Try; posting to `/runs` stamped every canvas
+  // preview `"api"`, so the cancel swept an empty set every time.
+  const startRun = useStartWorkflowTry();
   // Soft-fail outside a `<RunStateProvider>` — keeps drawer-only unit
   // tests (US-149 Scenario 6 + the existing Phase 2 / Phase 8 suites)
   // rendering even though they don't mount the provider. Production

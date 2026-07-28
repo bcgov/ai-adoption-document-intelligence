@@ -41,7 +41,7 @@ Every section below calls out which tier it applies to. Hooks for 4.x land in 4.
 ```
 User clicks "Try" on the canvas
   ↓
-Frontend posts to POST /api/workflows/:id/runs (existing endpoint from Phase 2 Track 2)
+Frontend posts to POST /api/workflows/:id/tries (D-17 — see below)
   ↓
 Backend resolves to the workflow's draft head version, cancels any in-flight Try for this lineage
   ↓
@@ -55,6 +55,8 @@ Worker updates the per-node status map (queried by canvas at 1–2s cadence)
   ↓
 Canvas renders status badges + active edge highlight + per-node preview (read from cache endpoint)
 ```
+
+**Try has its own endpoint (D-17).** `POST /api/workflows/:id/tries` and `POST /api/workflows/:id/runs` share one implementation and differ only in the `RunTrigger` they stamp — `"try"` vs `"api"`. The trigger is assigned by the *route*, never by a request field, so an API caller cannot opt a production run into the cancel set that editor activity sweeps. This matters because the cancel is narrow by design (G-021): only `"try"`-stamped runs are eligible, so that feeding 240 documents through `/runs` does not have document #2 cancel document #1. Until D-17 the editor posted its previews to `/runs`, every Try was stamped `"api"`, and the cancel below always swept an empty set.
 
 **Cancel-on-new-Try.** When the user clicks Try while a prior Try is still running, the backend cancels the prior Temporal execution (`workflowHandle.cancel()`) before starting the new one. The canvas treats the prior run as "cancelled" — status badges freeze; preview widgets keep showing the prior cached outputs (cache rows survive cancellation). The cancel + restart cadence matches the "fast iteration" mental model that Phase 4 is built around.
 
