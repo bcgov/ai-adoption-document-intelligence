@@ -580,3 +580,36 @@ run starts, and a source node is the *most* likely thing to be the entry point.
 
 Not investigated further; logged rather than fixed because it was found while
 walking a different check.
+
+---
+
+# Parts 7, 8, 13 — design-time canvas (2026-07-27)
+
+| # | Verdict | Evidence |
+|---|---|---|
+| **7.2** Row tooltip | ✅ PASS | `segments: DocumentSegment[] — List of produced segments — each with segmentIndex, pageRange, blobKey, and pageCount.` — the plan's own example, verbatim. Required inputs with no bound source carry `data-needs-source="true"` and paint the amber ring; that includes the base-`Artifact` identifier port `groupId`, so the Phase-3 clause holds |
+| **7.4** Node-to-node mismatch allowed | ✅ PASS | dragging `document.split` (`DocumentSegment[]`) → `mistralOcr.process` (`PreparedFile`) node-to-node creates the wire with **no** rejection and **no** notice — the gesture only makes a control edge and never kind-checks at drop time |
+| **8.9** Drag-to-bind (port-to-port) | ✅ PASS | `mistralOcr.process.ocrResult` → `document.classify.ocrResult` produces `wire:document_classify_1:ocrResult` (class `wb-data-wire`) **plus** a control edge, and the target's ring clears (`data-needs-source` `true`→`false`). *`data-provenance="pinned"` and `metadata.lockedInputPorts` were not read by this probe — the attribute is not on the `.react-flow__edge` group.* |
+| **8.10** (re-confirmed incidentally) | ✅ PASS | the same gesture with `document.split.segments` (`DocumentSegment[]`) → `document.classify.segment` (`DocumentSegment`) is **rejected**: *"This input needs DocumentSegment — DocumentSegment (list) can't be used here"*. Cardinality is strict, and the copy uses post-taxonomy kind names |
+| **13.1** Add `source.api` | ✅ PASS | see **D-18** |
+
+## Probe-technique notes (three near-misses, all mine)
+
+Worth writing down, because each cost a round-trip and each would have read as
+a product defect:
+
+1. **The amber ring and the tooltip live on the port ROW**
+   (`[data-testid="port-row-<node>-<handle>"]`), not on the `.react-flow__handle`.
+   Reading `data-needs-source` off the handle returns `null` everywhere and
+   looks exactly like "no port ever wears the ring".
+2. **A connect drag must grab the handle dot at its OUTER edge.** The dot
+   straddles the card border and its card-side half paints *under* the
+   port-row content, so a centre mousedown lands on a label span and the drag
+   silently does nothing. `tests/e2e/workflow-builder/helpers/canvas.ts` already
+   documents this — reuse `dragConnect` / `dragConnectPorts` rather than
+   re-deriving the gesture.
+3. **Fit the view before dragging.** Palette-added nodes land partly under the
+   palette overlay; the mousedown hits the palette, not the canvas.
+
+Also: `activity-palette-entry-<activityType>` is a stable palette testid. Use
+it instead of matching display text.
