@@ -543,8 +543,8 @@ Prereq: a workflow **saved 2+ times**.
 - [x] **12.1 History drawer.** **More ▸ History** (disabled in create mode). **Pass:** versions newest-first with `v{n}` badge + timestamp; head row shows **head** badge; per-row **Revert** / **Compare to head** (disabled on head).
 - [x] **12.2 Revert.** Revert to an older version → confirm modal. **Pass:** `POST /:id/revert-head`; canvas reloads reverted config; that row becomes head; success toast.
 - [x] **12.3 Compare to head.** **Pass:** modal with two read-only JSON blocks side-by-side (`v{n}` vs `head`); no structural diff (by design).
-- [ ] **12.4 Run a specific version.** Run drawer → **Version** Select → pick an older version. **Pass:** schema + prefilled JSON refetch for that version; Run includes `workflowVersionId`; backend validates against the **selected version’s** schema.
-- [ ] **12.5 Library version pinning.** LibraryPickerModal → after picking, **Version** Select → pick `v2`. **Pass:** stamps `workflowRef={…, version:2}`; ChildWorkflow settings shows a `v2`/`head` badge + Change version; persists.
+- [x] **12.4 Run a specific version.** Run drawer → **Version** Select → pick an older version. **Pass:** schema + prefilled JSON refetch for that version; Run includes `workflowVersionId`; backend validates against the **selected version’s** schema.
+- [x] **12.5 Library version pinning.** LibraryPickerModal → after picking, **Version** Select → pick `v2`. **Pass:** stamps `workflowRef={…, version:2}`; ChildWorkflow settings shows a `v2`/`head` badge + Change version; persists.
 - [x] **12.6 Version APIs.**
   ```bash
   curl -s 'http://localhost:3002/api/workflows/<ID>/versions' -H "x-api-key: <KEY>"

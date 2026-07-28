@@ -26,13 +26,19 @@ Create, Publish, Author, Drag, Declare); only **10 of 16 parts** carry a
 
 ## G1 — Demos to seed (`scripts/seed-feature-demos.mjs`)
 
+> **D1 + D4 shipped.** The Part-10 library demo now declares a typed signature
+> (input *Prepared file* `PreparedFile`, output *OCR result* `OcrResult`) and
+> carries **two versions**. That unblocked 7.8, 10.4, 12.4 and 12.5 in one
+> change — the childWorkflow summary now reads `V2 | 1 INPUT | 1 OUTPUT` with
+> both kinds, and the version select offers `head / v2 / v1`.
+
 | # | Demo | Covers | Why it's a gap | Size |
 |---|---|---|---|---|
-| **D1** | **Library workflow with typed ports** — declare an input `kind: PreparedFile` and an output `kind: DocumentContent` | **7.8**, and enriches Part 10 | 7.8 is the only check for typed library ports, and no seeded library declares a `kind`. I had to author `WALK-7.8 typed ports` to walk it at all | S |
+| ~~**D1**~~ ✅ **DONE** | **Library workflow with typed ports** — declare an input `kind: PreparedFile` and an output `kind: DocumentContent` | **7.8**, and enriches Part 10 | 7.8 is the only check for typed library ports, and no seeded library declares a `kind`. I had to author `WALK-7.8 typed ports` to walk it at all | S |
 | **D2** | **Workflow referencing a deleted `dyn.*` lineage**, seeded already-deleted | **14.8** (deleted half) | The plan asks you to delete a lineage yourself — destructive, and it consumes the Part-14 demo for the next walker. Seeded in the end state, the user just opens it and sees the red **DELETED** badge, the settings alert and the validator error | S |
 | **D3** | **Runnable dynamic node** — extend the existing Part-14 demo rather than add one | **14.9** | 14.9 says "build `source.api → dyn.uppercase-url`". The existing Part-14 demo shows the DYN pill and script editor but is not wired to run. Also the natural home for **D-12** once the preview message is fixed | M |
 
-| **D4** | **Part-10 demo library needs declared ports and a second version** | **7.8**, **12.5**, **10.4** | The seeded `Demo — Library workflow (Part 10)` declares **0 inputs / 0 outputs**, so the childWorkflow signature summary renders empty — nothing to look at. It also has **only one version**, so 12.5's "pick `v2` → stamps `version:2`" cannot be walked at all. Giving this one demo typed ports and a v2 closes D1 as well | S |
+| ~~**D4**~~ ✅ **DONE** | **Part-10 demo library needs declared ports and a second version** | **7.8**, **12.5**, **10.4** | The seeded `Demo — Library workflow (Part 10)` declares **0 inputs / 0 outputs**, so the childWorkflow signature summary renders empty — nothing to look at. It also has **only one version**, so 12.5's "pick `v2` → stamps `version:2`" cannot be walked at all. Giving this one demo typed ports and a v2 closes D1 as well | S |
 
 | **D5** | **A workflow with BOTH `source.api` and `source.upload`** | **13.6** | The Part-13 demo has only an upload source, so the drawer's documented "both present → both render" case cannot be observed at all | S |
 | **D6** | **A deliberately-invalid two-source workflow**, seeded already-broken | **13.2**, **13.7** | 13.7 asks you to add a second source and watch the validator refuse it. Seeded in the end state the user opens it and reads the error — no destructive step, and it stays walkable | S |

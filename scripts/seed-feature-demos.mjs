@@ -574,7 +574,7 @@ function controlFlowConfig(name) {
         },
         timeout: "24h",
         onTimeout: "fail",
-        ...pos(460, 520),
+        ...pos(970, 80),
       },
       collect: {
         id: "collect",
@@ -599,7 +599,18 @@ function controlFlowConfig(name) {
     },
     edges: [
       { id: "map-join", source: "eachDoc", target: "collect", type: "normal" },
-      { id: "join-store", source: "collect", target: "store", type: "normal" },
+      // G-070: the human gate sits AFTER the join, outside the loop body. A
+      // gate inside a map body cannot work — every item would register the
+      // same signal name and an approval has no way to say which item it is
+      // for — and the validator now refuses it, so the demo must model the
+      // shape that actually runs: approve the collected batch, then store.
+      {
+        id: "join-approve",
+        source: "collect",
+        target: "approve",
+        type: "normal",
+      },
+      { id: "approve-store", source: "approve", target: "store", type: "normal" },
       {
         id: "route-invoice",
         source: "routeByType",
@@ -621,10 +632,12 @@ function controlFlowConfig(name) {
         target: "extractOcr",
         type: "normal",
       },
+      // Unrecognised type: skip the per-item OCR work and fall through to the
+      // body's exit node.
       {
         id: "route-default",
         source: "routeByType",
-        target: "approve",
+        target: "extractOcr",
         type: "conditional",
         condition: "default",
       },
@@ -1347,15 +1360,55 @@ const DEMOS = [
   {
     key: "library",
     title: "Library workflow (Part 10)",
-    config: (n) => linearConfig(n),
+    // 7.8 / 10.4 / 12.5 — a library is only interesting once it declares a
+    // SIGNATURE. Without typed ports the childWorkflow summary a reader is
+    // sent to look at renders "0 INPUTS | 0 OUTPUTS", and 7.8's kind
+    // annotations have nothing to annotate. Two versions so 12.5's
+    // "pick v2 → stamps version:2" has a v2 to pick.
+    config: (n) => withLibraryPorts(linearConfig(n)),
+    secondVersion: (n) =>
+      withLibraryPorts(linearConfig(n, "Submit to Azure OCR (v2 — edited)")),
     kind: "library",
     steps: [
       "This is a **library** workflow (a reusable building block, not a top-level runnable).",
       "Open the workflows list and switch to the **Library** view/kind — this entry appears there.",
+      "It declares a **typed signature**: an input *Prepared file* (`PreparedFile`) and an output *OCR result* (`OcrResult`). Those kinds show in the library port editor, in the library picker's preview, and on a `childWorkflow` node's settings summary (7.8).",
       "In another workflow you can drop a **Child workflow** node and pick this from the Library picker.",
+      "It has **two versions**, so after picking it you can use the **Version** select to pin `v2` instead of tracking head (12.5).",
     ],
   },
 ];
+
+/**
+ * Give a library config the declared signature `metadata.inputs` /
+ * `metadata.outputs` that makes it referencable with kinds (US-099/US-100).
+ * Paths must resolve to a declared ctx key or a node output in the same graph —
+ * the backend refuses the save otherwise.
+ */
+function withLibraryPorts(config) {
+  return {
+    ...config,
+    metadata: {
+      ...config.metadata,
+      inputs: [
+        {
+          label: "Prepared file",
+          path: "preparedFileData",
+          type: "object",
+          kind: "PreparedFile",
+        },
+      ],
+      outputs: [
+        {
+          label: "OCR result",
+          path: "ocrResult",
+          type: "object",
+          kind: "OcrResult",
+        },
+      ],
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Dynamic-node demo (Part 14) — publish-time needs the deno-runner toolchain
@@ -1510,10 +1563,14 @@ async function createDemo(demo) {
     }),
   );
   if (demo.secondVersion) {
+    // G-063: the update endpoint requires `expectedVersion` (optimistic
+    // concurrency) and its DTO is whitelisted, so `groupId` — which is fixed
+    // at create time and not updatable — is now a hard 400 rather than a
+    // no-op. A freshly created lineage is always at v1.
     await api("PUT", `/api/workflows/${created.id}`, {
       name,
       config: withArrangeOnLoad(demo.secondVersion(name)),
-      groupId: GROUP_ID,
+      expectedVersion: created.version ?? 1,
     });
   }
   console.log(`  ✓ ${demo.key.padEnd(14)} ${created.id}`);

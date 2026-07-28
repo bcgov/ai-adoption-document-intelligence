@@ -196,11 +196,13 @@ npm run seed:demos
 
 ## Library workflow (Part 10)
 
-**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10/edit](http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10/edit)
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10-2/edit](http://localhost:3000/workflows/by-slug/demo-library-workflow-part-10-2/edit)
 
 1. This is a **library** workflow (a reusable building block, not a top-level runnable).
 1. Open the workflows list and switch to the **Library** view/kind — this entry appears there.
+1. It declares a **typed signature**: an input *Prepared file* (`PreparedFile`) and an output *OCR result* (`OcrResult`). Those kinds show in the library port editor, in the library picker's preview, and on a `childWorkflow` node's settings summary (7.8).
 1. In another workflow you can drop a **Child workflow** node and pick this from the Library picker.
+1. It has **two versions**, so after picking it you can use the **Version** select to pin `v2` instead of tracking head (12.5).
 
 ---
 
