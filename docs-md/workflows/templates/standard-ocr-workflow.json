@@ -157,7 +157,7 @@
           "edgeId": "edge-switch-to-humanGate"
         }
       ],
-      "defaultEdge": "edge-switch-to-store"
+      "defaultEdge": "edge-switch-to-complete"
     },
     "humanReview": {
       "id": "humanReview",
@@ -174,7 +174,17 @@
         }
       },
       "timeout": "24h",
-      "onTimeout": "fail"
+      "onTimeout": "continue"
+    },
+    "markComplete": {
+      "id": "markComplete",
+      "type": "activity",
+      "label": "Mark Complete",
+      "activityType": "document.updateStatus",
+      "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
+      "parameters": { "status": "completed" },
+      "timeout": { "startToClose": "30s" },
+      "retry": { "maximumAttempts": 5 }
     },
     "storeResults": {
       "id": "storeResults",
@@ -199,8 +209,8 @@
     { "id": "e8", "source": "checkConfidence", "target": "persistOcr", "type": "normal" },
     { "id": "e-persist-to-switch", "source": "persistOcr", "target": "reviewSwitch", "type": "normal" },
     { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
-    { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
-    { "id": "e11", "source": "humanReview", "target": "storeResults", "type": "normal" }
+    { "id": "edge-switch-to-complete", "source": "reviewSwitch", "target": "markComplete", "type": "conditional", "condition": "default" },
+    { "id": "e12", "source": "humanReview", "target": "markComplete", "type": "normal" }
   ],
   "nodeGroups": {
     "ocr-extraction": {
@@ -240,10 +250,10 @@
     },
     "human-review": {
       "label": "Human Review",
-      "description": "Wait for human approval when confidence is low",
+      "description": "Optionally wait for human approval after results are stored (runs only when confidence is low)",
       "icon": "human",
       "color": "#ef4444",
-      "nodeIds": ["humanReview"],
+      "nodeIds": ["humanReview", "markComplete"],
       "exposedParams": [
         {
           "label": "Review Timeout",
@@ -251,13 +261,6 @@
           "type": "duration"
         }
       ]
-    },
-    "store": {
-      "label": "Store Results",
-      "description": "Save processed results to database",
-      "icon": "save",
-      "color": "#8b5cf6",
-      "nodeIds": ["storeResults"]
     }
   }
 }
