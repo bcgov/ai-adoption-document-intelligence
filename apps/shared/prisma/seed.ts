@@ -166,6 +166,7 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
 const SEED_WORKFLOW_ID = "seed-workflow-standard-ocr";
 const SEED_WORKFLOW_ID_MISTRAL = "seed-workflow-standard-ocr-mistral";
 const SEED_WORKFLOW_ID_MULTI_PAGE = "seed-workflow-multi-page-report";
+const SEED_WORKFLOW_ID_SDPR = "seed-workflow-standard-ocr-sdpr";
 const SEED_DATASET_ID = "seed-dataset-invoices";
 const SEED_DATASET_ID_2 = "seed-dataset-receipts";
 const SEED_DATASET_ID_3 = "seed-dataset-forms";
@@ -518,6 +519,12 @@ async function seedBenchmarkingData() {
       "utf-8",
     ),
   );
+  const standardOcrSdprConfig = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, "../../../docs-md/workflows/templates/standard-ocr-workflow-sdpr.json"),
+      "utf-8",
+    ),
+  );
 
   const seedLineageVersion = async (
     lineageId: string,
@@ -578,6 +585,14 @@ async function seedBenchmarkingData() {
     mistralStandardOcrConfig.metadata.description,
     mistralStandardOcrConfig,
     "standard-ocr-mistral",
+  );
+
+  await seedLineageVersion(
+    SEED_WORKFLOW_ID_SDPR,
+    standardOcrSdprConfig.metadata.name,
+    standardOcrSdprConfig.metadata.description,
+    standardOcrSdprConfig,
+    "standard-ocr-sdpr",
   );
 
   // Create test dataset files with sample data
