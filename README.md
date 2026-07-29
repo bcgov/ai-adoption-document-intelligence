@@ -214,12 +214,18 @@ Before setting up the development environment, ensure you have:
 
 - **[Node.js](https://nodejs.org/)** 24.x or later (see `.nvmrc`; matches GitHub Actions and Docker builds)
 - **[npm](https://www.npmjs.com/)** 10.x or later
-- **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Podman/Docker for containerized database)
-- **[Podman](https://podman.io/) or Docker** (recommended for local services)
+- **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Docker for containerized database)
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (required on Windows/Mac — includes Docker Compose; ensure it is running before any `docker` commands).
 - **[Python](https://www.python.org/)** 3.12+ (optional, for image-service)
 - **[uv](https://github.com/astral-sh/uv)** (optional, for Python dependency management)
 - **[Git](https://git-scm.com/)** for version control
 - **Temporal Server** (via Docker Compose or local installation)
+
+**Windows developers:** Run all `npm` and Node-based commands (install, dev, migrate, seed, generate) in **WSL** (Ubuntu). Docker, Git, and VS Code can remain on Windows/PowerShell. WSL integrates with Docker Desktop automatically — enable it under Docker Desktop → Settings → Resources → WSL Integration.
+
+To install WSL: open PowerShell as Administrator and run `wsl --install`, then restart. Install Node 24 in WSL via nvm (see step 1 below).
+
+> **Performance note:** Running npm commands against `/mnt/c/...` (Windows filesystem mounted in WSL) is significantly slower due to cross-filesystem I/O. For best performance, clone the repo inside the WSL filesystem (e.g. `~/dev/ai-adoption-document-intelligence`) and open it in VS Code using the Remote - WSL extension.
 
 **Azure Services (Optional):**
 - Azure Document Intelligence subscription (for OCR)
@@ -240,43 +246,31 @@ nvm install    # reads .nvmrc
 nvm alias default 24
 nvm use
 
-# Install all dependencies
+# Install all dependencies (run in WSL on Windows)
 npm run install:all
 ```
 
-### 2. Database & Storage Setup
+### 2. Configure Environment
+
+Copy `.env.sample` to each app directory and fill in your values:
 
 ```bash
-# From repo root: start PostgreSQL and MinIO (docker compose or npm run pod:base)
-docker compose --profile infra up -d
-# This starts:
-#   PostgreSQL on localhost:5432
-#   MinIO API on localhost:19000
-#   MinIO Console on localhost:19001 (user: minioadmin / minioadmin)
-
-cd apps/backend-services
-
-# Create the environment configuration (no sample file is committed).
-# Minimum for local dev — set your database connection string:
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
-$EDITOR .env
-
-# Keep sensitive keys out of the repo .env — use the external override file
-# (~/.config/bcgov-di/backend-services.env); see docs-md/operations/local-dev-secrets.md
-
-# Run migrations, then generate the Prisma client
-npm run db:migrate
-npm run db:generate
-
-# (Optional) Seed database
-npm run db:seed
+cp .env.sample apps/backend-services/.env
+cp .env.sample apps/temporal/.env
+cp .env.sample apps/frontend/.env
 ```
 
-### 3. Configure Services
+**Minimum required keys** to get the backend running and seeded:
 
-**Backend Services Configuration:**
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
+SEED_USER_SUB=<Your GUID>@azureidir   # find this on the SSO integrations page
+SEED_USER_EMAIL=<Email associated with your IDIR>
+```
 
-Edit `apps/backend-services/.env`:
+All other keys in `.env.sample` have working local defaults or are production-only. The sections below document the full set of available keys per app.
+
+**`apps/backend-services/.env`** (required):
 
 ```env
 # Server
@@ -320,93 +314,129 @@ ENABLE_BENCHMARK_QUEUE=true
 # SSO_CLIENT_SECRET=your-client-secret
 ```
 
-**Frontend Configuration:**
-
-Edit `apps/frontend/.env`:
+**Frontend Configuration** — edit `apps/frontend/.env`:
 
 ```env
-# API Configuration (empty for Vite proxy in development)
 VITE_API_BASE_URL=
-
-# Application Configuration
 VITE_APP_NAME=Document Intelligence Platform
 VITE_APP_VERSION=1.0.0
 ```
 
 Note: All OAuth/OIDC configuration is handled by the backend. The frontend has no OIDC settings.
 
-**Temporal Worker Configuration:**
-
-Edit `apps/temporal/.env`:
+**Temporal Worker Configuration** — edit `apps/temporal/.env`:
 
 ```env
-# Temporal Server
 TEMPORAL_ADDRESS=localhost:7233
 TEMPORAL_NAMESPACE=default
 TEMPORAL_TASK_QUEUE=ocr-processing
-
-# Database (same as backend)
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_doc_intelligence?schema=public
-
-# Azure Document Intelligence (OCR)
 AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://<your-resource>.cognitiveservices.azure.com
 AZURE_DOCUMENT_INTELLIGENCE_API_KEY=<your-api-key>
-
-# Blob Storage (must match backend-services config)
 BLOB_STORAGE_PROVIDER=minio
 MINIO_ENDPOINT=http://localhost:19000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 ```
 
-### 4. Start Temporal Server
+### 3. Start Infrastructure (Docker)
+
+**Option A — VS Code `Dev: all` task **
+
+   The `Dev: all` task starts Docker infrastructure, waits for all containers to be healthy, then starts the frontend, backend, and Temporal worker automatically on workspace open.
+
+   **First-time setup:**
+   1. Complete steps 3 and 4 first (Docker infra up, then migrate/seed from WSL)
+   2. Enable automatic tasks: **Ctrl+Shift+P** → `Manage Automatic Tasks` → `Allow Automatic Tasks`
+   3. Reload the window: **Ctrl+Shift+P** → `Developer: Reload Window` — this triggers `Dev: all`
+
+   **Subsequent starts:** Just open VS Code (or reload the window) — `Dev: all` handles Docker and all services automatically. Steps 3 and 4 do not need to be repeated unless the database is reset.
+
+> **Options B/C (command line):** Run the following manually in PowerShell or WSL:
 
 ```bash
-# From repo root
-docker compose --profile temporal up -d
-
-# Verify Temporal is running
-temporal server status
+docker compose --profile infra --profile temporal up -d
+# Starts: postgres, minio, temporal-postgresql, minio-init, temporal, temporal-ui
 ```
+
+Verify all containers are healthy:
+
+```bash
+docker ps
+```
+
+| Service       | Host Port |
+|---------------|-----------|
+| PostgreSQL    | 5432      |
+| MinIO API     | 19000     |
+| MinIO Console | 19001     |
+| Temporal      | 7233      |
+| Temporal UI   | 8088      |
+
+- http://localhost:8088 — Temporal UI
+- http://localhost:19001 — MinIO Console (user: `minioadmin` / `minioadmin`)
+
+### 4. Database Setup (run once before starting services)
+
+Requires only PostgreSQL to be running (Docker infra from step 3) — the backend and frontend do not need to be started yet. Run in WSL on Windows:
+
+```bash
+# Apply all pending migrations
+npm run db:migrate
+
+# Generate the Prisma TypeScript client
+npm run db:generate
+
+# Seed reference data (recommended)
+# Login creates a user automatically from the Keycloak JWT, so seeding is not required
+# for authentication itself. However, without seeding: group-gated features may be blocked,
+# the seeded API key will not exist, and template models / benchmark reference data will be missing.
+npm run db:seed
+```
+
+**Verify the seed ran correctly** — open Prisma Studio:
+
+```bash
+cd apps/backend-services
+npm run db:studio   # opens http://localhost:5555
+```
+
+In the `user` table you should see 3 rows; `group` should have 1 row; `api_key` should have 1 row; `template_model` should have several rows. If you only see 1 user and no group/api_key rows, the seed did not run with a valid `SEED_USER_SUB`.
 
 ### 5. Start Services
 
-**Option A: Start All Services (Recommended)**
+**Option A — VS Code `Dev: all` task **
+
+if Dev:all task has run, then skip this step 
+
+**Option B — All services via command line (WSL)**
 
 ```bash
-# From project root - starts backend, frontend, and temporal worker
+# From repo root — starts backend, frontend, and temporal worker
 npm run dev
 ```
 
-**Option B: Start Services Individually**
+**Option C — Start services individually (WSL)**
 
 ```bash
-# Terminal 1: Backend Services
-npm run dev:backend
-# Runs on http://localhost:3002
+# Terminal 1: Backend
+npm run dev:backend      # http://localhost:3002
 
 # Terminal 2: Frontend
-npm run dev:frontend
-# Runs on http://localhost:3000
+npm run dev:frontend     # http://localhost:3000
 
 # Terminal 3: Temporal Worker
-cd apps/temporal
-npm run dev
+cd apps/temporal && npm run dev
 
-# Terminal 4: Image Service (Optional)
-cd apps/image-service
-uv venv
-uv sync
-uv run main.py
 ```
 
 ### 6. Access the Application
 
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3002
-- **Swagger Documentation**: http://localhost:3002/api
-- **Temporal UI**: http://localhost:8088 (when `docker compose --profile temporal up -d`)
+- **Swagger API Docs**: http://localhost:3002/api
+- **Temporal UI**: http://localhost:8088
 - **Prisma Studio**: `cd apps/backend-services && npm run db:studio`
+
 
 ## Development Workflow
 
@@ -933,7 +963,7 @@ The platform is designed for enterprise and government deployments:
 **Database Connection Errors:**
 ```bash
 # Check PostgreSQL is running
-podman ps  # or: docker ps
+docker ps
 
 # Verify connection string
 echo $DATABASE_URL

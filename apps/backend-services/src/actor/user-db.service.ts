@@ -37,6 +37,17 @@ export class UserDbService {
       });
     }
     const userHelper = async (tx: Prisma.TransactionClient) => {
+      // Safety net: in practice user.create can hit a unique constraint on email even when
+      // the seeded user exists (exact cause unconfirmed — likely .env not copied to
+      // apps/backend-services/.env before seeding, or a timing edge case). Rather than
+      // fail the login, fall back to matching by email and updating the id to the JWT sub.
+      const existingByEmail = await tx.user.findFirst({ where: { email } });
+      if (existingByEmail != null) {
+        return await tx.user.update({
+          where: { id: existingByEmail.id },
+          data: { id: sub, email, last_login_at: lastLogin },
+        });
+      }
       const actor = await tx.actor.create({});
       return await tx.user.create({
         data: {
