@@ -3,6 +3,11 @@ import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
+  DocumentCanvas,
+  type DocumentCanvasBox,
+  type DocumentCanvasHandle,
+} from "../../../../components/document/DocumentCanvas";
+import {
   Accordion,
   Button,
   Checkbox,
@@ -17,10 +22,11 @@ import {
   Textarea,
   TextInput,
   Title,
-  useElementSize,
 } from "../../../../ui";
-import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
@@ -34,7 +40,6 @@ import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { SnippetView } from "../components/SnippetView";
 import { useAutoAdvance } from "../hooks/useAutoAdvance";
-import { useFieldFocus } from "../hooks/useFieldFocus";
 import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
@@ -171,11 +176,6 @@ export const ReviewWorkspacePage: FC = () => {
   const documentUrl = docState.url;
   const isNormalizedPdf = docState.isNormalizedPdf;
   const [currentPage, setCurrentPage] = useState(1);
-  const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
-  } = useElementSize();
   const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(
     null,
   );
@@ -202,6 +202,8 @@ export const ReviewWorkspacePage: FC = () => {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
+  const documentCanvasRef = useRef<DocumentCanvasHandle>(null);
+  const { advance } = useAutoAdvance();
 
   const queuePath = location.pathname.match(
     /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
@@ -219,10 +221,6 @@ export const ReviewWorkspacePage: FC = () => {
     clear: clearUndoStack,
   } = useUndoRedo(sessionId);
 
-  const { advance } = useAutoAdvance();
-
-  // Seed correctionMap from previously saved corrections so that both
-  // readOnly "View" and reopened-for-editing sessions show prior edits.
   useEffect(() => {
     if (corrections.length > 0 && Object.keys(correctionMap).length === 0) {
       const seeded: typeof correctionMap = {};
@@ -290,15 +288,13 @@ export const ReviewWorkspacePage: FC = () => {
     };
   }, [session?.document?.id]);
 
-  const { imageUrl: pdfPageImageUrl, pageSize: pdfPageSize } = usePdfPageImage(
+  const { imageUrl: pdfPageImageUrl } = usePdfPageImage(
     isNormalizedPdf ? documentUrl : null,
     currentPage,
   );
 
-  // Canvas gets the rendered PDF page image, or raw image URL for non-PDFs
+  // Load the rendered PDF page image as HTMLImageElement for SnippetView
   const canvasImageUrl = isNormalizedPdf ? pdfPageImageUrl : documentUrl;
-
-  // Load the current canvas image as an HTMLImageElement for SnippetView
   useEffect(() => {
     if (!canvasImageUrl) {
       setDocumentImage(null);
@@ -309,34 +305,8 @@ export const ReviewWorkspacePage: FC = () => {
     img.onload = () => setDocumentImage(img);
   }, [canvasImageUrl]);
 
-  // Compute the scale factor for converting OCR inch coords to image pixels.
-  // Needed by focusField and boxes. Stable across renders for the same page.
-  const coordScale = useMemo(() => {
-    if (!isNormalizedPdf || !pdfPageSize) return 1;
-    const ocrResult = session?.document?.ocr_result as
-      | {
-          analyzeResult?: {
-            pages?: Array<{
-              width?: number;
-              height?: number;
-              pageNumber?: number;
-            }>;
-          };
-        }
-      | undefined;
-    const ocrPage = ocrResult?.analyzeResult?.pages?.find(
-      (p) => (p.pageNumber ?? 1) === currentPage,
-    );
-    if (ocrPage?.width) {
-      return pdfPageSize.width / ocrPage.width;
-    }
-    return 144; // 72 pts/inch * RENDER_SCALE(2)
-  }, [
-    isNormalizedPdf,
-    pdfPageSize,
-    session?.document?.ocr_result,
-    currentPage,
-  ]);
+  // Scale OCR inch coordinates to rendered image pixels for SnippetView
+  const coordScale = isNormalizedPdf ? RENDER_SCALE * 72 : 1;
 
   const fields = useMemo<ReviewField[]>(() => {
     const ocrFields = session?.document?.ocr_result?.fields;
@@ -406,52 +376,26 @@ export const ReviewWorkspacePage: FC = () => {
     return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
   }, [sortedFields, fieldFilter]);
 
-  // Scale field coordinates to image pixels for useFieldFocus panTo
-  const scaledFields = useMemo(
-    () =>
-      fields.map((f) => ({
-        ...f,
-        boundingBox: f.boundingBox
-          ? {
-              polygon: f.boundingBox.polygon.map((p) => ({
-                x: p.x * coordScale,
-                y: p.y * coordScale,
-              })),
-            }
-          : undefined,
-      })),
-    [fields, coordScale],
-  );
-
-  const { canvasRef: fieldFocusCanvasRef, focusField } =
-    useFieldFocus(scaledFields);
-
-  const boxes = useMemo(() => {
-    const fieldsOnPage = filteredSortedFields.filter(
-      (f) =>
-        f.pageNumber === currentPage &&
-        f.boundingBox &&
-        f.boundingBox.polygon.length >= 2,
-    );
-
-    return fieldsOnPage.map((field) => {
-      const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
-      const isActive = field.fieldKey === activeFieldKey;
-      return {
-        id: field.fieldKey,
-        box: {
-          polygon: field.boundingBox!.polygon.map((p) => ({
-            x: p.x * coordScale,
-            y: p.y * coordScale,
-          })),
-        },
-        label: field.fieldKey,
-        color: borderCss,
-        confidence: field.confidence,
-        isActive,
-      };
-    });
-  }, [filteredSortedFields, currentPage, activeFieldKey, coordScale]);
+  const boxes = useMemo<DocumentCanvasBox[]>(() => {
+    return filteredSortedFields
+      .filter(
+        (f) =>
+          f.pageNumber === currentPage &&
+          f.boundingBox &&
+          f.boundingBox.polygon.length >= 2,
+      )
+      .map((field) => {
+        const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+        return {
+          id: field.fieldKey,
+          polygon: field.boundingBox!.polygon.flatMap((p) => [p.x, p.y]),
+          label: field.fieldKey,
+          color: borderCss,
+          confidence: field.confidence,
+          isActive: field.fieldKey === activeFieldKey,
+        };
+      });
+  }, [filteredSortedFields, currentPage, activeFieldKey]);
 
   // Focus first field input when a new session loads
   useEffect(() => {
@@ -484,7 +428,7 @@ export const ReviewWorkspacePage: FC = () => {
       const firstField = filteredSortedFields[0];
       setActiveFieldKey(firstField.fieldKey);
       requestAnimationFrame(() => {
-        focusField(firstField.fieldKey);
+        documentCanvasRef.current?.focusBox(firstField.fieldKey);
       });
     }
   }, [documentImage]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -622,7 +566,7 @@ export const ReviewWorkspacePage: FC = () => {
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
-          focusField(nextField.fieldKey);
+          documentCanvasRef.current?.focusBox(nextField.fieldKey);
         }
         // Focus the input/textarea/checkbox after React re-renders
         requestAnimationFrame(() => {
@@ -639,7 +583,7 @@ export const ReviewWorkspacePage: FC = () => {
         });
       }
     },
-    [filteredSortedFields, activeFieldKey, viewMode, focusField],
+    [filteredSortedFields, activeFieldKey, viewMode],
   );
 
   const handleUndo = useCallback(() => {
@@ -901,44 +845,21 @@ export const ReviewWorkspacePage: FC = () => {
                 overflow: "hidden",
               }}
             >
-              <div
-                ref={canvasRef}
-                style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-              >
-                {!canvasImageUrl ? (
-                  <Stack
-                    align="center"
-                    justify="center"
-                    style={{ height: "100%" }}
-                  >
-                    <Text size="sm" c="dimmed">
-                      {documentUrl
-                        ? "Loading document..."
-                        : "Document preview is unavailable."}
-                    </Text>
-                  </Stack>
-                ) : (
-                  canvasWidth > 0 &&
-                  canvasHeight > 0 && (
-                    <AnnotationCanvas
-                      ref={fieldFocusCanvasRef}
-                      imageUrl={canvasImageUrl}
-                      width={canvasWidth}
-                      height={canvasHeight}
-                      boxes={boxes}
-                      activeTool={CanvasTool.SELECT}
-                      verticalAlign="top"
-                      fitPadding={1}
-                      onBoxSelect={(boxId) => {
-                        setActiveFieldKey(boxId);
-                        if (boxId) {
-                          focusField(boxId);
-                        }
-                      }}
-                    />
-                  )
-                )}
-              </div>
+              <DocumentCanvas
+                ref={documentCanvasRef}
+                imageUrl={documentUrl}
+                pageNumber={currentPage}
+                boxes={boxes}
+                activeTool={CanvasTool.SELECT}
+                verticalAlign="top"
+                fitPadding={1}
+                onBoxSelect={(boxId) => {
+                  setActiveFieldKey(boxId ?? null);
+                  if (boxId) {
+                    documentCanvasRef.current?.focusBox(boxId);
+                  }
+                }}
+              />
             </Paper>
 
             <Paper
@@ -1020,7 +941,7 @@ export const ReviewWorkspacePage: FC = () => {
                         }}
                         onClick={() => {
                           setActiveFieldKey(field.fieldKey);
-                          focusField(field.fieldKey);
+                          documentCanvasRef.current?.focusBox(field.fieldKey);
                         }}
                       >
                         <Stack gap="xs">
