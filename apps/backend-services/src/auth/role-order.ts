@@ -5,6 +5,7 @@ import { GroupRole } from "@generated/client";
  * Higher numbers represent greater privilege.
  */
 export const ROLE_ORDER: Record<GroupRole, number> = {
-  [GroupRole.MEMBER]: 0,
-  [GroupRole.ADMIN]: 1,
+  [GroupRole.REVIEWER]: 0,
+  [GroupRole.MEMBER]: 1,
+  [GroupRole.ADMIN]: 2,
 };

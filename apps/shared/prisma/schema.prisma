@@ -959,6 +959,7 @@ enum GroupMembershipRequestStatus {
 enum GroupRole {
   ADMIN
   MEMBER
+  REVIEWER
 }
 
 // ========== REFERENCE DATA TABLES ==========
