@@ -3,8 +3,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { GroupRole } from "@/generated";
-import { ROLE_ORDER } from "./role-order";
+import { Permission, RoleClaimsMap } from "./role-permissions";
 import { ResolvedIdentity } from "./types";
 
 /**
@@ -84,7 +83,7 @@ export function getIdentityGroupIds(
 export function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
-  minimumRole: GroupRole = GroupRole.MEMBER,
+  requiredPermissions: Permission[],
 ): void {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");
@@ -107,11 +106,13 @@ export function identityCanAccessGroup(
     if (!Object.hasOwn(identity.groupRoles, groupId)) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
-    // Is their role for the group sufficient?
-    const role = identity.groupRoles[groupId];
-    if (ROLE_ORDER[role] < ROLE_ORDER[minimumRole]) {
+    // Does their group role have the required permissions?
+    const usersGroupRole = identity.groupRoles[groupId];
+    const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
+    if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
       throw new ForbiddenException("Insufficient role within the group");
     }
+    // All checks passed. Return and continue.
     return;
   }
 
