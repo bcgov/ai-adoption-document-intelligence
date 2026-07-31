@@ -32,7 +32,7 @@ import {
 } from "@/actor/dto/api-key-info.dto";
 import { Identity } from "@/auth/identity.decorator";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated";
+import { Permission } from "@/auth/role-permissions";
 import { ApiKeyService } from "./api-key.service";
 
 @ApiTags("API Keys")
@@ -41,7 +41,12 @@ export class ApiKeyController {
   constructor(private readonly apiKeyService: ApiKeyService) {}
 
   @Get()
-  @Identity({ groupIdFrom: { query: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { query: "groupId" },
+      requiredPermissions: [Permission.API_KEY_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get API key information for a group" })
   @ApiQuery({
     name: "groupId",
@@ -65,7 +70,12 @@ export class ApiKeyController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { body: "groupId" },
+      requiredPermissions: [Permission.API_KEY_CREATE],
+    },
+  })
   @ApiOperation({ summary: "Generate a new API key for a group" })
   @ApiBody({ type: GenerateApiKeyRequestDto })
   @ApiCreatedResponse({
@@ -107,7 +117,9 @@ export class ApiKeyController {
       throw new BadRequestException("id query parameter is required");
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(id);
-    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.API_KEY_DELETE,
+    ]);
     await this.apiKeyService.deleteApiKey(id);
   }
 
@@ -132,7 +144,10 @@ export class ApiKeyController {
       );
     }
     const groupId = await this.apiKeyService.getApiKeyGroupId(body.id);
-    identityCanAccessGroup(req.resolvedIdentity, groupId, GroupRole.ADMIN);
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.API_KEY_CREATE,
+      Permission.API_KEY_DELETE,
+    ]);
     const apiKey = await this.apiKeyService.regenerateApiKey(userId, body.id);
     return { apiKey };
   }
