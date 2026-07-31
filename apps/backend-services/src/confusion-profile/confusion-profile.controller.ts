@@ -30,7 +30,7 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { ConfusionProfileService } from "./confusion-profile.service";
 import {
   ConfusionProfileResponseDto,
@@ -50,7 +50,13 @@ export class ConfusionProfileController {
 
   @Post("derive")
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_CREATE],
+    },
+  })
   @ApiOperation({
     summary: "Derive and save a confusion profile from corrections/mismatches",
     description:
@@ -70,8 +76,6 @@ export class ConfusionProfileController {
     @Req() req: Request,
   ): Promise<ConfusionProfileResponseDto> {
     this.logger.log(`POST /api/groups/${groupId}/confusion-profiles/derive`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
-
     return this.confusionProfileService.deriveAndSave(
       {
         name: dto.name,
@@ -85,7 +89,13 @@ export class ConfusionProfileController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_CREATE],
+    },
+  })
   @ApiOperation({
     summary: "Create a confusion profile with an explicit matrix",
   })
@@ -102,7 +112,6 @@ export class ConfusionProfileController {
     @Req() req: Request,
   ): Promise<ConfusionProfileResponseDto> {
     this.logger.log(`POST /api/groups/${groupId}/confusion-profiles`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
 
     return this.confusionProfileService.create(
       {
@@ -116,7 +125,13 @@ export class ConfusionProfileController {
   }
 
   @Get()
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "List confusion profiles in a group" })
   @ApiParam({ name: "groupId", description: "Group ID" })
   @ApiOkResponse({
@@ -127,16 +142,20 @@ export class ConfusionProfileController {
   @ApiUnauthorizedResponse({ description: "Missing or invalid credentials" })
   async list(
     @Param("groupId") groupId: string,
-    @Req() req: Request,
   ): Promise<ConfusionProfileResponseDto[]> {
     this.logger.log(`GET /api/groups/${groupId}/confusion-profiles`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
 
     return this.confusionProfileService.findByGroup(groupId);
   }
 
   @Get(":id")
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get a confusion profile by ID" })
   @ApiParam({ name: "groupId", description: "Group ID" })
   @ApiParam({ name: "id", description: "Confusion profile ID" })
@@ -150,16 +169,20 @@ export class ConfusionProfileController {
   async getById(
     @Param("groupId") groupId: string,
     @Param("id") id: string,
-    @Req() req: Request,
   ): Promise<ConfusionProfileResponseDto> {
     this.logger.log(`GET /api/groups/${groupId}/confusion-profiles/${id}`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
 
     return this.confusionProfileService.findById(id, groupId);
   }
 
   @Patch(":id")
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_UPDATE],
+    },
+  })
   @ApiOperation({ summary: "Update a confusion profile" })
   @ApiParam({ name: "groupId", description: "Group ID" })
   @ApiParam({ name: "id", description: "Confusion profile ID" })
@@ -177,7 +200,6 @@ export class ConfusionProfileController {
     @Req() req: Request,
   ): Promise<ConfusionProfileResponseDto> {
     this.logger.log(`PATCH /api/groups/${groupId}/confusion-profiles/${id}`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
 
     return this.confusionProfileService.update(
       id,
@@ -189,7 +211,13 @@ export class ConfusionProfileController {
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { param: "groupId" },
+      requiredPermissions: [Permission.CONFUSION_DELETE],
+    },
+  })
   @ApiOperation({ summary: "Delete a confusion profile" })
   @ApiParam({ name: "groupId", description: "Group ID" })
   @ApiParam({ name: "id", description: "Confusion profile ID" })
@@ -203,7 +231,6 @@ export class ConfusionProfileController {
     @Req() req: Request,
   ): Promise<void> {
     this.logger.log(`DELETE /api/groups/${groupId}/confusion-profiles/${id}`);
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
 
     await this.confusionProfileService.delete(
       id,
