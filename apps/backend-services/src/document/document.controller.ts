@@ -38,10 +38,8 @@ import {
 import { Request, Response } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import {
   buildBlobFilePath,
   OperationCategory,
@@ -79,11 +77,17 @@ export class DocumentController {
 
   @Get("/stats")
   @HttpCode(HttpStatus.OK)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get document counts grouped by status" })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description: "Scope counts to a specific group ID.",
   })
   @ApiOkResponse({
@@ -94,22 +98,19 @@ export class DocumentController {
     description: "Access denied: not a member of the specified group",
   })
   async getDocumentStats(
-    @Req() req: Request,
-    @Query("group_id") groupId?: string,
+    @Query("group_id") groupId: string,
   ): Promise<DocumentStatusCountsDto> {
-    let groupIds: string[] | undefined;
-    if (groupId !== undefined) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      groupIds = [groupId];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    }
-    return this.documentService.getDocumentStatusCounts(groupIds);
+    return this.documentService.getDocumentStatusCounts([groupId]);
   }
 
   @Get("/thumbnails")
   @HttpCode(HttpStatus.OK)
-  @Identity()
+  @Identity({
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({
     summary: "Get thumbnails for multiple documents",
     description:
@@ -136,19 +137,9 @@ export class DocumentController {
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   async getBulkThumbnails(
-    @Query("group_id") groupId: string | undefined,
-    @Query("ids") idsParam: string | undefined,
-    @Req() req: Request,
+    @Query("group_id") groupId: string,
+    @Query("ids") idsParam: string,
   ): Promise<ThumbnailResultDto[]> {
-    if (!groupId) {
-      throw new BadRequestException("group_id query parameter is required");
-    }
-    if (!idsParam) {
-      throw new BadRequestException("ids query parameter is required");
-    }
-
-    identityCanAccessGroup(req.resolvedIdentity, groupId);
-
     const ids = idsParam
       .split(",")
       .map((s) => s.trim())
@@ -212,7 +203,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_RETRIEVE,
+    ]);
 
     await this.auditService.recordEvent({
       event_type: "document_accessed",
@@ -254,7 +247,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_UPDATE,
+    ]);
 
     const updated = await this.documentService.updateDocument(documentId, {
       ...(body.title !== undefined ? { title: body.title } : {}),
@@ -308,7 +303,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_DELETE,
+    ]);
 
     await this.documentService.deleteDocument(documentId);
 
@@ -330,13 +327,19 @@ export class DocumentController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "Get documents (paginated)" })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description:
-      "Filter documents by group ID. When provided, only documents belonging to this group are returned.",
+      "Filter documents by group ID. Only documents belonging to this group are returned.",
   })
   @ApiQuery({
     name: "limit",
@@ -391,7 +394,7 @@ export class DocumentController {
   })
   async getAllDocuments(
     @Req() req: Request,
-    @Query("group_id") groupId?: string,
+    @Query("group_id") groupId: string,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
     @Query("search") search?: string,
@@ -403,21 +406,12 @@ export class DocumentController {
   ): Promise<PaginatedDocumentsDto> {
     this.logger.debug("=== DocumentController.getAllDocuments ===");
 
-    let groupIds: string[] | undefined;
-
-    if (groupId !== undefined) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      groupIds = [groupId];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    }
-
     const limit = Math.min(parseInt(limitStr ?? "50", 10) || 50, 200);
     const offset = Math.max(parseInt(offsetStr ?? "0", 10) || 0, 0);
 
     try {
       const { documents, total } = await this.documentService.findAllDocuments(
-        groupIds,
+        [groupId],
         {
           limit,
           offset,
@@ -434,8 +428,7 @@ export class DocumentController {
         await this.auditService.recordEvent({
           event_type: "document_list_accessed",
           resource_type: "document_collection",
-          resource_id:
-            groupId ?? (groupIds?.length === 1 ? groupIds[0] : "multi"),
+          resource_id: groupId,
           actor_id: req.resolvedIdentity.actorId,
           group_id: groupId,
           payload: {
@@ -444,7 +437,7 @@ export class DocumentController {
             total,
             limit,
             offset,
-            group_ids: groupIds,
+            group_ids: [groupId],
           },
         });
       }
@@ -491,7 +484,9 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+        Permission.OCR_RESULTS_RETRIEVE,
+      ]);
 
       this.logger.debug(`Document status: ${document.status}`);
       this.logger.debug(`Document created: ${document.created_at}`);
@@ -595,7 +590,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_VIEW,
+    ]);
 
     if (document.purged_at) {
       throw new GoneException(
@@ -670,7 +667,9 @@ export class DocumentController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.DOCUMENT_RETRIEVE,
+    ]);
 
     const thumbnailKey = buildBlobFilePath(
       document.group_id ?? "",
@@ -727,7 +726,9 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+        Permission.DOCUMENT_DOWNLOAD,
+      ]);
 
       if (document.purged_at) {
         throw new GoneException(
@@ -785,6 +786,7 @@ export class DocumentController {
     }
   }
 
+  // TODO: Why isn't this with the HITL module?
   @Post("/:documentId/approve")
   @HttpCode(HttpStatus.OK)
   @Identity()
@@ -838,7 +840,9 @@ export class DocumentController {
         throw new NotFoundException(`Document not found: ${documentId}`);
       }
 
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
+      identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+        Permission.HITL_APPROVE_DENY,
+      ]);
 
       // Get workflow execution ID from document
       // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)
