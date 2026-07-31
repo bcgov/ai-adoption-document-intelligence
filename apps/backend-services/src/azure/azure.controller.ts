@@ -44,6 +44,7 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassificationResultDto } from "@/azure/dto/classification-result.dto";
@@ -80,7 +81,6 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { MulterExceptionFilter } from "@/filters/multer-exception.filter";
-import { GroupRole } from "@/generated/edge";
 import { AppLoggerService } from "@/logging/app-logger.service";
 
 @ApiTags("Azure")
@@ -117,7 +117,9 @@ export class AzureController {
     @Query("group_id") groupId?: string,
   ) {
     if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
+      identityCanAccessGroup(req.resolvedIdentity, groupId, [
+        Permission.CLASSIFIER_RETRIEVE,
+      ]);
       return this.classifierService.findAllClassifierModelsForGroups([groupId]);
     }
     const groupIds = getIdentityGroupIds(req.resolvedIdentity);
@@ -128,8 +130,10 @@ export class AzureController {
 
   @Post("classifier")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_CREATE],
+    },
     allowApiKey: true,
   })
   @ApiOperation({
@@ -173,8 +177,10 @@ export class AzureController {
 
   @Patch("classifier")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_UPDATE],
+    },
   })
   @ApiOperation({
     summary: "Update a classifier",
@@ -225,8 +231,10 @@ export class AzureController {
   @Post("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Upload training documents",
@@ -310,8 +318,10 @@ export class AzureController {
   @Get("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Get training documents",
@@ -360,8 +370,10 @@ export class AzureController {
   @Delete("classifier/documents")
   @Identity({
     allowApiKey: true,
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_FILES],
+    },
   })
   @ApiOperation({
     summary: "Delete training documents",
@@ -413,8 +425,10 @@ export class AzureController {
 
   @Post("classifier/train")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { body: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { body: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_TRAIN],
+    },
   })
   @ApiOperation({
     summary: "Request classifier training",
@@ -528,8 +542,10 @@ export class AzureController {
 
   @Post("classifier/classify")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_USE],
+    },
   })
   @ApiOperation({
     summary: "Request document classification",
@@ -622,8 +638,10 @@ export class AzureController {
 
   @Get("classifier/train")
   @Identity({
-    minimumRole: GroupRole.MEMBER,
-    groupIdFrom: { query: "group_id" },
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_TRAIN],
+    },
   })
   @ApiOperation({
     summary: "Get training result",
@@ -643,7 +661,6 @@ export class AzureController {
         "Must provide both name and group_id query parameters.",
       );
     }
-    identityCanAccessGroup(req.resolvedIdentity, group_id);
     const actorId = req.resolvedIdentity.actorId;
     const classifier = await this.classifierService.findClassifierModel(
       name,
@@ -679,8 +696,10 @@ export class AzureController {
 
   @Delete("classifiers/:groupId/:classifierName")
   @Identity({
-    minimumRole: GroupRole.ADMIN,
-    groupIdFrom: { param: "groupId" },
+    groupPermissions: {
+      groupIdFrom: { param: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_DELETE],
+    },
   })
   @ApiOperation({
     summary: "Delete a classifier",
