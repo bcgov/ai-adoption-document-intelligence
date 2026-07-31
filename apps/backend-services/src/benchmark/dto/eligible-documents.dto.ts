@@ -22,10 +22,9 @@ export class EligibleDocumentsFilterDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: "Filter by group ID" })
-  @IsOptional()
+  @ApiProperty({ description: "Filter by group ID" })
   @IsString()
-  group_id?: string;
+  group_id!: string;
 }
 
 export class EligibleDocumentDto {
