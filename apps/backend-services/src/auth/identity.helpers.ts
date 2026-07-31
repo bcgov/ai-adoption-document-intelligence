@@ -1,5 +1,6 @@
 import {
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -91,6 +92,12 @@ export function identityCanAccessGroup(
 
   if (!identity) {
     throw new ForbiddenException("User does not belong to requested group.");
+  }
+
+  if (requiredPermissions.length === 0) {
+    throw new InternalServerErrorException(
+      "Permissions check missing requiredPermissions.",
+    );
   }
 
   // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).

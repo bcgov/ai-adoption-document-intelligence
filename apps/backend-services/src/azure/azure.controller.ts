@@ -40,10 +40,7 @@ import {
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
@@ -104,9 +101,9 @@ export class AzureController {
   })
   @ApiQuery({
     name: "group_id",
-    required: false,
+    required: true,
     description:
-      "Optional group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
+      "Group ID to filter classifiers. When provided, only classifiers for that group are returned and access is validated.",
   })
   @ApiCreatedResponse({
     description: "Classifiers retrieved successfully",
@@ -114,18 +111,12 @@ export class AzureController {
   })
   async getClassifiers(
     @Req() req: Request,
-    @Query("group_id") groupId?: string,
+    @Query("group_id") groupId: string,
   ) {
-    if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId, [
-        Permission.CLASSIFIER_RETRIEVE,
-      ]);
-      return this.classifierService.findAllClassifierModelsForGroups([groupId]);
-    }
-    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    const classifiers =
-      await this.classifierService.findAllClassifierModelsForGroups(groupIds);
-    return classifiers;
+    identityCanAccessGroup(req.resolvedIdentity, groupId, [
+      Permission.CLASSIFIER_RETRIEVE,
+    ]);
+    return this.classifierService.findAllClassifierModelsForGroups([groupId]);
   }
 
   @Post("classifier")

@@ -5,6 +5,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
@@ -172,6 +173,12 @@ export class IdentityGuard implements CanActivate {
         // Does their group role have the required permissions?
         const requiredPermissions =
           identityOptions.groupPermissions.requiredPermissions;
+        if (requiredPermissions.length === 0) {
+          throw new InternalServerErrorException(
+            "Permissions check missing requiredPermissions.",
+          );
+        }
+
         const usersGroupRole = request.resolvedIdentity.groupRoles[groupId];
         const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
         if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
