@@ -24,11 +24,8 @@ import {
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated/edge";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DatasetService } from "./dataset.service";
 import {
   AddVersionFromHitlDto,
@@ -71,13 +68,10 @@ export class HitlDatasetController {
     @Query() filters: EligibleDocumentsFilterDto,
     @Req() req: Request,
   ) {
-    let groupIds: string[] | undefined;
-    if (filters.group_id) {
-      identityCanAccessGroup(req.resolvedIdentity, filters.group_id);
-      groupIds = [filters.group_id];
-    } else {
-      groupIds = getIdentityGroupIds(req.resolvedIdentity);
-    }
+    identityCanAccessGroup(req.resolvedIdentity, filters.group_id, [
+      Permission.HITL_DATASET_RETRIEVE,
+    ]);
+    const groupIds = [filters.group_id];
 
     if (!groupIds || groupIds.length === 0) {
       return { documents: [], total: 0, page: 1, limit: 20 };
@@ -108,8 +102,10 @@ export class HitlDatasetController {
   @HttpCode(HttpStatus.CREATED)
   @Identity({
     allowApiKey: true,
-    groupIdFrom: { body: "groupId" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { body: "groupId" },
+      requiredPermissions: [Permission.HITL_DATASET_CREATE],
+    },
   })
   @ApiOperation({
     summary: "Create a new dataset from HITL-verified documents",
@@ -157,7 +153,9 @@ export class HitlDatasetController {
     @Req() req: Request,
   ) {
     const dataset = await this.datasetService.getDatasetById(datasetId);
-    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, dataset.groupId, [
+      Permission.HITL_DATASET_UPDATE,
+    ]);
 
     return this.hitlDatasetService.addVersionFromHitl(
       datasetId,
