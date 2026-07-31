@@ -40,7 +40,6 @@ import {
 import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { Identity } from "@/auth/identity.decorator";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
 import { Permission } from "@/auth/role-permissions";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
@@ -93,7 +92,13 @@ export class AzureController {
   ) {}
 
   @Get("classifier")
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "group_id" },
+      requiredPermissions: [Permission.CLASSIFIER_RETRIEVE],
+    },
+  })
   @ApiOperation({
     summary: "Get classifiers for user groups",
     description:
@@ -109,13 +114,7 @@ export class AzureController {
     description: "Classifiers retrieved successfully",
     type: [ClassifierModelResponseDto],
   })
-  async getClassifiers(
-    @Req() req: Request,
-    @Query("group_id") groupId: string,
-  ) {
-    identityCanAccessGroup(req.resolvedIdentity, groupId, [
-      Permission.CLASSIFIER_RETRIEVE,
-    ]);
+  async getClassifiers(@Query("group_id") groupId: string) {
     return this.classifierService.findAllClassifierModelsForGroups([groupId]);
   }
 
