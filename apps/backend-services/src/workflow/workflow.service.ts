@@ -688,21 +688,53 @@ export class WorkflowService {
     );
   }
 
+  /**
+   * Draft-save (Inderdeep walkthrough item 3, 2026-08-02): saving and running
+   * are different things — save persists whatever the author has, and the
+   * semantic-validity gate lives at run start instead. This is that gate.
+   * Warnings stay advisory (`valid` counts only severity "error").
+   */
+  async assertConfigRunnable(
+    config: GraphWorkflowConfig,
+    groupId: string,
+  ): Promise<void> {
+    const validation = await this.validateWorkflowConfig(config, groupId);
+    if (!validation.valid) {
+      throw new BadRequestException({
+        message:
+          "Workflow has validation errors and cannot run. Fix them in the editor, save, and run again.",
+        errors: validation.errors,
+      });
+    }
+  }
+
+  /**
+   * The one thing draft-save still refuses: a config the store itself cannot
+   * hold. Hashing (`stampConfigWithPersistedHash`) and lineage mapping walk
+   * `config.nodes`, so an object with a `nodes` map is the structural floor —
+   * everything semantic (unknown activity types, unbound ports, no entry
+   * node…) saves fine and is reported in the save response instead.
+   */
+  private assertConfigStorable(config: unknown): void {
+    const nodes = (config as GraphWorkflowConfig | null | undefined)?.nodes;
+    if (
+      !config ||
+      typeof config !== "object" ||
+      typeof nodes !== "object" ||
+      nodes === null
+    ) {
+      throw new BadRequestException({
+        message:
+          "Workflow config is not storable: expected an object with a `nodes` map.",
+      });
+    }
+  }
+
   async createWorkflow(
     actorId: string,
     dto: CreateWorkflowDto,
   ): Promise<WorkflowInfo> {
-    const validation = await validateGraphConfigWithDynamicNodes(
-      dto.config,
-      dto.groupId,
-      this.dynamicNodeRepository,
-    );
-    if (!validation.valid) {
-      throw new BadRequestException({
-        message: "Invalid workflow configuration",
-        errors: validation.errors,
-      });
-    }
+    this.assertConfigStorable(dto.config);
     const configToPersist = stampConfigWithPersistedHash(dto.config);
 
     const full = await this.runCreateWithSlugRetry(async (tx) => {
@@ -830,17 +862,9 @@ export class WorkflowService {
     }
 
     if (dto.config) {
-      const validation = await validateGraphConfigWithDynamicNodes(
-        dto.config,
-        existing.group_id,
-        this.dynamicNodeRepository,
-      );
-      if (!validation.valid) {
-        throw new BadRequestException({
-          message: "Invalid workflow configuration",
-          errors: validation.errors,
-        });
-      }
+      // Draft-save: no semantic gate here — see assertConfigStorable /
+      // assertConfigRunnable for where each half of the old check went.
+      this.assertConfigStorable(dto.config);
 
       const nextConfig = dto.config as GraphWorkflowConfig;
 

@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   type INestApplication,
@@ -127,6 +128,12 @@ describe("WorkflowController", () => {
       updateWorkflow: jest.fn(),
       deleteWorkflow: jest.fn(),
       revertHeadToVersion: jest.fn(),
+      // Draft-save (2026-08-02): saves report the verdict; run starts gate
+      // on it. Default to a clean config so existing tests run unchanged.
+      validateWorkflowConfig: jest
+        .fn()
+        .mockResolvedValue({ valid: true, errors: [] }),
+      assertConfigRunnable: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<WorkflowService>;
 
     temporalClient = {
@@ -1072,6 +1079,40 @@ describe("WorkflowController", () => {
       expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
     });
 
+    // Draft-save (2026-08-02): saving persists invalid configs, so run start
+    // is where they are refused — before anything is dispatched to Temporal.
+    it("refuses to run a saved-but-invalid config (draft-save gate move)", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        wfWithCustomerInput,
+      );
+      workflowService.assertConfigRunnable.mockRejectedValue(
+        new BadRequestException({
+          message: "Workflow has validation errors and cannot run.",
+          errors: [
+            {
+              path: "nodes.bad",
+              message: "Activity type 'nope' is not registered",
+              severity: "error",
+            },
+          ],
+        }),
+      );
+
+      await expect(
+        controller.startRun(
+          "wf-1",
+          { initialCtx: { customerId: "cust-001" } },
+          mockReq(),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(workflowService.assertConfigRunnable).toHaveBeenCalledWith(
+        wfWithCustomerInput.config,
+        "group-1",
+      );
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+      expect(auditService.recordEvent).not.toHaveBeenCalled();
+    });
+
     it("returns 400 when an initialCtx field has the wrong type", async () => {
       const { BadRequestException } = await import("@nestjs/common");
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -1826,6 +1867,35 @@ describe("WorkflowController", () => {
       setSourceCatalog([]);
     });
 
+    // Draft-save (2026-08-02): upload-and-Try starts a run, so an invalid
+    // saved config is refused BEFORE the file is streamed to blob storage
+    // and a Document row is minted.
+    it("refuses upload-and-Try for a saved-but-invalid config (draft-save gate move)", async () => {
+      setSourceCatalog([fakeSourceUploadEntry]);
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      workflowService.assertConfigRunnable.mockRejectedValue(
+        new BadRequestException({
+          message: "Workflow has validation errors and cannot run.",
+          errors: [
+            {
+              path: "nodes.bad",
+              message: "Activity type 'nope' is not registered",
+              severity: "error",
+            },
+          ],
+        }),
+      );
+
+      await expect(
+        controller.uploadToSource("wf-1", "upload", makeFile(), mockReq()),
+      ).rejects.toThrow(BadRequestException);
+      expect(sourceUploadService.uploadFileForSource).not.toHaveBeenCalled();
+      expect(documentDbService.createDocument).not.toHaveBeenCalled();
+      expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
+    });
+
     // -------------------------------------------------------------------
     // Scenario 1: Happy-path upload returns ctxKey-keyed response
     // -------------------------------------------------------------------
@@ -2300,11 +2370,45 @@ describe("WorkflowController", () => {
       };
       workflowService.createWorkflow.mockResolvedValue(mockWorkflowInfo);
       const result = await controller.createWorkflow(dto, req);
-      expect(result).toEqual({ workflow: mockWorkflowInfo });
+      expect(result).toEqual({
+        workflow: mockWorkflowInfo,
+        validation: { valid: true, errors: [] },
+      });
       expect(workflowService.createWorkflow).toHaveBeenCalledWith(
         "user-1",
         dto,
       );
+    });
+
+    // Draft-save (2026-08-02): a semantically-invalid config saves anyway;
+    // the verdict rides along in the response instead of gating it.
+    it("returns the validation verdict alongside a saved-but-invalid workflow", async () => {
+      const req = {
+        user: { sub: "user-1" },
+        resolvedIdentity: identityWithGroups({
+          "group-1": GroupRole.MEMBER,
+        }),
+      } as Request;
+      const dto: CreateWorkflowDto = {
+        name: "New",
+        groupId: "group-1",
+        config: mockGraphConfig,
+      };
+      const findings = [
+        {
+          path: "nodes.bad",
+          message: "Activity type 'nope' is not registered",
+          severity: "error" as const,
+        },
+      ];
+      workflowService.createWorkflow.mockResolvedValue(mockWorkflowInfo);
+      workflowService.validateWorkflowConfig.mockResolvedValue({
+        valid: false,
+        errors: findings,
+      });
+      const result = await controller.createWorkflow(dto, req);
+      expect(result.validation).toEqual({ valid: false, errors: findings });
+      expect(workflowService.createWorkflow).toHaveBeenCalled();
     });
 
     it("propagates ForbiddenException when user cannot access target group", async () => {

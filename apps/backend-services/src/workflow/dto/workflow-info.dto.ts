@@ -64,6 +64,50 @@ export class WorkflowResponseDto {
   workflow!: WorkflowInfoDto;
 }
 
+export class GraphValidationErrorDto {
+  @ApiProperty({
+    description:
+      "Where in the config the problem sits (e.g. `nodes.ocr1.inputs.fileData`)",
+  })
+  path!: string;
+
+  @ApiProperty({ description: "What is wrong, in author-facing words" })
+  message!: string;
+
+  @ApiProperty({
+    description:
+      "`error` blocks running (never saving); `warning` is advisory everywhere",
+    enum: ["error", "warning"],
+  })
+  severity!: "error" | "warning";
+}
+
+export class WorkflowSaveValidationDto {
+  @ApiProperty({
+    description:
+      "True when the saved config has no severity-`error` findings and can run as it stands",
+  })
+  valid!: boolean;
+
+  @ApiProperty({ type: [GraphValidationErrorDto] })
+  errors!: GraphValidationErrorDto[];
+}
+
+/**
+ * Draft-save (2026-08-02): saving always persists a storable config; the
+ * validator's verdict rides along in the response instead of gating it.
+ * Run start is where `valid: false` becomes a refusal.
+ */
+export class WorkflowSaveResponseDto extends WorkflowResponseDto {
+  @ApiProperty({
+    type: WorkflowSaveValidationDto,
+    description:
+      "Validation verdict for the config that was just persisted. Save " +
+      "succeeds regardless; running is refused while `valid` is false.",
+  })
+  validation!: WorkflowSaveValidationDto;
+}
+
 export class WorkflowListResponseDto {
   @ApiProperty({ type: [WorkflowInfoDto] })
   workflows!: WorkflowInfoDto[];

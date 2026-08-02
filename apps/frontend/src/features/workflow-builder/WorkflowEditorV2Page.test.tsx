@@ -53,6 +53,7 @@ const {
   versionQueryRef,
   capturedVersionQueryArgs,
   capturedRunHistoryProps,
+  saveValidationRef,
 } = vi.hoisted(() => {
   return {
     capturedCanvasProps: { current: null as null | Record<string, unknown> },
@@ -119,6 +120,15 @@ const {
     // the page's `useWorkflow` mock will return, so edit-mode hydration
     // exercises the legacy-entryNodeId-preservation path.
     existingWorkflowRef: { current: null as null | Record<string, unknown> },
+    // Draft-save (2026-08-02) — what the save mutations report back.
+    // Mutable so a test can model a save that persisted an invalid config
+    // and assert the amber "issues remain" toast.
+    saveValidationRef: {
+      current: { valid: true, errors: [] } as {
+        valid: boolean;
+        errors: Array<{ path: string; message: string; severity?: string }>;
+      },
+    },
   };
 });
 
@@ -281,14 +291,23 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
     isLoading: false,
   }),
   useCreateWorkflow: () => ({
+    // Draft-save (2026-08-02): mutations resolve { workflow, validation } —
+    // the page reads `workflow.id` for navigation and `validation` for the
+    // green-vs-amber saved toast.
     mutateAsync: async (dto: Record<string, unknown>) => {
       capturedCreateDto.current = dto;
-      return { id: "new-workflow-id" };
+      return {
+        workflow: { id: "new-workflow-id" },
+        validation: saveValidationRef.current,
+      };
     },
     isPending: false,
   }),
   useUpdateWorkflow: () => ({
-    mutateAsync: async () => undefined,
+    mutateAsync: async () => ({
+      workflow: { id: "wf-1" },
+      validation: saveValidationRef.current,
+    }),
     isPending: false,
   }),
   // US-083 — the page now calls `useRevertWorkflowHead` for the
@@ -515,6 +534,78 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
       )?.position;
       expect(saved).toEqual(positionsBeforeSave[id]);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Draft-save (Inderdeep walkthrough item 3, 2026-08-02) — saving always
+// persists; the backend's verdict picks the toast. Green when the saved
+// config is clean, amber ("issues remain") when it still cannot run.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — draft-save toast", () => {
+  beforeEach(() => {
+    capturedCreateDto.current = null;
+    saveValidationRef.current = { valid: true, errors: [] };
+    vi.mocked(notifications.show).mockClear();
+  });
+
+  async function clickSave() {
+    const saveButton = screen.getByRole("button", { name: /^Save$/i });
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
+  }
+
+  it("shows the green toast when the saved config is clean", async () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    await clickSave();
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({ color: "green", title: "Created" }),
+    );
+  });
+
+  it("saves AND shows the amber issues-remain toast when the verdict has errors", async () => {
+    saveValidationRef.current = {
+      valid: false,
+      errors: [
+        {
+          path: "nodes.b.inputs.fileData",
+          message: "Input port has no source",
+          severity: "error",
+        },
+      ],
+    };
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    await clickSave();
+    // The save itself went through — the dto reached the mutation.
+    expect(capturedCreateDto.current).toBeTruthy();
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        color: "yellow",
+        title: "Created — 1 issue remains",
+        message: expect.stringContaining("cannot run"),
+      }),
+    );
+  });
+
+  it("counts only severity-error findings in the amber title", async () => {
+    saveValidationRef.current = {
+      valid: false,
+      errors: [
+        { path: "a", message: "broken one", severity: "error" },
+        { path: "b", message: "broken two", severity: "error" },
+        { path: "c", message: "just a heads-up", severity: "warning" },
+      ],
+    };
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    await clickSave();
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        color: "yellow",
+        title: "Created — 2 issues remain",
+      }),
+    );
   });
 });
 

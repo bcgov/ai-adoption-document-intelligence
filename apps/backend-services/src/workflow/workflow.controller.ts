@@ -100,6 +100,7 @@ import {
   RevertHeadDto,
   WorkflowListResponseDto,
   WorkflowResponseDto,
+  WorkflowSaveResponseDto,
   WorkflowVersionListResponseDto,
 } from "./dto/workflow-info.dto";
 import {
@@ -512,7 +513,10 @@ export class WorkflowController {
   })
   @ApiBadRequestResponse({
     description:
-      "Body fails input-schema validation, or `workflowVersionId` does not belong to this lineage.",
+      "Body fails input-schema validation, `workflowVersionId` does not " +
+      "belong to this lineage, or the workflow config has validation " +
+      "errors and cannot run (draft-save persists invalid configs; run " +
+      "start refuses them — `errors` carries the findings).",
   })
   @ApiNotFoundResponse({ description: "Workflow or version not found" })
   @ApiConflictResponse({
@@ -555,7 +559,10 @@ export class WorkflowController {
   })
   @ApiBadRequestResponse({
     description:
-      "Body fails input-schema validation, or `workflowVersionId` does not belong to this lineage.",
+      "Body fails input-schema validation, `workflowVersionId` does not " +
+      "belong to this lineage, or the workflow config has validation " +
+      "errors and cannot run (draft-save persists invalid configs; run " +
+      "start refuses them — `errors` carries the findings).",
   })
   @ApiNotFoundResponse({ description: "Workflow or version not found" })
   @ApiConflictResponse({
@@ -591,6 +598,12 @@ export class WorkflowController {
       body.workflowVersionId,
     );
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    // Draft-save (2026-08-02): saving no longer refuses an invalid config,
+    // so run start is where the D-11 invariant ("a state the runtime cannot
+    // satisfy is reported at author time, not run time") is enforced
+    // server-side. Warnings don't block; severity-`error` findings do.
+    await this.workflowService.assertConfigRunnable(wf.config, wf.groupId);
 
     const initialCtx = body.initialCtx ?? {};
     const inputSchema = deriveInputSchema(wf.config);
@@ -722,7 +735,9 @@ export class WorkflowController {
     description:
       "Node is not a `source.upload` subtype, or the file's MIME type " +
       "does not match the source's allowlist, or the request is missing " +
-      "the `file` part.",
+      "the `file` part, or the workflow config has validation errors and " +
+      "cannot run (draft-save persists invalid configs; the upload-and-Try " +
+      "run start refuses them).",
   })
   @ApiNotFoundResponse({
     description:
@@ -748,6 +763,11 @@ export class WorkflowController {
 
     const wf = await this.workflowService.resolveLineageAndVersion(workflowId);
     identityCanAccessGroup(req.resolvedIdentity, wf.groupId, GroupRole.MEMBER);
+
+    // Draft-save gate move: same run-start refusal as startLineageRun —
+    // upload-and-Try kicks off a run, so an invalid graph is refused BEFORE
+    // the file is streamed to blob storage and a Document row is minted.
+    await this.workflowService.assertConfigRunnable(wf.config, wf.groupId);
 
     const node = wf.config.nodes[sourceNodeId];
     if (!node) {
@@ -1571,11 +1591,17 @@ export class WorkflowController {
   })
   @ApiCreatedResponse({
     description:
-      "Workflow created successfully. Returns the created workflow with id, version, and timestamps.",
-    type: WorkflowResponseDto,
+      "Workflow created successfully. Returns the created workflow with id, " +
+      "version, and timestamps, plus the validation verdict for the saved " +
+      "config — draft-save persists semantically-invalid configs and " +
+      "reports their issues here instead of refusing.",
+    type: WorkflowSaveResponseDto,
   })
   @ApiBadRequestResponse({
-    description: "Invalid request body or workflow config validation failed",
+    description:
+      "Invalid request body, or the config is not structurally storable " +
+      "(not an object with a `nodes` map). Semantic validation failures do " +
+      "NOT reject the save — they come back in `validation.errors`.",
   })
   @ApiForbiddenResponse({
     description:
@@ -1584,7 +1610,7 @@ export class WorkflowController {
   async createWorkflow(
     @Body() dto: CreateWorkflowDto,
     @Req() req: Request,
-  ): Promise<{ workflow: WorkflowInfo }> {
+  ): Promise<WorkflowSaveResponseDto> {
     const actorId = req.resolvedIdentity.actorId;
 
     // Same as @Identity({ groupIdFrom: { body: "groupId" }, minimumRole: MEMBER }):
@@ -1592,7 +1618,11 @@ export class WorkflowController {
     identityCanAccessGroup(req.resolvedIdentity, dto.groupId, GroupRole.MEMBER);
 
     const workflow = await this.workflowService.createWorkflow(actorId, dto);
-    return { workflow };
+    const validation = await this.workflowService.validateWorkflowConfig(
+      workflow.config,
+      workflow.groupId,
+    );
+    return { workflow, validation };
   }
 
   @Put(":id")
@@ -1605,11 +1635,18 @@ export class WorkflowController {
       "Workflow data (name, description, and/or config) plus the required `expectedVersion` the edits were based on. Only provided fields are updated.",
   })
   @ApiOkResponse({
-    description: "Workflow updated successfully. Returns the updated workflow.",
-    type: WorkflowResponseDto,
+    description:
+      "Workflow updated successfully. Returns the updated workflow plus the " +
+      "validation verdict for the saved config — draft-save persists " +
+      "semantically-invalid configs and reports their issues here instead " +
+      "of refusing.",
+    type: WorkflowSaveResponseDto,
   })
   @ApiBadRequestResponse({
-    description: "Invalid request body or workflow config validation failed",
+    description:
+      "Invalid request body, or the config is not structurally storable " +
+      "(not an object with a `nodes` map). Semantic validation failures do " +
+      "NOT reject the save — they come back in `validation.errors`.",
   })
   @ApiNotFoundResponse({ description: "Workflow not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
@@ -1622,7 +1659,7 @@ export class WorkflowController {
     @Param("id") id: string,
     @Body() dto: UpdateWorkflowDto,
     @Req() req: Request,
-  ): Promise<{ workflow: WorkflowInfo }> {
+  ): Promise<WorkflowSaveResponseDto> {
     const actorId = req.resolvedIdentity.actorId;
 
     const existing = await this.workflowService.getWorkflow(id, actorId);
@@ -1638,7 +1675,11 @@ export class WorkflowController {
       actorId,
       dto,
     );
-    return { workflow };
+    const validation = await this.workflowService.validateWorkflowConfig(
+      workflow.config,
+      workflow.groupId,
+    );
+    return { workflow, validation };
   }
 
   @Get(":id/delete-impact")

@@ -522,7 +522,7 @@ Mark the first node (Prepare File Data) as the workflow entry point.
 
 ### Step 6: Validate and Save
 
-Run validation to check for issues — missing bindings, disconnected nodes, invalid configurations. Fix any flagged problems, then save.
+Run validation to check for issues — missing bindings, disconnected nodes, invalid configurations. Saving never blocks on these: a save always persists what you have, and if issues remain the saved toast turns amber ("Saved — N issues remain") instead of green. What *is* gated on a clean validation pass is running — Try and Run stay disabled (with the reason in their tooltip) until every error is fixed, and the API refuses run starts for an invalid saved config the same way.
 
 ---
 

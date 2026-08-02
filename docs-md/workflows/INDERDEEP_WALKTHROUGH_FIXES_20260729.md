@@ -25,7 +25,7 @@ all items done before the next batch-review meeting.
 
 ## Saving
 
-### 3. [ ] Allow saving an invalid workflow (draft semantics)
+### 3. [x] Allow saving an invalid workflow (draft semantics)
 **Area:** Frontend — save flow + Backend — workflow.service validation gate
 **Problem:** Save fails with "Save failed: invalid workflow configuration" until the graph validates. Alex hit this live and called it out himself: "you should probably be able to save regardless of the state"; Inderdeep: "it should be up to the user." Filed in the work store as an open question with both leaning allow — confirm final call with Alex before building, then: saving persists whatever the user has, validation results surface as warnings, and only *activation/run* stays gated on validity.
 **Expected:** Save succeeds for structurally-storable but semantically-invalid graphs; validation issues shown non-blockingly (notification + ValidationDrawer); running/activating an invalid workflow remains blocked.

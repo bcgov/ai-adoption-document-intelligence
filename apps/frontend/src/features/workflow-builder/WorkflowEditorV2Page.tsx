@@ -79,6 +79,7 @@ import {
   useWorkflow,
   useWorkflowVersion,
   WorkflowSaveError,
+  type WorkflowSaveValidation,
   WorkflowVersionConflictError,
 } from "../../data/hooks/useWorkflows";
 import type {
@@ -164,6 +165,40 @@ const EMPTY_CONFIG: GraphWorkflowConfig = {
 
 interface WorkflowEditorV2PageProps {
   mode: "create" | "edit";
+}
+
+/**
+ * Draft-save (Inderdeep walkthrough item 3): saving always persists, and the
+ * backend's verdict decides the toast — green when clean, amber when the
+ * saved config still has blocking issues. The amber copy names the count and
+ * points at what stays gated (running), because "Saved" alone would read as
+ * "ready to run".
+ */
+function showSavedToast(
+  title: string,
+  message: string,
+  validation: WorkflowSaveValidation,
+): void {
+  const errorCount = validation.errors.filter(
+    (issue) => issue.severity !== "warning",
+  ).length;
+  if (errorCount === 0) {
+    notifications.show({ color: "green", title, message });
+    return;
+  }
+  const shown = validation.errors
+    .filter((issue) => issue.severity !== "warning")
+    .slice(0, 3)
+    .map((issue) => `${issue.path} — ${issue.message}`)
+    .join("\n");
+  const more = errorCount > 3 ? `\n…and ${errorCount - 3} more.` : "";
+  notifications.show({
+    color: "yellow",
+    title: `${title} — ${errorCount} ${errorCount === 1 ? "issue remains" : "issues remain"}`,
+    message: `${message} The workflow cannot run until they are fixed:\n${shown}${more}`,
+    autoClose: 10_000,
+    style: { whiteSpace: "pre-line" },
+  });
 }
 
 /**
@@ -1130,7 +1165,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
             "Still loading this workflow — try saving again in a moment.",
           );
         }
-        await updateWorkflow.mutateAsync({
+        const saved = await updateWorkflow.mutateAsync({
           id: workflowId,
           dto: { ...dto, expectedVersion: existingWorkflow.version },
         });
@@ -1138,22 +1173,18 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         // the post-save hydration re-adopts the (now-saved) server config and
         // future agent writes can hydrate again.
         lastHydratedConfigRef.current = null;
-        notifications.show({
-          color: "green",
-          title: "Saved",
-          message: `Updated "${cleanedName}".`,
-        });
+        showSavedToast("Saved", `Updated "${cleanedName}".`, saved.validation);
       } else {
         const created = await createWorkflow.mutateAsync(dto);
-        notifications.show({
-          color: "green",
-          title: "Created",
-          message: `Workflow "${cleanedName}" saved.`,
-        });
+        showSavedToast(
+          "Created",
+          `Workflow "${cleanedName}" saved.`,
+          created.validation,
+        );
         // G-027: re-baseline BEFORE navigating, or the leave-guard would
         // challenge the very navigation that follows a successful save.
         lastHydratedConfigRef.current = configRef.current;
-        navigate(`/workflows/${created.id}/edit`, { replace: true });
+        navigate(`/workflows/${created.workflow.id}/edit`, { replace: true });
       }
     } catch (err) {
       // G-063 — a stale base is not a config problem, so it gets its own

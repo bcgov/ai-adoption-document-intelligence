@@ -51,6 +51,34 @@ interface WorkflowResponse {
   workflow: WorkflowInfo;
 }
 
+/**
+ * Draft-save (2026-08-02): the save endpoints persist semantically-invalid
+ * configs and answer with the validator's verdict instead of a 400. `valid`
+ * counts only severity-`error` findings — warnings never block anything.
+ */
+export interface WorkflowSaveValidation {
+  valid: boolean;
+  errors: WorkflowValidationIssue[];
+}
+
+interface WorkflowSaveResponse {
+  workflow: WorkflowInfo;
+  validation?: WorkflowSaveValidation;
+}
+
+export interface WorkflowSaveResult {
+  workflow: WorkflowInfo;
+  validation: WorkflowSaveValidation;
+}
+
+/** Tolerate an absent verdict (older backend) by reading it as clean. */
+function saveResultFrom(data: WorkflowSaveResponse): WorkflowSaveResult {
+  return {
+    workflow: data.workflow,
+    validation: data.validation ?? { valid: true, errors: [] },
+  };
+}
+
 export function useWorkflows(options?: {
   includeBenchmarkCandidates?: boolean;
   /**
@@ -230,14 +258,17 @@ export function useCreateWorkflow() {
   const { activeGroup } = useGroup();
 
   return useMutation({
-    mutationFn: async (dto: CreateWorkflowDto): Promise<WorkflowInfo> => {
+    mutationFn: async (dto: CreateWorkflowDto): Promise<WorkflowSaveResult> => {
       if (!activeGroup) {
         throw new Error("No active group selected");
       }
-      const response = await apiService.post<WorkflowResponse>("/workflows", {
-        ...dto,
-        groupId: activeGroup.id,
-      });
+      const response = await apiService.post<WorkflowSaveResponse>(
+        "/workflows",
+        {
+          ...dto,
+          groupId: activeGroup.id,
+        },
+      );
       if (!response.success || !response.data) {
         throw new WorkflowSaveError(
           response.message || "Failed to create workflow",
@@ -245,7 +276,7 @@ export function useCreateWorkflow() {
           validationIssuesFrom(response.data),
         );
       }
-      return response.data.workflow;
+      return saveResultFrom(response.data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });
@@ -263,8 +294,8 @@ export function useUpdateWorkflow() {
     }: {
       id: string;
       dto: UpdateWorkflowDto;
-    }): Promise<WorkflowInfo> => {
-      const response = await apiService.put<WorkflowResponse>(
+    }): Promise<WorkflowSaveResult> => {
+      const response = await apiService.put<WorkflowSaveResponse>(
         `/workflows/${id}`,
         dto,
       );
@@ -285,7 +316,7 @@ export function useUpdateWorkflow() {
           validationIssuesFrom(response.data),
         );
       }
-      return response.data.workflow;
+      return saveResultFrom(response.data);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflows"] });

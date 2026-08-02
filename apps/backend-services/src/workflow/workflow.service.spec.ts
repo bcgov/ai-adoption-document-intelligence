@@ -558,7 +558,9 @@ describe("WorkflowService", () => {
   });
 
   describe("createWorkflow", () => {
-    it("throws BadRequestException for invalid config", async () => {
+    // Draft-save (2026-08-02): the only save-time refusal left is structural
+    // storability — no `nodes` map means hashing/mapping cannot run at all.
+    it("throws BadRequestException for a config the store cannot hold (no nodes map)", async () => {
       await expect(
         service.createWorkflow("actor-1", {
           name: "New",
@@ -566,6 +568,39 @@ describe("WorkflowService", () => {
           config: { schemaVersion: "2.0" } as unknown as GraphWorkflowConfig,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // Draft-save: semantic invalidity (unregistered activity type here) no
+    // longer blocks saving — the run-start gate (`assertConfigRunnable`)
+    // owns that refusal now.
+    it("persists a semantically-invalid config (draft-save)", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) return null;
+          return { ...lineageRow, headVersion };
+        },
+      );
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+
+      const result = await service.createWorkflow("actor-1", {
+        name: "Draft",
+        groupId: "group-1",
+        config: invalid,
+      });
+
+      expect(result).toBeDefined();
+      expect(mockVersion.create).toHaveBeenCalled();
     });
 
     it("throws ConflictException when unique slug allocation is exhausted", async () => {
@@ -860,6 +895,79 @@ describe("WorkflowService", () => {
         }),
       ).rejects.toThrow(ConflictException);
       expect(mockLineage.update).not.toHaveBeenCalled();
+    });
+
+    // Draft-save (2026-08-02): a semantically-invalid config appends a
+    // version like any other save; only a structurally-unstorable one is
+    // refused.
+    it("appends a version for a semantically-invalid config (draft-save)", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+
+      const result = await service.updateWorkflow("lin-1", "actor-1", {
+        expectedVersion: 1,
+        config: invalid,
+      });
+
+      expect(result).toBeDefined();
+      expect(mockVersion.create).toHaveBeenCalled();
+    });
+
+    it("still refuses a config the store cannot hold (no nodes map)", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          config: { schemaVersion: "2.0" } as unknown as GraphWorkflowConfig,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockVersion.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // Draft-save (2026-08-02): the semantic gate that used to sit on save
+  // lives here now — run starts call this and refuse invalid configs.
+  describe("assertConfigRunnable", () => {
+    it("passes a valid config", async () => {
+      await expect(
+        service.assertConfigRunnable(makeGraphConfig(), "group-1"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws BadRequestException carrying the validator's findings", async () => {
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+      await expect(
+        service.assertConfigRunnable(invalid, "group-1"),
+      ).rejects.toMatchObject({
+        response: {
+          message: expect.stringContaining("cannot run"),
+          errors: expect.arrayContaining([
+            expect.objectContaining({ severity: "error" }),
+          ]),
+        },
+      });
     });
   });
 
