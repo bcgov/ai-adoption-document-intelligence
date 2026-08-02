@@ -43,6 +43,7 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "ocr.spellcheck",
   "ocr.characterConfusion",
   "ocr.normalizeFields",
+  "ocr.recoverNumericZerosFromCheckboxes",
   "azureClassify.submit",
   "azureClassify.poll",
   "document.selectClassifiedPages",
