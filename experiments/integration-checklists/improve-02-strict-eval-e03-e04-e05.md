@@ -12,7 +12,7 @@ infrastructure landed on `improve/01` is complete: strict evaluator
 (`apps/shared/prisma/seed.ts:2044-2062`), one-of GT array support
 (`apps/temporal/src/evaluators/schema-aware-evaluator.ts`), dataset move
 from `samples-mix/private` → `public`, GT format-variant promotions on
-sin/date/phone, and helper scripts in `apps/temporal/src/scripts/`. E02
+sin/date/phone, and helper scripts in `apps/temporal/scripts/`. E02
 is at canonical pass_rate 0.925 / f1.median 0.972 / matchedFields.median
 69 of 74 — strongest result on record for E02.
 
@@ -42,7 +42,7 @@ START BY READING (in this order):
    also uses a Foundry deployment (Azure Content Understanding, not
    Mistral Document AI) — keep an eye on whether CU's annotation pass
    has the same OCR-markdown-only limitation that the Mistral SKU has.
-5. `apps/temporal/src/scripts/` — note the helper scripts available:
+5. `apps/temporal/scripts/` — note the helper scripts available:
    - `trigger-experiment-benchmark.ts <slug>` — POSTs the run, returns
      the run id. Loads `TEST_API_KEY` from env without leaking it.
    - `poll-experiment-run.ts <runId> <slug>` — polls until terminal and
@@ -103,21 +103,21 @@ PER-EXPERIMENT FLOW (run independently; each is ~5-30 min wallclock):
 # Optional pre-flight (only needed if CU resource was rotated since
 # the fuzzy-era canonical run); script is idempotent:
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/setup-cu-defaults.ts
+npx tsx -r tsconfig-paths/register scripts/setup-cu-defaults.ts
 
 # Trigger:
 npx tsx -r tsconfig-paths/register \
-  src/scripts/trigger-experiment-benchmark.ts 03
+  scripts/trigger-experiment-benchmark.ts 03
 # → captures run id
 
 # Poll (~15-30 min wallclock; gpt-5.2 generative is the bottleneck):
 npx tsx -r tsconfig-paths/register \
-  src/scripts/poll-experiment-run.ts <runId> 03-content-understanding
+  scripts/poll-experiment-run.ts <runId> 03-content-understanding
 # → writes experiments/results/03-content-understanding/benchmark-run.json
 
 # Errors file for GT cleanup review:
 npx tsx -r tsconfig-paths/register \
-  src/scripts/dump-errors-for-gt-cleanup.ts 03-content-understanding
+  scripts/dump-errors-for-gt-cleanup.ts 03-content-understanding
 ```
 
 If the errors file lists ≥ 10 sin/date/phone format-variant mismatches,
@@ -133,17 +133,17 @@ one-of arrays.
 # Pre-flight:
 cd apps/temporal
 npx tsx -r tsconfig-paths/register \
-  src/scripts/preflight-vlm.ts gpt-5.4
+  scripts/preflight-vlm.ts gpt-5.4
 
 # Trigger + poll (~6-10 min wallclock):
 npx tsx -r tsconfig-paths/register \
-  src/scripts/trigger-experiment-benchmark.ts 04
+  scripts/trigger-experiment-benchmark.ts 04
 npx tsx -r tsconfig-paths/register \
-  src/scripts/poll-experiment-run.ts <runId> 04-vlm-direct
+  scripts/poll-experiment-run.ts <runId> 04-vlm-direct
 
 # Errors:
 npx tsx -r tsconfig-paths/register \
-  src/scripts/dump-errors-for-gt-cleanup.ts 04-vlm-direct
+  scripts/dump-errors-for-gt-cleanup.ts 04-vlm-direct
 ```
 
 Same conditional promote-GT step as E03.
@@ -154,17 +154,17 @@ Same conditional promote-GT step as E03.
 # Pre-flight:
 cd apps/temporal
 npx tsx -r tsconfig-paths/register \
-  src/scripts/preflight-hybrid.ts gpt-5.4
+  scripts/preflight-hybrid.ts gpt-5.4
 
 # Trigger + poll (~5-10 min wallclock; 4:33 was the fuzzy-era run):
 npx tsx -r tsconfig-paths/register \
-  src/scripts/trigger-experiment-benchmark.ts 05
+  scripts/trigger-experiment-benchmark.ts 05
 npx tsx -r tsconfig-paths/register \
-  src/scripts/poll-experiment-run.ts <runId> 05-vlm-ocr-hybrid
+  scripts/poll-experiment-run.ts <runId> 05-vlm-ocr-hybrid
 
 # Errors:
 npx tsx -r tsconfig-paths/register \
-  src/scripts/dump-errors-for-gt-cleanup.ts 05-vlm-ocr-hybrid
+  scripts/dump-errors-for-gt-cleanup.ts 05-vlm-ocr-hybrid
 ```
 
 Same conditional promote-GT step.

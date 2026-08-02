@@ -173,7 +173,7 @@ Plots (PNG, 150 dpi):
 
 > For end-to-end share regeneration, use [`regenerate-reports-share.sh`](#full-re-regeneration-pipeline-regenerate-reports-sharesh) instead. The section below documents the normaliser in isolation for debugging.
 
-Re-scores an existing benchmark JSON, treating pure format-difference mismatches as correct. Useful for separating real engine errors from format-only ones (currency-chrome, date-format, SIN punctuation, capitalisation, whitespace, fuzzy text). Ports the equivalence rules from `apps/temporal/src/scripts/promote-gt-format-variants.ts` and adds SDPR-specific rules on top (see "Equivalence rules" below).
+Re-scores an existing benchmark JSON, treating pure format-difference mismatches as correct. Useful for separating real engine errors from format-only ones (currency-chrome, date-format, SIN punctuation, capitalisation, whitespace, fuzzy text). Ports the equivalence rules from `apps/temporal/scripts/promote-gt-format-variants.ts` and adds SDPR-specific rules on top (see "Equivalence rules" below).
 
 Requirements: Python 3.10+, `rapidfuzz` (used by the `name-fuzzy` / `freeform-fuzzy` rules). Install once:
 
@@ -283,7 +283,7 @@ Adjust based on what the audit CSV (`<basename>-normalized.changes.csv`) shows. 
 
 - It does **not** recompute the backend-supplied `suggestedCatch90` / `suggestedBestBalance` / `suggestedMinimizeReview` threshold suggestions. Those reflect the strict scoring; downstream analyses (`analyze.js`, `compare-engines.py`) ignore them anyway.
 - It does **not** flip `missing` or `extra` errors. By construction, format variants exist only when both predicted and expected are non-empty.
-- It does **not** modify the upstream GT files. If you also want the GT files updated, run `apps/temporal/src/scripts/promote-gt-format-variants.ts --write` against a local-pipeline benchmark.
+- It does **not** modify the upstream GT files. If you also want the GT files updated, run `apps/temporal/scripts/promote-gt-format-variants.ts --write` against a local-pipeline benchmark.
 
 ## Error-class audit reports (`report-errors.py`)
 

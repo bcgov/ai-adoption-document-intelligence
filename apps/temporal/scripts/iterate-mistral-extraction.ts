@@ -11,7 +11,7 @@
  *   - last-diff.md        per-field diff + headline metrics
  *
  * Usage (from apps/temporal):
- *   npx tsx -r tsconfig-paths/register src/scripts/iterate-mistral-extraction.ts "synth-full (3)"
+ *   npx tsx -r tsconfig-paths/register scripts/iterate-mistral-extraction.ts "synth-full (3)"
  *
  * Iteration loop:
  *   1. Edit prompt.md / field-descriptions.json
@@ -19,19 +19,19 @@
  *   3. Inspect last-diff.md
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import axios from "axios";
-import { getPrismaClient } from "../activities/database-client";
-import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
+import { getPrismaClient } from "../src/activities/database-client";
+import { fieldDefinitionsToMistralDocumentAnnotationFormat } from "../src/ocr-providers/mistral/field-definitions-to-mistral-annotation-format";
 
 const FOUNDRY_PATH = "/providers/mistral/azure/ocr";
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "synth-full (3)";
 const DEPLOYMENT_ID = "mistral-document-ai-2512";
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const SAMPLES_DIR = path.join(
   REPO_ROOT,
   "data",

@@ -7,7 +7,7 @@
 **Dataset**: `seed-local-samples-mix-public-v1` — 40 samples (the export carried a 41st `manifest` pseudo-row from the local-dataset sync; the re-eval drops it). Same cleaned, format-variant-promoted, public-visibility dataset E02–E08 run against.
 **Evaluator**: `schema-aware`, `defaultRule: { rule: "exact" }`, `passThreshold: 0.8` — the strict configuration used everywhere from improve/01 onward.
 **Canonical run**: [`b715b129-678a-4728-aaf9-0a834d604cc8`](benchmark-run.json) (Azure DI portion started 2026-05-16T00:09:07Z, completed 00:11:45Z, ~158 s wallclock).
-**Re-eval**: predictions re-scored locally on 2026-05-16 against current GT using `apps/temporal/src/scripts/reevaluate-against-local-gt.ts` — same pattern used to repair E00 ([76971469](https://github.com/bcgov/ai-adoption-document-intelligence/commit/76971469)). No paid API re-spend. See ["Re-evaluation against local GT"](#re-evaluation-against-local-gt) for the why.
+**Re-eval**: predictions re-scored locally on 2026-05-16 against current GT using `apps/temporal/scripts/reevaluate-against-local-gt.ts` — same pattern used to repair E00 ([76971469](https://github.com/bcgov/ai-adoption-document-intelligence/commit/76971469)). No paid API re-spend. See ["Re-evaluation against local GT"](#re-evaluation-against-local-gt) for the why.
 
 ## Pipeline (unchanged from the original wiring)
 
@@ -82,7 +82,7 @@ The raw export from this benchmark, before re-eval, looked very different: `pass
 2. **The FP/FN bookkeeping pre-dated improve/03's [d77b6097](https://github.com/bcgov/ai-adoption-document-intelligence/commit/d77b6097)** — substitutions counted as FN-only, not FP+FN. Precision was pinned at 1.000 because there's no path for an FP outside the "extra-key out-of-schema" case, and the neural model emits exactly the 74-key SDPR schema.
 3. **The `BenchmarkDefinition` row this run hit had an effective `passThreshold ≈ 1.0`** (a custom row, not the seeded one) — so the original `pass_rate` of 0.024 reflected "perfect-match only" gating, not the canonical 0.8.
 
-Re-running the predictions through `apps/temporal/src/scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence` does three things in one pass:
+Re-running the predictions through `apps/temporal/scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence` does three things in one pass:
 
 - Joins the stored per-sample predictions against the current local GT in `data/datasets/samples-mix/public/`.
 - Runs the canonical `SchemaAwareEvaluator` with `{ defaultRule: { rule: "exact" }, passThreshold: 0.8 }` — same config E02–E08 use.
@@ -92,7 +92,7 @@ No paid API re-spend; this is pure post-processing over the stored predictions. 
 
 ## GT format-variant promotions applied during re-eval
 
-Two passes of `apps/temporal/src/scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence --write` surfaced engine-specific format variants that hadn't been seen on E02–E08:
+Two passes of `apps/temporal/scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence --write` surfaced engine-specific format variants that hadn't been seen on E02–E08:
 
 1. **One SIN format variant on `HR0081 (9)`** — `"789-788- 425"` (extra space) added to the GT one-of array.
 2. **93 currency-prefix variants across 9 samples** — the trained neural model returns income-field values **as written on the form, with the dollar sign in front or behind the number**: `"$0"` for GT `"0"`, `"$900.00"` for GT `"900.00"`, `"50$"` for GT `"50"`, etc. The numeric value is identical; only the chrome differs. Concentrated on the HR0081 series (the real handwritten samples) plus a handful of synth-full / synth-no-spouse cases. Promoted the GT scalars to one-of arrays — e.g. `"applicant_oas_gis": "0"` → `"applicant_oas_gis": ["0", "$0"]` — accepting both renderings.
@@ -153,28 +153,28 @@ Per-field confidence is much more variable: signature averages 0.50; SIN/date 0.
 
 # 2. Trigger with the trained model id + HITL disabled.
 TEST_API_KEY=... npx tsx -r tsconfig-paths/register \
-  apps/temporal/src/scripts/trigger-experiment-benchmark.ts 01 \
+  apps/temporal/scripts/trigger-experiment-benchmark.ts 01 \
   --override 'ctx.modelId.defaultValue=sdpr-monthly-prod-neural-v2' \
   --override 'ctx.confidenceThreshold.defaultValue=0'
 
 # 3. Poll + save the export.
 TEST_API_KEY=... npx tsx -r tsconfig-paths/register \
-  apps/temporal/src/scripts/poll-experiment-run.ts <runId> 01-neural-doc-intelligence
+  apps/temporal/scripts/poll-experiment-run.ts <runId> 01-neural-doc-intelligence
 
 # 4. If the worker is on an older image without the improve/03 evaluator, re-evaluate
 #    locally. (Idempotent if the worker is current.)
 cd apps/temporal && npx tsx -r tsconfig-paths/register \
-  src/scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence
+  scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence
 
 # 5. Surface any new format variants and apply.
 cd apps/temporal && npx tsx -r tsconfig-paths/register \
-  src/scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence       # dry-run
+  scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence       # dry-run
 cd apps/temporal && npx tsx -r tsconfig-paths/register \
-  src/scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence --write
+  scripts/promote-gt-format-variants.ts 01-neural-doc-intelligence --write
 cd apps/temporal && npx tsx -r tsconfig-paths/register \
-  src/scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence       # re-score after promotion
+  scripts/reevaluate-against-local-gt.ts 01-neural-doc-intelligence       # re-score after promotion
 
 # 6. Regenerate the GT-cleanup dump.
 cd apps/temporal && npx tsx -r tsconfig-paths/register \
-  src/scripts/dump-errors-for-gt-cleanup.ts 01-neural-doc-intelligence
+  scripts/dump-errors-for-gt-cleanup.ts 01-neural-doc-intelligence
 ```

@@ -94,7 +94,7 @@ Pattern lifted from E03. Editable artifacts at
 - `README.md` — how to iterate.
 
 Smoke-test script at
-[`apps/temporal/src/scripts/iterate-vlm-extraction.ts`](../../../apps/temporal/src/scripts/iterate-vlm-extraction.ts)
+[`apps/temporal/scripts/iterate-vlm-extraction.ts`](../../../apps/temporal/scripts/iterate-vlm-extraction.ts)
 calls the chosen Azure OpenAI deployment for one sample (~22-25 s round trip), compares predicted vs ground truth, and writes `last-{request,response,diff}.{json,md}`.
 
 When the prompts are good, the same files are embedded into the workflow JSON's `vlmDirect.extract` activity `parameters` (`documentAnnotationPrompt`, `fieldDescriptions`, `numericFieldsNullable: true`).
@@ -222,20 +222,20 @@ Plus 16 unit tests in [`apps/temporal/src/ocr-providers/vlm-direct/vlm-prompt-bu
 
 ## Smoke-test helper
 
-[`apps/temporal/src/scripts/iterate-vlm-extraction.ts`](../../../apps/temporal/src/scripts/iterate-vlm-extraction.ts) builds the JSON Schema from the iteration kit, sends one sample to the chosen Azure OpenAI deployment, and writes a per-field diff.
+[`apps/temporal/scripts/iterate-vlm-extraction.ts`](../../../apps/temporal/scripts/iterate-vlm-extraction.ts) builds the JSON Schema from the iteration kit, sends one sample to the chosen Azure OpenAI deployment, and writes a per-field diff.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
 ```
 
 ## Pre-flight helper
 
-[`apps/temporal/src/scripts/preflight-vlm.ts`](../../../apps/temporal/src/scripts/preflight-vlm.ts) asserts every precondition needed before the first paid call: env vars, deployment reachability + vision capability + strict-mode round-trip on a 1×1 PNG, dataset registration, and the seeded SDPR template's `field_schema`. Exits non-zero on any failure.
+[`apps/temporal/scripts/preflight-vlm.ts`](../../../apps/temporal/scripts/preflight-vlm.ts) asserts every precondition needed before the first paid call: env vars, deployment reachability + vision capability + strict-mode round-trip on a 1×1 PNG, dataset registration, and the seeded SDPR template's `field_schema`. Exits non-zero on any failure.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/preflight-vlm.ts gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/preflight-vlm.ts gpt-5.4
 ```
 
 ## Gaps (out-of-scope or deferred)
@@ -271,10 +271,10 @@ az cognitiveservices account deployment create \
 cd apps/temporal && npm run dev
 
 # 4. Run preflight to verify every precondition.
-cd apps/temporal && npx tsx -r tsconfig-paths/register src/scripts/preflight-vlm.ts gpt-5.4
+cd apps/temporal && npx tsx -r tsconfig-paths/register scripts/preflight-vlm.ts gpt-5.4
 
 # 5. (Optional) iterate prompts on synth-full (1).
-npx tsx -r tsconfig-paths/register src/scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
 # Edit experiments/results/04-vlm-direct/iteration/{prompt.md,field-descriptions.json}
 # and re-run; ~22 s per iteration.
 
@@ -283,10 +283,10 @@ npx tsx -r tsconfig-paths/register src/scripts/iterate-vlm-extraction.ts "synth-
 cd ../.. && npm run test:db:reset
 
 # 7. Trigger the run via the TS wrapper.
-cd apps/temporal && npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts 04
+cd apps/temporal && npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 04
 
 # 8. Poll until terminal; the helper saves the export automatically.
-npx tsx -r tsconfig-paths/register src/scripts/poll-experiment-run.ts <runId> 04-vlm-direct
+npx tsx -r tsconfig-paths/register scripts/poll-experiment-run.ts <runId> 04-vlm-direct
 
 # 9. Capture the VLM fixture (any sample id; "1 81" is the canonical one).
 docker exec ai-doc-intelligence-postgres psql -U postgres -d ai_doc_intelligence -t -A \

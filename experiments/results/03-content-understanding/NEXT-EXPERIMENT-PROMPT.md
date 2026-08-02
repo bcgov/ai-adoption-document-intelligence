@@ -7,7 +7,7 @@ to branch from, and which lessons from E03 to apply pre-emptively.
 ---
 
 ```
-Implement experiment E04 from experiments/briefs/04-vlm-direct.md.
+Implement experiment E04 from experiments/integration-checklists/04-vlm-direct.md.
 
 **SCOPE REDUCTION (user request, overrides the brief):** the brief
 defines a 3-variant × 2-model matrix (single-pass, chain-of-thought,
@@ -22,10 +22,10 @@ scope. The "3 workflow JSON variants" task in the brief is reduced to
 "1 workflow JSON variant".
 
 START BY READING (in this order):
-  1. experiments/briefs/_shared-rules.md  (canonical patterns; iteration
+  1. experiments/integration-checklists/_shared-rules.md  (canonical patterns; iteration
      kit + sync-provider cache emission + Foundry quota retry sections
      are E02/E03-derived — follow them, they save days)
-  2. experiments/briefs/04-vlm-direct.md  (3 variants: single-pass,
+  2. experiments/integration-checklists/04-vlm-direct.md  (3 variants: single-pass,
      chain-of-thought, self-consistency; 2 models: gpt-5 + gpt-4o;
      gpt-5.5 needs quota uplift before it can be added)
   3. experiments/results/03-content-understanding/SUMMARY.md  (the
@@ -37,7 +37,7 @@ START BY READING (in this order):
      closest pattern to fork — schema-aware engine, structured-output
      mode, idempotent deploy with status-poll, sync-shape activity that
      polls internally, ocrResponse port for cache emission)
-  5. apps/temporal/src/scripts/iterate-cu-extraction.ts  (lift this for
+  5. apps/temporal/scripts/iterate-cu-extraction.ts  (lift this for
      iterate-vlm-extraction.ts; same skeleton)
   6. apps/temporal/src/activities/enrichment-llm.ts  (existing
      callAzureOpenAI helper — use this, don't write a new one)
@@ -47,7 +47,7 @@ START BY READING (in this order):
   8. apps/temporal/src/experiment-03-content-understanding.test.ts
      (test pattern: 16 static + 4 fixture-aware + 2 runtime, CI gate via
      process.env.CI)
-  9. apps/temporal/src/scripts/{trigger-experiment-benchmark,poll-experiment-run,setup-cu-defaults}.ts
+  9. apps/temporal/scripts/{trigger-experiment-benchmark,poll-experiment-run,setup-cu-defaults}.ts
      (reusable scripts E03 left for the chained stack — trigger + poll
      accept any slug, no need to fork)
   10. CLAUDE.md

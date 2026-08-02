@@ -11,7 +11,7 @@
  *   - last-diff.md          per-field diff + headline metrics
  *
  * Usage (from apps/temporal):
- *   npx tsx -r tsconfig-paths/register src/scripts/iterate-cu-extraction.ts "synth-full (1)"
+ *   npx tsx -r tsconfig-paths/register scripts/iterate-cu-extraction.ts "synth-full (1)"
  *
  * Iteration loop:
  *   1. Edit prompt.md / field-descriptions.json
@@ -19,15 +19,15 @@
  *   3. Inspect last-diff.md
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { AxiosResponse } from "axios";
-import { getPrismaClient } from "../activities/database-client";
+import { getPrismaClient } from "../src/activities/database-client";
 import {
   buildCuAnalyzerDefinition,
   hashCuAnalyzerDefinition,
-} from "../ocr-providers/azure-content-understanding/analyzer-schema-builder";
+} from "../src/ocr-providers/azure-content-understanding/analyzer-schema-builder";
 import {
   type CuAuthMode,
   createCuAxiosInstance,
@@ -35,15 +35,15 @@ import {
   cuAnalyzeResultUrlFromOperation,
   cuAnalyzeUrl,
   describeAxiosFailure,
-} from "../ocr-providers/azure-content-understanding/azure-cu-client";
-import { azureCuDeployAnalyzer } from "../ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
-import type { CuAnalyzeOperation } from "../ocr-providers/azure-content-understanding/cu-types";
+} from "../src/ocr-providers/azure-content-understanding/azure-cu-client";
+import { azureCuDeployAnalyzer } from "../src/ocr-providers/azure-content-understanding/azure-cu-deploy-analyzer";
+import type { CuAnalyzeOperation } from "../src/ocr-providers/azure-content-understanding/cu-types";
 
 const TEMPLATE_MODEL_ID = "seed-sdpr-monthly-report-template";
 const DEFAULT_SAMPLE_ID = "synth-full (1)";
 const DEFAULT_AUTH_MODE: CuAuthMode = "subscription-key";
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const SAMPLES_DIR = path.join(
   REPO_ROOT,
   "data",

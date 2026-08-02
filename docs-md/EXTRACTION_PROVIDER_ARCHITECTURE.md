@@ -35,11 +35,11 @@ Each item is checked against both Azure DI and Mistral. ✅ = handled correctly 
 | 2 | Activity-type registered with timeout + retry | ✅ `azureOcr.submit/poll/extract` | ✅ `mistralOcr.process`, 10m timeout, 2 attempts |
 | 3 | Field schema → engine format | ✅ via training-time field definition (no per-call conversion) | ✅ `field-definitions-to-mistral-annotation-format.ts` |
 | 4 | Confidence values 0–1 | ✅ DI native 0–1 | ✅ from `word_confidence_scores`; falls back to `average_page_confidence_score` (default 0.95 if missing) |
-| 5 | Bounding-box coords | ✅ inches from top-left at API `2024-11-30`, populated on `OCRResult.pages[].words[].polygon` | ⚠️ Mistral mapper sets `polygon: []` for words synthesized from markdown; only word-level scores are populated. Bbox-aware downstream consumers (e.g. layout-aware VLM hybrid in E05) won't get spatial info from Mistral. **Captured as a TODO inside `experiments/briefs/02-mistral-doc-ai-azure.md`** |
+| 5 | Bounding-box coords | ✅ inches from top-left at API `2024-11-30`, populated on `OCRResult.pages[].words[].polygon` | ⚠️ Mistral mapper sets `polygon: []` for words synthesized from markdown; only word-level scores are populated. Bbox-aware downstream consumers (e.g. layout-aware VLM hybrid in E05) won't get spatial info from Mistral. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
 | 6 | Page indexing convention | ✅ 1-indexed in `OCRResult.pages[].pageNumber` | ✅ same |
 | 7 | Auth & endpoint via env vars | ✅ `AZURE_DOCUMENT_INTELLIGENCE_*` vars; endpoint normalized (trailing slash stripped) | ✅ `MISTRAL_API_KEY`; URL hardcoded |
 | 8 | Workflow graph definition | ✅ existing template-model workflows in seed | ✅ existing Mistral workflow in seed |
-| 9 | Engine-internal preprocessing | ✅ DI handles deskew/rotate/denoise; documented | ⚠️ Mistral's internal preprocessing isn't documented in the codebase. **Captured as a TODO inside `experiments/briefs/02-mistral-doc-ai-azure.md`** |
+| 9 | Engine-internal preprocessing | ✅ DI handles deskew/rotate/denoise; documented | ⚠️ Mistral's internal preprocessing isn't documented in the codebase. **Captured as a TODO inside `experiments/integration-checklists/02-mistral-doc-ai-azure.md`** |
 | 10 | Test coverage | ✅ unit tests for mappers + activity | ✅ unit tests for mappers + activity |
 | 11 | Benchmark integration | ✅ runs through `BenchmarkRun` flow today | ✅ runs through `BenchmarkRun` flow today |
 | 12 | Cost/usage telemetry | 🆕 Not recorded today — neither provider populates usage on `BenchmarkRun.metrics`. **Each new engine in E02–E05 records its own; revisit cross-engine normalization after E05 lands.** | 🆕 Same. |
@@ -50,13 +50,13 @@ None. All gaps either are documentation-only (item 9) or are scoped to the exper
 
 ### TODOs propagated to experiment briefs
 
-- **`experiments/briefs/01-neural-doc-intelligence.md`**: APIM-vs-direct DI access (separate concern from this audit, but the same brief carries it).
-- **`experiments/briefs/02-mistral-doc-ai-azure.md`**: Item 5 (mapper bbox population), Item 9 (preprocessing documentation).
+- **`experiments/integration-checklists/01-neural-doc-intelligence.md`**: APIM-vs-direct DI access (separate concern from this audit, but the same brief carries it).
+- **`experiments/integration-checklists/02-mistral-doc-ai-azure.md`**: Item 5 (mapper bbox population), Item 9 (preprocessing documentation).
 - **All experiment briefs**: Item 12 (cost/usage telemetry — record per-engine; cross-engine normalization deferred to follow-up after E05).
 
 ## How to add a new engine
 
-1. Read `experiments/briefs/_shared-rules.md` for the full 12-item checklist with pointers to the codebase.
+1. Read `experiments/integration-checklists/_shared-rules.md` for the full 12-item checklist with pointers to the codebase.
 2. Create `apps/temporal/src/ocr-providers/<engine>/` with mapper + (if applicable) field-definitions converter + the activity functions.
 3. Register activity types in `apps/temporal/src/activity-registry.ts` with appropriate timeout + retry.
 4. Define a workflow graph that uses the new activity types alongside the post-processing nodes.

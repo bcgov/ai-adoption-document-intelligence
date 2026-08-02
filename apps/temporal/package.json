@@ -9,7 +9,7 @@
     "start": "node dist/worker.js",
     "start:worker": "node dist/worker.js",
     "dev": "ts-node-dev -r tsconfig-paths/register --respawn --transpile-only --rs --watch 'src/**/*.ts' --ignore-watch ../../packages src/worker.ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && npm run type-check:scripts",
     "clean": "rm -rf dist",
     "db:generate": "node ../shared/scripts/generate-prisma.js",
     "lint": "npx @biomejs/biome check",
@@ -17,7 +17,8 @@
     "pretest": "npm run build:logging && npm run build:graph-insertion-slots && npm run build:graph-workflow",
     "build:graph-workflow": "cd ../../packages/graph-workflow && npm run build",
     "test": "jest",
-    "build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build"
+    "build:graph-insertion-slots": "cd ../../packages/graph-insertion-slots && npm run build",
+    "type-check:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
   "keywords": [
     "temporal",

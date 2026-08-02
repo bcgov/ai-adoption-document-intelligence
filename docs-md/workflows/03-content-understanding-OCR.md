@@ -130,7 +130,7 @@ generative engines. The canonical pattern (E02 standard, applied here):
   workflow JSON's activity `parameters` (`documentAnnotationPrompt`,
   `fieldDescriptions`, `numericFieldsNullable: true`) for the benchmark.
 - Iteration script:
-  [`apps/temporal/src/scripts/iterate-cu-extraction.ts`](../../apps/temporal/src/scripts/iterate-cu-extraction.ts)
+  [`apps/temporal/scripts/iterate-cu-extraction.ts`](../../apps/temporal/scripts/iterate-cu-extraction.ts)
   hits CU once for one sample and writes a per-field diff so prompt
   tweaks can be validated without burning a 40-sample run.
 

@@ -20,7 +20,7 @@ schema wrapper changes (CU's analyzer schema → OpenAI's
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/preflight-vlm.ts gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/preflight-vlm.ts gpt-5.4
 ```
 
 This checks env vars, deployment reachability + vision capability +
@@ -35,7 +35,7 @@ prompt tuning. Default deployment: `gpt-5.4`.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-vlm-extraction.ts "synth-full (1)" gpt-5.4
 ```
 
 The script:

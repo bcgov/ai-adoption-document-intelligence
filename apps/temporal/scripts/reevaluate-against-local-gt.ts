@@ -15,7 +15,7 @@
  *
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register \
- *     src/scripts/reevaluate-against-local-gt.ts <slug>
+ *     scripts/reevaluate-against-local-gt.ts <slug>
  *
  * The script is destructive: overwrites the input benchmark-run.json with
  * the corrected one. Git history retains the prior numbers.
@@ -25,11 +25,11 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { aggregateResults } from "../benchmark-aggregation";
-import type { EvaluationResult } from "../benchmark-types";
-import { SchemaAwareEvaluator } from "../evaluators/schema-aware-evaluator";
+import { aggregateResults } from "../src/benchmark-aggregation";
+import type { EvaluationResult } from "../src/benchmark-types";
+import { SchemaAwareEvaluator } from "../src/evaluators/schema-aware-evaluator";
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const GT_DIR = path.join(
   REPO_ROOT,
   "data",

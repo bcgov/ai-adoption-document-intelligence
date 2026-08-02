@@ -14,7 +14,7 @@ and clean, ideal for prompt tuning):
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-cu-extraction.ts "synth-full (1)"
+npx tsx -r tsconfig-paths/register scripts/iterate-cu-extraction.ts "synth-full (1)"
 ```
 
 The script:

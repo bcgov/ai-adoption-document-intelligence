@@ -350,7 +350,7 @@ Unit-tested (10 passing in
 including the "ocr3Features omitted → none of the fields are emitted"
 default-behaviour case.
 
-[`iterate-mistral-extraction.ts`](../../../../apps/temporal/src/scripts/iterate-mistral-extraction.ts)
+[`iterate-mistral-extraction.ts`](../../../../apps/temporal/scripts/iterate-mistral-extraction.ts)
 gained env-var probes (`OCR3_TABLE_FORMAT`, `OCR3_IMAGE_MIN_SIZE`,
 `OCR3_IMAGE_LIMIT`, `OCR3_BBOX_ANNOTATION_FORMAT=1`) so future iteration
 loops can flip them without touching the script.

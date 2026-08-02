@@ -26,7 +26,7 @@
  * which TLS-fails in this dev environment. Connecting to the already-running
  * dev-stack Temporal at `localhost:7233` sidesteps the download entirely and
  * is the documented pattern for experiment branches in
- * `experiments/briefs/_shared-rules.md`.
+ * `experiments/integration-checklists/_shared-rules.md`.
  */
 
 import * as fs from "node:fs";

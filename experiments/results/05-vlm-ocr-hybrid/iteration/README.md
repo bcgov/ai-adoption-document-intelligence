@@ -21,7 +21,7 @@ sends OCR markdown + image with a "trust the image" instruction).
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-5.4
 ```
 
 Checks env vars, DI prebuilt-layout reachability + markdown round-trip,
@@ -36,7 +36,7 @@ for prompt tuning. Default deployment: `gpt-5.4`.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
 ```
 
 The script:

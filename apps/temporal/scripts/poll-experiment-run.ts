@@ -3,10 +3,10 @@
  * export to experiments/results/<slug>/benchmark-run.json.
  *
  * Usage (from apps/temporal):
- *   npx tsx -r tsconfig-paths/register src/scripts/poll-experiment-run.ts <runId> <slug>
+ *   npx tsx -r tsconfig-paths/register scripts/poll-experiment-run.ts <runId> <slug>
  */
 
-import "../env-loader";
+import "../src/env-loader";
 import * as fs from "node:fs";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -19,7 +19,7 @@ const overrideDir =
   process.env.DI_SECRETS_DIR ?? resolve(homedir(), ".config/bcgov-di");
 const candidates = [
   resolve(overrideDir, "backend-services.env"),
-  resolve(__dirname, "..", "..", "..", "backend-services", ".env"),
+  resolve(__dirname, "..", "..", "backend-services", ".env"),
 ];
 for (const p of candidates) {
   if (existsSync(p)) {
@@ -87,7 +87,6 @@ async function main(): Promise<void> {
       }
       const outDir = path.resolve(
         __dirname,
-        "..",
         "..",
         "..",
         "..",

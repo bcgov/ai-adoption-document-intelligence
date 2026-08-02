@@ -87,7 +87,7 @@ Pattern lifted from E04 verbatim. Editable artifacts at
 - `README.md` — how to iterate.
 
 Smoke-test script at
-[`apps/temporal/src/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/src/scripts/iterate-hybrid-extraction.ts)
+[`apps/temporal/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/scripts/iterate-hybrid-extraction.ts)
 runs the full hybrid path on one sample (~12-28 s round trip), compares predicted vs ground truth, and writes `last-{request,response,layout,diff}.{json,md}`.
 
 When prompts are good, the same files are embedded into the workflow JSON's `vlmOcrHybrid.extract` activity `parameters` (`documentAnnotationPrompt`, `fieldDescriptions`, `numericFieldsNullable: true`).
@@ -223,20 +223,20 @@ Plus 9 unit tests in [`vlm-hybrid-prompt-builder.test.ts`](../../../apps/tempora
 
 ## Smoke-test helper
 
-[`apps/temporal/src/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/src/scripts/iterate-hybrid-extraction.ts) runs the full hybrid path on one sample (DI prebuilt-layout + VLM call + diff vs ground truth) and writes a per-field diff plus the layout response and the parsed VLM payload.
+[`apps/temporal/scripts/iterate-hybrid-extraction.ts`](../../../apps/temporal/scripts/iterate-hybrid-extraction.ts) runs the full hybrid path on one sample (DI prebuilt-layout + VLM call + diff vs ground truth) and writes a per-field diff plus the layout response and the parsed VLM payload.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
 ```
 
 ## Pre-flight helper
 
-[`apps/temporal/src/scripts/preflight-hybrid.ts`](../../../apps/temporal/src/scripts/preflight-hybrid.ts) asserts every precondition needed before the first paid call: env vars (Azure OpenAI + Azure DI), DI prebuilt-layout reachable + producing markdown on a 60×60 PNG, gpt-5.4 reachable + vision + strict-mode round-trip, dataset registration, and the seeded SDPR template's `field_schema`. Exits non-zero on any failure.
+[`apps/temporal/scripts/preflight-hybrid.ts`](../../../apps/temporal/scripts/preflight-hybrid.ts) asserts every precondition needed before the first paid call: env vars (Azure OpenAI + Azure DI), DI prebuilt-layout reachable + producing markdown on a 60×60 PNG, gpt-5.4 reachable + vision + strict-mode round-trip, dataset registration, and the seeded SDPR template's `field_schema`. Exits non-zero on any failure.
 
 ```bash
 cd apps/temporal
-npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-5.4
 ```
 
 ## Gaps (out-of-scope or deferred)
@@ -267,12 +267,12 @@ None. E04's stack of fixes (sync-provider cache emission convention, evidence-ba
 cd apps/temporal && npm run dev
 
 # 4. Run preflight to verify every precondition.
-cd apps/temporal && npx tsx -r tsconfig-paths/register src/scripts/preflight-hybrid.ts gpt-5.4
+cd apps/temporal && npx tsx -r tsconfig-paths/register scripts/preflight-hybrid.ts gpt-5.4
 
 # 5. (Optional) iterate prompts on three representative samples.
-npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
-npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "manual sample (1)" gpt-5.4
-npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "1 81" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "synth-full (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "manual sample (1)" gpt-5.4
+npx tsx -r tsconfig-paths/register scripts/iterate-hybrid-extraction.ts "1 81" gpt-5.4
 # Edit experiments/results/05-vlm-ocr-hybrid/iteration/{prompt.md,field-descriptions.json}
 # and re-run; ~12-28 s per iteration.
 
@@ -281,10 +281,10 @@ npx tsx -r tsconfig-paths/register src/scripts/iterate-hybrid-extraction.ts "1 8
 cd ../.. && npm run test:db:reset
 
 # 7. Trigger the run via the TS wrapper.
-cd apps/temporal && npx tsx -r tsconfig-paths/register src/scripts/trigger-experiment-benchmark.ts 05
+cd apps/temporal && npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 05
 
 # 8. Poll until terminal; the helper saves the export automatically.
-npx tsx -r tsconfig-paths/register src/scripts/poll-experiment-run.ts <runId> 05-vlm-ocr-hybrid
+npx tsx -r tsconfig-paths/register scripts/poll-experiment-run.ts <runId> 05-vlm-ocr-hybrid
 
 # 9. Capture the hybrid fixture (any sample id; "1 81" is the canonical one).
 docker exec ai-doc-intelligence-postgres psql -U postgres -d ai_doc_intelligence -t -A \

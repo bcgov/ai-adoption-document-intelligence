@@ -1,7 +1,7 @@
 # E01 — Neural Document Intelligence + post-processing
 
 **Branch**: `experiment/01-neural-doc-intelligence` — branched from `feature/extraction-experiments` (first in the chained stack)
-**Read first**: `experiments/briefs/_shared-rules.md`
+**Read first**: `experiments/integration-checklists/_shared-rules.md`
 
 ## Goal
 
