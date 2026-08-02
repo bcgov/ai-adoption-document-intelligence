@@ -1,7 +1,7 @@
 /**
- * Group move-together (Inderdeep walkthrough 2026-07-29, item 6).
+ * Group move-together (UX walkthrough 2026-07-29, item 6).
  *
- * Inderdeep came to the canvas from Figma and expected a group to behave as
+ * The UX reviewer came to the canvas from Figma and expected a group to behave as
  * one object: "when I move one, the other one also moves". It did not — every
  * member dragged independently, so a group you had arranged came apart the
  * first time you tidied it.

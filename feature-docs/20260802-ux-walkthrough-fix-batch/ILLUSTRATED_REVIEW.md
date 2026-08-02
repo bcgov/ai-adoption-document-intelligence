@@ -1,4 +1,4 @@
-# Inderdeep walkthrough fix batch — illustrated review
+# UX walkthrough fix batch — illustrated review
 
 **2026-08-02 · branch `feature/visual-workflow-builder`**
 
@@ -7,9 +7,9 @@ described. Each screenshot below was captured from the app running locally on
 2026-08-02 against the seeded database — nothing here is a mock-up or a
 promise.
 
-Read it in order and it doubles as the demo script for the next session with
-Inderdeep: each numbered section is one thing to show him, in walkthrough
-order.
+Read it in order and it doubles as the demo script for the next UX review
+session: each numbered section is one thing to show, in walkthrough order, with
+the exact clicks to reproduce it on your own machine.
 
 ---
 
@@ -31,9 +31,32 @@ Tests: frontend **2321** across 200 files, backend **2824** across 151 suites,
 
 ---
 
+## Before you click anything
+
+```bash
+npm run dev          # frontend :3000, backend :3002, temporal workers
+```
+
+Then open **<http://localhost:3000/workflows>**. Every *Try it* box below links
+to a real local page.
+
+The links use the **by-slug** form — `/workflows/by-slug/standard-ocr/edit` —
+which is derived from the workflow name and therefore survives a reseed. An
+id-based link does not: reseeding mints new ids and the link 404s.
+
+Two things worth knowing before you start:
+
+- **The seeded database is the demo set.** 11 workflows, each with 5 groups.
+  **Standard OCR Workflow** is the one behind every canvas screenshot here.
+- **Nothing below needs saving.** Only §10 (draft save) writes anything, and it
+  writes a throwaway workflow you can delete from the list afterwards. Where a
+  step does change a workflow, the box says so and tells you how to undo it.
+
+---
+
 ## 1. Workflow names are real links
 
-Inderdeep tried right-click, double-click and clicking the name; rows
+The UX reviewer tried right-click, double-click and clicking the name; rows
 highlighted on hover but nothing opened. The name is now an actual `<a href>`,
 so it has a hand cursor, underlines on hover, and "Open in new tab" works.
 
@@ -41,6 +64,12 @@ so it has a hand cursor, underlines on hover, and "Open in new tab" works.
 
 Row bodies still don't navigate — copy-slug, Edit and Delete stay safe to
 click by accident.
+
+> **Try it** → [the workflow list](http://localhost:3000/workflows)
+> Hover any name in the **Name** column: pointer turns to a hand and the name
+> underlines. Click it to open the editor; middle-click or right-click ▸ *Open
+> in new tab* also works, because it is a real link now. Then click the empty
+> part of a row — nothing happens, by design.
 
 ---
 
@@ -53,8 +82,14 @@ goes back to the list.
 
 ![Workflow switcher popover open](screenshots/02-workflow-switcher.png)
 
-This is the searchable form Inderdeep argued for rather than the dropdown —
+This is the searchable form the reviewer argued for rather than the dropdown —
 it still reads well at 25+ workflows.
+
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Click **Switch** in the top bar, left of the Name field. Type `exp` to filter
+> to the seven experiment workflows, or `mistral` to match on slug. Pick one and
+> that editor opens. Re-open **Switch** and note the current workflow is listed
+> but disabled, with **← All workflows** at the top to get back to the list.
 
 ---
 
@@ -66,10 +101,21 @@ hovering one names the group.
 
 ![Grouped nodes with dashed ring and hover label](screenshots/03-grouped-cue-and-label.png)
 
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Every node on this canvas belongs to one of its five groups, so they all wear
+> the dashed violet ring. Hover **Extract OCR Results** and the violet
+> *OCR Extraction* chip appears above the card.
+
 Creating a group also flips the canvas straight to Simplified view, so
 grouping visibly does something the moment you do it.
 
 ![Simplified view showing group chips](screenshots/07-simplified-view-chips.png)
+
+> **Try it** → same workflow, **More ▸ Simplified view**
+> That is a *switch inside the menu row* — click the toggle itself, not the row.
+> The ten nodes collapse to five chips. Toggle it back off to expand again.
+> To watch grouping do this on its own: marquee-select two nodes with
+> shift-drag (or Ctrl-click each), then **More ▸ Group selected**.
 
 ---
 
@@ -85,11 +131,18 @@ because the whole risk here is someone expecting it to delete the steps. It
 fires a green **Ungrouped** toast naming how many steps were released. The
 right rail's old "Delete group" button now reads **Ungroup (steps stay)** too.
 
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Right-click **Extract OCR Results**. The middle entry reads
+> *Ungroup "OCR Extraction" (steps stay)*. Click it and a green **Ungrouped**
+> toast names the five steps released — every node is still on the canvas, only
+> the dashed rings are gone. <kbd>Ctrl</kbd>+<kbd>Z</kbd> puts the group back.
+> **Don't save** afterwards unless you mean to keep it ungrouped.
+
 ---
 
 ## 5. "Needs a source" explains itself
 
-Every node Inderdeep clicked offered a red **Needs a source** button:
+Every node the reviewer clicked offered a red **Needs a source** button:
 
 ![Inputs row with the Needs a source button](screenshots/09-inputs-needs-a-source.png)
 
@@ -107,6 +160,14 @@ Where a compatible producer already sits unconnected on the canvas, it is now
 offered under a dashed border, and picking it draws the edge *and* pins the
 binding in one click.
 
+> **Try it** → [a new workflow](http://localhost:3000/workflows/create)
+> Click **Submit OCR** in the left palette (under *OCR (Azure)*), then click the
+> node it drops on the canvas. The right rail's **Inputs** section shows the red
+> **Needs a source** button — click it to read the new empty state. Now add
+> **Prepare File** from the palette *without connecting it*, re-open the picker
+> on the `Prepared file data` input, and it is offered under a dashed border:
+> picking it draws the edge and pins the binding in one go.
+
 ---
 
 ## 6. Building right-to-left
@@ -121,6 +182,15 @@ activities that *produce* that kind:
 Flow Control is absent on purpose: it produces nothing, so it can never answer
 "what makes one of these?". Picking an entry drops it to the left, already
 wired into that input.
+
+> **Try it** → [a new workflow](http://localhost:3000/workflows/create)
+> Add **Submit OCR** from the palette. On the node card, hover the small dot on
+> the **left** of the `Prepared file data` row — the input dot, not the node's
+> big left handle. After ~1s the popover lists **Prepare File** and nothing
+> else, because it is the only activity that produces a `PreparedFile`. Click it
+> and it lands to the left, already wired in. For contrast, hover an **output**
+> dot on the right: that list is the downstream one, and it includes Flow
+> Control.
 
 ---
 
@@ -138,6 +208,17 @@ itself. 3.4 now spells that out, and also distinguishes **Auto** (node-level
 drag, the resolver binds for you) from **Pinned** (you dropped onto a specific
 port dot). Both are correct — they're different gestures.
 
+> **Try it** → [a new workflow](http://localhost:3000/workflows/create)
+> Add **Prepare File**, then **Submit OCR**. Drag from Prepare File's
+> **right-edge node handle** (the round handle on the card's border, not a port
+> dot) to Submit OCR's **left-edge node handle**. Now click **Submit OCR** so
+> the right rail opens: `Prepared file data` reads `← Prepare File` with the
+> green **AUTO** badge. Repeat the drag onto the *port dot* instead and the same
+> row reads grey **PINNED** — that difference is what nobody could see before.
+>
+> Seeded workflows all read **PINNED**, because they ship explicit bindings —
+> so the Auto badge only shows on a connection you make yourself.
+
 ---
 
 ## 8. A colour scheme you can look up
@@ -149,6 +230,13 @@ now a **Legend**:
 
 Wires split four ways (order-only, data, error, branch) and port dots by
 family — including the new cyan **Identifiers** row.
+
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Click **Legend** at the bottom-centre of the canvas, then read the graph
+> behind it against the rows. The two edges into **Store Results** are a good
+> pair to compare: one leaves the **Branch by condition** node on its default
+> case, the other comes from **Human Review** carrying no data — so they render
+> differently, and the legend is where you find out why.
 
 ---
 
@@ -164,7 +252,14 @@ suggestions and no protection. They are now a proper cyan family:
 while `File name`, `File type` and `OCR response` stay grey, because those
 genuinely are untyped.
 
-**What to tell Inderdeep:** the greys now mean something. A grey dot used to
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Look at **Extract OCR Results**: `APIM request ID` and `OCR model ID` have
+> cyan dots, while `File name`, `File type` and `OCR response` stay grey. Then
+> hover the `APIM request ID` **input** dot — the popover can now answer "what
+> produces a Request ID?", which was impossible while it was an untyped string,
+> because every kind-driven feature skips wildcards.
+
+**What to tell the UX designer:** the greys now mean something. A grey dot used to
 mean two different things — "this is genuinely untyped" and "nobody got round
 to typing it" — and you couldn't tell which. Now grey means only the first.
 Identifier ports join type-driven suggestions in both directions, wrong wires
@@ -199,6 +294,22 @@ The API enforces the same rule, so this isn't only a UI courtesy — `POST
 findings. Upload-and-Try refuses *before* the file is streamed to blob storage
 and a Document row is created.
 
+> **Try it** → [a new workflow](http://localhost:3000/workflows/create)
+> Add **Prepare File**, then **Branch by condition** from *Flow Control*, and
+> leave the branch unwired. Hit **Save**. It saves — amber toast,
+> *"Created — 1 issue remains"*, quoting the defaultEdge finding. Reload the
+> page: your half-built workflow is exactly as you left it. Note **Save** is
+> still blue while **Try** and **Run** are greyed; hover either for the reason.
+> To see the API half, copy the workflow id out of the URL and run:
+>
+> ```bash
+> curl -s -X POST -H "x-api-key: $TEST_API_KEY" -H 'content-type: application/json' \
+>   -d '{}' http://localhost:3002/api/workflows/<id>/runs | jq
+> ```
+>
+> → `400`, with the same finding. Then wire the switch's default edge, save
+> again, and the toast turns green as Run lights up.
+
 > **One correction to the test plan.** A required input with no source — a lone
 > Submit OCR, say — is a **warning**, not an error: `ctx` can legitimately
 > supply it at run time. That workflow saves green and stays runnable. Only
@@ -210,7 +321,7 @@ and a Document row is created.
 
 ## 11. Groups move as one
 
-Inderdeep's Figma expectation: *"when I move one, the other one also moves."*
+The UX reviewer's Figma expectation: *"when I move one, the other one also moves."*
 Your ruling was that Figma is right about **moving**, wrong about **deleting**.
 
 Before — the five members of "OCR Extraction" sit level with the two
@@ -235,6 +346,16 @@ Two deliberate limits:
   the others.
 - **Map bodies are excluded.** The box the canvas draws around a Map node's
   body is derived, not authored, so its members keep their own layout rules.
+
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> Drag **Extract OCR Results** upward. *Prepare File Data*, *Submit OCR*,
+> *Poll OCR Results* and *Update APIM Request ID* come with it — all five keep
+> their spacing — while *Post-OCR Cleanup* and *Check OCR Confidence* stay put.
+> One <kbd>Ctrl</kbd>+<kbd>Z</kbd> reverses the whole move, not one node at a
+> time. Then click a single member: only that node is selected and the right
+> rail shows *that* node's settings. For the excluded case, open
+> [Multi-Page Report](http://localhost:3000/workflows/by-slug/multi-page-report/edit)
+> and drag a node inside the Map body box — only that node moves.
 
 ### Mechanism note
 
@@ -261,6 +382,14 @@ and every other delete on the canvas. Cancel leaves everything in place;
 confirm removes the group and its steps with an Undo toast. Expanded, deleting
 a member still removes only that member.
 
+> **Try it** → [Standard OCR Workflow](http://localhost:3000/workflows/by-slug/standard-ocr/edit)
+> **More ▸ Simplified view**, then click the **Post-Processing** chip and press
+> <kbd>Delete</kbd>. The confirm names the real step count. Hit **Cancel** — the
+> chip is still there, which is the point: it must not vanish while the question
+> is open. Confirm instead and the group and its steps go, with an Undo toast;
+> <kbd>Ctrl</kbd>+<kbd>Z</kbd> brings them back. Compare with expanded view,
+> where deleting a member removes only that member.
+
 This replaces the old behaviour, where deleting a chip did nothing at all, and
 then later refused with a message pointing at a button that has since been
 renamed.
@@ -285,28 +414,27 @@ covers the Run button.
 
 **A wrong claim in the test plan** — the 3.6a correction noted above. Both are
 the kind of thing only a pass against the running app surfaces, which is the
-argument for doing this before Inderdeep's next session rather than after.
+argument for doing this before the UX reviewer's next session rather than after.
 
 ---
 
-## Running the demo yourself
+## If something doesn't look like the screenshots
 
-```bash
-npm run dev          # frontend :3000, backend :3002, temporal workers
-```
-
-Open **http://localhost:3000/workflows**. The seeded database carries 11
-workflows, each with 5 groups — **Standard OCR Workflow** is the one used for
-every canvas screenshot above.
-
-Two environment notes worth knowing:
-
-- If the canvas shows stale port colours after a package rebuild, restart Vite
-  — `@ai-di/graph-workflow` is a workspace dependency and Vite caches its
-  optimised build.
-- Screenshots in this document were captured headless via Playwright with the
-  IDIR auth bypass from `.claude/skills/app-browser-auth`; the capture scripts
-  are throwaway and live in the session scratchpad, not the repo.
+- **Stale port colours after a package rebuild** — restart Vite.
+  `@ai-di/graph-workflow` is a workspace dependency and Vite caches its
+  optimised build, so a retag can be live in the worker and stale in the
+  browser.
+- **A by-slug link 404s** — the workflow was renamed (the slug is derived from
+  the name) or the database was reseeded from different data. Find it on the
+  [list page](http://localhost:3000/workflows) instead; the slug is in the
+  second column.
+- **The list is empty or short** — the seed has not run. `npx prisma db seed`
+  from `apps/backend-services` is additive and safe; it brings the set back to
+  11 workflows without touching anything you have authored.
+- **Screenshots here were captured headless** via Playwright using the IDIR
+  auth bypass from `.claude/skills/app-browser-auth`. The capture scripts were
+  throwaway and live in the session scratchpad, not the repo — the *Try it*
+  boxes are the reproducible version.
 
 ---
 
@@ -315,7 +443,7 @@ Two environment notes worth knowing:
 | Document | What it holds |
 |---|---|
 | [REVIEW.md](REVIEW.md) | The original review — full file inventory, the UX story, the grouping opinion |
-| [INDERDEEP_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/INDERDEEP_WALKTHROUGH_FIXES_20260729.md) | The 12-item checklist, all ticked, with the item-6 rationale |
+| [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md) | The 12-item checklist, all ticked, with the item-6 rationale |
 | [MANUAL_TEST_PLAN.md](../../docs-md/workflows/MANUAL_TEST_PLAN.md) | Cases 3.6a, 6.2a and 6.2b are the new ones |
 | [WORKFLOW_BUILDER_GUIDE.md](../../docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md) | Colour scheme and the group-gesture table |
 | [UNTYPED_PORTS_FINDINGS.md](../../docs-md/workflows/UNTYPED_PORTS_FINDINGS.md) | Why the retag went the way it did |

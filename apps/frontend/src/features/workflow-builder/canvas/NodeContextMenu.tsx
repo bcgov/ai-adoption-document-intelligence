@@ -60,7 +60,7 @@ export interface NodeContextMenuProps {
    */
   onEditScript?: () => void;
   /**
-   * Inderdeep walkthrough 2026-07-29 — label of the user group this node
+   * UX walkthrough 2026-07-29 — label of the user group this node
    * belongs to, when it belongs to one. Enables the "Ungroup" entry so
    * ungrouping is discoverable from the canvas instead of undo-only.
    */

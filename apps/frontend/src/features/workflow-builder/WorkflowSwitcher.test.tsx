@@ -1,5 +1,5 @@
 /**
- * Tests for WorkflowSwitcher — the Inderdeep-walkthrough (2026-07-29)
+ * Tests for WorkflowSwitcher — the UX walkthrough (2026-07-29)
  * in-editor switcher: searchable list of workflows plus the "All workflows"
  * back affordance.
  */

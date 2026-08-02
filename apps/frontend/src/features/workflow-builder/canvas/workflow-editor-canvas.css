@@ -54,7 +54,7 @@
 }
 
 /*
- * Inderdeep walkthrough 2026-07-29 — persistent group-membership cue when
+ * UX walkthrough 2026-07-29 — persistent group-membership cue when
  * simplified view is OFF. A dashed ring (distinct from the solid blue
  * hover-highlight above) marks every member of a user group; hovering a
  * member shows the group's label as a small chip above the card. The label

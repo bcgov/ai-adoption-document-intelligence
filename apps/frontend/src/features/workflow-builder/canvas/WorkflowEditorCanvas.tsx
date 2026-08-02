@@ -281,7 +281,7 @@ interface CommonNodeData extends Record<string, unknown> {
   ) => void;
   onOutputHandleLeave?: () => void;
   /**
-   * Inderdeep walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
+   * UX walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
    * typed per-port INPUT handle. The renderers forward these to
    * `<PortRows>`; the canvas routes them into the producer-filtered
    * extend popover.
@@ -1541,7 +1541,7 @@ const HIGHLIGHT_CLASS = "wb-node-highlight";
 
 /**
  * xyflow class applied to every member of a user node-group when simplified
- * view is OFF (Inderdeep walkthrough 2026-07-29 — grouped nodes were
+ * view is OFF (UX walkthrough 2026-07-29 — grouped nodes were
  * indistinguishable from ungrouped ones once the group-time toast faded).
  * Styled in workflow-editor-canvas.css; the wrapper also carries the group
  * label in the `--wb-group-label` custom property for the hover chip.
@@ -2037,7 +2037,7 @@ function WorkflowEditorCanvasInner({
     [handleSourceHandleEnter],
   );
 
-  // Inderdeep walkthrough 2026-07-29 — the upstream mirror: hovering a typed
+  // UX walkthrough 2026-07-29 — the upstream mirror: hovering a typed
   // INPUT handle opens the same debounced popover, filtered to activities
   // that PRODUCE the port's kind ("you can build left-to-right but not
   // right-to-left" — now you can).
@@ -2106,7 +2106,7 @@ function WorkflowEditorCanvasInner({
         projectionCallbacks,
         wires,
       );
-      // Inderdeep walkthrough 2026-07-29 — with simplified view OFF there was
+      // UX walkthrough 2026-07-29 — with simplified view OFF there was
       // no visual clue on the canvas that nodes belong to a group (only the
       // group-time toast, which fades). Stamp group members with a wrapper
       // class (dashed ring) and the group label (shown on hover via CSS) so
@@ -2709,7 +2709,7 @@ function WorkflowEditorCanvasInner({
   );
 
   /**
-   * Item 6 (Inderdeep walkthrough) — delete a group as a unit, from the
+   * Item 6 (UX walkthrough) — delete a group as a unit, from the
    * collapsed chip.
    *
    * This is the one place full Figma semantics apply. Collapsed, the chip IS
@@ -3006,7 +3006,7 @@ function WorkflowEditorCanvasInner({
   }, [contextMenu, config.nodes, handleNodesDelete]);
 
   /**
-   * Inderdeep walkthrough 2026-07-29 — the user group containing the
+   * UX walkthrough 2026-07-29 — the user group containing the
    * context-menu node, when it belongs to one. Drives the menu's
    * "Ungroup" entry so ungrouping is reachable from the canvas (the only
    * paths before were undo and the right-rail group settings).
@@ -3522,7 +3522,7 @@ function WorkflowEditorCanvasInner({
   );
 
   /**
-   * Inderdeep walkthrough 2026-07-29 — upstream twin of
+   * UX walkthrough 2026-07-29 — upstream twin of
    * `extendFromSourceAndPin`: place the new PRODUCER to the consumer's
    * left, draw producer → consumer, and (when the kinds matched) pin the
    * consumer's hovered input to the new producer's output. One
@@ -3586,7 +3586,7 @@ function WorkflowEditorCanvasInner({
         outputs,
         parameters: {},
       };
-      // Inderdeep walkthrough 2026-07-29 — upstream extend: the gesture node
+      // UX walkthrough 2026-07-29 — upstream extend: the gesture node
       // is the CONSUMER and `sourcePort` is its INPUT port. Insert the picked
       // activity as a producer wired into that port.
       if (extendDirection === "upstream") {
@@ -3690,7 +3690,7 @@ function WorkflowEditorCanvasInner({
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable />
           {/*
-            Inderdeep walkthrough 2026-07-29 — the colour scheme existed
+            UX walkthrough 2026-07-29 — the colour scheme existed
             (one colour per data family) but nothing explained it. The
             legend teaches it in place.
           */}

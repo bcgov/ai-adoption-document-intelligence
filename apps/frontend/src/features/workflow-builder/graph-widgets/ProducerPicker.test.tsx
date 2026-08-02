@@ -45,7 +45,7 @@ describe("ProducerPicker", () => {
 
   it("excludes self and downstream producers, but offers detached ones as connectable", () => {
     // A → B → D. C is detached. B asks for a Document: A is upstream (normal
-    // row), C is offerable-with-edge (Inderdeep walkthrough 2026-07-29), D is
+    // row), C is offerable-with-edge (UX walkthrough 2026-07-29), D is
     // downstream (connecting it back would cycle — excluded), B is self.
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",

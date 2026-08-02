@@ -248,7 +248,7 @@ export const ARTIFACT_REGISTRY: Readonly<
     isArray: false,
   },
 
-  // Identifier family → cyan (2026-08-02, Inderdeep-walkthrough follow-up).
+  // Identifier family → cyan (2026-08-02, UX-walkthrough follow-up).
   // Branded ids that were previously untyped `Artifact` strings, which made
   // them invisible to auto-wire and both hover-extend directions and painted
   // most port dots grey. Sibling identifiers deliberately share only the

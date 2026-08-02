@@ -49,7 +49,7 @@ from node outputs). On `feature/visual-workflow-builder` (draft PR #230 →
 ## Outstanding
 
 Confirmation from the owner of the original Model A recommendation
-(`WORKFLOW_NODE_IO_MODEL_DECISION.md` references an "Inderdeep proposal" for the
+(`WORKFLOW_NODE_IO_MODEL_DECISION.md` references a "single-purpose split proposal" for the
 single-purpose split) that per-port handles superseding Model A is agreed — or a
 conversation before this lands on `develop`. This is a traceability / courtesy
 step, not a merge blocker; recorded here so it stays visible.

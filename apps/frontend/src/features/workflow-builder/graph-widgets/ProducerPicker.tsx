@@ -14,7 +14,7 @@ export interface ProducerSelection {
   /**
    * True when the producer sits on the canvas but is NOT upstream of the
    * consumer yet — picking it must also draw the execution edge
-   * (Inderdeep walkthrough 2026-07-29: a compatible-but-unconnected
+   * (UX walkthrough 2026-07-29: a compatible-but-unconnected
    * producer was invisible here, and the empty state gave no way forward).
    */
   needsEdge?: boolean;
@@ -78,7 +78,7 @@ export function ProducerPicker({
   }, [config, consumerNodeId, expectedKind]);
 
   /**
-   * Inderdeep walkthrough 2026-07-29 — compatible producers that ARE on the
+   * UX walkthrough 2026-07-29 — compatible producers that ARE on the
    * canvas but not upstream (unconnected, or connected the other way).
    * Offering them here with a "connect it" pick beats a dead-end empty
    * state. Nodes the consumer already feeds (directly or transitively) are

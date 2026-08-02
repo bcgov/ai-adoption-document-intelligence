@@ -135,7 +135,7 @@ export function InputsSection({
       : null;
 
   const handleOverride = (portName: string, selection: ProducerSelection) => {
-    // Inderdeep walkthrough 2026-07-29 — picking an on-canvas-but-unconnected
+    // UX walkthrough 2026-07-29 — picking an on-canvas-but-unconnected
     // producer also draws the execution edge, so the pick is complete on its
     // own instead of demanding the user knew to connect first.
     const base = selection.needsEdge

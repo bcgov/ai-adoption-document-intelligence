@@ -1,5 +1,5 @@
 /**
- * Inderdeep walkthrough 2026-07-29 — from inside the editor there was no way
+ * UX walkthrough 2026-07-29 — from inside the editor there was no way
  * to reach another workflow: no in-app back, no switcher, so every hop meant
  * browser-back to the list ("back and forth, back and forth"). A plain
  * dropdown was floated but doesn't scale past a few dozen workflows, so this

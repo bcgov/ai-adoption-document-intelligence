@@ -20,7 +20,7 @@ export interface HoverExtendState {
    */
   sourcePort?: string;
   /**
-   * Inderdeep walkthrough 2026-07-29 — set to `"upstream"` when the extend
+   * UX walkthrough 2026-07-29 — set to `"upstream"` when the extend
    * was launched from an INPUT handle: the popover filters to activities
    * that PRODUCE the port's kind and the pick inserts the new node wired
    * into that input. Omitted/`"downstream"` keeps the historical flow.

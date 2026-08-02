@@ -1,4 +1,4 @@
-# Review: Inderdeep walkthrough fix batch — 2026-08-02
+# Review: UX walkthrough fix batch — 2026-08-02
 
 > 📸 **[ILLUSTRATED_REVIEW.md](ILLUSTRATED_REVIEW.md)** covers the same ground
 > with a screenshot of every fix, captured from the running app. Use that one
@@ -33,7 +33,7 @@ Unit-delete on the chip is as approved: confirm names the step count, cancel lea
 
 ## Background
 
-Inderdeep manually walked Part 2/3 of the [manual test plan](../../docs-md/workflows/MANUAL_TEST_PLAN.md) and reviewed findings with you on 2026-07-29 (transcript summarised in the notes corpus; tracked as a subtask of AI-1174). The batch fixes every agreed item from that call, plus the identifier retag you approved on 2026-08-02. Working checklist: [INDERDEEP_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/INDERDEEP_WALKTHROUGH_FIXES_20260729.md).
+The UX reviewer manually walked Part 2/3 of the [manual test plan](../../docs-md/workflows/MANUAL_TEST_PLAN.md) and reviewed findings with you on 2026-07-29 (transcript summarised in the notes corpus; tracked as a subtask of AI-1174). The batch fixes every agreed item from that call, plus the identifier retag you approved on 2026-08-02. Working checklist: [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md).
 
 ---
 
@@ -41,7 +41,7 @@ Inderdeep manually walked Part 2/3 of the [manual test plan](../../docs-md/workf
 
 Start the stack (`npm run dev` at repo root — backend :3002, frontend :3000, temporal worker), open **http://localhost:3000/workflows**. Rebuild note: `@ai-di/graph-workflow` was rebuilt — if the canvas shows stale handles, restart Vite (known gotcha, [test plan line 85](../../docs-md/workflows/MANUAL_TEST_PLAN.md)).
 
-Each item = one thing to show Inderdeep, in walkthrough order:
+Each item = one thing to show the reviewer, in walkthrough order:
 
 **1. Clickable workflow names** — on `/workflows`, hover a row: the name is now a link (hand cursor, underline on hover). Click it → editor opens. Right-click → "Open in new tab" works (it's a real `<a href>`). Row body still doesn't navigate — copy-slug/Edit/Delete are safe to click.
 
@@ -73,7 +73,7 @@ Each item = one thing to show Inderdeep, in walkthrough order:
 
 ## What to tell UX — the retag's usability story
 
-One sentence for Inderdeep: **"the greys now mean something."** Concretely, four things he personally hit on 2026-07-29 get better:
+One sentence for the reviewer: **"the greys now mean something."** Concretely, four things they hit on 2026-07-29 get better:
 
 1. **"Which node has the request ID? How do I figure that out?"** — identifier ports were invisible to suggestions (wildcards are deliberately excluded from auto-wire and both hover-extend directions). Typed, they participate: hover an id input → see its producers; hover an id output → see its consumers.
 2. **"What do these colours mean?"** — most dots were grey *regardless of meaning*, which is what made the palette look arbitrary. Now grey = genuinely untyped, cyan = an identifier, and the Legend names every family.
@@ -113,10 +113,10 @@ Effort ~half a day incl. backend specs. Say yes and it's in the next batch.
 Short version: **Figma is right about *moving*, wrong about *deleting*, and the collapsed chip is where full Figma semantics belong.**
 
 - In Figma the group *is* the object — members have no meaning outside it. Here a group is an annotation over an executable graph: members carry edges, bindings, run history. Deleting three real pipeline steps because one was selected inside a group is destructive out of proportion to the click. Keep **delete per-node** in expanded view (membership pruning already handles the bookkeeping).
-- **Move-together is right though** — Inderdeep's expectation ("when I move one, the other one also moves") matches intent: a group you arranged is a unit of layout. Recommend: clicking the group ring/hover-label **selects all members** (xyflow multi-drag then moves them together for free); plain click on a node body still selects just that node for fine-tuning.
+- **Move-together is right though** — the reviewer's expectation ("when I move one, the other one also moves") matches intent: a group you arranged is a unit of layout. Recommend: clicking the group ring/hover-label **selects all members** (xyflow multi-drag then moves them together for free); plain click on a node body still selects just that node for fine-tuning.
 - **Unit semantics live on the chip**: collapsed (simplified view — now the default after grouping, fix #3) the chip already moves as one and can carry unit-delete with a confirm naming the step count ("Delete group and its 4 steps?"). Intent is unambiguous there.
 
-That's ~a day: ring-click→select-members (expanded) + chip unit-delete w/ confirm. If you buy it, I'd bring Inderdeep the two-sentence rule: *"grouped things move together everywhere; deleting the group is only offered on the chip, and deleting a node inside an expanded group only removes that node."*
+That's ~a day: ring-click→select-members (expanded) + chip unit-delete w/ confirm. If you buy it, I'd bring the reviewer the two-sentence rule: *"grouped things move together everywhere; deleting the group is only offered on the chip, and deleting a node inside an expanded group only removes that node."*
 
 ---
 
@@ -132,7 +132,7 @@ Every path in the working tree diff. **Nothing is committed yet.**
 | [WorkflowSwitcher.test.tsx](../../apps/frontend/src/features/workflow-builder/WorkflowSwitcher.test.tsx) | 5 tests: navigate, current-marker, filter, empty, back |
 | [CanvasLegend.tsx](../../apps/frontend/src/features/workflow-builder/canvas/CanvasLegend.tsx) | Colour legend popover, swatches read from the live registry (fix 9) |
 | [CanvasLegend.test.tsx](../../apps/frontend/src/features/workflow-builder/canvas/CanvasLegend.test.tsx) | 2 tests: closed-until-clicked, wires + families content |
-| [INDERDEEP_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/INDERDEEP_WALKTHROUGH_FIXES_20260729.md) | The working checklist (10/12 checked; items 3 & 6 await answers above) |
+| [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md) | The working checklist (10/12 checked; items 3 & 6 await answers above) |
 | [UNTYPED_PORTS_FINDINGS.md](../../docs-md/workflows/UNTYPED_PORTS_FINDINGS.md) | Retag findings note (Option A — what you approved) |
 
 *(Also new but not for commit: `apps/frontend/tsconfig*.tsbuildinfo` — build artifacts from running `tsc --noEmit`.)*

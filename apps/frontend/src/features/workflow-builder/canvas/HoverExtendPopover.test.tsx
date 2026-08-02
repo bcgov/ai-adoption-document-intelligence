@@ -214,7 +214,7 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Inderdeep walkthrough 2026-07-29 — upstream direction: filter to activities
+// UX walkthrough 2026-07-29 — upstream direction: filter to activities
 // that PRODUCE the kind, and never offer Flow Control (a control-flow node
 // produces no data to feed the hovered input).
 // ---------------------------------------------------------------------------

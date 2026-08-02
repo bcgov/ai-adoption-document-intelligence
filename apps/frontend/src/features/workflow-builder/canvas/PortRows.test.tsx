@@ -427,7 +427,7 @@ describe("PortRows — output-handle hover-extend callbacks (§9)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Inderdeep walkthrough 2026-07-29 — input-handle hover-extend callbacks,
+// UX walkthrough 2026-07-29 — input-handle hover-extend callbacks,
 // the upstream mirror of §9: hovering a typed INPUT dot must report the
 // node + port so the canvas can open the producer-filtered popover.
 // ---------------------------------------------------------------------------

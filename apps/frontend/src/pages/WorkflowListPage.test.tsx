@@ -106,7 +106,7 @@ describe("WorkflowListPage — US-074 kind filter", () => {
 });
 
 /**
- * Inderdeep walkthrough 2026-07-29 — rows highlighted on hover but nothing
+ * UX walkthrough 2026-07-29 — rows highlighted on hover but nothing
  * was clickable; the only way in looked like "Edit". The name is now a real
  * link (href, hand cursor) into the workflow.
  */

@@ -85,7 +85,7 @@ const result = (await activityFn(activityParams)) as Record<string, unknown>;
 ```
 The schema validator only checks that `binding.ctxKey` references a declared ctx key ([graph-schema-validator.ts:399-436](../../apps/temporal/src/graph-schema-validator.ts#L399-L436)), and that activity types are registered (lines 282-309). There is **no check** that an activity actually produces `binding.port`, or that the type of the value at `ctxKey` matches what the activity expects. TypeScript catches *schema* mistakes (a `MapNode` must have `bodyEntryNodeId`, etc.) but not *wiring* mistakes (you can wire any port to any ctxKey of any type). The reference-data spec adds types on lookup *parameters* ([2026-04-22-tables-design.md §5.1-5.2](../../docs/superpowers/specs/2026-04-22-tables-design.md)), but they are coerced/checked inside the activity at runtime, not at wiring time.
 
-### Q5 — Single-purpose split feasibility: is Inderdeep's proposal actually feasible for every activity?
+### Q5 — Single-purpose split feasibility: is the single-purpose split proposal actually feasible for every activity?
 
 **Yes for every existing activity.** The codebase is already organized this way — each activity does one thing, multi-source data is plumbed through ctx, and routing is delegated to `switch`. Walking the list:
 

@@ -168,7 +168,7 @@ interface WorkflowEditorV2PageProps {
 }
 
 /**
- * Draft-save (Inderdeep walkthrough item 3): saving always persists, and the
+ * Draft-save (UX walkthrough item 3): saving always persists, and the
  * backend's verdict decides the toast — green when clean, amber when the
  * saved config still has blocking issues. The amber copy names the count and
  * points at what stays gated (running), because "Saved" alone would read as
@@ -215,7 +215,7 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   return (
     <RunStateProvider workflowId={workflowId ?? ""}>
       {/*
-        Keyed by workflowId so the in-editor workflow switcher (Inderdeep
+        Keyed by workflowId so the in-editor workflow switcher (the UX reviewer
         walkthrough 2026-07-29) gets a clean remount when navigating between
         two edit routes — name/description/config history are local state and
         would otherwise survive the param change.
@@ -743,7 +743,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     reactFlowRef.current?.setNodes((ns) =>
       ns.map((n) => (n.selected ? { ...n, selected: false } : n)),
     );
-    // Inderdeep walkthrough 2026-07-29 — grouping exists to simplify, but
+    // UX walkthrough 2026-07-29 — grouping exists to simplify, but
     // it only fired a toast and the canvas kept showing the ungrouped nodes
     // ("no visual clue these two are a group"). Collapse immediately: turn
     // simplified view on so the new group renders as its chip.
@@ -1422,7 +1422,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           data-testid="topbar-zone-center"
         >
           {/*
-              Inderdeep walkthrough 2026-07-29 — searchable switcher +
+              UX walkthrough 2026-07-29 — searchable switcher +
               in-app way back to the list; renaming stays with the Name
               field, so the switcher never has to double as the title.
             */}

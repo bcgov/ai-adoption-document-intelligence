@@ -4563,7 +4563,7 @@ describe("WorkflowEditorCanvas — item 6X: producer highlight emphasis", () => 
 });
 
 // ---------------------------------------------------------------------------
-// Inderdeep walkthrough 2026-07-29 — persistent group-membership cue.
+// UX walkthrough 2026-07-29 — persistent group-membership cue.
 //   With simplified view OFF, members of a user group get the
 //   `wb-node-grouped` wrapper class plus the group label in the
 //   `--wb-group-label` custom property (hover chip). Non-members are
@@ -5227,7 +5227,7 @@ describe("WorkflowEditorCanvas — G-060 multi-node drag", () => {
 });
 
 /**
- * Item 6 (Inderdeep walkthrough, 2026-08-02) — deleting a collapsed group
+ * Item 6 (UX walkthrough, 2026-08-02) — deleting a collapsed group
  * chip.
  *
  * G-091 previously refused this gesture and pointed at the right-hand panel,
@@ -5397,9 +5397,9 @@ describe("WorkflowEditorCanvas — item 6 deleting a group chip as a unit", () =
 });
 
 /**
- * Item 6 (Inderdeep walkthrough, 2026-08-02) — a group moves as one.
+ * Item 6 (UX walkthrough, 2026-08-02) — a group moves as one.
  *
- * Inderdeep's expectation, coming from Figma: "when I move one, the other one
+ * The UX reviewer's expectation, coming from Figma: "when I move one, the other one
  * also moves". Selection is deliberately NOT cohesive — clicking a member
  * still selects and edits exactly that member — so these tests pin the drag
  * behaviour specifically.

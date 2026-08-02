@@ -101,7 +101,7 @@ export interface HoverExtendPopoverProps {
    */
   filterKind?: KindRef;
   /**
-   * Inderdeep walkthrough 2026-07-29 — which way the extend goes.
+   * UX walkthrough 2026-07-29 — which way the extend goes.
    * `"downstream"` (default) keeps the historical behaviour: filter to
    * activities that ACCEPT `filterKind`. `"upstream"` — the extend was
    * launched from an INPUT handle — filters to activities that PRODUCE

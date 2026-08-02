@@ -161,7 +161,7 @@ describe("NodeContextMenu — Scenario 4: menu is anchored to the supplied posit
 });
 
 // ---------------------------------------------------------------------------
-// Inderdeep walkthrough 2026-07-29 — "Ungroup" entry for grouped nodes.
+// UX walkthrough 2026-07-29 — "Ungroup" entry for grouped nodes.
 //   Before this, the only ungroup paths were undo and the right-rail group
 //   settings; right-clicking a grouped node (the thing he actually tried)
 //   offered nothing.

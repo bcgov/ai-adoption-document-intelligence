@@ -283,7 +283,7 @@ vi.mock("./run-history/useWorkflowRuns", () => ({
 }));
 
 vi.mock("../../data/hooks/useWorkflows", () => ({
-  // Inderdeep walkthrough 2026-07-29 — the top-bar WorkflowSwitcher lists
+  // UX walkthrough 2026-07-29 — the top-bar WorkflowSwitcher lists
   // all workflows; an empty list keeps it inert in these page tests.
   useWorkflows: () => ({ data: [], isLoading: false }),
   useWorkflow: () => ({
@@ -538,7 +538,7 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Draft-save (Inderdeep walkthrough item 3, 2026-08-02) — saving always
+// Draft-save (UX walkthrough item 3, 2026-08-02) — saving always
 // persists; the backend's verdict picks the toast. Green when the saved
 // config is clean, amber ("issues remain") when it still cannot run.
 // ---------------------------------------------------------------------------

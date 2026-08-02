@@ -1,5 +1,5 @@
 /**
- * Tests for CanvasLegend (Inderdeep walkthrough 2026-07-29) — the in-place
+ * Tests for CanvasLegend (UX walkthrough 2026-07-29) — the in-place
  * explanation of the port/wire colour scheme.
  */
 

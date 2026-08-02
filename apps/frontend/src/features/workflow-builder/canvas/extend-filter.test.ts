@@ -76,7 +76,7 @@ describe("rankActivityTypesForKind", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Producer-side mirror (Inderdeep walkthrough 2026-07-29) — upstream extend.
+// Producer-side mirror (UX walkthrough 2026-07-29) — upstream extend.
 //   - file.prepare        output preparedData: PreparedFile (baseKind Document)
 //   - mistralOcr.process  output ocrResult: OcrResult (exact)
 // ---------------------------------------------------------------------------

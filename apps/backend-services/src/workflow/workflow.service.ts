@@ -689,7 +689,7 @@ export class WorkflowService {
   }
 
   /**
-   * Draft-save (Inderdeep walkthrough item 3, 2026-08-02): saving and running
+   * Draft-save (UX walkthrough item 3, 2026-08-02): saving and running
    * are different things — save persists whatever the author has, and the
    * semantic-validity gate lives at run start instead. This is that gate.
    * Warnings stay advisory (`valid` counts only severity "error").

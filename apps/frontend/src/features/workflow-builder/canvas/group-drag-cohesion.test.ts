@@ -1,5 +1,5 @@
 /**
- * Group move-together (Inderdeep walkthrough item 6, 2026-08-02).
+ * Group move-together (UX walkthrough item 6, 2026-08-02).
  *
  * The rule under test: a drag carries the rest of the author's group, and
  * nothing else. Synthetic map-body groups, deleted members and nodes xyflow

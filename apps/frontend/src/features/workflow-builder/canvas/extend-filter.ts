@@ -70,7 +70,7 @@ export function rankActivityTypesForKind(
 }
 
 // ---------------------------------------------------------------------------
-// Producer-side mirror (Inderdeep walkthrough 2026-07-29) — the popover can
+// Producer-side mirror (UX walkthrough 2026-07-29) — the popover can
 // extend UPSTREAM from an input handle ("what produces the <kind> this port
 // needs?"), so each accept-side helper gets a produce-side twin. "Produces K"
 // means the activity has at least one typed output assignable TO K.

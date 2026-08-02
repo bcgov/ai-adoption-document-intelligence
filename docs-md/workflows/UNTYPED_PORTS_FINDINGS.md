@@ -1,6 +1,6 @@
-# Untyped Ports — Findings (Inderdeep walkthrough follow-up, 2026-08-02)
+# Untyped Ports — Findings (UX walkthrough follow-up, 2026-08-02)
 
-Item 11 of `INDERDEEP_WALKTHROUGH_FIXES_20260729.md`. Alex's observation in the
+Item 11 of `UX_WALKTHROUGH_FIXES_20260729.md`. Alex's observation in the
 2026-07-29 walkthrough: *"it says a request ID, but behind the scenes it's just
 a string — anything can be a string"* — untyped ports undermine both the colour
 semantics (grey dots everywhere) and every kind-driven feature (auto-wire,
@@ -42,7 +42,7 @@ Two distinct populations fall out of this:
 - `shouldAutoWirePort` deliberately ignores base-`Artifact` ports, so none of
   these participate in auto-wire, the §9 hover-extend filter, or the new
   input-side (upstream) suggestions — reproducing exactly the discoverability
-  dead-end Inderdeep hit ("which node has the request ID? how do I figure that
+  dead-end the UX reviewer hit ("which node has the request ID? how do I figure that
   out?").
 - On the canvas they all render as grey dots, which is what made the colour
   scheme look arbitrary (item 10) — most dots were grey regardless of meaning.

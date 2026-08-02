@@ -1,5 +1,5 @@
 /**
- * CanvasLegend — Inderdeep walkthrough 2026-07-29.
+ * CanvasLegend — UX walkthrough 2026-07-29.
  *
  * "I have been wondering what do these colours mean … I couldn't find what
  * do these colours mean." The scheme was always deliberate — port/wire

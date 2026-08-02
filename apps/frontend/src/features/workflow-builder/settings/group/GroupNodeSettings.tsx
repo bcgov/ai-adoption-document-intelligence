@@ -147,7 +147,7 @@ export function GroupNodeSettings({
     const nextGroups = { ...(config.nodeGroups ?? {}) };
     delete nextGroups[groupId];
     onConfigChange({ ...config, nodeGroups: nextGroups });
-    // Inderdeep walkthrough 2026-07-29 — grouping fires a toast but its
+    // UX walkthrough 2026-07-29 — grouping fires a toast but its
     // inverse fired nothing, so ungrouping was indistinguishable from a
     // misclick. Mirror the feedback.
     notifications.show({
@@ -368,7 +368,7 @@ export function GroupNodeSettings({
       <Divider />
 
       {/*
-        Inderdeep walkthrough 2026-07-29 — "Delete group" read as "delete
+        UX walkthrough 2026-07-29 — "Delete group" read as "delete
         the nodes", and the only ungroup path he found was undo. Say what
         it actually does: ungroup; the steps stay.
       */}

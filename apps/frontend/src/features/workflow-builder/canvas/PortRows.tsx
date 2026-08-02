@@ -70,7 +70,7 @@ export interface PortRowsProps {
   ) => void;
   onOutputHandleLeave?: () => void;
   /**
-   * Inderdeep walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
+   * UX walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
    * typed INPUT port ("what produces the value this port needs?"). Fired
    * on an input row handle's mouseenter with the handle's left-centre
    * anchor; the canvas debounces these into the producer-filtered extend
@@ -228,7 +228,7 @@ function PortRow({
         style={handleStyle}
         {...(isInput
           ? {
-              // Inderdeep walkthrough 2026-07-29 — the upstream mirror of
+              // UX walkthrough 2026-07-29 — the upstream mirror of
               // the output hover below: left-centre anchor, producer-
               // filtered popover.
               onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
