@@ -1,5 +1,9 @@
 # Review: Inderdeep walkthrough fix batch — 2026-08-02
 
+> 📸 **[ILLUSTRATED_REVIEW.md](ILLUSTRATED_REVIEW.md)** covers the same ground
+> with a screenshot of every fix, captured from the running app. Use that one
+> to demo; this one for the file inventory and the reasoning behind each call.
+
 ## The ask
 
 **All three decisions are answered and built (2026-08-02).** Nothing is blocked on you; what is left is the demo pass.

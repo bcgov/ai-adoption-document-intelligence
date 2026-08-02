@@ -1460,9 +1460,30 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     // (the documented Phase-4 behaviour for empty / legacy workflows).
     const tryBtn = screen.getByTestId("try-button");
     expect(tryBtn).toBeDisabled();
-    fireEvent.mouseEnter(tryBtn);
+    // Hover the WRAPPER, not the button. A disabled button fires no pointer
+    // events in a real browser, so a tooltip bound to the button itself never
+    // opens — jsdom dispatches synthetic events on disabled elements anyway,
+    // which is how this went unnoticed until it was checked in a browser
+    // (2026-08-02). Hovering the wrapper is what a user's pointer does.
+    fireEvent.mouseEnter(tryBtn.parentElement as HTMLElement);
     await waitFor(() => {
       expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
+    });
+  });
+
+  it("Scenario 2b: the Run button explains itself while disabled too", async () => {
+    // Run used a native `title` attribute, which Chrome suppresses on a
+    // disabled control — so the one moment the reason matters (draft save
+    // persisted an unrunnable graph) it was invisible. Now it shares Try's
+    // tooltip treatment.
+    renderPage();
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+    expect(runBtn).toBeDisabled();
+    fireEvent.mouseEnter(runBtn.parentElement as HTMLElement);
+    await waitFor(() => {
+      expect(
+        screen.getAllByText("Save the workflow first").length,
+      ).toBeGreaterThan(0);
     });
   });
 

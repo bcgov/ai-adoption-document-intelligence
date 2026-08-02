@@ -1506,34 +1506,50 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           >
             Save
           </Button>
+          {/*
+            Draft save (2026-08-02) made "why is Run off?" a question users
+            actually ask — before it, an unrunnable graph could not be saved in
+            the first place. A disabled button fires no pointer events, so
+            neither a Mantine Tooltip nor a native `title` on the button itself
+            reaches the user; both render nothing at the moment the reason
+            matters most. The inline-flex span is the hover target that does
+            fire, so the tooltip works disabled or not.
+          */}
           {tryButtonVisible && (
             <Tooltip label={runBlockedReason ?? "Run this graph now"}>
-              <Button
-                variant="filled"
-                color="blue"
-                leftSection={<IconBolt size={14} />}
-                onClick={() => setRunDrawerMode("try")}
-                size="xs"
-                data-testid="try-button"
-                disabled={runBlockedReason !== null}
-              >
-                Try
-              </Button>
+              <span style={{ display: "inline-flex" }}>
+                <Button
+                  variant="filled"
+                  color="blue"
+                  leftSection={<IconBolt size={14} />}
+                  onClick={() => setRunDrawerMode("try")}
+                  size="xs"
+                  data-testid="try-button"
+                  disabled={runBlockedReason !== null}
+                >
+                  Try
+                </Button>
+              </span>
             </Tooltip>
           )}
-          <Button
-            variant="light"
-            leftSection={<IconPlayerPlay size={14} />}
-            onClick={() => setRunDrawerMode("run")}
-            size="xs"
-            data-testid="run-this-workflow-button"
-            disabled={runBlockedReason !== null}
-            title={
+          <Tooltip
+            label={
               runBlockedReason ?? "Open the run-trigger panel for this workflow"
             }
           >
-            Run this workflow
-          </Button>
+            <span style={{ display: "inline-flex" }}>
+              <Button
+                variant="light"
+                leftSection={<IconPlayerPlay size={14} />}
+                onClick={() => setRunDrawerMode("run")}
+                size="xs"
+                data-testid="run-this-workflow-button"
+                disabled={runBlockedReason !== null}
+              >
+                Run this workflow
+              </Button>
+            </span>
+          </Tooltip>
           <Menu position="bottom-end" withArrow shadow="md">
             <Menu.Target>
               <Button
