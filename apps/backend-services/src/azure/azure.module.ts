@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AzureController } from "@/azure/azure.controller";
 import { AzureService } from "@/azure/azure.service";
-import { AzureOpenAiController } from "@/azure/azure-openai.controller";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
 import { ClassifierOrphanCleanupService } from "@/azure/classifier-orphan-cleanup.service";
@@ -18,6 +17,6 @@ import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
   ],
   exports: [AzureService],
   imports: [BlobStorageModule],
-  controllers: [AzureController, AzureOpenAiController],
+  controllers: [AzureController],
 })
 export class AzureModule {}
