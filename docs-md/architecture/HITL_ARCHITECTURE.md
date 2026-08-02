@@ -162,10 +162,20 @@ HitlService.getQueue()
 ReviewDbService.findReviewQueue()
       ↓
 Returns: Documents with:
-  - status = 'extracted'
+  - status = 'awaiting_review' (default; the EXTRACTED /
+    ALL filters also admit status = 'extracted')
   - confidence < threshold
   - lastSession info (if reviewed)
 ```
+
+**How documents enter the queue:** the queue reads persisted `ocr_results`
+rows — it never queries Temporal. Gated seeded workflows therefore persist OCR
+before pausing: `checkConfidence → persistOcr (ocr.storeResults) → reviewSwitch
+→ humanReview`, where the `humanReview` (humanGate) executor sets the document
+to `awaiting_review`. The post-gate `storeResults` node runs the same upsert
+again after the reviewer approves, persisting corrected values. (Before
+2026-08-01 the templates only stored results after the gate, so paused
+documents never appeared in the queue.)
 
 **Queue Filtering:**
 - Shows documents that need review (low confidence scores)
@@ -373,6 +383,7 @@ WHERE id = :id
 **[ReviewWorkspacePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx)**
 - Main review interface for active session
 - Side-by-side view: document image + extracted fields
+- Inline canvas editing: [CanvasFieldOverlay.tsx](../../apps/frontend/src/features/annotation/hitl/components/CanvasFieldOverlay.tsx) anchors an input under each field's bounding box on the document image, sized to the box and colored by OCR confidence tier ([ConfidenceIndicator.tsx](../../apps/frontend/src/features/annotation/hitl/components/ConfidenceIndicator.tsx)); Tab moves between fields ([useFieldFocus.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useFieldFocus.ts)), F2 toggles the overlay, hover fades it to reveal the source pixels
 - Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
 - Actions: Approve, Escalate (with reason), Skip

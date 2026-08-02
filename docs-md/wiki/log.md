@@ -88,3 +88,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added canonical doc `extraction/OCR_RECOVER_NUMERIC_ZEROS.md` for the new `ocr.recoverNumericZerosFromCheckboxes` activity (blob-backed correction tool that recovers numeric zeros Azure DI misread as selection marks; three table-finder strategies). Relocated it from the `docs-md/` root into the `extraction/` topic folder and fixed its links after the develop merge renamed `graph-workflows/` → `workflows/`.
 - Wired it into `extraction.md` and noted the blob-backed correction-tool contract (`ocr-activity-ref-utils.ts`). The `extraction/` folder is already registered in `sources.md`.
 - Kept the generic `standard-ocr-workflow.json` free of the SDPR-specific config: moved the `recoverNumericZeros` node into a form-specific variant `standard-ocr-workflow-sdpr.json` (seeded as `seed-workflow-standard-ocr-sdpr`). Fixed the node's ctx wiring — it now reads/writes `ocrResultRef` in place (was reading an unpopulated `ocrResult` key, which left the recovery off the data path so `postOcrCleanup` never saw it).
+
+## [2026-08-01] ingest | HITL inline canvas editor, persist-before-gate, demo seed
+
+- `architecture/HITL_ARCHITECTURE.md`: corrected the queue-flow diagram (default queue status is `awaiting_review`, not `extracted`), documented how documents enter the queue (gated templates now run `persistOcr` before `reviewSwitch`; humanGate sets `awaiting_review`; post-gate store persists corrections), and added the inline canvas editor components (CanvasFieldOverlay, ConfidenceIndicator, useFieldFocus) to Frontend Architecture. Shipped on PR #184.
+- Relocated `hitl-demo-reset.md` from the docs-md root into `extraction/HITL_DEMO_RESET.md` (post-reorg straggler) and registered it as a canonical source on the hitl topic.
+- `hitl.md`: routing notes for the persist-before-gate ordering, the inline editor, and the demo seed.

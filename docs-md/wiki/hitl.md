@@ -1,8 +1,9 @@
 ---
 status: active
-updated: 2026-06-17
+updated: 2026-08-01
 canonical_sources:
   - docs-md/architecture/HITL_ARCHITECTURE.md
+  - docs-md/extraction/HITL_DEMO_RESET.md
   - apps/backend-services/src/hitl/
   - apps/frontend/src/pages/
   - apps/frontend/src/features/
@@ -28,6 +29,9 @@ HITL routes low-confidence or review-required document results to humans. It is 
 ## Design Notes
 
 - HITL is per-document-instance state, not group-level reusable configuration.
+- The queue reads persisted `ocr_results` only — gated workflow templates persist OCR *before* the human gate (`persistOcr` node, since 2026-08-01); the post-gate store persists reviewer corrections. See the queue-entry note in `HITL_ARCHITECTURE.md`.
+- Reviewers edit inline on the document canvas (`CanvasFieldOverlay` under `apps/frontend/src/features/annotation/hitl/`), not only in the side panel.
+- A demo/reset seed exists for local review-queue demos without paid OCR: `npm run demo:reset` — see `docs-md/extraction/HITL_DEMO_RESET.md`.
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
 
