@@ -23,7 +23,14 @@ npm run capture:hitl-demo
 ```
 
 Then open the review queue (`/review` in the app) — the seeded documents appear
-in `awaiting_review` with field bounding boxes over the rendered form.
+in `awaiting_review` with field bounding boxes over the rendered form:
+
+![HITL review queue with the 9 seeded demo documents](images/hitl-demo-queue.png)
+
+Opening one shows the inline canvas editor — an input anchored under the focused
+field's bounding box, colored by confidence tier:
+
+![Review workspace with the inline canvas overlay input](images/hitl-demo-workspace.png)
 
 ## How it works
 
