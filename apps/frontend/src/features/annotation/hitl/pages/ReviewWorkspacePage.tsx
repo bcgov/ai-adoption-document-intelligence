@@ -652,15 +652,28 @@ export const ReviewWorkspacePage: FC = () => {
       const currentIndex = filteredSortedFields.findIndex(
         (f) => f.fieldKey === activeFieldKey,
       );
-      let nextIndex: number;
-      if (direction === "next") {
-        nextIndex =
-          currentIndex < filteredSortedFields.length - 1 ? currentIndex + 1 : 0;
-      } else {
-        nextIndex =
-          currentIndex > 0 ? currentIndex - 1 : filteredSortedFields.length - 1;
+      const step = direction === "next" ? 1 : -1;
+      const wrap = (i: number) =>
+        (i + filteredSortedFields.length) % filteredSortedFields.length;
+      let nextIndex = wrap(currentIndex + step);
+      let nextField = filteredSortedFields[nextIndex];
+      if (fromOverlay) {
+        // Stay in the canvas-overlay stack: a field without a bounding box
+        // on the current page mounts no overlay (see the `boxes` memo), so
+        // the old overlay would unmount with nothing to autoFocus and focus
+        // would fall to <body>. Skip such fields; they remain reachable
+        // through the sidebar stack.
+        const overlayCapable = (f: (typeof filteredSortedFields)[number]) =>
+          f.pageNumber === currentPage &&
+          !!f.boundingBox &&
+          f.boundingBox.polygon.length >= 2;
+        let guard = filteredSortedFields.length;
+        while (nextField && !overlayCapable(nextField) && guard-- > 0) {
+          nextIndex = wrap(nextIndex + step);
+          nextField = filteredSortedFields[nextIndex];
+        }
+        if (!nextField || !overlayCapable(nextField)) return;
       }
-      const nextField = filteredSortedFields[nextIndex];
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
@@ -687,7 +700,7 @@ export const ReviewWorkspacePage: FC = () => {
         });
       }
     },
-    [filteredSortedFields, activeFieldKey, viewMode, focusField],
+    [filteredSortedFields, activeFieldKey, viewMode, focusField, currentPage],
   );
 
   const handleUndo = useCallback(() => {
