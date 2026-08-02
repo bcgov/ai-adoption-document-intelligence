@@ -129,4 +129,4 @@ If you want a different set of demo documents:
 > Note: the review queue only surfaces documents that have at least one field
 > below the confidence threshold (default `0.9`) and no in-progress session, so
 > all-high-confidence documents may only appear once the queue confidence filter
-> is widened. See [HITL_ARCHITECTURE.md](architecture/HITL_ARCHITECTURE.md).
+> is widened. See [HITL_ARCHITECTURE.md](../architecture/HITL_ARCHITECTURE.md).
