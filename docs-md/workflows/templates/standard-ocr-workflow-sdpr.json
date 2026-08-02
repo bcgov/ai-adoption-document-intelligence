@@ -431,6 +431,28 @@
         "maximumAttempts": 3
       }
     },
+    "persistOcr": {
+      "id": "persistOcr",
+      "type": "activity",
+      "label": "Persist OCR (pre-review)",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    },
     "reviewSwitch": {
       "id": "reviewSwitch",
       "type": "switch",
@@ -543,6 +565,12 @@
     {
       "id": "e8",
       "source": "checkConfidence",
+      "target": "persistOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e-persist-to-switch",
+      "source": "persistOcr",
       "target": "reviewSwitch",
       "type": "normal"
     },
@@ -605,7 +633,7 @@
       "color": "#fb923c",
       "nodeIds": [
         "checkConfidence",
-        "reviewSwitch"
+        "persistOcr", "reviewSwitch"
       ],
       "exposedParams": [
         {
