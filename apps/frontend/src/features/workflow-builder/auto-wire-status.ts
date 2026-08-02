@@ -1,5 +1,6 @@
 import {
   getActivityCatalogEntry,
+  isAssignable,
   type KindRef,
   resolveInputPort,
   shouldAutoWirePort,
@@ -65,7 +66,15 @@ export function computeNodeInputIssues(
     //   2. REQUIRED base-`Artifact` identifier ports — the amber ring
     //      already fires for these on canvas, so the badge/drawer must
     //      count them too (ring/badge reconciliation, PORT_WIRING §4.2).
-    // Optional identifier ports (kindless or base Artifact) stay invisible.
+    // Optional identifier ports stay invisible — both the legacy
+    // base-`Artifact` shape AND the typed Identifier family (2026-08-02
+    // retag): an optional documentId/groupId with no upstream producer is
+    // convention-fed (initialCtx / server default), not a problem.
+    const isTypedIdentifier =
+      port.kind !== undefined &&
+      port.kind !== "Artifact" &&
+      isAssignable(port.kind, "Identifier");
+    if (isTypedIdentifier && port.required !== true) continue;
     const identifierPort = port.kind === "Artifact" && port.required === true;
     if (!shouldAutoWirePort(port) && !identifierPort) continue;
     const result = resolveInputPort(config, nodeId, {

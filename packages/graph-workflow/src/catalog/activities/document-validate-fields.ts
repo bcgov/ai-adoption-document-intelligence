@@ -116,7 +116,7 @@ export const documentValidateFieldsCatalogEntry: ActivityCatalogEntry = {
       description: "Identifier of the document being validated.",
       required: true,
       // Identifier — `Artifact` wildcard per the all-or-nothing invariant.
-      kind: "Artifact",
+      kind: "DocumentId",
     },
   ],
   outputs: [

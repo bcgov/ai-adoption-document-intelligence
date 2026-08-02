@@ -43,7 +43,7 @@ export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Group ID",
       description: "Destination group for segment storage.",
       required: true,
-      kind: "Artifact",
+      kind: "GroupId",
     },
     {
       name: "ocrResult",
@@ -57,7 +57,7 @@ export const documentSplitAndClassifyCatalogEntry: ActivityCatalogEntry = {
       label: "Document ID",
       description: "Inferred from the file reference if not provided.",
       required: false,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
   ],
   outputs: [

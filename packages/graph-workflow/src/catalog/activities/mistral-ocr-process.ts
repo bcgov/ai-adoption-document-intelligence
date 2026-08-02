@@ -24,7 +24,7 @@ export const mistralOcrProcessCatalogEntry: ActivityCatalogEntry = {
       label: "Template model ID",
       description: "Optional labeling template for document annotation.",
       required: false,
-      kind: "Artifact",
+      kind: "ModelId",
     },
     {
       name: "documentAnnotationPrompt",

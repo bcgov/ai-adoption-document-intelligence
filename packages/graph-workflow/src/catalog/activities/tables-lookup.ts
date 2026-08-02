@@ -17,7 +17,7 @@ export const tablesLookupCatalogEntry: ActivityCatalogEntry = {
       label: "Group ID",
       description: "Group that owns the reference table.",
       required: true,
-      kind: "Artifact",
+      kind: "GroupId",
     },
     {
       name: "tableId",

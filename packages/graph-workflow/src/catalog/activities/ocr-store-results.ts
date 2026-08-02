@@ -16,7 +16,7 @@ export const ocrStoreResultsCatalogEntry: ActivityCatalogEntry = {
       label: "Document ID",
       description: "Identifier of the document.",
       required: true,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
     {
       name: "ocrResult",

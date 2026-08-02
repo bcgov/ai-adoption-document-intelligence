@@ -20,7 +20,7 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
       label: "APIM request ID",
       description: "Azure request tracking ID.",
       required: true,
-      kind: "Artifact",
+      kind: "RequestId",
     },
     {
       name: "fileName",
@@ -42,7 +42,7 @@ export const azureOcrExtractCatalogEntry: ActivityCatalogEntry = {
       description:
         "Model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
       required: false,
-      kind: "Artifact",
+      kind: "ModelId",
     },
     {
       name: "ocrResponse",

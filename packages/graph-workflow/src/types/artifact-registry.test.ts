@@ -52,6 +52,11 @@ const ALL_KINDS = [
   "LabeledDocumentMap",
   "ValidationResult",
   "Reference",
+  "Identifier",
+  "DocumentId",
+  "GroupId",
+  "ModelId",
+  "RequestId",
 ] as const satisfies readonly ArtifactKind[];
 
 describe("ARTIFACT_REGISTRY (v1 snapshot)", () => {

@@ -61,7 +61,7 @@ export const azureOcrSubmitCatalogEntry: ActivityCatalogEntry = {
       label: "Request ID",
       description: "Azure tracking ID for this submission.",
       required: true,
-      kind: "Artifact",
+      kind: "RequestId",
     },
     {
       name: "statusCode",

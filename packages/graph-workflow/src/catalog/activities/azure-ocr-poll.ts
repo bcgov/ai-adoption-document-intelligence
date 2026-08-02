@@ -19,7 +19,7 @@ export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
       label: "APIM request ID",
       description: "Azure request ID returned by Submit OCR.",
       required: true,
-      kind: "Artifact",
+      kind: "RequestId",
     },
     {
       name: "modelId",
@@ -27,7 +27,7 @@ export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
       description:
         "Which Azure DI model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
       required: false,
-      kind: "Artifact",
+      kind: "ModelId",
     },
   ],
   outputs: [

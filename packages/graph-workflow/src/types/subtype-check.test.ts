@@ -295,3 +295,24 @@ describe("shape-honest Segment subkinds", () => {
     expect(isAssignable("DocumentSegment[]", "Segment[]")).toBe(true);
   });
 });
+
+describe("Identifier family (2026-08-02 retag)", () => {
+  it("each id kind chains through Identifier to Artifact", () => {
+    expect(isAssignable("DocumentId", "Identifier")).toBe(true);
+    expect(isAssignable("GroupId", "Identifier")).toBe(true);
+    expect(isAssignable("ModelId", "Identifier")).toBe(true);
+    expect(isAssignable("RequestId", "Identifier")).toBe(true);
+    expect(isAssignable("DocumentId", "Artifact")).toBe(true);
+  });
+  it("ids of different things are never interchangeable", () => {
+    expect(isAssignable("DocumentId", "GroupId")).toBe(false);
+    expect(isAssignable("GroupId", "DocumentId")).toBe(false);
+    expect(isAssignable("RequestId", "ModelId")).toBe(false);
+    // Base does not satisfy a specific id either.
+    expect(isAssignable("Identifier", "DocumentId")).toBe(false);
+  });
+  it("an id is not a Document (families stay disjoint)", () => {
+    expect(isAssignable("DocumentId", "Document")).toBe(false);
+    expect(isAssignable("DocumentId", "DocumentRef")).toBe(false);
+  });
+});

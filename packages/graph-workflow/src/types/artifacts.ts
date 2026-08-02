@@ -64,7 +64,16 @@ export type ArtifactKind =
   | "ClassificationLabel"
   | "LabeledDocumentMap"
   | "ValidationResult"
-  | "Reference";
+  | "Reference"
+  // Identifier family (2026-08-02, Inderdeep-walkthrough follow-up) —
+  // branded ids that used to be untyped `Artifact` strings. One family,
+  // one colour; ids of different things are NOT assignable to each other
+  // (only to their own kind and the base `Identifier`).
+  | "Identifier"
+  | "DocumentId"
+  | "GroupId"
+  | "ModelId"
+  | "RequestId";
 
 /**
  * Array-cardinality form of `ArtifactKind`. A template-literal type that

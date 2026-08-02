@@ -727,3 +727,59 @@ describe("control-flow and source producers (G-007)", () => {
     });
   });
 });
+
+describe("Identifier-family name-match fallback (2026-08-02 retag)", () => {
+  // Producers whose outputs carry NO kind still exist after the retag —
+  // childWorkflow output mappings (author-named, untyped) being the live
+  // case. A typed identifier consumer must keep binding to a unique
+  // same-named untyped output exactly as its base-`Artifact` predecessor
+  // did; the fallback is scoped to the Identifier family only.
+  const untypedProducer = (port: string): GraphWorkflowConfig["nodes"][string] =>
+    ({
+      id: "P",
+      type: "childWorkflow",
+      label: "Child",
+      workflowRef: { type: "library", workflowId: "w1" },
+      outputMappings: [{ port, ctxKey: `child.${port}` }],
+    }) as GraphWorkflowConfig["nodes"][string];
+
+  it("binds a typed identifier port to a unique same-named UNTYPED output", () => {
+    const cfg = makeConfig(
+      { P: untypedProducer("documentId"), C: activity("C", "ocr.storeResults") },
+      [{ source: "P", target: "C" }],
+    );
+    expect(
+      resolveInputPort(cfg, "C", { name: "documentId", kind: "DocumentId" }),
+    ).toEqual({
+      status: "auto-bound",
+      producerNodeId: "P",
+      producerPort: "documentId",
+      via: "name-match",
+    });
+  });
+
+  it("stays unsatisfied when no same-named output exists either", () => {
+    const cfg = makeConfig(
+      {
+        P: untypedProducer("somethingElse"),
+        C: activity("C", "ocr.storeResults"),
+      },
+      [{ source: "P", target: "C" }],
+    );
+    expect(
+      resolveInputPort(cfg, "C", { name: "documentId", kind: "DocumentId" }),
+    ).toEqual({ status: "unsatisfied" });
+  });
+
+  it("does NOT apply the fallback to non-identifier kinds", () => {
+    // A `PreparedFile` port must not name-match onto an untyped output —
+    // data ports keep strict kind matching.
+    const cfg = makeConfig(
+      { P: untypedProducer("fileData"), C: activity("C", "azureOcr.submit") },
+      [{ source: "P", target: "C" }],
+    );
+    expect(
+      resolveInputPort(cfg, "C", { name: "fileData", kind: "PreparedFile" }),
+    ).toEqual({ status: "unsatisfied" });
+  });
+});

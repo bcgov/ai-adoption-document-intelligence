@@ -232,10 +232,11 @@ describe("computeNodeInputIssues", () => {
     });
   });
 
-  it("flags a REQUIRED base-Artifact identifier port with no source", () => {
-    // documentId (kind Artifact, required) has no upstream producer and no
-    // binding. blobKey is locked/bound so it doesn't also show up as a
-    // problem — isolating the identifier-port behaviour under test.
+  it("flags a REQUIRED identifier port with no source", () => {
+    // documentId (kind DocumentId since the 2026-08-02 retag, required) has
+    // no upstream producer and no binding. blobKey is locked/bound so it
+    // doesn't also show up as a problem — isolating the identifier-port
+    // behaviour under test.
     const cfg = makeConfig(
       {
         A: {
@@ -256,7 +257,7 @@ describe("computeNodeInputIssues", () => {
       {
         port: "documentId",
         label: "Document ID",
-        kind: "Artifact",
+        kind: "DocumentId",
         status: "unsatisfied",
       },
     ]);

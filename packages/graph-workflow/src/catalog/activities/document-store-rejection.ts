@@ -20,7 +20,7 @@ export const documentStoreRejectionCatalogEntry: ActivityCatalogEntry = {
       label: "Document ID",
       description: "Identifier of the rejected document.",
       required: true,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
     {
       name: "reason",

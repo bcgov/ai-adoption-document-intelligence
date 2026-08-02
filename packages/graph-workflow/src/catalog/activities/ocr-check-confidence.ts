@@ -35,7 +35,7 @@ export const ocrCheckConfidenceCatalogEntry: ActivityCatalogEntry = {
       label: "Document ID",
       description: "The document the OCR result belongs to.",
       required: true,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
     {
       name: "ocrResult",

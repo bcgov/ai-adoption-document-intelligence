@@ -43,10 +43,11 @@ describe("ConnectSummaryPopover", () => {
     vi.useRealTimers();
   });
 
-  it("lists a check row with the producer's label for each auto-bound input, mentioning name-match", () => {
-    // apimRequestId is a REQUIRED base-Artifact identifier port on
-    // azureOcr.extract — it only ever auto-binds via name-match (see
-    // resolve-input-port.ts's Artifact-kind branch).
+  it("lists a check row with the producer's label for each auto-bound input", () => {
+    // apimRequestId is a REQUIRED identifier port (kind RequestId since the
+    // 2026-08-02 retag) on azureOcr.extract — with both sides typed it now
+    // auto-binds via the kind pass (nearest RequestId producer), so no
+    // "matched by name" suffix renders.
     const submit: ActivityNode = {
       id: "submit",
       type: "activity",
@@ -77,7 +78,7 @@ describe("ConnectSummaryPopover", () => {
     const row = screen.getByTestId("connect-summary-row-apimRequestId");
     expect(row).toHaveTextContent("APIM request ID");
     expect(row).toHaveTextContent("Submit A");
-    expect(row).toHaveTextContent(/name/i);
+    expect(row).not.toHaveTextContent(/matched by name/i);
   });
 
   it("names the producer label in a pinned row bound to an auto key", () => {

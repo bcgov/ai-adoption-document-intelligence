@@ -247,6 +247,42 @@ export const ARTIFACT_REGISTRY: Readonly<
     baseKind: "Artifact",
     isArray: false,
   },
+
+  // Identifier family → cyan (2026-08-02, Inderdeep-walkthrough follow-up).
+  // Branded ids that were previously untyped `Artifact` strings, which made
+  // them invisible to auto-wire and both hover-extend directions and painted
+  // most port dots grey. Sibling identifiers deliberately share only the
+  // `Identifier` base, so a DocumentId can never satisfy a GroupId port.
+  Identifier: {
+    displayName: "Identifier",
+    color: "cyan",
+    baseKind: "Artifact",
+    isArray: false,
+  },
+  DocumentId: {
+    displayName: "Document ID",
+    color: "cyan",
+    baseKind: "Identifier",
+    isArray: false,
+  },
+  GroupId: {
+    displayName: "Group ID",
+    color: "cyan",
+    baseKind: "Identifier",
+    isArray: false,
+  },
+  ModelId: {
+    displayName: "Model ID",
+    color: "cyan",
+    baseKind: "Identifier",
+    isArray: false,
+  },
+  RequestId: {
+    displayName: "Request ID",
+    color: "cyan",
+    baseKind: "Identifier",
+    isArray: false,
+  },
 } as const satisfies Record<ArtifactKind, ArtifactKindMeta>);
 
 /**

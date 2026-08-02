@@ -24,7 +24,7 @@ export const documentExtractPageRangeCatalogEntry: ActivityCatalogEntry = {
       label: "Group ID",
       description: "Destination group for the extracted segment.",
       required: true,
-      kind: "Artifact",
+      kind: "GroupId",
     },
     {
       name: "pageRange",
@@ -38,7 +38,7 @@ export const documentExtractPageRangeCatalogEntry: ActivityCatalogEntry = {
       label: "Document ID",
       description: "Inferred from the file reference if not provided.",
       required: false,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
   ],
   outputs: [

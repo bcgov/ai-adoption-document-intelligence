@@ -84,14 +84,14 @@ export const documentSplitCatalogEntry: ActivityCatalogEntry = {
       label: "Group ID",
       description: "Destination group used for storing the produced segments.",
       required: true,
-      kind: "Artifact",
+      kind: "GroupId",
     },
     {
       name: "documentId",
       label: "Document ID",
       description: "Inferred from the file reference if not provided.",
       required: false,
-      kind: "Artifact",
+      kind: "DocumentId",
     },
   ],
   outputs: [

@@ -193,6 +193,33 @@ export function resolveInputPort(
   }
 
   if (candidates.length === 0) {
+    // Identifier-family fallback (2026-08-02 retag). Identifier ports used
+    // to be base-`Artifact` and wire through the unique-name-match branch
+    // above; typing them must not orphan a port whose producer is still
+    // UNTYPED (dynamic `dyn.*` nodes, custom outputs). When the kind pass
+    // finds nothing, fall back to the same rule that wired them before:
+    // bind ONLY to a unique upstream output with the exact same name.
+    if (isAssignable(port.kind, "Identifier")) {
+      const named: Omit<Candidate, "via">[] = [];
+      for (const [producerNodeId, distance] of distances) {
+        const producer = config.nodes[producerNodeId];
+        if (!producer) continue;
+        for (const output of outputPortsFor(producer)) {
+          if (output.name === port.name) {
+            named.push({ producerNodeId, producerPort: output.name, distance });
+          }
+        }
+      }
+      const pick = uniqueNearest(named);
+      if (pick) {
+        return {
+          status: "auto-bound",
+          producerNodeId: pick.producerNodeId,
+          producerPort: pick.producerPort,
+          via: "name-match",
+        };
+      }
+    }
     return { status: "unsatisfied" };
   }
 
