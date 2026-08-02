@@ -54,6 +54,35 @@
 }
 
 /*
+ * Inderdeep walkthrough 2026-07-29 — persistent group-membership cue when
+ * simplified view is OFF. A dashed ring (distinct from the solid blue
+ * hover-highlight above) marks every member of a user group; hovering a
+ * member shows the group's label as a small chip above the card. The label
+ * text travels in the `--wb-group-label` custom property stamped by the
+ * canvas projection.
+ */
+.wb-editor-canvas .react-flow__node.wb-node-grouped {
+  outline: 2px dashed var(--mantine-color-violet-4, #9775fa);
+  outline-offset: 5px;
+  border-radius: 12px;
+}
+
+.wb-editor-canvas .react-flow__node.wb-node-grouped:hover::after {
+  content: var(--wb-group-label, "Grouped");
+  position: absolute;
+  top: -22px;
+  left: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--mantine-color-white, #fff);
+  background: var(--mantine-color-violet-6, #7950f2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
  * The switch node draws its OWN diamond-shaped selection halo on its rotated
  * visual layer (see SwitchNodeRenderer). Suppress any default rectangular
  * selection outline/shadow on its wrapper so a rectangle is never painted

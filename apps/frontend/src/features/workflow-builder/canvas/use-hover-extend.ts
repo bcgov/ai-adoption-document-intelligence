@@ -12,12 +12,20 @@ export interface HoverExtendState {
   nodeId: string;
   anchor: HoverExtendAnchor;
   /**
-   * §9 — the specific output port the extend was launched from, when the
-   * trigger was a typed per-port output handle (or a drag released from
-   * one). `undefined` for the node-level `out` handle, which keeps today's
-   * unfiltered popover.
+   * §9 — the specific port the extend was launched from, when the trigger
+   * was a typed per-port handle (or a drag released from one). An OUTPUT
+   * port for downstream extends, an INPUT port for upstream ones (see
+   * `direction`). `undefined` for the node-level `out` handle, which keeps
+   * today's unfiltered popover.
    */
   sourcePort?: string;
+  /**
+   * Inderdeep walkthrough 2026-07-29 — set to `"upstream"` when the extend
+   * was launched from an INPUT handle: the popover filters to activities
+   * that PRODUCE the port's kind and the pick inserts the new node wired
+   * into that input. Omitted/`"downstream"` keeps the historical flow.
+   */
+  direction?: "downstream" | "upstream";
 }
 
 export interface UseHoverExtend {
@@ -26,6 +34,7 @@ export interface UseHoverExtend {
     nodeId: string,
     anchor: HoverExtendAnchor,
     sourcePort?: string,
+    direction?: "downstream" | "upstream",
   ) => void;
   handleSourceHandleLeave: () => void;
   handlePopoverEnter: () => void;
@@ -67,7 +76,12 @@ export function useHoverExtend(): UseHoverExtend {
   }, []);
 
   const handleSourceHandleEnter = useCallback(
-    (nodeId: string, anchor: HoverExtendAnchor, sourcePort?: string) => {
+    (
+      nodeId: string,
+      anchor: HoverExtendAnchor,
+      sourcePort?: string,
+      direction?: "downstream" | "upstream",
+    ) => {
       // If a close was scheduled (e.g. the user just re-entered the same
       // handle), cancel it — the user is still in the hover region.
       if (closeTimerRef.current) {
@@ -80,7 +94,7 @@ export function useHoverExtend(): UseHoverExtend {
       }
       openTimerRef.current = setTimeout(() => {
         openTimerRef.current = null;
-        setHoverExtend({ nodeId, anchor, sourcePort });
+        setHoverExtend({ nodeId, anchor, sourcePort, direction });
       }, HOVER_DEBOUNCE_MS);
     },
     [],

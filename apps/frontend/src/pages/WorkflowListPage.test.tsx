@@ -106,6 +106,49 @@ describe("WorkflowListPage — US-074 kind filter", () => {
 });
 
 /**
+ * Inderdeep walkthrough 2026-07-29 — rows highlighted on hover but nothing
+ * was clickable; the only way in looked like "Edit". The name is now a real
+ * link (href, hand cursor) into the workflow.
+ */
+describe("WorkflowListPage — workflow name link", () => {
+  let apiMock: ApiServiceMock;
+
+  beforeEach(() => {
+    apiMock = apiService as unknown as ApiServiceMock;
+    apiMock.get.mockReset();
+    apiMock.get.mockResolvedValue({
+      success: true,
+      data: {
+        workflows: [
+          {
+            id: "wf-1",
+            name: "Standard OCR",
+            slug: "standard-ocr",
+            description: "",
+            version: 3,
+            config: { schemaVersion: "2.0" },
+            createdAt: "2026-07-01T00:00:00.000Z",
+            updatedAt: "2026-07-15T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders the workflow name as a link that opens the editor", async () => {
+    renderPage();
+    const link = await screen.findByTestId("workflow-name-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAttribute("href", "/workflows/wf-1/edit");
+    expect(link).toHaveTextContent("Standard OCR");
+  });
+});
+
+/**
  * G-050 — the confirmation copy that names what deleting a workflow takes.
  *
  * The distinction it has to carry: documents are NOT deleted. Only the link

@@ -49,6 +49,7 @@ import {
   type OnConnectEnd,
   type OnConnectStart,
   type OnSelectionChangeParams,
+  Panel,
   Position,
   ReactFlow,
   type ReactFlowInstance,
@@ -91,9 +92,13 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
+import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
-import { firstMatchingInputPort } from "./extend-filter";
+import {
+  firstMatchingInputPort,
+  firstMatchingOutputPort,
+} from "./extend-filter";
 import {
   type GroupChipFlowNode,
   GroupChipNode,
@@ -269,6 +274,18 @@ interface CommonNodeData extends Record<string, unknown> {
     anchor: { x: number; y: number },
   ) => void;
   onOutputHandleLeave?: () => void;
+  /**
+   * Inderdeep walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
+   * typed per-port INPUT handle. The renderers forward these to
+   * `<PortRows>`; the canvas routes them into the producer-filtered
+   * extend popover.
+   */
+  onInputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onInputHandleLeave?: () => void;
 }
 
 interface ActivityNodeData extends CommonNodeData {
@@ -824,6 +841,8 @@ const ActivityNodeRenderer = memo(
           outputs={data.portRows.outputs}
           onOutputHandleEnter={data.onOutputHandleEnter}
           onOutputHandleLeave={data.onOutputHandleLeave}
+          onInputHandleEnter={data.onInputHandleEnter}
+          onInputHandleLeave={data.onInputHandleLeave}
         />
         <NodePreviewOverlay
           nodeId={id}
@@ -1143,6 +1162,8 @@ const PollUntilNodeRenderer = memo(
             outputs={data.portRows.outputs}
             onOutputHandleEnter={data.onOutputHandleEnter}
             onOutputHandleLeave={data.onOutputHandleLeave}
+            onInputHandleEnter={data.onInputHandleEnter}
+            onInputHandleLeave={data.onInputHandleLeave}
           />
         )}
       </div>
@@ -1323,6 +1344,14 @@ interface ProjectionCallbacks {
       ) => void)
     | undefined;
   onOutputHandleLeave: (() => void) | undefined;
+  onInputHandleEnter:
+    | ((
+        nodeId: string,
+        portName: string,
+        anchor: { x: number; y: number },
+      ) => void)
+    | undefined;
+  onInputHandleLeave: (() => void) | undefined;
 }
 
 /**
@@ -1389,6 +1418,8 @@ function projectFlowNodes(
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
+          onInputHandleEnter: callbacks.onInputHandleEnter,
+          onInputHandleLeave: callbacks.onInputHandleLeave,
           portRows: computePortRows(config, node.id, wires),
           previewOutputs: computePreviewOutputs(config, node.id),
         },
@@ -1417,6 +1448,8 @@ function projectFlowNodes(
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
+          onInputHandleEnter: callbacks.onInputHandleEnter,
+          onInputHandleLeave: callbacks.onInputHandleLeave,
           inputHandleStyle: sides.input.handleStyle,
           outputHandleStyle: sides.output.handleStyle,
           inputPillEntries: sides.input.pillEntries,
@@ -1499,6 +1532,15 @@ const DATA_WIRE_CLASS = "wb-data-wire";
  * data) so a single hook emphasises ANY node type uniformly.
  */
 const HIGHLIGHT_CLASS = "wb-node-highlight";
+
+/**
+ * xyflow class applied to every member of a user node-group when simplified
+ * view is OFF (Inderdeep walkthrough 2026-07-29 — grouped nodes were
+ * indistinguishable from ungrouped ones once the group-time toast faded).
+ * Styled in workflow-editor-canvas.css; the wrapper also carries the group
+ * label in the `--wb-group-label` custom property for the hover chip.
+ */
+const GROUPED_CLASS = "wb-node-grouped";
 
 /**
  * Returns `node` with `HIGHLIGHT_CLASS` toggled on its `className` to match
@@ -1989,6 +2031,17 @@ function WorkflowEditorCanvasInner({
     [handleSourceHandleEnter],
   );
 
+  // Inderdeep walkthrough 2026-07-29 — the upstream mirror: hovering a typed
+  // INPUT handle opens the same debounced popover, filtered to activities
+  // that PRODUCE the port's kind ("you can build left-to-right but not
+  // right-to-left" — now you can).
+  const handlePortInputHandleEnter = useCallback(
+    (nodeId: string, portName: string, anchor: { x: number; y: number }) => {
+      handleSourceHandleEnter(nodeId, anchor, portName, "upstream");
+    },
+    [handleSourceHandleEnter],
+  );
+
   const projectionCallbacks = useMemo<ProjectionCallbacks>(
     () => ({
       onBadgeClick: onNodeBadgeClick,
@@ -1996,12 +2049,15 @@ function WorkflowEditorCanvasInner({
       onSourceHandleLeave: handleSourceHandleLeave,
       onOutputHandleEnter: handlePortOutputHandleEnter,
       onOutputHandleLeave: handleSourceHandleLeave,
+      onInputHandleEnter: handlePortInputHandleEnter,
+      onInputHandleLeave: handleSourceHandleLeave,
     }),
     [
       onNodeBadgeClick,
       handleSourceHandleEnter,
       handleSourceHandleLeave,
       handlePortOutputHandleEnter,
+      handlePortInputHandleEnter,
     ],
   );
 
@@ -2044,7 +2100,32 @@ function WorkflowEditorCanvasInner({
         projectionCallbacks,
         wires,
       );
-      setInternalNodes([...containerNodes, ...normalNodes]);
+      // Inderdeep walkthrough 2026-07-29 — with simplified view OFF there was
+      // no visual clue on the canvas that nodes belong to a group (only the
+      // group-time toast, which fades). Stamp group members with a wrapper
+      // class (dashed ring) and the group label (shown on hover via CSS) so
+      // membership stays legible after the fact. Same wrapper-level mechanism
+      // as `wb-node-highlight`, so it works for every node type uniformly.
+      const groupLabelByNode = new Map<string, string>();
+      for (const [gid, group] of Object.entries(userGroups)) {
+        if (isSyntheticMapBodyGroupId(gid)) continue;
+        for (const memberId of group.nodeIds) {
+          groupLabelByNode.set(memberId, group.label || gid);
+        }
+      }
+      const decoratedNodes = normalNodes.map((n): FlowNode => {
+        const groupLabel = groupLabelByNode.get(n.id);
+        if (!groupLabel) return n;
+        return {
+          ...n,
+          className: [n.className, GROUPED_CLASS].filter(Boolean).join(" "),
+          style: {
+            ...n.style,
+            ["--wb-group-label" as string]: `"${groupLabel.replace(/"/g, "'")}"`,
+          },
+        };
+      });
+      setInternalNodes([...containerNodes, ...decoratedNodes]);
     }
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
@@ -2786,6 +2867,38 @@ function WorkflowEditorCanvasInner({
   }, [contextMenu, config.nodes, handleNodesDelete]);
 
   /**
+   * Inderdeep walkthrough 2026-07-29 — the user group containing the
+   * context-menu node, when it belongs to one. Drives the menu's
+   * "Ungroup" entry so ungrouping is reachable from the canvas (the only
+   * paths before were undo and the right-rail group settings).
+   */
+  const contextMenuGroup = useMemo(() => {
+    if (!contextMenu) return null;
+    for (const [gid, group] of Object.entries(config.nodeGroups ?? {})) {
+      if (isSyntheticMapBodyGroupId(gid)) continue;
+      if (group.nodeIds.includes(contextMenu.nodeId)) {
+        return { groupId: gid, group };
+      }
+    }
+    return null;
+  }, [contextMenu, config.nodeGroups]);
+
+  const ungroupFromContextMenu = useCallback(() => {
+    if (!contextMenuGroup) return;
+    const { groupId, group } = contextMenuGroup;
+    const nextGroups = { ...(config.nodeGroups ?? {}) };
+    delete nextGroups[groupId];
+    onConfigChange({ ...config, nodeGroups: nextGroups });
+    // Symmetric feedback with the "Grouped" toast — ungrouping used to
+    // give no visual response at all.
+    notifications.show({
+      color: "green",
+      title: "Ungrouped",
+      message: `"${group.label}" removed — its ${group.nodeIds.length} step${group.nodeIds.length === 1 ? "" : "s"} stay on the canvas.`,
+    });
+  }, [contextMenuGroup, config, onConfigChange]);
+
+  /**
    * Picker-modal state — `null` when no swap is in progress, otherwise
    * carries the node id whose activity-type is being changed (US-047).
    * Keeping this on the canvas means the picker survives the context
@@ -3269,11 +3382,53 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange, onSelectNode, openConnectSummary],
   );
 
+  /**
+   * Inderdeep walkthrough 2026-07-29 — upstream twin of
+   * `extendFromSourceAndPin`: place the new PRODUCER to the consumer's
+   * left, draw producer → consumer, and (when the kinds matched) pin the
+   * consumer's hovered input to the new producer's output. One
+   * `onConfigChange`, same as the downstream path.
+   */
+  const extendUpstreamAndPin = useCallback(
+    (
+      consumerNodeId: string,
+      newNode: GraphNode,
+      pin: { consumerPort: string; producerPort: string } | null,
+    ) => {
+      if (!config.nodes[consumerNodeId]) return;
+      const position = findNextFreePosition(config, consumerNodeId, {
+        dx: -280,
+      });
+      const newNodeWithPosition: GraphNode = {
+        ...newNode,
+        metadata: { ...(newNode.metadata ?? {}), position },
+      };
+      let next: GraphWorkflowConfig = {
+        ...config,
+        nodes: { ...config.nodes, [newNode.id]: newNodeWithPosition },
+      };
+      next = ensureEdgeBetween(next, newNode.id, consumerNodeId);
+      if (pin) {
+        next = pinPortBinding(next, consumerNodeId, pin.consumerPort, {
+          producerNodeId: newNode.id,
+          producerPort: pin.producerPort,
+        });
+      }
+      onConfigChange(next);
+      onSelectNode(newNode.id);
+      // The interesting change lands on the CONSUMER's input rows — narrate
+      // those, not the fresh producer's.
+      openConnectSummary(consumerNodeId);
+    },
+    [config, onConfigChange, onSelectNode, openConnectSummary],
+  );
+
   const handleHoverPickActivity = useCallback(
     (activityType: string) => {
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
       const sourcePort = hoverExtend.sourcePort;
+      const extendDirection = hoverExtend.direction ?? "downstream";
       closeHoverExtend();
       const newId = makeUniqueNodeId("activity", config.nodes);
       const entry = getActivityCatalogEntry(activityType);
@@ -3292,6 +3447,26 @@ function WorkflowEditorCanvasInner({
         outputs,
         parameters: {},
       };
+      // Inderdeep walkthrough 2026-07-29 — upstream extend: the gesture node
+      // is the CONSUMER and `sourcePort` is its INPUT port. Insert the picked
+      // activity as a producer wired into that port.
+      if (extendDirection === "upstream") {
+        const inputKind: KindRef | undefined = sourcePort
+          ? inputPortKind(config, sourceNodeId, sourcePort)
+          : undefined;
+        const producerPort =
+          inputKind !== undefined
+            ? firstMatchingOutputPort(activityType, inputKind)
+            : null;
+        extendUpstreamAndPin(
+          sourceNodeId,
+          newNode,
+          sourcePort !== undefined && producerPort !== null
+            ? { consumerPort: sourcePort, producerPort }
+            : null,
+        );
+        return;
+      }
       // §9 — the pin is kind-driven, not view-driven: extend launched from a
       // typed output port + the picked activity has a compatible auto-wireable
       // input → land it pre-wired, EVEN when picked from the "Show all" view.
@@ -3318,6 +3493,7 @@ function WorkflowEditorCanvasInner({
       closeHoverExtend,
       extendFromSource,
       extendFromSourceAndPin,
+      extendUpstreamAndPin,
       config,
     ],
   );
@@ -3371,6 +3547,14 @@ function WorkflowEditorCanvasInner({
           <Background gap={18} size={1} />
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable />
+          {/*
+            Inderdeep walkthrough 2026-07-29 — the colour scheme existed
+            (one colour per data family) but nothing explained it. The
+            legend teaches it in place.
+          */}
+          <Panel position="bottom-center">
+            <CanvasLegend />
+          </Panel>
         </ReactFlow>
       </PortDragContext.Provider>
       {contextMenu && (
@@ -3390,6 +3574,8 @@ function WorkflowEditorCanvasInner({
                 }
               : undefined
           }
+          groupLabel={contextMenuGroup?.group.label}
+          onUngroup={contextMenuGroup ? ungroupFromContextMenu : undefined}
         />
       )}
       <WireContextMenu
@@ -3438,14 +3624,21 @@ function WorkflowEditorCanvasInner({
           onPickControlFlow={handleHoverPickControlFlow}
           filterKind={
             hoverExtend.sourcePort
-              ? outputPortKind(
-                  config,
-                  hoverExtend.nodeId,
-                  hoverExtend.sourcePort,
-                )
+              ? hoverExtend.direction === "upstream"
+                ? inputPortKind(
+                    config,
+                    hoverExtend.nodeId,
+                    hoverExtend.sourcePort,
+                  )
+                : outputPortKind(
+                    config,
+                    hoverExtend.nodeId,
+                    hoverExtend.sourcePort,
+                  )
               : undefined
           }
-          gestureKey={`${hoverExtend.nodeId}:${hoverExtend.sourcePort ?? ""}`}
+          direction={hoverExtend.direction ?? "downstream"}
+          gestureKey={`${hoverExtend.nodeId}:${hoverExtend.direction ?? "downstream"}:${hoverExtend.sourcePort ?? ""}`}
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handlePopoverLeave}
         />

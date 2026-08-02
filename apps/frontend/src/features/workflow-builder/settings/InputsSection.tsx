@@ -15,10 +15,14 @@ import { IconDots } from "@tabler/icons-react";
 import { useState } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
+  ensureEdgeBetween,
   pinPortBinding,
   revertPortToAutomatic,
 } from "../canvas/wire-mutations";
-import { ProducerPicker } from "../graph-widgets/ProducerPicker";
+import {
+  ProducerPicker,
+  type ProducerSelection,
+} from "../graph-widgets/ProducerPicker";
 import {
   decodeAutoProducerNodeId,
   type PinnedSource,
@@ -130,11 +134,14 @@ export function InputsSection({
         activePickerPort)
       : null;
 
-  const handleOverride = (
-    portName: string,
-    selection: { producerNodeId: string; producerPort: string },
-  ) => {
-    const next = pinPortBinding(config, nodeId, portName, selection);
+  const handleOverride = (portName: string, selection: ProducerSelection) => {
+    // Inderdeep walkthrough 2026-07-29 — picking an on-canvas-but-unconnected
+    // producer also draws the execution edge, so the pick is complete on its
+    // own instead of demanding the user knew to connect first.
+    const base = selection.needsEdge
+      ? ensureEdgeBetween(config, selection.producerNodeId, nodeId)
+      : config;
+    const next = pinPortBinding(base, nodeId, portName, selection);
     if (next !== config) onConfigChange(next);
     closePicker();
   };

@@ -147,6 +147,14 @@ export function GroupNodeSettings({
     const nextGroups = { ...(config.nodeGroups ?? {}) };
     delete nextGroups[groupId];
     onConfigChange({ ...config, nodeGroups: nextGroups });
+    // Inderdeep walkthrough 2026-07-29 — grouping fires a toast but its
+    // inverse fired nothing, so ungrouping was indistinguishable from a
+    // misclick. Mirror the feedback.
+    notifications.show({
+      color: "green",
+      title: "Ungrouped",
+      message: `"${group.label}" removed — its ${group.nodeIds.length} step${group.nodeIds.length === 1 ? "" : "s"} stay on the canvas.`,
+    });
   };
 
   const setLabel = (label: string) => updateGroup({ ...group, label });
@@ -188,7 +196,7 @@ export function GroupNodeSettings({
       // the user so accidental misclicks don't drop the entry.
       // biome-ignore lint/suspicious/noAlert: native confirm matches existing UX patterns elsewhere in the editor for accidental-deletion guards.
       const confirmed = window.confirm(
-        "Removing the last node will delete this group. Continue?",
+        "Removing the last node will ungroup (the group entry is deleted; the node stays). Continue?",
       );
       if (!confirmed) return;
       deleteGroup();
@@ -359,6 +367,11 @@ export function GroupNodeSettings({
 
       <Divider />
 
+      {/*
+        Inderdeep walkthrough 2026-07-29 — "Delete group" read as "delete
+        the nodes", and the only ungroup path he found was undo. Say what
+        it actually does: ungroup; the steps stay.
+      */}
       <Button
         color="red"
         variant="light"
@@ -367,7 +380,7 @@ export function GroupNodeSettings({
         size="xs"
         data-testid="group-settings-delete"
       >
-        Delete group
+        Ungroup (steps stay)
       </Button>
     </Stack>
   );

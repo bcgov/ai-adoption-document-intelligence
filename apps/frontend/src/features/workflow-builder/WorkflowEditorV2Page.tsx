@@ -142,6 +142,7 @@ import { ValidationDrawer } from "./validation/ValidationDrawer";
 import { validationButtonState } from "./validation/validation-button-label";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
 import { VersionHistoryDrawer } from "./versioning/VersionHistoryDrawer";
+import { WorkflowSwitcher } from "./WorkflowSwitcher";
 
 /** Router-state payload accepted by /workflows/create when launched
  *  from the templates picker. */
@@ -178,7 +179,13 @@ export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const { workflowId } = useParams<{ workflowId: string }>();
   return (
     <RunStateProvider workflowId={workflowId ?? ""}>
-      <WorkflowEditorV2PageBody mode={mode} />
+      {/*
+        Keyed by workflowId so the in-editor workflow switcher (Inderdeep
+        walkthrough 2026-07-29) gets a clean remount when navigating between
+        two edit routes — name/description/config history are local state and
+        would otherwise survive the param change.
+      */}
+      <WorkflowEditorV2PageBody key={workflowId ?? "create"} mode={mode} />
     </RunStateProvider>
   );
 }
@@ -701,10 +708,15 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     reactFlowRef.current?.setNodes((ns) =>
       ns.map((n) => (n.selected ? { ...n, selected: false } : n)),
     );
+    // Inderdeep walkthrough 2026-07-29 — grouping exists to simplify, but
+    // it only fired a toast and the canvas kept showing the ungrouped nodes
+    // ("no visual clue these two are a group"). Collapse immediately: turn
+    // simplified view on so the new group renders as its chip.
+    setSimplifiedView(true);
     notifications.show({
       color: "green",
       title: "Grouped",
-      message: `${eligibleIds.length} steps grouped. Turn on More ▸ Simplified view to see the group chip.`,
+      message: `${eligibleIds.length} steps grouped into a chip. Turn off More ▸ Simplified view to expand them again.`,
     });
   }, [config, selectedNodeIds, setConfig]);
 
@@ -1378,6 +1390,12 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           style={{ flex: 1, minWidth: 0 }}
           data-testid="topbar-zone-center"
         >
+          {/*
+              Inderdeep walkthrough 2026-07-29 — searchable switcher +
+              in-app way back to the list; renaming stays with the Name
+              field, so the switcher never has to double as the title.
+            */}
+          <WorkflowSwitcher currentWorkflowId={workflowId ?? null} />
           <TextInput
             label="Name"
             value={name}

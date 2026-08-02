@@ -59,6 +59,17 @@ export interface NodeContextMenuProps {
    * DynamicNodeEditor modal scoped to the node's slug.
    */
   onEditScript?: () => void;
+  /**
+   * Inderdeep walkthrough 2026-07-29 — label of the user group this node
+   * belongs to, when it belongs to one. Enables the "Ungroup" entry so
+   * ungrouping is discoverable from the canvas instead of undo-only.
+   */
+  groupLabel?: string;
+  /**
+   * Ungroup callback — removes the containing group entry (nodes stay).
+   * Only rendered when `groupLabel` is set.
+   */
+  onUngroup?: () => void;
 }
 
 const CONTROL_FLOW_TYPE_SWAP_TOOLTIP =
@@ -77,6 +88,8 @@ export function NodeContextMenu({
   onDelete,
   activityType,
   onEditScript,
+  groupLabel,
+  onUngroup,
 }: NodeContextMenuProps) {
   const canChangeActivityType = isActivityType(nodeType);
   const isDynamicNode =
@@ -94,6 +107,11 @@ export function NodeContextMenu({
 
   const handleEditScript = () => {
     if (onEditScript) onEditScript();
+    onClose();
+  };
+
+  const handleUngroup = () => {
+    if (onUngroup) onUngroup();
     onClose();
   };
 
@@ -162,6 +180,11 @@ export function NodeContextMenu({
             onClick={handleEditScript}
           >
             Edit script
+          </Menu.Item>
+        )}
+        {groupLabel && onUngroup && (
+          <Menu.Item data-testid="context-menu-ungroup" onClick={handleUngroup}>
+            Ungroup “{groupLabel}” (steps stay)
           </Menu.Item>
         )}
         <Menu.Item

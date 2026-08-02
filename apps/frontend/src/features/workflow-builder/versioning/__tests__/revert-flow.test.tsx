@@ -145,6 +145,9 @@ const sampleVersions: WorkflowVersionSummary[] = [
 ];
 
 vi.mock("../../../../data/hooks/useWorkflows", () => ({
+  // Top-bar WorkflowSwitcher (Inderdeep walkthrough 2026-07-29) — an empty
+  // list keeps it inert here.
+  useWorkflows: () => ({ data: [], isLoading: false }),
   useWorkflow: () => ({ data: baseWorkflow, isLoading: false }),
   useCreateWorkflow: () => ({
     mutateAsync: vi.fn(),

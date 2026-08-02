@@ -6,7 +6,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { SlugChip } from "../components/workflow/SlugChip";
 import {
   useDeleteWorkflow,
@@ -16,6 +16,7 @@ import {
 import type { WorkflowTemplate } from "../features/workflow-builder/templates";
 import { TemplatesPickerModal } from "../features/workflow-builder/templates/TemplatesPickerModal";
 import {
+  Anchor,
   Badge,
   Button,
   ConfirmActionModal,
@@ -264,7 +265,15 @@ export function WorkflowListPage() {
               {workflows.map((workflow) => (
                 <DataTable.Tr key={workflow.id}>
                   <DataTable.Td>
-                    <Text fw={500}>{workflow.name}</Text>
+                    <Anchor
+                      component={Link}
+                      to={`/workflows/${workflow.id}/edit`}
+                      fw={500}
+                      underline="hover"
+                      data-testid="workflow-name-link"
+                    >
+                      {workflow.name}
+                    </Anchor>
                   </DataTable.Td>
                   <DataTable.Td>
                     <SlugChip slug={workflow.slug} />

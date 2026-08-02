@@ -22,6 +22,7 @@ function renderPopover(
     onPickActivity: overrides.onPickActivity ?? vi.fn(),
     onPickControlFlow: overrides.onPickControlFlow ?? vi.fn(),
     filterKind: overrides.filterKind,
+    direction: overrides.direction,
     gestureKey: overrides.gestureKey,
   };
   const utils = render(
@@ -206,6 +207,40 @@ describe("HoverExtendPopover — kind-aware filtering (§9)", () => {
     expect(
       screen.getByTestId("hover-extend-activity-document.split"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("hover-extend-control-flow-switch"),
+    ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inderdeep walkthrough 2026-07-29 — upstream direction: filter to activities
+// that PRODUCE the kind, and never offer Flow Control (a control-flow node
+// produces no data to feed the hovered input).
+// ---------------------------------------------------------------------------
+
+describe("HoverExtendPopover — upstream direction", () => {
+  it("shows producers of the kind and hides accept-only activities", () => {
+    renderPopover({ filterKind: "PreparedFile", direction: "upstream" });
+    // file.prepare outputs preparedData: PreparedFile → offered.
+    expect(
+      screen.getByTestId("hover-extend-activity-file.prepare"),
+    ).toBeInTheDocument();
+    // azureOcr.submit ACCEPTS PreparedFile but produces none → hidden.
+    expect(
+      screen.queryByTestId("hover-extend-activity-azureOcr.submit"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Flow Control section entirely", () => {
+    renderPopover({ filterKind: "PreparedFile", direction: "upstream" });
+    expect(
+      screen.queryByTestId("hover-extend-control-flow-switch"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("downstream direction (default) keeps Flow Control (regression)", () => {
+    renderPopover({ filterKind: "PreparedFile" });
     expect(
       screen.getByTestId("hover-extend-control-flow-switch"),
     ).toBeInTheDocument();

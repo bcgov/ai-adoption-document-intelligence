@@ -69,6 +69,19 @@ export interface PortRowsProps {
     anchor: { x: number; y: number },
   ) => void;
   onOutputHandleLeave?: () => void;
+  /**
+   * Inderdeep walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
+   * typed INPUT port ("what produces the value this port needs?"). Fired
+   * on an input row handle's mouseenter with the handle's left-centre
+   * anchor; the canvas debounces these into the producer-filtered extend
+   * popover. Mirror of the output-side pair above.
+   */
+  onInputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onInputHandleLeave?: () => void;
 }
 
 /**
@@ -107,6 +120,8 @@ function PortRow({
   gridRow,
   onOutputHandleEnter,
   onOutputHandleLeave,
+  onInputHandleEnter,
+  onInputHandleLeave,
 }: {
   nodeId: string;
   row: PortRowModel;
@@ -117,6 +132,12 @@ function PortRow({
     anchor: { x: number; y: number },
   ) => void;
   onOutputHandleLeave?: () => void;
+  onInputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onInputHandleLeave?: () => void;
 }) {
   const isInput = row.direction === "input";
   const color = colorForKind(row.kind);
@@ -206,7 +227,20 @@ function PortRow({
         isConnectable
         style={handleStyle}
         {...(isInput
-          ? {}
+          ? {
+              // Inderdeep walkthrough 2026-07-29 — the upstream mirror of
+              // the output hover below: left-centre anchor, producer-
+              // filtered popover.
+              onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
+                if (!onInputHandleEnter) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                onInputHandleEnter(nodeId, row.name, {
+                  x: rect.left,
+                  y: rect.top + rect.height / 2,
+                });
+              },
+              onMouseLeave: () => onInputHandleLeave?.(),
+            }
           : {
               onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
                 if (!onOutputHandleEnter) return;
@@ -270,6 +304,8 @@ export const PortRows = memo(function PortRows({
   outputs,
   onOutputHandleEnter,
   onOutputHandleLeave,
+  onInputHandleEnter,
+  onInputHandleLeave,
 }: PortRowsProps) {
   if (inputs.length === 0 && outputs.length === 0) return null;
   return (
@@ -288,6 +324,8 @@ export const PortRows = memo(function PortRows({
           nodeId={nodeId}
           row={row}
           gridRow={index + 1}
+          onInputHandleEnter={onInputHandleEnter}
+          onInputHandleLeave={onInputHandleLeave}
         />
       ))}
       {outputs.map((row, index) => (

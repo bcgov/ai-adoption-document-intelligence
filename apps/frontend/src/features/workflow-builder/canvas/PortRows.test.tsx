@@ -426,6 +426,83 @@ describe("PortRows — output-handle hover-extend callbacks (§9)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Inderdeep walkthrough 2026-07-29 — input-handle hover-extend callbacks,
+// the upstream mirror of §9: hovering a typed INPUT dot must report the
+// node + port so the canvas can open the producer-filtered popover.
+// ---------------------------------------------------------------------------
+
+describe("PortRows — input-handle hover-extend callbacks (upstream)", () => {
+  function renderWithInputHover(
+    onInputHandleEnter: (
+      nodeId: string,
+      portName: string,
+      anchor: { x: number; y: number },
+    ) => void,
+    onInputHandleLeave: () => void,
+  ) {
+    return render(
+      <MantineProvider>
+        <PortRows
+          nodeId="node_1"
+          inputs={[makeRow({})]}
+          outputs={[
+            makeRow({
+              name: "preparedData",
+              label: "Prepared",
+              kind: "Document",
+              direction: "output",
+              handleId: "out-preparedData",
+            }),
+          ]}
+          onInputHandleEnter={onInputHandleEnter}
+          onInputHandleLeave={onInputHandleLeave}
+        />
+      </MantineProvider>,
+    );
+  }
+
+  it("fires onInputHandleEnter(nodeId, portName, anchor) on an input handle mouseenter", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithInputHover(onEnter, onLeave);
+    const inputHandle = container.querySelector(
+      "[data-handleid='in-source']",
+    ) as HTMLElement;
+    fireEvent.mouseEnter(inputHandle);
+    expect(onEnter).toHaveBeenCalledTimes(1);
+    expect(onEnter.mock.calls[0][0]).toBe("node_1");
+    expect(onEnter.mock.calls[0][1]).toBe("source");
+    expect(onEnter.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+    );
+  });
+
+  it("fires onInputHandleLeave on an input handle mouseleave", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithInputHover(onEnter, onLeave);
+    const inputHandle = container.querySelector(
+      "[data-handleid='in-source']",
+    ) as HTMLElement;
+    fireEvent.mouseLeave(inputHandle);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire the input callbacks from an output handle", () => {
+    const onEnter = vi.fn();
+    const onLeave = vi.fn();
+    const { container } = renderWithInputHover(onEnter, onLeave);
+    const outputHandle = container.querySelector(
+      "[data-handleid='out-preparedData']",
+    ) as HTMLElement;
+    fireEvent.mouseEnter(outputHandle);
+    fireEvent.mouseLeave(outputHandle);
+    expect(onEnter).not.toHaveBeenCalled();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+});
+
 describe("PortRows — tooltip trigger is scoped off the handle", () => {
   // The hover-extend popover opens on an OUTPUT handle's hover. If the port
   // tooltip also fired on that same hover the two would render on top of each

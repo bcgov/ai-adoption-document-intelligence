@@ -43,7 +43,10 @@ describe("ProducerPicker", () => {
     expect(screen.getByText("Prepare file")).toBeInTheDocument();
   });
 
-  it("excludes downstream and self producers", () => {
+  it("excludes self and downstream producers, but offers detached ones as connectable", () => {
+    // A → B → D. C is detached. B asks for a Document: A is upstream (normal
+    // row), C is offerable-with-edge (Inderdeep walkthrough 2026-07-29), D is
+    // downstream (connecting it back would cycle — excluded), B is self.
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -66,8 +69,17 @@ describe("ProducerPicker", () => {
           activityType: "file.prepare",
           label: "C",
         },
+        D: {
+          id: "D",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "D",
+        },
       },
-      edges: [{ id: "e", source: "A", target: "B", type: "normal" }],
+      edges: [
+        { id: "e", source: "A", target: "B", type: "normal" },
+        { id: "e2", source: "B", target: "D", type: "normal" },
+      ],
       entryNodeId: "A",
       ctx: {},
     };
@@ -80,11 +92,60 @@ describe("ProducerPicker", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(screen.queryByText("C")).not.toBeInTheDocument();
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("producer-row-unconnected-C"),
+    ).toBeInTheDocument();
     expect(screen.queryByText("B")).not.toBeInTheDocument();
+    expect(screen.queryByText("D")).not.toBeInTheDocument();
   });
 
-  it("empty state reads as a next-step (draw an edge / add a step), not a dead-end", () => {
+  it("picking a detached producer flags needsEdge so the caller draws the edge", () => {
+    const onChange = vi.fn();
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        Z: {
+          id: "Z",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "Z",
+        },
+        P: {
+          id: "P",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Loose producer",
+        },
+      },
+      edges: [],
+      entryNodeId: "Z",
+      ctx: {},
+    };
+    mount(
+      <ProducerPicker
+        config={config}
+        consumerNodeId="Z"
+        expectedKind="Document"
+        value=""
+        onChange={onChange}
+      />,
+    );
+    // The nothing-upstream-but-something-on-canvas explainer shows.
+    expect(screen.getByTestId("producer-picker-empty")).toHaveTextContent(
+      /a step on this canvas does/i,
+    );
+    screen.getByTestId("producer-row-unconnected-P").click();
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        producerNodeId: "P",
+        needsEdge: true,
+      }),
+    );
+  });
+
+  it("empty state explains the model (connect a producing step), not a dead-end", () => {
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -110,9 +171,11 @@ describe("ProducerPicker", () => {
       />,
     );
     expect(
-      screen.getByText(/nothing upstream produces a document yet/i),
+      screen.getByText(/no step in this workflow produces a document yet/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/draw an execution edge/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/connect it so it runs before this one/i),
+    ).toBeInTheDocument();
   });
 
   it("ranks compatible producers by topological distance", () => {

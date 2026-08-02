@@ -26,16 +26,18 @@ interface RenderOptions {
 }
 
 function renderMenu(
-  options: RenderOptions = {},
+  options: RenderOptions & { groupLabel?: string } = {},
   callbacks: {
     onClose?: () => void;
     onChangeActivityType?: () => void;
     onDelete?: () => void;
+    onUngroup?: () => void;
   } = {},
 ) {
   const onClose = callbacks.onClose ?? vi.fn();
   const onChangeActivityType = callbacks.onChangeActivityType ?? vi.fn();
   const onDelete = callbacks.onDelete ?? vi.fn();
+  const onUngroup = callbacks.onUngroup ?? vi.fn();
   const utils = render(
     <MantineProvider>
       <NodeContextMenu
@@ -45,10 +47,12 @@ function renderMenu(
         onClose={onClose}
         onChangeActivityType={onChangeActivityType}
         onDelete={onDelete}
+        groupLabel={options.groupLabel}
+        onUngroup={options.groupLabel ? onUngroup : undefined}
       />
     </MantineProvider>,
   );
-  return { ...utils, onClose, onChangeActivityType, onDelete };
+  return { ...utils, onClose, onChangeActivityType, onDelete, onUngroup };
 }
 
 describe("NodeContextMenu — Scenario 1: activity node menu", () => {
@@ -153,5 +157,39 @@ describe("NodeContextMenu — Scenario 4: menu is anchored to the supplied posit
     expect(anchor.style.position).toBe("fixed");
     expect(anchor.style.left).toBe("123px");
     expect(anchor.style.top).toBe("234px");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inderdeep walkthrough 2026-07-29 — "Ungroup" entry for grouped nodes.
+//   Before this, the only ungroup paths were undo and the right-rail group
+//   settings; right-clicking a grouped node (the thing he actually tried)
+//   offered nothing.
+// ---------------------------------------------------------------------------
+
+describe("NodeContextMenu — Ungroup entry", () => {
+  it("shows the entry with the group label and fires onUngroup + onClose", async () => {
+    const onUngroup = vi.fn();
+    const onClose = vi.fn();
+    renderMenu({ groupLabel: "OCR pair" }, { onUngroup, onClose });
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("context-menu-ungroup")).toHaveTextContent(
+      "OCR pair",
+    );
+    fireEvent.click(screen.getByTestId("context-menu-ungroup"));
+    expect(onUngroup).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("renders no Ungroup entry for a node outside any group", async () => {
+    renderMenu({});
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-ungroup"),
+    ).not.toBeInTheDocument();
   });
 });

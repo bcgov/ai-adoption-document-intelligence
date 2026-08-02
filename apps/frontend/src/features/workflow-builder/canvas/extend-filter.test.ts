@@ -13,8 +13,11 @@
 import { describe, expect, it } from "vitest";
 import {
   entryAcceptsKind,
+  entryProducesKind,
   firstMatchingInputPort,
+  firstMatchingOutputPort,
   rankActivityTypesForKind,
+  rankActivityTypesProducingKind,
 } from "./extend-filter";
 
 describe("entryAcceptsKind", () => {
@@ -69,5 +72,61 @@ describe("rankActivityTypesForKind", () => {
         "MultiPageDocument",
       ),
     ).toEqual(["document.split", "azureOcr.submit"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Producer-side mirror (Inderdeep walkthrough 2026-07-29) — upstream extend.
+//   - file.prepare        output preparedData: PreparedFile (baseKind Document)
+//   - mistralOcr.process  output ocrResult: OcrResult (exact)
+// ---------------------------------------------------------------------------
+
+describe("entryProducesKind", () => {
+  it("true when the activity has a typed output assignable to K (exact)", () => {
+    expect(entryProducesKind("file.prepare", "PreparedFile")).toBe(true);
+  });
+
+  it("true via the subtype walk (PreparedFile is assignable to Document)", () => {
+    expect(entryProducesKind("file.prepare", "Document")).toBe(true);
+  });
+
+  it("false when no output can satisfy K", () => {
+    expect(entryProducesKind("file.prepare", "OcrResult")).toBe(false);
+  });
+
+  it("false for a catalog-less / unknown activityType", () => {
+    expect(entryProducesKind("not.a.real.activity", "Document")).toBe(false);
+  });
+});
+
+describe("firstMatchingOutputPort", () => {
+  it("returns the first typed output port assignable to K", () => {
+    expect(firstMatchingOutputPort("mistralOcr.process", "OcrResult")).toBe(
+      "ocrResult",
+    );
+    expect(firstMatchingOutputPort("file.prepare", "Document")).toBe(
+      "preparedData",
+    );
+  });
+
+  it("returns null when none match", () => {
+    expect(firstMatchingOutputPort("file.prepare", "OcrResult")).toBeNull();
+  });
+});
+
+describe("rankActivityTypesProducingKind", () => {
+  it("exact-output matches rank before the rest; order otherwise stable", () => {
+    expect(
+      rankActivityTypesProducingKind(
+        ["file.prepare", "mistralOcr.process"],
+        "OcrResult",
+      ),
+    ).toEqual(["mistralOcr.process", "file.prepare"]);
+    expect(
+      rankActivityTypesProducingKind(
+        ["mistralOcr.process", "file.prepare"],
+        "OcrResult",
+      ),
+    ).toEqual(["mistralOcr.process", "file.prepare"]);
   });
 });

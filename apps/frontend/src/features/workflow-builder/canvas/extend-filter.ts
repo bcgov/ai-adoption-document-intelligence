@@ -68,3 +68,65 @@ export function rankActivityTypesForKind(
   }
   return [...exact, ...assignable];
 }
+
+// ---------------------------------------------------------------------------
+// Producer-side mirror (Inderdeep walkthrough 2026-07-29) — the popover can
+// extend UPSTREAM from an input handle ("what produces the <kind> this port
+// needs?"), so each accept-side helper gets a produce-side twin. "Produces K"
+// means the activity has at least one typed output assignable TO K.
+// ---------------------------------------------------------------------------
+
+/**
+ * True iff `activityType` has a typed output port whose kind is assignable
+ * to `kind`. Unknown activity types return false.
+ */
+export function entryProducesKind(
+  activityType: string,
+  kind: KindRef,
+): boolean {
+  const entry = getActivityCatalogEntry(activityType);
+  if (!entry) return false;
+  return entry.outputs.some(
+    (port) => port.kind !== undefined && isAssignable(port.kind, kind),
+  );
+}
+
+/**
+ * The name of the first typed output port (declaration order) assignable to
+ * `kind`, or `null` when none match / the activity is unknown. Used to pick
+ * which producer port an upstream extend pins.
+ */
+export function firstMatchingOutputPort(
+  activityType: string,
+  kind: KindRef,
+): string | null {
+  const entry = getActivityCatalogEntry(activityType);
+  if (!entry) return null;
+  const match = entry.outputs.find(
+    (port) => port.kind !== undefined && isAssignable(port.kind, kind),
+  );
+  return match ? match.name : null;
+}
+
+/**
+ * Stable partition that ranks activities with an EXACT-kind output ahead of
+ * those whose output is merely assignable. Mirror of
+ * `rankActivityTypesForKind`.
+ */
+export function rankActivityTypesProducingKind(
+  activityTypes: string[],
+  kind: KindRef,
+): string[] {
+  const hasExactOutput = (activityType: string): boolean => {
+    const entry = getActivityCatalogEntry(activityType);
+    if (!entry) return false;
+    return entry.outputs.some((port) => port.kind === kind);
+  };
+  const exact: string[] = [];
+  const assignable: string[] = [];
+  for (const activityType of activityTypes) {
+    if (hasExactOutput(activityType)) exact.push(activityType);
+    else assignable.push(activityType);
+  }
+  return [...exact, ...assignable];
+}

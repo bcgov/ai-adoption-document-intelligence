@@ -177,6 +177,7 @@ vi.mock("@xyflow/react", () => {
     Background: () => null,
     Controls: () => null,
     MiniMap: () => null,
+    Panel: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Handle: ({
       type,
       position,
@@ -2946,16 +2947,30 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
   it("accepts any drop onto a base-Artifact input port", () => {
     renderCanvas(makeTypedPortsConfig());
     // document.split's `segments` (Segment[]) output is a poor structural
-    // match for anything, but `file.prepare`'s `documentId` input declares
+    // match for anything, but `file.prepare`'s `fileName` input declares
     // the wildcard `Artifact` kind — a manual drag onto it is always
-    // accepted per §6.2.
+    // accepted per §6.2. (`documentId` no longer qualifies: it carries the
+    // typed `DocumentId` kind since the 2026-08-02 identifier retag.)
+    const result = getIsValidConnection()({
+      source: "split",
+      target: "prep",
+      sourceHandle: "out-segments",
+      targetHandle: "in-fileName",
+    });
+    expect(result).toBe(true);
+  });
+
+  it("rejects a non-identifier drop onto a typed identifier port (2026-08-02 retag)", () => {
+    renderCanvas(makeTypedPortsConfig());
+    // Segment[] is not assignable to DocumentId — ids stopped being
+    // accept-anything wildcards.
     const result = getIsValidConnection()({
       source: "split",
       target: "prep",
       sourceHandle: "out-segments",
       targetHandle: "in-documentId",
     });
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
   it("always accepts node-level connections", () => {
@@ -4536,6 +4551,96 @@ describe("WorkflowEditorCanvas — item 6X: producer highlight emphasis", () => 
       </MantineProvider>,
     );
     expect(readNodeClass("switch_1")).not.toContain("wb-node-highlight");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inderdeep walkthrough 2026-07-29 — persistent group-membership cue.
+//   With simplified view OFF, members of a user group get the
+//   `wb-node-grouped` wrapper class plus the group label in the
+//   `--wb-group-label` custom property (hover chip). Non-members are
+//   untouched; synthetic map-body groups don't count.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — grouped-node membership cue", () => {
+  function readNode(id: string) {
+    const nodes =
+      (latestReactFlowProps.current?.nodes as
+        | Array<{
+            id: string;
+            className?: string;
+            style?: Record<string, unknown>;
+          }>
+        | undefined) ?? [];
+    return nodes.find((n) => n.id === id);
+  }
+
+  function makeGroupedConfig(): GraphWorkflowConfig {
+    const a: ActivityNode = {
+      id: "a",
+      type: "activity",
+      label: "Prepare",
+      activityType: "file.prepare",
+      parameters: {},
+      metadata: { position: { x: 0, y: 0 } },
+    };
+    const b: ActivityNode = {
+      id: "b",
+      type: "activity",
+      label: "Submit",
+      activityType: "azureOcr.submit",
+      parameters: {},
+      metadata: { position: { x: 300, y: 0 } },
+    };
+    const c: ActivityNode = {
+      id: "c",
+      type: "activity",
+      label: "Loose",
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x: 600, y: 0 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "Grouped cue", version: "1.0.0" },
+      ctx: {},
+      nodes: { a, b, c },
+      edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
+      entryNodeId: "a",
+      nodeGroups: {
+        g1: { label: "OCR pair", nodeIds: ["a", "b"] },
+      },
+    };
+  }
+
+  it("stamps wb-node-grouped and the group label on members only (expanded view)", async () => {
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+
+    const memberA = readNode("a");
+    const memberB = readNode("b");
+    const loose = readNode("c");
+    expect(memberA?.className).toContain("wb-node-grouped");
+    expect(memberB?.className).toContain("wb-node-grouped");
+    expect(memberA?.style?.["--wb-group-label"]).toBe('"OCR pair"');
+    expect(loose?.className ?? "").not.toContain("wb-node-grouped");
+    expect(loose?.style?.["--wb-group-label"]).toBeUndefined();
+  });
+
+  it("does not stamp the cue in simplified view (members collapse into the chip)", async () => {
+    renderCanvas(makeGroupedConfig(), { simplifiedView: true });
+    await flushAnimationFrame();
+
+    // Members are hidden behind the chip; whatever nodes remain must not
+    // carry the expanded-view cue.
+    const nodes =
+      (latestReactFlowProps.current?.nodes as
+        | Array<{ id: string; className?: string }>
+        | undefined) ?? [];
+    for (const n of nodes) {
+      expect(n.className ?? "").not.toContain("wb-node-grouped");
+    }
+    expect(nodes.some((n) => n.id === "group-chip-g1")).toBe(true);
   });
 });
 

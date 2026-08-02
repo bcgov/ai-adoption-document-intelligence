@@ -58,7 +58,12 @@ import {
   type ControlFlowPaletteEntry,
 } from "../palette/control-flow-palette-entries";
 import type { ControlFlowNodeType } from "../palette/control-flow-skeletons";
-import { entryAcceptsKind, rankActivityTypesForKind } from "./extend-filter";
+import {
+  entryAcceptsKind,
+  entryProducesKind,
+  rankActivityTypesForKind,
+  rankActivityTypesProducingKind,
+} from "./extend-filter";
 
 interface TablerIconProps {
   size?: number | string;
@@ -96,6 +101,15 @@ export interface HoverExtendPopoverProps {
    */
   filterKind?: KindRef;
   /**
+   * Inderdeep walkthrough 2026-07-29 — which way the extend goes.
+   * `"downstream"` (default) keeps the historical behaviour: filter to
+   * activities that ACCEPT `filterKind`. `"upstream"` — the extend was
+   * launched from an INPUT handle — filters to activities that PRODUCE
+   * `filterKind` and hides the Flow Control section (a control-flow node
+   * produces no data to feed the port).
+   */
+  direction?: "downstream" | "upstream";
+  /**
    * §9 — stable identity of the CURRENT extend gesture (the source node +
    * output port it launched from). Used only to reset the "Show all" toggle
    * per gesture: the popover can stay mounted across the 200ms close-grace
@@ -120,6 +134,7 @@ export function HoverExtendPopover({
   onPickActivity,
   onPickControlFlow,
   filterKind,
+  direction = "downstream",
   gestureKey,
   onMouseEnter,
   onMouseLeave,
@@ -160,15 +175,23 @@ export function HoverExtendPopover({
         continue;
       }
       const accepting = all.filter((e) =>
-        entryAcceptsKind(e.activityType, filterKind),
+        direction === "upstream"
+          ? entryProducesKind(e.activityType, filterKind)
+          : entryAcceptsKind(e.activityType, filterKind),
       );
       if (accepting.length === 0) continue;
       // Rank exact-kind matches first, then map the ordered activityTypes
       // back to their catalog entries.
-      const rankedTypes = rankActivityTypesForKind(
-        accepting.map((e) => e.activityType),
-        filterKind,
-      );
+      const rankedTypes =
+        direction === "upstream"
+          ? rankActivityTypesProducingKind(
+              accepting.map((e) => e.activityType),
+              filterKind,
+            )
+          : rankActivityTypesForKind(
+              accepting.map((e) => e.activityType),
+              filterKind,
+            );
       const byType = new Map(accepting.map((e) => [e.activityType, e]));
       const entries = rankedTypes
         .map((t) => byType.get(t))
@@ -176,7 +199,7 @@ export function HoverExtendPopover({
       out.push({ category: cat, entries });
     }
     return out;
-  }, [grouped, filterKind]);
+  }, [grouped, filterKind, direction]);
 
   // The full, unfiltered catalog (used unfiltered, on "Show all", and as the
   // zero-match fallback). Always computed so the hook order stays stable.
@@ -226,8 +249,13 @@ export function HoverExtendPopover({
   const showShowAll =
     filterKind !== undefined && !showAll && kindFilteredCategories.length > 0;
 
+  // Upstream extends never offer Flow Control — a control-flow node produces
+  // no data to feed the hovered input port.
+  const visibleControlFlowEntries =
+    direction === "upstream" ? [] : filteredControlFlowEntries;
+
   const nothingMatchesQuery =
-    filteredControlFlowEntries.length === 0 && filteredCategories.length === 0;
+    visibleControlFlowEntries.length === 0 && filteredCategories.length === 0;
 
   return (
     <Popover
@@ -286,7 +314,7 @@ export function HoverExtendPopover({
           />
           <ScrollArea h={360} type="auto">
             <Stack gap="md">
-              {filteredControlFlowEntries.length > 0 && (
+              {visibleControlFlowEntries.length > 0 && (
                 <Stack key={CONTROL_FLOW_SECTION_LABEL} gap={4}>
                   <Text
                     size="xs"
@@ -297,7 +325,7 @@ export function HoverExtendPopover({
                   >
                     {CONTROL_FLOW_SECTION_LABEL}
                   </Text>
-                  {filteredControlFlowEntries.map((entry) => (
+                  {visibleControlFlowEntries.map((entry) => (
                     <ControlFlowRow
                       key={entry.type}
                       entry={entry}

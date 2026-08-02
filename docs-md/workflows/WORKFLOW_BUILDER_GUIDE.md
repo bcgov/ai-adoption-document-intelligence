@@ -210,6 +210,40 @@ Connections define the order nodes execute in and how data flows between them. T
 - Switch nodes need one outgoing connection per case, plus one for the default
 - Map and Join nodes are always paired
 
+### Colour Scheme (Wires and Port Dots)
+
+Colours on the canvas are deliberate and family-based — one colour per data
+**family**, not one per type. The **Legend** button at the bottom of the canvas
+shows this same table in place.
+
+Wires:
+
+| Visual | Meaning |
+|---|---|
+| Dashed grey | Execution order only — no data rides the edge |
+| Solid, coloured | A data wire — the colour is the data family (below) |
+| Red | Error route (taken on failure) |
+| Switch-accent (violet) | A branch of a Switch condition |
+| Thick blue | This edge ran, when replaying a past run |
+
+Port dots (the connection handles on node cards):
+
+| Visual | Meaning |
+|---|---|
+| Grey dot | Untyped port — accepts/produces anything |
+| Blue dot | Documents & files (`Document`, `PreparedFile`, `DocumentRef`, …) |
+| Green dot | Segments (`Segment`, `TypedSegment`, …) |
+| Violet dot | OCR results (`OcrResult`, `OcrFields`, `OcrTable`) |
+| Yellow dot | Classification & validation (`Classification`, `ValidationResult`, …) |
+| Teal dot | References |
+| Cyan dot | Identifiers (`DocumentId`, `GroupId`, `ModelId`, `RequestId`) |
+| Double ring | The port carries a **list** of that kind (`T[]`) |
+| Amber ring | A required input that still needs a source |
+
+The mapping lives in the artifact-kind registry
+(`packages/graph-workflow/src/types/artifact-registry.ts`) — new kinds must
+join an existing family colour rather than introduce a new one.
+
 ---
 
 ## Context Variables

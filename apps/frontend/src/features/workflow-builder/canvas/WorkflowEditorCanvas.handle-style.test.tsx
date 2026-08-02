@@ -195,6 +195,7 @@ vi.mock("@xyflow/react", () => {
     Background: () => null,
     Controls: () => null,
     MiniMap: () => null,
+    Panel: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Handle: ({
       type,
       position,

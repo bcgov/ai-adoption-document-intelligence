@@ -273,6 +273,9 @@ vi.mock("./run-history/useWorkflowRuns", () => ({
 }));
 
 vi.mock("../../data/hooks/useWorkflows", () => ({
+  // Inderdeep walkthrough 2026-07-29 — the top-bar WorkflowSwitcher lists
+  // all workflows; an empty list keeps it inert in these page tests.
+  useWorkflows: () => ({ data: [], isLoading: false }),
   useWorkflow: () => ({
     data: existingWorkflowRef.current ?? undefined,
     isLoading: false,
