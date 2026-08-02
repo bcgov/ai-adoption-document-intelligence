@@ -33,7 +33,8 @@ import {
   pruneEdgeReferences,
   resolveBindings,
 } from "@ai-di/graph-workflow";
-import { Anchor, Badge, Modal, Tooltip } from "@mantine/core";
+import { Anchor, Badge, Modal, Text, Tooltip } from "@mantine/core";
+import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import {
   Background,
@@ -104,6 +105,11 @@ import {
   GroupChipNode,
   type GroupChipNodeData,
 } from "./GroupChipNode";
+import {
+  applyGroupDragDelta,
+  captureGroupDragCohort,
+  type GroupDragCohort,
+} from "./group-drag-cohesion";
 import {
   type GroupChip,
   groupIdFromChipId,
@@ -2419,9 +2425,69 @@ function WorkflowEditorCanvasInner({
    * `dragged` is defaulted rather than assumed: the mocked xyflow harness used
    * in tests calls the handler with two arguments.
    */
+  /**
+   * Item 6 (2026-08-02) — what a group drag in progress must carry along.
+   * Captured at drag start, applied on every tick, consumed and cleared at
+   * drag stop. A ref (not state) because it changes many times per gesture
+   * and nothing renders from it.
+   */
+  const groupDragCohortRef = useRef<GroupDragCohort | null>(null);
+
+  const handleNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: Node, dragged?: Node[]) => {
+      const draggedIds = (dragged?.length ? dragged : [node]).map((n) => n.id);
+      groupDragCohortRef.current = captureGroupDragCohort(
+        config,
+        node.id,
+        node.position,
+        draggedIds,
+      );
+    },
+    [config],
+  );
+
+  /**
+   * Live cohesion: move the rest of the group with the node under the cursor,
+   * so the group holds its shape DURING the drag rather than snapping into
+   * place when it ends.
+   *
+   * This writes straight to the canvas's own node state — xyflow is
+   * controlled here, so that state is what renders. Selection is untouched on
+   * purpose (see group-drag-cohesion.ts): clicking a member still selects only
+   * that member, and the settings panel still edits only that member.
+   */
+  const handleNodeDrag = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      const cohort = groupDragCohortRef.current;
+      if (!cohort || cohort.anchorId !== node.id) return;
+      const moves = applyGroupDragDelta(cohort, node.position);
+      setInternalNodes((prev) =>
+        prev.map((n) => {
+          const at = moves.get(n.id);
+          return at ? { ...n, position: at } : n;
+        }),
+      );
+    },
+    [setInternalNodes],
+  );
+
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node, dragged?: Node[]) => {
-      const moved = dragged?.length ? dragged : [node];
+      const xyflowMoved = dragged?.length ? dragged : [node];
+
+      // Fold the carried group members into the same commit as the nodes
+      // xyflow moved itself, so one gesture is one config write (and one
+      // undo step) however many nodes it displaced.
+      const cohort = groupDragCohortRef.current;
+      groupDragCohortRef.current = null;
+      const carried: Node[] =
+        cohort && cohort.anchorId === node.id
+          ? [...applyGroupDragDelta(cohort, node.position)].map(
+              ([id, position]): Node => ({ id, position, data: {} }),
+            )
+          : [];
+      const moved =
+        carried.length > 0 ? [...xyflowMoved, ...carried] : xyflowMoved;
 
       // Build the position-updated node while preserving the
       // discriminated-union narrowing. Each branch produces the same
@@ -2643,6 +2709,95 @@ function WorkflowEditorCanvasInner({
   );
 
   /**
+   * Item 6 (Inderdeep walkthrough) — delete a group as a unit, from the
+   * collapsed chip.
+   *
+   * This is the one place full Figma semantics apply. Collapsed, the chip IS
+   * the object: there is nothing else on screen to mean, so "delete this" can
+   * only mean the group and the steps folded into it. Expanded, the same
+   * gesture on a member means only that member — deleting three real pipeline
+   * steps because one was selected is destructive out of proportion to the
+   * click.
+   *
+   * The confirm names the step count for exactly that reason: it is the
+   * difference between this and every other delete on the canvas.
+   */
+  const confirmDeleteGroupUnit = useCallback(
+    (groupId: string) => {
+      const current = configRef.current;
+      const group = current.nodeGroups?.[groupId];
+      if (!group) return;
+      const memberIds = group.nodeIds.filter((id) => current.nodes[id]);
+      const count = memberIds.length;
+      const stepWord = count === 1 ? "step" : "steps";
+      modals.openConfirmModal({
+        title: `Delete "${group.label}" and its ${count} ${stepWord}?`,
+        children: (
+          <Text size="sm">
+            The group and the {count} {stepWord} inside it are removed from the
+            workflow. To keep the steps and drop only the grouping, cancel and
+            use <strong>Ungroup</strong> instead. This is undoable.
+          </Text>
+        ),
+        labels: {
+          confirm: `Delete group and ${count} ${stepWord}`,
+          cancel: "Cancel",
+        },
+        confirmProps: {
+          color: "red",
+          "data-testid": "delete-group-unit-confirm",
+        },
+        cancelProps: { "data-testid": "delete-group-unit-cancel" },
+        onConfirm: () => {
+          const at = configRef.current;
+          const removedIds = new Set(memberIds);
+          // Removing every member prunes the (now empty) group entry too —
+          // see pruneNodesFromGroups — so the grouping needs no separate
+          // delete here.
+          onConfigChange(removeNodesFromConfig(at, removedIds));
+          if (selectedNodeId && removedIds.has(selectedNodeId)) {
+            onSelectNode(null);
+          }
+          // Same orphaned-variable accounting as any other delete (G-002),
+          // described against the pre-delete config.
+          if (onUndo) showOrphanedDeleteToast(at, removedIds, onUndo);
+        },
+      });
+    },
+    [onConfigChange, onSelectNode, selectedNodeId, onUndo],
+  );
+
+  /**
+   * Runs BEFORE xyflow removes anything, which is the only point a chip
+   * delete can be diverted: by the time `onDelete` fires the chip is already
+   * out of xyflow's store, so a confirm there would leave the canvas showing
+   * a deletion the author had not agreed to yet.
+   *
+   * Chips are vetoed and routed to `confirmDeleteGroupUnit`; everything else
+   * in the same gesture proceeds untouched.
+   */
+  const handleBeforeDelete = useCallback(
+    async ({
+      nodes: toDelete,
+      edges: edgesToDelete,
+    }: {
+      nodes: FlowNode[];
+      edges: Edge[];
+    }) => {
+      const chips = toDelete.filter((n) => groupIdFromChipId(n.id) !== null);
+      if (chips.length === 0) return true;
+      for (const chip of chips) {
+        const groupId = groupIdFromChipId(chip.id);
+        if (groupId) confirmDeleteGroupUnit(groupId);
+      }
+      const rest = toDelete.filter((n) => groupIdFromChipId(n.id) === null);
+      if (rest.length === 0 && edgesToDelete.length === 0) return false;
+      return { nodes: rest, edges: edgesToDelete };
+    },
+    [confirmDeleteGroupUnit],
+  );
+
+  /**
    * Unified deletion handler — xyflow's `onDelete` fires ONCE per delete
    * gesture with everything removed (selected elements plus the swept-in
    * edges connected to deleted nodes), unlike the `onNodesDelete` /
@@ -2675,31 +2830,15 @@ function WorkflowEditorCanvasInner({
     }) => {
       if (deletedNodes.length === 0 && deletedEdges.length === 0) return;
 
-      // G-091 — a selected chip is deletable, so Delete routed its synthetic
-      // `group-chip-<id>` here, where it matched no node, edge or group and
-      // nothing happened. Neither reading of the gesture (delete the group,
-      // delete its members) was offered OR refused; it was simply inert.
-      //
-      // Refused, with the affordance that does work named. Deleting a group is
-      // not the same act as deleting the steps inside it, and guessing which
-      // one was meant is exactly the sort of assumption that loses work.
-      const chipIds = deletedNodes.filter(
-        (n) => groupIdFromChipId(n.id) !== null,
-      );
+      // Item 6 (2026-08-02) — chips never reach this pass any more:
+      // `handleBeforeDelete` intercepts them and routes each to its own
+      // confirm, because deleting a group as a unit takes real pipeline steps
+      // with it. Anything still carrying a chip id here would be a bug, so
+      // filter defensively rather than letting it fall through to
+      // `removeNodesFromConfig`, where it would match nothing.
       const realDeletedNodes = deletedNodes.filter(
         (n) => groupIdFromChipId(n.id) === null,
       );
-      if (chipIds.length > 0) {
-        notifications.show({
-          color: "gray",
-          title: "Groups are deleted from the panel",
-          message:
-            chipIds.length === 1
-              ? "Select the group and use “Delete group” in the right-hand panel. That removes the grouping and leaves its steps on the canvas — to delete the steps themselves, turn off Simplified view first."
-              : `${chipIds.length} groups were selected. Delete them one at a time from the right-hand panel — that removes the grouping and leaves the steps in place.`,
-          autoClose: 8000,
-        });
-      }
       if (realDeletedNodes.length === 0 && deletedEdges.length === 0) return;
 
       const removedNodeIds = new Set(realDeletedNodes.map((n) => n.id));
@@ -3521,8 +3660,11 @@ function WorkflowEditorCanvasInner({
           edgeTypes={EDGE_TYPES}
           onNodesChange={onInternalNodesChange}
           onEdgesChange={onInternalEdgesChange}
+          onNodeDragStart={handleNodeDragStart}
+          onNodeDrag={handleNodeDrag}
           onNodeDragStop={handleNodeDragStop}
           onSelectionChange={handleSelectionChange}
+          onBeforeDelete={handleBeforeDelete}
           onDelete={handleDelete}
           onConnect={handleConnect}
           isValidConnection={isValidConnection}

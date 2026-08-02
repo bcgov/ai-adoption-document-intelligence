@@ -262,7 +262,56 @@ describe("useCreateWorkflow", () => {
 
       const returned = await result.current.mutateAsync(createDto);
 
-      expect(returned).toEqual(workflowInfo);
+      expect(returned.workflow).toEqual(workflowInfo);
+    });
+
+    // Draft-save (2026-08-02): saving persists whatever the author has and
+    // reports the validator's verdict alongside it, so the caller can say
+    // "saved, but it still cannot run" instead of "save failed".
+    it("carries the save-time validation verdict back to the caller", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      const findings = [
+        {
+          path: "nodes.ocr1.inputs.fileData",
+          message: "Input port has no source",
+          severity: "error",
+        },
+      ];
+      vi.mocked(apiService.post).mockResolvedValue({
+        success: true,
+        data: {
+          workflow: workflowInfo,
+          validation: { valid: false, errors: findings },
+        },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useCreateWorkflow(), {
+        wrapper: createWrapper(),
+      });
+
+      const returned = await result.current.mutateAsync(createDto);
+
+      expect(returned.validation).toEqual({ valid: false, errors: findings });
+    });
+
+    // A response without the field is read as clean rather than crashing the
+    // save path on `validation.errors`.
+    it("reads a missing verdict as clean", async () => {
+      mockUseGroup.mockReturnValue({ activeGroup });
+      vi.mocked(apiService.post).mockResolvedValue({
+        success: true,
+        data: { workflow: workflowInfo },
+        message: undefined,
+      });
+
+      const { result } = renderHook(() => useCreateWorkflow(), {
+        wrapper: createWrapper(),
+      });
+
+      const returned = await result.current.mutateAsync(createDto);
+
+      expect(returned.validation).toEqual({ valid: true, errors: [] });
     });
   });
 

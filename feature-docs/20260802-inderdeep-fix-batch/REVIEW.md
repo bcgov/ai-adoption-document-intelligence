@@ -2,15 +2,30 @@
 
 ## The ask
 
-Three decisions are yours; everything else below is done and needs only your eyes.
+**All three decisions are answered and built (2026-08-02).** Nothing is blocked on you; what is left is the demo pass.
 
-| # | Question | Answer needed |
-|---|---|---|
-| 1 | **Draft-save approach** ([§ Proposal](#proposal-draft-save-item-3)) — remove the save-time validator gate, add it to the two run-start endpoints instead. Approve? | yes / no / change it |
-| 2 | **Grouping semantics** ([§ Opinion](#opinion-figma-style-grouping-item-6)) — my recommendation: *select-the-group-moves-together, delete stays per-node, unit-delete only on the collapsed chip*. Agree? | yes / no / discuss with Inderdeep |
-| 3 | **Commit & PR** — everything sits uncommitted on `feature/visual-workflow-builder` (50 modified + 6 new files, inventory below). Commit? As one commit or split (fix-batch / retag)? | commit now / after demo pass |
+| # | Question | Your answer | State |
+|---|---|---|---|
+| 1 | **Draft-save approach** ([§ Proposal](#proposal-draft-save-item-3)) — remove the save-time validator gate, add it to the two run-start endpoints instead. | *"Draft save looks good"* | Built + committed `b76d651c` |
+| 2 | **Grouping semantics** ([§ Opinion](#opinion-figma-style-grouping-item-6)) — move-together, delete stays per-node, unit-delete only on the collapsed chip. | *"Figma style suggestions also look good"* | Built — see [§ What shipped for item 6](#what-shipped-for-item-6) |
+| 3 | **Commit & PR** — split or single commit. | *"commit what we have now, split appropriately"* | Four commits, listed below |
 
-Not yours (my chores, already done): all tests green — `graph-workflow` 1081, frontend 1860, backend workflow module 435, `tsc --noEmit` clean. Two stale local builds fixed en route (`db:generate`, `blob-storage-paths` dist — environment, not code).
+### Commits on `feature/visual-workflow-builder`
+
+| SHA | What |
+|---|---|
+| `b6b86d40` | Identifier retag (Option A) — 27 files |
+| `637c024b` | Walkthrough fix batch 1 (items 1–2, 4–5, 7–10, 12) — 30 files |
+| `b76d651c` | Draft save (item 3) — 11 files |
+| *(pending)* | Grouping semantics (item 6) |
+
+Not yours (my chores, already done): all tests green — frontend **2321** (200 files), backend **2824** (151 suites), `tsc --noEmit` clean both sides. Two stale local builds fixed en route (`db:generate`, `blob-storage-paths` dist — environment, not code). One stale assertion in `useWorkflows.test.ts` slipped past the draft-save commit because a piped `vitest | tail` masked its exit code; caught and fixed in the item-6 commit, and I now capture the real exit code.
+
+### What shipped for item 6
+
+Same rule you approved, one mechanism change worth knowing about. The sketch said *"ring-click selects all members, and xyflow's multi-drag moves them for free"*. The ring is a CSS `outline`, which cannot receive clicks, and xyflow captures the drag set before `onNodeDragStart` fires — so selecting at drag time would have been too late. Instead the drag itself is cohesive: grabbing any member carries the rest of its group live, in one undo step. That delivers *"when I move one, the other one also moves"* without hijacking selection at all, so clicking a member still selects and edits exactly that member — which was the half of your ruling that protected per-node work.
+
+Unit-delete on the chip is as approved: confirm names the step count, cancel leaves everything in place, confirm removes the group and its steps with an Undo toast.
 
 ## Background
 
@@ -43,6 +58,12 @@ Each item = one thing to show Inderdeep, in walkthrough order:
 **9. Colour legend** — bottom-centre of the canvas: **Legend** button. Wires (dashed grey = order only, coloured = data, red = error, violet = switch branch) and dot families, including the new cyan Identifiers row. Same table now in the [builder guide](../../docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md#colour-scheme-wires-and-port-dots).
 
 **10. Identifier retag (the new one)** — add Azure OCR Submit → Azure OCR Poll: `apimRequestId`/`modelId` dots are now **cyan**, not grey, and the pair auto-wires through the typed pass. Hover Poll's `apimRequestId` *input* dot: the popover can now answer "what produces a Request ID?" — impossible before, because wildcards are excluded from every kind-driven feature.
+
+**11. Draft save (item 3)** — add a lone **Submit OCR** node (its `Prepared file data` input has no source) and hit **Save**. It saves: the toast is **amber**, *"Created — 1 issue remains"*, and names the unbound port. Reload → your half-built workflow is exactly as you left it. **Try** and **Run** are greyed with the reason in their tooltip, and the API refuses the run too (`POST /:id/runs` → 400). Add **Prepare File** upstream, Save again → **green** toast, Run enables. The old behaviour was a red *"Save failed: invalid workflow configuration"* and nothing persisted.
+
+**12. Groups move as one (item 6)** — with Simplified view **OFF**, drag any member of a group: the whole group comes with it, keeping its spacing. One <kbd>Ctrl</kbd>+<kbd>Z</kbd> reverses the whole move. Then click a single member → only that node is selected and the right rail shows *that node's* settings, so per-node work is untouched. For contrast, drag a node inside a **Map body** box → only that node moves (that grouping is drawn by the canvas, not authored by you).
+
+**13. Delete a group as a unit (item 6)** — Simplified view **ON**, select a chip, press <kbd>Delete</kbd> → *"Delete «name» and its N steps?"* with the real count. **Cancel** → the chip is still there (it must not vanish while the question is open). **Confirm** → group and steps gone, with an Undo toast naming any variables that lost their source. Compare with right-click a member ▸ **Ungroup** → grouping gone, every step stays. Before this, deleting a chip did nothing at all, then later refused with a message pointing at a button that has since been renamed.
 
 ---
 

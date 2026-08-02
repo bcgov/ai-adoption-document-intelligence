@@ -47,11 +47,16 @@ all items done before the next batch-review meeting.
 **Expected:** A discoverable Ungroup action (context menu / More menu / group chip), and symmetric feedback: ungroup (including via undo) confirms itself with a toast or equivalent visual response.
 **Key file:** `apps/frontend/src/features/workflow-builder/WorkflowEditorV2Page.tsx:676-710,1556` — group action + menu; `group/prune-node-from-groups.ts`; `settings/group/GroupNodeSettings.tsx`.
 
-### 6. [ ] Decide group interaction semantics: move-together and delete-the-group
+### 6. [x] Decide group interaction semantics: move-together and delete-the-group
 **Area:** Design decision — grouping
 **Problem:** Coming from Figma, Inderdeep expects grouped nodes to move together and deleting a group member (or the group) to delete the whole group; today members move independently and deleting one node leaves the rest. Alex: canvas semantics may legitimately differ from Figma — "something to brainstorm."
 **Action:** Decision item, not a build item. Resolve with Alex (and ideally Inderdeep) whether groups move/delete as a unit, then implement the outcome. Filed as an open question in the work store. If item 4 collapses groups to a single chip, moving/deleting the chip as a unit may resolve this naturally.
 **Key file:** `apps/frontend/src/features/workflow-builder/canvas/GroupChipNode.tsx` — collapsed chip already behaves unit-wise; expanded-mode behaviour is the open half.
+**Resolved 2026-08-02** (Alex: *"Figma style suggestions also look good"*) — Figma is right about *moving*, wrong about *deleting*, and full unit semantics belong on the collapsed chip:
+- **Move-together:** dragging any member carries the rest of its group, live and in one undo step (`canvas/group-drag-cohesion.ts` + the drag handlers in `WorkflowEditorCanvas.tsx`). Selection stays per-node so the settings panel still edits one step at a time. Synthetic map-body groups are excluded.
+- **Delete stays per-node when expanded** — unchanged.
+- **Unit-delete lives on the chip:** deleting a collapsed chip removes the group *and* its steps behind a confirm naming the step count. Implemented in `onBeforeDelete` (not `onDelete`) because xyflow empties its store before `onDelete` fires, so a confirm there would show the chip already gone. This supersedes G-091's refusal.
+- The two-sentence rule for Inderdeep: *"grouped things move together; deleting the group is only offered on the chip, and deleting a node inside an expanded group only removes that node."*
 
 ---
 

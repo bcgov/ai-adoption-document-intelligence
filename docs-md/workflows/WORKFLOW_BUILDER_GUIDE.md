@@ -331,9 +331,23 @@ Right after a group is created, the right-rail panel switches from the per-node 
 - **Color** — Mantine color input with a small swatch of presets. Accepts any hex string.
 - **Members** — read-only list of the group's member node labels. Each row has a remove button; removing the last member of a group drops the group entry entirely (after a confirmation prompt).
 - **Exposed parameters** — list editor (US-044) for surfacing specific node parameters as group-level overrides. Each row carries a `label`, a `node` selector restricted to the group's members (with the node's label as the visible option text), a `param path` (dot-separated path into the workflow config), and a `type` selector (`Text` / `Number` / `Boolean` / `Enum`). Picking `Enum` reveals an `options[]` sub-editor for the allowed values. Removing a member from the group automatically prunes any exposed parameter that referenced that member and surfaces the prune via a toast.
-- **Delete group** — a red button at the bottom that removes the `nodeGroups[<id>]` entry. The underlying nodes are not touched.
+- **Ungroup (steps stay)** — a button at the bottom that removes the `nodeGroups[<id>]` entry. The underlying nodes are not touched, and a toast confirms how many steps were released.
 
 Selecting any individual node clears the active group and switches the panel back to the per-node settings. Node selection wins over the group panel.
+
+### How a group behaves on the canvas
+
+A group here is an annotation over an executable graph, not a Figma-style container — its members carry edges, bindings and run history of their own. That difference decides which Figma habits carry over:
+
+| Gesture | What happens | Why |
+|---|---|---|
+| Drag any member (expanded view) | The whole group moves, keeping its shape | A group you arranged is a unit of layout |
+| Click a member | Selects and edits **only** that member | You still need to configure one step at a time |
+| Delete a member (expanded view) | Removes **only** that node; the group keeps its other members | Deleting several real pipeline steps because one was selected is destructive out of proportion to the click |
+| Delete the chip (simplified view) | Deletes the group **and** the steps inside it, after a confirm naming the step count | Collapsed, the chip *is* the object — there is nothing else the gesture could mean |
+| Ungroup (context menu or right rail) | Drops the grouping; every step stays | The way to keep the work and lose only the annotation |
+
+Members of a synthetic map-body group (the box the canvas draws around a Map node's body) are excluded from move-together — that grouping is derived from the Map node rather than authored, and its members follow the map's own layout rules.
 
 ---
 

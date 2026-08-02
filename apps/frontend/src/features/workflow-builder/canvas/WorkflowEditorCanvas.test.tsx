@@ -13,6 +13,7 @@ import "@testing-library/jest-dom";
 
 import { resolveBindings, resolveInputPort } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
+import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
 import {
   act,
@@ -53,6 +54,13 @@ import {
 
 vi.mock("@mantine/notifications", () => ({
   notifications: { show: vi.fn(), hide: vi.fn() },
+}));
+
+// Item 6 — the group-chip unit delete asks before it removes real pipeline
+// steps. Stub the modal system so tests can read the question it asked and
+// drive either answer, rather than rendering a portal.
+vi.mock("@mantine/modals", () => ({
+  modals: { openConfirmModal: vi.fn(), closeAll: vi.fn() },
 }));
 
 // `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
@@ -4946,13 +4954,28 @@ describe("WorkflowEditorCanvas — orphaned ctx keys on delete (G-002)", () => {
     vi.mocked(notifications.hide).mockClear();
   });
 
-  it("no longer registers an onBeforeDelete veto", () => {
-    // It existed solely to cancel the gesture before xyflow emptied its store
-    // when the author declined the confirm. With no confirm there is nothing
-    // to cancel, and leaving a veto in place would be dead weight on the one
-    // hook that can silently swallow deletes.
+  it("never vetoes an ordinary node delete", async () => {
+    // `onBeforeDelete` is the one hook that can silently swallow a delete, so
+    // what matters is not whether it is registered but what it does. G-003
+    // retired the old confirm, so a node delete must pass straight through;
+    // since item 6 the hook exists only to divert group CHIPS to their own
+    // confirm (covered in the group-chip describe).
     renderCanvas(producerConsumerConfig());
-    expect(latestReactFlowProps.current?.onBeforeDelete).toBeUndefined();
+    const onBeforeDelete = latestReactFlowProps.current?.onBeforeDelete as
+      | ((args: {
+          nodes: Array<{ id: string }>;
+          edges: Edge[];
+        }) => Promise<unknown>)
+      | undefined;
+    if (!onBeforeDelete) throw new Error("onBeforeDelete was not registered");
+    let verdict: unknown;
+    await act(async () => {
+      verdict = await onBeforeDelete({
+        nodes: [{ id: "producer" }],
+        edges: [],
+      });
+    });
+    expect(verdict).toBe(true);
   });
 
   // -- context-menu path ----------------------------------------------------
@@ -5204,12 +5227,20 @@ describe("WorkflowEditorCanvas — G-060 multi-node drag", () => {
 });
 
 /**
- * G-091 — a selected chip is deletable, so Delete routed its synthetic
- * `group-chip-<id>` into `handleDelete`, where it matched no node, edge or
- * group. Nothing happened and nothing said why; neither reading of the gesture
- * (delete the group, delete its members) was offered OR refused.
+ * Item 6 (Inderdeep walkthrough, 2026-08-02) — deleting a collapsed group
+ * chip.
+ *
+ * G-091 previously refused this gesture and pointed at the right-hand panel,
+ * because "delete the group" and "delete its members" are different acts and
+ * guessing between them loses work. Collapsed, though, the chip IS the object
+ * — there is nothing else on screen the gesture could mean — so it now deletes
+ * the group as a unit behind a confirm that names the step count.
+ *
+ * The confirm runs in `onBeforeDelete`, not `onDelete`: xyflow drops elements
+ * from its store before `onDelete` fires, so confirming there would show the
+ * chip already gone while still asking whether to remove it.
  */
-describe("WorkflowEditorCanvas — G-091 deleting a group chip", () => {
+describe("WorkflowEditorCanvas — item 6 deleting a group chip as a unit", () => {
   /** Local copies — the shared helpers are scoped to their own describe. */
   function unifiedOnDelete(): (args: {
     nodes: Array<{ id: string }>;
@@ -5225,54 +5256,307 @@ describe("WorkflowEditorCanvas — G-091 deleting a group chip", () => {
     }) => void;
   }
 
-  function chipConfig(): GraphWorkflowConfig {
+  function beforeDelete(): (args: {
+    nodes: Array<{ id: string }>;
+    edges: Edge[];
+  }) => Promise<boolean | { nodes: Array<{ id: string }>; edges: Edge[] }> {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onBeforeDelete !== "function") {
+      throw new Error("ReactFlow mock did not capture onBeforeDelete");
+    }
+    return props.onBeforeDelete as (args: {
+      nodes: Array<{ id: string }>;
+      edges: Edge[];
+    }) => Promise<boolean | { nodes: Array<{ id: string }>; edges: Edge[] }>;
+  }
+
+  /** The confirm-modal payload the canvas opened, for asserting + driving. */
+  function lastConfirm(): {
+    title: string;
+    onConfirm: () => void;
+  } {
+    const calls = vi.mocked(modals.openConfirmModal).mock.calls;
+    if (calls.length === 0) throw new Error("no confirm modal was opened");
+    const payload = calls[calls.length - 1][0] as {
+      title: string;
+      onConfirm: () => void;
+    };
+    return payload;
+  }
+
+  function chipConfig(memberIds: string[] = ["a"]): GraphWorkflowConfig {
+    const nodes: GraphWorkflowConfig["nodes"] = {};
+    for (const id of memberIds) {
+      nodes[id] = {
+        id,
+        type: "activity",
+        label: id.toUpperCase(),
+        activityType: "file.prepare",
+      } as GraphWorkflowConfig["nodes"][string];
+    }
     return {
       schemaVersion: "1.0",
       metadata: { name: "chips" },
       ctx: {},
-      entryNodeId: "a",
-      nodes: {
-        a: {
-          id: "a",
-          type: "activity",
-          label: "A",
-          activityType: "file.prepare",
-        },
-      },
+      entryNodeId: memberIds[0],
+      nodes,
       edges: [],
-      nodeGroups: { g1: { label: "Stage one", nodeIds: ["a"] } },
+      nodeGroups: { g1: { label: "Stage one", nodeIds: memberIds } },
     } as GraphWorkflowConfig;
   }
 
-  it("explains that a group is deleted from the panel instead of doing nothing", () => {
-    const { onConfigChange } = renderCanvas(chipConfig(), {
+  it("vetoes the store removal and asks first, naming the step count", async () => {
+    const { onConfigChange } = renderCanvas(chipConfig(["a", "b"]), {
+      simplifiedView: true,
+    });
+    let verdict: unknown;
+    await act(async () => {
+      verdict = await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }],
+        edges: [],
+      });
+    });
+    // Vetoed — xyflow must not remove the chip while the question is open.
+    expect(verdict).toBe(false);
+    expect(lastConfirm().title).toBe('Delete "Stage one" and its 2 steps?');
+    // Nothing written until the author answers.
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("removes the group AND its steps on confirm", async () => {
+    const { onConfigChange } = renderCanvas(chipConfig(["a", "b"]), {
+      simplifiedView: true,
+    });
+    await act(async () => {
+      await beforeDelete()({ nodes: [{ id: "group-chip-g1" }], edges: [] });
+    });
+    act(() => {
+      lastConfirm().onConfirm();
+    });
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a).toBeUndefined();
+    expect(next.nodes.b).toBeUndefined();
+    // Removing every member prunes the now-empty group with them.
+    expect(next.nodeGroups?.g1).toBeUndefined();
+  });
+
+  it("writes nothing when the author cancels (never calls onConfirm)", async () => {
+    const { onConfigChange } = renderCanvas(chipConfig(["a", "b"]), {
+      simplifiedView: true,
+    });
+    await act(async () => {
+      await beforeDelete()({ nodes: [{ id: "group-chip-g1" }], edges: [] });
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("uses the singular for a one-step group", async () => {
+    renderCanvas(chipConfig(["a"]), { simplifiedView: true });
+    await act(async () => {
+      await beforeDelete()({ nodes: [{ id: "group-chip-g1" }], edges: [] });
+    });
+    expect(lastConfirm().title).toBe('Delete "Stage one" and its 1 step?');
+  });
+
+  it("lets real nodes through in a mixed chip + node gesture", async () => {
+    renderCanvas(chipConfig(["a", "b"]), { simplifiedView: true });
+    let verdict: unknown;
+    await act(async () => {
+      verdict = await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }, { id: "a" }],
+        edges: [],
+      });
+    });
+    // The chip is filtered out (it has its own confirm); the real node
+    // proceeds through xyflow's normal delete path.
+    expect(verdict).toEqual({ nodes: [{ id: "a" }], edges: [] });
+  });
+
+  it("passes an ordinary node delete straight through", async () => {
+    renderCanvas(chipConfig(["a"]), { simplifiedView: false });
+    let verdict: unknown;
+    await act(async () => {
+      verdict = await beforeDelete()({ nodes: [{ id: "a" }], edges: [] });
+    });
+    expect(verdict).toBe(true);
+  });
+
+  it("ignores a chip id that still reaches onDelete", () => {
+    // Defensive: onBeforeDelete filters chips out, so one arriving here would
+    // be a bug. It must not fall through to removeNodesFromConfig, where it
+    // would match nothing and emit a pointless config write.
+    const { onConfigChange } = renderCanvas(chipConfig(["a"]), {
       simplifiedView: true,
     });
     act(() => {
       unifiedOnDelete()({ nodes: [{ id: "group-chip-g1" }], edges: [] });
     });
-    expect(notifications.show).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Groups are deleted from the panel",
-      }),
-    );
-    // Refused, not guessed at — the config is untouched.
     expect(onConfigChange).not.toHaveBeenCalled();
   });
+});
 
-  it("still deletes real nodes in a mixed chip + node gesture", () => {
-    const { onConfigChange } = renderCanvas(chipConfig(), {
-      simplifiedView: true,
-    });
+/**
+ * Item 6 (Inderdeep walkthrough, 2026-08-02) — a group moves as one.
+ *
+ * Inderdeep's expectation, coming from Figma: "when I move one, the other one
+ * also moves". Selection is deliberately NOT cohesive — clicking a member
+ * still selects and edits exactly that member — so these tests pin the drag
+ * behaviour specifically.
+ */
+describe("WorkflowEditorCanvas — item 6 group move-together", () => {
+  function dragHandlers(): {
+    start: (e: unknown, node: { id: string; position: XY }) => void;
+    move: (e: unknown, node: { id: string; position: XY }) => void;
+    stop: (
+      e: unknown,
+      node: { id: string; position: XY },
+      dragged?: Array<{ id: string; position: XY }>,
+    ) => void;
+  } {
+    const props = latestReactFlowProps.current;
+    if (!props) throw new Error("ReactFlow mock did not capture props");
+    for (const key of ["onNodeDragStart", "onNodeDrag", "onNodeDragStop"]) {
+      if (typeof props[key] !== "function") {
+        throw new Error(`ReactFlow mock did not capture ${key}`);
+      }
+    }
+    return {
+      start: props.onNodeDragStart as never,
+      move: props.onNodeDrag as never,
+      stop: props.onNodeDragStop as never,
+    };
+  }
+
+  type XY = { x: number; y: number };
+
+  function groupedPositions(
+    nodeGroups: GraphWorkflowConfig["nodeGroups"],
+  ): GraphWorkflowConfig {
+    const at: Record<string, XY> = {
+      a: { x: 0, y: 0 },
+      b: { x: 100, y: 0 },
+      c: { x: 400, y: 300 },
+    };
+    const nodes: GraphWorkflowConfig["nodes"] = {};
+    for (const [id, position] of Object.entries(at)) {
+      nodes[id] = {
+        id,
+        type: "activity",
+        label: id.toUpperCase(),
+        activityType: "file.prepare",
+        metadata: { position },
+      } as GraphWorkflowConfig["nodes"][string];
+    }
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "grp" },
+      ctx: {},
+      entryNodeId: "a",
+      nodes,
+      edges: [],
+      nodeGroups,
+    } as GraphWorkflowConfig;
+  }
+
+  it("commits the whole group when one member is dragged", async () => {
+    const { onConfigChange } = renderCanvas(
+      groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
+    );
+    await flushAnimationFrame();
+    const { start, stop } = dragHandlers();
     act(() => {
-      unifiedOnDelete()({
-        nodes: [{ id: "group-chip-g1" }, { id: "a" }],
-        edges: [],
-      });
+      start({}, { id: "a", position: { x: 0, y: 0 } });
+      stop({}, { id: "a", position: { x: 50, y: 20 } }, [
+        { id: "a", position: { x: 50, y: 20 } },
+      ]);
     });
     expect(onConfigChange).toHaveBeenCalled();
     const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
-    expect(next.nodes.a).toBeUndefined();
+    expect(next.nodes.a.metadata?.position).toEqual({ x: 50, y: 20 });
+    // b rode along by the same delta, keeping its 100px offset from a.
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 150, y: 20 });
+    // c is not in the group and must not have moved.
+    expect(next.nodes.c.metadata?.position).toEqual({ x: 400, y: 300 });
+  });
+
+  it("leaves an ungrouped drag alone", async () => {
+    const { onConfigChange } = renderCanvas(
+      groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
+    );
+    await flushAnimationFrame();
+    const { start, stop } = dragHandlers();
+    act(() => {
+      start({}, { id: "c", position: { x: 400, y: 300 } });
+      stop({}, { id: "c", position: { x: 410, y: 310 } }, [
+        { id: "c", position: { x: 410, y: 310 } },
+      ]);
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.c.metadata?.position).toEqual({ x: 410, y: 310 });
+    expect(next.nodes.a.metadata?.position).toEqual({ x: 0, y: 0 });
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 100, y: 0 });
+  });
+
+  it("does not treat a synthetic map-body group as a unit", async () => {
+    const { onConfigChange } = renderCanvas(
+      groupedPositions({
+        __map_body_m1: { label: "Map body", nodeIds: ["a", "b"] },
+      }),
+    );
+    await flushAnimationFrame();
+    const { start, stop } = dragHandlers();
+    act(() => {
+      start({}, { id: "a", position: { x: 0, y: 0 } });
+      stop({}, { id: "a", position: { x: 50, y: 0 } }, [
+        { id: "a", position: { x: 50, y: 0 } },
+      ]);
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a.metadata?.position).toEqual({ x: 50, y: 0 });
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 100, y: 0 });
+  });
+
+  it("moves carried members live during the drag, not only at drop", async () => {
+    renderCanvas(
+      groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
+    );
+    await flushAnimationFrame();
+    const { start, move } = dragHandlers();
+    act(() => {
+      start({}, { id: "a", position: { x: 0, y: 0 } });
+      move({}, { id: "a", position: { x: 25, y: 5 } });
+    });
+    // The canvas is controlled, so the projected node array IS what renders.
+    const props = latestReactFlowProps.current;
+    const nodes = (props?.nodes ?? []) as Array<{ id: string; position: XY }>;
+    expect(nodes.find((n) => n.id === "b")?.position).toEqual({
+      x: 125,
+      y: 5,
+    });
+  });
+
+  it("writes one config emission for the whole gesture", async () => {
+    const { onConfigChange } = renderCanvas(
+      groupedPositions({
+        g1: { label: "Stage one", nodeIds: ["a", "b", "c"] },
+      }),
+    );
+    await flushAnimationFrame();
+    const { start, move, stop } = dragHandlers();
+    act(() => {
+      start({}, { id: "a", position: { x: 0, y: 0 } });
+      move({}, { id: "a", position: { x: 10, y: 0 } });
+      move({}, { id: "a", position: { x: 20, y: 0 } });
+      stop({}, { id: "a", position: { x: 30, y: 0 } }, [
+        { id: "a", position: { x: 30, y: 0 } },
+      ]);
+    });
+    // One gesture, one write — so it is also one undo step.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 130, y: 0 });
+    expect(next.nodes.c.metadata?.position).toEqual({ x: 430, y: 300 });
   });
 });
 
