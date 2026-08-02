@@ -68,6 +68,33 @@ Rebuilds the demo from fixtures. For each fixture it:
 - **Generic**: it seeds whatever fixtures exist under `data/hitl-demo/`, with no
   document-specific logic.
 
+## Why this is separate from the main `db:seed`
+
+Deliberate layering, not an accident:
+
+- **`db:seed` is reference data** the app needs to function anywhere a DB reset
+  happens (Playwright global-setup, local resets, fresh instances): group, users,
+  API key, template models, seeded workflows, benchmark datasets. Its only
+  dependency is `DATABASE_URL`.
+- **`seed:hitl-demo` is a content layer**: it writes real binary blobs to a
+  *running* blob store (Azure or MinIO, per backend `.env`) plus rows that point
+  at them. Folding it into `db:seed` would make every reset depend on blob
+  infrastructure/credentials and would inject demo documents into every
+  environment that seeds — including e2e test databases that assert on queue
+  contents.
+- **Different lifecycle**: the base seed is hand-authored, schema-coupled code;
+  the demo set is captured artifacts, refreshed by `capture:hitl-demo`
+  (capture/replay pair, not seed code).
+
+They compose strictly in order — `demo:reset` = `test:db:reset` (migrate reset +
+`db:seed`) **then** `seed:hitl-demo`, which inserts into the base seed's group
+(`seeddefaultgroup`, overridable via `HITL_DEMO_GROUP_ID`). The *mechanism* is
+generic (it replays whatever fixtures exist under `data/hitl-demo/`, no
+document-specific logic); the *name* is scoped on purpose because today there is
+exactly one fixture set. If a second demo set ever appears, promote the script
+to a parameterized `seed-demo-fixtures <dir>` — deferred until that duplication
+exists.
+
 ## Prerequisites
 
 - Infra up (`docker compose --profile infra --profile temporal up -d`) and the
