@@ -220,7 +220,14 @@ vi.mock("@xyflow/react", () => {
     Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
     useNodesState,
     useEdgesState,
-    useReactFlow: () => ({ fitView: vi.fn() }),
+    // D-1 — the canvas reads measured card sizes off the live instance to
+    // size group container boxes, so `getNodes` has to exist even in a suite
+    // that only cares about handle styling.
+    useReactFlow: () => ({
+      fitView: vi.fn(),
+      getNodes: () => [],
+      setNodes: vi.fn(),
+    }),
     // Stable no-op — the activity renderer calls this to re-measure
     // per-port handle bounds; jsdom has no layout to invalidate.
     useUpdateNodeInternals: () => mockUpdateNodeInternals,

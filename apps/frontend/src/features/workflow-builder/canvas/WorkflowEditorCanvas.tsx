@@ -1778,8 +1778,21 @@ function atSimplifiedPosition(node: GraphNode): GraphNode {
   } as GraphNode;
 }
 
-/** Breathing room between the members' bounding box and the container's edge. */
-const GROUP_CONTAINER_PAD = 40;
+/**
+ * Breathing room between the members' bounding box and the container's edge
+ * (D-1). Sides and bottom are tight now that the box is sized from measured
+ * cards rather than worst-case estimates; the top carries extra because the
+ * header strip is drawn inside the box, above the members.
+ */
+const GROUP_CONTAINER_PAD_X = 16;
+const GROUP_CONTAINER_PAD_TOP = 34;
+
+/**
+ * D-1 — node id → the size xyflow actually measured for that card. Absent ids
+ * fall back to the catalog estimate, which is what every card looks like on
+ * the first paint, before xyflow has measured anything.
+ */
+type MeasuredSizes = ReadonlyMap<string, { width: number; height: number }>;
 
 /**
  * The padded bounding box of `memberIds`, or `null` when not one of them has
@@ -1794,11 +1807,21 @@ function computeGroupBounds(
   memberIds: readonly string[],
   config: GraphWorkflowConfig,
   positionOf: (nodeId: string) => { x: number; y: number } | undefined,
+  sizeOf?: (nodeId: string) => { width: number; height: number } | undefined,
 ): { x: number; y: number; width: number; height: number } | null {
   // Enclose each member's FULL footprint: `position` is the card's top-left,
-  // so the box's right/bottom edge must reach `position + card size`. Using
-  // per-node width/height (not a flat footprint) stops wide port-row cards —
-  // e.g. a map body's exit `azureOcr.extract` — from spilling out of the box.
+  // so the box's right/bottom edge must reach `position + card size`.
+  //
+  // D-1 — sizes come from what xyflow MEASURED wherever a measurement exists,
+  // and fall back to the catalog estimates only for a card it has not measured
+  // yet (first paint, tests). The estimates are deliberate worst cases — a flat
+  // `ACTIVITY_NODE_WIDTH` of 522 for every activity, and a base height that
+  // includes a 120px preview block most cards don't render — so sizing the box
+  // from them left up to ~210px of empty box past the right-most card and
+  // ~160px below a `humanGate` (measured: 200x58 rendered against 180x180
+  // assumed). That slack is what made adjacent boxes overlap. The same
+  // measurement also FIXES the opposite error: `humanGate` is 20px wider than
+  // its estimate, so it used to poke out of its own box.
   let left = Number.POSITIVE_INFINITY;
   let top = Number.POSITIVE_INFINITY;
   let right = Number.NEGATIVE_INFINITY;
@@ -1808,8 +1831,9 @@ function computeGroupBounds(
     const pos = positionOf(nodeId);
     if (!pos) continue;
     any = true;
-    const w = estimateNodeWidth(config, nodeId);
-    const h = estimateNodeHeight(config, nodeId);
+    const measured = sizeOf?.(nodeId);
+    const w = measured?.width ?? estimateNodeWidth(config, nodeId);
+    const h = measured?.height ?? estimateNodeHeight(config, nodeId);
     if (pos.x < left) left = pos.x;
     if (pos.y < top) top = pos.y;
     if (pos.x + w > right) right = pos.x + w;
@@ -1817,10 +1841,10 @@ function computeGroupBounds(
   }
   if (!any) return null;
   return {
-    x: left - GROUP_CONTAINER_PAD,
-    y: top - GROUP_CONTAINER_PAD,
-    width: right - left + GROUP_CONTAINER_PAD * 2,
-    height: bottom - top + GROUP_CONTAINER_PAD * 2,
+    x: left - GROUP_CONTAINER_PAD_X,
+    y: top - GROUP_CONTAINER_PAD_TOP,
+    width: right - left + GROUP_CONTAINER_PAD_X * 2,
+    height: bottom - top + GROUP_CONTAINER_PAD_TOP + GROUP_CONTAINER_PAD_X,
   };
 }
 
@@ -1854,11 +1878,18 @@ function projectGroupContainerNodes(
   config: GraphWorkflowConfig,
   onOpenGroup?: (groupId: string) => void,
   onSelectMapNode?: (nodeId: string) => void,
+  sizes?: MeasuredSizes,
 ): GroupContainerFlowNode[] {
   const out: GroupContainerFlowNode[] = [];
   const positionOf = configPositionOf(config);
+  const sizeOf = (nodeId: string) => sizes?.get(nodeId);
   for (const [groupId, group] of Object.entries(groups)) {
-    const bounds = computeGroupBounds(group.nodeIds, config, positionOf);
+    const bounds = computeGroupBounds(
+      group.nodeIds,
+      config,
+      positionOf,
+      sizeOf,
+    );
     if (!bounds) continue;
     const synthetic = isSyntheticMapBodyGroupId(groupId);
     out.push({
@@ -1907,15 +1938,17 @@ function projectGroupContainerNodes(
 function refitGroupContainers(
   nodes: readonly FlowNode[],
   config: GraphWorkflowConfig,
+  sizes?: MeasuredSizes,
 ): FlowNode[] {
   const livePositions = new Map<string, { x: number; y: number }>();
   for (const n of nodes) livePositions.set(n.id, n.position);
   const positionOf = (nodeId: string) => livePositions.get(nodeId);
+  const sizeOf = (nodeId: string) => sizes?.get(nodeId);
   return nodes.map((n): FlowNode => {
     if (n.type !== "group-container") return n;
     const memberIds = config.nodeGroups?.[n.data.groupId]?.nodeIds;
     if (!memberIds) return n;
-    const bounds = computeGroupBounds(memberIds, config, positionOf);
+    const bounds = computeGroupBounds(memberIds, config, positionOf, sizeOf);
     if (!bounds) return n;
     if (
       n.position.x === bounds.x &&
@@ -2203,6 +2236,29 @@ function WorkflowEditorCanvasInner({
     ],
   );
 
+  /**
+   * D-1 — the sizes xyflow has measured for the cards currently on screen.
+   * Read on demand rather than stored: measurements change whenever a card
+   * grows (a port row appears, a preview resolves) and xyflow's store is the
+   * only thing that knows.
+   */
+  const readMeasuredSizes = useCallback((): MeasuredSizes => {
+    const out = new Map<string, { width: number; height: number }>();
+    for (const node of reactFlow.getNodes()) {
+      const width = node.measured?.width ?? node.width;
+      const height = node.measured?.height ?? node.height;
+      if (
+        typeof width === "number" &&
+        width > 0 &&
+        typeof height === "number" &&
+        height > 0
+      ) {
+        out.set(node.id, { width, height });
+      }
+    }
+    return out;
+  }, [reactFlow]);
+
   const lastFingerprintRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastFingerprintRef.current === dataFingerprint) return;
@@ -2236,6 +2292,7 @@ function WorkflowEditorCanvasInner({
         config,
         onGroupChipClick,
         onSelectMapBodyNode,
+        readMeasuredSizes(),
       );
       const normalNodes = projectFlowNodes(
         config,
@@ -2244,6 +2301,14 @@ function WorkflowEditorCanvasInner({
         wires,
       );
       setInternalNodes([...containerNodes, ...normalNodes]);
+      // D-1 — on the first paint xyflow has measured nothing, so the boxes
+      // above were sized from the worst-case estimates. Re-fit once the cards
+      // have been laid out and their real sizes exist.
+      requestAnimationFrame(() => {
+        const sizes = readMeasuredSizes();
+        if (sizes.size === 0) return;
+        setInternalNodes((prev) => refitGroupContainers(prev, config, sizes));
+      });
     }
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
@@ -2261,6 +2326,7 @@ function WorkflowEditorCanvasInner({
     simplifiedView,
     onGroupChipClick,
     onSelectMapBodyNode,
+    readMeasuredSizes,
   ]);
 
   /**
@@ -2288,6 +2354,7 @@ function WorkflowEditorCanvasInner({
           source,
           onGroupChipClick,
           onSelectMapBodyNode,
+          readMeasuredSizes(),
         ).map((c) => [c.id, c] as const),
       );
       // G-4 — chips are the same kind of derived geometry: a chip sits at the
@@ -2319,7 +2386,13 @@ function WorkflowEditorCanvasInner({
         }),
       );
     },
-    [onGroupChipClick, onSelectMapBodyNode, setInternalNodes, simplifiedView],
+    [
+      onGroupChipClick,
+      onSelectMapBodyNode,
+      setInternalNodes,
+      simplifiedView,
+      readMeasuredSizes,
+    ],
   );
 
   // Auto-arrange position sync (§4.2). The host bumps `layoutNonce` after a
@@ -2631,10 +2704,11 @@ function WorkflowEditorCanvasInner({
             return at ? { ...n, position: at } : n;
           }),
           config,
+          readMeasuredSizes(),
         ),
       );
     },
-    [config, setInternalNodes],
+    [config, setInternalNodes, readMeasuredSizes],
   );
 
   const handleNodeDragStop = useCallback(
@@ -2733,6 +2807,7 @@ function WorkflowEditorCanvasInner({
             return at ? { ...n, position: { x: at.x, y: at.y } } : n;
           }),
           nextConfig,
+          readMeasuredSizes(),
         ),
       );
 
@@ -2745,7 +2820,13 @@ function WorkflowEditorCanvasInner({
       );
       onConfigChange(nextConfig);
     },
-    [config, onConfigChange, setInternalNodes, simplifiedView],
+    [
+      config,
+      onConfigChange,
+      setInternalNodes,
+      simplifiedView,
+      readMeasuredSizes,
+    ],
   );
 
   const handleSelectionChange = useCallback(

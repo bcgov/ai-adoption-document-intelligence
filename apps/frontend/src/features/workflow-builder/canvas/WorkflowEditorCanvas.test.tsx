@@ -4878,6 +4878,44 @@ describe("WorkflowEditorCanvas — group container box", () => {
     };
   }
 
+  /**
+   * D-1 (2026-08-03) — the box used to be sized from worst-case ESTIMATES:
+   * a flat 522px width for every activity card and a base height carrying a
+   * 120px preview block most cards never render. Measured in the running
+   * editor, that left up to ~210px of empty box to the right of the last card
+   * and ~160px below a humanGate, which is why adjacent boxes overlapped.
+   */
+  it("D-1: sizes the box from MEASURED card sizes, not the estimates", async () => {
+    // Both members really render 200x60 here. The estimate for an activity is
+    // 522 wide, so an estimate-sized box would be ~322px wider than this one.
+    mockGetNodes.mockReturnValue([
+      { id: "a", measured: { width: 200, height: 60 } },
+      { id: "b", measured: { width: 200, height: 60 } },
+    ] as unknown as Array<{ id: string; width?: number }>);
+    try {
+      renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+      await flushAnimationFrame();
+      const box = readNode("container-g1");
+      // Members span x=0..500 (300 + 200 measured), plus 16px each side.
+      expect(box?.data.width).toBe(500 + 16 * 2);
+      // One row of 60px-tall cards, plus the header allowance and the bottom pad.
+      expect(box?.data.height).toBe(60 + 34 + 16);
+      expect(box?.position).toEqual({ x: -16, y: -34 });
+    } finally {
+      mockGetNodes.mockReturnValue([]);
+    }
+  });
+
+  it("D-1: falls back to the estimates for a card xyflow has not measured", async () => {
+    // No measurements at all — the first paint. The box must still enclose
+    // every card rather than clipping it.
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+    const box = readNode("container-g1");
+    // `b` sits at x=300 and the activity estimate is 522 wide.
+    expect(box?.data.width ?? 0).toBeGreaterThanOrEqual(300 + 522);
+  });
+
   it("projects one box per group, wrapping its members' bounding box", async () => {
     renderCanvas(makeGroupedConfig(), { simplifiedView: false });
     await flushAnimationFrame();
