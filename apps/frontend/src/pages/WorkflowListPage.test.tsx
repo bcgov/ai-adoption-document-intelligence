@@ -149,6 +149,65 @@ describe("WorkflowListPage — workflow name link", () => {
 });
 
 /**
+ * P-2 (Alex review 2026-08-02) — Name was squeezed into a narrow column
+ * while Description ran as one long truncated line. Name and Description
+ * now carry explicit widths and the description wraps to two lines, which
+ * keeps rows short without hiding half the sentence.
+ */
+describe("WorkflowListPage — column widths", () => {
+  let apiMock: ApiServiceMock;
+
+  const LONG_DESCRIPTION =
+    "Splits an incoming PDF into per-document segments, classifies each " +
+    "one against the configured taxonomy, and stores the extracted fields " +
+    "alongside the original blob for review.";
+
+  beforeEach(() => {
+    apiMock = apiService as unknown as ApiServiceMock;
+    apiMock.get.mockReset();
+    apiMock.get.mockResolvedValue({
+      success: true,
+      data: {
+        workflows: [
+          {
+            id: "wf-1",
+            name: "Split, classify and store incoming correspondence",
+            slug: "split-classify-store",
+            description: LONG_DESCRIPTION,
+            version: 3,
+            config: { schemaVersion: "2.0" },
+            createdAt: "2026-07-01T00:00:00.000Z",
+            updatedAt: "2026-07-15T00:00:00.000Z",
+          },
+        ],
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("clamps the description to two lines rather than one", async () => {
+    renderPage();
+    const description = await screen.findByTestId("workflow-description");
+    expect(description).toHaveTextContent(LONG_DESCRIPTION);
+    expect(description.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
+  });
+
+  it("gives Name and Description explicit widths", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-description");
+    const nameHeader = screen.getByRole("columnheader", { name: "Name" });
+    const descriptionHeader = screen.getByRole("columnheader", {
+      name: "Description",
+    });
+    expect(nameHeader).toHaveStyle({ width: "25%" });
+    expect(descriptionHeader).toHaveStyle({ width: "35%" });
+  });
+});
+
+/**
  * G-050 — the confirmation copy that names what deleting a workflow takes.
  *
  * The distinction it has to carry: documents are NOT deleted. Only the link

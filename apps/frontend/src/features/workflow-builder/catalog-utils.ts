@@ -1,9 +1,10 @@
 /**
  * Frontend helpers around the shared activity catalog.
  *
- * - resolves `iconHint` strings to a glyph/symbol (Tabler icon mapping
- *   will land in Phase 1A polish; for now we use emoji fallbacks so
- *   nodes are visually distinguishable without a heavy mapping table).
+ * - resolves `iconHint` strings to Tabler icon components — the same
+ *   contract `sources/source-catalog-utils.ts` and `group/group-icons.ts`
+ *   already use. Emoji render differently per platform and are not
+ *   reliably announced, so every icon surface renders an SVG component.
  * - resolves `colorHint` strings to Mantine colour tokens / hex codes.
  * - returns reasonable defaults for unknown activity types.
  */
@@ -12,6 +13,43 @@ import {
   ACTIVITY_CATALOG,
   getActivityCatalogEntry,
 } from "@ai-di/graph-workflow";
+import {
+  IconArrowMerge,
+  IconArrowsExchange,
+  IconBan,
+  IconChartArrowsVertical,
+  IconChartBar,
+  IconChartLine,
+  IconChecklist,
+  IconCloudUpload,
+  IconCode,
+  IconCompass,
+  IconDatabase,
+  IconDeviceFloppy,
+  IconDownload,
+  IconEraser,
+  IconFile,
+  IconFileDownload,
+  IconFileStar,
+  IconFileText,
+  IconFilter,
+  IconGauge,
+  IconHelpCircle,
+  IconHourglass,
+  IconPoint,
+  IconProgressCheck,
+  IconScissors,
+  IconSitemap,
+  IconSparkles,
+  IconStack2,
+  IconTag,
+  IconTags,
+  IconTextSpellcheck,
+  IconTransform,
+  IconTrash,
+  IconUpload,
+} from "@tabler/icons-react";
+import type { ComponentType } from "react";
 
 const COLOR_TOKENS: Record<string, string> = {
   blue: "#3b82f6",
@@ -27,44 +65,72 @@ const COLOR_TOKENS: Record<string, string> = {
   yellow: "#eab308",
 };
 
-const ICON_FALLBACKS: Record<string, string> = {
-  file: "📄",
-  "file-download": "⬇",
-  hourglass: "⌛",
-  document: "📄",
-  scissors: "✂",
-  "scissors-with-tag": "✂🏷",
-  tag: "🏷",
-  filter: "🔎",
-  merge: "⊕",
-  layers: "🗂",
-  sparkles: "✨",
-  "sparkle-document": "✨📄",
-  "spell-check": "🔡",
-  swap: "🔠",
-  broom: "🧹",
-  checklist: "✔",
-  upload: "📤",
-  "upload-arrow": "📤",
-  save: "💾",
-  trash: "🗑",
-  "no-entry": "⛔",
-  "status-tag": "🏷",
-  compass: "🧭",
-  diagram: "📊",
-  chart: "📈",
-  "chart-bar": "📊",
-  "chart-diff": "📉",
-  download: "⬇",
-  database: "🗄",
-  transform: "🔄",
+export interface TablerIconProps {
+  size?: number | string;
+  color?: string;
+}
+
+export type ActivityIconComponent = ComponentType<TablerIconProps>;
+
+/**
+ * Maps `ActivityCatalogEntry.iconHint` strings to Tabler icon components.
+ * Keys are the hints the shared catalog actually emits — keep them in
+ * sync with `packages/graph-workflow/src/catalog/activities/*`.
+ */
+const ICON_COMPONENTS: Record<string, ActivityIconComponent> = {
+  file: IconFile,
+  "file-download": IconFileDownload,
+  hourglass: IconHourglass,
+  document: IconFileText,
+  scissors: IconScissors,
+  "scissors-with-tag": IconTags,
+  tag: IconTag,
+  filter: IconFilter,
+  merge: IconArrowMerge,
+  layers: IconStack2,
+  sparkles: IconSparkles,
+  "sparkle-document": IconFileStar,
+  "spell-check": IconTextSpellcheck,
+  swap: IconArrowsExchange,
+  broom: IconEraser,
+  checklist: IconChecklist,
+  upload: IconUpload,
+  "upload-arrow": IconCloudUpload,
+  save: IconDeviceFloppy,
+  trash: IconTrash,
+  "no-entry": IconBan,
+  "status-tag": IconProgressCheck,
+  compass: IconCompass,
+  diagram: IconSitemap,
+  chart: IconChartLine,
+  "chart-bar": IconChartBar,
+  "chart-diff": IconChartArrowsVertical,
+  download: IconDownload,
+  database: IconDatabase,
+  transform: IconTransform,
+  // Both of these were emitted by the catalog but never mapped, so they fell
+  // through to the neutral fallback — `code` covers EVERY `dyn.*` dynamic
+  // node, which is why custom nodes all looked alike on the canvas.
+  gauge: IconGauge,
+  code: IconCode,
 };
+
+/** Rendered for an activity type the catalog does not know at all. */
+const UNKNOWN_ACTIVITY_ICON: ActivityIconComponent = IconHelpCircle;
+
+/** Rendered for a catalogued activity whose `iconHint` has no mapping. */
+const UNKNOWN_HINT_ICON: ActivityIconComponent = IconPoint;
 
 export interface ActivityVisualHints {
   displayName: string;
   category: string;
   color: string;
-  icon: string;
+  /**
+   * Resolved Tabler icon component. Falls back to a help glyph for
+   * unregistered activity types and to a neutral dot for catalogued
+   * activities carrying an unmapped `iconHint`.
+   */
+  Icon: ActivityIconComponent;
   description: string;
 }
 
@@ -77,7 +143,7 @@ export function getActivityVisualHints(
       displayName: activityType,
       category: "Unknown",
       color: COLOR_TOKENS.gray,
-      icon: "❓",
+      Icon: UNKNOWN_ACTIVITY_ICON,
       description: "Unregistered activity.",
     };
   }
@@ -85,7 +151,7 @@ export function getActivityVisualHints(
     displayName: entry.displayName ?? entry.activityType,
     category: entry.category,
     color: COLOR_TOKENS[entry.colorHint] ?? COLOR_TOKENS.gray,
-    icon: ICON_FALLBACKS[entry.iconHint] ?? "●",
+    Icon: ICON_COMPONENTS[entry.iconHint] ?? UNKNOWN_HINT_ICON,
     description: entry.description,
   };
 }

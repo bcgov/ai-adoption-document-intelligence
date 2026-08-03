@@ -1,9 +1,10 @@
 /**
  * Workflow-level settings drawer.
  *
- * Surfaces metadata (version, tags), the entry node selection, and the
- * editable list of `ctx` declarations. Name + description stay in the
- * top bar — the drawer covers the previously-implicit fields.
+ * Surfaces metadata (description, version, tags), the entry node selection,
+ * and the editable list of `ctx` declarations. The NAME stays in the top bar,
+ * as the editor's click-to-edit title; the description moved here in R-2
+ * (2026-08-03) because a single top-bar line truncated it mid-word.
  *
  * Ctx-rename behavior: when a ctx key is renamed in this drawer, any
  * PortBinding (input or output) in the graph whose `ctxKey` matches the
@@ -31,6 +32,7 @@ import {
   Stack,
   TagsInput,
   Text,
+  Textarea,
   TextInput,
   Tooltip,
   UnstyledButton,
@@ -43,11 +45,16 @@ import type {
   KindRef,
 } from "../../../types/workflow";
 import {
+  formatCtxDefaultValue,
+  parseCtxDefaultValue,
+} from "./ctx-default-value";
+import {
   describeKindMismatch,
   findKindMismatchedConsumers,
 } from "./ctx-kind-consumers";
 import { ctxRunContract, describeRunContract } from "./ctx-run-contract";
 import { KindSelect } from "./KindSelect";
+import { isConstCtxKey } from "./port-constants";
 import { renameCtxKeyInConfig } from "./rename-ctx-key";
 
 const CTX_TYPES: CtxDeclaration["type"][] = [
@@ -103,6 +110,15 @@ export function WorkflowSettingsDrawer({
     label: `${n.label} (${id})`,
   }));
 
+  // P-5 — the hidden declarations backing port constants are ctx entries like
+  // any other, but they are not NAMED values that flow between nodes: they are
+  // one value typed onto one port, edited on the row that owns it. Counting or
+  // listing them here would turn every typed constant into a `__const_*` line
+  // in the workflow's vocabulary. Promotion is the door between the two lists.
+  const namedCtxKeyCount = Object.keys(config.ctx).filter(
+    (key) => !isConstCtxKey(key),
+  ).length;
+
   return (
     <Drawer
       opened={opened}
@@ -122,6 +138,28 @@ export function WorkflowSettingsDrawer({
             Metadata
           </Text>
           <Stack gap="xs">
+            {/*
+              R-2 (2026-08-03) — description moved here from the top bar. It
+              was a single-line TextInput capped at 280px there, so it
+              truncated mid-word while you were editing it; a workflow's
+              description is prose and needs room to wrap. The name stayed
+              behind as the editor's click-to-edit title.
+            */}
+            <Textarea
+              label="Description"
+              placeholder="What this workflow does, and when to run it."
+              size="xs"
+              autosize
+              minRows={2}
+              maxRows={6}
+              value={config.metadata.description ?? ""}
+              onChange={(e) =>
+                setMetadata({
+                  description: e.currentTarget.value || undefined,
+                })
+              }
+              data-testid="workflow-settings-description"
+            />
             <TextInput
               label="Version"
               placeholder="1.0.0"
@@ -170,7 +208,7 @@ export function WorkflowSettingsDrawer({
               Context declarations
             </Text>
             <Text size="10px" c="dimmed">
-              {Object.keys(config.ctx).length}
+              {namedCtxKeyCount}
             </Text>
           </Group>
           <Text size="10px" c="dimmed" mb="xs">
@@ -210,7 +248,12 @@ function CtxDeclarationsEditor({
   onRename,
   onSelectNode,
 }: CtxDeclarationsEditorProps) {
-  const rows = Object.entries(ctx);
+  // Hidden port constants are filtered out of the LIST but stay in the
+  // collision set below: an author cannot see a `__const_*` key here, so a
+  // rename that landed on one would merge two declarations with nothing on
+  // screen explaining why.
+  const rows = Object.entries(ctx).filter(([key]) => !isConstCtxKey(key));
+  const allKeys = Object.keys(ctx);
 
   const updateDeclaration = (key: string, decl: CtxDeclaration) => {
     onUpdate({ ...ctx, [key]: decl });
@@ -244,7 +287,7 @@ function CtxDeclarationsEditor({
           config={config}
           ctxKey={key}
           declaration={decl}
-          takenNames={new Set(rows.map(([k]) => k).filter((k) => k !== key))}
+          takenNames={new Set(allKeys.filter((k) => k !== key))}
           onRename={(next) => onRename(key, next)}
           onUpdate={(next) => updateDeclaration(key, next)}
           onDelete={() => deleteKey(key)}
@@ -339,6 +382,48 @@ function CtxRow({
   const runContract = ctxRunContract(config, declaration);
   const runContractCopy = describeRunContract(runContract);
 
+  /**
+   * P-5 — the default-value field. This is the surface for a value worth
+   * NAMING and sharing: one default, read by every port bound to the key, and
+   * (when `Input` is ticked) the reason the caller may omit it. It is
+   * deliberately not the way IN — reaching the drawer, adding a declaration
+   * and binding a port to it is three surfaces to set one file type. That
+   * journey starts on the port row and arrives here through "Make this a
+   * workflow input".
+   *
+   * Local draft + commit-on-blur, same shape as the name field above: the text
+   * is only a value once it parses, and a half-typed `{"a":` must not
+   * overwrite what is stored on every keystroke.
+   */
+  const [localDefault, setLocalDefault] = useState(() =>
+    formatCtxDefaultValue(declaration.defaultValue, declaration.type),
+  );
+  const [defaultError, setDefaultError] = useState<string | null>(null);
+  useEffect(() => {
+    setLocalDefault(
+      formatCtxDefaultValue(declaration.defaultValue, declaration.type),
+    );
+    setDefaultError(null);
+  }, [declaration.defaultValue, declaration.type]);
+
+  const commitDefault = () => {
+    const parsed = parseCtxDefaultValue(localDefault, declaration.type);
+    if (!parsed.ok) {
+      setDefaultError(parsed.error);
+      return;
+    }
+    setDefaultError(null);
+    if (parsed.value === undefined) {
+      // `defaultValue?` is optional, not nullable — strip it rather than
+      // storing `undefined`, so a cleared default reads as "no default" in
+      // the persisted JSON (mirrors the `kind` / `isInput` strip pattern).
+      const { defaultValue: _omitted, ...rest } = declaration;
+      onUpdate(rest);
+      return;
+    }
+    onUpdate({ ...declaration, defaultValue: parsed.value });
+  };
+
   return (
     <Stack gap={2}>
       <Group gap={6} wrap="nowrap" align="flex-end">
@@ -379,6 +464,21 @@ function CtxRow({
             })
           }
           style={{ flex: 3, minWidth: 0 }}
+        />
+        <TextInput
+          label="Default value"
+          size="xs"
+          placeholder={declaration.type === "string" ? "optional" : "JSON"}
+          value={localDefault}
+          error={defaultError}
+          aria-label={`Default value for ${ctxKey}`}
+          data-testid={`ctx-default-${ctxKey}`}
+          onChange={(e) => setLocalDefault(e.currentTarget.value)}
+          onBlur={commitDefault}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+          }}
+          style={{ flex: 2, minWidth: 0 }}
         />
         <KindSelect
           label="Kind"

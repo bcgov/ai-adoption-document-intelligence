@@ -321,6 +321,7 @@ export function ActivityPalette({
                 </Text>
                 {entries.map((entry) => {
                   const hints = getActivityVisualHints(entry.activityType);
+                  const Icon = hints.Icon;
                   return (
                     <Tooltip
                       key={entry.activityType}
@@ -363,8 +364,9 @@ export function ActivityPalette({
                           color="gray"
                           size="sm"
                           style={{ pointerEvents: "none" }}
+                          aria-hidden
                         >
-                          <span>{hints.icon}</span>
+                          <Icon size={16} />
                         </ActionIcon>
                         <Box style={{ minWidth: 0, flex: 1 }}>
                           <Text size="xs" fw={500} truncate>

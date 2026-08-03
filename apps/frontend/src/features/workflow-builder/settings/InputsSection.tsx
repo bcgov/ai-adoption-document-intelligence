@@ -9,10 +9,16 @@ import {
   Modal,
   Stack,
   Text,
+  TextInput,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
-import { IconDots } from "@tabler/icons-react";
-import { useState } from "react";
+import {
+  IconChevronDown,
+  IconChevronRight,
+  IconDots,
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import {
   ensureEdgeBetween,
@@ -29,7 +35,15 @@ import {
   type RowResolution,
   resolvePinnedSource,
   resolveWireableInputRows,
+  type WireableInputRow,
 } from "./input-row-resolution";
+import {
+  clearPortConstant,
+  getPortConstant,
+  isPromotableCtxKeyName,
+  promotePortConstant,
+  setPortConstant,
+} from "./port-constants";
 
 interface InputsSectionProps {
   config: GraphWorkflowConfig;
@@ -96,6 +110,15 @@ export function InputsSection({
   onHoverProducer,
 }: InputsSectionProps) {
   const [overrideOf, setOverrideOf] = useState<string | null>(null);
+  // P-5 — the optional-inputs disclosure is COLLAPSED on arrival: the panel
+  // stays as short as it was before optional identifier ports were surfaced,
+  // and the ports the canvas already advertises stop being unreachable.
+  const [optionalOpen, setOptionalOpen] = useState(false);
+  // The port whose constant is being promoted to a named workflow input, plus
+  // the name being typed for it. Held here rather than on the row so the modal
+  // survives the row moving between the two lists.
+  const [promoteOf, setPromoteOf] = useState<string | null>(null);
+  const [promoteName, setPromoteName] = useState("");
 
   // The picker is open for the port the user clicked "Change source" on
   // (`overrideOf`) OR the port a clicked status dot deep-linked to
@@ -122,15 +145,19 @@ export function InputsSection({
     if (!getActivityCatalogEntry(node.activityType)) return null;
   }
 
-  // Two port populations get a row: auto-wireable typed ports (as before),
-  // plus REQUIRED base-`Artifact` identifier ports — the amber ring already
-  // fires for these on canvas, so the settings panel must surface them too
-  // (ring/badge reconciliation, PORT_WIRING §4.2). Optional identifier ports
-  // stay invisible.
-  const rows = resolveWireableInputRows(config, nodeId);
+  // Every port the catalog declares with a kind gets a row here — this is the
+  // one surface that can accept an answer, so it opts into the optional
+  // identifier ports the node card already advertises (P-5). They come back
+  // flagged `optional` and go behind the disclosure below; everything that
+  // holds a wire, a pin or a constant stays in the main list.
+  const allRows = resolveWireableInputRows(config, nodeId, {
+    includeOptionalIdentifierPorts: true,
+  });
+  const rows = allRows.filter((row) => !row.optional);
+  const optionalRows = allRows.filter((row) => row.optional);
   const activePickerPortLabel =
     activePickerPort != null
-      ? (rows.find((r) => r.port.name === activePickerPort)?.port.label ??
+      ? (allRows.find((r) => r.port.name === activePickerPort)?.port.label ??
         activePickerPort)
       : null;
 
@@ -150,41 +177,118 @@ export function InputsSection({
     onConfigChange(revertPortToAutomatic(config, nodeId, portName));
   };
 
+  // P-5 — a typed value becomes a hidden ctx declaration carrying
+  // `defaultValue`, with the port pinned to it (see port-constants.ts). Both
+  // mutations return the same config reference when nothing changed, so a
+  // blur that commits an unchanged value records no undo step.
+  const handleConstantCommit = (portName: string, value: string) => {
+    const next = setPortConstant(config, nodeId, portName, value);
+    if (next !== config) onConfigChange(next);
+  };
+
+  const handleConstantClear = (portName: string) => {
+    const next = clearPortConstant(config, nodeId, portName);
+    if (next !== config) onConfigChange(next);
+  };
+
+  const openPromote = (portName: string) => {
+    setPromoteOf(portName);
+    // The port name is the obvious first suggestion; the author edits it when
+    // it collides or when the workflow wants a friendlier caller-facing name.
+    setPromoteName(isPromotableCtxKeyName(portName) ? portName : "");
+  };
+
+  const promoteError =
+    promoteName === ""
+      ? null
+      : !isPromotableCtxKeyName(promoteName)
+        ? "Use letters, numbers and underscores, starting with a letter."
+        : config.ctx[promoteName] !== undefined
+          ? `“${promoteName}” is already declared. Pick another name.`
+          : null;
+
+  const commitPromote = () => {
+    if (promoteOf === null || promoteName === "" || promoteError !== null) {
+      return;
+    }
+    const next = promotePortConstant(config, nodeId, promoteOf, promoteName);
+    if (next !== config) onConfigChange(next);
+    setPromoteOf(null);
+  };
+
+  const renderRow = (row: WireableInputRow) => {
+    const { port, resolution } = row;
+    return (
+      <PortRow
+        key={port.name}
+        portName={port.name}
+        portLabel={port.label}
+        portDescription={port.description}
+        optional={row.optional}
+        resolution={resolution}
+        constantValue={getPortConstant(config, nodeId, port.name)}
+        producerLabel={
+          resolution.status === "auto-bound"
+            ? (config.nodes[resolution.producerNodeId]?.label ??
+              resolution.producerNodeId)
+            : null
+        }
+        pinnedSource={
+          resolution.status === "locked"
+            ? resolvePinnedSource(config, resolution.ctxKey)
+            : null
+        }
+        producerNodeId={producerNodeIdForRow(resolution, config)}
+        onJumpToProducer={onJumpToProducer}
+        onHoverProducer={onHoverProducer}
+        showActions={!isMapCollection}
+        onOverride={() => setOverrideOf(port.name)}
+        onRevert={() => handleRevert(port.name)}
+        onConstantCommit={(value) => handleConstantCommit(port.name, value)}
+        onConstantClear={() => handleConstantClear(port.name)}
+        onPromote={() => openPromote(port.name)}
+      />
+    );
+  };
+
   return (
     <Stack gap={4} data-testid="inputs-section">
       <Text size="xs" fw={600}>
         Inputs
       </Text>
-      {rows.length === 0 && (
+      {allRows.length === 0 && (
         <Text size="10px" c="dimmed">
           None.
         </Text>
       )}
-      {rows.map(({ port, resolution }) => (
-        <PortRow
-          key={port.name}
-          portName={port.name}
-          portLabel={port.label}
-          resolution={resolution}
-          producerLabel={
-            resolution.status === "auto-bound"
-              ? (config.nodes[resolution.producerNodeId]?.label ??
-                resolution.producerNodeId)
-              : null
-          }
-          pinnedSource={
-            resolution.status === "locked"
-              ? resolvePinnedSource(config, resolution.ctxKey)
-              : null
-          }
-          producerNodeId={producerNodeIdForRow(resolution, config)}
-          onJumpToProducer={onJumpToProducer}
-          onHoverProducer={onHoverProducer}
-          showActions={!isMapCollection}
-          onOverride={() => setOverrideOf(port.name)}
-          onRevert={() => handleRevert(port.name)}
-        />
-      ))}
+      {rows.map(renderRow)}
+
+      {optionalRows.length > 0 && (
+        <Box>
+          <UnstyledButton
+            onClick={() => setOptionalOpen((open) => !open)}
+            data-testid="optional-inputs-toggle"
+            aria-expanded={optionalOpen}
+          >
+            <Group gap={4} wrap="nowrap">
+              {optionalOpen ? (
+                <IconChevronDown size={12} />
+              ) : (
+                <IconChevronRight size={12} />
+              )}
+              <Text size="10px" c="dimmed">
+                {optionalRows.length} optional input
+                {optionalRows.length === 1 ? "" : "s"}
+              </Text>
+            </Group>
+          </UnstyledButton>
+          {optionalOpen && (
+            <Stack gap={4} mt={4} data-testid="optional-inputs-list">
+              {optionalRows.map(renderRow)}
+            </Stack>
+          )}
+        </Box>
+      )}
 
       <Modal
         opened={activePickerPort !== null}
@@ -202,8 +306,8 @@ export function InputsSection({
             config={config}
             consumerNodeId={nodeId}
             expectedKind={
-              (rows.find((r) => r.port.name === activePickerPort)?.port.kind ??
-                "Artifact") as KindRef
+              (allRows.find((r) => r.port.name === activePickerPort)?.port
+                .kind ?? "Artifact") as KindRef
             }
             value=""
             onChange={(selection) => {
@@ -212,6 +316,53 @@ export function InputsSection({
           />
         )}
       </Modal>
+
+      {/* P-5 step 3 — promotion. The constant already IS a ctx declaration;
+          naming it is a rename plus `isInput`, after which it shows up in the
+          Run drawer and in the derived run-spec, with the typed value as its
+          default. Asking for the name is the whole interaction. */}
+      <Modal
+        opened={promoteOf !== null}
+        onClose={() => setPromoteOf(null)}
+        title="Make this a workflow input"
+        size="sm"
+        transitionProps={{ duration: 0 }}
+      >
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed">
+            The value you typed stays as the default. Callers can override it
+            per run, and it appears in the Run panel under this name.
+          </Text>
+          <TextInput
+            label="Input name"
+            size="xs"
+            value={promoteName}
+            error={promoteError}
+            data-testid="promote-constant-name"
+            onChange={(e) => setPromoteName(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitPromote();
+            }}
+          />
+          <Group justify="flex-end" gap="xs">
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              onClick={() => setPromoteOf(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="compact-xs"
+              data-testid="promote-constant-confirm"
+              disabled={promoteName === "" || promoteError !== null}
+              onClick={commitPromote}
+            >
+              Make it an input
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
@@ -219,7 +370,17 @@ export function InputsSection({
 interface PortRowProps {
   portName: string;
   portLabel: string;
+  /**
+   * The catalog description, used as the constant field's placeholder — it is
+   * the port's own account of what happens when nothing is supplied
+   * ("Auto-detected from the extension if omitted").
+   */
+  portDescription?: string;
+  /** Folded behind the "N optional inputs" disclosure (P-5). */
+  optional: boolean;
   resolution: RowResolution;
+  /** The constant typed onto this port, or null when it holds none. */
+  constantValue: string | null;
   producerLabel: string | null;
   /** Friendly source for a `locked` (pinned) row; null for other statuses. */
   pinnedSource: PinnedSource | null;
@@ -239,12 +400,19 @@ interface PortRowProps {
   showActions?: boolean;
   onOverride: () => void;
   onRevert: () => void;
+  /** Commit a typed constant (blur / Enter). Empty text clears instead. */
+  onConstantCommit: (value: string) => void;
+  onConstantClear: () => void;
+  onPromote: () => void;
 }
 
 function PortRow({
   portName,
   portLabel,
+  portDescription,
+  optional,
   resolution,
+  constantValue,
   producerLabel,
   pinnedSource,
   producerNodeId,
@@ -253,6 +421,9 @@ function PortRow({
   showActions = true,
   onOverride,
   onRevert,
+  onConstantCommit,
+  onConstantClear,
+  onPromote,
 }: PortRowProps) {
   // Only rows that resolve to a live producer node become interactive: a
   // click jumps to it, a hover highlights it. Rows without a producer stay
@@ -352,15 +523,32 @@ function PortRow({
             <Text size="xs" truncate title={`from ${pinnedSource.ctxKey}`}>
               from {pinnedSource.ctxKey}
             </Text>
+          ) : pinnedSource?.via === "constant" ? (
+            // A typed-in value reads back as itself. Its synthesised ctx key
+            // is hidden from every other surface, so naming it here would be
+            // the only place the author meets plumbing they never chose (P-5).
+            <Text
+              size="xs"
+              truncate
+              title={`fixed value: ${pinnedSource.value}`}
+            >
+              = {pinnedSource.value || "(empty)"}
+            </Text>
           ) : (
             <>
               <Text size="xs">←</Text>
               <Text
                 size="xs"
                 truncate
-                title={pinnedSource?.label ?? resolution.ctxKey}
+                title={
+                  pinnedSource?.via === "producer"
+                    ? pinnedSource.label
+                    : resolution.ctxKey
+                }
               >
-                {pinnedSource?.label ?? resolution.ctxKey}
+                {pinnedSource?.via === "producer"
+                  ? pinnedSource.label
+                  : resolution.ctxKey}
               </Text>
             </>
           )}
@@ -482,6 +670,42 @@ function PortRow({
       break;
   }
 
+  // P-5 — a row holding a CONSTANT resolves "locked" like any pinned row, and
+  // the generic pinned treatment would render it as `from __const_prep_fileType`
+  // with a "Revert to automatic" action that drops the lock and strands the
+  // binding. A constant is not a source you navigate to; it is a value you
+  // typed, shown in the field below. So the row says so, and its actions are
+  // the two things you can do to a value: name it, or remove it.
+  if (constantValue !== null) {
+    badge = (
+      <Tooltip label="A value you typed here">
+        <Badge size="xs" color="blue" variant="light">
+          Value
+        </Badge>
+      </Tooltip>
+    );
+    middle = null;
+    primary = null;
+    menuActions.length = 0;
+    menuActions.push({
+      key: "promote",
+      label: "Make this a workflow input",
+      onClick: onPromote,
+    });
+    menuActions.push({
+      key: "clear",
+      label: "Remove value",
+      onClick: onConstantClear,
+    });
+  } else if (optional && resolution.status === "unsatisfied") {
+    // An optional identifier port with nothing bound is not a problem: the
+    // activity derives it, and the node badge and validation drawer both
+    // decline to count it (`computeNodeInputIssues` skips optional identifier
+    // ports). A red "Needs a source" here would be this panel inventing a
+    // problem no other surface agrees exists.
+    primary = null;
+  }
+
   // Status-only rows keep their badge and source text but drop every control
   // that would write `inputs[]` (see `showActions`).
   if (!showActions) {
@@ -489,7 +713,21 @@ function PortRow({
     menuActions.length = 0;
   }
 
-  return (
+  // The value field appears wherever nothing is feeding the port — so typing
+  // is an available answer at exactly the moments the panel would otherwise
+  // only be able to say "needs a source" — and on a row that already holds a
+  // constant, where it is how the value is read and changed. A BROKEN pin
+  // (`locked-dangling` / `locked-kind-mismatch`) is deliberately excluded: the
+  // author asked for a binding there, and repairing it is the story that row
+  // is telling.
+  const showConstantField =
+    showActions &&
+    (constantValue !== null ||
+      resolution.status === "unsatisfied" ||
+      resolution.status === "ambiguous" ||
+      resolution.status === "locked-unbound");
+
+  const row = (
     <Box
       onClick={handleRowClick}
       onMouseEnter={handleRowEnter}
@@ -577,5 +815,92 @@ function PortRow({
         </Box>
       </Box>
     </Box>
+  );
+
+  if (!showConstantField) return row;
+
+  return (
+    <Stack gap={2}>
+      {row}
+      {/* Second line, on the same three-column grid so the field starts under
+          the source column rather than under the label. */}
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "124px minmax(0, 1fr) auto",
+          columnGap: 8,
+        }}
+      >
+        <Box />
+        <ConstantValueField
+          portName={portName}
+          portLabel={portLabel}
+          placeholder={portDescription ?? "Type a value"}
+          value={constantValue}
+          onCommit={onConstantCommit}
+          onClear={onConstantClear}
+        />
+        <Box style={{ width: 28 }} />
+      </Box>
+    </Stack>
+  );
+}
+
+interface ConstantValueFieldProps {
+  portName: string;
+  portLabel: string;
+  placeholder: string;
+  value: string | null;
+  onCommit: (value: string) => void;
+  onClear: () => void;
+}
+
+/**
+ * The inline value field (P-5 step 2).
+ *
+ * Empty by default, with the port's own auto-detect note as placeholder, so
+ * the row states what happens if you type nothing and accepts an answer if you
+ * do. Edits are held locally and committed on BLUR (or Enter), never per
+ * keystroke, for two reasons: every commit is an `onConfigChange` and so an
+ * undo step, and a committed value moves the row out of the optional
+ * disclosure into the main list — which remounts this field, and would take
+ * the caret with it mid-word.
+ */
+function ConstantValueField({
+  portName,
+  portLabel,
+  placeholder,
+  value,
+  onCommit,
+  onClear,
+}: ConstantValueFieldProps) {
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => {
+    setDraft(value ?? "");
+  }, [value]);
+
+  const commit = () => {
+    const current = value ?? "";
+    if (draft === current) return;
+    if (draft.trim() === "") {
+      if (value !== null) onClear();
+      return;
+    }
+    onCommit(draft);
+  };
+
+  return (
+    <TextInput
+      size="xs"
+      placeholder={placeholder}
+      value={draft}
+      aria-label={`Value for ${portLabel}`}
+      data-testid={`input-constant-${portName}`}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+      }}
+    />
   );
 }

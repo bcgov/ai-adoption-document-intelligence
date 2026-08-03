@@ -97,14 +97,28 @@ interface MockNodeProps {
 // booting xyflow's runtime.
 const {
   mockFitView,
+  mockScreenToFlowPosition,
+  mockGetNodes,
   mockReactFlowApi,
   latestReactFlowProps,
   mockUpdateNodeInternals,
 } = vi.hoisted(() => {
   const fitView = vi.fn();
+  // P-4 — the pane menu resolves the right-clicked point into graph space.
+  // Identity translation here: the tests care that the click point travels to
+  // the new node, not about viewport maths xyflow owns.
+  const screenToFlowPosition = vi.fn((p: { x: number; y: number }) => ({
+    x: p.x,
+    y: p.y,
+  }));
+  // Auto-arrange reads measured card widths off the live instance; with no
+  // rendered widths in jsdom the layout falls back to its default width.
+  const getNodes = vi.fn(() => [] as Array<{ id: string; width?: number }>);
   return {
     mockFitView: fitView,
-    mockReactFlowApi: { fitView },
+    mockScreenToFlowPosition: screenToFlowPosition,
+    mockGetNodes: getNodes,
+    mockReactFlowApi: { fitView, screenToFlowPosition, getNodes },
     latestReactFlowProps: {
       current: null as null | Record<string, unknown>,
     },
@@ -217,6 +231,8 @@ vi.mock("@xyflow/react", () => {
 
 beforeEach(() => {
   mockFitView.mockClear();
+  mockScreenToFlowPosition.mockClear();
+  mockGetNodes.mockClear();
   latestReactFlowProps.current = null;
   vi.mocked(notifications.show).mockClear();
   vi.mocked(notifications.hide).mockClear();
@@ -319,6 +335,7 @@ function renderCanvas(
     onGroupChipClick?: (groupId: string) => void;
     onSelectMapBodyNode?: (nodeId: string) => void;
     onFixNodeInput?: (nodeId: string, port: string) => void;
+    layoutNonce?: number;
   } = {},
 ) {
   const onConfigChange = vi.fn();
@@ -330,6 +347,7 @@ function renderCanvas(
   let currentConfig = config;
   let currentSelected = options.selectedNodeId ?? null;
   let currentSimplified = options.simplifiedView ?? false;
+  let currentLayoutNonce = options.layoutNonce ?? 0;
   const utils = render(
     <MantineProvider>
       <WorkflowEditorCanvas
@@ -343,6 +361,7 @@ function renderCanvas(
         onGroupChipClick={options.onGroupChipClick}
         onSelectMapBodyNode={options.onSelectMapBodyNode}
         onFixNodeInput={options.onFixNodeInput}
+        layoutNonce={currentLayoutNonce}
         onUndo={onUndo}
       />
     </MantineProvider>,
@@ -352,14 +371,22 @@ function renderCanvas(
    * selectedNodeId), mirroring how the page component pushes
    * `setConfig(next)` after `addActivity` / `addControlFlowNode`. Tests
    * use this to simulate a palette add.
+   *
+   * `nextLayoutNonce` mirrors the host bumping `layoutNonce` in the SAME
+   * commit as the config change — which is what undo/redo do, and what tells
+   * the canvas a restored node set is not an authored add (B-2).
    */
   const rerenderWithConfig = (
     nextConfig: GraphWorkflowConfig,
     nextSelected?: string | null,
+    nextLayoutNonce?: number,
   ) => {
     currentConfig = nextConfig;
     if (nextSelected !== undefined) {
       currentSelected = nextSelected;
+    }
+    if (nextLayoutNonce !== undefined) {
+      currentLayoutNonce = nextLayoutNonce;
     }
     utils.rerender(
       <MantineProvider>
@@ -373,6 +400,7 @@ function renderCanvas(
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
           onFixNodeInput={options.onFixNodeInput}
+          layoutNonce={currentLayoutNonce}
           onUndo={onUndo}
         />
       </MantineProvider>,
@@ -396,6 +424,7 @@ function renderCanvas(
           simplifiedView={currentSimplified}
           onGroupChipClick={options.onGroupChipClick}
           onFixNodeInput={options.onFixNodeInput}
+          layoutNonce={currentLayoutNonce}
           onUndo={onUndo}
         />
       </MantineProvider>,
@@ -724,9 +753,12 @@ describe("WorkflowEditorCanvas — G-016: pollUntil activity affordances", () =>
   it("degrades legibly when a pollUntil's wrapped activity is unregistered", () => {
     renderCanvas(configWithPollUntil("azureOcr.gone"));
     const nodeEl = screen.getByTestId("canvas-node-poll_1");
-    // Same treatment an `activity` node gets: the ❓ glyph, the
-    // "Unregistered activity." note, and the raw type string.
-    expect(nodeEl.textContent).toContain("❓");
+    // Same treatment an `activity` node gets: the unknown-activity icon, the
+    // "Unregistered activity." note, and the raw type string. The icon is a
+    // Tabler component now (P-7), so it is asserted on the rendered SVG —
+    // an icon that no longer contributes to `textContent` is exactly the
+    // point of moving off emoji.
+    expect(nodeEl.querySelector("svg.tabler-icon-help-circle")).not.toBeNull();
     expect(nodeEl.textContent).toContain("Unregistered activity.");
     expect(nodeEl.textContent).toContain("azureOcr.gone");
     // No catalog entry → no port rows to drag to.
@@ -1248,6 +1280,73 @@ describe("WorkflowEditorCanvas — US-014: auto-fit-on-add", () => {
       expect.objectContaining({ padding: 0.15, duration: 300 }),
     );
     expect(callArg.nodes).toBeUndefined();
+  });
+});
+
+/**
+ * B-2 (2026-08-03) — undoing a delete re-adds the removed ids, which the
+ * auto-fit effect above could not tell from an authored add: it zoomed onto the
+ * restored card, so Ctrl+Z moved the canvas out from under the author. The
+ * host bumps `layoutNonce` on every history step (and on its own Auto-arrange,
+ * which never changes the node set), so a bump arriving WITH a changed id-set
+ * means "restored", not "added".
+ */
+describe("WorkflowEditorCanvas — B-2: undo does not re-fit the viewport", () => {
+  it("does NOT fit when a deleted node is restored by undo", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const withExtra = addExtraActivity(initial, "activity_added_1");
+    const { rerenderWithConfig } = renderCanvas(withExtra);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    // The delete itself: the id leaves, no nonce bump (deleting is an edit).
+    rerenderWithConfig(initial);
+    await flushAnimationFrame();
+    expect(mockFitView).not.toHaveBeenCalled();
+
+    // The undo: the host restores the config AND bumps the nonce in the same
+    // commit, so the canvas sees both at once.
+    rerenderWithConfig(withExtra, undefined, 1);
+    await flushAnimationFrame();
+    expect(mockFitView).not.toHaveBeenCalled();
+  });
+
+  it("still fits a node added after a history step", async () => {
+    // The suppression is per-step, not sticky: once a nonce bump has been
+    // consumed, the next authored add fits as it always did.
+    const initial = makeAllNodeTypesConfig();
+    const { rerenderWithConfig } = renderCanvas(initial);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    // A position-only undo — same ids, nonce bumped.
+    rerenderWithConfig(initial, undefined, 1);
+    await flushAnimationFrame();
+    expect(mockFitView).not.toHaveBeenCalled();
+
+    rerenderWithConfig(addExtraActivity(initial, "activity_added_2"));
+    await flushAnimationFrame();
+    expect(mockFitView).toHaveBeenCalledTimes(1);
+    expect(mockFitView).toHaveBeenCalledWith(
+      expect.objectContaining({ nodes: [{ id: "activity_added_2" }] }),
+    );
+  });
+
+  it("does NOT fit when redo re-applies a multi-node restore", async () => {
+    const initial = makeAllNodeTypesConfig();
+    const single: GraphWorkflowConfig = {
+      ...initial,
+      nodes: { activity_1: initial.nodes.activity_1 },
+      entryNodeId: "activity_1",
+    };
+    const { rerenderWithConfig } = renderCanvas(single);
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+
+    // Six ids reappear at once — the whole-graph fit branch, still a restore.
+    rerenderWithConfig(initial, undefined, 1);
+    await flushAnimationFrame();
+    expect(mockFitView).not.toHaveBeenCalled();
   });
 });
 
@@ -5382,6 +5481,106 @@ describe("WorkflowEditorCanvas — item 6 deleting a group chip as a unit", () =
     expect(verdict).toBe(true);
   });
 
+  /**
+   * B-1 — the chip's own wires. xyflow sweeps every edge incident to a deleted
+   * node into `onBeforeDelete`'s `edges`, so a vetoed chip arrives here WITH
+   * its connections, and returning them untouched cut them before the author
+   * had answered — and for good, if the answer was Cancel.
+   */
+  function chipConfigWithWire(): GraphWorkflowConfig {
+    const base = chipConfig(["a", "b"]);
+    return {
+      ...base,
+      nodes: {
+        ...base.nodes,
+        z: {
+          id: "z",
+          type: "activity",
+          label: "Z",
+          activityType: "file.prepare",
+        } as GraphWorkflowConfig["nodes"][string],
+      },
+      entryNodeId: "z",
+      edges: [{ id: "e_z_a", source: "z", target: "a", type: "normal" }],
+    };
+  }
+
+  it("holds the chip's wires back while the confirm is open (B-1)", async () => {
+    const { onConfigChange } = renderCanvas(chipConfigWithWire(), {
+      simplifiedView: true,
+    });
+    let verdict: unknown;
+    await act(async () => {
+      verdict = await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }],
+        edges: [{ id: "e_z_a", source: "z", target: "group-chip-g1" } as Edge],
+      });
+    });
+    // Whole gesture vetoed: nothing leaves xyflow's store, so nothing reaches
+    // `handleDelete` and no edge is cut behind the open question.
+    expect(verdict).toBe(false);
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
+  it("still lets an unrelated edge through in the same gesture (B-1)", async () => {
+    renderCanvas(chipConfigWithWire(), { simplifiedView: true });
+    let verdict: unknown;
+    const farEdge = { id: "e_far", source: "z", target: "z2" } as Edge;
+    await act(async () => {
+      verdict = await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }],
+        edges: [
+          farEdge,
+          { id: "e_z_a", source: "z", target: "group-chip-g1" } as Edge,
+        ],
+      });
+    });
+    // Only the chip-incident edge is withheld — an edge the author selected
+    // between two survivors is not the chip's business.
+    expect(verdict).toEqual({ nodes: [], edges: [farEdge] });
+  });
+
+  it("cancelling leaves config.edges byte-identical (B-1)", async () => {
+    const before = chipConfigWithWire();
+    const { onConfigChange } = renderCanvas(before, { simplifiedView: true });
+    await act(async () => {
+      await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }],
+        edges: [{ id: "e_z_a", source: "z", target: "group-chip-g1" } as Edge],
+      });
+    });
+    // Cancel = the confirm's `onConfirm` is never invoked. Nothing was
+    // written, so the wire the chip carried is still there.
+    expect(onConfigChange).not.toHaveBeenCalled();
+    expect(before.edges).toEqual([
+      { id: "e_z_a", source: "z", target: "a", type: "normal" },
+    ]);
+  });
+
+  it("confirming removes steps AND their wires in ONE write (one undo) (B-1)", async () => {
+    const { onConfigChange } = renderCanvas(chipConfigWithWire(), {
+      simplifiedView: true,
+    });
+    await act(async () => {
+      await beforeDelete()({
+        nodes: [{ id: "group-chip-g1" }],
+        edges: [{ id: "e_z_a", source: "z", target: "group-chip-g1" } as Edge],
+      });
+    });
+    act(() => {
+      lastConfirm().onConfirm();
+    });
+    // One config change = one history entry = one Ctrl+Z to get it all back.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a).toBeUndefined();
+    expect(next.nodes.b).toBeUndefined();
+    expect(next.nodes.z).toBeDefined();
+    // The member's wire goes as collateral of the member removal, in the same
+    // write — `removeNodesFromConfig` drops every edge touching a removed node.
+    expect(next.edges).toEqual([]);
+  });
+
   it("ignores a chip id that still reaches onDelete", () => {
     // Defensive: onBeforeDelete filters chips out, so one arriving here would
     // be a bug. It must not fall through to removeNodesFromConfig, where it
@@ -5656,5 +5855,360 @@ describe("WorkflowEditorCanvas — G-031 validation state on source cards and ch
     });
     await flushAnimationFrame();
     expect(screen.queryByTestId("node-badge-group-chip-g1")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-3 / P-4 (2026-08-03): canvas menus close on a left click, and the empty
+// pane gets a menu of its own instead of the browser's.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mantine's `closeOnClickOutside` listens on document `mousedown`, and
+ * xyflow's pane runs d3-zoom/d3-drag, which calls `stopImmediatePropagation`
+ * on pane mousedown — so the menu closed for every click EXCEPT a click on the
+ * canvas. These tests drive the xyflow callbacks the canvas now closes from.
+ */
+describe("WorkflowEditorCanvas — B-3: menus close on a canvas left click", () => {
+  function openNodeMenu(nodeId: string) {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onNodeContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onNodeContextMenu");
+    }
+    const handler = props.onNodeContextMenu as (
+      event: React.MouseEvent,
+      node: FlowNode,
+    ) => void;
+    act(() => {
+      handler(
+        {
+          preventDefault: vi.fn(),
+          clientX: 100,
+          clientY: 120,
+        } as unknown as React.MouseEvent,
+        {
+          id: nodeId,
+          data: {},
+          position: { x: 0, y: 0 },
+        } as unknown as FlowNode,
+      );
+    });
+  }
+
+  function fireCanvasCallback(name: "onPaneClick" | "onNodeClick" | "onMove") {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props[name] !== "function") {
+      throw new Error(`ReactFlow mock did not capture ${name}`);
+    }
+    act(() => {
+      (props[name] as (...args: unknown[]) => void)();
+    });
+  }
+
+  it.each([
+    "onPaneClick",
+    "onNodeClick",
+    "onMove",
+  ] as const)("closes the node context menu on %s", async (callback) => {
+    renderCanvas(makeAllNodeTypesConfig());
+    openNodeMenu("activity_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    fireCanvasCallback(callback);
+    await waitFor(() => {
+      expect(screen.queryByTestId("node-context-menu")).not.toBeInTheDocument();
+    });
+  });
+
+  // The wire menu is the same Mantine menu opened by the same right-click, so
+  // it carried the identical defect: right-click a wire, left-click the
+  // canvas, and it stayed open. Covered here rather than in the §7 wire-menu
+  // block because the fix is one shared `closeCanvasMenus`, not three.
+  it.each([
+    "onPaneClick",
+    "onNodeClick",
+    "onMove",
+  ] as const)("closes the wire context menu on %s", async (callback) => {
+    renderCanvas(makeSingleWireConfig());
+    await flushAnimationFrame();
+
+    const props = latestReactFlowProps.current;
+    const onEdgeContextMenu = props?.onEdgeContextMenu as (
+      event: React.MouseEvent,
+      edge: Edge,
+    ) => void;
+    const dataWireEdge = getCapturedEdges().find(
+      (e) => e.id === "wire:submit:inA",
+    );
+    if (!dataWireEdge) throw new Error("data wire not projected");
+    act(() => {
+      onEdgeContextMenu(
+        {
+          preventDefault: vi.fn(),
+          clientX: 111,
+          clientY: 222,
+        } as unknown as React.MouseEvent,
+        dataWireEdge,
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("wire-context-menu")).toBeInTheDocument();
+    });
+
+    fireCanvasCallback(callback);
+    await waitFor(() => {
+      expect(screen.queryByTestId("wire-context-menu")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes without firing any of the menu's actions", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    openNodeMenu("activity_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    fireCanvasCallback("onPaneClick");
+    await waitFor(() => {
+      expect(screen.queryByTestId("node-context-menu")).not.toBeInTheDocument();
+    });
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("WorkflowEditorCanvas — P-4: empty-canvas context menu", () => {
+  /** Right-clicks the pane at (x, y) through the captured xyflow callback. */
+  function openPaneMenu(x = 400, y = 300) {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onPaneContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onPaneContextMenu");
+    }
+    const preventDefault = vi.fn();
+    act(() => {
+      (props.onPaneContextMenu as (e: React.MouseEvent) => void)({
+        preventDefault,
+        clientX: x,
+        clientY: y,
+      } as unknown as React.MouseEvent);
+    });
+    return { preventDefault };
+  }
+
+  function renderedNodes(): Array<{ id: string; selected?: boolean }> {
+    return (latestReactFlowProps.current?.nodes ?? []) as Array<{
+      id: string;
+      selected?: boolean;
+    }>;
+  }
+
+  it("suppresses the browser menu and opens ours", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    const { preventDefault } = openPaneMenu();
+    expect(preventDefault).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-context-menu")).toBeInTheDocument();
+    });
+    for (const entry of [
+      "pane-menu-add-node",
+      "pane-menu-auto-arrange",
+      "pane-menu-fit-view",
+      "pane-menu-select-all",
+    ]) {
+      expect(screen.getByTestId(entry)).toBeInTheDocument();
+    }
+  });
+
+  it("closes on a left click on the pane (shares the B-3 fix)", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-context-menu")).toBeInTheDocument();
+    });
+    act(() => {
+      (latestReactFlowProps.current?.onPaneClick as () => void)();
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("pane-context-menu")).not.toBeInTheDocument();
+    });
+  });
+
+  it("disables the node actions on an empty canvas", async () => {
+    const empty: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Empty", version: "1.0.0" },
+      ctx: {},
+      nodes: {},
+      edges: [],
+      entryNodeId: "",
+    };
+    renderCanvas(empty);
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-context-menu")).toBeInTheDocument();
+    });
+    // "Add node here" is the one entry that still means something.
+    expect(screen.getByTestId("pane-menu-add-node")).not.toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+    for (const entry of [
+      "pane-menu-auto-arrange",
+      "pane-menu-fit-view",
+      "pane-menu-select-all",
+    ]) {
+      expect(screen.getByTestId(entry)).toHaveAttribute(
+        "data-disabled",
+        "true",
+      );
+    }
+  });
+
+  it("Fit view fits the whole graph", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    await flushAnimationFrame();
+    mockFitView.mockClear();
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-fit-view")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-fit-view"));
+    await waitFor(() => {
+      expect(mockFitView).toHaveBeenCalledWith({
+        padding: 0.15,
+        duration: 300,
+      });
+    });
+    // The menu closes behind the action.
+    await waitFor(() => {
+      expect(screen.queryByTestId("pane-context-menu")).not.toBeInTheDocument();
+    });
+  });
+
+  it("Auto-arrange stamps a fresh layout in one config change", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    await flushAnimationFrame();
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-auto-arrange")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-auto-arrange"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalledTimes(1);
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    // Every node comes back carrying a position — that is what dagre wrote.
+    for (const node of Object.values(next.nodes)) {
+      const pos = (node.metadata as { position?: { x: number; y: number } })
+        ?.position;
+      expect(typeof pos?.x).toBe("number");
+      expect(typeof pos?.y).toBe("number");
+    }
+    // Positions changed for at least one node (the fixture lays them all on
+    // one row; dagre does not).
+    const before = makeAllNodeTypesConfig();
+    const moved = Object.keys(next.nodes).some((id) => {
+      const a = (before.nodes[id].metadata as { position?: { x: number } })
+        ?.position;
+      const b = (next.nodes[id].metadata as { position?: { x: number } })
+        ?.position;
+      return a?.x !== b?.x;
+    });
+    expect(moved).toBe(true);
+  });
+
+  it("Select all marks every selectable node", async () => {
+    // The map-body container is `selectable: false` decor — selecting it would
+    // put a box in the selection no action can act on.
+    renderCanvas(makeMapWithBodyDisplayConfig());
+    await flushAnimationFrame();
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-select-all")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-select-all"));
+    await waitFor(() => {
+      expect(renderedNodes().some((n) => n.selected === true)).toBe(true);
+    });
+    for (const node of renderedNodes()) {
+      if (node.id.startsWith("container-")) {
+        expect(node.selected).not.toBe(true);
+      } else {
+        expect(node.selected).toBe(true);
+      }
+    }
+  });
+
+  it("'Add node here' lands the picked activity at the right-clicked point", async () => {
+    const { onConfigChange, onSelectNode } = renderCanvas(
+      makeAllNodeTypesConfig(),
+    );
+    await flushAnimationFrame();
+    openPaneMenu(640, 480);
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-add-node")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-add-node"));
+    // The pane menu hands over to the catalogue, pinned to the same point.
+    await waitFor(() => {
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    });
+    expect(mockScreenToFlowPosition).toHaveBeenCalledWith({ x: 640, y: 480 });
+
+    fireEvent.click(screen.getByTestId("hover-extend-activity-file.prepare"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    const newIds = Object.keys(next.nodes).filter(
+      (id) => !(id in makeAllNodeTypesConfig().nodes),
+    );
+    expect(newIds).toHaveLength(1);
+    const added = next.nodes[newIds[0]];
+    if (!added || added.type !== "activity") {
+      throw new Error("expected the picked node to be an activity");
+    }
+    expect(added.activityType).toBe("file.prepare");
+    // Detached: the pick wires nothing, unlike hover-extend.
+    expect(next.edges).toEqual([]);
+    expect(
+      (added.metadata as { position?: { x: number; y: number } })?.position,
+    ).toEqual({ x: 640, y: 480 });
+    // No port bindings — the auto-wire resolver owns input binding.
+    expect(added.inputs).toEqual([]);
+    expect(added.outputs).toEqual([]);
+    expect(onSelectNode).toHaveBeenCalledWith(newIds[0]);
+    // The entry pointer is left alone: this graph already had one.
+    expect(next.entryNodeId).toBe("activity_1");
+  });
+
+  it("'Add node here' adopts the first node as the entry point", async () => {
+    const empty: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "Empty", version: "1.0.0" },
+      ctx: {},
+      nodes: {},
+      edges: [],
+      entryNodeId: "",
+    };
+    const { onConfigChange } = renderCanvas(empty);
+    openPaneMenu(120, 90);
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-add-node")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-add-node"));
+    await waitFor(() => {
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("hover-extend-control-flow-switch"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    const ids = Object.keys(next.nodes);
+    expect(ids).toHaveLength(1);
+    expect(next.nodes[ids[0]].type).toBe("switch");
+    // A first node that is not the entry point makes the workflow invalid on
+    // arrival — the palette-add path adopts it, so this one does too.
+    expect(next.entryNodeId).toBe(ids[0]);
   });
 });

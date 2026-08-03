@@ -540,14 +540,20 @@ describe("WorkflowEditorV2Page — US-050: template-load auto-layout", () => {
 // ---------------------------------------------------------------------------
 // Draft-save (UX walkthrough item 3, 2026-08-02) — saving always
 // persists; the backend's verdict picks the toast. Green when the saved
-// config is clean, amber ("issues remain") when it still cannot run.
+// config is clean, amber ("Created as a draft") when it still cannot run.
+//
+// P-6 (2026-08-03) rewrote the amber body: one user-facing line plus a
+// "Review issues" action that opens the ValidationDrawer, instead of up to
+// three raw `path — message` pairs pasted into the notification.
 // ---------------------------------------------------------------------------
 
 describe("WorkflowEditorV2Page — draft-save toast", () => {
   beforeEach(() => {
     capturedCreateDto.current = null;
+    capturedValidationDrawerProps.current = null;
     saveValidationRef.current = { valid: true, errors: [] };
     vi.mocked(notifications.show).mockClear();
+    vi.mocked(notifications.hide).mockClear();
   });
 
   async function clickSave() {
@@ -555,6 +561,14 @@ describe("WorkflowEditorV2Page — draft-save toast", () => {
     await act(async () => {
       fireEvent.click(saveButton);
     });
+  }
+
+  /** The last payload handed to `notifications.show`. */
+  function lastToast(): Record<string, unknown> {
+    const showMock = notifications.show as unknown as ReturnType<typeof vi.fn>;
+    const calls = showMock.mock.calls;
+    if (calls.length === 0) throw new Error("no notification was raised");
+    return calls[calls.length - 1][0] as Record<string, unknown>;
   }
 
   it("shows the green toast when the saved config is clean", async () => {
@@ -565,7 +579,7 @@ describe("WorkflowEditorV2Page — draft-save toast", () => {
     );
   });
 
-  it("saves AND shows the amber issues-remain toast when the verdict has errors", async () => {
+  it("saves AND shows the amber draft toast when the verdict has errors", async () => {
     saveValidationRef.current = {
       valid: false,
       errors: [
@@ -580,16 +594,22 @@ describe("WorkflowEditorV2Page — draft-save toast", () => {
     await clickSave();
     // The save itself went through — the dto reached the mutation.
     expect(capturedCreateDto.current).toBeTruthy();
-    expect(notifications.show).toHaveBeenCalledWith(
-      expect.objectContaining({
-        color: "yellow",
-        title: "Created — 1 issue remains",
-        message: expect.stringContaining("cannot run"),
-      }),
+    const toast = lastToast();
+    expect(toast.color).toBe("yellow");
+    expect(toast.title).toBe("Created as a draft");
+    // One user-facing line. The validator's own `path` strings stay OUT of it
+    // — they belong in the drawer, which is what the action opens.
+    const body = render(
+      <MantineProvider>{toast.message as React.ReactNode}</MantineProvider>,
     );
+    expect(body.container.textContent).toContain(
+      "1 issue to fix before it can run",
+    );
+    expect(body.container.textContent).not.toContain("nodes.b.inputs.fileData");
+    body.unmount();
   });
 
-  it("counts only severity-error findings in the amber title", async () => {
+  it("counts only severity-error findings, and pluralises", async () => {
     saveValidationRef.current = {
       valid: false,
       errors: [
@@ -600,12 +620,40 @@ describe("WorkflowEditorV2Page — draft-save toast", () => {
     };
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
     await clickSave();
-    expect(notifications.show).toHaveBeenCalledWith(
-      expect.objectContaining({
-        color: "yellow",
-        title: "Created — 2 issues remain",
-      }),
+    const toast = lastToast();
+    expect(toast.title).toBe("Created as a draft");
+    const body = render(
+      <MantineProvider>{toast.message as React.ReactNode}</MantineProvider>,
     );
+    expect(body.container.textContent).toContain(
+      "2 issues to fix before it can run",
+    );
+    body.unmount();
+  });
+
+  it("'Review issues' dismisses the toast and opens the validation drawer", async () => {
+    saveValidationRef.current = {
+      valid: false,
+      errors: [{ path: "a", message: "broken one", severity: "error" }],
+    };
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    await clickSave();
+    expect(capturedValidationDrawerProps.current?.opened).toBe(false);
+
+    // The toast body is a ReactNode; Mantine's host doesn't mount under jsdom,
+    // so render the node itself and click the action inside it.
+    const toast = lastToast();
+    const body = render(
+      <MantineProvider>{toast.message as React.ReactNode}</MantineProvider>,
+    );
+    act(() => {
+      fireEvent.click(body.getByTestId("saved-toast-review-issues"));
+    });
+    expect(notifications.hide).toHaveBeenCalledWith(toast.id);
+    expect(capturedValidationDrawerProps.current?.opened).toBe(true);
+    // Opened on the FULL list — no node filter left over from a badge click.
+    expect(capturedValidationDrawerProps.current?.filterNodeId).toBeNull();
+    body.unmount();
   });
 });
 
@@ -802,12 +850,9 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     const positionsBefore = readPositionsFromCanvas();
     expect(positionsBefore.a).toEqual({ x: 10, y: 20 });
 
-    // Task 6 moved Auto-arrange into the More menu. Open the menu, then
-    // click the menu item.
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("topbar-more-button"));
-    });
-    const item = await screen.findByTestId("topbar-menu-auto-arrange");
+    // P-3 brought Auto-arrange back out of the More menu into the view group;
+    // it kept its `topbar-menu-auto-arrange` testid so e2e still finds it.
+    const item = screen.getByTestId("topbar-menu-auto-arrange");
     await act(async () => {
       fireEvent.click(item);
       // The handler defers fitView one macrotask via setTimeout.
@@ -829,13 +874,12 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     expect(fitViewMock).toHaveBeenCalled();
   });
 
-  it("is disabled when the editor has no nodes", async () => {
+  it("is disabled when the editor has no nodes", () => {
     renderPage();
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("topbar-more-button"));
-    });
-    const item = await screen.findByTestId("topbar-menu-auto-arrange");
-    expect(item).toHaveAttribute("data-disabled", "true");
+    expect(screen.getByTestId("topbar-menu-auto-arrange")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
   });
 });
 
@@ -852,28 +896,22 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
   });
 
   /**
-   * Task 6 moved the simplified-view Switch into the More menu. Tests
-   * open the menu before reaching for the Switch input.
+   * P-3 (2026-08-03) took the Switch back out of the More menu: it changes
+   * what you are looking at, which is not a menu item's job. It is a visible
+   * control in the view group now, so the tests reach for it directly — the
+   * testid is unchanged.
    */
-  async function openMoreMenu() {
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("topbar-more-button"));
-    });
-  }
 
-  it("Scenario 1: a 'Simplified view' Switch is present in the top bar", async () => {
+  it("Scenario 1: a 'Simplified' Switch is visible in the top bar", () => {
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
-    await openMoreMenu();
-    const toggle = await screen.findByTestId("simplified-view-toggle");
-    expect(toggle).toBeInTheDocument();
+    expect(screen.getByTestId("simplified-view-toggle")).toBeInTheDocument();
   });
 
-  it("passes the toggle state through to the canvas (false → true → false)", async () => {
+  it("passes the toggle state through to the canvas (false → true → false)", () => {
     renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
     // Starts OFF — canvas receives `simplifiedView: false`.
     expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
-    await openMoreMenu();
-    const toggle = await screen.findByTestId("simplified-view-toggle");
+    const toggle = screen.getByTestId("simplified-view-toggle");
     act(() => {
       fireEvent.click(toggle);
     });
@@ -912,14 +950,13 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
     expect(screen.getByTestId("group-node-settings")).toBeInTheDocument();
   });
 
-  it("clears any activeGroupId when the simplified-view toggle flips OFF", async () => {
+  it("clears any activeGroupId when the simplified-view toggle flips OFF", () => {
     const cfg = buildTemplateConfig({ positions: "all" });
     cfg.nodeGroups = {
       g_42: { label: "Stage one", nodeIds: Object.keys(cfg.nodes).slice(0, 1) },
     };
     renderPage(makeTemplate(cfg));
-    await openMoreMenu();
-    const toggle = await screen.findByTestId("simplified-view-toggle");
+    const toggle = screen.getByTestId("simplified-view-toggle");
     // Flip ON, then click a chip to set activeGroupId.
     act(() => {
       fireEvent.click(toggle);
@@ -1562,10 +1599,19 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 6 — three-zone top bar with Mantine Menu overflow
+// Top bar — P-3 (ruling R-2, 2026-08-03) rebuilt it as four
+// divider-separated groups on one baseline:
+//
+//   [ switcher · name ] │ [ find · simplified · arrange · fit ] │
+//   [ undo/redo · validity ] │ [ Save · Try · Run · More ]
+//
+// Name is a click-to-edit title, Description left for Workflow settings, and
+// Simplified view + Auto-arrange left the More menu for the view group. The
+// `topbar-zone-*` testids are kept (e2e scopes lookups to them) with
+// `topbar-zone-right` now wrapping both right-hand groups.
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
+describe("WorkflowEditorV2Page — top bar (P-3)", () => {
   beforeEach(() => {
     capturedCanvasProps.current = null;
     capturedCreateDto.current = null;
@@ -1579,24 +1625,56 @@ describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
     return renderPage();
   }
 
-  it("renders the title in the left zone with counts beneath", () => {
+  it("identifies the workflow in the left group: switcher, title, counts", () => {
     renderEditor();
-    expect(screen.getByTestId("topbar-zone-left")).toHaveTextContent(
-      /Workflow editor/,
+    const left = screen.getByTestId("topbar-zone-left");
+    expect(
+      within(left).getByTestId("workflow-switcher-button"),
+    ).toBeInTheDocument();
+    expect(within(left).getByTestId("workflow-title")).toHaveTextContent(
+      "New workflow",
     );
-    expect(screen.getByTestId("topbar-zone-left")).toHaveTextContent(/node/);
+    expect(left).toHaveTextContent(/node/);
   });
 
-  it("renders the primary cluster in the right zone with Save and Run", () => {
+  it("puts the view controls in the centre group", () => {
+    renderEditor();
+    const centre = screen.getByTestId("topbar-zone-center");
+    expect(within(centre).getByTestId("node-search-input")).toBeInTheDocument();
+    expect(
+      within(centre).getByTestId("simplified-view-toggle"),
+    ).toBeInTheDocument();
+    expect(
+      within(centre).getByTestId("topbar-menu-auto-arrange"),
+    ).toBeInTheDocument();
+    expect(within(centre).getByTestId("topbar-fit-view")).toBeInTheDocument();
+  });
+
+  it("no longer carries Name/Description text inputs", () => {
+    renderEditor();
+    // R-2 — the description lives in Workflow settings now, and the name is a
+    // title until clicked. Neither is a labelled field in the bar.
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    expect(screen.queryByLabelText("Name")).toBeNull();
+  });
+
+  it("splits the right zone into a state group and an actions group", () => {
     renderEditor();
     const right = screen.getByTestId("topbar-zone-right");
-    expect(within(right).getByTestId("save-button")).toBeInTheDocument();
+    const state = within(right).getByTestId("topbar-group-state");
+    const actions = within(right).getByTestId("topbar-group-actions");
+    expect(within(state).getByTestId("undo-button")).toBeInTheDocument();
+    expect(within(state).getByTestId("redo-button")).toBeInTheDocument();
+    expect(within(actions).getByTestId("save-button")).toBeInTheDocument();
     expect(
-      within(right).getByTestId("run-this-workflow-button"),
+      within(actions).getByTestId("run-this-workflow-button"),
+    ).toBeInTheDocument();
+    expect(
+      within(actions).getByTestId("topbar-more-button"),
     ).toBeInTheDocument();
   });
 
-  it("opens the overflow Menu and lists the secondary actions", async () => {
+  it("opens the overflow Menu and lists what is left in it", async () => {
     renderEditor();
     const more = screen.getByTestId("topbar-more-button");
     more.click();
@@ -1607,17 +1685,53 @@ describe("WorkflowEditorV2Page — top bar (Task 6)", () => {
     expect(
       screen.getByTestId("topbar-menu-save-as-library"),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("topbar-menu-auto-arrange")).toBeInTheDocument();
     expect(
       screen.getByTestId("topbar-menu-group-selected"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("topbar-menu-simplified-view"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("topbar-menu-workflow-settings"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("topbar-menu-form-preview")).toBeInTheDocument();
+  });
+
+  it("Fit view asks the live instance to fit, and stamps no positions", () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    const before = readPositionsFromCanvas();
+    act(() => {
+      fireEvent.click(screen.getByTestId("topbar-fit-view"));
+    });
+    expect(fitViewMock).toHaveBeenCalled();
+    // Unlike Auto-arrange, fit is a camera move — the graph must be untouched.
+    expect(readPositionsFromCanvas()).toEqual(before);
+  });
+
+  it("disables Auto-arrange and Fit view on an empty graph", () => {
+    renderEditor();
+    expect(screen.getByTestId("topbar-menu-auto-arrange")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+    expect(screen.getByTestId("topbar-fit-view")).toHaveAttribute(
+      "data-disabled",
+      "true",
+    );
+  });
+
+  it("renames through the click-to-edit title and saves the new name", async () => {
+    renderPage(makeTemplate(buildTemplateConfig({ positions: "all" })));
+    act(() => {
+      fireEvent.click(screen.getByTestId("workflow-title"));
+    });
+    const input = screen.getByLabelText("Name");
+    fireEvent.change(input, { target: { value: "Renamed workflow" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("workflow-title")).toHaveTextContent(
+      "Renamed workflow",
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    });
+    expect(capturedCreateDto.current?.name).toBe("Renamed workflow");
   });
 
   it("disables History and Run history menu items in create mode", async () => {
@@ -2681,6 +2795,53 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
     expect(undoButton()).toBeDisabled();
   });
 
+  // P-1 (2026-08-03). A config with no authored positions is laid out during
+  // hydration, before anything is mounted, so dagre only has the uniform
+  // fallback width — the graph opens looser than the Auto-arrange button would
+  // draw it. Re-running the measured pass after mount is the fix, and it must
+  // fire WITHOUT `metadata.arrangeOnLoad`, which only the demo seeder stamps.
+  it("re-arranges with measured widths when the server config had no positions", async () => {
+    const config = buildTemplateConfig({ positions: "none" });
+    measuredNodes.current = Object.keys(config.nodes).map((id) => ({
+      id,
+      measured: { width: 200 },
+    }));
+    existingWorkflowRef.current = {
+      id: "wf-nopos",
+      name: "Seeded workflow",
+      description: "",
+      config, // no arrangeOnLoad flag
+      workflowVersionId: "wf-nopos-v1",
+    };
+    renderEditPage("wf-nopos");
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+    // Same non-undoable, non-dirtying path the demo flag uses.
+    expect(undoButton()).toBeDisabled();
+  });
+
+  it("leaves an authored layout alone: positions present and no flag → no arrange", async () => {
+    const config = buildTemplateConfig({ positions: "all" });
+    measuredNodes.current = Object.keys(config.nodes).map((id) => ({
+      id,
+      measured: { width: 200 },
+    }));
+    existingWorkflowRef.current = {
+      id: "wf-authored",
+      name: "Author's layout",
+      description: "",
+      config,
+      workflowVersionId: "wf-authored-v1",
+    };
+    renderEditPage("wf-authored");
+    await waitFor(() =>
+      expect(Object.keys(liveConfig().nodes)).toHaveLength(3),
+    );
+    // The author placed these; nothing may move them on open.
+    const positions = readPositionsFromCanvas();
+    expect(positions.a).toEqual({ x: 10, y: 20 });
+    expect(positions.c).toEqual({ x: 50, y: 60 });
+  });
+
   it("keeps the hydration guard honest: an undone-to state still blocks a refetch", async () => {
     // §4.4 — the guard is a reference compare against the last hydrated
     // config. Undo hands back an EARLIER object, not the hydrated one, so a
@@ -2728,6 +2889,11 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
     const addedId = Object.keys(liveConfig().nodes)[0];
 
     // Focus inside a text input → the browser's native text undo owns it.
+    // P-3 made the name a click-to-edit title, so the field has to be opened
+    // before there is an input to type in.
+    act(() => {
+      fireEvent.click(screen.getByTestId("workflow-title"));
+    });
     const nameInput = screen.getByLabelText("Name");
     fireEvent.keyDown(nameInput, { key: "z", ctrlKey: true });
     expect(liveConfig().nodes[addedId]).toBeDefined();
@@ -3493,5 +3659,76 @@ describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable gr
 
     expect(screen.getByTestId("try-button")).toBeDisabled();
     expect(screen.getByTestId("run-this-workflow-button")).toBeDisabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R-2 (P-3, 2026-08-03) — the description left the top bar for the Workflow
+// settings drawer, and stopped being page state on the way: it lives in
+// `config.metadata.description`, which is what the drawer already edits
+// through its `config` / `onConfigChange` pair (as version and tags do).
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — description moves to Workflow settings (R-2)", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    existingWorkflowRef.current = null;
+    saveValidationRef.current = { valid: true, errors: [] };
+    vi.mocked(notifications.show).mockClear();
+  });
+
+  function liveConfig(): GraphWorkflowConfig {
+    const config = capturedCanvasProps.current?.config as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!config) throw new Error("Canvas stub did not capture config");
+    return config;
+  }
+
+  it("saves the description out of config.metadata, with no top-bar field feeding it", async () => {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.metadata = {
+      ...cfg.metadata,
+      description: "Reads the mail-room scans",
+    };
+    renderPage(makeTemplate(cfg));
+    expect(screen.queryByLabelText("Description")).toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    });
+    expect(capturedCreateDto.current?.description).toBe(
+      "Reads the mail-room scans",
+    );
+  });
+
+  it("seeds metadata.description from the lineage column when the config carries none", () => {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "Test",
+      // What the workflows list renders. A config written by the agent or a
+      // direct API create need not carry the mirror, and opening + re-saving
+      // must not blank it.
+      description: "Set from the list",
+      config: cfg,
+      workflowVersionId: "wf-1-v1",
+    };
+    renderEditPage("wf-1");
+    expect(liveConfig().metadata.description).toBe("Set from the list");
+  });
+
+  it("leaves a description the config already carries alone", () => {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.metadata = { ...cfg.metadata, description: "From the config" };
+    existingWorkflowRef.current = {
+      id: "wf-1",
+      name: "Test",
+      description: "Stale column",
+      config: cfg,
+      workflowVersionId: "wf-1-v1",
+    };
+    renderEditPage("wf-1");
+    expect(liveConfig().metadata.description).toBe("From the config");
   });
 });

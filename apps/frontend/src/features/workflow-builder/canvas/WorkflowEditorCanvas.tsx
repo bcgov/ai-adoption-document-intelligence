@@ -93,6 +93,7 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
+import { layoutGraphWithMapBodies } from "./auto-layout";
 import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
@@ -134,6 +135,7 @@ import { NodeContextMenu } from "./NodeContextMenu";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 import { NodeTypePillRow } from "./NodeTypePillRow";
 import { NodeTypeSwapModal } from "./NodeTypeSwapModal";
+import { PaneContextMenu } from "./PaneContextMenu";
 import { PortDragContext, PortRows } from "./PortRows";
 import { findNextFreePosition } from "./place-extended-node";
 import {
@@ -661,6 +663,11 @@ const NodeHandles = memo(function NodeHandles({
 const ActivityNodeRenderer = memo(
   ({ id, data, selected }: NodeProps<ActivityFlowNode>) => {
     const hints = getActivityVisualHints(data.activityType);
+    // Destructured to a capitalised binding because JSX treats a lowercase tag
+    // as an intrinsic element — `<hints.Icon />` works, but the local alias
+    // keeps the render below readable alongside the control-flow renderers,
+    // which resolve their icon component the same way.
+    const ActivityIcon = hints.Icon;
     // Per-port handle ids change when the node's activityType is swapped
     // (even with an equal row count) — xyflow caches handleBounds per node,
     // so without an explicit invalidation the projected port-to-port wires
@@ -760,7 +767,9 @@ const ActivityNodeRenderer = memo(
             gap: 6,
           }}
         >
-          <span>{hints.icon}</span>
+          <span aria-hidden style={{ display: "inline-flex" }}>
+            <ActivityIcon size={14} />
+          </span>
           <span style={{ textTransform: "uppercase", letterSpacing: 0.4 }}>
             {hints.displayName}
           </span>
@@ -1029,9 +1038,10 @@ ControlFlowRectangleRenderer.displayName = "ControlFlowRectangleRenderer";
  *   1. `<PortRows>` — the same grid `ActivityNodeRenderer` mounts, from the
  *      same `computePortRows` projection, so `rendersPerPortHandle` can
  *      anchor wires per port.
- *   2. the catalog fallback — `❓` + "Unregistered activity." + the raw type
- *      for a missing static entry, and the red "Deleted" pill for a
- *      soft-deleted `dyn.*` lineage. Identical treatment to an `activity`.
+ *   2. the catalog fallback — the unknown-activity icon + "Unregistered
+ *      activity." + the raw type for a missing static entry, and the red
+ *      "Deleted" pill for a soft-deleted `dyn.*` lineage. Identical treatment
+ *      to an `activity`.
  */
 const PollUntilNodeRenderer = memo(
   ({ id, data, selected }: NodeProps<PollUntilFlowNode>) => {
@@ -1061,6 +1071,7 @@ const PollUntilNodeRenderer = memo(
         !catalog.entries.some((e) => e.activityType === data.activityType)
       : getActivityCatalogEntry(data.activityType) === undefined;
     const activityHints = getActivityVisualHints(data.activityType);
+    const WrappedActivityIcon = activityHints.Icon;
     const hasRows =
       data.portRows.inputs.length > 0 || data.portRows.outputs.length > 0;
 
@@ -1115,7 +1126,9 @@ const PollUntilNodeRenderer = memo(
             gap: 6,
           }}
         >
-          <span>{activityHints.icon}</span>
+          <span aria-hidden style={{ display: "inline-flex" }}>
+            <WrappedActivityIcon size={14} />
+          </span>
           <span>{activityHints.displayName}</span>
           {isDynamic && (
             <Badge
@@ -1934,13 +1947,29 @@ function WorkflowEditorCanvasInner({
   // before are treated as additions and the viewport animates to bring
   // the addition into view. Drag, selection, and edge mutations don't
   // change the node-id set, so they don't trigger a re-fit.
+  //
+  // B-2 (2026-08-03) — "a new id appeared" is NOT the same as "the author added
+  // a node". Undoing a delete re-adds the removed ids, which read here as an
+  // addition and sent the single-node branch below into a hard zoom onto one
+  // card: press Ctrl+Z and the canvas jumps somewhere else. `layoutNonce` is
+  // what separates the two. The host bumps it on every undo/redo step and on
+  // Auto-arrange, and on nothing else — and Auto-arrange only moves nodes, so a
+  // bump landing together with a changed id-set means a history step restored
+  // them. A restore keeps the viewport it was performed from; only an authored
+  // add earns a fit. Its own ref, not `prevLayoutNonceRef`: the position-sync
+  // effect below watches the same value, and whichever effect ran first would
+  // otherwise swallow the change before the other saw it.
   const prevNodeIdsRef = useRef<Set<string> | null>(null);
+  const prevFitNonceRef = useRef(layoutNonce);
   useEffect(() => {
     const currentIds = new Set(Object.keys(config.nodes));
     const prevIds = prevNodeIdsRef.current;
     prevNodeIdsRef.current = currentIds;
+    const historyStepped = prevFitNonceRef.current !== layoutNonce;
+    prevFitNonceRef.current = layoutNonce;
     // First mount — ReactFlow's `fitView` prop handles the initial layout.
     if (prevIds === null) return;
+    if (historyStepped) return;
     const added: string[] = [];
     for (const id of currentIds) {
       if (!prevIds.has(id)) added.push(id);
@@ -1963,7 +1992,7 @@ function WorkflowEditorCanvasInner({
       reactFlow.fitView(options);
     }, 0);
     return () => clearTimeout(timer);
-  }, [config.nodes, reactFlow]);
+  }, [config.nodes, reactFlow, layoutNonce]);
 
   // Track the node set + the data-relevant fields so we only resync the
   // internal nodes when something actually changed in the outer config —
@@ -2151,47 +2180,62 @@ function WorkflowEditorCanvasInner({
     onSelectMapBodyNode,
   ]);
 
-  // Auto-arrange position sync (§4.2). The structural fingerprint above
-  // excludes `metadata.position`, so a config-only position change (e.g.
-  // "Auto-arrange" stamping a fresh layout) doesn't re-project and the
-  // rendered nodes never move — even though the new positions are persisted.
-  // The host bumps `layoutNonce` after such a change; re-apply the config's
-  // positions to the internal xyflow nodes here, bypassing the fingerprint
-  // gate. Skips the initial mount (no diff on first render).
+  /**
+   * Copies `source`'s `metadata.position` onto the rendered xyflow nodes,
+   * bypassing the structural-fingerprint gate. That gate deliberately excludes
+   * positions (§4.2) so a per-node drag doesn't re-project the whole canvas —
+   * which also means a config-only position change (Auto-arrange, an undone
+   * drag) would otherwise persist without anything on screen moving.
+   *
+   * Takes the config to read from rather than closing over the `config` prop:
+   * the pane menu's Auto-arrange has the new layout in hand and must apply it
+   * in the same tick, one render before that layout comes back as a prop.
+   */
+  const applyPositionsFromConfig = useCallback(
+    (source: GraphWorkflowConfig) => {
+      // Map-body container nodes aren't in `config.nodes`, so the position copy
+      // below can't move OR resize them — their geometry is the bounding box of
+      // the member positions that Auto-arrange just changed. Project them fresh
+      // so the box tracks its members; otherwise it stays at the pre-arrange
+      // bounds (displaced, no longer wrapping the body). Only REPLACES existing
+      // container nodes — in simplified view (no containers) this is a no-op.
+      const syntheticGroups: Record<string, NodeGroup> = {};
+      for (const [k, v] of Object.entries(source.nodeGroups ?? {})) {
+        if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
+      }
+      const freshContainers = new Map(
+        projectMapBodyContainerNodes(
+          syntheticGroups,
+          source,
+          onSelectMapBodyNode,
+        ).map((c) => [c.id, c] as const),
+      );
+      setInternalNodes((prev) =>
+        prev.map((n): FlowNode => {
+          const fresh = freshContainers.get(n.id);
+          if (fresh) return fresh;
+          const pos = (
+            source.nodes[n.id]?.metadata as
+              | { position?: { x: number; y: number } }
+              | undefined
+          )?.position;
+          return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
+        }),
+      );
+    },
+    [onSelectMapBodyNode, setInternalNodes],
+  );
+
+  // Auto-arrange position sync (§4.2). The host bumps `layoutNonce` after a
+  // position-only change it made itself (its own Auto-arrange, undo/redo of a
+  // layout step); re-apply the config's positions here. Skips the initial mount
+  // (no diff on first render).
   const prevLayoutNonceRef = useRef(layoutNonce);
   useEffect(() => {
     if (prevLayoutNonceRef.current === layoutNonce) return;
     prevLayoutNonceRef.current = layoutNonce;
-    // Map-body container nodes aren't in `config.nodes`, so the position copy
-    // below can't move OR resize them — their geometry is the bounding box of
-    // the member positions that Auto-arrange just changed. Project them fresh
-    // so the box tracks its members; otherwise it stays at the pre-arrange
-    // bounds (displaced, no longer wrapping the body). Only REPLACES existing
-    // container nodes — in simplified view (no containers) this is a no-op.
-    const syntheticGroups: Record<string, NodeGroup> = {};
-    for (const [k, v] of Object.entries(config.nodeGroups ?? {})) {
-      if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
-    }
-    const freshContainers = new Map(
-      projectMapBodyContainerNodes(
-        syntheticGroups,
-        config,
-        onSelectMapBodyNode,
-      ).map((c) => [c.id, c] as const),
-    );
-    setInternalNodes((prev) =>
-      prev.map((n): FlowNode => {
-        const fresh = freshContainers.get(n.id);
-        if (fresh) return fresh;
-        const pos = (
-          config.nodes[n.id]?.metadata as
-            | { position?: { x: number; y: number } }
-            | undefined
-        )?.position;
-        return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
-      }),
-    );
-  }, [layoutNonce, config, onSelectMapBodyNode, setInternalNodes]);
+    applyPositionsFromConfig(config);
+  }, [layoutNonce, config, applyPositionsFromConfig]);
 
   // Validation badge sync — patches data.errorCount / data.warningCount
   // on existing internal nodes whenever the validation results change.
@@ -2775,6 +2819,14 @@ function WorkflowEditorCanvasInner({
    *
    * Chips are vetoed and routed to `confirmDeleteGroupUnit`; everything else
    * in the same gesture proceeds untouched.
+   *
+   * B-1 (2026-08-03) — the chip's WIRES have to be vetoed with it. xyflow
+   * sweeps every edge incident to a deleted node into `edges` here, so
+   * returning that list untouched cut the chip's connections immediately: ahead
+   * of the confirm, and unrecoverably if the author cancelled. Holding them back
+   * also collapses the confirm path to a single `onConfigChange` (the edge cut
+   * used to be a separate write through `handleDelete`), so restoring a
+   * confirmed group delete costs one Ctrl+Z rather than two.
    */
   const handleBeforeDelete = useCallback(
     async ({
@@ -2791,8 +2843,15 @@ function WorkflowEditorCanvasInner({
         if (groupId) confirmDeleteGroupUnit(groupId);
       }
       const rest = toDelete.filter((n) => groupIdFromChipId(n.id) === null);
-      if (rest.length === 0 && edgesToDelete.length === 0) return false;
-      return { nodes: rest, edges: edgesToDelete };
+      // Every edge touching a vetoed chip becomes the confirm's business:
+      // `removeNodesFromConfig` drops the members' edges as collateral of the
+      // member removal, in the same write.
+      const chipIds = new Set(chips.map((c) => c.id));
+      const restEdges = edgesToDelete.filter(
+        (e) => !chipIds.has(e.source) && !chipIds.has(e.target),
+      );
+      if (rest.length === 0 && restEdges.length === 0) return false;
+      return { nodes: rest, edges: restEdges };
     },
     [confirmDeleteGroupUnit],
   );
@@ -2813,12 +2872,13 @@ function WorkflowEditorCanvasInner({
    *     and no hint; deleted directly with both endpoints surviving →
    *     routed through `disconnectWires` (pinned unbound + hint).
    *
-   * There is no `onBeforeDelete` companion any more. It existed purely to veto
-   * the gesture when the author cancelled the G-002 confirm — xyflow removes
-   * elements from its store BEFORE firing `onDelete`, so a late bail would have
-   * left nodes visually gone but still in the config. With the confirm retired
-   * (G-003 made deletes reversible) nothing can cancel, so there is nothing to
-   * veto and xyflow's default "always allow" is correct.
+   * `handleBeforeDelete` runs first and is the gesture's only veto point:
+   * xyflow removes elements from its store BEFORE firing `onDelete`, so
+   * anything that can still be refused has to be refused there. It exists for
+   * exactly one case now — a collapsed group chip, whose delete takes real
+   * pipeline steps with it and therefore asks first (item 6). Ordinary node and
+   * wire deletes are reversible (G-003), nothing asks about them, and they
+   * arrive here already approved.
    */
   const handleDelete = useCallback(
     ({
@@ -3036,6 +3096,180 @@ function WorkflowEditorCanvasInner({
       message: `"${group.label}" removed — its ${group.nodeIds.length} step${group.nodeIds.length === 1 ? "" : "s"} stay on the canvas.`,
     });
   }, [contextMenuGroup, config, onConfigChange]);
+
+  // ---------------------------------------------------------------------------
+  // Empty-canvas right-click menu (P-4) + the close-on-left-click fix (B-3)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * P-4 — where the pane menu is pinned, in BOTH coordinate systems.
+   * `x`/`y` are viewport coordinates (the menu is a fixed-position portal);
+   * `flow` is the same point in graph space, resolved at open time because
+   * that is the point "Add node here" means, whatever the viewport does
+   * between the right-click and the pick.
+   */
+  const [paneMenu, setPaneMenu] = useState<{
+    x: number;
+    y: number;
+    flow: { x: number; y: number };
+  } | null>(null);
+
+  const closePaneMenu = useCallback(() => setPaneMenu(null), []);
+
+  /**
+   * P-4 — the node picker opened by "Add node here", pinned to the same
+   * point. Reuses the hover-extend popover unfiltered, which is the canvas's
+   * node catalogue; the difference is that nothing is being extended FROM, so
+   * the pick lands a detached node at `flow` instead of wiring it to a source.
+   */
+  const [addNodeAt, setAddNodeAt] = useState<{
+    x: number;
+    y: number;
+    flow: { x: number; y: number };
+  } | null>(null);
+
+  const handlePaneContextMenu = useCallback(
+    (event: React.MouseEvent | MouseEvent) => {
+      // Without this the empty canvas is the one surface still serving the
+      // browser's own menu while every node and wire serves ours.
+      event.preventDefault();
+      const screen = { x: event.clientX, y: event.clientY };
+      setPaneMenu({
+        ...screen,
+        flow: reactFlow.screenToFlowPosition(screen),
+      });
+    },
+    [reactFlow],
+  );
+
+  /**
+   * B-3 — every open canvas menu closes on a left click on the pane, on a
+   * node, or on a pan/zoom.
+   *
+   * Mantine's `closeOnClickOutside` cannot do this: it listens on document
+   * `mousedown`, and xyflow's pane runs d3-zoom/d3-drag, which calls
+   * `stopImmediatePropagation` on pane mousedown. So the menu closed when you
+   * clicked anywhere EXCEPT the canvas — which is the one place you click. The
+   * Mantine listener is kept (it still handles clicks on the surrounding
+   * chrome); these handlers cover what it cannot see.
+   */
+  const closeCanvasMenus = useCallback(() => {
+    setContextMenu(null);
+    setPaneMenu(null);
+    // The wire menu is the same kind of Mantine menu opened from the same kind
+    // of right-click, so it had the identical defect. Closing all three here
+    // keeps "a left click dismisses the menu" one rule rather than three.
+    setWireMenu(null);
+  }, []);
+
+  const arrangeFromPaneMenu = useCallback(() => {
+    closePaneMenu();
+    // Feed dagre each card's REAL rendered width from the live instance, as
+    // the top-bar Auto-arrange does — a narrow card should get a narrow slot.
+    const nodeWidths = new Map<string, number>();
+    for (const node of reactFlow.getNodes()) {
+      const width = node.measured?.width ?? node.width;
+      if (typeof width === "number" && width > 0)
+        nodeWidths.set(node.id, width);
+    }
+    const next = layoutGraphWithMapBodies(config, { nodeWidths });
+    onConfigChange(next);
+    // The host bumps `layoutNonce` for arranges IT starts; this one starts
+    // here, so apply the new positions to the rendered nodes directly —
+    // otherwise the layout persists to config and nothing moves (§4.2).
+    applyPositionsFromConfig(next);
+    setTimeout(() => {
+      reactFlow.fitView({ padding: 0.15, duration: 300 });
+    }, 0);
+  }, [
+    closePaneMenu,
+    reactFlow,
+    config,
+    onConfigChange,
+    applyPositionsFromConfig,
+  ]);
+
+  const fitViewFromPaneMenu = useCallback(() => {
+    closePaneMenu();
+    reactFlow.fitView({ padding: 0.15, duration: 300 });
+  }, [closePaneMenu, reactFlow]);
+
+  const selectAllFromPaneMenu = useCallback(() => {
+    closePaneMenu();
+    // Map-body container boxes are `selectable: false` decor — selecting them
+    // would put a box in the selection that no action can act on.
+    setInternalNodes((prev) =>
+      prev.map(
+        (n): FlowNode =>
+          n.selectable === false || n.selected ? n : { ...n, selected: true },
+      ),
+    );
+  }, [closePaneMenu, setInternalNodes]);
+
+  const openAddNodePicker = useCallback(() => {
+    if (!paneMenu) return;
+    setAddNodeAt(paneMenu);
+    setPaneMenu(null);
+  }, [paneMenu]);
+
+  const closeAddNodePicker = useCallback(() => setAddNodeAt(null), []);
+
+  /**
+   * P-4 — lands a picked node at the right-clicked point. Unlike
+   * `extendFromSource` there is no source to wire to and no position to
+   * derive: the author chose the spot. Adopting the node as `entryNodeId`
+   * when the graph has none mirrors the palette-add path — a first node that
+   * is not the entry point makes the workflow invalid on arrival.
+   */
+  const addNodeAtPoint = useCallback(
+    (newNode: GraphNode, position: { x: number; y: number }) => {
+      const placed: GraphNode = {
+        ...newNode,
+        metadata: { ...(newNode.metadata ?? {}), position },
+      };
+      onConfigChange({
+        ...config,
+        nodes: { ...config.nodes, [placed.id]: placed },
+        entryNodeId: config.entryNodeId === "" ? placed.id : config.entryNodeId,
+      });
+      onSelectNode(placed.id);
+    },
+    [config, onConfigChange, onSelectNode],
+  );
+
+  const handleAddNodePickActivity = useCallback(
+    (activityType: string) => {
+      if (!addNodeAt) return;
+      const { flow } = addNodeAt;
+      setAddNodeAt(null);
+      const entry = getActivityCatalogEntry(activityType);
+      // No port bindings: the auto-wire resolver owns input binding, and a
+      // stamped `ctxKey = portName` reads as a user-authored override it will
+      // never revisit. Same reasoning as the palette-add path.
+      const newNode: ActivityNode = {
+        id: makeUniqueNodeId("activity", config.nodes),
+        type: "activity",
+        label: entry?.displayName ?? activityType,
+        activityType,
+        inputs: [],
+        outputs: [],
+        parameters: {},
+      };
+      addNodeAtPoint(newNode, flow);
+    },
+    [addNodeAt, config.nodes, addNodeAtPoint],
+  );
+
+  const handleAddNodePickControlFlow = useCallback(
+    (controlFlowType: ControlFlowNodeType) => {
+      if (!addNodeAt) return;
+      const { flow } = addNodeAt;
+      setAddNodeAt(null);
+      const newId = makeUniqueNodeId(controlFlowType, config.nodes);
+      addNodeAtPoint(buildControlFlowSkeleton(controlFlowType, newId), flow);
+    },
+    [addNodeAt, config.nodes, addNodeAtPoint],
+  );
 
   /**
    * Picker-modal state — `null` when no swap is in progress, otherwise
@@ -3672,6 +3906,11 @@ function WorkflowEditorCanvasInner({
           onConnectEnd={handleConnectEnd}
           onNodeContextMenu={handleNodeContextMenu}
           onEdgeContextMenu={handleEdgeContextMenu}
+          onPaneContextMenu={handlePaneContextMenu}
+          // B-3 — the three gestures Mantine's click-away never sees.
+          onPaneClick={closeCanvasMenus}
+          onNodeClick={closeCanvasMenus}
+          onMove={closeCanvasMenus}
           onInit={(instance) =>
             // Cast away the typed-generic narrowing on the inner instance —
             // the host only needs the generic `ReactFlowInstance` surface
@@ -3718,6 +3957,31 @@ function WorkflowEditorCanvasInner({
           }
           groupLabel={contextMenuGroup?.group.label}
           onUngroup={contextMenuGroup ? ungroupFromContextMenu : undefined}
+        />
+      )}
+      {paneMenu && (
+        <PaneContextMenu
+          position={{ x: paneMenu.x, y: paneMenu.y }}
+          hasNodes={Object.keys(config.nodes).length > 0}
+          onClose={closePaneMenu}
+          onAddNode={openAddNodePicker}
+          onAutoArrange={arrangeFromPaneMenu}
+          onFitView={fitViewFromPaneMenu}
+          onSelectAll={selectAllFromPaneMenu}
+        />
+      )}
+      {/*
+        P-4 — "Add node here". The same catalogue the hover-extender shows,
+        unfiltered (nothing is being extended from, so no kind narrows it) and
+        with no gesture key, since there is one gesture and it ends on the pick.
+      */}
+      {addNodeAt && (
+        <HoverExtendPopover
+          opened
+          anchorPosition={{ x: addNodeAt.x, y: addNodeAt.y }}
+          onClose={closeAddNodePicker}
+          onPickActivity={handleAddNodePickActivity}
+          onPickControlFlow={handleAddNodePickControlFlow}
         />
       )}
       <WireContextMenu

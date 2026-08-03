@@ -171,10 +171,15 @@ function SummaryRow({ row, config, nodeId, onFix, onClose }: SummaryRowProps) {
     }
     case "locked": {
       const source = resolvePinnedSource(config, resolution.ctxKey);
+      // A typed-in constant reads back as its VALUE. Its ctx key is
+      // synthesised and hidden everywhere else, so printing it here would be
+      // the one place the author meets plumbing they never named (P-5).
       const sourceText =
         source.via === "producer"
           ? `← ${source.label}`
-          : `— from ${source.ctxKey}`;
+          : source.via === "constant"
+            ? `= ${source.value || "(empty)"}`
+            : `— from ${source.ctxKey}`;
       return (
         <Group gap={6} wrap="nowrap" data-testid={testId}>
           <Text size="xs">

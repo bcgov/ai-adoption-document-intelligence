@@ -1,5 +1,5 @@
 import { MantineProvider } from "@mantine/core";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
@@ -173,11 +173,12 @@ describe("InputsSection", () => {
     });
   });
 
-  it("does not render a row for OPTIONAL Artifact-kinded identifier ports, but renders required ones", () => {
+  it("folds OPTIONAL Artifact-kinded identifier ports out of the top-level list, but renders required ones", () => {
     // file.prepare has `fileName`, `fileType`, `contentType` (kind
-    // "Artifact", optional) which must stay invisible. `documentId` (kind
-    // "Artifact", REQUIRED) and `blobKey` (kind "Document", required) both
-    // now render as rows (ring/badge reconciliation, PORT_WIRING §4.2).
+    // "Artifact", optional), which P-5 moved behind the collapsed disclosure —
+    // present, but not on arrival. `documentId` (kind "Artifact", REQUIRED)
+    // and `blobKey` (kind "Document", required) both render as rows
+    // (ring/badge reconciliation, PORT_WIRING §4.2).
     const config: GraphWorkflowConfig = {
       schemaVersion: "1.0",
       metadata: { name: "t" },
@@ -1032,9 +1033,12 @@ describe("InputsSection", () => {
  * the panel, the badge and the drawer, with no way to see or undo it short of
  * the raw advanced-bindings editor.
  *
- * Hiding UNBOUND ones is deliberate (PORT_WIRING §4.2 — otherwise
- * `file.prepare` alone shows three always-empty rows). The fix is narrower:
- * hidden until it holds something.
+ * A port that HOLDS something is a top-level row. P-5 changed what happens to
+ * the rest: they are no longer absent, they are FOLDED behind the collapsed
+ * "N optional inputs" disclosure — so the panel is still short on arrival
+ * (`file.prepare` alone has three) without the card advertising a port the
+ * panel denies. These cases assert the top-level list; the disclosure has its
+ * own block below.
  */
 describe("InputsSection — G-046 bound optional identifier ports", () => {
   function filePrepare(
@@ -1058,7 +1062,7 @@ describe("InputsSection — G-046 bound optional identifier ports", () => {
     } as GraphWorkflowConfig;
   }
 
-  it("still hides an UNBOUND optional identifier port", () => {
+  it("keeps an UNBOUND optional identifier port out of the top-level list", () => {
     mount(
       <InputsSection
         config={filePrepare()}
@@ -1080,7 +1084,7 @@ describe("InputsSection — G-046 bound optional identifier ports", () => {
     expect(screen.getByText("File name")).toBeInTheDocument();
   });
 
-  it("leaves its siblings hidden — only the bound one appears", () => {
+  it("leaves its siblings folded — only the bound one appears at the top level", () => {
     mount(
       <InputsSection
         config={filePrepare([{ port: "fileName", ctxKey: "uploadName" }])}
@@ -1103,5 +1107,209 @@ describe("InputsSection — G-046 bound optional identifier ports", () => {
       />,
     );
     expect(screen.queryByText("File name")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * P-5 — constants on input rows (ruling R-3).
+ *
+ * Three surfaces, in the order they were built: the collapsed disclosure that
+ * makes optional identifier ports reachable at all, the inline value field
+ * that writes a hidden ctx entry, and the promotion that turns that entry into
+ * a named workflow input.
+ */
+describe("InputsSection — port constants (P-5)", () => {
+  function filePrepareNode(
+    overrides: Partial<GraphWorkflowConfig> = {},
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        A: {
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+        },
+      },
+      edges: [],
+      entryNodeId: "A",
+      ctx: {},
+      ...overrides,
+    } as GraphWorkflowConfig;
+  }
+
+  it("offers the optional ports behind a collapsed 'N optional inputs' disclosure", async () => {
+    const user = userEvent.setup();
+    mount(
+      <InputsSection
+        config={filePrepareNode()}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    // Folded on arrival: the count is visible, the rows are not.
+    expect(screen.getByText("3 optional inputs")).toBeInTheDocument();
+    expect(screen.queryByTestId("optional-inputs-list")).toBeNull();
+
+    await user.click(screen.getByTestId("optional-inputs-toggle"));
+    expect(screen.getByTestId("optional-inputs-list")).toBeInTheDocument();
+    expect(screen.getByText("File type")).toBeInTheDocument();
+  });
+
+  it("gives an optional row a value field placeholdered with its auto-detect note, and no red 'needs a source'", async () => {
+    const user = userEvent.setup();
+    mount(
+      <InputsSection
+        config={filePrepareNode()}
+        nodeId="A"
+        onConfigChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByTestId("optional-inputs-toggle"));
+    const field = screen.getByTestId("input-constant-fileType");
+    expect(field).toHaveValue("");
+    expect(field.getAttribute("placeholder")).toContain("Auto-detected");
+    // The badge and the validation drawer both decline to count optional
+    // identifier ports; the panel must not be the one surface calling them
+    // broken.
+    expect(
+      within(screen.getByTestId("input-row-actions-fileType")).queryByText(
+        /needs a source/i,
+      ),
+    ).toBeNull();
+  });
+
+  it("typing a value and blurring writes a hidden ctx entry with defaultValue and binds the port", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    mount(
+      <InputsSection
+        config={filePrepareNode()}
+        nodeId="A"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await user.click(screen.getByTestId("optional-inputs-toggle"));
+    await user.type(screen.getByTestId("input-constant-fileType"), "image");
+    // Commit is on blur, not per keystroke — one undo step, not five.
+    expect(onConfigChange).not.toHaveBeenCalled();
+    await user.tab();
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    const [ctxKey, declaration] = Object.entries(next.ctx)[0];
+    expect(ctxKey.startsWith("__const_")).toBe(true);
+    expect(ctxKey).not.toContain(".");
+    expect(declaration.defaultValue).toBe("image");
+    expect(next.nodes.A.inputs).toEqual([{ port: "fileType", ctxKey }]);
+  });
+
+  it("a row holding a constant reads as a Value at the top level, not as a pin to a __const key", () => {
+    const config = filePrepareNode({
+      ctx: { __const_A_fileType: { type: "string", defaultValue: "image" } },
+    });
+    config.nodes.A.inputs = [
+      { port: "fileType", ctxKey: "__const_A_fileType" },
+    ];
+    config.nodes.A.metadata = { lockedInputPorts: ["fileType"] };
+    mount(
+      <InputsSection config={config} nodeId="A" onConfigChange={vi.fn()} />,
+    );
+    // Top level, not behind the disclosure: it holds something.
+    expect(screen.getByText("File type")).toBeInTheDocument();
+    expect(screen.getByText("2 optional inputs")).toBeInTheDocument();
+    expect(screen.getByTestId("input-constant-fileType")).toHaveValue("image");
+    expect(screen.queryByText(/__const_A_fileType/)).toBeNull();
+  });
+
+  it("emptying the field removes the constant, the binding and the lock", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    const config = filePrepareNode({
+      ctx: { __const_A_fileType: { type: "string", defaultValue: "image" } },
+    });
+    config.nodes.A.inputs = [
+      { port: "fileType", ctxKey: "__const_A_fileType" },
+    ];
+    config.nodes.A.metadata = { lockedInputPorts: ["fileType"] };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="A"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await user.clear(screen.getByTestId("input-constant-fileType"));
+    await user.tab();
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.ctx).toEqual({});
+    expect(next.nodes.A.inputs).toEqual([]);
+    expect(next.nodes.A.metadata?.lockedInputPorts).toBeUndefined();
+  });
+
+  it("promotes a constant into a named workflow input with isInput and the value as its default", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    const config = filePrepareNode({
+      ctx: { __const_A_fileType: { type: "string", defaultValue: "image" } },
+    });
+    config.nodes.A.inputs = [
+      { port: "fileType", ctxKey: "__const_A_fileType" },
+    ];
+    config.nodes.A.metadata = { lockedInputPorts: ["fileType"] };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="A"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await openRowMenu(user, "fileType");
+    await user.click(
+      await screen.findByTestId("input-row-menu-fileType-promote"),
+    );
+    // Pre-filled with the port name; confirm as-is.
+    expect(screen.getByTestId("promote-constant-name")).toHaveValue("fileType");
+    await user.click(screen.getByTestId("promote-constant-confirm"));
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.ctx).toEqual({
+      fileType: { type: "string", defaultValue: "image", isInput: true },
+    });
+    expect(next.nodes.A.inputs).toEqual([
+      { port: "fileType", ctxKey: "fileType" },
+    ]);
+  });
+
+  it("refuses to promote onto a name that is already declared", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    const config = filePrepareNode({
+      ctx: {
+        __const_A_fileType: { type: "string", defaultValue: "image" },
+        fileType: { type: "string" },
+      },
+    });
+    config.nodes.A.inputs = [
+      { port: "fileType", ctxKey: "__const_A_fileType" },
+    ];
+    config.nodes.A.metadata = { lockedInputPorts: ["fileType"] };
+    mount(
+      <InputsSection
+        config={config}
+        nodeId="A"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await openRowMenu(user, "fileType");
+    await user.click(
+      await screen.findByTestId("input-row-menu-fileType-promote"),
+    );
+    expect(screen.getByText(/already declared/)).toBeInTheDocument();
+    expect(screen.getByTestId("promote-constant-confirm")).toBeDisabled();
+    expect(onConfigChange).not.toHaveBeenCalled();
   });
 });

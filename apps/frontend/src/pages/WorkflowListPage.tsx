@@ -251,9 +251,13 @@ export function WorkflowListPage() {
           >
             <DataTable.Thead>
               <DataTable.Tr>
-                <DataTable.Th>Name</DataTable.Th>
+                {/* Name and Description carry explicit widths so the name
+                    stops being squeezed by the fixed-size badge and date
+                    columns, and the description gets enough room for the
+                    two lines it is clamped to below. */}
+                <DataTable.Th w="25%">Name</DataTable.Th>
                 <DataTable.Th>Slug</DataTable.Th>
-                <DataTable.Th>Description</DataTable.Th>
+                <DataTable.Th w="35%">Description</DataTable.Th>
                 <DataTable.Th>Version</DataTable.Th>
                 <DataTable.Th>Schema</DataTable.Th>
                 <DataTable.Th>Created</DataTable.Th>
@@ -279,7 +283,12 @@ export function WorkflowListPage() {
                     <SlugChip slug={workflow.slug} />
                   </DataTable.Td>
                   <DataTable.Td>
-                    <Text c="dimmed" size="sm" lineClamp={1}>
+                    <Text
+                      c="dimmed"
+                      size="sm"
+                      lineClamp={2}
+                      data-testid="workflow-description"
+                    >
                       {workflow.description || "—"}
                     </Text>
                   </DataTable.Td>

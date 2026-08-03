@@ -34,6 +34,7 @@ import {
   Badge,
   Box,
   Button,
+  Divider,
   Drawer,
   Group,
   Loader,
@@ -41,8 +42,6 @@ import {
   Stack,
   Switch,
   Text,
-  TextInput,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
@@ -61,6 +60,7 @@ import {
   IconHelp,
   IconHistory,
   IconLayoutDistributeHorizontal,
+  IconMaximize,
   IconPlayerPlay,
   IconRewindBackward10,
   IconSettings,
@@ -69,6 +69,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactFlowInstance } from "@xyflow/react";
+import type { RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -90,6 +91,7 @@ import type {
 } from "../../types/workflow";
 import { configWantsArrangeOnLoad, nodesAllMeasured } from "./arrange-on-load";
 import {
+  configHasAnyPosition,
   layoutGraphIfMissingPositions,
   layoutGraphWithMapBodies,
 } from "./canvas/auto-layout";
@@ -144,6 +146,7 @@ import { validationButtonState } from "./validation/validation-button-label";
 import { CompareToHeadModal } from "./versioning/CompareToHeadModal";
 import { VersionHistoryDrawer } from "./versioning/VersionHistoryDrawer";
 import { WorkflowSwitcher } from "./WorkflowSwitcher";
+import { WorkflowTitleField } from "./WorkflowTitleField";
 
 /** Router-state payload accepted by /workflows/create when launched
  *  from the templates picker. */
@@ -167,17 +170,29 @@ interface WorkflowEditorV2PageProps {
   mode: "create" | "edit";
 }
 
+/** Notification id for the draft-save toast, so its own action can dismiss it. */
+const SAVED_DRAFT_TOAST_ID = "workflow-saved-draft";
+
 /**
  * Draft-save (UX walkthrough item 3): saving always persists, and the
  * backend's verdict decides the toast — green when clean, amber when the
  * saved config still has blocking issues. The amber copy names the count and
  * points at what stays gated (running), because "Saved" alone would read as
  * "ready to run".
+ *
+ * P-6 (2026-08-03): the amber toast used to paste up to three
+ * `path — message` pairs plus "…and N more" into the notification. That is
+ * validator output, not a message — the paths are internal (`nodes.b.inputs.
+ * fileData`), a toast cannot be scrolled, filtered or clicked through to the
+ * offending node, and it disappears on a timer. One user-facing line and a
+ * **Review issues** action instead: the ValidationDrawer is the surface built
+ * for the detail, and it is one click away rather than transcribed badly.
  */
 function showSavedToast(
   title: string,
   message: string,
   validation: WorkflowSaveValidation,
+  onReviewIssues: () => void,
 ): void {
   const errorCount = validation.errors.filter(
     (issue) => issue.severity !== "warning",
@@ -186,18 +201,31 @@ function showSavedToast(
     notifications.show({ color: "green", title, message });
     return;
   }
-  const shown = validation.errors
-    .filter((issue) => issue.severity !== "warning")
-    .slice(0, 3)
-    .map((issue) => `${issue.path} — ${issue.message}`)
-    .join("\n");
-  const more = errorCount > 3 ? `\n…and ${errorCount - 3} more.` : "";
   notifications.show({
+    id: SAVED_DRAFT_TOAST_ID,
     color: "yellow",
-    title: `${title} — ${errorCount} ${errorCount === 1 ? "issue remains" : "issues remain"}`,
-    message: `${message} The workflow cannot run until they are fixed:\n${shown}${more}`,
+    title: `${title} as a draft`,
+    message: (
+      <Stack gap={6} align="flex-start">
+        <Text size="sm">
+          {message} {errorCount} {errorCount === 1 ? "issue" : "issues"} to fix
+          before it can run.
+        </Text>
+        <Button
+          size="compact-xs"
+          variant="light"
+          color="yellow"
+          data-testid="saved-toast-review-issues"
+          onClick={() => {
+            notifications.hide(SAVED_DRAFT_TOAST_ID);
+            onReviewIssues();
+          }}
+        >
+          Review issues
+        </Button>
+      </Stack>
+    ),
     autoClose: 10_000,
-    style: { whiteSpace: "pre-line" },
   });
 }
 
@@ -212,20 +240,41 @@ function showSavedToast(
  */
 export function WorkflowEditorV2Page({ mode }: WorkflowEditorV2PageProps) {
   const { workflowId } = useParams<{ workflowId: string }>();
+  /**
+   * P-6 — "Review issues" on the draft-save toast has to outlive the remount
+   * below. Saving a NEW workflow navigates to its edit route, which changes
+   * the key and replaces the body, so an action that closed over the saving
+   * instance's state setter would already be a dead button by the time the
+   * toast is on screen. This ref is owned out here, where the remount cannot
+   * reach it; whichever body is mounted registers itself into it.
+   */
+  const openValidationDrawerRef = useRef<(() => void) | null>(null);
   return (
     <RunStateProvider workflowId={workflowId ?? ""}>
       {/*
         Keyed by workflowId so the in-editor workflow switcher (the UX reviewer
         walkthrough 2026-07-29) gets a clean remount when navigating between
-        two edit routes — name/description/config history are local state and
-        would otherwise survive the param change.
+        two edit routes — name/config history are local state and would
+        otherwise survive the param change.
       */}
-      <WorkflowEditorV2PageBody key={workflowId ?? "create"} mode={mode} />
+      <WorkflowEditorV2PageBody
+        key={workflowId ?? "create"}
+        mode={mode}
+        openValidationDrawerRef={openValidationDrawerRef}
+      />
     </RunStateProvider>
   );
 }
 
-function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
+interface WorkflowEditorV2PageBodyProps extends WorkflowEditorV2PageProps {
+  /** See `WorkflowEditorV2Page` — survives the keyed remount. */
+  openValidationDrawerRef: RefObject<(() => void) | null>;
+}
+
+function WorkflowEditorV2PageBody({
+  mode,
+  openValidationDrawerRef,
+}: WorkflowEditorV2PageBodyProps) {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId: string }>();
   const location = useLocation();
@@ -263,9 +312,6 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     : undefined;
 
   const [name, setName] = useState(incomingTemplate?.name ?? "New workflow");
-  const [description, setDescription] = useState(
-    incomingTemplate?.description ?? "",
-  );
   // US-050: when an incoming template has zero `metadata.position` values
   // across its nodes, run auto-layout once during initial hydration so
   // the editor doesn't open with everything stacked at the default
@@ -294,6 +340,16 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         )
       : EMPTY_CONFIG,
   );
+  /**
+   * P-3 / R-2 — the description left the top bar for the Workflow settings
+   * drawer, where it has room to wrap instead of truncating mid-word at 280px.
+   * It stopped being page state in the same move: `config.metadata.description`
+   * is the single source of truth now. That is where `handleSave` already
+   * mirrored it, where the templates picker already reads it from, and — the
+   * point — a field the settings drawer can edit through the `config` /
+   * `onConfigChange` pair it already has, exactly as version and tags do.
+   */
+  const description = config.metadata.description ?? "";
   const [selectedNodeId, setSelectedNodeIdState] = useState<string | null>(
     null,
   );
@@ -523,6 +579,36 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   >(null);
   const validation = useGraphValidation(config);
 
+  /**
+   * Open the ValidationDrawer on the FULL list — the top-bar validity button's
+   * action, and (P-6) the draft-save toast's "Review issues" action. Both mean
+   * "show me everything wrong with this graph", so both clear the node filter
+   * a canvas badge may have left behind.
+   */
+  const openValidationDrawer = useCallback(() => {
+    setValidationFocusNodeId(null);
+    setValidationFilterNodeId(null);
+    setValidationOpen(true);
+  }, []);
+  // Register this instance as the live opener (see `WorkflowEditorV2Page`).
+  useEffect(() => {
+    openValidationDrawerRef.current = openValidationDrawer;
+    return () => {
+      // Only clear what we put there — on a keyed remount the replacement
+      // registers before this cleanup runs, and it must not be wiped.
+      if (openValidationDrawerRef.current === openValidationDrawer) {
+        openValidationDrawerRef.current = null;
+      }
+    };
+  }, [openValidationDrawer, openValidationDrawerRef]);
+  /**
+   * The toast's action, routed through the ref so it always reaches whichever
+   * editor body is mounted when the user clicks it.
+   */
+  const reviewSavedIssues = useCallback(() => {
+    openValidationDrawerRef.current?.();
+  }, [openValidationDrawerRef]);
+
   // Render-time synthesis of map-body groups (Spec §6).
   // Synthetic entries are NEVER persisted; they're stripped from any config
   // update the canvas dispatches back through `onConfigChange`.
@@ -639,7 +725,8 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   );
 
   /**
-   * The top-bar **More ▸ Auto-arrange** action. A deliberate authoring edit —
+   * The top-bar **Auto-arrange** action (in the view group since P-3; it was
+   * behind More until 2026-08-03). A deliberate authoring edit —
    * the author asked for this layout and will reach for Ctrl+Z if they don't
    * like it — so it goes through `setConfig` and IS an undo step. Undoing it
    * restores the previous positions from the snapshot; it does not re-run the
@@ -649,6 +736,16 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     () => runAutoArrange(setConfig),
     [runAutoArrange, setConfig],
   );
+
+  /**
+   * P-3's "fit" control. Purely a viewport move — it stamps no positions, so
+   * unlike Auto-arrange it is not an edit and never enters the undo stack.
+   * The two sit together in the view group precisely because they are easy to
+   * confuse: one tidies the graph, the other only points the camera at it.
+   */
+  const handleFitView = useCallback(() => {
+    reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
+  }, []);
 
   /**
    * The config as last hydrated from the server (or as last saved). `isDirty`
@@ -751,7 +848,10 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     notifications.show({
       color: "green",
       title: "Grouped",
-      message: `${eligibleIds.length} steps grouped into a chip. Turn off More ▸ Simplified view to expand them again.`,
+      // P-3 moved the toggle out of the More menu, so the copy names where it
+      // actually is now — a toast that points at a menu item that isn't there
+      // is worse than no pointer at all.
+      message: `${eligibleIds.length} steps grouped into a chip. Turn off the Simplified toggle in the toolbar to expand them again.`,
     });
   }, [config, selectedNodeIds, setConfig]);
 
@@ -873,23 +973,62 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
   useEffect(() => {
     if (!isEditMode || !existingWorkflow) return;
     if (hasUnsavedChanges()) return;
-    const incoming = resolveBindings(
+    const hydrated = resolveBindings(
       normaliseLocks(layoutGraphIfMissingPositions(existingWorkflow.config)),
     );
+    // R-2 — the description is edited as `metadata.description` now, but the
+    // lineage's own `description` column is what the workflows list renders and
+    // what the API exposes, and a config written by something other than this
+    // editor (the agent, a direct API create) need not carry the mirror. Seed
+    // it from the column when the config has none, so opening and re-saving a
+    // workflow can never blank a description that was visible on the list.
+    const incoming: GraphWorkflowConfig =
+      hydrated.metadata.description === undefined &&
+      existingWorkflow.description
+        ? {
+            ...hydrated,
+            metadata: {
+              ...hydrated.metadata,
+              description: existingWorkflow.description,
+            },
+          }
+        : hydrated;
     lastHydratedConfigRef.current = incoming;
     setName(existingWorkflow.name);
-    setDescription(existingWorkflow.description ?? "");
     // G-003: `resetConfig` — adopting the server's copy is a lifecycle
     // update, not an author edit. Undo must never walk backwards INTO a
     // hydration; it walks back through what the author did.
     resetConfig(incoming);
-    // Demos ship with `metadata.arrangeOnLoad` so they open in the tidy
-    // measured-width Auto-arrange view without the viewer clicking the button.
-    // Fire once per workflow id, after the canvas measures the cards.
+    // Open in the tidy measured-width Auto-arrange view, once per workflow id,
+    // after the canvas has measured the cards.
+    //
+    // P-1 (2026-08-03) — two triggers, one behaviour:
+    //
+    //   1. `metadata.arrangeOnLoad`, which the demo seeder stamps.
+    //   2. ANY config that arrived from the server with no authored positions.
+    //
+    // (2) is the fix for "it loads more spread out than it should and gets
+    // better after I hit Auto-arrange". A position-less config is laid out
+    // during hydration by `layoutGraphIfMissingPositions`, which runs BEFORE
+    // anything is mounted and so has no measured widths — dagre gives every
+    // card the uniform `DEFAULT_NODE_WIDTH` fallback (482px). The top-bar
+    // button feeds dagre each card's REAL rendered width, which collapses the
+    // gaps to ~ranksep. Same graph, two layouts, and the loose one is the one
+    // you were shown. Re-running the measured pass after mount makes the
+    // opening view the one the button would have produced.
+    //
+    // Note this reads `existingWorkflow.config` — the RAW server copy. Reading
+    // `incoming` would always report positions, because hydration just stamped
+    // them.
+    //
+    // A workflow whose author saved a layout has positions, so (2) is false and
+    // nothing touches it. Both paths go through `handleArrangeOnLoad`, so
+    // neither is an undo step and neither marks the editor dirty.
     if (
       workflowId &&
       arrangedForRef.current !== workflowId &&
-      configWantsArrangeOnLoad(existingWorkflow.config)
+      (configWantsArrangeOnLoad(existingWorkflow.config) ||
+        !configHasAnyPosition(existingWorkflow.config))
     ) {
       arrangedForRef.current = workflowId;
       scheduleArrangeOnLoad();
@@ -1173,13 +1312,19 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         // the post-save hydration re-adopts the (now-saved) server config and
         // future agent writes can hydrate again.
         lastHydratedConfigRef.current = null;
-        showSavedToast("Saved", `Updated "${cleanedName}".`, saved.validation);
+        showSavedToast(
+          "Saved",
+          `Updated "${cleanedName}".`,
+          saved.validation,
+          reviewSavedIssues,
+        );
       } else {
         const created = await createWorkflow.mutateAsync(dto);
         showSavedToast(
           "Created",
           `Workflow "${cleanedName}" saved.`,
           created.validation,
+          reviewSavedIssues,
         );
         // G-027: re-baseline BEFORE navigating, or the leave-guard would
         // challenge the very navigation that follows a successful save.
@@ -1227,6 +1372,7 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
     isEditMode,
     name,
     navigate,
+    reviewSavedIssues,
     updateWorkflow,
     workflowId,
   ]);
@@ -1399,21 +1545,56 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           background: "var(--mantine-color-body, #1a1b1e)",
         }}
       >
-        <Stack
-          gap={2}
+        {/*
+          P-3 (ruling R-2, 2026-08-03) — one row, one baseline, four
+          divider-separated groups:
+
+            [ switcher · name ] │ [ find · simplified · arrange · fit ] │
+            [ undo/redo · validity ] │ [ Save · Try · Run · More ]
+
+          What it replaces: Name and Description as labelled `TextInput`s. Their
+          labels sat ABOVE them, so the row was ~1.5× taller than its buttons
+          needed and nothing shared a baseline; Description truncated mid-word
+          at 280px, unreadable while editing; and four consecutive input boxes
+          (switcher, Name, Description, find-a-node) read as one form, which
+          made node search look like workflow metadata. Name is a click-to-edit
+          title now and Description moved to Workflow settings, which is ~560px
+          reclaimed — enough room to bring the two mode controls out of the
+          overflow menu. The dividers are what say which group a control is in.
+
+          Simplified view and Auto-arrange left the More menu. Simplified view
+          changes what you are LOOKING at, which is not a menu item's job, and
+          Auto-arrange is used often enough that two clicks was one too many.
+          Both keep their `topbar-menu-*` testids: e2e reaches for them by id
+          and the id is a name, not an address.
+
+          The `topbar-zone-*` testids also survive the reshuffle —
+          `topbar-zone-right` now wraps BOTH right-hand groups, because the
+          validation e2e scopes its "Valid" / "1 warning" button lookup to it
+          to avoid colliding with the identically-labelled node badges.
+        */}
+        <Group
+          gap="xs"
+          wrap="nowrap"
           style={{ minWidth: 0, flexShrink: 0 }}
           data-testid="topbar-zone-left"
         >
-          <Title order={5} m={0}>
-            Workflow editor (visual)
-          </Title>
-          <Text size="xs" c="dimmed">
+          {/*
+              UX walkthrough 2026-07-29 — searchable switcher +
+              in-app way back to the list. The title beside it is the rename
+              affordance, so the switcher never has to double as one.
+            */}
+          <WorkflowSwitcher currentWorkflowId={workflowId ?? null} />
+          <WorkflowTitleField value={name} onChange={setName} />
+          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
             {nodeCount} node{nodeCount === 1 ? "" : "s"} · {config.edges.length}{" "}
             edge
             {config.edges.length === 1 ? "" : "s"}
             {isEditMode ? " · editing" : " · creating"}
           </Text>
-        </Stack>
+        </Group>
+
+        <TopBarDivider />
 
         <Group
           gap="xs"
@@ -1422,91 +1603,119 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
           data-testid="topbar-zone-center"
         >
           {/*
-              UX walkthrough 2026-07-29 — searchable switcher +
-              in-app way back to the list; renaming stays with the Name
-              field, so the switcher never has to double as the title.
-            */}
-          <WorkflowSwitcher currentWorkflowId={workflowId ?? null} />
-          <TextInput
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            size="xs"
-            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
-          />
-          <TextInput
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            size="xs"
-            style={{ flex: 1, minWidth: 160, maxWidth: 280 }}
-          />
-          {/*
-              G-009 — find a node in THIS graph. Sits beside the metadata
-              fields rather than in the palette, because the palette's search
-              answers the other question (what can I add?). Picking a result
-              goes through the batch-8 select+reveal helpers.
+              G-009 — find a node in THIS graph. Sits with the view controls
+              rather than in the palette, because the palette's search answers
+              the other question (what can I add?). Picking a result goes
+              through the batch-8 select+reveal helpers.
             */}
           <NodeSearchBox config={config} onSelectNode={selectAndRevealNode} />
+          <Switch
+            size="xs"
+            label="Simplified"
+            labelPosition="left"
+            checked={simplifiedView}
+            onChange={(e) =>
+              handleSimplifiedViewChange(e.currentTarget.checked)
+            }
+            aria-label="Toggle simplified view"
+            data-testid="simplified-view-toggle"
+            styles={{
+              track: { cursor: "pointer" },
+              label: { whiteSpace: "nowrap" },
+            }}
+            wrapperProps={{ "data-testid": "topbar-menu-simplified-view" }}
+          />
+          <Tooltip label="Auto-arrange the graph" withArrow>
+            <Button
+              variant="default"
+              size="xs"
+              px={8}
+              onClick={handleAutoArrange}
+              disabled={nodeCount === 0}
+              aria-label="Auto-arrange"
+              data-testid="topbar-menu-auto-arrange"
+              data-disabled={nodeCount === 0}
+            >
+              <IconLayoutDistributeHorizontal size={16} />
+            </Button>
+          </Tooltip>
+          <Tooltip label="Fit the whole graph in view" withArrow>
+            <Button
+              variant="default"
+              size="xs"
+              px={8}
+              onClick={handleFitView}
+              disabled={nodeCount === 0}
+              aria-label="Fit view"
+              data-testid="topbar-fit-view"
+              data-disabled={nodeCount === 0}
+            >
+              <IconMaximize size={16} />
+            </Button>
+          </Tooltip>
         </Group>
 
-        <Group gap="xs" wrap="nowrap" data-testid="topbar-zone-right">
-          <TopBarReplayIndicator
-            versionUnavailable={replayVersionUnavailable}
-          />
-          {/*
-              G-003 — visible undo/redo. The shortcuts exist too, but a
-              keyboard-only affordance is undiscoverable, which is the same
-              class of gap this batch closes.
-            */}
-          <Button.Group>
-            <Tooltip label="Undo (Ctrl+Z)" withArrow>
-              <Button
-                variant="default"
-                size="xs"
-                px={8}
-                onClick={undo}
-                disabled={!canUndo || isReplay}
-                aria-label="Undo"
-                data-testid="undo-button"
-              >
-                <IconArrowBackUp size={16} />
-              </Button>
-            </Tooltip>
-            <Tooltip label="Redo (Ctrl+Shift+Z)" withArrow>
-              <Button
-                variant="default"
-                size="xs"
-                px={8}
-                onClick={redo}
-                disabled={!canRedo || isReplay}
-                aria-label="Redo"
-                data-testid="redo-button"
-              >
-                <IconArrowForwardUp size={16} />
-              </Button>
-            </Tooltip>
-          </Button.Group>
-          <ValidationButton
-            errorCount={validation.errorCount}
-            warningCount={validation.warningCount}
-            isPending={validation.isPending}
-            onClick={() => {
-              setValidationFocusNodeId(null);
-              setValidationFilterNodeId(null);
-              setValidationOpen(true);
-            }}
-          />
-          <Button
-            leftSection={<IconDeviceFloppy size={14} />}
-            onClick={handleSave}
-            loading={isSaving}
-            size="xs"
-            data-testid="save-button"
-          >
-            Save
-          </Button>
-          {/*
+        <TopBarDivider />
+
+        <Group gap="sm" wrap="nowrap" data-testid="topbar-zone-right">
+          <Group gap="xs" wrap="nowrap" data-testid="topbar-group-state">
+            <TopBarReplayIndicator
+              versionUnavailable={replayVersionUnavailable}
+            />
+            {/*
+                G-003 — visible undo/redo. The shortcuts exist too, but a
+                keyboard-only affordance is undiscoverable, which is the same
+                class of gap this batch closes.
+              */}
+            <Button.Group>
+              <Tooltip label="Undo (Ctrl+Z)" withArrow>
+                <Button
+                  variant="default"
+                  size="xs"
+                  px={8}
+                  onClick={undo}
+                  disabled={!canUndo || isReplay}
+                  aria-label="Undo"
+                  data-testid="undo-button"
+                >
+                  <IconArrowBackUp size={16} />
+                </Button>
+              </Tooltip>
+              <Tooltip label="Redo (Ctrl+Shift+Z)" withArrow>
+                <Button
+                  variant="default"
+                  size="xs"
+                  px={8}
+                  onClick={redo}
+                  disabled={!canRedo || isReplay}
+                  aria-label="Redo"
+                  data-testid="redo-button"
+                >
+                  <IconArrowForwardUp size={16} />
+                </Button>
+              </Tooltip>
+            </Button.Group>
+            <ValidationButton
+              errorCount={validation.errorCount}
+              warningCount={validation.warningCount}
+              isPending={validation.isPending}
+              onClick={openValidationDrawer}
+            />
+          </Group>
+
+          <TopBarDivider />
+
+          <Group gap="xs" wrap="nowrap" data-testid="topbar-group-actions">
+            <Button
+              leftSection={<IconDeviceFloppy size={14} />}
+              onClick={handleSave}
+              loading={isSaving}
+              size="xs"
+              data-testid="save-button"
+            >
+              Save
+            </Button>
+            {/*
             Draft save (2026-08-02) made "why is Run off?" a question users
             actually ask — before it, an unrunnable graph could not be saved in
             the first place. A disabled button fires no pointer events, so
@@ -1515,148 +1724,123 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
             matters most. The inline-flex span is the hover target that does
             fire, so the tooltip works disabled or not.
           */}
-          {tryButtonVisible && (
-            <Tooltip label={runBlockedReason ?? "Run this graph now"}>
+            {tryButtonVisible && (
+              <Tooltip label={runBlockedReason ?? "Run this graph now"}>
+                <span style={{ display: "inline-flex" }}>
+                  <Button
+                    variant="filled"
+                    color="blue"
+                    leftSection={<IconBolt size={14} />}
+                    onClick={() => setRunDrawerMode("try")}
+                    size="xs"
+                    data-testid="try-button"
+                    disabled={runBlockedReason !== null}
+                  >
+                    Try
+                  </Button>
+                </span>
+              </Tooltip>
+            )}
+            <Tooltip
+              label={
+                runBlockedReason ??
+                "Open the run-trigger panel for this workflow"
+              }
+            >
               <span style={{ display: "inline-flex" }}>
                 <Button
-                  variant="filled"
-                  color="blue"
-                  leftSection={<IconBolt size={14} />}
-                  onClick={() => setRunDrawerMode("try")}
+                  variant="light"
+                  leftSection={<IconPlayerPlay size={14} />}
+                  onClick={() => setRunDrawerMode("run")}
                   size="xs"
-                  data-testid="try-button"
+                  data-testid="run-this-workflow-button"
                   disabled={runBlockedReason !== null}
                 >
-                  Try
+                  Run this workflow
                 </Button>
               </span>
             </Tooltip>
-          )}
-          <Tooltip
-            label={
-              runBlockedReason ?? "Open the run-trigger panel for this workflow"
-            }
-          >
-            <span style={{ display: "inline-flex" }}>
-              <Button
-                variant="light"
-                leftSection={<IconPlayerPlay size={14} />}
-                onClick={() => setRunDrawerMode("run")}
-                size="xs"
-                data-testid="run-this-workflow-button"
-                disabled={runBlockedReason !== null}
-              >
-                Run this workflow
-              </Button>
-            </span>
-          </Tooltip>
-          <Menu position="bottom-end" withArrow shadow="md">
-            <Menu.Target>
-              <Button
-                variant="light"
-                leftSection={<IconDots size={14} />}
-                size="xs"
-                data-testid="topbar-more-button"
-              >
-                More
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<IconHistory size={14} />}
-                disabled={!workflowId}
-                onClick={() => setHistoryDrawerOpen(true)}
-                data-testid="topbar-menu-history"
-                data-disabled={!workflowId}
-                title={!workflowId ? "Save the workflow first" : undefined}
-              >
-                History
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconClipboardList size={14} />}
-                disabled={!workflowId}
-                onClick={() => setRunHistoryDrawerOpen(true)}
-                data-testid="topbar-menu-run-history"
-                data-disabled={!workflowId}
-                title={!workflowId ? "Save the workflow first" : undefined}
-              >
-                Run history
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconBookmark size={14} />}
-                disabled={nodeCount === 0}
-                onClick={() => setSaveAsLibraryOpen(true)}
-                data-testid="topbar-menu-save-as-library"
-                data-disabled={nodeCount === 0}
-                title={
-                  nodeCount === 0
-                    ? "Add at least one node before saving as a library"
-                    : undefined
-                }
-              >
-                Save as library
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item
-                leftSection={<IconLayoutDistributeHorizontal size={14} />}
-                disabled={nodeCount === 0}
-                onClick={handleAutoArrange}
-                data-testid="topbar-menu-auto-arrange"
-                data-disabled={nodeCount === 0}
-              >
-                Auto-arrange
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconUsersGroup size={14} />}
-                disabled={selectedNodeIds.length < 2}
-                onClick={handleGroupSelected}
-                data-testid="topbar-menu-group-selected"
-                data-disabled={selectedNodeIds.length < 2}
-                title={
-                  selectedNodeIds.length < 2
-                    ? "Select 2+ nodes to group them"
-                    : undefined
-                }
-              >
-                Group selected
-              </Menu.Item>
-              <Menu.Item
-                leftSection={
-                  <Switch
-                    size="xs"
-                    checked={simplifiedView}
-                    onChange={(e) =>
-                      handleSimplifiedViewChange(e.currentTarget.checked)
-                    }
-                    aria-label="Toggle simplified view"
-                    data-testid="simplified-view-toggle"
-                    styles={{ track: { cursor: "pointer" } }}
-                  />
-                }
-                closeMenuOnClick={false}
-                data-testid="topbar-menu-simplified-view"
-              >
-                Simplified view
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item
-                leftSection={<IconSettings size={14} />}
-                onClick={() => setSettingsOpen(true)}
-                data-testid="topbar-menu-workflow-settings"
-              >
-                Workflow settings
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconHelp size={14} />}
-                component="a"
-                href="/workflows/dev-form-preview"
-                target="_blank"
-                data-testid="topbar-menu-form-preview"
-              >
-                Form preview
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
+            <Menu position="bottom-end" withArrow shadow="md">
+              <Menu.Target>
+                <Button
+                  variant="light"
+                  leftSection={<IconDots size={14} />}
+                  size="xs"
+                  data-testid="topbar-more-button"
+                >
+                  More
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                  leftSection={<IconHistory size={14} />}
+                  disabled={!workflowId}
+                  onClick={() => setHistoryDrawerOpen(true)}
+                  data-testid="topbar-menu-history"
+                  data-disabled={!workflowId}
+                  title={!workflowId ? "Save the workflow first" : undefined}
+                >
+                  History
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconClipboardList size={14} />}
+                  disabled={!workflowId}
+                  onClick={() => setRunHistoryDrawerOpen(true)}
+                  data-testid="topbar-menu-run-history"
+                  data-disabled={!workflowId}
+                  title={!workflowId ? "Save the workflow first" : undefined}
+                >
+                  Run history
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconBookmark size={14} />}
+                  disabled={nodeCount === 0}
+                  onClick={() => setSaveAsLibraryOpen(true)}
+                  data-testid="topbar-menu-save-as-library"
+                  data-disabled={nodeCount === 0}
+                  title={
+                    nodeCount === 0
+                      ? "Add at least one node before saving as a library"
+                      : undefined
+                  }
+                >
+                  Save as library
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconUsersGroup size={14} />}
+                  disabled={selectedNodeIds.length < 2}
+                  onClick={handleGroupSelected}
+                  data-testid="topbar-menu-group-selected"
+                  data-disabled={selectedNodeIds.length < 2}
+                  title={
+                    selectedNodeIds.length < 2
+                      ? "Select 2+ nodes to group them"
+                      : undefined
+                  }
+                >
+                  Group selected
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                  leftSection={<IconSettings size={14} />}
+                  onClick={() => setSettingsOpen(true)}
+                  data-testid="topbar-menu-workflow-settings"
+                >
+                  Workflow settings
+                </Menu.Item>
+                <Menu.Item
+                  leftSection={<IconHelp size={14} />}
+                  component="a"
+                  href="/workflows/dev-form-preview"
+                  target="_blank"
+                  data-testid="topbar-menu-form-preview"
+                >
+                  Form preview
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </Group>
         </Group>
       </Group>
 
@@ -1888,6 +2072,20 @@ function WorkflowEditorV2PageBody({ mode }: WorkflowEditorV2PageProps) {
         />
       </Box>
     </Stack>
+  );
+}
+
+/**
+ * The rule between two top-bar groups (P-3). Height is explicit because the
+ * bar's `<Group>` centres its children — a vertical `Divider` left to stretch
+ * in a centred flex row collapses to nothing.
+ */
+function TopBarDivider() {
+  return (
+    <Divider
+      orientation="vertical"
+      style={{ height: 24, alignSelf: "center" }}
+    />
   );
 }
 

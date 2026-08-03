@@ -18,6 +18,7 @@ import {
   shouldAutoWirePort,
 } from "@ai-di/graph-workflow";
 import type { GraphWorkflowConfig } from "../../../types/workflow";
+import { isConstCtxKey } from "./port-constants";
 
 /**
  * Decode the producer node ID from an auto ctx key of the form
@@ -48,7 +49,12 @@ export function decodeAutoProducerNodeId(ctxKey: string): string | null {
  */
 export type PinnedSource =
   | { via: "producer"; label: string }
-  | { via: "ctx"; ctxKey: string };
+  | { via: "ctx"; ctxKey: string }
+  // P-5 (2026-08-03): a value the author typed on the port row. Its ctx key is
+  // synthesised (`__const_{node}_{port}`) and deliberately hidden everywhere
+  // else, so echoing it back would show plumbing nobody chose a name for.
+  // Carry the VALUE instead — that is the thing the author actually set.
+  | { via: "constant"; value: string };
 
 export function resolvePinnedSource(
   config: GraphWorkflowConfig,
@@ -63,6 +69,13 @@ export function resolvePinnedSource(
     // Auto key, but the producer is gone or the key is undecodable: keep the
     // producer-style arrow and fall back to the raw key rather than blank.
     return { via: "producer", label: ctxKey };
+  }
+  if (isConstCtxKey(ctxKey)) {
+    const declared = config.ctx?.[ctxKey]?.defaultValue;
+    return {
+      via: "constant",
+      value: declared === undefined ? "" : String(declared),
+    };
   }
   return { via: "ctx", ctxKey };
 }
@@ -138,40 +151,63 @@ export interface WireableInputPort {
   name: string;
   label: string;
   kind?: KindRef;
+  /**
+   * The catalog descriptor's description. Carried because it is the port's
+   * own account of what happens when nothing is supplied — "Auto-detected
+   * from the extension if omitted" — which is exactly the placeholder an
+   * empty constant field wants (P-5).
+   */
+  description?: string;
 }
 
 export interface WireableInputRow {
   port: WireableInputPort;
   resolution: RowResolution;
+  /**
+   * True for rows admitted ONLY by `includeOptionalIdentifierPorts`: an
+   * optional base-`Artifact` port with nothing bound to it. The Inputs panel
+   * folds exactly these behind its collapsed "N optional inputs" disclosure.
+   * A row that holds something — a wire, a pin or a constant — is never
+   * `optional`, so setting a value on one moves it up into the main list.
+   */
+  optional: boolean;
+}
+
+export interface WireableInputRowOptions {
+  /**
+   * Include optional base-`Artifact` identifier ports that nothing is bound
+   * to, flagged `optional: true`. Off by default, and the default is what
+   * `ConnectSummaryPopover` takes: that surface narrates what a CONNECTION
+   * did, and an optional port nothing feeds has nothing to report — it would
+   * render "⚠ needs a source" for a port the node badge and the validation
+   * drawer both deliberately decline to count (`computeNodeInputIssues` skips
+   * optional identifier ports), making the popover the only surface calling a
+   * healthy node broken. The Inputs panel opts in because it is the surface
+   * that can accept an answer.
+   */
+  includeOptionalIdentifierPorts?: boolean;
 }
 
 /**
- * Resolves the wireable-input row set for `nodeId`: the same port
- * population InputsSection renders (`shouldAutoWirePort(p) || (p.kind ===
- * "Artifact" && p.required === true)`), each with its `effectiveResolution`.
+ * P-5 — which input ports the Inputs panel lets an author SEE and edit.
  *
- * Returns `[]` when the node doesn't exist, isn't an activity/pollUntil
- * node, has no catalog entry, or genuinely has zero wireable ports —
- * callers that need to distinguish "no such node" from "node with zero
- * wireable ports" should check those conditions themselves before calling.
- */
-/**
- * G-046 — which input ports the Inputs panel lets an author SEE and edit.
+ * `shouldAutoWirePort(p) || p.kind === "Artifact"` is the rule: every port the
+ * catalog declares with a kind gets a row, because every one of them owns an
+ * `in-<port>` canvas handle that `computePortRows` renders (port-rows.ts:161)
+ * complete with its kind and description. A card that advertises a port the
+ * only editable surface denies is the honesty gap R-3 closes.
  *
- * `shouldAutoWirePort(p) || (p.kind === "Artifact" && required)` is the
- * deliberate base rule (PORT_WIRING §4.2 ring/badge reconciliation): OPTIONAL
- * base-`Artifact` identifier ports stay hidden so the panel is not padded with
- * always-empty rows — `file.prepare` alone has three.
+ * What separates the two populations now is PROMINENCE, not existence.
+ * OPTIONAL base-`Artifact` identifier ports with nothing bound to them are
+ * returned flagged `optional` and folded behind a collapsed disclosure —
+ * `file.prepare` alone has three, and padding the open panel with always-empty
+ * rows is what the old exclusion was defending against. Folded, not hidden.
  *
- * The defect is narrower than "they are hidden". There are 26 such ports across
- * the catalog, and EVERY one owns an `in-<port>` canvas handle that
- * `computePortRows` renders and a user can drag onto — so a binding made by
- * dragging was invisible to the panel, the badge and the drawer, with no way to
- * see or undo it short of the raw advanced-bindings editor.
- *
- * So the rule is "hidden until it holds something". An unbound optional
- * identifier port stays out of the way; a bound one becomes visible and
- * editable, which is the only state where hiding it destroyed information.
+ * Anything that HOLDS something — G-046's dragged binding, or a P-5 constant —
+ * is never `optional`: it renders at the top level, which is the state where
+ * hiding it destroyed information (a binding made by dragging onto the handle
+ * was invisible to the panel, the badge and the drawer, undoable only through
+ * the raw advanced-bindings editor).
  *
  * Kindless ports stay excluded, and that is not a gap: zero of the catalog's
  * activities declare one, so the branch would have no population.
@@ -187,9 +223,32 @@ function isEditableInputPort(
   return port.required === true || boundPorts.has(port.name);
 }
 
+/** The foldable half of the population — see {@link isEditableInputPort}. */
+function isFoldableOptionalPort(
+  port: { name: string; kind?: string; required?: boolean },
+  boundPorts: ReadonlySet<string>,
+): boolean {
+  return (
+    port.kind === "Artifact" &&
+    port.required !== true &&
+    !boundPorts.has(port.name)
+  );
+}
+
+/**
+ * Resolves the wireable-input row set for `nodeId` — the port population
+ * described on {@link isEditableInputPort}, each with its
+ * `effectiveResolution`.
+ *
+ * Returns `[]` when the node doesn't exist, isn't an activity/pollUntil
+ * node, has no catalog entry, or genuinely has zero wireable ports —
+ * callers that need to distinguish "no such node" from "node with zero
+ * wireable ports" should check those conditions themselves before calling.
+ */
 export function resolveWireableInputRows(
   config: GraphWorkflowConfig,
   nodeId: string,
+  options: WireableInputRowOptions = {},
 ): WireableInputRow[] {
   const node = config.nodes[nodeId];
   if (node?.type === "map") return [resolveMapCollectionRow(config, node)];
@@ -202,8 +261,11 @@ export function resolveWireableInputRows(
   const boundPorts = new Set(
     (node.inputs ?? []).filter((b) => b.ctxKey).map((b) => b.port),
   );
-  const wireableInputs = entry.inputs.filter((p) =>
-    isEditableInputPort(p, boundPorts),
+  const wireableInputs = entry.inputs.filter(
+    (p) =>
+      isEditableInputPort(p, boundPorts) ||
+      (options.includeOptionalIdentifierPorts === true &&
+        isFoldableOptionalPort(p, boundPorts)),
   );
 
   return wireableInputs.map((port) => {
@@ -221,8 +283,16 @@ export function resolveWireableInputRows(
       config,
     );
     return {
-      port: { name: port.name, label: port.label, kind: portKind },
+      port: {
+        name: port.name,
+        label: port.label,
+        kind: portKind,
+        ...(port.description !== undefined
+          ? { description: port.description }
+          : {}),
+      },
       resolution,
+      optional: !isEditableInputPort(port, boundPorts),
     };
   });
 }
@@ -262,6 +332,9 @@ function resolveMapCollectionRow(
   const row = (resolution: RowResolution): WireableInputRow => ({
     port: MAP_COLLECTION_PORT,
     resolution,
+    // A map has exactly one input row and it is never foldable: `collection`
+    // is the port every body node depends on.
+    optional: false,
   });
   const locked = getLockedInputPorts(node).includes("collection");
   const ctxKey = node.collectionCtxKey;

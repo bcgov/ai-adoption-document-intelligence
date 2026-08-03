@@ -15,8 +15,15 @@
  *   - "Delete node" — always enabled; delegates to the existing canvas
  *     `handleNodesDelete` path via the supplied callback.
  *
- * Click-away closes the menu through Mantine's default `closeOnClickOutside`
- * behaviour, which fires `onChange(false)` — wired to `onClose`.
+ * Closing (B-3): Mantine's `closeOnClickOutside` is enabled and fires
+ * `onChange(false)` → `onClose`, but it cannot be the whole story. It listens
+ * on document `mousedown`, and xyflow's pane runs d3-zoom/d3-drag, which calls
+ * `stopImmediatePropagation` on pane mousedown — so the listener sees clicks on
+ * the chrome around the canvas and never sees a click on the canvas itself,
+ * which is where the author actually clicks. The canvas therefore closes this
+ * menu explicitly from `onPaneClick`, `onNodeClick` and `onMove`; the Mantine
+ * listener stays for everything outside the pane, and `closeOnEscape` for the
+ * keyboard.
  */
 
 import { Menu, Tooltip } from "@mantine/core";

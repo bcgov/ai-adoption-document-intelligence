@@ -37,8 +37,18 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconInfoCircle, IconStar, IconTrash } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import {
+  IconArrowMerge,
+  IconArrowsSplit,
+  IconExternalLink,
+  IconHandStop,
+  IconInfoCircle,
+  IconRefresh,
+  IconRoute,
+  IconStar,
+  IconTrash,
+} from "@tabler/icons-react";
+import { type ComponentType, useMemo, useState } from "react";
 import type {
   ActivityNode,
   GraphNode,
@@ -398,7 +408,7 @@ function NodeHeader({
       const hints = getActivityVisualHints(node.activityType);
       return {
         title: entry?.displayName ?? node.activityType,
-        icon: hints.icon,
+        Icon: hints.Icon,
         subtitle: node.activityType,
         description: hints.description,
       };
@@ -407,14 +417,14 @@ function NodeHeader({
       const hints = getSourceVisualHints(node.sourceType);
       return {
         title: node.label || hints.displayName,
-        icon: SOURCE_DISPLAY_ICON_GLYPH,
+        Icon: hints.Icon,
         subtitle: node.sourceType,
         description: hints.description,
       };
     }
     return {
       title: node.label || node.type,
-      icon: CONTROL_FLOW_ICONS[node.type],
+      Icon: CONTROL_FLOW_ICONS[node.type],
       subtitle: node.type,
       description: CONTROL_FLOW_DESCRIPTIONS[node.type],
     };
@@ -424,8 +434,8 @@ function NodeHeader({
     <Stack gap={4}>
       <ReplayModeWarning />
       <Group gap="xs" wrap="nowrap">
-        <Text size="lg" style={{ lineHeight: 1 }}>
-          {display.icon}
+        <Text span size="lg" style={{ lineHeight: 1 }} aria-hidden>
+          <display.Icon size={20} />
         </Text>
         <Title order={5} style={{ margin: 0 }}>
           {display.title}
@@ -483,23 +493,23 @@ function NodeHeader({
 }
 
 /**
- * Header-strip glyph for source nodes (US-118). The existing
- * `CONTROL_FLOW_ICONS` table uses emoji glyphs to match the activity
- * header's lightweight string-icon contract; source nodes follow suit
- * here until US-119 ships a dedicated source-settings shell.
+ * Header-strip icons for control-flow nodes. Tabler components, matching
+ * the activity header (`catalog-utils`), the source header
+ * (`source-catalog-utils`) and the palette's own control-flow table —
+ * every icon surface renders an SVG rather than a platform-dependent
+ * emoji glyph. Source nodes resolve their icon through the source
+ * catalog directly, so they need no table here.
  */
-const SOURCE_DISPLAY_ICON_GLYPH = "🛰";
-
 const CONTROL_FLOW_ICONS: Record<
   Exclude<GraphNode["type"], "activity" | "source">,
-  string
+  ComponentType<{ size?: number | string }>
 > = {
-  switch: "◆",
-  map: "⇉",
-  join: "⇇",
-  childWorkflow: "⊞",
-  pollUntil: "⟳",
-  humanGate: "🛂",
+  switch: IconRoute,
+  map: IconArrowsSplit,
+  join: IconArrowMerge,
+  childWorkflow: IconExternalLink,
+  pollUntil: IconRefresh,
+  humanGate: IconHandStop,
 };
 
 const CONTROL_FLOW_DESCRIPTIONS: Record<

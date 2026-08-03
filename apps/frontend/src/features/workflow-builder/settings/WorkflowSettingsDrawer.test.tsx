@@ -481,3 +481,103 @@ describe("WorkflowSettingsDrawer — G-065 run-contract consequence", () => {
     );
   });
 });
+
+/**
+ * P-5 — the drawer's half of constants-on-ports.
+ *
+ * The hidden `__const_*` declarations are ctx entries, and listing them here
+ * would turn every value typed onto a port row into a line in the workflow's
+ * vocabulary. The Default value field is the opposite move: the surface for a
+ * value worth naming and sharing, which is where a promoted constant lands.
+ */
+describe("WorkflowSettingsDrawer — P-5 constants and defaults", () => {
+  it("keeps hidden port constants out of the ctx list and its count", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: {
+            documentId: { type: "string" },
+            __const_n1_fileType: { type: "string", defaultValue: "image" },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByLabelText("Name for documentId")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name for __const_n1_fileType")).toBeNull();
+    // The count beside the section heading counts named declarations only.
+    expect(screen.getByText("1")).toBeInTheDocument();
+  });
+
+  it("refuses a rename onto a hidden constant's key, which the list cannot show", () => {
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: {
+            documentId: { type: "string" },
+            __const_n1_fileType: { type: "string", defaultValue: "image" },
+          },
+        })}
+      />,
+    );
+    const name = screen.getByLabelText("Name for documentId");
+    fireEvent.change(name, { target: { value: "__const_n1_fileType" } });
+    expect(screen.getByText(/already declared/)).toBeInTheDocument();
+  });
+
+  it("writes a string default verbatim on blur", () => {
+    const onConfig = vi.fn();
+    render(
+      <Harness
+        initial={makeConfig({ ctx: { fileType: { type: "string" } } })}
+        onConfig={onConfig}
+      />,
+    );
+    const field = screen.getByLabelText("Default value for fileType");
+    fireEvent.change(field, { target: { value: "image" } });
+    fireEvent.blur(field);
+    expect(onConfig).toHaveBeenCalledTimes(1);
+    expect(onConfig.mock.calls[0][0].ctx.fileType).toEqual({
+      type: "string",
+      defaultValue: "image",
+    });
+  });
+
+  it("parses a non-string default as JSON and reports a type mismatch instead of storing it", () => {
+    const onConfig = vi.fn();
+    render(
+      <Harness
+        initial={makeConfig({ ctx: { retries: { type: "number" } } })}
+        onConfig={onConfig}
+      />,
+    );
+    const field = screen.getByLabelText("Default value for retries");
+    fireEvent.change(field, { target: { value: '"3"' } });
+    fireEvent.blur(field);
+    expect(screen.getByText("Expected a number")).toBeInTheDocument();
+    expect(onConfig).not.toHaveBeenCalled();
+
+    fireEvent.change(field, { target: { value: "3" } });
+    fireEvent.blur(field);
+    expect(onConfig.mock.calls[0][0].ctx.retries).toEqual({
+      type: "number",
+      defaultValue: 3,
+    });
+  });
+
+  it("clearing the field strips defaultValue rather than storing an empty one", () => {
+    const onConfig = vi.fn();
+    render(
+      <Harness
+        initial={makeConfig({
+          ctx: { fileType: { type: "string", defaultValue: "image" } },
+        })}
+        onConfig={onConfig}
+      />,
+    );
+    const field = screen.getByLabelText("Default value for fileType");
+    expect(field).toHaveValue("image");
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.blur(field);
+    expect(onConfig.mock.calls[0][0].ctx.fileType).toEqual({ type: "string" });
+  });
+});

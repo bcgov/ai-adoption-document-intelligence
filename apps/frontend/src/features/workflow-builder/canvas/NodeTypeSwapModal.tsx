@@ -115,6 +115,7 @@ export function NodeTypeSwapModal({
                 </Text>
                 {entries.map((entry) => {
                   const hints = getActivityVisualHints(entry.activityType);
+                  const Icon = hints.Icon;
                   const isCurrent = entry.activityType === currentActivityType;
                   return (
                     <Group
@@ -143,7 +144,7 @@ export function NodeTypeSwapModal({
                       <Box style={{ minWidth: 0, flex: 1 }}>
                         <Group gap={6} wrap="nowrap">
                           <span aria-hidden style={{ pointerEvents: "none" }}>
-                            {hints.icon}
+                            <Icon size={14} />
                           </span>
                           <Text size="xs" fw={500} truncate>
                             {entry.displayName}

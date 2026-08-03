@@ -134,6 +134,72 @@ describe("resolveWireableInputRows — de-placeholdered drop", () => {
   });
 });
 
+describe("optional identifier ports (P-5)", () => {
+  /** `file.prepare` declares three optional base-`Artifact` ports. */
+  function loneprepare(): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "lone-prepare" },
+      ctx: {},
+      nodes: {
+        prep_1: {
+          id: "prep_1",
+          type: "activity",
+          label: "Prepare File",
+          activityType: "file.prepare",
+          inputs: [],
+          outputs: [],
+          parameters: {},
+        },
+      },
+      edges: [],
+      entryNodeId: "prep_1",
+    };
+  }
+
+  it("keeps them out of the DEFAULT population (what ConnectSummaryPopover reads)", () => {
+    const rows = resolveWireableInputRows(loneprepare(), "prep_1");
+    expect(rows.map((r) => r.port.name)).toEqual(["documentId", "blobKey"]);
+  });
+
+  it("returns them flagged `optional` when the caller opts in", () => {
+    const rows = resolveWireableInputRows(loneprepare(), "prep_1", {
+      includeOptionalIdentifierPorts: true,
+    });
+    const optional = rows.filter((r) => r.optional).map((r) => r.port.name);
+    expect(optional).toEqual(["fileName", "fileType", "contentType"]);
+    expect(rows.filter((r) => !r.optional).map((r) => r.port.name)).toEqual([
+      "documentId",
+      "blobKey",
+    ]);
+  });
+
+  it("carries the catalog description — the placeholder the value field needs", () => {
+    const rows = resolveWireableInputRows(loneprepare(), "prep_1", {
+      includeOptionalIdentifierPorts: true,
+    });
+    const fileType = rows.find((r) => r.port.name === "fileType");
+    expect(fileType?.port.description).toContain("Auto-detected");
+  });
+
+  it("promotes a port out of `optional` the moment it holds something", () => {
+    const config = loneprepare();
+    config.ctx = { fileTypeConst: { type: "string", defaultValue: "image" } };
+    const prep = config.nodes.prep_1;
+    if (prep.type === "activity") {
+      prep.inputs = [{ port: "fileType", ctxKey: "fileTypeConst" }];
+    }
+    const rows = resolveWireableInputRows(config, "prep_1", {
+      includeOptionalIdentifierPorts: true,
+    });
+    const fileType = rows.find((r) => r.port.name === "fileType");
+    expect(fileType?.optional).toBe(false);
+    // Bound optional ports were already in the base population (G-046), so
+    // opting in must not change how they resolve.
+    expect(fileType?.resolution.status).toBe("ctx-bound");
+  });
+});
+
 describe("decodeAutoProducerNodeId", () => {
   it("returns the producer nodeId for a standard auto key", () => {
     expect(decodeAutoProducerNodeId("__auto.prep.preparedData")).toBe("prep");
