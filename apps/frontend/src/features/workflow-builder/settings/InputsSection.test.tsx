@@ -1158,7 +1158,7 @@ describe("InputsSection — port constants (P-5)", () => {
     expect(screen.getByText("File type")).toBeInTheDocument();
   });
 
-  it("gives an optional row a value field placeholdered with its auto-detect note, and no red 'needs a source'", async () => {
+  it("gives an optional row a value field with its auto-detect note as helper text, and no red 'needs a source'", async () => {
     const user = userEvent.setup();
     mount(
       <InputsSection
@@ -1170,7 +1170,13 @@ describe("InputsSection — port constants (P-5)", () => {
     await user.click(screen.getByTestId("optional-inputs-toggle"));
     const field = screen.getByTestId("input-constant-fileType");
     expect(field).toHaveValue("");
-    expect(field.getAttribute("placeholder")).toContain("Auto-detected");
+    // D-2 — the description used to be the placeholder, where it was always
+    // truncated. It is helper text under the field now, so it can wrap and be
+    // read; the placeholder is a short generic prompt.
+    expect(field.getAttribute("placeholder")).toBe("Type a value");
+    expect(
+      screen.getByTestId("input-constant-help-fileType").textContent,
+    ).toContain("Auto-detected");
     // The badge and the validation drawer both decline to count optional
     // identifier ports; the panel must not be the one surface calling them
     // broken.
@@ -1178,6 +1184,60 @@ describe("InputsSection — port constants (P-5)", () => {
       within(screen.getByTestId("input-row-actions-fileType")).queryByText(
         /needs a source/i,
       ),
+    ).toBeNull();
+  });
+
+  /**
+   * D-2 (2026-08-03) — the field used to render on a second grid line indented
+   * into the source column, which capped it at that column's width: measured
+   * in the running panel, 159px of a 327px panel, starting at x=132, never
+   * beside its own label. It now spans the block, and committing a value —
+   * which moves the row from the optional disclosure into the main list —
+   * changes none of that.
+   */
+  it("D-2: the field is not indented into the source column, before OR after commit", async () => {
+    const user = userEvent.setup();
+    const onConfigChange = vi.fn();
+    const { rerender } = mount(
+      <InputsSection
+        config={filePrepareNode()}
+        nodeId="A"
+        onConfigChange={onConfigChange}
+      />,
+    );
+    await user.click(screen.getByTestId("optional-inputs-toggle"));
+
+    // The field lives in the row's own field block, NOT in a grid cell offset
+    // by the 124px label column.
+    const block = screen.getByTestId("input-field-block-fileType");
+    expect(block).toContainElement(
+      screen.getByTestId("input-constant-fileType"),
+    );
+    expect(
+      screen.getByTestId("input-constant-fileType").closest("[style*='124px']"),
+    ).toBeNull();
+
+    await user.type(screen.getByTestId("input-constant-fileType"), "pdf");
+    await user.tab();
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+
+    // Re-render with the committed config: the row is now a required-list row
+    // holding a Value, and the field keeps the same treatment.
+    rerender(
+      <MantineProvider>
+        <InputsSection
+          config={next}
+          nodeId="A"
+          onConfigChange={onConfigChange}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("input-field-block-fileType")).toContainElement(
+      screen.getByTestId("input-constant-fileType"),
+    );
+    expect(
+      screen.getByTestId("input-constant-fileType").closest("[style*='124px']"),
     ).toBeNull();
   });
 

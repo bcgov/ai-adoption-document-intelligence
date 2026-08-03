@@ -819,28 +819,55 @@ function PortRow({
 
   if (!showConstantField) return row;
 
+  /**
+   * D-2 — a row that can hold a typed value is a LABELLED FIELD, not a row
+   * with something tacked underneath.
+   *
+   * It used to put the input on a second grid line indented into the middle
+   * column, which capped it at the source column's width: measured on a fresh
+   * `file.prepare`, a 327px panel gave a 159px field starting at x=132, under
+   * half the space available and never beside its own label. Committing the
+   * value moved the row up into the required list and changed none of that.
+   *
+   * So the field spans the full width instead, and the two lines are bonded
+   * into one visual unit by a tinted, indented block — label and control read
+   * as belonging together without a second label repeating the port name. The
+   * port's description moves out of the placeholder (where it was always
+   * truncated — `` `pdf` or `image`. Auto-det… ``) into helper text under the
+   * field, where it can wrap.
+   */
   return (
-    <Stack gap={2}>
+    <Stack gap={4} data-testid={`input-field-block-${portName}`}>
       {row}
-      {/* Second line, on the same three-column grid so the field starts under
-          the source column rather than under the label. */}
       <Box
         style={{
-          display: "grid",
-          gridTemplateColumns: "124px minmax(0, 1fr) auto",
-          columnGap: 8,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+          // Indented and ruled off so the field is visibly subordinate to the
+          // row above it — the cue that says "this belongs to that label".
+          marginLeft: 8,
+          paddingLeft: 8,
+          borderLeft: "2px solid var(--mantine-color-default-border, #373A40)",
         }}
       >
-        <Box />
         <ConstantValueField
           portName={portName}
           portLabel={portLabel}
-          placeholder={portDescription ?? "Type a value"}
           value={constantValue}
           onCommit={onConstantCommit}
           onClear={onConstantClear}
         />
-        <Box style={{ width: 28 }} />
+        {portDescription && (
+          <Text
+            size="10px"
+            c="dimmed"
+            style={{ lineHeight: 1.35 }}
+            data-testid={`input-constant-help-${portName}`}
+          >
+            {portDescription}
+          </Text>
+        )}
       </Box>
     </Stack>
   );
@@ -849,7 +876,6 @@ function PortRow({
 interface ConstantValueFieldProps {
   portName: string;
   portLabel: string;
-  placeholder: string;
   value: string | null;
   onCommit: (value: string) => void;
   onClear: () => void;
@@ -858,18 +884,20 @@ interface ConstantValueFieldProps {
 /**
  * The inline value field (P-5 step 2).
  *
- * Empty by default, with the port's own auto-detect note as placeholder, so
- * the row states what happens if you type nothing and accepts an answer if you
- * do. Edits are held locally and committed on BLUR (or Enter), never per
+ * Edits are held locally and committed on BLUR (or Enter), never per
  * keystroke, for two reasons: every commit is an `onConfigChange` and so an
  * undo step, and a committed value moves the row out of the optional
  * disclosure into the main list — which remounts this field, and would take
  * the caret with it mid-word.
+ *
+ * D-2 — the placeholder is a short, generic prompt. It used to be the port's
+ * own description, which is a sentence and was therefore always truncated to
+ * something like `` `pdf` or `image`. Auto-det… ``; that text is now helper
+ * text under the field, where it can wrap and be read.
  */
 function ConstantValueField({
   portName,
   portLabel,
-  placeholder,
   value,
   onCommit,
   onClear,
@@ -892,8 +920,9 @@ function ConstantValueField({
   return (
     <TextInput
       size="xs"
-      placeholder={placeholder}
+      placeholder="Type a value"
       value={draft}
+      style={{ width: "100%" }}
       aria-label={`Value for ${portLabel}`}
       data-testid={`input-constant-${portName}`}
       onChange={(e) => setDraft(e.currentTarget.value)}
