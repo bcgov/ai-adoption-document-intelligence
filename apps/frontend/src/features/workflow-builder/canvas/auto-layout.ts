@@ -49,8 +49,12 @@ import type { graphlib } from "dagre";
 // actually use inline below to keep this file `any`-free.
 // eslint-disable-next-line import/extensions
 import dagreLib from "dagre-esm/dist/dagre.esm.js";
-import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
-import { projectGroupedConfig, readNodePosition } from "./group-projection";
+import type {
+  GraphNode,
+  GraphWorkflowConfig,
+  NodeGroup,
+} from "../../../types/workflow";
+import { projectGroupedConfig } from "./group-projection";
 import {
   isSyntheticMapBodyGroupId,
   mergeNodeGroups,
@@ -321,13 +325,20 @@ export function layoutGraphWithMapBodies(
  * to chip ids; dagre collapses the duplicates that remapping creates, since a
  * non-multigraph keys edges by their endpoint pair).
  *
- * Members then move as a rigid body: each group's members are translated by
- * the delta its chip travelled, so INTERNAL geometry survives untouched and
- * expanding after an arrange shows the same arrangement, relocated. What it
- * does NOT guarantee is that an expanded group clears its neighbours — the
- * chip reserved a chip-sized slot, not a group-sized one. Reserving the
- * members' bounding box instead would push the visible chips apart by the
- * size of things nobody can see, which is the worse trade.
+ * W-1 — the result is written to the SIMPLIFIED view's own geometry and
+ * nowhere else: chip placements land on `nodeGroups[<id>].position`, ungrouped
+ * nodes on `metadata.simplifiedPosition`, and grouped members are not touched
+ * at all. The two views therefore keep independent arrangements.
+ *
+ * The rejected alternative was to translate each group's members by the delta
+ * its chip travelled, keeping one shared set of positions. It cannot work: a
+ * chip reserves a chip-sized slot, so its members — which are far bigger than
+ * the chip standing in for them — land on top of whatever dagre packed next to
+ * that slot, and because the result is persisted the expanded canvas is
+ * permanently damaged by an arrange the author performed in a different view.
+ * Reserving the members' bounding box instead would fix the overlap by pushing
+ * the visible chips apart by the size of things nobody can see, which removes
+ * the reason to use this view at all.
  *
  * Chip box sizes come from `options.nodeWidths` exactly as measured card
  * widths do — chips are real xyflow nodes, so the Auto-arrange entry points'
@@ -340,20 +351,6 @@ export function layoutGraphSimplified(
   options: LayoutGraphOptions = {},
 ): GraphWorkflowConfig {
   const projected = projectGroupedConfig(config);
-
-  // Nothing is collapsed — simplified view is showing exactly what the
-  // expanded view shows, so it gets exactly the expanded layout.
-  if (projected.chips.length === 0) {
-    return layoutGraphWithMapBodies(config, options);
-  }
-  // A translation needs something to translate FROM. With no authored
-  // geometry anywhere there is no intra-group arrangement to preserve (every
-  // member reads the same fallback position and the chips would stack their
-  // members on one point), so lay out the member graph and let the centroids
-  // become real.
-  if (!configHasAnyPosition(config)) {
-    return layoutGraphWithMapBodies(config, options);
-  }
 
   const boxes: LayoutBox[] = projected.visibleNodes.map((node) => ({
     id: node.id,
@@ -388,40 +385,36 @@ export function layoutGraphSimplified(
     options,
   );
 
-  const nextPositions = new Map<string, { x: number; y: number }>();
-  for (const node of projected.visibleNodes) {
-    const position = placed.get(node.id);
-    if (position) nextPositions.set(node.id, position);
-  }
-  for (const chip of projected.chips) {
-    const position = placed.get(chip.id);
-    if (!position) continue;
-    // The chip's own travel, applied uniformly to its members. `chip.position`
-    // is the centroid the projection derived from these same members, read
-    // through `readNodePosition` — so the same reader has to supply the
-    // "before" here or the members would drift off their chip.
-    const dx = position.x - chip.position.x;
-    const dy = position.y - chip.position.y;
-    for (const memberId of chip.memberNodeIds) {
-      const member = config.nodes[memberId];
-      if (!member) continue;
-      const from = readNodePosition(member);
-      nextPositions.set(memberId, { x: from.x + dx, y: from.y + dy });
-    }
-  }
-
+  // W-1 — write ONLY the simplified view's own geometry. `placed` holds a
+  // position for each visible box and for nothing else: grouped members were
+  // never registered, so their `metadata.position` cannot be touched here even
+  // by accident, and the expanded canvas survives an arrange in this view.
   const nextNodes: Record<string, GraphNode> = {};
   for (const [nodeId, node] of Object.entries(config.nodes)) {
-    const position = nextPositions.get(nodeId);
-    nextNodes[nodeId] = position
+    const simplifiedPosition = placed.get(nodeId);
+    nextNodes[nodeId] = simplifiedPosition
       ? ({
           ...node,
-          metadata: { ...(node.metadata ?? {}), position },
+          metadata: { ...(node.metadata ?? {}), simplifiedPosition },
         } as GraphNode)
       : node;
   }
 
-  return { ...config, nodes: nextNodes };
+  // Each chip's placement lands on its group, which is where the simplified
+  // view reads it back from (`projectGroupedConfig`).
+  const nextGroups: Record<string, NodeGroup> = {
+    ...(config.nodeGroups ?? {}),
+  };
+  for (const chip of projected.chips) {
+    const position = placed.get(chip.id);
+    const group = nextGroups[chip.groupId];
+    if (!position || !group) continue;
+    nextGroups[chip.groupId] = { ...group, position };
+  }
+
+  return projected.chips.length > 0
+    ? { ...config, nodes: nextNodes, nodeGroups: nextGroups }
+    : { ...config, nodes: nextNodes };
 }
 
 /**

@@ -75,26 +75,71 @@ export function groupIdFromChipId(nodeId: string): string | null {
  * The position a projection reads off a node — its authored
  * `metadata.position`, or `FALLBACK_POSITION` when it has never been placed.
  *
- * Exported because the simplified-view auto-layout (`layoutGraphSimplified`)
- * translates each group's members by their chip's delta, and the "before"
- * it subtracts must be the SAME reading the centroid was built from. Two
- * readers with two fallbacks would drift the members off their chip.
+ * Exported because several callers must read a node's placement through the
+ * same fallback: two readers with two fallbacks would disagree about where an
+ * unplaced node is.
  */
 export function readNodePosition(node: GraphNode | undefined): {
   x: number;
   y: number;
 } {
   if (!node) return { ...FALLBACK_POSITION };
-  const fromMeta = (node.metadata as { position?: { x: number; y: number } })
-    ?.position;
-  if (
-    fromMeta &&
-    typeof fromMeta.x === "number" &&
-    typeof fromMeta.y === "number"
-  ) {
-    return { x: fromMeta.x, y: fromMeta.y };
+  return readPositionField(node, "position") ?? { ...FALLBACK_POSITION };
+}
+
+/**
+ * Where a node sits in the SIMPLIFIED view (W-1). The two views keep separate
+ * arrangements, so an ungrouped node has two placements: `metadata.position`
+ * for the expanded canvas and `metadata.simplifiedPosition` for this one.
+ *
+ * Falls back to the expanded position when the simplified view has never been
+ * arranged, so the first visit to that view shows the graph where the author
+ * last left it rather than collapsed onto the fallback point.
+ */
+export function readSimplifiedNodePosition(node: GraphNode | undefined): {
+  x: number;
+  y: number;
+} {
+  if (!node) return { ...FALLBACK_POSITION };
+  return (
+    readPositionField(node, "simplifiedPosition") ?? readNodePosition(node)
+  );
+}
+
+/** Reads one `{x, y}` field out of a node's untyped `metadata` bag. */
+function readPositionField(
+  node: GraphNode,
+  field: "position" | "simplifiedPosition",
+): { x: number; y: number } | null {
+  const value = (
+    node.metadata as
+      | Record<string, { x?: number; y?: number } | undefined>
+      | undefined
+  )?.[field];
+  if (value && typeof value.x === "number" && typeof value.y === "number") {
+    return { x: value.x, y: value.y };
   }
-  return { ...FALLBACK_POSITION };
+  return null;
+}
+
+/**
+ * Centroid of the members' EXPANDED positions — where a chip sits when its
+ * group has never been placed in the simplified view. This is what every chip
+ * did before groups carried a position of their own.
+ */
+function memberCentroid(
+  config: GraphWorkflowConfig,
+  nodeIds: readonly string[],
+): { x: number; y: number } {
+  const positions = nodeIds.map((id) => readNodePosition(config.nodes[id]));
+  const count = positions.length || 1;
+  let sumX = 0;
+  let sumY = 0;
+  for (const p of positions) {
+    sumX += p.x;
+    sumY += p.y;
+  }
+  return { x: sumX / count, y: sumY / count };
 }
 
 export function projectGroupedConfig(
@@ -132,19 +177,10 @@ export function projectGroupedConfig(
     if (!nodeToGroup[node.id]) visibleNodes.push(node);
   }
 
-  // Chips — one per group, positioned at the centroid of member positions.
+  // Chips — one per group, at the group's own simplified-view position when it
+  // has one (W-1), else at the centroid of its members' expanded positions.
   const chips: GroupChip[] = groupIds.map((groupId) => {
     const group = groups[groupId];
-    const positions = group.nodeIds.map((id) =>
-      readNodePosition(config.nodes[id]),
-    );
-    const count = positions.length || 1;
-    let sumX = 0;
-    let sumY = 0;
-    for (const p of positions) {
-      sumX += p.x;
-      sumY += p.y;
-    }
     return {
       id: chipIdForGroup(groupId),
       groupId,
@@ -152,7 +188,9 @@ export function projectGroupedConfig(
       icon: group.icon,
       color: group.color,
       nodeCount: group.nodeIds.length,
-      position: { x: sumX / count, y: sumY / count },
+      position: group.position
+        ? { ...group.position }
+        : memberCentroid(config, group.nodeIds),
       memberNodeIds: [...group.nodeIds],
     };
   });

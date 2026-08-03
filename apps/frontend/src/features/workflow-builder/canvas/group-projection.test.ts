@@ -18,6 +18,8 @@ import {
   chipIdForGroup,
   groupIdFromChipId,
   projectGroupedConfig,
+  readNodePosition,
+  readSimplifiedNodePosition,
 } from "./group-projection";
 
 // ---------------------------------------------------------------------------
@@ -313,5 +315,72 @@ describe("projectGroupedConfig", () => {
     expect(result.visibleEdges).toEqual([
       { id: "e1", source: "a", target: "b", type: "normal" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W-1 — the simplified view keeps its own arrangement, so a group carries the
+// position of its chip. The centroid remains the fallback for every workflow
+// authored before that field existed.
+// ---------------------------------------------------------------------------
+
+describe("projectGroupedConfig — chip placement (W-1)", () => {
+  const fixture = (group: NodeGroup) =>
+    makeConfig({
+      nodes: [
+        makeActivity("a", { x: 0, y: 0 }),
+        makeActivity("b", { x: 200, y: 100 }),
+      ],
+      edges: [],
+      nodeGroups: { g1: group },
+    });
+
+  it("uses the group's stored position when it has one", () => {
+    const result = projectGroupedConfig(
+      fixture({
+        label: "G1",
+        nodeIds: ["a", "b"],
+        position: { x: 900, y: -50 },
+      }),
+    );
+    expect(result.chips[0].position).toEqual({ x: 900, y: -50 });
+  });
+
+  it("falls back to the member centroid when the group has none", () => {
+    const result = projectGroupedConfig(
+      fixture({ label: "G1", nodeIds: ["a", "b"] }),
+    );
+    expect(result.chips[0].position).toEqual({ x: 100, y: 50 });
+  });
+
+  it("does not alias the stored position — moving the chip cannot mutate the config", () => {
+    const config = fixture({
+      label: "G1",
+      nodeIds: ["a", "b"],
+      position: { x: 10, y: 20 },
+    });
+    const chip = projectGroupedConfig(config).chips[0];
+    chip.position.x = 999;
+    expect(config.nodeGroups?.g1.position).toEqual({ x: 10, y: 20 });
+  });
+});
+
+describe("readSimplifiedNodePosition — W-1", () => {
+  it("prefers the simplified position", () => {
+    const node = makeActivity("a", { x: 1, y: 2 });
+    node.metadata = { ...node.metadata, simplifiedPosition: { x: 7, y: 8 } };
+    expect(readSimplifiedNodePosition(node)).toEqual({ x: 7, y: 8 });
+  });
+
+  it("falls back to the expanded position, so the first visit to the view is not a jumble", () => {
+    expect(
+      readSimplifiedNodePosition(makeActivity("a", { x: 1, y: 2 })),
+    ).toEqual({ x: 1, y: 2 });
+  });
+
+  it("falls back again to the shared unplaced fallback", () => {
+    expect(readSimplifiedNodePosition(makeActivity("a"))).toEqual(
+      readNodePosition(makeActivity("a")),
+    );
   });
 });

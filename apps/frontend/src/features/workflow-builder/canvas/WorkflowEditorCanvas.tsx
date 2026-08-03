@@ -122,6 +122,7 @@ import {
   type GroupChip,
   groupIdFromChipId,
   projectGroupedConfig,
+  readSimplifiedNodePosition,
 } from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
 import {
@@ -1757,6 +1758,22 @@ function projectChipFlowNodes(
   }));
 }
 
+/**
+ * W-1 — a copy of `node` whose `metadata.position` is where it sits in the
+ * SIMPLIFIED view. The two views keep separate arrangements, and every
+ * downstream projection reads `metadata.position`, so the substitution happens
+ * once here rather than teaching each of them about a second field.
+ */
+function atSimplifiedPosition(node: GraphNode): GraphNode {
+  return {
+    ...node,
+    metadata: {
+      ...(node.metadata ?? {}),
+      position: readSimplifiedNodePosition(node),
+    },
+  } as GraphNode;
+}
+
 /** Breathing room between the members' bounding box and the container's edge. */
 const GROUP_CONTAINER_PAD = 40;
 
@@ -2193,7 +2210,9 @@ function WorkflowEditorCanvasInner({
       const projected = projectGroupedConfig(config);
       const visibleConfig: GraphWorkflowConfig = {
         ...config,
-        nodes: Object.fromEntries(projected.visibleNodes.map((n) => [n.id, n])),
+        nodes: Object.fromEntries(
+          projected.visibleNodes.map((n) => [n.id, atSimplifiedPosition(n)]),
+        ),
       };
       const normalNodes = projectFlowNodes(
         visibleConfig,
@@ -2284,16 +2303,18 @@ function WorkflowEditorCanvasInner({
           if (fresh) return fresh;
           const chipPosition = freshChipPositions.get(n.id);
           if (chipPosition) return { ...n, position: { ...chipPosition } };
-          const pos = (
-            source.nodes[n.id]?.metadata as
-              | { position?: { x: number; y: number } }
-              | undefined
-          )?.position;
+          const node = source.nodes[n.id];
+          if (!node) return n;
+          // W-1 — read the arrangement belonging to the view on screen.
+          const pos = simplifiedView
+            ? readSimplifiedNodePosition(node)
+            : ((node.metadata as { position?: { x: number; y: number } })
+                ?.position ?? null);
           return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
         }),
       );
     },
-    [onGroupChipClick, onSelectMapBodyNode, setInternalNodes],
+    [onGroupChipClick, onSelectMapBodyNode, setInternalNodes, simplifiedView],
   );
 
   // Auto-arrange position sync (§4.2). The host bumps `layoutNonce` after a
@@ -2631,10 +2652,15 @@ function WorkflowEditorCanvasInner({
 
       // Build the position-updated node while preserving the
       // discriminated-union narrowing. Each branch produces the same
-      // shape with a fresh `metadata.position`.
+      // shape with a fresh position.
+      //
+      // W-1 — which position depends on the view: the simplified canvas keeps
+      // an arrangement of its own, so a drag there writes
+      // `metadata.simplifiedPosition` and leaves the expanded layout alone.
+      const positionField = simplifiedView ? "simplifiedPosition" : "position";
       const withPosition = (n: GraphNode, at: XYPosition): GraphNode => ({
         ...n,
-        metadata: { ...n.metadata, position: { x: at.x, y: at.y } },
+        metadata: { ...n.metadata, [positionField]: { x: at.x, y: at.y } },
       });
 
       const nextNodes = { ...config.nodes };
@@ -2645,9 +2671,13 @@ function WorkflowEditorCanvasInner({
         // neither has a position to persist.
         const existing = config.nodes[flowNode.id];
         if (!existing) continue;
+        // Compare against the field this view owns — in simplified view a node
+        // whose drag ended on its EXPANDED coordinates has still moved.
         const prevPos = (
-          existing.metadata as { position?: { x: number; y: number } }
-        )?.position;
+          existing.metadata as
+            | Record<string, { x?: number; y?: number } | undefined>
+            | undefined
+        )?.[positionField];
         if (
           prevPos?.x === flowNode.position.x &&
           prevPos?.y === flowNode.position.y

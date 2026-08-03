@@ -917,7 +917,7 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
    * (what it used to do) only slid each chip to the centre of its own member
    * chain: for the visible nodes, nothing happened.
    */
-  it("lays out the CHIP graph when simplified view is on, keeping groups rigid", async () => {
+  it("lays out the CHIP graph when simplified view is on, leaving the expanded arrangement alone", async () => {
     const cfg = buildTemplateConfig({ positions: "all" });
     // a → b → c, with {a,b} collapsed into one group. `a` and `b` start 20px
     // apart on each axis; that offset has to survive the arrange.
@@ -936,21 +936,23 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
     });
     const after = readPositionsFromCanvas();
 
-    // The group moved as one body — its internal offset is byte-identical.
-    expect({
-      x: (after.b?.x ?? 0) - (after.a?.x ?? 0),
-      y: (after.b?.y ?? 0) - (after.a?.y ?? 0),
-    }).toEqual({
-      x: (before.b?.x ?? 0) - (before.a?.x ?? 0),
-      y: (before.b?.y ?? 0) - (before.a?.y ?? 0),
-    });
-    // ...and it moved: the chip now sits a chip-column ahead of nothing and a
-    // clear column behind the ungrouped `c`, which is the layout of the
-    // projected graph rather than of the members.
+    // W-1 — every member's EXPANDED position survives an arrange performed in
+    // the simplified view. Not just the internal offset: the coordinates.
+    expect(after.a).toEqual(before.a);
+    expect(after.b).toEqual(before.b);
+    expect(after.c).toEqual(before.c);
+
+    // ...and the visible graph really was laid out: the chip sits a clear
+    // column behind the ungrouped `c`, in the simplified view's own geometry.
     const arranged = capturedCanvasProps.current?.config as GraphWorkflowConfig;
     const chip = projectGroupedConfig(arranged).chips[0];
-    expect(after.c?.x ?? 0).toBeGreaterThan(chip.position.x + 248);
-    expect(after.a).not.toEqual(before.a);
+    const simplifiedC = (
+      arranged.nodes.c.metadata as {
+        simplifiedPosition?: { x: number; y: number };
+      }
+    )?.simplifiedPosition;
+    expect(simplifiedC?.x ?? 0).toBeGreaterThan(chip.position.x + 248);
+    expect(arranged.nodeGroups?.g1.position).toEqual(chip.position);
   });
 });
 

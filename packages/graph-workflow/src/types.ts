@@ -118,6 +118,23 @@ export interface NodeGroup {
   color?: string;
   nodeIds: string[];
   exposedParams?: ExposedParam[];
+  /**
+   * Where this group's CHIP sits in the builder's simplified view, which keeps
+   * an arrangement of its own (batch three, W-1).
+   *
+   * The two views are laid out independently on purpose. A chip stands in for
+   * a whole group, so it is far smaller than the members it hides; giving the
+   * simplified layout a slot the size of the real group would make that view
+   * sprawl exactly as much as the expanded one and remove the reason to use
+   * it. The consequence is that a simplified arrangement cannot be expressed
+   * as member positions, so it is stored separately: chips here, ungrouped
+   * nodes under `metadata.simplifiedPosition`.
+   *
+   * Unset means "never arranged in this view" — the projection then falls back
+   * to the centroid of the members' expanded positions, which is what every
+   * workflow authored before this field showed.
+   */
+  position?: { x: number; y: number };
 }
 
 export interface ExposedParam {

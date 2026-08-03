@@ -5361,6 +5361,25 @@ describe("WorkflowEditorCanvas — G-060 multi-node drag", () => {
     });
   }
 
+  // W-1 — a drag writes to whichever arrangement the author is looking at.
+  it("writes `simplifiedPosition` when dragging in the simplified view", () => {
+    const config = makeAllNodeTypesConfig();
+    const { onConfigChange } = renderCanvas(config, { simplifiedView: true });
+
+    dragStop({ id: "activity_1", position: { x: 640, y: 480 } });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(
+      (next.nodes.activity_1.metadata as { simplifiedPosition?: unknown })
+        .simplifiedPosition,
+    ).toEqual({ x: 640, y: 480 });
+    // ...and the expanded arrangement is exactly as it was.
+    expect(next.nodes.activity_1.metadata?.position).toEqual(
+      config.nodes.activity_1.metadata?.position,
+    );
+  });
+
   it("persists every node in the dragged set, not just the one under the cursor", () => {
     const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
 
@@ -6460,6 +6479,18 @@ describe("WorkflowEditorCanvas — G-4: Auto-arrange in simplified view", () => 
       .position;
   }
 
+  /** W-1 — the simplified view's own coordinate for a node. */
+  function simplifiedPositionOf(
+    config: GraphWorkflowConfig,
+    id: string,
+  ): { x: number; y: number } | undefined {
+    return (
+      config.nodes[id].metadata as
+        | { simplifiedPosition?: { x: number; y: number } }
+        | undefined
+    )?.simplifiedPosition;
+  }
+
   function openPaneMenu() {
     const props = latestReactFlowProps.current;
     if (!props || typeof props.onPaneContextMenu !== "function") {
@@ -6504,9 +6535,34 @@ describe("WorkflowEditorCanvas — G-4: Auto-arrange in simplified view", () => 
     // chain, so the gap came out at member-column scale, near 4x this.
     expect(chipXOf(next, "g2") - chipXOf(next, "g1")).toBeCloseTo(248 + 80, 0);
     // The ungrouped node is a real card in the next column along.
-    expect(positionOf(next, "tail").x).toBeGreaterThan(
+    expect(simplifiedPositionOf(next, "tail")?.x).toBeGreaterThan(
       chipXOf(next, "g2") + 248,
     );
+  });
+
+  // W-1 — the defect Alex reported: auto-arranging here used to rewrite every
+  // member's `metadata.position`, so switching back to the expanded view showed
+  // the graph bunched up, permanently.
+  it("leaves the EXPANDED arrangement untouched", async () => {
+    const before = makeCollapsedFixture();
+    const { next } = await arrangeFromPaneMenu(true);
+    for (const id of Object.keys(before.nodes)) {
+      expect(positionOf(next, id)).toEqual(positionOf(before, id));
+    }
+    // The chips did move — otherwise this test would pass on a no-op.
+    expect(chipXOf(next, "g2") - chipXOf(next, "g1")).not.toBeCloseTo(
+      chipXOf(before, "g2") - chipXOf(before, "g1"),
+      0,
+    );
+  });
+
+  it("arranging in the EXPANDED view still writes `position`", async () => {
+    const before = makeCollapsedFixture();
+    const { next } = await arrangeFromPaneMenu(false);
+    const moved = Object.keys(before.nodes).some(
+      (id) => positionOf(next, id).x !== positionOf(before, id).x,
+    );
+    expect(moved).toBe(true);
   });
 
   it("keeps each group's internal geometry so expanding stays coherent", async () => {
