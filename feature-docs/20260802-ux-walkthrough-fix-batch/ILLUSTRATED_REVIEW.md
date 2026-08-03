@@ -10,24 +10,34 @@ Read it in order and it doubles as the demo script for the next review session:
 each numbered section is one thing to show, with the exact clicks to reproduce
 it on your own machine.
 
-**Two batches of work live here, tagged by where the item came from:**
+**Three batches of work live here, tagged by where the item came from:**
 
 | Tag | Source |
 |---|---|
 | **[UX walkthrough]** | The 2026-07-29 walkthrough with the UX designer. Sections 1–12. |
 | **[Review 08-02]** | Alex's 2026-08-02 pass over the result. Sections 13–19. |
+| **[Review 08-03]** | Alex's 2026-08-03 pass over *those* fixes. Sections 20–23. |
 
 The tag matters when reading a section back: a **[UX walkthrough]** item was
 somebody meeting the builder for the first time, and a **[Review 08-02]** item
 was somebody who already knew it looking at the fixes. Section 11 carries both,
-because the second batch reversed part of the first.
+because the second batch reversed part of the first, and §18 carries the second
+and third for the same reason.
+
+**Sections 13, 15, 17 and 18 were re-shot on 2026-08-03.** Their screenshots
+had gone stale — the third batch changed exactly what they were showing, and in
+§18's case the section documented a limitation that is now fixed. That is the
+failure mode this document is most exposed to, which is why the shots are now
+taken by [`capture-screenshots.mjs`](capture-screenshots.mjs) rather than by
+hand: run it after a batch and diff the images.
 
 ---
 
 ## Status
 
-All twelve items from the 2026-07-29 walkthrough are done, and so are all
-fourteen from the 2026-08-02 review.
+All twelve items from the 2026-07-29 walkthrough are done, so are all fourteen
+from the 2026-08-02 review, and so are all seven from the 2026-08-03 pass over
+those.
 
 | Commit | What |
 |---|---|
@@ -39,8 +49,15 @@ fourteen from the 2026-08-02 review.
 | `3f1f0874` | **Review 08-02** phases 1 and 3 — four defects + seven chrome items — 28 files |
 | `2df24f4a` | **Review 08-02** group container model — G-1, G-2, G-3 |
 | `6124f7d5` | **Review 08-02** Auto-arrange in simplified view — G-4 |
+| `ee97ba63` | **Review 08-03** simplified view keeps its own arrangement |
+| `42264ce5` | **Review 08-03** pin a hover-extend port only when the match is unambiguous |
+| `2b67ed87` | **Review 08-03** right-click acts on the selection, and can group it |
+| `582ccd1f` | **Review 08-03** group boxes fit the cards, measured not estimated |
+| `47285b99` | **Review 08-03** the Inputs value field is a labelled field, full width |
+| `2e55d262` | **Review 08-03** workflow list — Name is the focus column |
+| `fff29edc` | **Review 08-03** group chips are draggable |
 
-Tests: frontend **2460** across 205 files, `tsc --noEmit` and Biome clean.
+Tests: frontend **2494** across 205 files, `tsc --noEmit` and Biome clean.
 
 **Two items in the second batch turned out to be misdiagnosed, and the
 correction is more useful than the original guess** — see
@@ -197,8 +214,15 @@ activities that *produce* that kind:
 ![Input-dot hover suggesting producers](screenshots/15-input-hover-suggests-producers.png)
 
 Flow Control is absent on purpose: it produces nothing, so it can never answer
-"what makes one of these?". Picking an entry drops it to the left, already
-wired into that input.
+"what makes one of these?". Picking an entry drops it to the left and wires it
+in.
+
+> **Corrected 2026-08-03 — "wired in" is now two things, and only one is
+> unconditional.** The execution edge always lands, so the order is what you
+> asked for. The *data binding* onto that specific input is only made when the
+> port pair is unambiguous. It used to be made always, which is how picking
+> **Read Blob** from Poll Classify's *Result ID* bound `base64` to it — see
+> [§22](#22-extending-backwards-no-longer-guesses--review-08-03).
 
 > **Try it** → [a new workflow](http://localhost:3000/workflows/create)
 > Add **Submit OCR** from the palette. On the node card, hover the small dot on
@@ -431,7 +455,17 @@ appeared on hover, and collapsed it drew a chip.
 One language now. Every group is a container box with a header carrying its
 icon, colour and label.
 
-![OCR Extraction rendered as a container box with a header, wrapping its five member nodes; the Post-Processing box begins at the right edge](screenshots/19-group-container-boxes.png)
+![Three group boxes side by side — the blue OCR Extraction box, the green Post-Processing box hugging its single card, and the orange Quality Gate box — with clear gaps between them](screenshots/19-group-container-boxes.png)
+
+**Re-shot 2026-08-03, and the framing is the point.** Those three boxes used to
+*overlap*: the box was sized from worst-case catalog estimates — a flat 522px
+width for every activity card, and a height including a 120px preview block
+most cards never render — so the slack piled up on the right and bottom.
+Measured on this workflow before the fix, Post-Processing collided with both
+Quality Gate and OCR Extraction. Boxes are sized from the cards as xyflow
+measured them now, and the same measurement fixes the opposite error too: a
+`humanGate` renders 200px wide against a 180px estimate, so it used to poke out
+of its own box. See [§20](#20-the-boxes-fit-what-is-in-them--review-08-03).
 
 Expanded view also gained something it never had: **clicking a group's header
 opens its settings.** Previously the only way in was to collapse to a chip
@@ -505,17 +539,26 @@ new.
 Same complaint, different table: Name was narrow while Description ran long on
 one truncated line.
 
-![The workflow list with a wider Name column and descriptions wrapping to two lines](screenshots/24-list-columns.png)
+![The workflow list: Name is by far the widest column and set in bold, slugs truncate to one line beside a copy button, descriptions wrap to two lines](screenshots/24-list-columns.png)
 
-Name is wider, Description wraps to two lines and stops.
+Name is the widest column and the heaviest text on the row; Description wraps
+to two lines and stops; a slug truncates on one line, with the full value on
+hover and the copy button beside it.
 
-**The first attempt made this worse and the screenshot is what caught it.**
-Widening those two squeezed the Slug column, and a slug is one unbreakable
-token — the browser broke it anywhere rather than overflow, so long slugs
-became four and five lines and rows ended up *taller* than before the clamp
-that was supposed to shorten them. Slug is width-capped and truncates on one
-line now; the copy button beside it is how the full value gets used. Row
-heights: ~145px → ~116px.
+**Two attempts, and each was caught by looking rather than by a test.** The
+first widened Name and Description, which squeezed Slug — and a slug is one
+unbreakable token, so the browser broke it anywhere rather than overflow and
+rows ended up *taller* than before the clamp meant to shorten them. Capping
+Slug fixed that and over-corrected: it left Slug at 18% against Name's 24%.
+
+The second attempt, on 2026-08-03, was to bump the percentages — **and it
+changed nothing at all.** The table had no `table-layout`, so under the browser
+default (`auto`) a percentage width is only a hint and content wins. The widest
+content is the slug, rendered `nowrap`, so it took **495px against Name's
+154px**. Fixed layout plus an explicit width on all eight columns is what made
+the numbers mean anything: Name **387px**, Slug **129px**, tallest row **191px
+→ 87px**. A percentage that the layout mode ignores is the kind of thing a
+green test suite will happily assert.
 
 > **Try it** — <http://localhost:3000/workflows>
 
@@ -553,11 +596,20 @@ new workflow runs with all three empty. What was broken was that the canvas
 drew a port and described exactly what it accepted, while the only panel that
 could accept an answer pretended the port did not exist.
 
-![The Inputs panel showing Document ID and File reference marked Needs a source, then a collapsed "3 optional inputs" disclosure expanded to reveal File name, File type and Content type](screenshots/21-optional-inputs-disclosure.png)
+![The Inputs panel: Document ID and File reference marked Needs a source, each with a full-width value field and its description as helper text below, then a "3 optional inputs" disclosure expanded to reveal File name, File type and Content type in the same treatment](screenshots/21-optional-inputs-disclosure.png)
 
 Optional ports now fold behind **"N optional inputs"** — short by default,
 never secret. Note the two genuinely-required ports still say *Needs a source*
 and the three optional ones do not: the panel and the validation drawer agree.
+
+**Re-shot 2026-08-03.** The row is a proper labelled field now. It used to put
+the input on a second grid line indented into the middle *source* column, which
+capped it at that column's width — measured on this exact node, a 159px field
+starting at x=132 in a 327px panel, never beside its own label — and committing
+a value moved the row up into the required list without changing any of it. The
+field spans the full width, and the port's description moved out of the
+placeholder, where it was always truncated (`` `pdf` or `image`. Auto-det… ``),
+into wrapped helper text under the field.
 
 Type a value on one and it sticks, via a hidden ctx entry carrying
 `defaultValue`. **No engine change was needed** — the seeding, run-spec and
@@ -579,13 +631,32 @@ wherever the middle of each chain happened to land.
 
 ![Simplified view after Auto-arrange: five group chips laid out as evenly spaced columns](screenshots/22-simplified-arrange.png)
 
-It now lays out the graph you are actually looking at, then moves each group's
-members by their chip's delta — so a group travels rigidly and expanding again
-shows the same internal arrangement, relocated.
+It now lays out the graph you are actually looking at.
+
+**Superseded 2026-08-03 — the first fix carried a defect this section used to
+describe as a known limit.** It laid out the chips, then dragged each group's
+members along by their chip's delta. A chip reserves a *chip-sized* slot, so a
+group whose members really span ~1500×600 got packed into 248×48 and dagre
+pushed its neighbours right up against that slot. Expand again and the whole
+graph was bunched up and overlapping — permanently, because the result is
+saved. Alex's report: *"if i auto arrange in simplified view and then switch to
+regular view, everything becomes bunched up."*
+
+The rejected repair was to give each chip a dagre box the size of its group's
+true bounding box. It removes the overlap by making the simplified view sprawl
+exactly as much as the expanded one, which removes the reason to use it.
+
+**The two views keep separate arrangements instead.** A simplified arrange
+writes chip placements to the group and ungrouped steps to
+`metadata.simplifiedPosition`; members are not touched at all, so the expanded
+canvas is exactly as you left it. The accepted consequence, worth saying out
+loud: a step that appears in both views has a position in each, so nudging it
+in one does not move it in the other.
 
 > **Try it** — open **standard-ocr**, turn **Simplified** on, hit
-> **Auto-arrange**, then turn Simplified off again and confirm the members kept
-> their relative positions.
+> **Auto-arrange**, then turn Simplified off. The expanded graph is untouched —
+> every card where it was. Arrange it there too, switch back, and confirm
+> neither arrange disturbed the other.
 
 ---
 
@@ -620,6 +691,131 @@ xyflow's default `minZoom` of 0.5 and giving up silently. standard-ocr needs
 because it was already at the limit — including the Fit control this batch
 added. jsdom cannot catch that class of bug: it mocks xyflow wholesale and
 never lays anything out.
+
+---
+
+## 20. The boxes fit what is in them · [Review 08-03]
+
+*"The group boxes have excessive padding on the bottom and right. This makes
+adjacent group boxes overlap."*
+
+Both halves were true and they were the same cause. `computeGroupBounds` sized
+each box from worst-case **estimates** rather than from anything on screen.
+Measured in the running editor on `standard-ocr-sdpr` — rendered against
+assumed, in canvas units:
+
+| Card | Rendered | Assumed | Error |
+|---|---|---|---|
+| `azureOcr.extract` | 350×174 | 522×183 | **+172** wide |
+| `azureOcr.submit` | 292×130 | 522×199 | **+230** wide |
+| `ocr.checkConfidence` | 376×108 | 522×183 | +146 wide |
+| `humanReview` (gate) | 200×**58** | 180×**180** | **+122** tall, 20 **under** wide |
+
+The box's right edge was `max(x) + 522` while the last visible pixel was
+`max(x + rendered)`, so every bit of that slack landed on the right and bottom
+— up to ~212px of empty box beside the last card, ~162px under a `humanGate`.
+Two pairs of boxes overlapped on that workflow; after the fix, zero, with even
+margins on every box. The `humanGate` row is the reason this was never just
+"use a smaller pad": the estimate ran *under* on width, so a card could poke
+out of its own box.
+
+The shot in [§13](#13-groups-are-boxes-now-not-outlines--review-08-02) is the
+after.
+
+---
+
+## 21. Right-click means the selection · [Review 08-03]
+
+*"Selecting multiple nodes and then right clicking on one brings the menu for
+just that one, i hit delete and deletes one node, but i selected multiple."*
+
+Exactly that. The handler built the menu from the clicked node and never looked
+at the selection — even though the canvas already reports the full selection
+upward, which is what powers the top bar's *Group selected*.
+
+![The node context menu headed "3 steps selected", offering Group these 3 steps, Ungroup "OCR Extraction" (steps stay), and Delete 3 steps in red](screenshots/25-selection-context-menu.png)
+
+**Delete removes all three in one config write**, so a single <kbd>Ctrl</kbd>+<kbd>Z</kbd>
+brings them all back. **Change activity type** and **Edit script** are gone from
+this menu — they mean nothing for a set. Right-clicking a node *outside* the
+selection resets the selection to that node and gives the ordinary single-node
+menu, so the menu never offers to act on steps you stopped pointing at.
+
+**Group these N steps** is the other half of the same item — *"I think being
+able to group by right click and selecting group there would be useful"* — and
+it runs the same operation the top-bar action does.
+
+> **Try it** — <http://localhost:3000/workflows/by-slug/standard-ocr/edit>
+>
+> Click one card, then **<kbd>Ctrl</kbd>-click** two more — *not* shift-click,
+> see the note below — and right-click any of the three.
+
+> ⚠️ **Shift-click does not multi-select, and the guide said it did.** xyflow's
+> `multiSelectionKeyCode` defaults to Meta/Control, while **Shift** is its
+> `selectionKeyCode` — hold Shift and *drag* on the pane and you get a marquee.
+> Measured 2026-08-03: shift-click leaves 1 node selected, Ctrl-click 2,
+> shift-drag 9. The docs have said "shift-click to pick them individually"
+> since before this batch; they now say what actually works. Whether Shift
+> *should* also multi-select is a one-line change and an open question, not
+> something this batch decided.
+
+---
+
+## 22. Extending backwards no longer guesses · [Review 08-03]
+
+*"I created poll classify, then hovered over result id input, and picked read
+blob, it auto wired base64 output from that to result id, which i don't think
+is right. If this issue exists, wondering if it's some general problem."*
+
+It is a general problem, and it is worse than declaration order. The first
+diagnosis was "it takes the first type-compatible output, so whichever is
+declared first wins". Checking the catalog says the type check was never doing
+any work at all:
+
+- `blob.read` declares exactly **one** output — `base64`, kind `DocumentContent`
+- `azureClassify.poll` declares `resultId` with kind **`Artifact`**
+- `Artifact` is the **root** of the kind lattice: every kind hangs off it via
+  `baseKind`, so **every output in the catalog is assignable to it**
+
+So there was never a set of plausible candidates to rank. `base64` trivially
+"matched", it was the only output, and it got pinned with full confidence.
+**Preferring an exact-kind match would not have caught this** — there is no
+exact match to prefer.
+
+The pick now returns a *reason*, and only three reasons are good enough to pin:
+the ports share a **name**; exactly one candidate declares the **exact kind**;
+or exactly one candidate is assignable at all. When the target's kind is the
+`Artifact` wildcard the kind lane is skipped outright, because it proves
+nothing.
+
+**Only the pin is conditional.** The execution edge always lands, so the order
+you asked for is the order you get; the input keeps its ordinary automatic
+resolution instead of a confident wrong binding.
+`azureClassify.submit.resultId → poll.resultId` still pins — on the name, no
+longer on beating `constructedClassifierName` to the front of a list.
+
+> **Try it** — drop a **Poll Classify**, hover its **Result ID** input dot,
+> pick **Read Blob**. It lands to the left and wired, and Result ID still says
+> it needs a source. Repeat with **Submit Classify** and it binds.
+
+---
+
+## 23. Chips can be put where you want them · [Review 08-03]
+
+Falls out of §18. While a chip's position was re-derived from its members'
+centroid on every projection, a drag had nowhere to land, and the code said so:
+*"non-draggable today — dragging is filed as a follow-up because we recompute
+the centroid every projection."* Giving the simplified view its own geometry
+removed that blocker, so chips drag now.
+
+![Simplified view with the Human Review chip dragged down and out of the row, its wires following it, while Store Results stays on the line](screenshots/26-chip-dragged.png)
+
+The members do not move — that is the whole point of the two views being
+arranged independently. A chip dropped where it already sits writes nothing, so
+no gesture costs an empty undo step.
+
+> **Try it** — **standard-ocr**, **Simplified** on, drag a chip. Then turn
+> Simplified off and confirm the expanded canvas is untouched.
 
 ---
 
@@ -658,10 +854,18 @@ argument for doing this before the UX reviewer's next session rather than after.
 - **The list is empty or short** — the seed has not run. `npx prisma db seed`
   from `apps/backend-services` is additive and safe; it brings the set back to
   11 workflows without touching anything you have authored.
-- **Screenshots here were captured headless** via Playwright using the IDIR
-  auth bypass from `.claude/skills/app-browser-auth`. The capture scripts were
-  throwaway and live in the session scratchpad, not the repo — the *Try it*
-  boxes are the reproducible version.
+- **Screenshots here are captured headless** via Playwright using the IDIR auth
+  bypass from `.claude/skills/app-browser-auth`, by
+  [`capture-screenshots.mjs`](capture-screenshots.mjs) beside this file. Run
+  `node feature-docs/20260802-ux-walkthrough-fix-batch/capture-screenshots.mjs`
+  with `npm run dev` up to re-take the set, or pass shot ids to re-take some of
+  them. It shoots at **1920×1080** deliberately: at 1600 and below the editor's
+  top bar overflows and the disabled Undo button lands on top of the Simplified
+  switch, so neither a script nor a person can click it.
+- **The set went stale once already** — four shots in the 08-02 batch were
+  showing pre-08-03 behaviour, including one section whose text promised a
+  limitation that had been fixed. That is why the script exists; the *Try it*
+  boxes remain the version you can check by hand.
 
 ---
 
@@ -671,6 +875,8 @@ argument for doing this before the UX reviewer's next session rather than after.
 |---|---|
 | [REVIEW.md](REVIEW.md) | The original review — full file inventory, the UX story, the grouping opinion |
 | [UX_WALKTHROUGH_FIXES_20260729.md](../../docs-md/workflows/UX_WALKTHROUGH_FIXES_20260729.md) | The 12-item checklist, all ticked, with the item-6 rationale |
-| [MANUAL_TEST_PLAN.md](../../docs-md/workflows/MANUAL_TEST_PLAN.md) | Cases 3.6a, 6.2a and 6.2b are the new ones |
+| [MANUAL_TEST_PLAN.md](../../docs-md/workflows/MANUAL_TEST_PLAN.md) | 3.6a, 6.2a and 6.2b from 08-02; 3.17a, 6.7b and 16.7a from 08-03 |
+| [PORT_WIRING_DESIGN.md](../../docs-md/workflows/PORT_WIRING_DESIGN.md) | §9.1 — which port a hover-extend pins, and when it declines to |
+| [batch-three PLAN.md](../20260803-workflow-builder-batch-three/PLAN.md) | The 08-03 items, their causes as measured, and the two rulings |
 | [WORKFLOW_BUILDER_GUIDE.md](../../docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md) | Colour scheme and the group-gesture table |
 | [UNTYPED_PORTS_FINDINGS.md](../../docs-md/workflows/UNTYPED_PORTS_FINDINGS.md) | Why the retag went the way it did |

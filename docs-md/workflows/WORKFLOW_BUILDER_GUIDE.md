@@ -359,7 +359,7 @@ Groups can also expose parameters — this means when someone uses this workflow
 
 In the visual editor:
 
-1. Select two or more nodes on the canvas (drag a marquee rectangle, or shift-click to pick them individually).
+1. Select two or more nodes on the canvas: **shift-drag** a marquee rectangle across them, or **Ctrl-click** (Cmd on macOS) each one. Plain **shift-click does not add to the selection** — xyflow binds Shift to the marquee and Ctrl/Cmd to multi-selection. (This page said shift-click for months; measured 2026-08-03, shift-click leaves one node selected.)
 2. The "Group selected" button in the top bar becomes enabled (it shows a tooltip "Select 2+ nodes to group them" when fewer than 2 are picked).
 3. Click "Group selected" — or right-click any of the selected nodes and choose **Group these N steps**, which runs the same operation without the trip to the top bar. A new entry appears in `nodeGroups` with an auto-numbered label (e.g., `Group 1`, then `Group 2`, …) and the selected node ids, and a container box is drawn around the members. A toast confirms how many steps were grouped and names the header strip as the way to move them.
 
@@ -382,6 +382,10 @@ Right after a group is created, the right-rail panel switches from the per-node 
 Selecting any individual node clears the active group and switches the panel back to the per-node settings. Node selection wins over the group panel — so if a step is selected, click empty canvas to deselect it before clicking a group header, or the rail stays on the step.
 
 ### How a group looks on the canvas
+
+In simplified view a chip is **draggable**, and its drop is saved on the group
+itself. Dragging it rearranges that view only — the members keep the expanded
+positions they had, which is the same rule Auto-arrange follows there.
 
 Expanded, a group is a **container box**: a dashed, tinted rectangle sized to the bounding box of its members — measured from the cards as rendered, not estimated from the catalog, so it fits tightly instead of overhanging into its neighbours — with a **header strip** across the top carrying the group's icon, colour and label. Collapsed (simplified view) the same group is a single **chip**. The box around a Map node's body is the same component in green — it has a header too, but no icon and no group settings of its own; clicking it selects the Map node.
 
