@@ -662,15 +662,25 @@ function makeMapWithBodyDisplayConfig(): GraphWorkflowConfig {
 }
 
 describe("WorkflowEditorCanvas — map-body container selects its map node", () => {
-  it("clicking the body box calls onSelectMapBodyNode with the owning map node id", () => {
+  it("clicking the body box's header calls onSelectMapBodyNode with the owning map node id", () => {
     const onSelectMapBodyNode = vi.fn();
     renderCanvas(makeMapWithBodyDisplayConfig(), { onSelectMapBodyNode });
-    const box = screen.getByTestId("map-body-container-__map_body_m");
-    // Only the label chip is interactive (the box body is pointer-events:none).
-    const label = box.querySelector("button");
-    expect(label).not.toBeNull();
-    label?.click();
+    // Only the header strip is interactive (the box body is
+    // pointer-events:none so member clicks and pans fall through).
+    screen.getByTestId("group-container-header-__map_body_m").click();
     expect(onSelectMapBodyNode).toHaveBeenCalledWith("m");
+  });
+
+  it("renders the map body's box as non-draggable — a derived group is not arranged as a unit", async () => {
+    renderCanvas(makeMapWithBodyDisplayConfig());
+    await flushAnimationFrame();
+    const nodes =
+      (latestReactFlowProps.current?.nodes as
+        | Array<{ id: string; draggable?: boolean; dragHandle?: string }>
+        | undefined) ?? [];
+    const box = nodes.find((n) => n.id === "container-__map_body_m");
+    expect(box?.draggable).toBe(false);
+    expect(box?.dragHandle).toBeUndefined();
   });
 });
 
@@ -4662,24 +4672,38 @@ describe("WorkflowEditorCanvas — item 6X: producer highlight emphasis", () => 
 });
 
 // ---------------------------------------------------------------------------
-// UX walkthrough 2026-07-29 — persistent group-membership cue.
-//   With simplified view OFF, members of a user group get the
-//   `wb-node-grouped` wrapper class plus the group label in the
-//   `--wb-group-label` custom property (hover chip). Non-members are
-//   untouched; synthetic map-body groups don't count.
+// G-1 (2026-08-03) — an authored group renders as a container box.
+//   With simplified view OFF, each group projects one `group-container` node
+//   sized to the bounding box of its declared members, carrying the group's
+//   label/colour/icon in a draggable header strip. This REPLACED the
+//   per-member `wb-node-grouped` dashed outline and its `--wb-group-label`
+//   hover chip, so the member cards themselves are now undecorated.
+//
+//   Membership is explicit: the box follows its declared members and never
+//   captures a node that merely lands inside it.
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorCanvas — grouped-node membership cue", () => {
+describe("WorkflowEditorCanvas — group container box", () => {
+  interface ProjectedNode {
+    id: string;
+    type?: string;
+    position: { x: number; y: number };
+    className?: string;
+    style?: Record<string, unknown>;
+    draggable?: boolean;
+    dragHandle?: string;
+    selectable?: boolean;
+    data: { width?: number; height?: number; label?: string; icon?: string };
+  }
+
+  function projectedNodes(): ProjectedNode[] {
+    return (
+      (latestReactFlowProps.current?.nodes as ProjectedNode[] | undefined) ?? []
+    );
+  }
+
   function readNode(id: string) {
-    const nodes =
-      (latestReactFlowProps.current?.nodes as
-        | Array<{
-            id: string;
-            className?: string;
-            style?: Record<string, unknown>;
-          }>
-        | undefined) ?? [];
-    return nodes.find((n) => n.id === id);
+    return projectedNodes().find((n) => n.id === id);
   }
 
   function makeGroupedConfig(): GraphWorkflowConfig {
@@ -4715,39 +4739,100 @@ describe("WorkflowEditorCanvas — grouped-node membership cue", () => {
       edges: [{ id: "e1", source: "a", target: "b", type: "normal" }],
       entryNodeId: "a",
       nodeGroups: {
-        g1: { label: "OCR pair", nodeIds: ["a", "b"] },
+        g1: { label: "OCR pair", icon: "scan", nodeIds: ["a", "b"] },
       },
     };
   }
 
-  it("stamps wb-node-grouped and the group label on members only (expanded view)", async () => {
+  it("projects one box per group, wrapping its members' bounding box", async () => {
     renderCanvas(makeGroupedConfig(), { simplifiedView: false });
     await flushAnimationFrame();
 
-    const memberA = readNode("a");
-    const memberB = readNode("b");
-    const loose = readNode("c");
-    expect(memberA?.className).toContain("wb-node-grouped");
-    expect(memberB?.className).toContain("wb-node-grouped");
-    expect(memberA?.style?.["--wb-group-label"]).toBe('"OCR pair"');
-    expect(loose?.className ?? "").not.toContain("wb-node-grouped");
-    expect(loose?.style?.["--wb-group-label"]).toBeUndefined();
+    const box = readNode("container-g1");
+    expect(box?.type).toBe("group-container");
+    expect(box?.data.label).toBe("OCR pair");
+    expect(box?.data.icon).toBe("scan");
+    // Members sit at x=0 and x=300; the box starts left of both and is wide
+    // enough to clear the right-hand card's own width.
+    expect(box?.position.x).toBeLessThan(0);
+    expect(box?.position.y).toBeLessThan(0);
+    expect(box?.data.width ?? 0).toBeGreaterThan(300);
+    expect(box?.data.height ?? 0).toBeGreaterThan(0);
+    // …and it renders, header and all.
+    expect(screen.getByTestId("group-container-g1")).toBeInTheDocument();
+    expect(screen.getByTestId("group-container-header-g1")).toHaveTextContent(
+      "OCR pair",
+    );
   });
 
-  it("does not stamp the cue in simplified view (members collapse into the chip)", async () => {
+  it("leaves the member cards themselves undecorated", async () => {
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+
+    // The retired treatment outlined every member and hid the group's name in
+    // a hover-only chip. Nothing on the cards distinguishes them now.
+    for (const id of ["a", "b", "c"]) {
+      expect(readNode(id)?.className ?? "").not.toContain("wb-node-grouped");
+      expect(readNode(id)?.style?.["--wb-group-label"]).toBeUndefined();
+    }
+  });
+
+  it("makes the box draggable by its header only, and never selectable", async () => {
+    renderCanvas(makeGroupedConfig(), { simplifiedView: false });
+    await flushAnimationFrame();
+
+    const box = readNode("container-g1");
+    expect(box?.draggable).toBe(true);
+    // R-1: xyflow starts the drag from the header strip and nowhere else.
+    expect(box?.dragHandle).toBe(".wb-group-header");
+    // The box is chrome for the group — letting it into the selection would
+    // put a projection in front of Delete and the "N selected" actions.
+    expect(box?.selectable).toBe(false);
+  });
+
+  it("opens the group's settings when the header is clicked", async () => {
+    const onGroupChipClick = vi.fn();
+    renderCanvas(makeGroupedConfig(), {
+      simplifiedView: false,
+      onGroupChipClick,
+    });
+    await flushAnimationFrame();
+
+    screen.getByTestId("group-container-header-g1").click();
+    expect(onGroupChipClick).toHaveBeenCalledWith("g1");
+  });
+
+  it("does not draw a box in simplified view (members collapse into the chip)", async () => {
     renderCanvas(makeGroupedConfig(), { simplifiedView: true });
     await flushAnimationFrame();
 
-    // Members are hidden behind the chip; whatever nodes remain must not
-    // carry the expanded-view cue.
-    const nodes =
-      (latestReactFlowProps.current?.nodes as
-        | Array<{ id: string; className?: string }>
-        | undefined) ?? [];
-    for (const n of nodes) {
-      expect(n.className ?? "").not.toContain("wb-node-grouped");
-    }
+    const nodes = projectedNodes();
+    expect(nodes.some((n) => n.type === "group-container")).toBe(false);
     expect(nodes.some((n) => n.id === "group-chip-g1")).toBe(true);
+  });
+
+  it("membership stays explicit — dropping an outsider inside the box joins nothing", async () => {
+    const { onConfigChange } = renderCanvas(makeGroupedConfig(), {
+      simplifiedView: false,
+    });
+    await flushAnimationFrame();
+    const handlers = latestReactFlowProps.current as unknown as {
+      onNodeDragStart: (e: unknown, n: unknown) => void;
+      onNodeDragStop: (e: unknown, n: unknown, all?: unknown[]) => void;
+    };
+
+    // Park the ungrouped node `c` squarely between the two members — inside
+    // the box's rectangle by any spatial reading of it.
+    act(() => {
+      handlers.onNodeDragStart({}, { id: "c", position: { x: 600, y: 0 } });
+      handlers.onNodeDragStop({}, { id: "c", position: { x: 150, y: 0 } }, [
+        { id: "c", position: { x: 150, y: 0 } },
+      ]);
+    });
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1.nodeIds).toEqual(["a", "b"]);
+    expect(next.nodes.c.metadata?.position).toEqual({ x: 150, y: 0 });
   });
 });
 
@@ -5596,14 +5681,19 @@ describe("WorkflowEditorCanvas — item 6 deleting a group chip as a unit", () =
 });
 
 /**
- * Item 6 (UX walkthrough, 2026-08-02) — a group moves as one.
+ * R-1 (2026-08-03) — drag the header to move the group, drag a member to move
+ * the member.
  *
- * The UX reviewer's expectation, coming from Figma: "when I move one, the other one
- * also moves". Selection is deliberately NOT cohesive — clicking a member
- * still selects and edits exactly that member — so these tests pin the drag
- * behaviour specifically.
+ * These cases REPLACE the 2026-08-02 ones, which asserted the opposite: that a
+ * drag of any member carried its siblings. That rule existed only because an
+ * authored group had no surface of its own to grab; G-1's container box gives
+ * it one, so cohesive movement became a target you aim at and rearranging a
+ * node inside its own group became possible.
+ *
+ * Selection is still not cohesive — clicking a member selects and edits
+ * exactly that member — so these tests pin the drag behaviour specifically.
  */
-describe("WorkflowEditorCanvas — item 6 group move-together", () => {
+describe("WorkflowEditorCanvas — R-1 header drag vs member drag", () => {
   function dragHandlers(): {
     start: (e: unknown, node: { id: string; position: XY }) => void;
     move: (e: unknown, node: { id: string; position: XY }) => void;
@@ -5658,7 +5748,57 @@ describe("WorkflowEditorCanvas — item 6 group move-together", () => {
     } as GraphWorkflowConfig;
   }
 
-  it("commits the whole group when one member is dragged", async () => {
+  /** The projected container box for a group, as xyflow sees it. */
+  function boxFor(groupId: string): {
+    id: string;
+    position: XY;
+    data: { width: number; height: number };
+  } {
+    const nodes = (latestReactFlowProps.current?.nodes ?? []) as Array<{
+      id: string;
+      position: XY;
+      data: { width: number; height: number };
+    }>;
+    const box = nodes.find((n) => n.id === `container-${groupId}`);
+    if (!box) throw new Error(`no container box projected for ${groupId}`);
+    return box;
+  }
+
+  it("carries every member when the box is dragged by its header", async () => {
+    const { onConfigChange } = renderCanvas(
+      groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
+    );
+    await flushAnimationFrame();
+    const { start, stop } = dragHandlers();
+    const box = boxFor("g1");
+    act(() => {
+      start({}, { id: box.id, position: box.position });
+      stop(
+        {},
+        {
+          id: box.id,
+          position: { x: box.position.x + 50, y: box.position.y + 20 },
+        },
+        [
+          {
+            id: box.id,
+            position: { x: box.position.x + 50, y: box.position.y + 20 },
+          },
+        ],
+      );
+    });
+    expect(onConfigChange).toHaveBeenCalled();
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a.metadata?.position).toEqual({ x: 50, y: 20 });
+    // b moved by the same delta, keeping its 100px offset from a.
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 150, y: 20 });
+    // c is not in the group and must not have moved.
+    expect(next.nodes.c.metadata?.position).toEqual({ x: 400, y: 300 });
+  });
+
+  it("moves ONLY the member when a member is dragged", async () => {
+    // The reversal of 2026-08-02: rearranging one node inside its own group is
+    // exactly what the old cohesive-member rule made impossible.
     const { onConfigChange } = renderCanvas(
       groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
     );
@@ -5670,13 +5810,29 @@ describe("WorkflowEditorCanvas — item 6 group move-together", () => {
         { id: "a", position: { x: 50, y: 20 } },
       ]);
     });
-    expect(onConfigChange).toHaveBeenCalled();
     const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
     expect(next.nodes.a.metadata?.position).toEqual({ x: 50, y: 20 });
-    // b rode along by the same delta, keeping its 100px offset from a.
-    expect(next.nodes.b.metadata?.position).toEqual({ x: 150, y: 20 });
-    // c is not in the group and must not have moved.
+    expect(next.nodes.b.metadata?.position).toEqual({ x: 100, y: 0 });
     expect(next.nodes.c.metadata?.position).toEqual({ x: 400, y: 300 });
+  });
+
+  it("re-fits the box around a member that was dragged out of it", async () => {
+    renderCanvas(
+      groupedPositions({ g1: { label: "Stage one", nodeIds: ["a", "b"] } }),
+    );
+    await flushAnimationFrame();
+    const before = boxFor("g1");
+    const { start, move } = dragHandlers();
+    act(() => {
+      start({}, { id: "b", position: { x: 100, y: 0 } });
+      move({}, { id: "b", position: { x: 600, y: 200 } });
+    });
+    const after = boxFor("g1");
+    // The box grew to keep enclosing its declared members — it did not follow
+    // the node, and it did not stay where the members used to be.
+    expect(after.position).toEqual(before.position);
+    expect(after.data.width).toBeGreaterThan(before.data.width);
+    expect(after.data.height).toBeGreaterThan(before.data.height);
   });
 
   it("leaves an ungrouped drag alone", async () => {
@@ -5697,23 +5853,19 @@ describe("WorkflowEditorCanvas — item 6 group move-together", () => {
     expect(next.nodes.b.metadata?.position).toEqual({ x: 100, y: 0 });
   });
 
-  it("does not treat a synthetic map-body group as a unit", async () => {
-    const { onConfigChange } = renderCanvas(
+  it("does not offer a synthetic map-body box as a drag handle", async () => {
+    renderCanvas(
       groupedPositions({
         __map_body_m1: { label: "Map body", nodeIds: ["a", "b"] },
       }),
     );
     await flushAnimationFrame();
-    const { start, stop } = dragHandlers();
-    act(() => {
-      start({}, { id: "a", position: { x: 0, y: 0 } });
-      stop({}, { id: "a", position: { x: 50, y: 0 } }, [
-        { id: "a", position: { x: 50, y: 0 } },
-      ]);
-    });
-    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
-    expect(next.nodes.a.metadata?.position).toEqual({ x: 50, y: 0 });
-    expect(next.nodes.b.metadata?.position).toEqual({ x: 100, y: 0 });
+    const box = boxFor("__map_body_m1") as unknown as {
+      draggable?: boolean;
+      dragHandle?: string;
+    };
+    expect(box.draggable).toBe(false);
+    expect(box.dragHandle).toBeUndefined();
   });
 
   it("moves carried members live during the drag, not only at drop", async () => {
@@ -5722,13 +5874,21 @@ describe("WorkflowEditorCanvas — item 6 group move-together", () => {
     );
     await flushAnimationFrame();
     const { start, move } = dragHandlers();
+    const box = boxFor("g1");
     act(() => {
-      start({}, { id: "a", position: { x: 0, y: 0 } });
-      move({}, { id: "a", position: { x: 25, y: 5 } });
+      start({}, { id: box.id, position: box.position });
+      move(
+        {},
+        {
+          id: box.id,
+          position: { x: box.position.x + 25, y: box.position.y + 5 },
+        },
+      );
     });
     // The canvas is controlled, so the projected node array IS what renders.
     const props = latestReactFlowProps.current;
     const nodes = (props?.nodes ?? []) as Array<{ id: string; position: XY }>;
+    expect(nodes.find((n) => n.id === "a")?.position).toEqual({ x: 25, y: 5 });
     expect(nodes.find((n) => n.id === "b")?.position).toEqual({
       x: 125,
       y: 5,
@@ -5743,17 +5903,21 @@ describe("WorkflowEditorCanvas — item 6 group move-together", () => {
     );
     await flushAnimationFrame();
     const { start, move, stop } = dragHandlers();
+    const box = boxFor("g1");
+    const at = (dx: number) => ({
+      id: box.id,
+      position: { x: box.position.x + dx, y: box.position.y },
+    });
     act(() => {
-      start({}, { id: "a", position: { x: 0, y: 0 } });
-      move({}, { id: "a", position: { x: 10, y: 0 } });
-      move({}, { id: "a", position: { x: 20, y: 0 } });
-      stop({}, { id: "a", position: { x: 30, y: 0 } }, [
-        { id: "a", position: { x: 30, y: 0 } },
-      ]);
+      start({}, at(0));
+      move({}, at(10));
+      move({}, at(20));
+      stop({}, at(30), [at(30)]);
     });
     // One gesture, one write — so it is also one undo step.
     expect(onConfigChange).toHaveBeenCalledTimes(1);
     const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.a.metadata?.position).toEqual({ x: 30, y: 0 });
     expect(next.nodes.b.metadata?.position).toEqual({ x: 130, y: 0 });
     expect(next.nodes.c.metadata?.position).toEqual({ x: 430, y: 300 });
   });

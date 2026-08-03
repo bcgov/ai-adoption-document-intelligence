@@ -54,32 +54,17 @@
 }
 
 /*
- * UX walkthrough 2026-07-29 — persistent group-membership cue when
- * simplified view is OFF. A dashed ring (distinct from the solid blue
- * hover-highlight above) marks every member of a user group; hovering a
- * member shows the group's label as a small chip above the card. The label
- * text travels in the `--wb-group-label` custom property stamped by the
- * canvas projection.
+ * G-1 (2026-08-03) — group membership is shown by the container box drawn
+ * around the members (`GroupContainerNode.tsx`), not by decorating each member
+ * card. The per-node dashed ring and its `--wb-group-label` hover chip that
+ * used to live here are gone with it: one concept, one rendering.
+ *
+ * What remains is the cursor on the box's header strip while it is being
+ * dragged — `grab` is set inline by the renderer; only the active state needs
+ * a rule, because there is no inline hook for it.
  */
-.wb-editor-canvas .react-flow__node.wb-node-grouped {
-  outline: 2px dashed var(--mantine-color-violet-4, #9775fa);
-  outline-offset: 5px;
-  border-radius: 12px;
-}
-
-.wb-editor-canvas .react-flow__node.wb-node-grouped:hover::after {
-  content: var(--wb-group-label, "Grouped");
-  position: absolute;
-  top: -22px;
-  left: 0;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 16px;
-  color: var(--mantine-color-white, #fff);
-  background: var(--mantine-color-violet-6, #7950f2);
-  white-space: nowrap;
-  pointer-events: none;
+.wb-editor-canvas .react-flow__node .wb-group-header:active {
+  cursor: grabbing;
 }
 
 /*

@@ -1,67 +1,51 @@
 /**
- * Group move-together (UX walkthrough 2026-07-29, item 6).
+ * Moving a group as one — the maths behind a HEADER drag (R-1, 2026-08-03).
  *
- * The UX reviewer came to the canvas from Figma and expected a group to behave as
- * one object: "when I move one, the other one also moves". It did not — every
- * member dragged independently, so a group you had arranged came apart the
- * first time you tidied it.
+ * The rule: drag a group's header strip and every member moves by the same
+ * delta; drag a member and only that member moves, with the box re-fitting
+ * around where it landed. Cohesive movement is a target you aim at, not a
+ * surprise you trip over, and repositioning one node inside its own group is
+ * possible for the first time.
  *
- * The decision (2026-08-02) was to take Figma's *move* semantics and leave its
- * *delete* semantics alone: a group here is an annotation over an executable
- * graph, and deleting three real pipeline steps because one was selected is
- * destructive out of proportion to the click. So dragging is cohesive;
- * selection is not. Clicking a member still selects exactly that node, and the
- * settings panel still edits exactly that node — only the drag carries the
- * others along.
+ * This reverses the rule shipped on 2026-08-02, where a drag of ANY member
+ * carried its siblings. That rule existed because there was nothing else to
+ * grab: an authored group was a dashed outline per card with no surface of its
+ * own, so "the group" was only ever reachable through one of its members. G-1
+ * gave the group a container box with a header, and the reason expired with it.
  *
- * Synthetic map-body groups (`__map_body_*`) are deliberately excluded: they
- * are derived from a map node rather than authored, and their members already
- * have their own layout rules.
+ * What did NOT change: selection. Clicking a member still selects exactly that
+ * node and the settings panel still edits exactly that node. And deletion is
+ * still per-node — a group here is an annotation over an executable graph, so
+ * removing three real pipeline steps because one was selected stays far more
+ * destructive than the click deserves.
+ *
+ * Synthetic map-body groups (`__map_body_*`) have no cohesive drag: they are
+ * derived from a map node's entry/exit rather than authored, their membership
+ * changes when the graph does, and their box is projected, not positioned. The
+ * canvas renders their container non-draggable; `resolveGroupDragExtras`
+ * refuses them too, so the invariant holds even if a caller asks.
  */
 
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { isSyntheticMapBodyGroupId } from "./map-body-groups";
 
 /**
- * The user group containing `nodeId`, or `null` when the node is ungrouped
- * (or only in a synthetic map-body group).
- */
-export function userGroupMembersOf(
-  config: GraphWorkflowConfig,
-  nodeId: string,
-): readonly string[] | null {
-  for (const [groupId, group] of Object.entries(config.nodeGroups ?? {})) {
-    if (isSyntheticMapBodyGroupId(groupId)) continue;
-    if (group.nodeIds.includes(nodeId)) return group.nodeIds;
-  }
-  return null;
-}
-
-/**
- * The extra nodes a drag of `draggedIds` must carry along — every co-member of
- * every user group represented in the drag, minus the nodes xyflow is already
- * moving itself (a multi-selection drag moves its whole selection natively).
+ * The nodes a drag of `groupId`'s header must carry: every declared member
+ * that still exists in `config.nodes`.
  *
- * Returned ids are guaranteed to exist in `config.nodes`: a group can outlive
- * a member's deletion, and moving a phantom would write a position for a node
- * that is not there.
+ * Existence is checked because a group outlives a member's deletion until
+ * something prunes it, and moving a phantom would write a position for a node
+ * that is not there. Synthetic map-body groups return nothing (see the module
+ * comment), as does an unknown group id.
  */
 export function resolveGroupDragExtras(
   config: GraphWorkflowConfig,
-  draggedIds: readonly string[],
+  groupId: string,
 ): string[] {
-  const alreadyMoving = new Set(draggedIds);
-  const extras = new Set<string>();
-  for (const draggedId of draggedIds) {
-    const members = userGroupMembersOf(config, draggedId);
-    if (!members) continue;
-    for (const memberId of members) {
-      if (alreadyMoving.has(memberId)) continue;
-      if (!config.nodes[memberId]) continue;
-      extras.add(memberId);
-    }
-  }
-  return [...extras];
+  if (isSyntheticMapBodyGroupId(groupId)) return [];
+  const members = config.nodeGroups?.[groupId]?.nodeIds;
+  if (!members) return [];
+  return members.filter((id) => config.nodes[id] !== undefined);
 }
 
 /** A node's authored canvas position, or `null` when it has none yet. */
@@ -85,32 +69,36 @@ export function readNodePosition(
 }
 
 export interface GroupDragCohort {
-  /** The node under the cursor — the drag's frame of reference. */
+  /** The dragged container node — the gesture's frame of reference. */
   anchorId: string;
   anchorStart: { x: number; y: number };
-  /** Extra members → where each sat when the gesture began. */
+  /** Carried members → where each sat when the gesture began. */
   startPositions: Map<string, { x: number; y: number }>;
 }
 
 /**
- * Capture what a drag beginning at `anchor` must carry, or `null` when there
- * is nothing extra to move (ungrouped node, or the whole group is already in
- * the dragged selection).
+ * Capture what a header drag of `groupId` must carry, or `null` when there is
+ * nothing to move (empty/synthetic/unknown group, or no member has ever been
+ * placed).
  *
- * Positions are snapshotted here rather than read per-tick so the whole
+ * `anchorId` is the container node's own xyflow id and `anchorStart` its
+ * position at drag start — the box is what the pointer is holding, so the
+ * delta is measured against it rather than against any one member.
+ *
+ * Member positions are snapshotted here rather than read per-tick so the whole
  * gesture stays relative to one origin — reading live positions each tick
  * would compound rounding drift across a long drag.
  */
 export function captureGroupDragCohort(
   config: GraphWorkflowConfig,
+  groupId: string,
   anchorId: string,
   anchorStart: { x: number; y: number },
-  draggedIds: readonly string[],
 ): GroupDragCohort | null {
-  const extras = resolveGroupDragExtras(config, draggedIds);
-  if (extras.length === 0) return null;
+  const members = resolveGroupDragExtras(config, groupId);
+  if (members.length === 0) return null;
   const startPositions = new Map<string, { x: number; y: number }>();
-  for (const id of extras) {
+  for (const id of members) {
     const at = readNodePosition(config, id);
     // A member with no authored position has never been placed; leave it
     // where the layout puts it rather than inventing an origin for it.

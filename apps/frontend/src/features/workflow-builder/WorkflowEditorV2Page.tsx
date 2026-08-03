@@ -840,18 +840,16 @@ function WorkflowEditorV2PageBody({
     reactFlowRef.current?.setNodes((ns) =>
       ns.map((n) => (n.selected ? { ...n, selected: false } : n)),
     );
-    // UX walkthrough 2026-07-29 — grouping exists to simplify, but
-    // it only fired a toast and the canvas kept showing the ungrouped nodes
-    // ("no visual clue these two are a group"). Collapse immediately: turn
-    // simplified view on so the new group renders as its chip.
-    setSimplifiedView(true);
+    // G-3 (2026-08-03) — grouping no longer flips the canvas into simplified
+    // view. It did because the only expanded-view cue was a faint dashed ring
+    // per card, so a toast was genuinely all the feedback there was and
+    // collapsing to a chip was the one way to show something had happened.
+    // G-1 draws a titled box around the members instead: the feedback is now
+    // on the canvas, in place, without changing what the author is looking at.
     notifications.show({
       color: "green",
       title: "Grouped",
-      // P-3 moved the toggle out of the More menu, so the copy names where it
-      // actually is now — a toast that points at a menu item that isn't there
-      // is worse than no pointer at all.
-      message: `${eligibleIds.length} steps grouped into a chip. Turn off the Simplified toggle in the toolbar to expand them again.`,
+      message: `${eligibleIds.length} steps grouped. Drag the box's header to move them together.`,
     });
   }, [config, selectedNodeIds, setConfig]);
 

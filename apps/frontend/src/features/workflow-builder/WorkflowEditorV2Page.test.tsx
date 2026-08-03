@@ -830,6 +830,34 @@ describe("WorkflowEditorV2Page — US-041: Group selected button", () => {
     expect(panel).toBeInTheDocument();
     expect(panel.getAttribute("data-group-id")).toBe(groupIds[0]);
   });
+
+  /**
+   * G-3 (2026-08-03) — grouping used to flip the canvas into simplified view,
+   * because a toast plus a faint dashed ring was all the feedback there was.
+   * G-1's container box is drawn around the members in place, so the mode
+   * change became cost with no benefit: it moved the author somewhere they
+   * had not asked to go and hid the very nodes they had just grouped.
+   */
+  it("does not flip the canvas into simplified view, and says what the box does", async () => {
+    vi.mocked(notifications.show).mockClear();
+    renderPage(makeTwoNodeTemplate());
+    dispatchSelection(["a", "b"]);
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
+    await openMoreMenu();
+    const item = await screen.findByTestId("topbar-menu-group-selected");
+    act(() => {
+      fireEvent.click(item);
+    });
+    // Still expanded — the members stay on screen inside their new box.
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(false);
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Grouped",
+        message:
+          "2 steps grouped. Drag the box's header to move them together.",
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

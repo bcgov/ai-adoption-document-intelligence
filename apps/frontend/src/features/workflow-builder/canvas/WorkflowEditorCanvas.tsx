@@ -107,6 +107,13 @@ import {
   type GroupChipNodeData,
 } from "./GroupChipNode";
 import {
+  containerIdForGroup,
+  GROUP_HEADER_CLASS,
+  type GroupContainerFlowNode,
+  GroupContainerNode,
+  groupIdFromContainerId,
+} from "./GroupContainerNode";
+import {
   applyGroupDragDelta,
   captureGroupDragCohort,
   type GroupDragCohort,
@@ -123,10 +130,6 @@ import {
   handleArrayOutline,
   handleBackground,
 } from "./handle-style";
-import {
-  MapBodyContainer,
-  type MapBodyContainerFlowNode,
-} from "./MapBodyContainer";
 import {
   isSyntheticMapBodyGroupId,
   mapNodeIdFromSyntheticGroupId,
@@ -380,7 +383,7 @@ type FlowNode =
   | PollUntilFlowNode
   | SourceFlowNode
   | GroupChipFlowNode
-  | MapBodyContainerFlowNode;
+  | GroupContainerFlowNode;
 
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
@@ -1338,7 +1341,7 @@ const NODE_TYPES = {
   humanGate: ControlFlowRectangleRenderer,
   source: SourceNodeRenderer,
   "group-chip": GroupChipNode,
-  "map-body-container": MapBodyContainer,
+  "group-container": GroupContainerNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -1553,15 +1556,6 @@ const DATA_WIRE_CLASS = "wb-data-wire";
 const HIGHLIGHT_CLASS = "wb-node-highlight";
 
 /**
- * xyflow class applied to every member of a user node-group when simplified
- * view is OFF (UX walkthrough 2026-07-29 — grouped nodes were
- * indistinguishable from ungrouped ones once the group-time toast faded).
- * Styled in workflow-editor-canvas.css; the wrapper also carries the group
- * label in the `--wb-group-label` custom property for the hover chip.
- */
-const GROUPED_CLASS = "wb-node-grouped";
-
-/**
  * Returns `node` with `HIGHLIGHT_CLASS` toggled on its `className` to match
  * `shouldHighlight`, or the SAME reference when it already matches (so the
  * emphasis effect can skip a no-op state update). Preserves any other
@@ -1763,68 +1757,159 @@ function projectChipFlowNodes(
   }));
 }
 
+/** Breathing room between the members' bounding box and the container's edge. */
+const GROUP_CONTAINER_PAD = 40;
+
 /**
- * Project one `MapBodyContainerFlowNode` per synthetic map-body group. Size
- * is the bounding box of the member nodes' positions (padded). Clicking the
- * box selects the owning map node (decoded from the synthetic group id) so its
- * settings open — that's where the body entry/exit that define this box live.
+ * The padded bounding box of `memberIds`, or `null` when not one of them has
+ * been placed yet (nothing to draw a box around).
+ *
+ * `positionOf` is injected because the box has two callers with two sources of
+ * truth: the projection reads authored positions out of the config, while a
+ * drag in flight reads the LIVE xyflow positions so the box re-fits under the
+ * cursor rather than a frame after the commit.
  */
-function projectMapBodyContainerNodes(
-  syntheticGroups: Record<string, NodeGroup>,
+function computeGroupBounds(
+  memberIds: readonly string[],
   config: GraphWorkflowConfig,
-  onSelectMapNode?: (nodeId: string) => void,
-): MapBodyContainerFlowNode[] {
-  const out: MapBodyContainerFlowNode[] = [];
-  for (const [groupId, group] of Object.entries(syntheticGroups)) {
-    // Enclose each member's FULL footprint: `position` is the card's top-left,
-    // so the box's right/bottom edge must reach `position + card size`. Using
-    // per-node width/height (not a flat footprint) stops wide port-row cards —
-    // e.g. a map body's exit `azureOcr.extract` — from spilling out of the box.
-    let left = Number.POSITIVE_INFINITY;
-    let top = Number.POSITIVE_INFINITY;
-    let right = Number.NEGATIVE_INFINITY;
-    let bottom = Number.NEGATIVE_INFINITY;
-    let any = false;
-    for (const nodeId of group.nodeIds) {
-      const meta = config.nodes[nodeId]?.metadata as
+  positionOf: (nodeId: string) => { x: number; y: number } | undefined,
+): { x: number; y: number; width: number; height: number } | null {
+  // Enclose each member's FULL footprint: `position` is the card's top-left,
+  // so the box's right/bottom edge must reach `position + card size`. Using
+  // per-node width/height (not a flat footprint) stops wide port-row cards —
+  // e.g. a map body's exit `azureOcr.extract` — from spilling out of the box.
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  let any = false;
+  for (const nodeId of memberIds) {
+    const pos = positionOf(nodeId);
+    if (!pos) continue;
+    any = true;
+    const w = estimateNodeWidth(config, nodeId);
+    const h = estimateNodeHeight(config, nodeId);
+    if (pos.x < left) left = pos.x;
+    if (pos.y < top) top = pos.y;
+    if (pos.x + w > right) right = pos.x + w;
+    if (pos.y + h > bottom) bottom = pos.y + h;
+  }
+  if (!any) return null;
+  return {
+    x: left - GROUP_CONTAINER_PAD,
+    y: top - GROUP_CONTAINER_PAD,
+    width: right - left + GROUP_CONTAINER_PAD * 2,
+    height: bottom - top + GROUP_CONTAINER_PAD * 2,
+  };
+}
+
+/** Reads a node's authored position out of the config. */
+function configPositionOf(
+  config: GraphWorkflowConfig,
+): (nodeId: string) => { x: number; y: number } | undefined {
+  return (nodeId) =>
+    (
+      config.nodes[nodeId]?.metadata as
         | { position?: { x: number; y: number } }
-        | undefined;
-      const pos = meta?.position;
-      if (!pos) continue;
-      any = true;
-      const w = estimateNodeWidth(config, nodeId);
-      const h = estimateNodeHeight(config, nodeId);
-      if (pos.x < left) left = pos.x;
-      if (pos.y < top) top = pos.y;
-      if (pos.x + w > right) right = pos.x + w;
-      if (pos.y + h > bottom) bottom = pos.y + h;
-    }
-    if (!any) continue;
-    const pad = 40;
+        | undefined
+    )?.position;
+}
+
+/**
+ * G-1 — one container box per group, authored or synthetic. Size is the
+ * bounding box of the members' positions (padded); the box is a projection of
+ * `nodeIds`, so it follows its declared members wherever they go and never
+ * captures a node that merely overlaps it.
+ *
+ * The two kinds differ only in what the header does and whether it drags:
+ *   - authored group → header opens the group's settings and is the drag
+ *     handle that carries every member (R-1).
+ *   - map body → header selects the owning map node (decoded from the
+ *     synthetic id), where the body entry/exit that define this box live, and
+ *     does not drag: the body is derived from the map, not arranged as a unit.
+ */
+function projectGroupContainerNodes(
+  groups: Record<string, NodeGroup>,
+  config: GraphWorkflowConfig,
+  onOpenGroup?: (groupId: string) => void,
+  onSelectMapNode?: (nodeId: string) => void,
+): GroupContainerFlowNode[] {
+  const out: GroupContainerFlowNode[] = [];
+  const positionOf = configPositionOf(config);
+  for (const [groupId, group] of Object.entries(groups)) {
+    const bounds = computeGroupBounds(group.nodeIds, config, positionOf);
+    if (!bounds) continue;
+    const synthetic = isSyntheticMapBodyGroupId(groupId);
     out.push({
-      id: `container-${groupId}`,
-      type: "map-body-container",
-      position: { x: left - pad, y: top - pad },
+      id: containerIdForGroup(groupId),
+      type: "group-container",
+      position: { x: bounds.x, y: bounds.y },
       data: {
         groupId,
         label: group.label,
         color: group.color,
-        width: right - left + pad * 2,
-        height: bottom - top + pad * 2,
-        onClick: () =>
-          onSelectMapNode?.(mapNodeIdFromSyntheticGroupId(groupId)),
+        icon: synthetic ? undefined : group.icon,
+        width: bounds.width,
+        height: bounds.height,
+        onOpen: synthetic
+          ? () => onSelectMapNode?.(mapNodeIdFromSyntheticGroupId(groupId))
+          : () => onOpenGroup?.(groupId),
       },
-      // zIndex 0 (not -1) keeps the box ABOVE the canvas pane so its label
-      // chip is clickable; it still renders behind member nodes because the
+      // zIndex 0 (not -1) keeps the box ABOVE the canvas pane so its header
+      // is clickable; it still renders behind member nodes because the
       // container nodes are prepended to the node array (earlier = lower in
       // the same stacking level). The box body is pointer-events:none, so
       // member-node clicks and canvas pans still pass through it.
       zIndex: 0,
+      // Never selectable: the box is chrome for the group, and letting it into
+      // xyflow's selection would put it in front of Delete and of the
+      // "N selected" actions, neither of which means anything for a projection.
       selectable: false,
-      draggable: false,
+      draggable: !synthetic,
+      // The header strip is the ONLY drag surface (R-1) — without this the
+      // whole box would drag, and the box covers its members.
+      ...(synthetic ? {} : { dragHandle: `.${GROUP_HEADER_CLASS}` }),
     });
   }
   return out;
+}
+
+/**
+ * Re-fit every container box in `nodes` to where its members currently sit.
+ *
+ * Called on each drag tick: a member drag moves one card and the box must grow
+ * or shrink around it live (the box is a projection of membership, so it has
+ * no independent geometry to preserve), and a header drag moves the members
+ * out from under a box xyflow is dragging by its own delta — recomputing from
+ * the members keeps the two exactly in step instead of accumulating drift.
+ */
+function refitGroupContainers(
+  nodes: readonly FlowNode[],
+  config: GraphWorkflowConfig,
+): FlowNode[] {
+  const livePositions = new Map<string, { x: number; y: number }>();
+  for (const n of nodes) livePositions.set(n.id, n.position);
+  const positionOf = (nodeId: string) => livePositions.get(nodeId);
+  return nodes.map((n): FlowNode => {
+    if (n.type !== "group-container") return n;
+    const memberIds = config.nodeGroups?.[n.data.groupId]?.nodeIds;
+    if (!memberIds) return n;
+    const bounds = computeGroupBounds(memberIds, config, positionOf);
+    if (!bounds) return n;
+    if (
+      n.position.x === bounds.x &&
+      n.position.y === bounds.y &&
+      n.data.width === bounds.width &&
+      n.data.height === bounds.height
+    ) {
+      return n;
+    }
+    return {
+      ...n,
+      position: { x: bounds.x, y: bounds.y },
+      data: { ...n.data, width: bounds.width, height: bounds.height },
+    };
+  });
 }
 
 function buildStructuralFingerprint(
@@ -2119,14 +2204,13 @@ function WorkflowEditorCanvasInner({
       const chipNodes = projectChipFlowNodes(projected.chips, selectedNodeId);
       setInternalNodes([...normalNodes, ...chipNodes]);
     } else {
-      const userGroups = config.nodeGroups ?? {};
-      const syntheticGroups: Record<string, NodeGroup> = {};
-      for (const [k, v] of Object.entries(userGroups)) {
-        if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
-      }
-      const containerNodes = projectMapBodyContainerNodes(
-        syntheticGroups,
+      // G-1 — every group gets a container box, authored or synthetic. This
+      // replaced the per-member dashed outline + hover label: one concept, one
+      // rendering, and a surface the group can be grabbed by (R-1).
+      const containerNodes = projectGroupContainerNodes(
+        config.nodeGroups ?? {},
         config,
+        onGroupChipClick,
         onSelectMapBodyNode,
       );
       const normalNodes = projectFlowNodes(
@@ -2135,32 +2219,7 @@ function WorkflowEditorCanvasInner({
         projectionCallbacks,
         wires,
       );
-      // UX walkthrough 2026-07-29 — with simplified view OFF there was
-      // no visual clue on the canvas that nodes belong to a group (only the
-      // group-time toast, which fades). Stamp group members with a wrapper
-      // class (dashed ring) and the group label (shown on hover via CSS) so
-      // membership stays legible after the fact. Same wrapper-level mechanism
-      // as `wb-node-highlight`, so it works for every node type uniformly.
-      const groupLabelByNode = new Map<string, string>();
-      for (const [gid, group] of Object.entries(userGroups)) {
-        if (isSyntheticMapBodyGroupId(gid)) continue;
-        for (const memberId of group.nodeIds) {
-          groupLabelByNode.set(memberId, group.label || gid);
-        }
-      }
-      const decoratedNodes = normalNodes.map((n): FlowNode => {
-        const groupLabel = groupLabelByNode.get(n.id);
-        if (!groupLabel) return n;
-        return {
-          ...n,
-          className: [n.className, GROUPED_CLASS].filter(Boolean).join(" "),
-          style: {
-            ...n.style,
-            ["--wb-group-label" as string]: `"${groupLabel.replace(/"/g, "'")}"`,
-          },
-        };
-      });
-      setInternalNodes([...containerNodes, ...decoratedNodes]);
+      setInternalNodes([...containerNodes, ...normalNodes]);
     }
     // Note: `selectedNodeId` participates in the projection on
     // structural changes (e.g., when a freshly added node should start
@@ -2193,20 +2252,17 @@ function WorkflowEditorCanvasInner({
    */
   const applyPositionsFromConfig = useCallback(
     (source: GraphWorkflowConfig) => {
-      // Map-body container nodes aren't in `config.nodes`, so the position copy
+      // Group container nodes aren't in `config.nodes`, so the position copy
       // below can't move OR resize them — their geometry is the bounding box of
       // the member positions that Auto-arrange just changed. Project them fresh
-      // so the box tracks its members; otherwise it stays at the pre-arrange
-      // bounds (displaced, no longer wrapping the body). Only REPLACES existing
+      // so each box tracks its members; otherwise it stays at the pre-arrange
+      // bounds (displaced, no longer wrapping the group). Only REPLACES existing
       // container nodes — in simplified view (no containers) this is a no-op.
-      const syntheticGroups: Record<string, NodeGroup> = {};
-      for (const [k, v] of Object.entries(source.nodeGroups ?? {})) {
-        if (isSyntheticMapBodyGroupId(k)) syntheticGroups[k] = v;
-      }
       const freshContainers = new Map(
-        projectMapBodyContainerNodes(
-          syntheticGroups,
+        projectGroupContainerNodes(
+          source.nodeGroups ?? {},
           source,
+          onGroupChipClick,
           onSelectMapBodyNode,
         ).map((c) => [c.id, c] as const),
       );
@@ -2223,7 +2279,7 @@ function WorkflowEditorCanvasInner({
         }),
       );
     },
-    [onSelectMapBodyNode, setInternalNodes],
+    [onGroupChipClick, onSelectMapBodyNode, setInternalNodes],
   );
 
   // Auto-arrange position sync (§4.2). The host bumps `layoutNonce` after a
@@ -2245,9 +2301,10 @@ function WorkflowEditorCanvasInner({
     if (!errorsByNode) return;
     setInternalNodes((prev) =>
       prev.map((n): FlowNode => {
-        // Synthetic map-body containers are background-only decor — no
-        // validation counts to sync.
-        if (n.type === "map-body-container") return n;
+        // Group container boxes are background-only chrome — their members
+        // carry their own badges, and (unlike a chip) those members are all on
+        // screen, so there is nothing to roll up.
+        if (n.type === "group-container") return n;
 
         // G-031 — a chip COLLAPSES its members, so the members' badges leave
         // the canvas with them. Rolling their counts onto the chip is what
@@ -2470,57 +2527,82 @@ function WorkflowEditorCanvasInner({
    * in tests calls the handler with two arguments.
    */
   /**
-   * Item 6 (2026-08-02) — what a group drag in progress must carry along.
-   * Captured at drag start, applied on every tick, consumed and cleared at
-   * drag stop. A ref (not state) because it changes many times per gesture
-   * and nothing renders from it.
+   * R-1 — what a HEADER drag in progress must carry along. Captured at drag
+   * start, applied on every tick, consumed and cleared at drag stop. A ref
+   * (not state) because it changes many times per gesture and nothing renders
+   * from it.
+   *
+   * Null for every other drag: a member's drag moves that member alone, which
+   * is what makes rearranging a node inside its own group possible.
    */
   const groupDragCohortRef = useRef<GroupDragCohort | null>(null);
 
+  /**
+   * The gesture is a group move when — and only when — the node under the
+   * cursor IS a group's container box. xyflow only starts that drag from the
+   * header strip (`dragHandle`), so "the pointer is on the header" and "the
+   * dragged node is the container" are the same fact, and no geometry has to
+   * be guessed. Everything else (including a member of that very group) drags
+   * alone.
+   */
   const handleNodeDragStart = useCallback(
-    (_event: React.MouseEvent, node: Node, dragged?: Node[]) => {
-      const draggedIds = (dragged?.length ? dragged : [node]).map((n) => n.id);
-      groupDragCohortRef.current = captureGroupDragCohort(
-        config,
-        node.id,
-        node.position,
-        draggedIds,
-      );
+    (_event: React.MouseEvent, node: Node) => {
+      const groupId = groupIdFromContainerId(node.id);
+      groupDragCohortRef.current = groupId
+        ? captureGroupDragCohort(config, groupId, node.id, node.position)
+        : null;
     },
     [config],
   );
 
   /**
-   * Live cohesion: move the rest of the group with the node under the cursor,
-   * so the group holds its shape DURING the drag rather than snapping into
-   * place when it ends.
+   * Live geometry during a drag:
+   *   - header drag → every member moves by the box's delta, so the group
+   *     holds its shape while it travels rather than snapping into place at
+   *     the end;
+   *   - member drag → nothing rides along, and the box re-fits around the new
+   *     bounding box on every tick.
    *
-   * This writes straight to the canvas's own node state — xyflow is
-   * controlled here, so that state is what renders. Selection is untouched on
-   * purpose (see group-drag-cohesion.ts): clicking a member still selects only
-   * that member, and the settings panel still edits only that member.
+   * This writes straight to the canvas's own node state — xyflow is controlled
+   * here, so that state is what renders. Selection is untouched on purpose
+   * (see group-drag-cohesion.ts): clicking a member still selects only that
+   * member, and the settings panel still edits only that member.
    */
   const handleNodeDrag = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       const cohort = groupDragCohortRef.current;
-      if (!cohort || cohort.anchorId !== node.id) return;
-      const moves = applyGroupDragDelta(cohort, node.position);
+      const moves =
+        cohort && cohort.anchorId === node.id
+          ? applyGroupDragDelta(cohort, node.position)
+          : null;
       setInternalNodes((prev) =>
-        prev.map((n) => {
-          const at = moves.get(n.id);
-          return at ? { ...n, position: at } : n;
-        }),
+        refitGroupContainers(
+          prev.map((n): FlowNode => {
+            // The dragged node's live position is folded in explicitly rather
+            // than left to xyflow's own change stream: the box must re-fit
+            // against where the pointer is NOW, not one commit behind.
+            if (n.id === node.id) {
+              return n.position.x === node.position.x &&
+                n.position.y === node.position.y
+                ? n
+                : { ...n, position: { ...node.position } };
+            }
+            const at = moves?.get(n.id);
+            return at ? { ...n, position: at } : n;
+          }),
+          config,
+        ),
       );
     },
-    [setInternalNodes],
+    [config, setInternalNodes],
   );
 
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: Node, dragged?: Node[]) => {
       const xyflowMoved = dragged?.length ? dragged : [node];
 
-      // Fold the carried group members into the same commit as the nodes
-      // xyflow moved itself, so one gesture is one config write (and one
+      // Fold the members a header drag carried into the same commit as the
+      // nodes xyflow moved itself, so one gesture is one config write (and one
       // undo step) however many nodes it displaced.
       const cohort = groupDragCohortRef.current;
       groupDragCohortRef.current = null;
@@ -2544,9 +2626,9 @@ function WorkflowEditorCanvasInner({
       const nextNodes = { ...config.nodes };
       let changed = false;
       for (const flowNode of moved) {
-        // Chips and synthetic map-body containers can ride along in the
-        // dragged set; neither is a graph node, so neither has a position to
-        // persist.
+        // Chips and group container boxes can ride along in the dragged set —
+        // a header drag IS a drag of the box — and neither is a graph node, so
+        // neither has a position to persist.
         const existing = config.nodes[flowNode.id];
         if (!existing) continue;
         const prevPos = (
@@ -2586,20 +2668,35 @@ function WorkflowEditorCanvasInner({
       }
       if (!changed) return;
 
+      const nextConfig = { ...config, nodes: nextNodes };
+
+      // Land every box on the gesture's final geometry. `handleNodeDrag` has
+      // usually done this already, but not when a drag produced no tick (a
+      // programmatic move, or a flick short enough to go start→stop), and the
+      // box must never be left wrapping where the members used to be.
+      const finalPositions = new Map(
+        moved.map((n) => [n.id, n.position] as const),
+      );
+      setInternalNodes((prev) =>
+        refitGroupContainers(
+          prev.map((n): FlowNode => {
+            const at = finalPositions.get(n.id);
+            return at ? { ...n, position: { x: at.x, y: at.y } } : n;
+          }),
+          nextConfig,
+        ),
+      );
+
       // Bump the fingerprint ref forward by hand so the structural sync
       // useEffect doesn't immediately re-project the nodes and stamp
       // over the local drag commit.
-      const nextFingerprint = buildStructuralFingerprint(
-        {
-          ...config,
-          nodes: nextNodes,
-        },
+      lastFingerprintRef.current = buildStructuralFingerprint(
+        nextConfig,
         simplifiedView,
       );
-      lastFingerprintRef.current = nextFingerprint;
-      onConfigChange({ ...config, nodes: nextNodes });
+      onConfigChange(nextConfig);
     },
-    [config, onConfigChange, simplifiedView],
+    [config, onConfigChange, setInternalNodes, simplifiedView],
   );
 
   const handleSelectionChange = useCallback(
