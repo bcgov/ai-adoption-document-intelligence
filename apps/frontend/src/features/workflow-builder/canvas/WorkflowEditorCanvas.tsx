@@ -1737,9 +1737,13 @@ function projectSimplifiedFlowEdges(
 /**
  * Builds xyflow nodes for each chip the simplified-view projection
  * emitted. The chip carries its own deterministic id (`group-chip-<id>`)
- * and is non-draggable today — dragging is filed as a follow-up because
- * we recompute the centroid every projection (no chip-position persistence
- * on `nodeGroups[<id>].metadata`).
+ * and is draggable: a drop is persisted to `nodeGroups[<id>].position`, the
+ * same field a simplified-view Auto-arrange writes (W-1). Before that field
+ * existed a chip's position was re-derived from its members' centroid on every
+ * projection, so a drag had nowhere to land and was disabled.
+ *
+ * Dragging a chip moves the CHIP only — its members keep their expanded
+ * positions untouched, because the two views are arranged independently.
  */
 function projectChipFlowNodes(
   chips: readonly GroupChip[],
@@ -1750,7 +1754,7 @@ function projectChipFlowNodes(
     type: "group-chip" as const,
     position: chip.position,
     selected: chip.id === selectedNodeId,
-    draggable: false,
+    draggable: true,
     data: {
       groupId: chip.groupId,
       label: chip.label,
@@ -2743,11 +2747,36 @@ function WorkflowEditorCanvasInner({
       });
 
       const nextNodes = { ...config.nodes };
+      // A dragged CHIP persists to its group rather than to any node: the chip
+      // is where the simplified view puts the group, and its members keep the
+      // expanded positions they had. Collected alongside the node writes so a
+      // gesture that moves both is still one config change and one undo step.
+      const nextGroups: Record<string, NodeGroup> = {
+        ...(config.nodeGroups ?? {}),
+      };
       let changed = false;
       for (const flowNode of moved) {
-        // Chips and group container boxes can ride along in the dragged set —
-        // a header drag IS a drag of the box — and neither is a graph node, so
-        // neither has a position to persist.
+        const chipGroupId = groupIdFromChipId(flowNode.id);
+        if (chipGroupId) {
+          const group = nextGroups[chipGroupId];
+          if (!group) continue;
+          const previous = group.position;
+          if (
+            previous?.x === flowNode.position.x &&
+            previous?.y === flowNode.position.y
+          ) {
+            continue;
+          }
+          nextGroups[chipGroupId] = {
+            ...group,
+            position: { x: flowNode.position.x, y: flowNode.position.y },
+          };
+          changed = true;
+          continue;
+        }
+        // Group container boxes can also ride along in the dragged set — a
+        // header drag IS a drag of the box — and a box is not a graph node, so
+        // it has no position of its own to persist.
         const existing = config.nodes[flowNode.id];
         if (!existing) continue;
         // Compare against the field this view owns — in simplified view a node
@@ -2791,7 +2820,11 @@ function WorkflowEditorCanvasInner({
       }
       if (!changed) return;
 
-      const nextConfig = { ...config, nodes: nextNodes };
+      const nextConfig: GraphWorkflowConfig = {
+        ...config,
+        nodes: nextNodes,
+        ...(config.nodeGroups ? { nodeGroups: nextGroups } : {}),
+      };
 
       // Land every box on the gesture's final geometry. `handleNodeDrag` has
       // usually done this already, but not when a drag produced no tick (a

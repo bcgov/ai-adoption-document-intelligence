@@ -4141,6 +4141,77 @@ describe("WorkflowEditorCanvas — US-043: simplified-view projection", () => {
     expect(screen.getByTestId("canvas-node-n4")).toBeInTheDocument();
   });
 
+  /**
+   * 2026-08-03 — chips are draggable now. They could not be while a chip's
+   * position was re-derived from its members' centroid on every projection:
+   * a drop had nowhere to land. `nodeGroups[<id>].position` (W-1) is that
+   * somewhere, and it is the field a simplified Auto-arrange already writes.
+   */
+  it("chips are draggable, and a drop lands on the group", () => {
+    const config = makeGroupedFixture();
+    const { onConfigChange } = renderCanvas(config, { simplifiedView: true });
+
+    const chip = (
+      latestReactFlowProps.current?.nodes as
+        | Array<{ id: string; draggable?: boolean }>
+        | undefined
+    )?.find((n) => n.id === "group-chip-g1");
+    expect(chip?.draggable).toBe(true);
+
+    const handler = latestReactFlowProps.current?.onNodeDragStop as (
+      e: unknown,
+      n: unknown,
+      nodes?: unknown,
+    ) => void;
+    act(() => {
+      handler({}, { id: "group-chip-g1", position: { x: 900, y: 250 } });
+    });
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1.position).toEqual({ x: 900, y: 250 });
+    // The members stayed exactly where the EXPANDED view has them — the two
+    // arrangements are independent, which is the whole point of the field.
+    for (const id of ["n1", "n2"]) {
+      expect(next.nodes[id].metadata?.position).toEqual(
+        config.nodes[id].metadata?.position,
+      );
+    }
+    // ...and no member picked up a simplified position from the gesture either.
+    expect(
+      (next.nodes.n1.metadata as { simplifiedPosition?: unknown })
+        .simplifiedPosition,
+    ).toBeUndefined();
+  });
+
+  it("a chip dropped where it already sits writes nothing", () => {
+    const config = makeGroupedFixture();
+    const { onConfigChange, rerenderWithConfig } = renderCanvas(config, {
+      simplifiedView: true,
+    });
+    const dropChip = (at: { x: number; y: number }) => {
+      const handler = latestReactFlowProps.current?.onNodeDragStop as (
+        e: unknown,
+        n: unknown,
+      ) => void;
+      act(() => {
+        handler({}, { id: "group-chip-g1", position: at });
+      });
+    };
+
+    dropChip({ x: 640, y: 120 });
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1.position).toEqual({ x: 640, y: 120 });
+
+    // Push the commit back the way the host does, then drop it on the spot it
+    // already occupies: no write, so no empty undo step.
+    rerenderWithConfig(next, null);
+    onConfigChange.mockClear();
+    dropChip({ x: 640, y: 120 });
+    expect(onConfigChange).not.toHaveBeenCalled();
+  });
+
   it("Scenario 2: cross-group edge endpoints attach at the chip ids", () => {
     renderCanvas(makeGroupedFixture(), { simplifiedView: true });
     const props = latestReactFlowProps.current;
