@@ -22,8 +22,10 @@ import {
   configHasAnyPosition,
   layoutGraph,
   layoutGraphIfMissingPositions,
+  layoutGraphSimplified,
   layoutGraphWithMapBodies,
 } from "./auto-layout";
+import { chipIdForGroup, projectGroupedConfig } from "./group-projection";
 import { estimateNodeHeight } from "./port-rows";
 
 // ---------------------------------------------------------------------------
@@ -501,6 +503,268 @@ function buildMapBodyConfig(): GraphWorkflowConfig {
     ctx: {},
   };
 }
+
+// ---------------------------------------------------------------------------
+// G-4 — layoutGraphSimplified: arrange the graph the author is LOOKING at.
+// Chips sit at their members' centroid, so laying out the member graph moved
+// each chip to the middle of its own member chain and nothing visible moved.
+// ---------------------------------------------------------------------------
+
+/** DEFAULT_GROUP_CHIP_WIDTH / GROUP_CHIP_HEIGHT in auto-layout.ts. Hard-coded
+ *  on purpose: if a constant moves, the spacing expectations below fail loudly. */
+const CHIP_WIDTH = 248;
+const CHIP_HEIGHT = 48;
+
+function positionOf(
+  config: GraphWorkflowConfig,
+  id: string,
+): { x: number; y: number } {
+  return (config.nodes[id].metadata as { position: { x: number; y: number } })
+    .position;
+}
+
+function chipPositions(
+  config: GraphWorkflowConfig,
+): Record<string, { x: number; y: number }> {
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const chip of projectGroupedConfig(config).chips) {
+    out[chip.groupId] = chip.position;
+  }
+  return out;
+}
+
+function placed(id: string, x: number, y: number): ActivityNode {
+  return buildActivity(id, { position: { x, y } });
+}
+
+/**
+ * Two groups and one ungrouped node, wired g1 → g2 → outside. Every node
+ * starts stacked around the origin, so the two chips start on top of each
+ * other — the state Auto-arrange is asked to fix. Each group's members carry
+ * a distinct internal offset so a re-layout (rather than a translation) is
+ * detectable.
+ */
+function buildSimplifiedConfig(): GraphWorkflowConfig {
+  const nodes: Record<string, ActivityNode> = {
+    n1: placed("n1", 0, 0),
+    n2: placed("n2", 100, 40),
+    n3: placed("n3", 10, 10),
+    n4: placed("n4", 130, -20),
+    outside: placed("outside", 60, 5),
+  };
+  const edges: GraphEdge[] = [
+    { id: "e1", source: "n1", target: "n2", type: "normal" },
+    { id: "e2", source: "n2", target: "n3", type: "normal" },
+    { id: "e3", source: "n3", target: "n4", type: "normal" },
+    { id: "e4", source: "n4", target: "outside", type: "normal" },
+  ];
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "simplified" },
+    nodes,
+    edges,
+    entryNodeId: "n1",
+    ctx: {},
+    nodeGroups: {
+      g1: { label: "G1", nodeIds: ["n1", "n2"] },
+      g2: { label: "G2", nodeIds: ["n3", "n4"] },
+    },
+  };
+}
+
+describe("layoutGraphSimplified — G-4: lays out chips, translates members", () => {
+  it("spaces the chips as CHIP columns, not as member-chain centroids", () => {
+    const config = buildSimplifiedConfig();
+    const before = chipPositions(config);
+    // The fixture's whole point: the two chips overlap before the arrange.
+    expect(Math.abs(before.g2.x - before.g1.x)).toBeLessThan(CHIP_WIDTH);
+
+    const out = layoutGraphSimplified(config, { rankdir: "LR", ranksep: 80 });
+    const after = chipPositions(out);
+
+    // g1 → g2 is an edge, so LR puts g1's chip in the earlier column — one
+    // chip box plus one ranksep away (equal widths ⇒ top-left delta ===
+    // centre delta). `layoutGraphWithMapBodies` on the same config leaves the
+    // chips ~4x further apart, at member-column scale, which is the bug: the
+    // spacing described the members' chains, not the graph on screen.
+    expect(after.g2.x - after.g1.x).toBeCloseTo(CHIP_WIDTH + 80, 0);
+    // Ungrouped `outside` hangs off g2 and lands in a later column still.
+    expect(positionOf(out, "outside").x).toBeGreaterThan(
+      after.g2.x + CHIP_WIDTH,
+    );
+  });
+
+  it("preserves each group's INTERNAL member geometry — members move as one", () => {
+    const config = buildSimplifiedConfig();
+    const out = layoutGraphSimplified(config, { rankdir: "LR" });
+
+    for (const [a, b] of [
+      ["n1", "n2"],
+      ["n3", "n4"],
+    ]) {
+      const beforeOffset = {
+        x: positionOf(config, b).x - positionOf(config, a).x,
+        y: positionOf(config, b).y - positionOf(config, a).y,
+      };
+      const afterOffset = {
+        x: positionOf(out, b).x - positionOf(out, a).x,
+        y: positionOf(out, b).y - positionOf(out, a).y,
+      };
+      expect(afterOffset).toEqual(beforeOffset);
+    }
+  });
+
+  it("translates every member by exactly its own chip's delta", () => {
+    const config = buildSimplifiedConfig();
+    const out = layoutGraphSimplified(config, { rankdir: "LR" });
+    const before = chipPositions(config);
+    const after = chipPositions(out);
+
+    for (const [groupId, members] of Object.entries({
+      g1: ["n1", "n2"],
+      g2: ["n3", "n4"],
+    })) {
+      const dx = after[groupId].x - before[groupId].x;
+      const dy = after[groupId].y - before[groupId].y;
+      for (const id of members) {
+        expect(positionOf(out, id).x).toBeCloseTo(
+          positionOf(config, id).x + dx,
+          5,
+        );
+        expect(positionOf(out, id).y).toBeCloseTo(
+          positionOf(config, id).y + dy,
+          5,
+        );
+      }
+    }
+  });
+
+  it("uses the caller's MEASURED chip width, as it does for cards", () => {
+    const config = buildSimplifiedConfig();
+    const WIDE = 600;
+    const nodeWidths = new Map([
+      [chipIdForGroup("g1"), WIDE],
+      [chipIdForGroup("g2"), WIDE],
+    ]);
+    const measured = chipPositions(
+      layoutGraphSimplified(config, { rankdir: "LR", ranksep: 80, nodeWidths }),
+    );
+    const fallback = chipPositions(
+      layoutGraphSimplified(config, { rankdir: "LR", ranksep: 80 }),
+    );
+    // Equal widths ⇒ column delta === width + ranksep, so a wider measured
+    // chip pushes the next column further right by exactly the width delta.
+    expect(measured.g2.x - measured.g1.x).toBeCloseTo(WIDE + 80, 0);
+    expect(fallback.g2.x - fallback.g1.x).toBeCloseTo(CHIP_WIDTH + 80, 0);
+  });
+
+  it("does not overlap a chip with an ungrouped node on the same rank", () => {
+    // `solo` hangs off the same producer as g2's chip, so dagre ranks them
+    // together — the chip's height has to be reserved or they collide.
+    const config = buildSimplifiedConfig();
+    const withSibling: GraphWorkflowConfig = {
+      ...config,
+      nodes: { ...config.nodes, solo: placed("solo", 0, 0) },
+      edges: [
+        ...config.edges,
+        { id: "e5", source: "n2", target: "solo", type: "normal" },
+      ],
+    };
+    const out = layoutGraphSimplified(withSibling, { rankdir: "LR" });
+    const chipY = chipPositions(out).g2.y;
+    const soloY = positionOf(out, "solo").y;
+    const soloHeight = estimateNodeHeight(withSibling, "solo");
+    const noOverlap =
+      chipY + CHIP_HEIGHT <= soloY || soloY + soloHeight <= chipY;
+    expect(noOverlap).toBe(true);
+  });
+
+  it("is pure — the input config and its nodes are untouched", () => {
+    const config = buildSimplifiedConfig();
+    const snapshot = JSON.parse(JSON.stringify(config)) as GraphWorkflowConfig;
+    const out = layoutGraphSimplified(config);
+    expect(config).toEqual(snapshot);
+    expect(out.nodes).not.toBe(config.nodes);
+    expect(out.nodeGroups).toEqual(config.nodeGroups);
+  });
+
+  it("falls back to the expanded layout when nothing is collapsed", () => {
+    const linear = buildLinearConfig();
+    expect(layoutGraphSimplified(linear)).toEqual(
+      layoutGraphWithMapBodies(linear),
+    );
+  });
+
+  it("falls back to the expanded layout when no node has been placed yet", () => {
+    // Every member reads the same fallback position, so there is no intra-group
+    // arrangement to preserve and the centroids are meaningless.
+    const config = buildSimplifiedConfig();
+    const unplaced: GraphWorkflowConfig = {
+      ...config,
+      nodes: Object.fromEntries(
+        Object.entries(config.nodes).map(([id, node]) => [
+          id,
+          { ...node, metadata: undefined },
+        ]),
+      ),
+    };
+    expect(layoutGraphSimplified(unplaced)).toEqual(
+      layoutGraphWithMapBodies(unplaced),
+    );
+  });
+
+  it("keeps a visible map body clustered while groups are collapsed", () => {
+    // A map whose body is NOT inside any user group stays a cluster in the
+    // projected layout, exactly as it does in the expanded one.
+    const map: MapNode = {
+      id: "m",
+      type: "map",
+      label: "Run for each",
+      collectionCtxKey: "items",
+      itemCtxKey: "item",
+      bodyEntryNodeId: "b1",
+      bodyExitNodeId: "b2",
+    };
+    const nodes: Record<string, GraphNode> = {
+      g1a: placed("g1a", 0, 0),
+      g1b: placed("g1b", 90, 0),
+      m: { ...map, metadata: { position: { x: 200, y: 0 } } } as MapNode,
+      b1: placed("b1", 300, 0),
+      b2: placed("b2", 400, 0),
+      tail: placed("tail", 500, 0),
+    };
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "simplified-map" },
+      nodes,
+      edges: [
+        { id: "e1", source: "g1a", target: "g1b", type: "normal" },
+        { id: "e2", source: "g1b", target: "m", type: "normal" },
+        { id: "e3", source: "m", target: "b1", type: "normal" },
+        { id: "e4", source: "b1", target: "b2", type: "normal" },
+        { id: "e5", source: "b2", target: "tail", type: "normal" },
+      ],
+      entryNodeId: "g1a",
+      ctx: {},
+      nodeGroups: { g1: { label: "G1", nodeIds: ["g1a", "g1b"] } },
+    };
+
+    const out = layoutGraphSimplified(config, { rankdir: "LR" });
+    // The body members cluster: they sit closer to each other than the
+    // non-member `tail` sits to either of them.
+    const b1 = positionOf(out, "b1");
+    const b2 = positionOf(out, "b2");
+    const tail = positionOf(out, "tail");
+    const bodySpan = Math.hypot(b2.x - b1.x, b2.y - b1.y);
+    expect(Math.hypot(tail.x - b2.x, tail.y - b2.y)).toBeGreaterThan(bodySpan);
+    // ...and the synthetic group never lands in the persisted config.
+    expect(
+      Object.keys(out.nodeGroups ?? {}).some((k) =>
+        k.startsWith("__map_body_"),
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("layoutGraphWithMapBodies — clusters map bodies, strips synthetic groups", () => {
   it("does not persist synthetic map-body groups in the output", () => {

@@ -40,6 +40,8 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import { ORPHANED_DELETE_TOAST_ID } from "../delete-orphan-toast";
+import { layoutGraphWithMapBodies } from "./auto-layout";
+import { projectGroupedConfig } from "./group-projection";
 import { mergeNodeGroups, synthesizeMapBodyGroups } from "./map-body-groups";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
 import {
@@ -6374,5 +6376,164 @@ describe("WorkflowEditorCanvas — P-4: empty-canvas context menu", () => {
     // A first node that is not the entry point makes the workflow invalid on
     // arrival — the palette-add path adopts it, so this one does too.
     expect(next.entryNodeId).toBe(ids[0]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-4 — the pane menu's Auto-arrange is simplified-view aware.
+//
+// With groups collapsed, the graph on screen is chips + ungrouped nodes.
+// Laying out the MEMBER graph slid each chip to the centre of its own member
+// chain, so the author saw nothing move. The pane menu is one of the three
+// Auto-arrange entry points and had to learn the same rule as the top bar.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — G-4: Auto-arrange in simplified view", () => {
+  /**
+   * Two groups wired g1 → g2, plus one ungrouped node hanging off g2. Every
+   * node starts stacked near the origin, so both chips start on top of each
+   * other — the state the author reaches for Auto-arrange to fix.
+   */
+  function makeCollapsedFixture(): GraphWorkflowConfig {
+    const at = (id: string, x: number, y: number): ActivityNode => ({
+      id,
+      type: "activity",
+      label: id,
+      activityType: "data.transform",
+      parameters: {},
+      metadata: { position: { x, y } },
+    });
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "collapsed", version: "1.0.0" },
+      ctx: {},
+      nodes: {
+        n1: at("n1", 0, 0),
+        n2: at("n2", 90, 30),
+        n3: at("n3", 20, 10),
+        n4: at("n4", 110, -25),
+        tail: at("tail", 50, 0),
+      },
+      edges: [
+        { id: "e1", source: "n1", target: "n2", type: "normal" },
+        { id: "e2", source: "n2", target: "n3", type: "normal" },
+        { id: "e3", source: "n3", target: "n4", type: "normal" },
+        { id: "e4", source: "n4", target: "tail", type: "normal" },
+      ],
+      entryNodeId: "n1",
+      nodeGroups: {
+        g1: { label: "Group 1", nodeIds: ["n1", "n2"] },
+        g2: { label: "Group 2", nodeIds: ["n3", "n4"] },
+      },
+    };
+  }
+
+  function chipXOf(config: GraphWorkflowConfig, groupId: string): number {
+    const chip = projectGroupedConfig(config).chips.find(
+      (c) => c.groupId === groupId,
+    );
+    if (!chip) throw new Error(`no chip projected for ${groupId}`);
+    return chip.position.x;
+  }
+
+  function positionOf(
+    config: GraphWorkflowConfig,
+    id: string,
+  ): { x: number; y: number } {
+    return (config.nodes[id].metadata as { position: { x: number; y: number } })
+      .position;
+  }
+
+  function openPaneMenu() {
+    const props = latestReactFlowProps.current;
+    if (!props || typeof props.onPaneContextMenu !== "function") {
+      throw new Error("ReactFlow mock did not capture onPaneContextMenu");
+    }
+    act(() => {
+      (props.onPaneContextMenu as (e: React.MouseEvent) => void)({
+        preventDefault: vi.fn(),
+        clientX: 300,
+        clientY: 200,
+      } as unknown as React.MouseEvent);
+    });
+  }
+
+  async function arrangeFromPaneMenu(simplifiedView: boolean) {
+    const rendered = renderCanvas(makeCollapsedFixture(), { simplifiedView });
+    await flushAnimationFrame();
+    openPaneMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("pane-menu-auto-arrange")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("pane-menu-auto-arrange"));
+    await waitFor(() => {
+      expect(rendered.onConfigChange).toHaveBeenCalledTimes(1);
+    });
+    return {
+      ...rendered,
+      next: rendered.onConfigChange.mock.calls[0][0] as GraphWorkflowConfig,
+    };
+  }
+
+  it("spaces the chips as CHIP columns, not as member-chain centroids", async () => {
+    const before = makeCollapsedFixture();
+    const { next } = await arrangeFromPaneMenu(true);
+    // Before: the two chips sit on top of each other.
+    expect(
+      Math.abs(chipXOf(before, "g2") - chipXOf(before, "g1")),
+    ).toBeLessThan(248);
+    // After: adjacent chip columns are exactly a chip box plus one ranksep
+    // apart (248 + 80). This is the assertion the old behaviour fails — laying
+    // out the MEMBER graph left each chip at the centre of its own two-card
+    // chain, so the gap came out at member-column scale, near 4x this.
+    expect(chipXOf(next, "g2") - chipXOf(next, "g1")).toBeCloseTo(248 + 80, 0);
+    // The ungrouped node is a real card in the next column along.
+    expect(positionOf(next, "tail").x).toBeGreaterThan(
+      chipXOf(next, "g2") + 248,
+    );
+  });
+
+  it("keeps each group's internal geometry so expanding stays coherent", async () => {
+    const before = makeCollapsedFixture();
+    const { next } = await arrangeFromPaneMenu(true);
+    for (const [a, b] of [
+      ["n1", "n2"],
+      ["n3", "n4"],
+    ]) {
+      expect({
+        x: positionOf(next, b).x - positionOf(next, a).x,
+        y: positionOf(next, b).y - positionOf(next, a).y,
+      }).toEqual({
+        x: positionOf(before, b).x - positionOf(before, a).x,
+        y: positionOf(before, b).y - positionOf(before, a).y,
+      });
+    }
+  });
+
+  it("moves the RENDERED chips, not just the config", async () => {
+    // The structural fingerprint excludes positions, so nothing re-projects on
+    // an arrange. A chip is derived geometry (its members' centroid) and is not
+    // in `config.nodes`, so the position copy cannot reach it — without the
+    // chip re-derivation the config changed and the canvas sat still, which is
+    // exactly the bug the author reported.
+    const { next } = await arrangeFromPaneMenu(true);
+    const renderedChips = (
+      (latestReactFlowProps.current?.nodes ?? []) as Array<{
+        id: string;
+        position: { x: number; y: number };
+      }>
+    ).filter((n) => n.id.startsWith("group-chip-"));
+    expect(renderedChips).toHaveLength(2);
+    for (const chip of renderedChips) {
+      const groupId = chip.id.replace("group-chip-", "");
+      expect(chip.position.x).toBeCloseTo(chipXOf(next, groupId), 5);
+    }
+  });
+
+  it("leaves EXPANDED-view Auto-arrange on the member-graph layout", async () => {
+    const { next } = await arrangeFromPaneMenu(false);
+    // jsdom measures nothing, so the live-instance width sweep is empty and
+    // the helper runs on its defaults — byte-comparable with a direct call.
+    expect(next).toEqual(layoutGraphWithMapBodies(makeCollapsedFixture()));
   });
 });

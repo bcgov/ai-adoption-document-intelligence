@@ -343,6 +343,7 @@ vi.mock("../../data/hooks/useWorkflows", () => ({
   }),
 }));
 
+import { projectGroupedConfig } from "./canvas/group-projection";
 import { ORPHANED_DELETE_TOAST_ID } from "./delete-orphan-toast";
 import { resolveWireableInputRows } from "./settings/input-row-resolution";
 import type { WorkflowTemplate } from "./templates";
@@ -908,6 +909,48 @@ describe("WorkflowEditorV2Page — US-049 Scenario 3: Auto-arrange button", () =
       "data-disabled",
       "true",
     );
+  });
+
+  /**
+   * G-4 — in simplified view the graph on screen is chips + ungrouped nodes,
+   * so that is what the top-bar button lays out. Laying out the MEMBER graph
+   * (what it used to do) only slid each chip to the centre of its own member
+   * chain: for the visible nodes, nothing happened.
+   */
+  it("lays out the CHIP graph when simplified view is on, keeping groups rigid", async () => {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    // a → b → c, with {a,b} collapsed into one group. `a` and `b` start 20px
+    // apart on each axis; that offset has to survive the arrange.
+    cfg.nodeGroups = { g1: { label: "Stage one", nodeIds: ["a", "b"] } };
+    renderPage(makeTemplate(cfg));
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("simplified-view-toggle"));
+    });
+    expect(capturedCanvasProps.current?.simplifiedView).toBe(true);
+
+    const before = readPositionsFromCanvas();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-menu-auto-arrange"));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    const after = readPositionsFromCanvas();
+
+    // The group moved as one body — its internal offset is byte-identical.
+    expect({
+      x: (after.b?.x ?? 0) - (after.a?.x ?? 0),
+      y: (after.b?.y ?? 0) - (after.a?.y ?? 0),
+    }).toEqual({
+      x: (before.b?.x ?? 0) - (before.a?.x ?? 0),
+      y: (before.b?.y ?? 0) - (before.a?.y ?? 0),
+    });
+    // ...and it moved: the chip now sits a chip-column ahead of nothing and a
+    // clear column behind the ungrouped `c`, which is the layout of the
+    // projected graph rather than of the members.
+    const arranged = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    const chip = projectGroupedConfig(arranged).chips[0];
+    expect(after.c?.x ?? 0).toBeGreaterThan(chip.position.x + 248);
+    expect(after.a).not.toEqual(before.a);
   });
 });
 

@@ -71,7 +71,16 @@ export function groupIdFromChipId(nodeId: string): string | null {
   return rest.length > 0 ? rest : null;
 }
 
-function readPositionFromNode(node: GraphNode | undefined): {
+/**
+ * The position a projection reads off a node — its authored
+ * `metadata.position`, or `FALLBACK_POSITION` when it has never been placed.
+ *
+ * Exported because the simplified-view auto-layout (`layoutGraphSimplified`)
+ * translates each group's members by their chip's delta, and the "before"
+ * it subtracts must be the SAME reading the centroid was built from. Two
+ * readers with two fallbacks would drift the members off their chip.
+ */
+export function readNodePosition(node: GraphNode | undefined): {
   x: number;
   y: number;
 } {
@@ -127,7 +136,7 @@ export function projectGroupedConfig(
   const chips: GroupChip[] = groupIds.map((groupId) => {
     const group = groups[groupId];
     const positions = group.nodeIds.map((id) =>
-      readPositionFromNode(config.nodes[id]),
+      readNodePosition(config.nodes[id]),
     );
     const count = positions.length || 1;
     let sumX = 0;

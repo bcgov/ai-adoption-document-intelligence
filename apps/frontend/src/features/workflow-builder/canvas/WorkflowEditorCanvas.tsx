@@ -93,7 +93,7 @@ import {
   type SourceNodeData,
   SourceNodeRenderer,
 } from "../sources/SourceNodeRenderer";
-import { layoutGraphWithMapBodies } from "./auto-layout";
+import { layoutGraphSimplified, layoutGraphWithMapBodies } from "./auto-layout";
 import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
@@ -2266,10 +2266,24 @@ function WorkflowEditorCanvasInner({
           onSelectMapBodyNode,
         ).map((c) => [c.id, c] as const),
       );
+      // G-4 — chips are the same kind of derived geometry: a chip sits at the
+      // CENTROID of its members' positions, and it is not in `source.nodes`,
+      // so the position copy below cannot reach it. Re-derive it. Without
+      // this, a simplified-view Auto-arrange moves every member in the config
+      // and the only thing on screen — the chips — stays exactly where it was,
+      // which is the "nothing happened" bug from the author's side. Empty in
+      // expanded view (no chips), same as the container map above.
+      const freshChipPositions = new Map(
+        projectGroupedConfig(source).chips.map(
+          (chip) => [chip.id, chip.position] as const,
+        ),
+      );
       setInternalNodes((prev) =>
         prev.map((n): FlowNode => {
           const fresh = freshContainers.get(n.id);
           if (fresh) return fresh;
+          const chipPosition = freshChipPositions.get(n.id);
+          if (chipPosition) return { ...n, position: { ...chipPosition } };
           const pos = (
             source.nodes[n.id]?.metadata as
               | { position?: { x: number; y: number } }
@@ -3269,7 +3283,13 @@ function WorkflowEditorCanvasInner({
       if (typeof width === "number" && width > 0)
         nodeWidths.set(node.id, width);
     }
-    const next = layoutGraphWithMapBodies(config, { nodeWidths });
+    // G-4 — same rule as the top-bar Auto-arrange: with groups collapsed the
+    // graph on screen is the projected chips-plus-ungrouped-nodes graph, so
+    // that is what gets laid out. A fix that covered only the top bar would
+    // leave this menu doing visibly nothing.
+    const next = simplifiedView
+      ? layoutGraphSimplified(config, { nodeWidths })
+      : layoutGraphWithMapBodies(config, { nodeWidths });
     onConfigChange(next);
     // The host bumps `layoutNonce` for arranges IT starts; this one starts
     // here, so apply the new positions to the rendered nodes directly —
@@ -3284,6 +3304,7 @@ function WorkflowEditorCanvasInner({
     config,
     onConfigChange,
     applyPositionsFromConfig,
+    simplifiedView,
   ]);
 
   const fitViewFromPaneMenu = useCallback(() => {

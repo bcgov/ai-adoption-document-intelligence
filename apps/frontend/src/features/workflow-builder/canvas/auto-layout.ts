@@ -26,15 +26,16 @@
  *     `height` is derived per node via `estimateNodeHeight` (which
  *     rolls up the node's real catalog port-row count) so tall,
  *     multi-port cards (e.g. `azureOcr.extract`'s 5 input rows) don't
- *     overlap same-rank neighbours. `DEFAULT_NODE_HEIGHT` (80) is a
- *     defensive fallback only — `estimateNodeHeight` is total over
- *     `config.nodes`, so it can't fire today. Switch nodes render as
+ *     overlap same-rank neighbours. Switch nodes render as
  *     180 × 180 diamonds (hence `CONTROL_FLOW_NODE_HEIGHT = 180`), but a
  *     uniform width is good enough for the layout step; dagre uses
  *     width/height only to compute the bounding boxes.
  *   - Output positions are the centre coordinates dagre returns. We
  *     convert them to top-left so the result is xyflow-friendly (xyflow
  *     `node.position` is the top-left of the node).
+ *   - Simplified view lays out a DIFFERENT graph — see
+ *     `layoutGraphSimplified`. Both share `runDagreLayout`, which is the
+ *     only code here that touches dagre.
  */
 
 import type { graphlib } from "dagre";
@@ -49,7 +50,9 @@ import type { graphlib } from "dagre";
 // eslint-disable-next-line import/extensions
 import dagreLib from "dagre-esm/dist/dagre.esm.js";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
+import { projectGroupedConfig, readNodePosition } from "./group-projection";
 import {
+  isSyntheticMapBodyGroupId,
   mergeNodeGroups,
   stripSyntheticMapBodyGroups,
   synthesizeMapBodyGroups,
@@ -125,7 +128,105 @@ const DEFAULT_RANKSEP = 80;
  * per-node width estimate, the deferred long-term fix).
  */
 const DEFAULT_NODE_WIDTH = 482;
-const DEFAULT_NODE_HEIGHT = 80;
+
+/**
+ * A group chip renders one header row — icon, label, node-count badge — at
+ * `minWidth: 220` (`GroupChipNode.tsx`). Its height does NOT vary with member
+ * count, which is why only the width is worth measuring: 10px padding + a
+ * ~24px row + 10px padding + 2×2px border ≈ 48. The width fallback is the
+ * min-width plus its horizontal padding, used only when the caller supplies no
+ * measured width (tests, and any chip xyflow has not measured yet).
+ */
+const GROUP_CHIP_HEIGHT = 48;
+const DEFAULT_GROUP_CHIP_WIDTH = 248;
+
+/** One dagre box: an id and the footprint the layout should reserve for it. */
+interface LayoutBox {
+  id: string;
+  width: number;
+  height: number;
+}
+
+interface DagreLayoutInput {
+  boxes: readonly LayoutBox[];
+  edges: readonly { source: string; target: string }[];
+  /**
+   * Cluster id → member box ids. Members stay close together under a
+   * compound layout. Ids that are not registered boxes are ignored, and an
+   * empty record turns the compound flag off entirely.
+   */
+  clusters: Readonly<Record<string, readonly string[]>>;
+}
+
+/**
+ * The one place this module talks to dagre. Takes explicit boxes rather than a
+ * config because it serves two graphs: the member-level graph (`layoutGraph`)
+ * and the simplified view's projected graph of chips + ungrouped nodes
+ * (`layoutGraphSimplified`), where half the boxes are not `config.nodes`
+ * entries at all.
+ *
+ * Returns TOP-LEFT positions (dagre reports centres; xyflow wants top-left),
+ * converted with the same width/height each box was registered with — a
+ * mismatch there would shift the card off its slot centre.
+ */
+function runDagreLayout(
+  input: DagreLayoutInput,
+  options: LayoutGraphOptions,
+): Map<string, { x: number; y: number }> {
+  const rankdir = options.rankdir ?? DEFAULT_RANKDIR;
+  const nodesep = options.nodesep ?? DEFAULT_NODESEP;
+  const ranksep = options.ranksep ?? DEFAULT_RANKSEP;
+  const clusterIds = Object.keys(input.clusters);
+
+  const graph = new dagre.graphlib.Graph({ compound: clusterIds.length > 0 });
+  graph.setGraph({
+    rankdir,
+    nodesep,
+    ranksep,
+  });
+  graph.setDefaultEdgeLabel(() => ({}));
+
+  const boxById = new Map(input.boxes.map((box) => [box.id, box] as const));
+  for (const box of input.boxes) {
+    graph.setNode(box.id, { width: box.width, height: box.height });
+  }
+
+  // Cluster nodes — dagre uses the `cluster*` label-prefix convention only
+  // for graphviz output. For the layout itself, any compound parent works as
+  // long as the graph is marked compound and membership goes through
+  // `setParent`.
+  for (const clusterId of clusterIds) {
+    graph.setNode(clusterId, {});
+    for (const memberId of input.clusters[clusterId]) {
+      if (boxById.has(memberId)) {
+        graph.setParent(memberId, clusterId);
+      }
+    }
+  }
+
+  for (const edge of input.edges) {
+    if (boxById.has(edge.source) && boxById.has(edge.target)) {
+      graph.setEdge(edge.source, edge.target);
+    }
+  }
+
+  dagre.layout(graph);
+
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const box of input.boxes) {
+    const laidOut = graph.node(box.id);
+    positions.set(box.id, {
+      x: (laidOut?.x ?? 0) - box.width / 2,
+      y: (laidOut?.y ?? 0) - box.height / 2,
+    });
+  }
+  return positions;
+}
+
+/** Per-node dagre box width: the caller's measured width, else the default. */
+function widthForNode(nodeId: string, options: LayoutGraphOptions): number {
+  return options.nodeWidths?.get(nodeId) ?? DEFAULT_NODE_WIDTH;
+}
 
 /**
  * Returns a new `GraphWorkflowConfig` with every node's `metadata.position`
@@ -135,86 +236,34 @@ export function layoutGraph(
   config: GraphWorkflowConfig,
   options: LayoutGraphOptions = {},
 ): GraphWorkflowConfig {
-  const rankdir = options.rankdir ?? DEFAULT_RANKDIR;
-  const nodesep = options.nodesep ?? DEFAULT_NODESEP;
-  const ranksep = options.ranksep ?? DEFAULT_RANKSEP;
-  // Per-node dagre box width: the caller's measured width when supplied, else
-  // the fixed default. Reused for both node registration and the
-  // centre→top-left conversion so the box dagre reasons about matches the box
-  // we report (a mismatch would shift the card off its slot centre).
-  const widthFor = (nodeId: string): number =>
-    options.nodeWidths?.get(nodeId) ?? DEFAULT_NODE_WIDTH;
-  const hasGroups =
-    !!config.nodeGroups && Object.keys(config.nodeGroups).length > 0;
-
-  const graph = new dagre.graphlib.Graph({ compound: hasGroups });
-  graph.setGraph({
-    rankdir,
-    nodesep,
-    ranksep,
-  });
-  graph.setDefaultEdgeLabel(() => ({}));
-
   // Per-node height, derived from the node's real port-row count so tall,
   // multi-port cards (e.g. azureOcr.extract's 5 input rows) don't overlap
-  // same-rank neighbours. Computed once and reused for both dagre node
-  // registration and the center→top-left conversion below, so the box
-  // dagre reasons about matches the box we report. DEFAULT_NODE_HEIGHT is
-  // only a fallback for a node id absent from `config.nodes`, which
-  // shouldn't happen since this map is built from that same record.
-  const nodeHeights = new Map<string, number>();
-  for (const node of Object.values(config.nodes)) {
-    nodeHeights.set(node.id, estimateNodeHeight(config, node.id));
+  // same-rank neighbours.
+  const boxes: LayoutBox[] = Object.values(config.nodes).map((node) => ({
+    id: node.id,
+    width: widthForNode(node.id, options),
+    height: estimateNodeHeight(config, node.id),
+  }));
+
+  // Groups become cluster subgraphs so members stay close together.
+  const clusters: Record<string, readonly string[]> = {};
+  for (const [groupId, group] of Object.entries(config.nodeGroups ?? {})) {
+    clusters[groupId] = group.nodeIds;
   }
 
-  // Register every node.
-  for (const node of Object.values(config.nodes)) {
-    graph.setNode(node.id, {
-      width: widthFor(node.id),
-      height: nodeHeights.get(node.id) ?? DEFAULT_NODE_HEIGHT,
-    });
-  }
-
-  // Register groups as cluster subgraphs so members stay close together.
-  if (hasGroups && config.nodeGroups) {
-    for (const [groupId, group] of Object.entries(config.nodeGroups)) {
-      // Cluster node — dagre uses a cluster's label-prefix convention
-      // (`cluster*`) only for graphviz output. For the layout itself,
-      // any compound parent works as long as we mark the graph as
-      // compound and use `setParent`.
-      graph.setNode(groupId, {});
-      for (const memberId of group.nodeIds) {
-        if (config.nodes[memberId]) {
-          graph.setParent(memberId, groupId);
-        }
-      }
-    }
-  }
-
-  // Register every edge.
-  for (const edge of config.edges) {
-    if (config.nodes[edge.source] && config.nodes[edge.target]) {
-      graph.setEdge(edge.source, edge.target);
-    }
-  }
-
-  dagre.layout(graph);
+  const placed = runDagreLayout(
+    { boxes, edges: config.edges, clusters },
+    options,
+  );
 
   // Stamp positions onto a new nodes record.
   const nextNodes: Record<string, GraphNode> = {};
   for (const [nodeId, node] of Object.entries(config.nodes)) {
-    const laidOut = graph.node(nodeId);
-    const centerX = laidOut?.x ?? 0;
-    const centerY = laidOut?.y ?? 0;
-    const height = nodeHeights.get(nodeId) ?? DEFAULT_NODE_HEIGHT;
     nextNodes[nodeId] = {
       ...node,
       metadata: {
         ...(node.metadata ?? {}),
-        position: {
-          x: centerX - widthFor(nodeId) / 2,
-          y: centerY - height / 2,
-        },
+        position: placed.get(nodeId) ?? { x: 0, y: 0 },
       },
     } as GraphNode;
   }
@@ -255,6 +304,124 @@ export function layoutGraphWithMapBodies(
         nodeGroups: stripSyntheticMapBodyGroups(laidOut.nodeGroups),
       }
     : laidOut;
+}
+
+/**
+ * G-4 — Auto-arrange for the SIMPLIFIED view.
+ *
+ * `layoutGraphWithMapBodies` lays out the member-level graph, which is not
+ * the graph on screen when groups are collapsed: a chip sits at the CENTROID
+ * of its members' positions, so arranging the members only moved each chip to
+ * the middle of its own member chain. Nothing the author could see moved,
+ * which is why Auto-arrange read as a no-op in simplified view.
+ *
+ * So lay out what is actually rendered — `projectGroupedConfig`'s own output:
+ * one box per chip, one per ungrouped node, wired by the projection's
+ * rewritten edges (intra-group edges dropped, cross-group endpoints remapped
+ * to chip ids; dagre collapses the duplicates that remapping creates, since a
+ * non-multigraph keys edges by their endpoint pair).
+ *
+ * Members then move as a rigid body: each group's members are translated by
+ * the delta its chip travelled, so INTERNAL geometry survives untouched and
+ * expanding after an arrange shows the same arrangement, relocated. What it
+ * does NOT guarantee is that an expanded group clears its neighbours — the
+ * chip reserved a chip-sized slot, not a group-sized one. Reserving the
+ * members' bounding box instead would push the visible chips apart by the
+ * size of things nobody can see, which is the worse trade.
+ *
+ * Chip box sizes come from `options.nodeWidths` exactly as measured card
+ * widths do — chips are real xyflow nodes, so the Auto-arrange entry points'
+ * measured-width sweep already includes them.
+ *
+ * Pure, like everything else here: no React, no xyflow.
+ */
+export function layoutGraphSimplified(
+  config: GraphWorkflowConfig,
+  options: LayoutGraphOptions = {},
+): GraphWorkflowConfig {
+  const projected = projectGroupedConfig(config);
+
+  // Nothing is collapsed — simplified view is showing exactly what the
+  // expanded view shows, so it gets exactly the expanded layout.
+  if (projected.chips.length === 0) {
+    return layoutGraphWithMapBodies(config, options);
+  }
+  // A translation needs something to translate FROM. With no authored
+  // geometry anywhere there is no intra-group arrangement to preserve (every
+  // member reads the same fallback position and the chips would stack their
+  // members on one point), so lay out the member graph and let the centroids
+  // become real.
+  if (!configHasAnyPosition(config)) {
+    return layoutGraphWithMapBodies(config, options);
+  }
+
+  const boxes: LayoutBox[] = projected.visibleNodes.map((node) => ({
+    id: node.id,
+    width: widthForNode(node.id, options),
+    height: estimateNodeHeight(config, node.id),
+  }));
+  for (const chip of projected.chips) {
+    boxes.push({
+      id: chip.id,
+      width: options.nodeWidths?.get(chip.id) ?? DEFAULT_GROUP_CHIP_WIDTH,
+      height: GROUP_CHIP_HEIGHT,
+    });
+  }
+
+  // Map bodies still cluster, as they do in the expanded layout. `mergeNodeGroups`
+  // strips from each synthetic group every member a user group already claimed
+  // — i.e. everything folded into a chip — so what survives is visible boxes
+  // only, and a body swallowed whole by a group drops out.
+  const clusters: Record<string, readonly string[]> = {};
+  const merged = mergeNodeGroups(
+    config.nodeGroups ?? {},
+    synthesizeMapBodyGroups(config),
+  );
+  for (const [groupId, group] of Object.entries(merged)) {
+    if (isSyntheticMapBodyGroupId(groupId)) {
+      clusters[groupId] = group.nodeIds;
+    }
+  }
+
+  const placed = runDagreLayout(
+    { boxes, edges: projected.visibleEdges, clusters },
+    options,
+  );
+
+  const nextPositions = new Map<string, { x: number; y: number }>();
+  for (const node of projected.visibleNodes) {
+    const position = placed.get(node.id);
+    if (position) nextPositions.set(node.id, position);
+  }
+  for (const chip of projected.chips) {
+    const position = placed.get(chip.id);
+    if (!position) continue;
+    // The chip's own travel, applied uniformly to its members. `chip.position`
+    // is the centroid the projection derived from these same members, read
+    // through `readNodePosition` — so the same reader has to supply the
+    // "before" here or the members would drift off their chip.
+    const dx = position.x - chip.position.x;
+    const dy = position.y - chip.position.y;
+    for (const memberId of chip.memberNodeIds) {
+      const member = config.nodes[memberId];
+      if (!member) continue;
+      const from = readNodePosition(member);
+      nextPositions.set(memberId, { x: from.x + dx, y: from.y + dy });
+    }
+  }
+
+  const nextNodes: Record<string, GraphNode> = {};
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    const position = nextPositions.get(nodeId);
+    nextNodes[nodeId] = position
+      ? ({
+          ...node,
+          metadata: { ...(node.metadata ?? {}), position },
+        } as GraphNode)
+      : node;
+  }
+
+  return { ...config, nodes: nextNodes };
 }
 
 /**

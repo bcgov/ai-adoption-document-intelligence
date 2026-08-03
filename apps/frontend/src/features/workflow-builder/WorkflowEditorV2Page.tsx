@@ -93,6 +93,7 @@ import { configWantsArrangeOnLoad, nodesAllMeasured } from "./arrange-on-load";
 import {
   configHasAnyPosition,
   layoutGraphIfMissingPositions,
+  layoutGraphSimplified,
   layoutGraphWithMapBodies,
 } from "./canvas/auto-layout";
 import {
@@ -704,10 +705,18 @@ function WorkflowEditorV2PageBody({
           nodeWidths.set(node.id, width);
         }
       }
-      // Cluster each map's body members under dagre (and strip the synthetic
-      // groups back out) so the body-container box wraps just its members
-      // instead of sprawling after arrange. See layoutGraphWithMapBodies.
-      persist(layoutGraphWithMapBodies(configRef.current, { nodeWidths }));
+      // G-4 — arrange the graph the author is LOOKING at. With groups
+      // collapsed, that is the projected chips-plus-ungrouped-nodes graph, not
+      // the member graph: laying out members only slid each chip to the centre
+      // of its own member chain, so nothing on screen moved. Expanded, the
+      // member graph IS the graph on screen and the clustering wrapper stands
+      // (it also keeps each map body's container box wrapping its own members
+      // instead of sprawling after arrange).
+      persist(
+        simplifiedView
+          ? layoutGraphSimplified(configRef.current, { nodeWidths })
+          : layoutGraphWithMapBodies(configRef.current, { nodeWidths }),
+      );
       // §4.2: the canvas's structural fingerprint excludes metadata.position,
       // so this config-only position change won't re-project on its own. Bump
       // the layout nonce so the canvas re-applies the new positions to its
@@ -721,7 +730,7 @@ function WorkflowEditorV2PageBody({
         reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
       }, 0);
     },
-    [],
+    [simplifiedView],
   );
 
   /**
