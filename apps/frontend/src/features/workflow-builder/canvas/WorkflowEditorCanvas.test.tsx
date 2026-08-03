@@ -6035,6 +6035,22 @@ describe("WorkflowEditorCanvas — G-031 validation state on source cards and ch
  * on pane mousedown — so the menu closed for every click EXCEPT a click on the
  * canvas. These tests drive the xyflow callbacks the canvas now closes from.
  */
+// Found in a real browser, not here: xyflow's default minZoom is 0.5 and
+// `fitView` CLAMPS to it silently. standard-ocr lays out ~4500 flow-units wide
+// against a ~720px pane, so fitting needs ~0.16 — the viewport stopped at 0.5,
+// the graph hung off both edges, and every later Fit was a no-op because it was
+// already at the limit. jsdom cannot catch this (it mocks ReactFlow wholesale
+// and never lays anything out), so this test pins the PROP rather than the
+// behaviour: it is the one part of the fix that is checkable here.
+describe("WorkflowEditorCanvas — fitView can actually fit a wide graph", () => {
+  it("lowers minZoom below xyflow's clamping default of 0.5", () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    const minZoom = latestReactFlowProps.current?.minZoom as number | undefined;
+    expect(typeof minZoom).toBe("number");
+    expect(minZoom).toBeLessThan(0.5);
+  });
+});
+
 describe("WorkflowEditorCanvas — B-3: menus close on a canvas left click", () => {
   function openNodeMenu(nodeId: string) {
     const props = latestReactFlowProps.current;

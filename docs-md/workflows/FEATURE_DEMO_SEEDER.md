@@ -59,7 +59,7 @@ graph shapes the e2e specs build** (so they're known-valid):
 | Node settings | settings panel & canvas basics (Part 3) |
 | Control-flow | all six control-flow forms + recursive condition editor (Part 4); switch diamond + hover-extend (Part 16) |
 | Edges & validateFields | conditional + red error edges + rich `validateFields` rule editor (Part 5) |
-| Grouping | groups, simplified view, exposed params, node-swap, auto-arrange (Part 6); three-zone top bar (Part 16) |
+| Grouping | groups, container boxes, simplified view, exposed params, node-swap, auto-arrange (Part 6); single-row top bar (Part 16) |
 | Workflow-as-API | `source.api` + Run drawer trigger URL / schema / sample curl (Part 11) |
 | Document sources | `source.upload` node settings — MIME types / size cap / ctx key (Part 13) |
 | Try-in-place | run a workflow & see previews (Part 9) — needs worker |
@@ -67,7 +67,7 @@ graph shapes the e2e specs build** (so they're known-valid):
 | Library | a `library`-kind workflow (Part 10) |
 | Dynamic node | palette DYN entry, DYN pill, Edit script (Part 14) — **best-effort**, see below |
 
-Part 16 (UX polish) isn't a separate workflow — its checks (switch diamond, three-zone top bar, hover-to-extend, node pills) are folded into the steps of the control-flow, grouping and typed-I/O demos.
+Part 16 (UX polish) isn't a separate workflow — its checks (switch diamond, single-row top bar, hover-to-extend, node pills) are folded into the steps of the control-flow, grouping and typed-I/O demos.
 
 ### The dynamic-node demo is best-effort
 

@@ -409,6 +409,44 @@ function WorkflowEditorV2PageBody({
       setActiveGroupId(null);
     }
   }, []);
+
+  /**
+   * The mirror of the rule above, and it was missing.
+   *
+   * `NodeSettingsPanel` renders the group body only when `!node &&
+   * activeGroupId`, so a lingering node selection outranks the group. Opening a
+   * group therefore has to clear the node — otherwise clicking a group header
+   * (G-1's headline affordance) silently did nothing whenever any step was
+   * selected, which is the state you are in almost all the time. The container
+   * is `selectable: false`, so xyflow fires no selection change of its own to
+   * clear it either.
+   *
+   * xyflow's own `selected` flags are cleared too: leaving a card visibly
+   * highlighted while the rail shows a different object's settings is the
+   * contradiction this is fixing, not a separate nicety.
+   */
+  const openGroupPanel = useCallback((groupId: string) => {
+    setActiveGroupId(groupId);
+    setSelectedNodeIdState(null);
+    reactFlowRef.current?.setNodes((ns) =>
+      ns.map((n) => (n.selected ? { ...n, selected: false } : n)),
+    );
+    // ...and again after the selection round trip.
+    //
+    // Clearing xyflow's `selected` flags makes it fire `onSelectionChange`,
+    // which the canvas routes back through `onSelectNode`. That lands AFTER
+    // this handler returns, and the canvas compares against a `selectedNodeId`
+    // prop still holding the pre-click value — so it emits one more selection
+    // update, which clears the group we just set. This is the same "the panel
+    // we just asked for is closed before it renders" trap `handleGroupSelected`
+    // documents.
+    //
+    // Re-asserting is deliberate rather than only deferring: the synchronous
+    // set is what every caller and test sees immediately, and the microtask is
+    // what survives the round trip. Setting the same id twice is a no-op for
+    // React when nothing intervened.
+    queueMicrotask(() => setActiveGroupId(groupId));
+  }, []);
   // Deep-link target for a problems-badge / drawer click: select the node AND
   // ask the settings panel to open the source picker for the offending input.
   // Cleared once the panel consumes it so it fires exactly once.
@@ -2057,7 +2095,7 @@ function WorkflowEditorV2PageBody({
             onNodeBadgeClick={handleProblemBadgeClick}
             onReactFlowReady={handleReactFlowReady}
             simplifiedView={simplifiedView}
-            onGroupChipClick={setActiveGroupId}
+            onGroupChipClick={openGroupPanel}
             onSelectMapBodyNode={selectNodeSticky}
             layoutNonce={layoutNonce}
             onFixNodeInput={handleFixNodeInput}

@@ -223,14 +223,10 @@ test.describe("node-type swap + grouping", () => {
     await editor.openExisting(createdId, 2);
 
     // 6.3 — turn on Simplified view; the group collapses to a clickable chip.
-    // The Mantine Switch's real <input> is visually hidden off-viewport, so
-    // click its visible track (the label) inside the menu item.
-    await editor.openMoreMenu();
-    await page
-      .getByTestId("topbar-menu-simplified-view")
-      .locator(".mantine-Switch-track")
-      .click();
-    await page.keyboard.press("Escape"); // close the More menu
+    // Since the 2026-08-03 top-bar rebuild this is a visible switch in the
+    // centre zone, not a Switch nested in a Menu.Item — so there is no menu to
+    // open first and no Escape to close afterwards.
+    await editor.setSimplifiedView(true);
 
     // Clicking the chip activates the group (nodes are collapsed, so nothing
     // gets re-selected out from under it).

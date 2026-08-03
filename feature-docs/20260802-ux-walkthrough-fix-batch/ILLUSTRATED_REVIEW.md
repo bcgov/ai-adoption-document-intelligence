@@ -1,22 +1,33 @@
-# UX walkthrough fix batch — illustrated review
+# Workflow builder — illustrated review
 
-**2026-08-02 · branch `feature/visual-workflow-builder`**
+**2026-08-02 / 2026-08-03 · branch `feature/visual-workflow-builder`**
 
 Same ground as [REVIEW.md](REVIEW.md), but every fix is shown rather than
-described. Each screenshot below was captured from the app running locally on
-2026-08-02 against the seeded database — nothing here is a mock-up or a
-promise.
+described. Each screenshot below was captured from the app running locally
+against the seeded database — nothing here is a mock-up or a promise.
 
-Read it in order and it doubles as the demo script for the next UX review
-session: each numbered section is one thing to show, in walkthrough order, with
-the exact clicks to reproduce it on your own machine.
+Read it in order and it doubles as the demo script for the next review session:
+each numbered section is one thing to show, with the exact clicks to reproduce
+it on your own machine.
+
+**Two batches of work live here, tagged by where the item came from:**
+
+| Tag | Source |
+|---|---|
+| **[UX walkthrough]** | The 2026-07-29 walkthrough with the UX designer. Sections 1–12. |
+| **[Review 08-02]** | Alex's 2026-08-02 pass over the result. Sections 13–19. |
+
+The tag matters when reading a section back: a **[UX walkthrough]** item was
+somebody meeting the builder for the first time, and a **[Review 08-02]** item
+was somebody who already knew it looking at the fixes. Section 11 carries both,
+because the second batch reversed part of the first.
 
 ---
 
 ## Status
 
-All twelve items from the 2026-07-29 walkthrough are done, including the two
-that were waiting on your decision.
+All twelve items from the 2026-07-29 walkthrough are done, and so are all
+fourteen from the 2026-08-02 review.
 
 | Commit | What |
 |---|---|
@@ -24,10 +35,16 @@ that were waiting on your decision.
 | `637c024b` | Walkthrough fix batch 1 — items 1–2, 4–5, 7–10, 12 — 30 files |
 | `b76d651c` | Draft save — item 3 — 11 files |
 | `363b917c` | Grouping semantics — item 6 — 9 files |
-| *uncommitted* | Disabled-button tooltip fix + this document (see [What the screenshots caught](#what-the-screenshots-caught)) |
+| `1707afc9` `4bb70764` | This document, then anonymised + reproduction steps |
+| `3f1f0874` | **Review 08-02** phases 1 and 3 — four defects + seven chrome items — 28 files |
+| `2df24f4a` | **Review 08-02** group container model — G-1, G-2, G-3 |
+| `6124f7d5` | **Review 08-02** Auto-arrange in simplified view — G-4 |
 
-Tests: frontend **2321** across 200 files, backend **2824** across 151 suites,
-`tsc --noEmit` clean on both sides.
+Tests: frontend **2460** across 205 files, `tsc --noEmit` and Biome clean.
+
+**Two items in the second batch turned out to be misdiagnosed, and the
+correction is more useful than the original guess** — see
+[§19](#19-two-things-that-were-not-what-they-looked-like).
 
 ---
 
@@ -393,6 +410,216 @@ a member still removes only that member.
 This replaces the old behaviour, where deleting a chip did nothing at all, and
 then later refused with a message pointing at a button that has since been
 renamed.
+
+---
+
+# Review 08-02 — the second batch
+
+Everything from here down came out of Alex's 2026-08-02 pass over the work
+above. Fourteen items; four were outright defects, one changed the grouping
+model, and two turned out to be misdiagnosed.
+
+---
+
+## 13. Groups are boxes now, not outlines · [Review 08-02]
+
+*"Groups are not too obvious."* They weren't. There were **three** visual
+languages for one idea: a map body drew a green container box, an authored
+group drew a faint dashed outline round each member with a label that only
+appeared on hover, and collapsed it drew a chip.
+
+One language now. Every group is a container box with a header carrying its
+icon, colour and label.
+
+![OCR Extraction rendered as a container box with a header, wrapping its five member nodes; the Post-Processing box begins at the right edge](screenshots/19-group-container-boxes.png)
+
+Expanded view also gained something it never had: **clicking a group's header
+opens its settings.** Previously the only way in was to collapse to a chip
+first.
+
+> **Try it** — <http://localhost:3000/workflows/by-slug/standard-ocr/edit>
+>
+> Five boxes, left to right: OCR Extraction (5 steps), Post-Processing (1),
+> Quality Gate (2), Human Review (1), Store Results (1). Click any header to
+> open that group's settings in the right rail.
+
+---
+
+## 14. Drag the header to move the group · [Review 08-02] · reverses §11
+
+§11 shipped "drag any member and the whole group follows". That rule existed
+because there was nothing else to grab. §13 gives the group a header, so the
+reason expired, and the rule reverted to what Figma and ComfyUI both do:
+
+| Gesture | What moves |
+|---|---|
+| Drag the box **header** | The whole group — box and every member, one delta, one undo step |
+| Drag a **member** | Only that member. The box re-fits around it. |
+
+The second row is new capability, not just a reversal: **repositioning a node
+inside its group was impossible before**, because every drag dragged everything.
+
+This is enforced by xyflow's own drag filter rather than by a geometry test —
+containers declare `dragHandle: ".wb-group-header"`, so "the pointer is on the
+header" and "the dragged node is the container" are the same fact.
+
+> **Try it** — <http://localhost:3000/workflows/by-slug/standard-ocr/edit>
+>
+> 1. Drag the **OCR EXTRACTION** header. All five cards move together.
+> 2. Ctrl+Z.
+> 3. Now drag the **Poll OCR Results** card itself. Only it moves, and the box
+>    stretches to keep containing it.
+> 4. Drag it back inside, or Ctrl+Z.
+>
+> Verified in a real browser, not just in tests: a header drag moved the box
+> and exactly its 5 members by an identical delta and left the other 9 nodes
+> untouched; a member drag moved exactly one node.
+
+**Grouping also stopped flipping you into simplified view.** That flip was
+added in the first batch because a toast alone was not enough feedback against
+a faint dashed outline. The box is the feedback now, so the mode change was
+cost without benefit.
+
+---
+
+## 15. The bar above the canvas · [Review 08-02]
+
+*"It's like an awkward form."* It was: a switcher, a Name field, a Description
+field and a search box in a row, with the text inputs' labels sitting above
+them so nothing shared a baseline, and Description truncating mid-word at 280px
+while you were editing it.
+
+![The rebuilt top bar: switcher, click-to-edit title, node and edge counts, then find-a-node, Simplified, arrange and fit, then undo/redo and validity, then Save, Try, Run and More](screenshots/18-topbar-rebuilt.png)
+
+One row, one baseline, four groups. The name became a **click-to-edit title**;
+the description moved into **Workflow settings**, where it wraps and has room.
+**Simplified view** and **Auto-arrange** left the More menu for visible
+controls — a mode toggle is not a menu item's job — and a **Fit** control is
+new.
+
+> **Try it** — click the workflow title to rename in place (Enter commits,
+> Escape reverts). **More ▸ Workflow settings** now holds the description.
+
+### And the workflow list
+
+Same complaint, different table: Name was narrow while Description ran long on
+one truncated line.
+
+![The workflow list with a wider Name column and descriptions wrapping to two lines](screenshots/24-list-columns.png)
+
+Name is wider, Description wraps to two lines and stops.
+
+**The first attempt made this worse and the screenshot is what caught it.**
+Widening those two squeezed the Slug column, and a slug is one unbreakable
+token — the browser broke it anywhere rather than overflow, so long slugs
+became four and five lines and rows ended up *taller* than before the clamp
+that was supposed to shorten them. Slug is width-capped and truncates on one
+line now; the copy button beside it is how the full value gets used. Row
+heights: ~145px → ~116px.
+
+> **Try it** — <http://localhost:3000/workflows>
+
+---
+
+## 16. Right-click anywhere · [Review 08-02]
+
+Right-click on a node gave our menu; right-click on empty canvas gave the
+browser's. Now the canvas has its own.
+
+![The pane context menu open on empty canvas, showing Add node here, Auto-arrange, Fit view and Select all](screenshots/20-pane-context-menu.png)
+
+**Paste is deliberately not there.** There is no copy affordance anywhere in
+the builder yet, and cloning a node correctly means remapping its
+`__auto.<node>.<port>` ctx keys or the copy writes into the original's channel.
+That is a feature with unruled semantics, not a fix, so it was left out rather
+than shipped as a permanently-greyed entry.
+
+**And the menus close on a left click now.** They did not, because Mantine's
+click-away listens on document `mousedown` and xyflow's pane calls
+`stopImmediatePropagation` — so the menu closed everywhere *except* the canvas,
+which is the one place you click. The wire menu had the identical bug and got
+the same fix.
+
+---
+
+## 17. A fixed value, typed where you need it · [Review 08-02]
+
+*"`fileType` says it's an Artifact, can be 'pdf' or 'image', but I can't
+type/select that anywhere."*
+
+The first thing to say is that **you never had to.** `fileType`, `fileName` and
+`contentType` on Prepare File are optional and derived from the blob key — a
+new workflow runs with all three empty. What was broken was that the canvas
+drew a port and described exactly what it accepted, while the only panel that
+could accept an answer pretended the port did not exist.
+
+![The Inputs panel showing Document ID and File reference marked Needs a source, then a collapsed "3 optional inputs" disclosure expanded to reveal File name, File type and Content type](screenshots/21-optional-inputs-disclosure.png)
+
+Optional ports now fold behind **"N optional inputs"** — short by default,
+never secret. Note the two genuinely-required ports still say *Needs a source*
+and the three optional ones do not: the panel and the validation drawer agree.
+
+Type a value on one and it sticks, via a hidden ctx entry carrying
+`defaultValue`. **No engine change was needed** — the seeding, run-spec and
+per-run-override paths already existed. A **Make this a workflow input** action
+promotes the value to a named, caller-supplied input when you want that.
+
+> **Try it** — <http://localhost:3000/workflows/create>, click **Prepare File**
+> in the palette, then expand **3 optional inputs** in the right rail and type
+> `image` into **File type**.
+
+---
+
+## 18. Auto-arrange in simplified view · [Review 08-02]
+
+*"Auto arrange on simplified view doesn't do anything."* Correct — and for the
+nodes you could see, it genuinely didn't. Chips sit at the *centroid* of their
+members, but Auto-arrange laid out the *member-level* graph, so chips drifted to
+wherever the middle of each chain happened to land.
+
+![Simplified view after Auto-arrange: five group chips laid out as evenly spaced columns](screenshots/22-simplified-arrange.png)
+
+It now lays out the graph you are actually looking at, then moves each group's
+members by their chip's delta — so a group travels rigidly and expanding again
+shows the same internal arrangement, relocated.
+
+> **Try it** — open **standard-ocr**, turn **Simplified** on, hit
+> **Auto-arrange**, then turn Simplified off again and confirm the members kept
+> their relative positions.
+
+---
+
+## 19. Two things that were not what they looked like · [Review 08-02]
+
+Worth recording, because in both cases the first diagnosis was wrong and
+checking cost minutes.
+
+**"The seeded workflows have hardcoded layouts from a long time ago."** They do
+not. All 15 shipped templates carry **zero** baked positions and never have —
+`git log -S'"position"'` over that directory returns no commits at all. The
+hand-placed grid that story came from is real, but it is in the *demo* seeder.
+
+The actual cause of *loads too spread out, tightens after I hit Auto-arrange*
+is that there are **two layout paths with different information**. Hydration
+lays out a position-less config before anything is mounted, so dagre only has
+the uniform 482px fallback width; the button feeds it each card's real measured
+width and collapses the gaps. Same graph, two layouts, and the loose one was
+the one you were shown. The measured pass now runs for any config that arrives
+without positions.
+
+**"It doesn't auto-arrange the demos either."** The demos are not in the
+database. Zero rows carry the seeder's `🎯 Demo — ` prefix, so all 17 `demo-*`
+links in `FEATURE_DEMO_GUIDE.md` are currently 404. The flag has been stamped
+since 2026-07-16 — the seeder is a manual post-reset step that never got
+re-run. `node scripts/seed-feature-demos.mjs` with the backend up fixes it, and
+it only touches prefix-matched demos.
+
+**A third, found only by opening a browser.** `fitView` was clamping at
+xyflow's default `minZoom` of 0.5 and giving up silently. standard-ocr needs
+~0.14 to fit, so the graph hung off both edges and every Fit press was a no-op
+because it was already at the limit — including the Fit control this batch
+added. jsdom cannot catch that class of bug: it mocks xyflow wholesale and
+never lays anything out.
 
 ---
 

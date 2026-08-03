@@ -378,3 +378,44 @@ re-shoot and it stops mattering.
   `resolveWireableInputRows` shares with `ConnectSummaryPopover`. Both surfaces
   move together by construction; the badge and drawer counts must be checked
   against the new population.
+
+---
+
+## Outcome
+
+All fourteen items shipped across `3f1f0874` (Phase 1 + Phase 3), `2df24f4a`
+(G-1/G-2/G-3) and `6124f7d5` (G-4). Two of them turned out to have the wrong
+diagnosis above — **do not trust the P-1 and B-4 sections as written**.
+
+**B-4 — "demos don't open auto-arranged" was not about the flag.** Step 1 of the
+plan was the right instinct and the answer was blunter than expected: there is
+no demo workflow in the dev DB **at all**. All 17 `demo-*` links in
+`docs-md/workflows/FEATURE_DEMO_GUIDE.md` 404, so "the demos don't
+auto-arrange" was downstream of the demos not existing. `metadata.arrangeOnLoad`
+and the gating logic were both correct on inspection and remain unchanged. This
+closes as a reseed (`npm run seed:demos`), not a code change.
+
+**P-1 — the shipped templates never carried stale positions.** The plan asserts
+that `standard-ocr` and siblings hold coordinates hand-placed against ~300px
+cards. They do not: all 15 templates under `docs-md/workflows/templates/` were
+checked and carry **zero** `metadata.position` entries, and no commit ever added
+one. So there was nothing to strip and the "shipped template JSON changes" risk
+never materialised.
+
+The real cause of "a template loads spread out and tightens after Auto-arrange"
+is a timing difference, not stale data: `layoutGraphIfMissingPositions` runs at
+**hydration, before mount**, so dagre sees only the uniform 482px fallback
+width, while the Auto-arrange button feeds it the live measured widths of the
+rendered cards. Two layouts of the same graph against different widths look like
+drift. The fix landed as a behaviour change rather than a data change — the
+measured-width pass now also runs for **any** config that arrived without
+positions, not only for demos carrying `metadata.arrangeOnLoad`.
+
+Two smaller deviations, recorded so the plan and the code agree:
+
+- **P-4 ships without Paste.** §P-4 lists it; nothing in the builder copies
+  anything, and cloning a node needs auto-ctx-key remapping nobody has ruled on.
+  An item that can never be enabled is worse than an absent one.
+- **P-7 mapped two hints the plan didn't count** — `gauge` and `code`. Both were
+  emitted by the catalog and resolved by nothing, and `code` is the default for
+  every `dyn.*` node, so all custom nodes rendered identically.

@@ -110,7 +110,7 @@ npm run seed:demos
 1. **Collect results** (join) → the source-map picker lists **only map nodes**; **Wait until condition** (pollUntil) → activity picker + interval; **Wait for approval** (humanGate) → signal name, timeout, and the **On timeout** control (switch it to *Fallback* to reveal the fallback-edge picker).
 1. **Sub-workflow** (childWorkflow) → toggle **Library / Inline**; this demo ships an inline child graph.
 1. **Field drill-down (typed I/O):** the receipt branch runs a real Azure OCR chain — **Wait until condition** (pollUntil, `azureOcr.poll`) → **Extract OCR result** (`azureOcr.extract`), which produces `ocrResult` of kind **OCR result**. Select **Store Results** and open its **OCR result** input binding: the picker lists `ocrResult` **plus its fields** — `ocrResult.documentId`, `.blobPath`, `.storage`, `.byteLength`, `.pageCount`, `.status` — each captioned with its `type · optional`. You pick a field instead of typing (and guessing) the path. By contrast, `documents` / `currentDoc` are **untyped** trigger data and stay free-typed — no drill rows, because inventing a schema for data the system can't vouch for would be dishonest. The same drill-down applies to other typed producers now that they carry Zod-derived field schemas too — e.g. `preparedData` (a **Prepared file**) and a map body's segment item (a **Typed segment**) enumerate their fields in the picker the same way.
-1. UX polish (Part 16): note the **three-zone top bar** and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.
+1. UX polish (Part 16): note the **single-row top bar** — switcher + click-to-edit title │ find-a-node + Simplified + Auto-arrange + Fit │ undo/redo + validity │ Save/Try/Run/More — and the switch **diamond** shape; hover a node's output handle to get the **hover-to-extend** popover.
 1. **Kind-aware extend popover:** hover a **typed output port handle** and click the **➕** to extend — the popover is **filtered + ranked** to catalog activities that accept that port's kind (matching consumers float to the top), with a **Show all** escape back to the unfiltered list. Picking a filtered entry drops the node **pre-wired** — it lands with a pinned data wire already connected (drag-to-bind semantics).
 
 ---
@@ -142,11 +142,11 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit](http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit)
 
-1. This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.
-1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.
+1. This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). Expanded, each is a **container box** with a header strip carrying its icon, colour and label: drag the header to move the whole group, drag a member to move just that step, and click the header to open the group's settings. The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.
+1. Flip the **Simplified** switch in the top bar's centre zone → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.
 1. In the exposed-params editor, remove **Prepare File Data** from the group → the *OCR Model* param that referenced it is **pruned** with a toast.
 1. Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.
-1. **More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.
+1. **Auto-arrange** (top bar, or right-click empty canvas) re-lays the graph left-to-right and re-fits. Do it with **Simplified** on as well: the chips themselves are laid out, and each group's members move rigidly, so expanding again shows the same internal arrangement relocated.
 
 ---
 

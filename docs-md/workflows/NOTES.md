@@ -266,5 +266,5 @@ See [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) for Dylan's convention.
 - Decide on the metadata vocabulary for `.meta({ ... })`: current convention `x-widget`, `x-options`, `x-default` — formalise once a few activities are in.
 - Drop the floating `ContextVariablesPanel` from the designer's prototype; merge its content into the workflow-settings drawer.
 - Investigate `apps/frontend/src/pages/WorkflowPage.tsx` and `WorkflowEditPage.tsx` (alongside the JSON `WorkflowEditorPage.tsx`) to confirm what's still in active use — three workflow pages is one too many.
-- Confirm Tabler icon mapping for the catalog's `iconHint` field.
+- ~~Confirm Tabler icon mapping for the catalog's `iconHint` field.~~ **Done 2026-08-03** — `catalog-utils.ts` maps every `iconHint` to a Tabler component (the emoji fallback table is gone); unmapped hints render a neutral dot, uncatalogued activities a question mark.
 - When AI-1192 lands, merge develop in and resolve any conflicts.

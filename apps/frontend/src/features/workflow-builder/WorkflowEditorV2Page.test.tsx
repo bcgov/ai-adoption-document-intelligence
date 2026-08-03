@@ -1021,6 +1021,53 @@ describe("WorkflowEditorV2Page — US-043: Simplified-view toggle", () => {
     expect(screen.getByTestId("group-node-settings")).toBeInTheDocument();
   });
 
+  // Found in a browser after G-1 shipped, and it defeated G-1's headline new
+  // affordance in the state you are in almost all of the time. The panel
+  // renders the group body only when `!node && activeGroupId`, so a lingering
+  // node selection outranks the group — and the container is
+  // `selectable: false`, so xyflow fires no selection change to clear it
+  // either. Clicking a group header with any step selected did nothing at all.
+  it("opens the group panel even when a node is already selected", async () => {
+    const cfg = buildTemplateConfig({ positions: "all" });
+    const firstNodeId = Object.keys(cfg.nodes)[0];
+    cfg.nodeGroups = {
+      g_42: { label: "Stage one", nodeIds: [firstNodeId] },
+    };
+    renderPage(makeTemplate(cfg));
+
+    const onSelectNode = capturedCanvasProps.current?.onSelectNode as
+      | ((id: string | null) => void)
+      | undefined;
+    const onGroupChipClick = capturedCanvasProps.current?.onGroupChipClick as
+      | ((groupId: string) => void)
+      | undefined;
+    if (!onSelectNode || !onGroupChipClick) {
+      throw new Error("Canvas stub did not capture the selection callbacks");
+    }
+
+    act(() => {
+      onSelectNode(firstNodeId);
+    });
+    expect(capturedSettingsPanelProps.current?.selectedNodeId).toBe(
+      firstNodeId,
+    );
+
+    act(() => {
+      onGroupChipClick("g_42");
+    });
+
+    // Asserted on the PROPS the page hands the panel, not on rendered output.
+    // The panel is mocked here and the mock renders a group body whenever
+    // `activeGroupId` is set — it does not reproduce the real component's
+    // `!node && activeGroupId` gate, so a render assertion would pass with the
+    // bug still present. `selectedNodeId` going null is the half that was
+    // actually broken, and it is the half the real gate reads.
+    await waitFor(() => {
+      expect(capturedSettingsPanelProps.current?.activeGroupId).toBe("g_42");
+    });
+    expect(capturedSettingsPanelProps.current?.selectedNodeId).toBeNull();
+  });
+
   it("clears any activeGroupId when the simplified-view toggle flips OFF", () => {
     const cfg = buildTemplateConfig({ positions: "all" });
     cfg.nodeGroups = {

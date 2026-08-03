@@ -17,9 +17,17 @@ export class WorkflowEditorPage {
   readonly menuHistory: Locator;
   readonly menuRunHistory: Locator;
   readonly menuSaveAsLibrary: Locator;
-  readonly menuAutoArrange: Locator;
   readonly menuGroupSelected: Locator;
   readonly menuWorkflowSettings: Locator;
+
+  // Visible centre-zone controls. Simplified view and Auto-arrange left the
+  // More menu in the 2026-08-03 top-bar rebuild; both kept their old testids,
+  // so the selectors still resolve — what changed is that they are reachable
+  // without opening a menu first.
+  readonly simplifiedViewToggle: Locator;
+  readonly simplifiedViewWrapper: Locator;
+  readonly autoArrangeButton: Locator;
+  readonly fitViewButton: Locator;
 
   // Drawers / modals
   readonly historyDrawer: Locator;
@@ -38,8 +46,13 @@ export class WorkflowEditorPage {
     this.menuHistory = page.getByTestId("topbar-menu-history");
     this.menuRunHistory = page.getByTestId("topbar-menu-run-history");
     this.menuSaveAsLibrary = page.getByTestId("topbar-menu-save-as-library");
-    this.menuAutoArrange = page.getByTestId("topbar-menu-auto-arrange");
     this.menuGroupSelected = page.getByTestId("topbar-menu-group-selected");
+    this.simplifiedViewToggle = page.getByTestId("simplified-view-toggle");
+    this.simplifiedViewWrapper = page.getByTestId(
+      "topbar-menu-simplified-view",
+    );
+    this.autoArrangeButton = page.getByTestId("topbar-menu-auto-arrange");
+    this.fitViewButton = page.getByTestId("topbar-fit-view");
     this.menuWorkflowSettings = page.getByTestId(
       "topbar-menu-workflow-settings",
     );
@@ -58,12 +71,28 @@ export class WorkflowEditorPage {
 
   async openMoreMenu(): Promise<void> {
     await this.moreButton.click();
-    await this.menuAutoArrange.waitFor({ state: "visible" });
+    // Wait on an item the menu still owns. Auto-arrange used to be the anchor
+    // here and is now a visible top-bar button, so waiting on it would hang.
+    await this.menuWorkflowSettings.waitFor({ state: "visible" });
   }
 
+  /** Click the visible Auto-arrange control (no menu involved). */
   async autoArrange(): Promise<void> {
-    await this.openMoreMenu();
-    await this.menuAutoArrange.click();
+    await this.autoArrangeButton.click();
+  }
+
+  /**
+   * Drive the visible Simplified-view switch to an explicit state.
+   *
+   * The Mantine `Switch`'s real `<input>` is visually hidden off-viewport, so
+   * the click has to land on its painted track. The switch is idempotent by
+   * intent, not by construction — reading `isChecked()` first keeps a caller
+   * that asks for `true` twice from toggling it back off.
+   */
+  async setSimplifiedView(on: boolean): Promise<void> {
+    if ((await this.simplifiedViewToggle.isChecked()) === on) return;
+    await this.simplifiedViewWrapper.locator(".mantine-Switch-track").click();
+    await expect(this.simplifiedViewToggle).toBeChecked({ checked: on });
   }
 
   async openHistory(): Promise<void> {

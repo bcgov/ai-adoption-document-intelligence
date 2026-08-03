@@ -195,15 +195,33 @@ describe("WorkflowListPage — column widths", () => {
     expect(description.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
   });
 
-  it("gives Name and Description explicit widths", async () => {
+  it("gives Name, Slug and Description explicit widths", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     const nameHeader = screen.getByRole("columnheader", { name: "Name" });
     const descriptionHeader = screen.getByRole("columnheader", {
       name: "Description",
     });
-    expect(nameHeader).toHaveStyle({ width: "25%" });
-    expect(descriptionHeader).toHaveStyle({ width: "35%" });
+    const slugHeader = screen.getByRole("columnheader", { name: "Slug" });
+    expect(nameHeader).toHaveStyle({ width: "24%" });
+    expect(slugHeader).toHaveStyle({ width: "18%" });
+    expect(descriptionHeader).toHaveStyle({ width: "32%" });
+  });
+
+  // Caught in a browser, not here. Widening Name and Description squeezed
+  // Slug, and a slug is ONE unbreakable token — the browser broke it anywhere
+  // rather than overflow, so a long slug became four or five lines and rows
+  // ended up TALLER than before the clamp that was meant to shorten them.
+  // Row heights went from ~145px back to ~116px once the slug stopped
+  // wrapping. jsdom lays nothing out, so only the width and the nowrap rule
+  // are checkable here.
+  it("keeps the slug on one line so it cannot inflate the row", async () => {
+    renderPage();
+    const slug = await screen.findByTestId("workflow-slug");
+    expect(slug).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(slug).toHaveStyle({ textOverflow: "ellipsis" });
+    // Truncated text still has to be recoverable.
+    expect(slug).toHaveAttribute("title");
   });
 });
 

@@ -4041,6 +4041,21 @@ function WorkflowEditorCanvasInner({
           elementsSelectable
           fitView
           fitViewOptions={{ padding: 0.15 }}
+          /*
+           * xyflow's default minZoom is 0.5, and `fitView` CLAMPS to it rather
+           * than reporting that it could not fit. A real workflow is wide —
+           * standard-ocr lays out ~4500 flow-units across, and the pane is
+           * ~720px once the palette and the settings rail take their share, so
+           * fitting needs ~0.16. At the default the viewport stopped at 0.5,
+           * left the graph overflowing off both edges, and every later Fit was
+           * a silent no-op because it was already at the limit.
+           *
+           * 0.1 is chosen to fit the widest seeded graph with headroom, not as
+           * a round number: below ~0.2 the cards stop being legible anyway, so
+           * this buys "you can see the shape of the whole thing", which is what
+           * Fit is for. Panning and the minimap remain how you read detail.
+           */
+          minZoom={0.1}
           deleteKeyCode={["Delete", "Backspace"]}
         >
           <Background gap={18} size={1} />
