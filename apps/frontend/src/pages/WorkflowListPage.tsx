@@ -244,43 +244,50 @@ export function WorkflowListPage() {
         />
 
         <PanelCard>
+          {/* S-2 — `table-layout: fixed`, which is what makes the column
+              widths below MEAN anything. Under the browser default (`auto`) a
+              percentage is only a hint and content wins, and the widest
+              content here is the slug: `SlugChip` renders it `nowrap`, so its
+              max-content width is the whole token. Measured in the browser
+              with 28 seeded workflows, that gave the slug column 495px against
+              Name's 154px — the reported symptom, and the reason bumping the
+              percentages alone changed nothing. Fixed layout also means every
+              column needs a width, or the unsized ones split what is left. */}
           <DataTable
             striped
             highlightOnHover
+            layout="fixed"
             caption={`${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`}
           >
             <DataTable.Thead>
               <DataTable.Tr>
-                {/* Name and Description carry explicit widths so the name
-                    stops being squeezed by the fixed-size badge and date
-                    columns, and the description gets enough room for the
-                    two lines it is clamped to below.
-
-                    Slug is width-capped for the opposite reason: it is a
-                    single unbreakable token, so without a width it got
-                    squeezed by the other two and wrapped to four or five
-                    lines — which made every row TALLER than before the
-                    clamp, the exact problem the clamp was added to solve.
-                    It truncates instead; the copy button beside it is how
-                    you get the full value. */}
-                <DataTable.Th w="24%">Name</DataTable.Th>
-                <DataTable.Th w="18%">Slug</DataTable.Th>
-                <DataTable.Th w="32%">Description</DataTable.Th>
-                <DataTable.Th>Version</DataTable.Th>
-                <DataTable.Th>Schema</DataTable.Th>
-                <DataTable.Th>Created</DataTable.Th>
-                <DataTable.Th>Updated</DataTable.Th>
-                <DataTable.Th />
+                {/* Name is the column people scan, so it takes the largest
+                    share — three times the slug's. The slug keeps a cap for
+                    the reason it was first given one: it is a single
+                    unbreakable token, it truncates on one line, and the full
+                    value lives in the hover title and the copy button beside
+                    it. Description is clamped to two lines below, so it needs
+                    width for two lines, not for four. */}
+                <DataTable.Th w="30%">Name</DataTable.Th>
+                <DataTable.Th w="12%">Slug</DataTable.Th>
+                <DataTable.Th w="18%">Description</DataTable.Th>
+                <DataTable.Th w="7%">Version</DataTable.Th>
+                <DataTable.Th w="8%">Schema</DataTable.Th>
+                <DataTable.Th w="11%">Created</DataTable.Th>
+                <DataTable.Th w="10%">Updated</DataTable.Th>
+                <DataTable.Th w="4%" />
               </DataTable.Tr>
             </DataTable.Thead>
             <DataTable.Tbody>
               {workflows.map((workflow) => (
                 <DataTable.Tr key={workflow.id}>
                   <DataTable.Td>
+                    {/* S-2 — heavier than the surrounding cells so the eye
+                        lands here first when scanning the table. */}
                     <Anchor
                       component={Link}
                       to={`/workflows/${workflow.id}/edit`}
-                      fw={500}
+                      fw={600}
                       underline="hover"
                       data-testid="workflow-name-link"
                     >

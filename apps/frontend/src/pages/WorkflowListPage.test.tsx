@@ -195,7 +195,7 @@ describe("WorkflowListPage — column widths", () => {
     expect(description.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
   });
 
-  it("gives Name, Slug and Description explicit widths", async () => {
+  it("S-2: Name is the widest column, ahead of Slug and Description", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     const nameHeader = screen.getByRole("columnheader", { name: "Name" });
@@ -203,9 +203,29 @@ describe("WorkflowListPage — column widths", () => {
       name: "Description",
     });
     const slugHeader = screen.getByRole("columnheader", { name: "Slug" });
-    expect(nameHeader).toHaveStyle({ width: "24%" });
-    expect(slugHeader).toHaveStyle({ width: "18%" });
-    expect(descriptionHeader).toHaveStyle({ width: "32%" });
+    expect(nameHeader).toHaveStyle({ width: "30%" });
+    expect(slugHeader).toHaveStyle({ width: "12%" });
+    expect(descriptionHeader).toHaveStyle({ width: "18%" });
+  });
+
+  // S-2 — the percentages above only bind under `table-layout: fixed`. With
+  // the browser default (`auto`) content wins, and the widest content is the
+  // nowrap slug: measured in a browser with 28 workflows, the slug column took
+  // 495px against Name's 154px. jsdom computes no table layout, so this
+  // asserts the property rather than the resulting widths.
+  it("S-2: the table uses a fixed layout so the widths bind", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-description");
+    const table = screen.getByRole("table");
+    // Mantine drives `table-layout` through a CSS variable rather than an
+    // inline style, so that is what the DOM carries.
+    expect(table.style.getPropertyValue("--table-layout")).toBe("fixed");
+  });
+
+  it("S-2: the name reads as the primary column", async () => {
+    renderPage();
+    const link = await screen.findByTestId("workflow-name-link");
+    expect(link).toHaveStyle({ fontWeight: "600" });
   });
 
   // Caught in a browser, not here. Widening Name and Description squeezed
