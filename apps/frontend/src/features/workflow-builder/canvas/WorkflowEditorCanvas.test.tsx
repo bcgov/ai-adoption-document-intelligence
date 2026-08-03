@@ -3821,6 +3821,75 @@ describe("WorkflowEditorCanvas — US-045: hover-to-extend popover", () => {
       vi.useRealTimers();
     }
   });
+
+  /**
+   * W-2 — extending UPSTREAM from `azureClassify.poll`'s `resultId` and
+   * picking "Read Blob" used to pin `blob.read.base64 → resultId`. `resultId`
+   * is typed with the root `Artifact` kind, which every output satisfies, so
+   * the kind check proved nothing and the sole output won by default.
+   *
+   * The flow edge is still correct and still lands; only the data binding is
+   * withheld.
+   */
+  it("draws the flow edge but does NOT pin when the port kind proves nothing", async () => {
+    vi.useFakeTimers();
+    try {
+      const poll: ActivityNode = {
+        id: "poll",
+        type: "activity",
+        label: "Poll Classify",
+        activityType: "azureClassify.poll",
+        parameters: {},
+        metadata: { position: { x: 400, y: 50 } },
+      };
+      const config: GraphWorkflowConfig = {
+        schemaVersion: "1.0",
+        metadata: { name: "T", version: "1.0.0" },
+        ctx: {},
+        nodes: { [poll.id]: poll },
+        edges: [],
+        entryNodeId: poll.id,
+      };
+      const { onConfigChange } = renderCanvas(config);
+
+      const row = screen.getByTestId("port-row-poll-in-resultId");
+      const handle = row.querySelector<HTMLElement>(
+        '[data-testid="handle-target-left"]',
+      );
+      if (!handle) throw new Error("resultId input handle missing");
+      fireEvent.mouseEnter(handle);
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+
+      vi.useRealTimers();
+      fireEvent.click(screen.getByTestId("hover-extend-activity-blob.read"));
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const next = onConfigChange.mock.calls[
+        onConfigChange.mock.calls.length - 1
+      ][0] as GraphWorkflowConfig;
+
+      // The producer landed, wired into the consumer — execution order is
+      // exactly what the gesture asked for.
+      const newId = Object.keys(next.nodes).filter((id) => id !== "poll")[0];
+      expect(next.nodes[newId]).toMatchObject({ activityType: "blob.read" });
+      expect(next.edges).toHaveLength(1);
+      expect(next.edges[0]).toMatchObject({ source: newId, target: "poll" });
+
+      // ...and `resultId` was left alone rather than bound to `base64`.
+      expect(
+        next.nodes.poll.inputs?.find((b) => b.port === "resultId"),
+      ).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

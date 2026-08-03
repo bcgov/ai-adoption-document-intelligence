@@ -97,10 +97,7 @@ import { layoutGraphSimplified, layoutGraphWithMapBodies } from "./auto-layout";
 import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
-import {
-  firstMatchingInputPort,
-  firstMatchingOutputPort,
-} from "./extend-filter";
+import { pickInputPortForKind, pickOutputPortForKind } from "./extend-filter";
 import {
   type GroupChipFlowNode,
   GroupChipNode,
@@ -3975,15 +3972,19 @@ function WorkflowEditorCanvasInner({
         const inputKind: KindRef | undefined = sourcePort
           ? inputPortKind(config, sourceNodeId, sourcePort)
           : undefined;
-        const producerPort =
+        // W-2 — the pin is conditional; the flow edge is not.
+        // `extendUpstreamAndPin` draws producer → consumer either way, so a
+        // pick the ranking can't justify still lands connected and simply
+        // leaves the input on its ordinary automatic resolution.
+        const producerPick =
           inputKind !== undefined
-            ? firstMatchingOutputPort(activityType, inputKind)
+            ? pickOutputPortForKind(activityType, inputKind, sourcePort)
             : null;
         extendUpstreamAndPin(
           sourceNodeId,
           newNode,
-          sourcePort !== undefined && producerPort !== null
-            ? { consumerPort: sourcePort, producerPort }
+          sourcePort !== undefined && producerPick !== null
+            ? { consumerPort: sourcePort, producerPort: producerPick.port }
             : null,
         );
         return;
@@ -3996,13 +3997,13 @@ function WorkflowEditorCanvasInner({
       const kind: KindRef | undefined = sourcePort
         ? outputPortKind(config, sourceNodeId, sourcePort)
         : undefined;
-      const matchedPort =
+      const matchedPick =
         sourcePort !== undefined && kind !== undefined
-          ? firstMatchingInputPort(activityType, kind)
+          ? pickInputPortForKind(activityType, kind, sourcePort)
           : null;
-      if (sourcePort !== undefined && matchedPort !== null) {
+      if (sourcePort !== undefined && matchedPick !== null) {
         extendFromSourceAndPin(sourceNodeId, newNode, {
-          consumerPort: matchedPort,
+          consumerPort: matchedPick.port,
           producerPort: sourcePort,
         });
       } else {

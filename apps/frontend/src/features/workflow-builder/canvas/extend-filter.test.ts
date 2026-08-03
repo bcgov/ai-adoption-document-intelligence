@@ -14,8 +14,8 @@ import { describe, expect, it } from "vitest";
 import {
   entryAcceptsKind,
   entryProducesKind,
-  firstMatchingInputPort,
-  firstMatchingOutputPort,
+  pickInputPortForKind,
+  pickOutputPortForKind,
   rankActivityTypesForKind,
   rankActivityTypesProducingKind,
 } from "./extend-filter";
@@ -39,18 +39,26 @@ describe("entryAcceptsKind", () => {
   });
 });
 
-describe("firstMatchingInputPort", () => {
-  it("returns the first auto-wireable input port (declaration order) assignable from K", () => {
-    // document.classify declares `ocrResult: OcrResult` before `segment`.
-    expect(firstMatchingInputPort("document.classify", "OcrResult")).toBe(
-      "ocrResult",
-    );
+describe("pickInputPortForKind", () => {
+  it("pins the sole auto-wireable input assignable from K", () => {
+    // document.classify declares `ocrResult: OcrResult`; nothing else there
+    // accepts an OcrResult, so the pick is unambiguous.
+    expect(pickInputPortForKind("document.classify", "OcrResult")).toEqual({
+      port: "ocrResult",
+      reason: "exact-kind",
+    });
   });
 
   it("returns null when none match", () => {
     // azureOcr.submit's only typed input is `Document`; an `OcrResult`
     // producer is not assignable to it, and the rest are wildcards.
-    expect(firstMatchingInputPort("azureOcr.submit", "OcrResult")).toBeNull();
+    expect(pickInputPortForKind("azureOcr.submit", "OcrResult")).toBeNull();
+  });
+
+  it("prefers a same-named port over kind ranking", () => {
+    expect(
+      pickInputPortForKind("document.classify", "OcrResult", "ocrResult"),
+    ).toEqual({ port: "ocrResult", reason: "name" });
   });
 });
 
@@ -99,18 +107,51 @@ describe("entryProducesKind", () => {
   });
 });
 
-describe("firstMatchingOutputPort", () => {
-  it("returns the first typed output port assignable to K", () => {
-    expect(firstMatchingOutputPort("mistralOcr.process", "OcrResult")).toBe(
-      "ocrResult",
-    );
-    expect(firstMatchingOutputPort("file.prepare", "Document")).toBe(
-      "preparedData",
-    );
+describe("pickOutputPortForKind", () => {
+  it("pins a typed output assignable to K", () => {
+    expect(pickOutputPortForKind("mistralOcr.process", "OcrResult")).toEqual({
+      port: "ocrResult",
+      reason: "exact-kind",
+    });
+    expect(pickOutputPortForKind("file.prepare", "Document")).toEqual({
+      port: "preparedData",
+      reason: "sole-assignable",
+    });
   });
 
   it("returns null when none match", () => {
-    expect(firstMatchingOutputPort("file.prepare", "OcrResult")).toBeNull();
+    expect(pickOutputPortForKind("file.prepare", "OcrResult")).toBeNull();
+  });
+
+  // W-2 — the reported defect. `azureClassify.poll.resultId` is typed with the
+  // ROOT `Artifact` kind, which every output in the catalog satisfies, so
+  // "the kinds are compatible" proves nothing about these two ports.
+  it("refuses to pin when the target port is the Artifact wildcard", () => {
+    // blob.read's only output is `base64: DocumentContent`. It IS assignable
+    // to Artifact — that is exactly why the old rule pinned it.
+    expect(
+      pickOutputPortForKind("blob.read", "Artifact", "resultId"),
+    ).toBeNull();
+  });
+
+  it("still pins the same-named producer for a wildcard identifier port", () => {
+    // azureClassify.submit.resultId → azureClassify.poll.resultId is the
+    // pairing that actually makes sense, and the name is the only evidence
+    // available for it. `constructedClassifierName` is the same kind and must
+    // not win.
+    expect(
+      pickOutputPortForKind("azureClassify.submit", "Artifact", "resultId"),
+    ).toEqual({ port: "resultId", reason: "name" });
+  });
+
+  it("refuses to pin a wildcard port with no name match", () => {
+    expect(
+      pickOutputPortForKind(
+        "azureClassify.submit",
+        "Artifact",
+        "somethingElse",
+      ),
+    ).toBeNull();
   });
 });
 
