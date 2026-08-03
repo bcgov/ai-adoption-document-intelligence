@@ -101,6 +101,7 @@ const {
   mockFitView,
   mockScreenToFlowPosition,
   mockGetNodes,
+  mockSetNodes,
   mockReactFlowApi,
   latestReactFlowProps,
   mockUpdateNodeInternals,
@@ -116,11 +117,16 @@ const {
   // Auto-arrange reads measured card widths off the live instance; with no
   // rendered widths in jsdom the layout falls back to its default width.
   const getNodes = vi.fn(() => [] as Array<{ id: string; width?: number }>);
+  // W-3 — right-clicking outside the current selection resets xyflow's own
+  // selection through `setNodes`, the same way the editor page's grouping
+  // handler does.
+  const setNodes = vi.fn();
   return {
     mockFitView: fitView,
     mockScreenToFlowPosition: screenToFlowPosition,
     mockGetNodes: getNodes,
-    mockReactFlowApi: { fitView, screenToFlowPosition, getNodes },
+    mockSetNodes: setNodes,
+    mockReactFlowApi: { fitView, screenToFlowPosition, getNodes, setNodes },
     latestReactFlowProps: {
       current: null as null | Record<string, unknown>,
     },
@@ -3259,6 +3265,63 @@ describe("WorkflowEditorCanvas — US-046: node right-click context menu", () =>
     });
     return { preventDefault };
   }
+
+  /**
+   * W-3 (2026-08-03) — right-clicking one node of a multi-selection showed the
+   * single-node menu, and its Delete removed exactly that one node while the
+   * other selected nodes stayed. The menu now acts on the selection.
+   */
+  function selectNodes(ids: string[]) {
+    const props = latestReactFlowProps.current;
+    const handler = props?.onSelectionChange as (params: {
+      nodes: Array<{ id: string }>;
+      edges: Array<{ id: string }>;
+    }) => void;
+    act(() => {
+      handler({ nodes: ids.map((id) => ({ id })), edges: [] });
+    });
+  }
+
+  it("W-3: deletes the whole selection in ONE config write", async () => {
+    const { onConfigChange } = renderCanvas(makeAllNodeTypesConfig());
+    selectNodes(["activity_1", "switch_1"]);
+    triggerContextMenu("activity_1");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-selection"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("context-menu-delete-selection"),
+    ).toHaveTextContent("Delete 2 steps");
+
+    onConfigChange.mockClear();
+    fireEvent.click(screen.getByTestId("context-menu-delete-selection"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    // One write, so one Ctrl+Z brings all of them back.
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes).not.toHaveProperty("activity_1");
+    expect(next.nodes).not.toHaveProperty("switch_1");
+  });
+
+  it("W-3: right-clicking OUTSIDE the selection falls back to the single-node menu", async () => {
+    renderCanvas(makeAllNodeTypesConfig());
+    selectNodes(["activity_1", "switch_1"]);
+    triggerContextMenu("map_1");
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-delete-selection"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("context-menu-delete-node")).toBeInTheDocument();
+    // ...and the stale selection was cleared on the canvas, so what is
+    // highlighted matches what the menu is about to act on.
+    expect(mockSetNodes).toHaveBeenCalled();
+  });
 
   it("Scenario 1: right-click on an activity node opens the menu with both entries enabled", async () => {
     renderCanvas(makeAllNodeTypesConfig());

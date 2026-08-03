@@ -203,6 +203,13 @@ interface WorkflowEditorCanvasProps {
    */
   onSelectionChangeMany?: (nodeIds: string[]) => void;
   /**
+   * S-1 — groups the current selection, for the right-click menu's "Group
+   * these N steps" entry. The operation itself belongs to the host (it is the
+   * same `createGroupFromSelection` call the top-bar action makes), so the
+   * canvas only asks for it; when no handler is supplied the entry is absent.
+   */
+  onGroupSelection?: () => void;
+  /**
    * When true (US-043), nodes belonging to a `nodeGroups[<id>]` entry
    * are hidden behind a single "chip" pseudo-node — the canvas projects
    * the config through `projectGroupedConfig` and renders chips instead
@@ -2009,6 +2016,7 @@ function WorkflowEditorCanvasInner({
   onNodeBadgeClick,
   onReactFlowReady,
   onSelectionChangeMany,
+  onGroupSelection,
   simplifiedView = false,
   onGroupChipClick,
   onSelectMapBodyNode,
@@ -2761,10 +2769,14 @@ function WorkflowEditorCanvasInner({
       // first node stays the head of the list). Filter chips out — the
       // host's multi-select consumers care about underlying graph nodes
       // only.
+      const realNodeIds = nodes
+        .filter((n) => groupIdFromChipId(n.id) === null)
+        .map((n) => n.id);
+      // W-3 — the context menu needs to know what is selected. A ref, not
+      // state: it is read inside an event handler and nothing renders from it,
+      // so storing it in state would re-render the canvas on every click.
+      selectedNodeIdsRef.current = realNodeIds;
       if (onSelectionChangeMany) {
-        const realNodeIds = nodes
-          .filter((n) => groupIdFromChipId(n.id) === null)
-          .map((n) => n.id);
         onSelectionChangeMany(realNodeIds);
       }
       // `onSelectNode` carries the first selected id — chips don't
@@ -3151,6 +3163,8 @@ function WorkflowEditorCanvasInner({
     nodeId: string;
     nodeType: GraphNode["type"];
     activityType?: string;
+    /** W-3 — nodes selected when the menu opened; 1 means "just this one". */
+    selectionCount: number;
     x: number;
     y: number;
   } | null>(null);
@@ -3161,6 +3175,13 @@ function WorkflowEditorCanvasInner({
   // full-page (US-181).
   const [editScriptSlug, setEditScriptSlug] = useState<string | null>(null);
 
+  /**
+   * W-3 — the ids xyflow currently has selected, graph nodes only. Kept so the
+   * right-click menu can act on the SELECTION rather than on the one node the
+   * cursor happens to be over.
+   */
+  const selectedNodeIdsRef = useRef<string[]>([]);
+
   const handleNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
       // Suppress the browser's native right-click menu so the workflow
@@ -3168,6 +3189,22 @@ function WorkflowEditorCanvasInner({
       event.preventDefault();
       const graphNode = config.nodes[node.id];
       if (!graphNode) return;
+      // W-3 — the menu acts on the selection only when the node under the
+      // cursor is IN it. Right-clicking outside the selection resets it to
+      // that node, which is what every other canvas does and stops the menu
+      // from offering to delete nodes the author is no longer pointing at.
+      const selected = selectedNodeIdsRef.current;
+      const inSelection = selected.includes(node.id);
+      if (!inSelection && selected.length > 0) {
+        selectedNodeIdsRef.current = [node.id];
+        reactFlow.setNodes((ns) =>
+          ns.map((n) =>
+            n.selected === (n.id === node.id)
+              ? n
+              : { ...n, selected: n.id === node.id },
+          ),
+        );
+      }
       setContextMenu({
         nodeId: node.id,
         nodeType: graphNode.type,
@@ -3175,12 +3212,27 @@ function WorkflowEditorCanvasInner({
           graphNode.type === "activity"
             ? (graphNode as ActivityNode).activityType
             : undefined,
+        selectionCount: inSelection ? selected.length : 1,
         x: event.clientX,
         y: event.clientY,
       });
     },
-    [config.nodes],
+    [config.nodes, reactFlow],
   );
+
+  /**
+   * W-3 — removes every selected node in ONE config write, so the whole
+   * gesture is a single undo step. Routed through `handleNodesDelete` for the
+   * same reason the single-node entry is: orphan warnings, ctx cleanup and the
+   * keyboard path all live there.
+   */
+  const deleteSelectionFromContextMenu = useCallback(() => {
+    const ids = selectedNodeIdsRef.current.filter((id) => config.nodes[id]);
+    if (ids.length === 0) return;
+    handleNodesDelete(
+      ids.map((id) => ({ id, data: {}, position: { x: 0, y: 0 } })),
+    );
+  }, [config.nodes, handleNodesDelete]);
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
@@ -4121,6 +4173,9 @@ function WorkflowEditorCanvasInner({
           }
           groupLabel={contextMenuGroup?.group.label}
           onUngroup={contextMenuGroup ? ungroupFromContextMenu : undefined}
+          selectionCount={contextMenu.selectionCount}
+          onDeleteSelection={deleteSelectionFromContextMenu}
+          onGroupSelection={onGroupSelection}
         />
       )}
       {paneMenu && (

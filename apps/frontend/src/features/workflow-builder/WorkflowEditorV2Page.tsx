@@ -2091,6 +2091,7 @@ function WorkflowEditorV2PageBody({
             onConfigChange={handleCanvasConfigChange}
             onSelectNode={setSelectedNodeId}
             onSelectionChangeMany={setSelectedNodeIds}
+            onGroupSelection={handleGroupSelected}
             errorsByNode={validation.errorsByNode}
             onNodeBadgeClick={handleProblemBadgeClick}
             onReactFlowReady={handleReactFlowReady}

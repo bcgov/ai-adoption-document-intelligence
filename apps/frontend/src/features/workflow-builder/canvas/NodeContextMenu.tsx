@@ -77,6 +77,26 @@ export interface NodeContextMenuProps {
    * Only rendered when `groupLabel` is set.
    */
   onUngroup?: () => void;
+  /**
+   * W-3 — how many nodes are selected when the menu opens, counting the node
+   * it opened on. Above 1 the menu switches to SELECTION mode: the entries act
+   * on the whole selection, and the per-node entries (type swap, edit script)
+   * are dropped because they have no meaning for a set.
+   *
+   * The canvas only passes a count above 1 when the right-clicked node is
+   * itself part of that selection — right-clicking outside it resets the
+   * selection to that node first, so the menu never claims to act on nodes the
+   * gesture just deselected.
+   */
+  selectionCount?: number;
+  /** Deletes every selected node in one config write (one undo step). */
+  onDeleteSelection?: () => void;
+  /**
+   * S-1 — groups the selection. Optional because grouping is the host's
+   * operation (`createGroupFromSelection` lives on the editor page); when the
+   * host supplies no handler the entry is simply absent.
+   */
+  onGroupSelection?: () => void;
 }
 
 const CONTROL_FLOW_TYPE_SWAP_TOOLTIP =
@@ -97,10 +117,14 @@ export function NodeContextMenu({
   onEditScript,
   groupLabel,
   onUngroup,
+  selectionCount = 1,
+  onDeleteSelection,
+  onGroupSelection,
 }: NodeContextMenuProps) {
   const canChangeActivityType = isActivityType(nodeType);
   const isDynamicNode =
     canChangeActivityType && activityType?.startsWith("dyn.");
+  const isSelection = selectionCount > 1;
 
   const handleChangeActivityType = () => {
     onChangeActivityType();
@@ -119,6 +143,16 @@ export function NodeContextMenu({
 
   const handleUngroup = () => {
     if (onUngroup) onUngroup();
+    onClose();
+  };
+
+  const handleDeleteSelection = () => {
+    if (onDeleteSelection) onDeleteSelection();
+    onClose();
+  };
+
+  const handleGroupSelection = () => {
+    if (onGroupSelection) onGroupSelection();
     onClose();
   };
 
@@ -156,6 +190,48 @@ export function NodeContextMenu({
         />
       </Menu.Target>
       <Menu.Dropdown data-testid="node-context-menu">
+        {isSelection ? (
+          <>
+            <Menu.Label>{selectionCount} steps selected</Menu.Label>
+            {onGroupSelection && (
+              <Menu.Item
+                data-testid="context-menu-group-selection"
+                onClick={handleGroupSelection}
+              >
+                Group these {selectionCount} steps
+              </Menu.Item>
+            )}
+            {groupLabel && onUngroup && (
+              <Menu.Item
+                data-testid="context-menu-ungroup"
+                onClick={handleUngroup}
+              >
+                Ungroup “{groupLabel}” (steps stay)
+              </Menu.Item>
+            )}
+            <Menu.Item
+              data-testid="context-menu-delete-selection"
+              color="red"
+              onClick={handleDeleteSelection}
+            >
+              Delete {selectionCount} steps
+            </Menu.Item>
+          </>
+        ) : (
+          <SingleNodeEntries />
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+
+  /**
+   * The per-node entries, unchanged. Declared as a nested component so the
+   * selection branch above reads as one choice between two whole menus rather
+   * than a chain of conditionals inside a single list.
+   */
+  function SingleNodeEntries() {
+    return (
+      <>
         {canChangeActivityType ? (
           <Menu.Item
             data-testid="context-menu-change-activity-type"
@@ -201,7 +277,7 @@ export function NodeContextMenu({
         >
           Delete node
         </Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
-  );
+      </>
+    );
+  }
 }

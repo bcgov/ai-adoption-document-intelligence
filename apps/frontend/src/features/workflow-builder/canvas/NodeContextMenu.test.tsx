@@ -21,38 +21,61 @@ import { NodeContextMenu } from "./NodeContextMenu";
 interface RenderOptions {
   nodeId?: string;
   nodeType?: GraphNode["type"];
+  activityType?: string;
   x?: number;
   y?: number;
 }
 
 function renderMenu(
-  options: RenderOptions & { groupLabel?: string } = {},
+  options: RenderOptions & {
+    groupLabel?: string;
+    selectionCount?: number;
+    withGroupSelection?: boolean;
+  } = {},
   callbacks: {
     onClose?: () => void;
     onChangeActivityType?: () => void;
     onDelete?: () => void;
     onUngroup?: () => void;
+    onDeleteSelection?: () => void;
+    onGroupSelection?: () => void;
   } = {},
 ) {
   const onClose = callbacks.onClose ?? vi.fn();
   const onChangeActivityType = callbacks.onChangeActivityType ?? vi.fn();
   const onDelete = callbacks.onDelete ?? vi.fn();
   const onUngroup = callbacks.onUngroup ?? vi.fn();
+  const onDeleteSelection = callbacks.onDeleteSelection ?? vi.fn();
+  const onGroupSelection = callbacks.onGroupSelection ?? vi.fn();
   const utils = render(
     <MantineProvider>
       <NodeContextMenu
         nodeId={options.nodeId ?? "node_1"}
         nodeType={options.nodeType ?? "activity"}
+        activityType={options.activityType}
         position={{ x: options.x ?? 50, y: options.y ?? 60 }}
         onClose={onClose}
         onChangeActivityType={onChangeActivityType}
         onDelete={onDelete}
         groupLabel={options.groupLabel}
         onUngroup={options.groupLabel ? onUngroup : undefined}
+        selectionCount={options.selectionCount}
+        onDeleteSelection={onDeleteSelection}
+        onGroupSelection={
+          options.withGroupSelection === false ? undefined : onGroupSelection
+        }
       />
     </MantineProvider>,
   );
-  return { ...utils, onClose, onChangeActivityType, onDelete, onUngroup };
+  return {
+    ...utils,
+    onClose,
+    onChangeActivityType,
+    onDelete,
+    onUngroup,
+    onDeleteSelection,
+    onGroupSelection,
+  };
 }
 
 describe("NodeContextMenu — Scenario 1: activity node menu", () => {
@@ -190,6 +213,82 @@ describe("NodeContextMenu — Ungroup entry", () => {
     });
     expect(
       screen.queryByTestId("context-menu-ungroup"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W-3 (2026-08-03) — right-clicking one of several selected nodes used to show
+// the single-node menu, and "Delete node" removed exactly one of them.
+// ---------------------------------------------------------------------------
+
+describe("NodeContextMenu — selection mode", () => {
+  it("acts on the whole selection and says how many", async () => {
+    const { onDeleteSelection, onClose } = renderMenu({ selectionCount: 3 });
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("node-context-menu")).toHaveTextContent(
+      "3 steps selected",
+    );
+    const del = screen.getByTestId("context-menu-delete-selection");
+    expect(del).toHaveTextContent("Delete 3 steps");
+    fireEvent.click(del);
+    expect(onDeleteSelection).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("offers Group, so grouping is reachable without the top bar (S-1)", async () => {
+    const { onGroupSelection } = renderMenu({ selectionCount: 2 });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-group-selection"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("context-menu-group-selection"),
+    ).toHaveTextContent("Group these 2 steps");
+    fireEvent.click(screen.getByTestId("context-menu-group-selection"));
+    expect(onGroupSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the per-node entries, which mean nothing for a set", async () => {
+    renderMenu({ selectionCount: 3, activityType: "dyn.demo" });
+    await waitFor(() => {
+      expect(screen.getByTestId("node-context-menu")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-change-activity-type"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("context-menu-edit-script"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("context-menu-delete-node"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stays in single-node mode for a selection of one", async () => {
+    renderMenu({ selectionCount: 1 });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-delete-selection"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("omits Group when the host supplies no handler", async () => {
+    renderMenu({ selectionCount: 3, withGroupSelection: false });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-selection"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-group-selection"),
     ).not.toBeInTheDocument();
   });
 });
