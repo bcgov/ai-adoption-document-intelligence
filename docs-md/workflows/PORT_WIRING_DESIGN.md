@@ -176,6 +176,24 @@ Resolver semantics are untouched (nearest kind-assignable; exact-unique name mat
 
 Hover-to-extend (and drag-to-empty-canvas release) becomes kind-aware: dragging from an output of kind `K` filters/ranks the popover to catalog entries with an input assignable from `K` ("what can I do with an OcrResult?"), with flow-control and a "show all" escape below. Picking an entry places the node **and** wires the matching port via §6.1 (satisfying [AUTO_WIRE_DESIGN §11](AUTO_WIRE_DESIGN.md)'s "auto-pick on hover-extend" follow-up). Dragging from an untyped port shows today's unfiltered popover.
 
+### 9.1 Which port the pick pins — and when it declines to (2026-08-03)
+
+Placing the node and **pinning a port** are two decisions, and only the first is unconditional. `ensureEdgeBetween` always draws the flow edge, so the execution order the gesture asked for lands either way; `pinPortBinding` runs only when the port pair is unambiguous.
+
+`pick{Input,Output}PortForKind` (`canvas/extend-filter.ts`) return the port **and the reason** it was chosen, in descending order of what the reason actually proves:
+
+| Reason | Meaning |
+|---|---|
+| `name` | the two ports carry the same name — the strongest signal, and the only one available for identifier ports |
+| `exact-kind` | exactly one candidate declares the kind wanted |
+| `sole-assignable` | exactly one candidate, reached through the subtype walk |
+
+Nothing else pins. In particular, **when the target port's kind is the root `Artifact` wildcard (or absent), the kind lane is skipped entirely.** `Artifact` is the root of the lattice, so every output in the catalog is assignable to it and "the kinds are compatible" carries no information at all. That is what made extending upstream from `azureClassify.poll`'s `resultId` and picking *Read Blob* pin `blob.read.base64` onto it: `resultId` is `Artifact`-typed, `base64` trivially "matched", and it was the only output. Exact-kind preference would not have caught it, because there was no exact match to prefer.
+
+The predecessors — `firstMatching{Input,Output}Port` — returned the first *merely assignable* port in catalog declaration order, so declaration order decided. `azureClassify.submit.resultId → poll.resultId` still pins today, but on the name lane rather than by beating `constructedClassifierName` to the front of the list.
+
+When nothing pins, the input keeps its ordinary automatic resolution (which can still bind it by matching ctx key name) and shows "pick a source" when it can't. This rule is deliberately independent of the open identifier-kinds retag question — it is correct before that retag and stays correct after it.
+
 ## 10. Workstream: wire data peek
 
 After a run (Try or replay), hovering/clicking a data wire shows what actually flowed across it: the producer port's value from the existing preview cache (`GET /preview-cache?nodeId=` returns the node's cached output object; the wire scopes it to `result[port]`). Rendered with the existing preview widgets where a kind-specific widget exists, else a truncated JSON snippet. No run yet / cache evicted → "Run to see the data flowing here" (with the existing re-run affordance in the evicted case). This is the moment the wire-is-data model proves itself with the user's own document.
