@@ -25,12 +25,11 @@ import {
   getIdentityGroupIds,
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "@/document/document.service";
 import { ReprocessDocumentResponseDto } from "@/document/dto/reprocess-document-response.dto";
-import { GroupRole } from "@/generated";
 import { TrainingService } from "@/training/training.service";
 import { OcrService } from "./ocr.service";
-import { Permission } from "@/auth/role-permissions";
 
 @ApiTags("OCR")
 @Controller("api")
@@ -98,11 +97,9 @@ export class OcrController {
       throw new NotFoundException(`Document not found: ${documentId}`);
     }
 
-    identityCanAccessGroup(
-      req.resolvedIdentity,
-      document.group_id,
-      [Permission.OCR_REPROCESS],
-    );
+    identityCanAccessGroup(req.resolvedIdentity, document.group_id, [
+      Permission.OCR_REPROCESS,
+    ]);
 
     const { workflowExecutionId, status } =
       await this.ocrService.reprocessDocument(document);
