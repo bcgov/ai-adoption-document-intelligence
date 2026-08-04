@@ -279,6 +279,115 @@ describe("SchemaAwareEvaluator", () => {
       expect(field2Result.matched).toBe(false); // "New York" vs "New York City"
       expect(field2Result.similarity).toBeLessThan(0.8);
     });
+
+    it("matches short-string typos via maxEdits when the ratio threshold would fail", async () => {
+      // "Lee" vs "Lei" is 1 edit but only 2/3 = 0.667 similarity — below the
+      // default 0.8 ratio threshold. maxEdits:2 + minLength:3 should still
+      // match since distance (1) <= maxEdits and both strings are length 3.
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { last_name: "Lei" },
+        { last_name: "Lee" },
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "fuzzy-maxedits-match",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          fieldRules: {
+            last_name: { rule: "fuzzy", fuzzyThreshold: 0.8, maxEdits: 2, minLength: 3 },
+          },
+        },
+      });
+
+      const field1Result = (
+        result.diagnostics.comparisonResults as any[]
+      ).find((r: { field: string }) => r.field === "last_name");
+      expect(field1Result.similarity).toBeLessThan(0.8);
+      expect(field1Result.matched).toBe(true);
+      expect(result.metrics.matchedFields).toBe(1);
+    });
+
+    it("does not match short strings below minLength via the maxEdits path", async () => {
+      // "Al" vs "Ed" is 2 edits (within maxEdits:2) but both strings have
+      // length 2, below the default minLength of 3 — should NOT match.
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { code: "Ed" },
+        { code: "Al" },
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "fuzzy-maxedits-below-minlength",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          fieldRules: {
+            code: { rule: "fuzzy", fuzzyThreshold: 0.8, maxEdits: 2 },
+          },
+        },
+      });
+
+      const fieldResult = (
+        result.diagnostics.comparisonResults as any[]
+      ).find((r: { field: string }) => r.field === "code");
+      expect(fieldResult.matched).toBe(false);
+      expect(result.metrics.matchedFields).toBe(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Format canonicalization (canonicalize rule option)
+  // -----------------------------------------------------------------------
+  describe("canonicalize option", () => {
+    it("matches digits-only predicted against a punctuated GT SIN under exact + canonicalize digits", async () => {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { sin: "999888777" },
+        { sin: "999-888-777" },
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "canonicalize-digits",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          fieldRules: {
+            sin: { rule: "exact", canonicalize: { canonicalize: "digits" } },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.f1).toBe(1.0);
+    });
+
+    it("matches a currency-formatted predicted value against a plain-number GT under exact + canonicalize number", async () => {
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        { amount: "$2,711.64" },
+        { amount: "2711.64" },
+      );
+
+      const result = await evaluator.evaluate({
+        sampleId: "canonicalize-number",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {
+          fieldRules: {
+            amount: { rule: "exact", canonicalize: { canonicalize: "number" } },
+          },
+        },
+      });
+
+      expect(result.metrics.matchedFields).toBe(1);
+      expect(result.metrics.f1).toBe(1.0);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -467,6 +576,76 @@ describe("SchemaAwareEvaluator", () => {
       // 2 out of 4 correct
       expect(result.metrics.checkboxAccuracy).toBe(0.5);
       expect(result.metrics.matchedFields).toBe(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // P5: checkbox representation — GT derived from the Azure labelling export
+  // carries `:selected:` / `:unselected:` tags, while runtime predictions
+  // (extractAzureFieldDisplayValue) emit the plain `selected` / `unselected`
+  // form. The evaluator must canonicalize GT to the plain form before
+  // comparing, so the two representations don't spuriously mismatch.
+  // See docs-md/extraction/SDPR_V2_WORKFLOW_ALIGNMENT.md.
+  // -----------------------------------------------------------------------
+  describe("selection-mark checkbox representation (P5)", () => {
+    it("matches a plain prediction against tagged (Azure labelling-export) ground truth", async () => {
+      const groundTruth = {
+        checkbox_yes: ":selected:",
+        checkbox_no: ":unselected:",
+      };
+
+      const prediction = {
+        checkbox_yes: "selected",
+        checkbox_no: "unselected",
+      };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-checkbox-tag",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.f1).toBe(1.0);
+      expect(result.metrics.matchedFields).toBe(2);
+      // Diagnostics/groundTruth reflect the canonicalized (plain) form.
+      expect(result.groundTruth).toEqual({
+        checkbox_yes: "selected",
+        checkbox_no: "unselected",
+      });
+    });
+
+    it("still mismatches a genuinely wrong prediction after canonicalization", async () => {
+      const groundTruth = { checkbox_yes: ":selected:" };
+      const prediction = { checkbox_yes: "unselected" };
+
+      const { predictionPath, groundTruthPath } = await createTestFiles(
+        prediction,
+        groundTruth,
+      );
+
+      const input: EvaluationInput = {
+        sampleId: "sample-checkbox-tag-mismatch",
+        inputPaths: [],
+        predictionPaths: [predictionPath],
+        groundTruthPaths: [groundTruthPath],
+        metadata: {},
+        evaluatorConfig: {},
+      };
+
+      const result = await evaluator.evaluate(input);
+
+      expect(result.metrics.matchedFields).toBe(0);
+      expect(result.metrics.f1).toBe(0);
     });
   });
 

@@ -165,6 +165,21 @@ const CORRECTION_TOOL_REGISTRY: CorrectionToolManifestEntry[] = [
         required: false,
         default: "none",
       },
+      {
+        name: "singleCharacterToZero",
+        type: "boolean",
+        description:
+          'After normalization, coerce field values that end up as a single trimmed character to "0" (e.g. a stray OCR mark misread into a numeric field). Scope: number-typed schema fields (via documentType) or applicant_/spouse_ income-field keys, unless singleCharacterToZeroFields is set.',
+        required: false,
+        default: false,
+      },
+      {
+        name: "singleCharacterToZeroFields",
+        type: "string[]",
+        description:
+          "Explicit field key allowlist for singleCharacterToZero. When set, overrides the schema-type/key-pattern heuristic.",
+        required: false,
+      },
     ],
     tags: ["whitespace", "formatting", "normalization", "dates", "numbers"],
   },

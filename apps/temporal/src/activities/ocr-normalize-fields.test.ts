@@ -585,6 +585,252 @@ describe("normalizeOcrFields", () => {
     ).toBe(true);
   });
 
+  describe("singleCharacterToZero", () => {
+    it("is off by default (single-character income field is left unchanged)", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: { content: "7" },
+          },
+        },
+      ];
+
+      const result = await normalize({ ocrResult });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields
+          .applicant_net_employment_income.content,
+      ).toBe("7");
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(false);
+    });
+
+    it("coerces a single character to 0 on an income-like field key when enabled (heuristic, no documentType)", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: { content: "7" },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields
+          .applicant_net_employment_income.content,
+      ).toBe("0");
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(true);
+    });
+
+    it("does not coerce longer values on an income-like field", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: { content: "75" },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields
+          .applicant_net_employment_income.content,
+      ).toBe("75");
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(false);
+    });
+
+    it("does not coerce single-character values on non-income, non-configured fields", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            explain_changes: { content: "x" },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields.explain_changes
+          .content,
+      ).toBe("x");
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(false);
+    });
+
+    it("records an EnrichmentChange with the coercion reason and original value", async () => {
+      const ocrResult = makeOcrResult([
+        { key: "spouse_rental_income", value: "9", confidence: 0.9 },
+      ]);
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      expect(ocrFromRef(result.ocrResult).keyValuePairs[0].value?.content).toBe(
+        "0",
+      );
+      const change = result.changes.find(
+        (c) => c.reason === "Income single-character coerced to 0",
+      );
+      expect(change).toBeDefined();
+      expect(change?.fieldKey).toBe("spouse_rental_income");
+      expect(change?.originalValue).toBe("9");
+      expect(change?.correctedValue).toBe("0");
+      expect(change?.source).toBe("rule");
+    });
+
+    it("uses an explicit singleCharacterToZeroFields allowlist instead of the heuristic", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: { content: "7" },
+            custom_amount: { content: "3" },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+        singleCharacterToZeroFields: ["custom_amount"],
+      });
+
+      const fields = ocrFromRef(result.ocrResult).documents![0].fields;
+      // Not in the allowlist — heuristic is bypassed entirely when a list is given.
+      expect(fields.applicant_net_employment_income.content).toBe("7");
+      // In the allowlist — coerced.
+      expect(fields.custom_amount.content).toBe("0");
+    });
+
+    describe("with documentType schema", () => {
+      let prismaMock: { templateModel: { findUnique: jest.Mock } };
+
+      beforeEach(() => {
+        prismaMock = {
+          templateModel: { findUnique: jest.fn() },
+        };
+        getPrismaClientMock.mockReturnValue(prismaMock);
+      });
+
+      afterEach(() => {
+        getPrismaClientMock.mockReset();
+      });
+
+      it("coerces a single character on a number-typed schema field regardless of key naming", async () => {
+        prismaMock.templateModel.findUnique.mockResolvedValue({
+          id: "proj-1",
+          field_schema: [
+            {
+              field_key: "amount",
+              field_type: "number",
+              field_format: null,
+              format_spec: null,
+            },
+          ],
+        });
+        const ocrResult = makeOcrResult([]);
+        ocrResult.documents = [
+          {
+            docType: "custom",
+            fields: {
+              amount: { content: "8" },
+            },
+          },
+        ];
+
+        const result = await normalize({
+          ocrResult,
+          documentType: "proj-1",
+          singleCharacterToZero: true,
+        });
+
+        expect(
+          ocrFromRef(result.ocrResult).documents![0].fields.amount.content,
+        ).toBe("0");
+        expect(
+          result.changes.some(
+            (c) => c.reason === "Income single-character coerced to 0",
+          ),
+        ).toBe(true);
+      });
+
+      it("does not coerce a single character on a string-typed schema field", async () => {
+        prismaMock.templateModel.findUnique.mockResolvedValue({
+          id: "proj-1",
+          field_schema: [
+            {
+              field_key: "name",
+              field_type: "string",
+              field_format: null,
+              format_spec: null,
+            },
+          ],
+        });
+        const ocrResult = makeOcrResult([]);
+        ocrResult.documents = [
+          {
+            docType: "custom",
+            fields: {
+              name: { content: "X" },
+            },
+          },
+        ];
+
+        const result = await normalize({
+          ocrResult,
+          documentType: "proj-1",
+          singleCharacterToZero: true,
+        });
+
+        expect(
+          ocrFromRef(result.ocrResult).documents![0].fields.name.content,
+        ).toBe("X");
+        expect(
+          result.changes.some(
+            (c) => c.reason === "Income single-character coerced to 0",
+          ),
+        ).toBe(false);
+      });
+    });
+  });
+
   describe("field format engine integration", () => {
     let prismaMock: { templateModel: { findUnique: jest.Mock } };
 

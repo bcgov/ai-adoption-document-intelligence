@@ -66,6 +66,41 @@ interface NormalizeFieldsParams extends CorrectionToolParams {
    * Applies to **all** fields present in the OCR result (not gated by `fieldScope`; use `fieldScope` for rules only).
    */
   emptyValueCoercion?: EmptyValueCoercionMode;
+  /**
+   * After normalization (format spec / rules / semantic shaping), coerce field values that
+   * end up as a single trimmed character to `"0"`. Handles stray OCR marks (e.g. a checkbox
+   * glyph or punctuation) misread into a numeric field as one character.
+   * Default `false` — feature is off.
+   * Scope, in priority order:
+   * 1. `singleCharacterToZeroFields` (if non-empty) — coerce only these exact field keys.
+   * 2. Otherwise: fields whose schema `field_type` is `number` (requires `documentType`), OR
+   *    field keys matching the `applicant_`/`spouse_` income-field naming convention.
+   */
+  singleCharacterToZero?: boolean;
+  /** Explicit field key allowlist for `singleCharacterToZero`. Overrides the type/key heuristic. */
+  singleCharacterToZeroFields?: string[];
+}
+
+/** Field keys following the SDPR income-field naming convention (`applicant_*` / `spouse_*`). */
+const INCOME_LIKE_FIELD_KEY = /^(?:applicant|spouse)_[a-z0-9_]+$/i;
+
+function isIncomeLikeFieldKey(fieldKey: string): boolean {
+  return INCOME_LIKE_FIELD_KEY.test(fieldKey);
+}
+
+/**
+ * Resolve whether a field is in scope for `singleCharacterToZero` coercion.
+ * An explicit `fieldSet` (from `singleCharacterToZeroFields`) takes priority over the
+ * schema-type/key-pattern heuristic.
+ */
+function isSingleCharacterToZeroInScope(
+  fieldKey: string,
+  schemaFieldType: string | undefined,
+  fieldSet: Set<string> | null,
+): boolean {
+  if (fieldSet) return fieldSet.has(fieldKey);
+  if (schemaFieldType === "number") return true;
+  return isIncomeLikeFieldKey(fieldKey);
 }
 
 /** Rule ids allowed per Prisma FieldType (intersected with activity `enabledRules` / `disabledRules`). */
@@ -464,6 +499,11 @@ export async function normalizeOcrFields(
   const normalizeFullResult = params.normalizeFullResult === true;
   const emptyValueCoercion: EmptyValueCoercionMode =
     params.emptyValueCoercion ?? "none";
+  const singleCharacterToZero = params.singleCharacterToZero === true;
+  const singleCharacterToZeroFieldSet =
+    singleCharacterToZero && params.singleCharacterToZeroFields?.length
+      ? new Set(params.singleCharacterToZeroFields)
+      : null;
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
@@ -488,6 +528,7 @@ export async function normalizeOcrFields(
     documentType: documentType ?? null,
     schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
     emptyValueCoercion,
+    singleCharacterToZero,
   });
 
   const result = deepCopyOcrResult(ocrResult);
@@ -497,6 +538,8 @@ export async function normalizeOcrFields(
     if (!value || typeof value !== "string") return value;
     const inScope = isFieldInScope(fieldKey, fieldScope);
     const schemaRow = fieldMap?.[fieldKey];
+
+    let out: string | undefined;
 
     if (schemaRow?.format) {
       const spec = parseFormatSpec(schemaRow.format);
@@ -512,42 +555,64 @@ export async function normalizeOcrFields(
             source: "rule",
           });
         }
-        return formatted;
+        out = formatted;
       }
     }
 
-    const rulesThisField =
-      fieldMap && schemaRow
-        ? rulesForSchemaField(rules, schemaRow.type)
-        : rules;
+    if (out === undefined) {
+      const rulesThisField =
+        fieldMap && schemaRow
+          ? rulesForSchemaField(rules, schemaRow.type)
+          : rules;
 
-    let out: string;
-    if (!fieldMap) {
-      if (inScope) {
-        out = applyRules(value, fieldKey, rules, changes);
-      } else if (looksLikeNumericOrMoney(value)) {
-        out = applyRules(value, fieldKey, rules, changes, true);
+      if (!fieldMap) {
+        if (inScope) {
+          out = applyRules(value, fieldKey, rules, changes);
+        } else if (looksLikeNumericOrMoney(value)) {
+          out = applyRules(value, fieldKey, rules, changes, true);
+        } else {
+          out = value;
+        }
       } else {
-        out = value;
+        if (inScope) {
+          out = applyRules(value, fieldKey, rulesThisField, changes);
+        } else if (looksLikeNumericOrMoney(value)) {
+          out = applyRules(value, fieldKey, rules, changes, true);
+        } else {
+          out = value;
+        }
       }
-    } else {
-      if (inScope) {
-        out = applyRules(value, fieldKey, rulesThisField, changes);
-      } else if (looksLikeNumericOrMoney(value)) {
-        out = applyRules(value, fieldKey, rules, changes, true);
-      } else {
-        out = value;
+
+      const runSemantic =
+        inScope ||
+        isIdentifierLikeFieldKey(fieldKey) ||
+        isDateLikeFieldKey(fieldKey) ||
+        (fieldMap && schemaRow?.type === "date");
+      if (runSemantic) {
+        out = applySemanticFieldShape(fieldKey, out, changes, schemaRow?.type);
       }
     }
 
-    const runSemantic =
-      inScope ||
-      isIdentifierLikeFieldKey(fieldKey) ||
-      isDateLikeFieldKey(fieldKey) ||
-      (fieldMap && schemaRow?.type === "date");
-    if (runSemantic) {
-      out = applySemanticFieldShape(fieldKey, out, changes, schemaRow?.type);
+    if (
+      singleCharacterToZero &&
+      isSingleCharacterToZeroInScope(
+        fieldKey,
+        schemaRow?.type,
+        singleCharacterToZeroFieldSet,
+      ) &&
+      out.trim().length === 1
+    ) {
+      const before = out;
+      out = "0";
+      changes.push({
+        fieldKey,
+        originalValue: before,
+        correctedValue: "0",
+        reason: "Income single-character coerced to 0",
+        source: "rule",
+      });
     }
+
     return out;
   };
 
@@ -625,6 +690,7 @@ export async function normalizeOcrFields(
         documentType: documentType ?? null,
         schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
         emptyValueCoercion,
+        singleCharacterToZero,
       },
     },
     documentId,

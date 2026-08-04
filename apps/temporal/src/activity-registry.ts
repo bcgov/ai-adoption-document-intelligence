@@ -9,6 +9,7 @@
  */
 
 import {
+  applyReviewCriteria,
   azureCuAnalyze,
   azureCuDeployAnalyzer,
   benchmarkAggregate,
@@ -29,6 +30,7 @@ import {
   loadDatasetManifest,
   materializeDataset,
   mistralOcrProcess,
+  persistReviewPlan,
   pollOCRResults,
   postOcrCleanup,
   prepareFileData,
@@ -256,6 +258,24 @@ register({
   defaultTimeout: "3m",
   defaultRetry: { maximumAttempts: 2 },
   description: "Enrich OCR results with field schema and optional LLM",
+});
+
+register({
+  activityType: "hitl.applyReviewCriteria",
+  activityFn: applyReviewCriteria as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Evaluate configured, document-agnostic rules against every OCR field to build a per-field review/skip plan (prediction-only; no ground truth)",
+});
+
+register({
+  activityType: "document.persistReviewPlan",
+  activityFn: persistReviewPlan as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 5 },
+  description:
+    "Persist the per-field HITL review plan (from hitl.applyReviewCriteria) onto the document for the review UI",
 });
 
 // -- New activities (implementations in US-017, US-018, US-019) -------------

@@ -430,6 +430,8 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Leave as-is**
     - **Coerce empty fields to blank**
     - **Coerce empty fields to null**
+  - **Single-character to zero** *(toggle, default off)* — After the rules/format-spec/semantic steps above, coerces any field value that ends up as a single trimmed character to `"0"` (catches a stray OCR mark misread into a numeric field). In scope by default: number-typed schema fields (requires **Document type**) or field keys following the `applicant_`/`spouse_` income-field naming convention.
+    - **Single-character-to-zero fields** *(list, optional)* — Explicit field key allowlist; when set, replaces the type/key-pattern heuristic above.
 
 ---
 
@@ -478,6 +480,63 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
   - **Document type / template** *(dropdown, required)* — Picks the field schema. The dropdown lists configured templates from the system.
   - **Confidence threshold for LLM enrichment** *(decimal, optional, default `0.85`)* — Fields below this are eligible for LLM correction (only matters if LLM enrichment is enabled).
   - **Enable LLM enrichment** *(toggle, optional, default off)* — When on, low-confidence fields are sent to an Azure OpenAI deployment for correction.
+
+---
+
+## 🧑‍⚖️ Apply Review Criteria
+
+- **Category:** OCR Quality
+- **Visual:** Teal, magnifying-glass-over-checklist icon
+- **Activity ID (internal):** `hitl.applyReviewCriteria`
+- **One-line description:** Decides, field by field, whether a human should review it or it can be auto-skipped, using an author-configured list of rules evaluated against the prediction only (never ground truth).
+- **When to use it:** Instead of (or in addition to) whole-document confidence gating (**Check Confidence**), when different fields need different review criteria — e.g. always review free-text fields below a length, always review dates that fail format validation, skip fields that were confidently extracted.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Document ID** *(required)*.
+  - **OCR result** *(required)*.
+- **Outputs ("This step produces"):**
+  - **Review plan** *(required)* — A list, one entry per field: `{ field, decision ("review"|"skip"), reason, ruleName, confidence }`.
+  - **Requires review** *(required)* — True if at least one field was decided `"review"`.
+  - **Review field count** *(optional)* — Count of fields decided `"review"`.
+  - **Counts by rule** *(optional)* — `{ ruleName: count }`, including a `"__default__"` bucket for fields no rule matched.
+- **Static parameters:**
+  - **Document type / template** *(dropdown, optional)* — Picks the field schema; enables format-spec-aware validation (**Format validation fails** condition) and schema-typed **Field types** selection.
+  - **Rules** *(ordered list editor, required, at least one item)* — Evaluated in order; the first rule whose `select` matches the field AND whose `when` conditions are all true AND whose `skipWhen` conditions are all false, wins. Each rule has:
+    - **Name** *(text, required)*.
+    - **Select** — which fields this rule applies to: **Fields** (exact key list), **Field patterns** (`*`-glob on the key), **Exclude field patterns** (`*`-glob veto), **Field types** (schema/labeling type list, e.g. `date`, `number`). Leaving all four empty selects every field.
+    - **When** *(list of conditions, ANDed, optional)* and **Skip when** *(list of conditions, ORed, optional)* — condition types: **Confidence below** *(number)*, **Prediction is blank**, **Prediction length at most** *(number)*, **Format validation fails**, **Value outside range** *(min/max)*, **Value was inferred**, **Always**.
+    - **Action** *(dropdown, required)*: `review` / `skip`.
+    - **Reason** *(text, required)* — Shown to the reviewer / recorded in the plan.
+  - **Default action** *(dropdown, optional, default `skip`)* — Applied to fields no rule matched.
+  - **Inferred field keys** *(list of field keys, optional)* — Field keys previously marked as inferred by an upstream correction/enrichment step; backs the **Value was inferred** condition.
+
+> Does not special-case benchmark document ids — it always evaluates the configured rules. Any benchmark bypass (skipping human review entirely) belongs on the downstream Switch/gate node, the same way `ocr.checkConfidence` handles it.
+
+See [HITL_REVIEW_CRITERIA.md](../architecture/HITL_REVIEW_CRITERIA.md) for the condition semantics, prediction-only constraint, and the `exposedParams` pattern for exposing rule thresholds as overridable workflow parameters.
+
+---
+
+## 📌 Persist Review Plan
+
+- **Category:** OCR Quality
+- **Visual:** Teal, pin/bookmark icon
+- **Activity ID (internal):** `document.persistReviewPlan`
+- **One-line description:** Saves the per-field review plan from **Apply Review Criteria** onto the document so the review UI can default to showing only flagged fields.
+- **When to use it:** Downstream of **Apply Review Criteria**, whenever the review workspace should pre-filter to flagged fields and show each one's reason. Optional — a graph can use **Apply Review Criteria** for gating decisions alone without this node.
+
+### Settings panel
+
+- **Standard label, timeouts, retry, error handling.**
+- **Inputs ("This step reads"):**
+  - **Document ID** *(required)*.
+  - **Review plan** *(required)* — Typically bound to **Apply Review Criteria**'s **Review plan** output.
+- **Outputs:** none.
+- **Static parameters:** none.
+
+> No-op for benchmark document ids that don't exist in the DB (same short-circuit as **Store OCR Results**). Records a best-effort `document_review_plan_updated` audit event; an audit failure never fails the main update.
 
 ---
 
@@ -831,6 +890,8 @@ Reusable settings-panel widgets that several nodes share. Building these once an
 📂 OCR Quality
    ✅ Check Confidence
    ✨ Enrich OCR Results
+   🧑‍⚖️ Apply Review Criteria
+   📌 Persist Review Plan
 
 📂 Document Handling
    ✂ Split Document

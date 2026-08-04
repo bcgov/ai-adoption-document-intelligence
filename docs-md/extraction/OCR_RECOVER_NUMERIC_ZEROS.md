@@ -18,15 +18,17 @@ Both shapes lose information: the user wrote `0`, the model emits "nothing." Thi
 
 ## Where it sits in the workflow
 
-Between `azureOcr.extract` and `ocr.cleanup` in the SDPR variant template [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → postOcrCleanup`). The node reads and writes the `ocrResultRef` ctx key in place (matching the other correction nodes), so `postOcrCleanup` — which reads `ocrResultRef` — consumes the recovered result.
+Between `azureOcr.extract` and `ocr.normalizeFields` in the SDPR variant template [docs-md/workflows/templates/standard-ocr-workflow-sdpr.json](../workflows/templates/standard-ocr-workflow-sdpr.json) (node `recoverNumericZeros`, wired `extractResults → e6 → recoverNumericZeros → e6a → normalizeFields → e6b → postOcrCleanup`). The node reads and writes the `ocrResultRef` ctx key in place (matching the other correction nodes), so `normalizeFields` and `postOcrCleanup` — both of which read `ocrResultRef`/consume its output — see the recovered result.
 
 The base [standard-ocr-workflow.json](../workflows/templates/standard-ocr-workflow.json) is deliberately kept generic and does **not** include this node: its per-table config is form-specific, so it lives only in form-specific variants (seeded as workflow `seed-workflow-standard-ocr-sdpr`, slug `standard-ocr-sdpr`).
 
-Like every correction activity it is **blob-backed** (see the correction-tool contract in `apps/temporal/src/ocr-activity-ref-utils.ts`): it resolves the input OCR result from its blob ref via `resolveOcrResultInput`, applies recoveries to a deep copy (**the input is never mutated**), and returns a new blob-backed `OcrPayloadRef` via `finalizeCorrectionResult`. Downstream nodes (`ocr.cleanup`, `ocr.checkConfidence`, `ocr.storeResults`, benchmark prediction flattening) consume the corrected ref and see real numeric values.
+Like every correction activity it is **blob-backed** (see the correction-tool contract in `apps/temporal/src/ocr-activity-ref-utils.ts`): it resolves the input OCR result from its blob ref via `resolveOcrResultInput`, applies recoveries to a deep copy (**the input is never mutated**), and returns a new blob-backed `OcrPayloadRef` via `finalizeCorrectionResult`. Downstream nodes (`ocr.normalizeFields`, `ocr.cleanup`, `hitl.applyReviewCriteria`, `ocr.storeResults`, benchmark prediction flattening) consume the corrected ref and see real numeric values.
 
 ```
-extractResults → recoverNumericZeros → postOcrCleanup → checkConfidence → reviewSwitch → …
+extractResults → recoverNumericZeros → normalizeFields → postOcrCleanup → reviewCriteria → persistReviewPlan → reviewSwitch → …
 ```
+
+(The SDPR template no longer wires `ocr.checkConfidence` — `hitl.applyReviewCriteria` sets `requiresReview` instead; see [HITL_REVIEW_CRITERIA.md](../architecture/HITL_REVIEW_CRITERIA.md).)
 
 A no-op (returns the resolved result unchanged, re-persisted as a ref) when no `tables` config is supplied or no custom-model documents are returned, so it's safe to leave wired into workflows that don't need it.
 
@@ -171,7 +173,7 @@ Remaining cases are out of "checkbox-as-zero" scope: samples where Azure didn't 
 2. Identify the table by `firstCellTextContains` (the text in cell r0c0 — usually the section heading).
 3. List every value column with its `prefix` (matching your schema's field-key naming) and the column-header text.
 4. List every row with its `suffix` (the rest of the schema field-key) and the row-label text exactly as it appears in cell r*c0.
-5. Drop the JSON into `parameters.tables` on the `recoverNumericZeros` workflow node in a form-specific variant template (e.g. copy `standard-ocr-workflow-sdpr.json`). Wire the node in place on the `ocrResultRef` ctx key (`inputs`/`outputs` both `{ "port": "ocrResult", "ctxKey": "ocrResultRef" }`) between `extractResults` and `postOcrCleanup`. Keep it out of the generic base template.
+5. Drop the JSON into `parameters.tables` on the `recoverNumericZeros` workflow node in a form-specific variant template (e.g. copy `standard-ocr-workflow-sdpr.json`). Wire the node in place on the `ocrResultRef` ctx key (`inputs`/`outputs` both `{ "port": "ocrResult", "ctxKey": "ocrResultRef" }`) between `extractResults` and `normalizeFields`/`postOcrCleanup`. Keep it out of the generic base template.
 6. **Optionally** enable the fallbacks for forms where Azure OCR sometimes mangles the section title or drops the row-label column:
    - Add `fallbackTableFinder.shape` with the candidate's rowCount and columnCount ranges.
    - Add `fallbackTableFinder.labelAnchor.minLabelMatches` (typically `~⅔ of row count`) to enable Group A.
