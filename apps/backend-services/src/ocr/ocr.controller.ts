@@ -28,8 +28,10 @@ import {
 import { Permission } from "@/auth/role-permissions";
 import { DocumentService } from "@/document/document.service";
 import { ReprocessDocumentResponseDto } from "@/document/dto/reprocess-document-response.dto";
+import { GroupRole } from "@/generated";
 import { TrainingService } from "@/training/training.service";
 import { OcrService } from "./ocr.service";
+import { Permission } from "@/auth/role-permissions";
 
 @ApiTags("OCR")
 @Controller("api")
