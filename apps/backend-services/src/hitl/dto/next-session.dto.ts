@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   IsEnum,
@@ -35,8 +35,7 @@ export class NextSessionFilterDto {
   @IsEnum(ReviewStatusFilter)
   reviewStatus?: ReviewStatusFilter;
 
-  @ApiPropertyOptional({ description: "Scope to a specific group ID" })
-  @IsOptional()
+  @ApiProperty({ description: "Scope to a specific group ID" })
   @IsString()
-  group_id?: string;
+  group_id!: string;
 }
