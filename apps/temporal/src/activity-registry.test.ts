@@ -22,6 +22,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.storeRejection",
   "getWorkflowGraphConfig",
   "ocr.enrich",
+  "hitl.applyReviewCriteria",
+  "document.persistReviewPlan",
   "document.split",
   "document.classify",
   "document.splitAndClassify",

@@ -1,6 +1,6 @@
 # SDPR V2 report — data + plot generation pipeline
 
-This document records how the data, plots, and tables in `SDPR_OCR_Performance_Report_V2.md` are generated. It exists so the report numbers are reproducible — anyone (human or AI session) can re-derive the headline accuracy, the per-category HITL trade-off, and the underlying CSVs by running the pipeline against the share's benchmark exports.
+This document records how the data, plots, and tables in `docs-md/archive/SDPR_OCR_Performance_Report_V2.md` are generated. It exists so the report numbers are reproducible — anyone (human or AI session) can re-derive the headline accuracy, the per-category HITL trade-off, and the underlying CSVs by running the pipeline against the share's benchmark exports.
 
 The companion script README ([`README.md`](README.md), same directory) covers each tool in detail; this document focuses on the SDPR-specific pipeline and the policy decisions baked into it. All command examples below assume you are running from the repository root.
 
@@ -169,7 +169,7 @@ When a normaliser or recovery rule changes:
 1. Re-run the canonical pipeline (`regenerate-reports-share.sh`).
 2. Re-run `compare-engines-share.sh` so the 3-engine plots reflect the new normalised numbers.
 3. Re-run `hitl-planner-share.sh` so the HITL chart and tables reflect the new error distribution.
-4. Update the affected sections of `SDPR_OCR_Performance_Report_V2.md` — at minimum §10.2 (aggregate metrics), §10.3 (error-class breakdown), §10.4 (per-category accuracy), and §10.5 (HITL tables) all carry numbers that flow from the pipeline.
+4. Update the affected sections of `docs-md/archive/SDPR_OCR_Performance_Report_V2.md` — at minimum §10.2 (aggregate metrics), §10.3 (error-class breakdown), §10.4 (per-category accuracy), and §10.5 (HITL tables) all carry numbers that flow from the pipeline.
 5. Re-apply the manual annotations on `reports/wrong-by-category.csv` (see above) — the Note column doesn't carry over automatically when rows shift. §10.6 counts and the GT-cleanup callout in §10.6.3 depend on the annotated variant.
 
 A `regenerate-reports-share.sh` log line at the end of each run records how many rule-flips the normaliser made, separated by rule name. Comparing that line across runs is the quickest way to see what a change did.

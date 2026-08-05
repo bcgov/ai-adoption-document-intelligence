@@ -18,6 +18,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "ocr.cleanup",
   "ocr.enrich",
   "ocr.checkConfidence",
+  "hitl.applyReviewCriteria",
+  "document.persistReviewPlan",
   "ocr.storeResults",
   "document.storeRejection",
   "document.split",

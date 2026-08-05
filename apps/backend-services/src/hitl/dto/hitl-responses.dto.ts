@@ -88,6 +88,29 @@ export class SessionDocumentDto {
   ocr_result!: QueueDocumentOcrDto;
 }
 
+export class ReviewPlanEntryDto {
+  @ApiProperty({ description: "OCR field key this entry applies to" })
+  field!: string;
+
+  @ApiProperty({
+    description: "Whether a human reviewer should look at this field",
+    enum: ["review", "skip"],
+  })
+  decision!: "review" | "skip";
+
+  @ApiProperty({ description: "Human-readable explanation for the decision" })
+  reason!: string;
+
+  @ApiProperty({
+    description:
+      'Name of the review-criteria rule that produced this decision (or "__default__")',
+  })
+  ruleName!: string;
+
+  @ApiPropertyOptional({ description: "Field extraction confidence, if known" })
+  confidence!: number | null;
+}
+
 export class ReviewSessionResponseDto {
   @ApiProperty()
   id!: string;
@@ -122,6 +145,13 @@ export class ReviewSessionResponseDto {
     type: "array",
   })
   fieldDefinitions?: Array<{ field_key: string; format_spec?: string | null }>;
+
+  @ApiPropertyOptional({
+    description:
+      "Per-field review/skip plan from hitl.applyReviewCriteria, when the workflow produced one. Absent for documents processed before this feature or without a review-criteria step.",
+    type: [ReviewPlanEntryDto],
+  })
+  reviewPlan?: ReviewPlanEntryDto[];
 }
 
 export class CorrectionRecordDto {
