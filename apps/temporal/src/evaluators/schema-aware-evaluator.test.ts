@@ -297,14 +297,19 @@ describe("SchemaAwareEvaluator", () => {
         metadata: {},
         evaluatorConfig: {
           fieldRules: {
-            last_name: { rule: "fuzzy", fuzzyThreshold: 0.8, maxEdits: 2, minLength: 3 },
+            last_name: {
+              rule: "fuzzy",
+              fuzzyThreshold: 0.8,
+              maxEdits: 2,
+              minLength: 3,
+            },
           },
         },
       });
 
-      const field1Result = (
-        result.diagnostics.comparisonResults as any[]
-      ).find((r: { field: string }) => r.field === "last_name");
+      const field1Result = (result.diagnostics.comparisonResults as any[]).find(
+        (r: { field: string }) => r.field === "last_name",
+      );
       expect(field1Result.similarity).toBeLessThan(0.8);
       expect(field1Result.matched).toBe(true);
       expect(result.metrics.matchedFields).toBe(1);
@@ -331,9 +336,9 @@ describe("SchemaAwareEvaluator", () => {
         },
       });
 
-      const fieldResult = (
-        result.diagnostics.comparisonResults as any[]
-      ).find((r: { field: string }) => r.field === "code");
+      const fieldResult = (result.diagnostics.comparisonResults as any[]).find(
+        (r: { field: string }) => r.field === "code",
+      );
       expect(fieldResult.matched).toBe(false);
       expect(result.metrics.matchedFields).toBe(0);
     });

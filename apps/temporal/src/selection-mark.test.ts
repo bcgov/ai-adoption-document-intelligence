@@ -35,9 +35,9 @@ describe("canonicalizeSelectionMarkValue", () => {
     expect(canonicalizeSelectionMarkValue(labellingExportForm)).toBe(
       runtimeForm,
     );
-    expect(extractAzureFieldDisplayValue({ valueSelectionMark: "selected" })).toBe(
-      canonicalizeSelectionMarkValue(":selected:"),
-    );
+    expect(
+      extractAzureFieldDisplayValue({ valueSelectionMark: "selected" }),
+    ).toBe(canonicalizeSelectionMarkValue(":selected:"));
   });
 
   it("round-trips the unselected case as well", () => {
