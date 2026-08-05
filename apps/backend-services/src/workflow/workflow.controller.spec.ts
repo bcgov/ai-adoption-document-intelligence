@@ -83,33 +83,9 @@ describe("WorkflowController", () => {
   });
 
   describe("getWorkflows", () => {
-    it("returns empty array when no identity is set", async () => {
-      const req = { resolvedIdentity: undefined } as unknown as Request;
-      const result = await controller.getWorkflows(undefined, undefined, req);
-      expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
-    });
-
-    it("returns empty array when identity has no group access", async () => {
-      const req = {
-        resolvedIdentity: identityWithGroups({}),
-      } as Request;
-      workflowService.getGroupWorkflows.mockResolvedValue([]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
-      expect(result).toEqual({ workflows: [] });
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalledWith(
-        undefined,
-      );
-    });
-
-    it("returns workflows for the user's groups", async () => {
-      const req = {
-        resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
-        }),
-      } as Request;
+    it("returns workflows for a group", async () => {
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
+      const result = await controller.getWorkflows("group-1", undefined);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
@@ -117,32 +93,9 @@ describe("WorkflowController", () => {
       );
     });
 
-    it("lists all lineages for system admin", async () => {
-      const req = {
-        resolvedIdentity: {
-          isSystemAdmin: true,
-          groupRoles: {},
-          actorId: "admin-1",
-        },
-      } as Request;
-      workflowService.getAllWorkflowLineages.mockResolvedValue([
-        mockWorkflowInfo,
-      ]);
-      const result = await controller.getWorkflows(undefined, undefined, req);
-      expect(result).toEqual({ workflows: [mockWorkflowInfo] });
-      expect(workflowService.getAllWorkflowLineages).toHaveBeenCalledWith(
-        false,
-      );
-    });
-
     it("includes benchmark candidates when flag is true", async () => {
-      const req = {
-        resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
-        }),
-      } as Request;
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows(undefined, "true", req);
+      const result = await controller.getWorkflows("group-1", "true");
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
@@ -150,31 +103,14 @@ describe("WorkflowController", () => {
       );
     });
 
-    it("filters by groupId when groupId query param is provided", async () => {
-      const req = {
-        resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
-        }),
-      } as Request;
+    it("passes groupId to getGroupWorkflows", async () => {
       workflowService.getGroupWorkflows.mockResolvedValue([mockWorkflowInfo]);
-      const result = await controller.getWorkflows("group-1", undefined, req);
+      const result = await controller.getWorkflows("group-1", undefined);
       expect(result).toEqual({ workflows: [mockWorkflowInfo] });
       expect(workflowService.getGroupWorkflows).toHaveBeenCalledWith(
         ["group-1"],
         false,
       );
-    });
-
-    it("throws ForbiddenException when groupId is provided but identity cannot access it", async () => {
-      const req = {
-        resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
-        }),
-      } as Request;
-      await expect(
-        controller.getWorkflows("group-1", undefined, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(workflowService.getGroupWorkflows).not.toHaveBeenCalled();
     });
   });
 

@@ -188,7 +188,10 @@ export class HitlService {
       });
     });
 
-    const analytics = await this.analyticsService.getAnalytics({}, groupIds);
+    const analytics = await this.analyticsService.getAnalytics(
+      { group_id: "" },
+      groupIds,
+    );
 
     return {
       totalDocuments: allDocs.length,
