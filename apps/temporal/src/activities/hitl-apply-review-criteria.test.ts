@@ -1,3 +1,4 @@
+import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OCRResult } from "../types";
 import {
   applyReviewCriteria,
@@ -27,6 +28,19 @@ function run(params: Omit<ApplyReviewCriteriaParams, "documentId" | "rules"> &
   }) {
   return applyReviewCriteria({ documentId: DOC_ID, ...params });
 }
+
+beforeEach(() => {
+  jest
+    .spyOn(ocrRefUtils, "resolveOcrResultInput")
+    .mockImplementation(async (params) => ({
+      ocrResult: params.ocrResult as OCRResult,
+      groupId: "gtestgroupidfortests01",
+    }));
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 function makeOcrResult(
   documentFields: Record<
@@ -68,10 +82,6 @@ function makeOcrResult(
 }
 
 describe("applyReviewCriteria activity", () => {
-  afterEach(() => {
-    jest.resetAllMocks();
-  });
-
   it("flags a field for review when confidence is below threshold", async () => {
     const ocrResult = makeOcrResult({
       total_amount: { content: "100.00", confidence: 0.4 },
