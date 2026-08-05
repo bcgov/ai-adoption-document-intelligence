@@ -167,7 +167,7 @@ describe("TemplateModelController", () => {
           userId: "user-1",
           actorId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.createTemplateModel.mockResolvedValue(
@@ -187,7 +187,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -239,7 +239,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -296,7 +296,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -362,7 +362,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.uploadLabelingDocument.mockResolvedValue(
@@ -386,7 +386,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.addDocumentToTemplateModel.mockResolvedValue(
@@ -459,7 +459,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -513,7 +513,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -584,7 +584,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -654,7 +654,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -704,7 +704,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModelDocument.mockResolvedValue(
@@ -754,7 +754,7 @@ describe("TemplateModelController", () => {
       const req = {
         resolvedIdentity: {
           userId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -812,7 +812,7 @@ describe("TemplateModelController", () => {
         resolvedIdentity: {
           userId: "user-1",
           actorId: "user-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const fileBuffer = Buffer.from("file content");

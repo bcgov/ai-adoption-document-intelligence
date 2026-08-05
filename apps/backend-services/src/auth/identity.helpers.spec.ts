@@ -15,7 +15,7 @@ describe("getIdentityGroupIds", () => {
 
   it("should return a single-element array for an API key identity", () => {
     const result = getIdentityGroupIds({
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       isSystemAdmin: false,
       actorId: "actor-1",
     });
@@ -37,7 +37,7 @@ describe("getIdentityGroupIds", () => {
       userId: "user-abc",
       isSystemAdmin: false,
       groupRoles: {
-        "group-1": GroupRole.MEMBER,
+        "group-1": GroupRole.EDITOR,
         "group-2": GroupRole.ADMIN,
       },
       actorId: "actor-1",
@@ -83,7 +83,7 @@ describe("identityCanAccessGroup", () => {
       expect(() =>
         identityCanAccessGroup(
           {
-            groupRoles: { "group-1": GroupRole.MEMBER },
+            groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
           },
@@ -142,7 +142,7 @@ describe("identityCanAccessGroup", () => {
       expect(() =>
         identityCanAccessGroup(
           {
-            groupRoles: { "group-1": GroupRole.MEMBER },
+            groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
           },
@@ -157,7 +157,7 @@ describe("identityCanAccessGroup", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "group-2": GroupRole.MEMBER },
+          groupRoles: { "group-2": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
         },
@@ -171,7 +171,7 @@ describe("identityCanAccessGroup", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
         },
@@ -206,7 +206,7 @@ describe("prototype property bypass prevention", () => {
     expect(() =>
       identityCanAccessGroup(
         {
-          groupRoles: { "real-group": GroupRole.MEMBER },
+          groupRoles: { "real-group": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
         },

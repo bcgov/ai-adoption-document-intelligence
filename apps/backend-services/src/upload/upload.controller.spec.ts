@@ -56,7 +56,7 @@ describe("UploadController", () => {
       userId: "user-1",
       actorId: "actor-1",
       isSystemAdmin: false,
-      groupRoles: { "group-1": GroupRole.MEMBER },
+      groupRoles: { "group-1": GroupRole.EDITOR },
     };
     const mockReq = { resolvedIdentity: mockIdentity } as any;
     const baseDto: UploadDocumentDto = {
@@ -232,7 +232,7 @@ describe("UploadController", () => {
       const reqWithKey = {
         resolvedIdentity: {
           isSystemAdmin: false,
-          groupRoles: { "group-from-key": GroupRole.MEMBER },
+          groupRoles: { "group-from-key": GroupRole.EDITOR },
           actorId: "actor-key",
         },
         apiKey: {

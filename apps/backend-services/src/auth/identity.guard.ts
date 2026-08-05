@@ -28,7 +28,7 @@ import { RoleClaimsMap } from "./role-permissions";
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
  *   is populated using `request.apiKey.groupId` (set by `ApiKeyAuthGuard`) as the key
- *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
+ *   with a default role of `GroupRole.EDITOR`. When the decorator is absent, a base
  *   identity object is set without enrichment. No database queries are made.
  *
  * Returns `true` when the request is allowed to proceed, or throws:
@@ -79,7 +79,7 @@ export class IdentityGuard implements CanActivate {
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
-          groupRoles: { [groupId]: GroupRole.MEMBER },
+          groupRoles: { [groupId]: GroupRole.EDITOR },
           actorId: actorId,
         };
       } else {

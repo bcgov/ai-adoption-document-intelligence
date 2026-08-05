@@ -102,7 +102,7 @@ export enum Permission {
   WORKFLOW_DELETE,
 }
 
-const { ADMIN, MEMBER, REVIEWER } = GroupRole;
+const { ADMIN, EDITOR, REVIEWER } = GroupRole;
 
 const allPermissions = Object.values(Permission) as Permission[];
 
@@ -118,7 +118,7 @@ const groupAdminOnlyPermissions = [
 
 export const RoleClaimsMap: Record<GroupRole, Permission[]> = {
   [ADMIN]: allPermissions,
-  [MEMBER]: allPermissions.filter(
+  [EDITOR]: allPermissions.filter(
     (p) => !groupAdminOnlyPermissions.includes(p),
   ),
   [REVIEWER]: [
