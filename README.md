@@ -215,13 +215,19 @@ Before setting up the development environment, ensure you have:
 - **[Node.js](https://nodejs.org/)** 24.x or later (see `.nvmrc`; matches GitHub Actions and Docker builds)
 - **[npm](https://www.npmjs.com/)** 10.x or later
 - **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Docker for containerized database)
-- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (required on Windows/Mac — includes Docker Compose; ensure it is running before any `docker` commands).
+- **[Docker Engine](https://docs.docker.com/engine/install/ubuntu/)** with Docker Compose plugin (install inside WSL — see Windows note below)
 - **[Python](https://www.python.org/)** 3.12+ (optional, for image-service)
 - **[uv](https://github.com/astral-sh/uv)** (optional, for Python dependency management)
 - **[Git](https://git-scm.com/)** for version control
 - **Temporal Server** (via Docker Compose or local installation)
 
-**Windows developers:** Run all `npm` and Node-based commands (install, dev, migrate, seed, generate) in **WSL** (Ubuntu). Docker, Git, and VS Code can remain on Windows/PowerShell. WSL integrates with Docker Desktop automatically — enable it under Docker Desktop → Settings → Resources → WSL Integration.
+**Windows developers:** Run all commands — `npm`, `docker`, and `git` — in **WSL** (Ubuntu). Install Docker Engine inside WSL rather than using Docker Desktop:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Log out and back into WSL for the group change to take effect
+```
 
 To install WSL: open PowerShell as Administrator and run `wsl --install`, then restart. Install Node 24 in WSL via nvm (see step 1 below).
 
@@ -352,7 +358,7 @@ MINIO_SECRET_KEY=minioadmin
 
    **Subsequent starts:** Just open VS Code (or reload the window) — `Dev: all` handles Docker and all services automatically. Steps 3 and 4 do not need to be repeated unless the database is reset.
 
-> **Options B/C (command line):** Run the following manually in PowerShell or WSL:
+> **Options B/C (command line):** Run the following in WSL:
 
 ```bash
 docker compose --profile infra --profile temporal up -d
