@@ -114,7 +114,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -158,7 +158,7 @@ describe("IdentityGuard", () => {
 
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-id": GroupRole.MEMBER },
+      groupRoles: { "group-id": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -205,7 +205,7 @@ describe("IdentityGuard", () => {
     expect(
       (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
         .groupRoles,
-    ).toEqual({ "group-123": GroupRole.MEMBER });
+    ).toEqual({ "group-123": GroupRole.EDITOR });
   });
 
   it("should throw ForbiddenException when @Identity is absent and request uses an API key", async () => {
@@ -330,7 +330,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "g1",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
         {
@@ -355,7 +355,7 @@ describe("IdentityGuard", () => {
     expect(
       (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
         .groupRoles,
-    ).toEqual({ g1: GroupRole.MEMBER, g2: GroupRole.ADMIN });
+    ).toEqual({ g1: GroupRole.EDITOR, g2: GroupRole.ADMIN });
   });
 
   it("should set groupRoles to an empty record when @Identity is present and user has no groups", async () => {
@@ -535,7 +535,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -568,7 +568,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-xyz",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -601,7 +601,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-def",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -660,7 +660,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "other-group",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -781,7 +781,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -814,7 +814,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -923,7 +923,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -956,7 +956,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],

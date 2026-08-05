@@ -28,7 +28,7 @@ describe("AzureController", () => {
       resolvedIdentity: {
         userId: sub,
         groupRoles: Object.fromEntries(
-          groups.map((g) => [g, GroupRole.MEMBER]),
+          groups.map((g) => [g, GroupRole.EDITOR]),
         ) as Record<string, GroupRole>,
         actorId: "actor-1",
         isSystemAdmin: false,

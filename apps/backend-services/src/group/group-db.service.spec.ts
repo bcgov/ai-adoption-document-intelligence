@@ -21,7 +21,7 @@ const makeGroup = (id = "g-1") => ({
 const makeUserGroup = (userId = "user-1", groupId = "g-1") => ({
   user_id: userId,
   group_id: groupId,
-  role: GroupRole.MEMBER,
+  role: GroupRole.EDITOR,
   created_at: new Date(),
   updated_at: new Date(),
 });

@@ -433,7 +433,7 @@ model UserGroup {
   user       User?     @relation(fields: [user_id], references: [id])
   group_id   String
   group      Group?    @relation(fields: [group_id], references: [id])
-  role       GroupRole @default(MEMBER)
+  role       GroupRole @default(EDITOR)
   created_at DateTime  @default(now())
 
   @@id([user_id, group_id])
@@ -846,7 +846,7 @@ enum GroupMembershipRequestStatus {
 
 enum GroupRole {
   ADMIN
-  MEMBER
+  EDITOR
   REVIEWER
 }
 

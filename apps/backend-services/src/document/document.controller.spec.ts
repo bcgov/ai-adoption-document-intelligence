@@ -26,12 +26,12 @@ describe("DocumentController", () => {
     resolvedIdentity: {
       userId,
       isSystemAdmin: false,
-      groupRoles: { [mockGroupId]: GroupRole.MEMBER },
+      groupRoles: { [mockGroupId]: GroupRole.EDITOR },
       actorId: "actor-1",
     },
   });
   const createMockApiKeyReq = (groupId = mockGroupId) => ({
-    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.MEMBER } },
+    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.EDITOR } },
   });
 
   beforeEach(async () => {

@@ -70,7 +70,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockValidation = {
@@ -123,7 +123,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockRejectedValue(
@@ -145,7 +145,7 @@ describe("TrainingController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
           adminId: "admin-1",
         },
       } as unknown as Request;
@@ -200,7 +200,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       templateModelService.getTemplateModel.mockResolvedValue(
@@ -251,7 +251,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       trainingService.getTrainingJob.mockResolvedValue(
@@ -307,7 +307,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       trainingService.getTrainingJob.mockRejectedValue(
@@ -326,7 +326,7 @@ describe("TrainingController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       trainingService.getTrainingJob.mockResolvedValue(
@@ -388,7 +388,7 @@ describe("TrainingController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       trainingService.getTrainingJob.mockRejectedValue(

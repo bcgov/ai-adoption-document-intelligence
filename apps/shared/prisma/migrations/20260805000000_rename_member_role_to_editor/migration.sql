@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "GroupRole" RENAME VALUE 'MEMBER' TO 'EDITOR';

@@ -119,7 +119,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
@@ -135,7 +135,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
@@ -150,7 +150,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       const dto: CreateWorkflowDto = {
@@ -171,7 +171,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       const dto: CreateWorkflowDto = {
@@ -191,7 +191,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       const dto = { name: "Updated" };
@@ -217,7 +217,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       const dto = { name: "Updated" };
@@ -234,7 +234,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "group-1": GroupRole.MEMBER,
+          "group-1": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);
@@ -254,7 +254,7 @@ describe("WorkflowController", () => {
       const req = {
         user: { sub: "user-1" },
         resolvedIdentity: identityWithGroups({
-          "other-group": GroupRole.MEMBER,
+          "other-group": GroupRole.EDITOR,
         }),
       } as Request;
       workflowService.getWorkflow.mockResolvedValue(mockWorkflowInfo);

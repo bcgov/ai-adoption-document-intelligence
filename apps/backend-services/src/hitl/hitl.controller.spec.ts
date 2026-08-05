@@ -86,7 +86,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { documents: [], total: 0 };
@@ -107,7 +107,7 @@ describe("HitlController", () => {
       const req = {
         resolvedIdentity: {
           actorId: "actor-1",
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
@@ -128,7 +128,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       hitlService.getQueue.mockResolvedValue({
@@ -199,7 +199,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
           actorId: "actor-1",
         },
       } as unknown as Request;
@@ -242,7 +242,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (documentService.findDocument as jest.Mock).mockResolvedValueOnce(null);
@@ -259,7 +259,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
           actorId: "actor-1",
         },
       } as unknown as Request;
@@ -299,7 +299,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -318,7 +318,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { sessionId: "session-1", corrections: [] };
@@ -360,7 +360,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -377,7 +377,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { sessionId: "session-1", corrections: [] };
@@ -416,7 +416,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -432,7 +432,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = {
@@ -475,7 +475,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -494,7 +494,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = {
@@ -540,7 +540,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -557,7 +557,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = {
@@ -600,7 +600,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -617,7 +617,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { ok: true, expiresAt: new Date() };
@@ -646,7 +646,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -664,7 +664,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { deleted: true };
@@ -701,7 +701,7 @@ describe("HitlController", () => {
         resolvedIdentity: {
           userId: "user-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -719,7 +719,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = {
@@ -757,7 +757,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
@@ -775,7 +775,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       const mockResult = { id: "session-1", documentId: "doc-1" };
@@ -802,7 +802,7 @@ describe("HitlController", () => {
           userId: "user-1",
           actorId: "actor-1",
           isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
+          groupRoles: { "group-1": GroupRole.EDITOR },
         },
       } as unknown as Request;
       hitlService.getNextSession.mockResolvedValue(null);
