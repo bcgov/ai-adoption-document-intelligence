@@ -73,8 +73,10 @@ interface NormalizeFieldsParams extends CorrectionToolParams {
    * Default `false` — feature is off.
    * Scope, in priority order:
    * 1. `singleCharacterToZeroFields` (if non-empty) — coerce only these exact field keys.
-   * 2. Otherwise: fields whose schema `field_type` is `number` (requires `documentType`), OR
-   *    field keys matching the `applicant_`/`spouse_` income-field naming convention.
+   * 2. Otherwise, when a field schema was loaded via `documentType`: only fields whose
+   *    schema `field_type` is `number` (string/date/signature keys are never coerced).
+   * 3. Otherwise (no schema): field keys matching the `applicant_`/`spouse_` income-field
+   *    naming convention (legacy heuristic for schema-less runs).
    */
   singleCharacterToZero?: boolean;
   /** Explicit field key allowlist for `singleCharacterToZero`. Overrides the type/key heuristic. */
@@ -90,16 +92,19 @@ function isIncomeLikeFieldKey(fieldKey: string): boolean {
 
 /**
  * Resolve whether a field is in scope for `singleCharacterToZero` coercion.
- * An explicit `fieldSet` (from `singleCharacterToZeroFields`) takes priority over the
- * schema-type/key-pattern heuristic.
+ * An explicit `fieldSet` (from `singleCharacterToZeroFields`) takes priority.
+ * When a field schema was loaded, trust `field_type === "number"` only — do not fall
+ * back to the income-like key heuristic (which would also match string fields like
+ * `spouse_name` / `spouse_signature`).
  */
 function isSingleCharacterToZeroInScope(
   fieldKey: string,
   schemaFieldType: string | undefined,
   fieldSet: Set<string> | null,
+  hasFieldSchema: boolean,
 ): boolean {
   if (fieldSet) return fieldSet.has(fieldKey);
-  if (schemaFieldType === "number") return true;
+  if (hasFieldSchema) return schemaFieldType === "number";
   return isIncomeLikeFieldKey(fieldKey);
 }
 
@@ -599,6 +604,7 @@ export async function normalizeOcrFields(
         fieldKey,
         schemaRow?.type,
         singleCharacterToZeroFieldSet,
+        Boolean(fieldMap),
       ) &&
       out.trim().length === 1
     ) {

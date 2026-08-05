@@ -215,8 +215,8 @@ prepareFileData → submitOcr → updateApimRequestId → pollOcrResults → ext
 | GT cells that must not be scored | `:garbled:` wildcard sentinel, already honoured |
 | Standard precision/F1 (substitution = FP **and** FN) | **Already fixed on `develop`** (commit `06dfdcbbb`). The report's §10.1.5 note claiming production still uses the old formula is **stale** — do not re-do this. |
 | Where evaluator config lives for a form-specific workflow | The workflow template's `metadata.evaluatorConfig`; the seed lifts it into the benchmark definition. See `experiment-01-neural-doc-intelligence-workflow.json` for the shape. |
-| Looking a record up in an external reference dataset at runtime | `tables.lookup` over a group-scoped reference table ([TABLES.md](../../docs-md/architecture/TABLES.md)) |
-| Getting sample documents into a dev environment | Local-folder dataset seeding, `data/datasets/<name>/{public,private}/` ([local-datasets-seeding.md](../../docs-md/local-datasets-seeding.md)) |
+| Looking a record up in an external reference dataset at runtime | `tables.lookup` over a group-scoped reference table ([TABLES.md](../architecture/TABLES.md)) |
+| Getting sample documents into a dev environment | Local-folder dataset seeding, `data/datasets/<name>/{public,private}/` ([local-datasets-seeding.md](../local-datasets-seeding.md)) |
 
 ---
 
@@ -430,7 +430,7 @@ Keep the **base** `standard-ocr-workflow.json` untouched and generic. All SDPR s
 
 ### 8.2 `format_spec` per field
 
-`format_spec` is a JSON string on each `FieldDefinition` row. Grammar in [FIELD_FORMAT_ENGINE.md](../../docs-md/extraction/FIELD_FORMAT_ENGINE.md); ops are pipe-chained left to right.
+`format_spec` is a JSON string on each `FieldDefinition` row. Grammar in [FIELD_FORMAT_ENGINE.md](./FIELD_FORMAT_ENGINE.md); ops are pipe-chained left to right.
 
 | Field(s) | Proposed `format_spec` | Replaces offline rule |
 |---|---|---|
@@ -677,7 +677,7 @@ Final validation runs against production (§9.3), but you need a fast local loop
 
 The same shape works for anything else you need to pull off the share.
 
-**(b) Local-folder dataset seeding.** `data/datasets/<name>/{public,private}/` is scanned on dev backend start, seeded as a `Dataset` + `DatasetVersion`, and synced to blob storage ([local-datasets-seeding.md](../../docs-md/local-datasets-seeding.md)). Supports either a curated `manifest.json` or flat `<name>.jpg` + `<name>.json` pairs.
+**(b) Local-folder dataset seeding.** `data/datasets/<name>/{public,private}/` is scanned on dev backend start, seeded as a `Dataset` + `DatasetVersion`, and synced to blob storage ([local-datasets-seeding.md](../local-datasets-seeding.md)). Supports either a curated `manifest.json` or flat `<name>.jpg` + `<name>.json` pairs.
 
 To combine (a) and (b) without persisting production data: point `data/datasets/<name>` at a **tmpfs directory** (a symlink into `/dev/shm`, or a `tmpfs` mount) that you populate per session from the share. You get the full local benchmark loop; a reboot — or a `rm -rf` on exit — wipes it, and nothing was ever written to persistent disk. Make sure `data/datasets/**` is gitignored for real (verify before the first copy, not after).
 
@@ -809,19 +809,19 @@ Recorded so you don't re-litigate them. All confirmed by Alex on 2026-07-29.
 
 - [`scripts/benchmark analysis/SDPR_V2_REPORT_PIPELINE.md`](../../scripts/benchmark%20analysis/SDPR_V2_REPORT_PIPELINE.md) — the offline pipeline, authoritative
 - [`scripts/benchmark analysis/README.md`](../../scripts/benchmark%20analysis/README.md) — every script in isolation, including the full normalisation rule table
-- [`docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md`](../../docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md) — zero recovery (arrives with PR #169)
-- [`docs-md/extraction/FIELD_FORMAT_ENGINE.md`](../../docs-md/extraction/FIELD_FORMAT_ENGINE.md) — `format_spec` grammar
-- [`docs-md/architecture/HITL_ARCHITECTURE.md`](../../docs-md/architecture/HITL_ARCHITECTURE.md) — review sessions, queue, locking, the workspace
-- [`docs-md/architecture/TABLES.md`](../../docs-md/architecture/TABLES.md) — reference tables and `tables.lookup`
-- [`docs-md/workflows/WORKFLOW_NODE_CATALOG.md`](../../docs-md/workflows/WORKFLOW_NODE_CATALOG.md) — every node and its settings
-- [`docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`](../../docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md) — how to add a node properly
-- [`docs-md/local-datasets-seeding.md`](../../docs-md/local-datasets-seeding.md) — local dataset loading
+- [`docs-md/extraction/OCR_RECOVER_NUMERIC_ZEROS.md`](./OCR_RECOVER_NUMERIC_ZEROS.md) — zero recovery (arrives with PR #169)
+- [`docs-md/extraction/FIELD_FORMAT_ENGINE.md`](./FIELD_FORMAT_ENGINE.md) — `format_spec` grammar
+- [`docs-md/architecture/HITL_ARCHITECTURE.md`](../architecture/HITL_ARCHITECTURE.md) — review sessions, queue, locking, the workspace
+- [`docs-md/architecture/TABLES.md`](../architecture/TABLES.md) — reference tables and `tables.lookup`
+- [`docs-md/workflows/WORKFLOW_NODE_CATALOG.md`](../workflows/WORKFLOW_NODE_CATALOG.md) — every node and its settings
+- [`docs-md/workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md`](../workflows/ADDING_GRAPH_NODES_AND_ACTIVITIES.md) — how to add a node properly
+- [`docs-md/local-datasets-seeding.md`](../local-datasets-seeding.md) — local dataset loading
 - [`apps/temporal/src/evaluators/schema-aware-evaluator.ts`](../../apps/temporal/src/evaluators/schema-aware-evaluator.ts) — the scorer
 - `docs-md/workflows/templates/*.json` — workflow templates, including `metadata.evaluatorConfig` examples
 
 **Outside the repo**
 
-- `SDPR_OCR_Performance_Report_V2.md` — the report. §10 is the V2 content; §11.4 is the normalisation reference.
+- `docs-md/archive/SDPR_OCR_Performance_Report_V2.md` — the report. §10 is the V2 content; §11.4 is the normalisation reference.
 - The share folder in §9.1 — inputs and generated artifacts.
 
 **Repo rules that bind this work** (from `CLAUDE.md`): no backwards-compatibility shims; no `any` types; backend changes ship with tests and the tests must pass; no placeholders or speculative stubs; nothing document-specific in generic code; full Swagger documentation with dedicated DTOs on every controller; multi-write operations inside a single Prisma transaction; an audit event for every user-initiated mutation; matching documentation in the right `docs-md/` topic folder.

@@ -430,8 +430,8 @@ These nodes all read an OCR result, transform it, and write a corrected OCR resu
     - **Leave as-is**
     - **Coerce empty fields to blank**
     - **Coerce empty fields to null**
-  - **Single-character to zero** *(toggle, default off)* — After the rules/format-spec/semantic steps above, coerces any field value that ends up as a single trimmed character to `"0"` (catches a stray OCR mark misread into a numeric field). In scope by default: number-typed schema fields (requires **Document type**) or field keys following the `applicant_`/`spouse_` income-field naming convention.
-    - **Single-character-to-zero fields** *(list, optional)* — Explicit field key allowlist; when set, replaces the type/key-pattern heuristic above.
+  - **Single-character to zero** *(toggle, default off)* — After the rules/format-spec/semantic steps above, coerces any field value that ends up as a single trimmed character to `"0"` (catches a stray OCR mark misread into a numeric field). With **Document type** loaded, only number-typed schema fields are in scope (string/date/signature keys such as `spouse_name` are never coerced). Without a schema, falls back to field keys following the `applicant_`/`spouse_` income-field naming convention.
+    - **Single-character-to-zero fields** *(list, optional)* — Explicit field key allowlist; when set, replaces the schema-type / no-schema key heuristic above.
 
 ---
 

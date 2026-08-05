@@ -1,8 +1,8 @@
 # SDPR V2 workflow alignment — sizing and validation notes
 
 Tracks P0 sizing and P8 alignment for reproducing
-[`SDPR_OCR_Performance_Report_V2.md`](../../SDPR_OCR_Performance_Report_V2.md)
-inside the product (see [`IMPLEMENTATION_BRIEF.md`](../../IMPLEMENTATION_BRIEF.md)).
+[`SDPR_OCR_Performance_Report_V2.md`](../archive/SDPR_OCR_Performance_Report_V2.md)
+inside the product (see [`SDPR_V2_IMPLEMENTATION_BRIEF.md`](./SDPR_V2_IMPLEMENTATION_BRIEF.md)).
 
 ## P0 — Rule sizing
 

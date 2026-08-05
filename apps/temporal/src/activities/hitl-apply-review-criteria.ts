@@ -23,9 +23,9 @@
 
 import { extractAzureFieldDisplayValue } from "../azure-ocr-field-display-value";
 import {
+  type FormatSpec,
   parseFormatSpec,
   validate as validateFormatSpec,
-  type FormatSpec,
 } from "../field-format-engine";
 import { createActivityLogger } from "../logger";
 import { resolveOcrResultInput } from "../ocr-activity-ref-utils";

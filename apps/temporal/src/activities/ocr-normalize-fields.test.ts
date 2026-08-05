@@ -828,6 +828,68 @@ describe("normalizeOcrFields", () => {
           ),
         ).toBe(false);
       });
+
+      it("does not coerce spouse_name / spouse_signature when schema is loaded (income-like keys that are not number-typed)", async () => {
+        prismaMock.templateModel.findUnique.mockResolvedValue({
+          id: "seed-sdpr-monthly-report-template",
+          field_schema: [
+            {
+              field_key: "spouse_name",
+              field_type: "string",
+              field_format: null,
+              format_spec: null,
+            },
+            {
+              field_key: "spouse_signature",
+              field_type: "signature",
+              field_format: null,
+              format_spec: null,
+            },
+            {
+              field_key: "spouse_net_employment_income",
+              field_type: "number",
+              field_format: null,
+              format_spec: null,
+            },
+          ],
+        });
+        const ocrResult = makeOcrResult([]);
+        ocrResult.documents = [
+          {
+            docType: "custom",
+            fields: {
+              spouse_name: { content: "J" },
+              spouse_signature: { content: "S" },
+              spouse_net_employment_income: { content: "7" },
+            },
+          },
+        ];
+
+        const result = await normalize({
+          ocrResult,
+          documentType: "seed-sdpr-monthly-report-template",
+          singleCharacterToZero: true,
+        });
+
+        const fields = ocrFromRef(result.ocrResult).documents![0].fields;
+        expect(fields.spouse_name.content).toBe("J");
+        expect(fields.spouse_signature.content).toBe("S");
+        expect(fields.spouse_net_employment_income.content).toBe("0");
+        expect(
+          result.changes.some(
+            (c) =>
+              c.fieldKey === "spouse_name" &&
+              c.reason === "Income single-character coerced to 0",
+          ),
+        ).toBe(false);
+        expect(
+          result.changes.some(
+            (c) =>
+              c.fieldKey === "spouse_signature" &&
+              c.reason === "Income single-character coerced to 0",
+          ),
+        ).toBe(false);
+      });
     });
   });
 

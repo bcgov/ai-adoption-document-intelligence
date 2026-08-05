@@ -77,7 +77,7 @@ export class QueueStatsResponseDto {
 export class SessionDocumentDto {
   @ApiProperty()
   id!: string;
-  
+
   @ApiProperty()
   original_filename!: string;
 

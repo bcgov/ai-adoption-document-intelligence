@@ -1,10 +1,10 @@
 import * as ocrRefUtils from "../ocr-activity-ref-utils";
 import type { OCRResult } from "../types";
-import {
-  applyReviewCriteria,
-  type ApplyReviewCriteriaParams,
-} from "./hitl-apply-review-criteria";
 import { getPrismaClient } from "./database-client";
+import {
+  type ApplyReviewCriteriaParams,
+  applyReviewCriteria,
+} from "./hitl-apply-review-criteria";
 
 jest.mock("../logger", () => ({
   createActivityLogger: () => ({
@@ -22,10 +22,12 @@ const getPrismaClientMock = getPrismaClient as jest.Mock;
 
 const DOC_ID = "doc-review-criteria-test";
 
-function run(params: Omit<ApplyReviewCriteriaParams, "documentId" | "rules"> &
-  Partial<Pick<ApplyReviewCriteriaParams, "documentId">> & {
-    rules: ApplyReviewCriteriaParams["rules"];
-  }) {
+function run(
+  params: Omit<ApplyReviewCriteriaParams, "documentId" | "rules"> &
+    Partial<Pick<ApplyReviewCriteriaParams, "documentId">> & {
+      rules: ApplyReviewCriteriaParams["rules"];
+    },
+) {
   return applyReviewCriteria({ documentId: DOC_ID, ...params });
 }
 
