@@ -332,7 +332,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     const workflowPath = path.join(
       repoRoot,
       "docs-md",
-      "graph-workflows",
+      "workflows",
       "templates",
       `experiment-${slug}-workflow.json`,
     );
