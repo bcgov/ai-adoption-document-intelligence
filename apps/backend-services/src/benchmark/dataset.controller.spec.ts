@@ -479,6 +479,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         "Updated Name",
+        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -510,6 +511,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         "",
+        "user-123",
       );
       expect(result).toEqual(mockResponse);
     });
@@ -558,6 +560,7 @@ describe("DatasetController", () => {
       expect(mockDatasetService.deleteVersion).toHaveBeenCalledWith(
         "dataset-123",
         "version-123",
+        "user-123",
       );
     });
   });
@@ -582,6 +585,7 @@ describe("DatasetController", () => {
         "version-123",
         "sample-1",
         "test-group",
+        "user-123",
       );
     });
   });
@@ -824,6 +828,7 @@ describe("DatasetController", () => {
         "dataset-123",
         "version-123",
         createDto,
+        "user-123",
       );
       expect(result).toEqual({ id: "split-1", ...createDto });
     });
@@ -902,6 +907,7 @@ describe("DatasetController", () => {
         "version-123",
         "split-1",
         { sampleIds: ["s1", "s2", "s3"] },
+        "user-123",
       );
       expect(result).toEqual({ id: "split-1", sampleIds: ["s1", "s2", "s3"] });
     });
@@ -965,6 +971,7 @@ describe("DatasetController", () => {
 
       expect(mockDatasetService.deleteDataset).toHaveBeenCalledWith(
         "dataset-123",
+        "user-123",
       );
     });
   });

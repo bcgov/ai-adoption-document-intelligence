@@ -348,7 +348,7 @@ export THROTTLE_GLOBAL_LIMIT=1000000
 export THROTTLE_GLOBAL_TTL_MS=60000
 ```
 
-OpenShift disposable instances: patch the instance ConfigMap and restart the backend — see [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load).
+OpenShift disposable instances: patch the instance ConfigMap and restart the backend — see [MANUAL_LOAD_TEST_INSTANCE.md](../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load).
 
 Example stress sweep after raising the limit:
 
@@ -374,7 +374,7 @@ Apply from repo root (`kustomization.yml` is under `tools/load-testing/`):
 oc apply -k tools/load-testing -n "$NAMESPACE"
 ```
 
-(Create `load-test-k6-secrets` first — see [openshift/README.md](openshift/README.md).) Uses `BASE_URL=http://backend-services:3002` and mounts scripts from `k6/` via ConfigMap. Full notes: [docs-md/LOAD_TESTING.md](../docs-md/LOAD_TESTING.md).
+(Create `load-test-k6-secrets` first — see [openshift/README.md](openshift/README.md).) Uses `BASE_URL=http://backend-services:3002` and mounts scripts from `k6/` via ConfigMap. Full notes: [docs-md/benchmarking/LOAD_TESTING.md](../docs-md/benchmarking/LOAD_TESTING.md).
 
 ## Document Intelligence stubbing
 
@@ -385,7 +385,7 @@ oc apply -k tools/load-testing -n "$NAMESPACE"
   - labeling OCR returns a deterministic minimal succeeded payload,
   - classifier/template training endpoints return `503` in mock mode.
 
-Only `blob-storage-pressure` hits `/api/azure/classifier/documents`; the other bundled k6 scenarios do not hit `/api/azure/*`, training, or template OCR endpoints by default. Full behavior and scope: `docs-md/LOAD_TESTING.md`.
+Only `blob-storage-pressure` hits `/api/azure/classifier/documents`; the other bundled k6 scenarios do not hit `/api/azure/*`, training, or template OCR endpoints by default. Full behavior and scope: `docs-md/benchmarking/LOAD_TESTING.md`.
 
 ## Correlating results
 
@@ -393,7 +393,7 @@ Only `blob-storage-pressure` hits `/api/azure/classifier/documents`; the other b
 - PostgreSQL: `pg_stat_statements`, slow query log, table size `pg_total_relation_size('documents')`.
 - Pods: CPU/memory, OOMKilled, restart count.
 
-Full runbook and HA checklist: [docs-md/LOAD_TESTING.md](../docs-md/LOAD_TESTING.md).
+Full runbook and HA checklist: [docs-md/benchmarking/LOAD_TESTING.md](../docs-md/benchmarking/LOAD_TESTING.md).
 
 ## Test matrix tracker
 
@@ -412,7 +412,7 @@ npm run load-test:matrix -- documents --vus 5 --duration 60s --seeded-rows 10000
   --instance loadtest-1 --namespace fd34fb-test
 ```
 
-Set `--namespace` to the OpenShift project that hosts the instance (for example `fd34fb-test` when using the manual extra-instance flow in [MANUAL_LOAD_TEST_INSTANCE.md](../../docs-md/openshift-deployment/MANUAL_LOAD_TEST_INSTANCE.md), or `fd34fb-dev` when targeting the CI `develop` auto-deploy namespace).
+Set `--namespace` to the OpenShift project that hosts the instance (for example `fd34fb-test` when using the manual extra-instance flow in [MANUAL_LOAD_TEST_INSTANCE.md](../../docs-md/operations/MANUAL_LOAD_TEST_INSTANCE.md), or `fd34fb-dev` when targeting the CI `develop` auto-deploy namespace).
 
 `BASE_URL`, `LOAD_TEST_API_KEY`, `LOAD_TEST_GROUP_ID`, and any other scenario env (`LOAD_TEST_WORKFLOW_VERSION_ID`, `LOAD_TEST_BLOB_CLASSIFIER_NAME`, ...) are read from the environment exactly as for the underlying `npm run k6:*` scripts. `--vus`/`--duration` are forwarded as `LOAD_TEST_VUS` / `LOAD_TEST_DURATION` for scenarios that respect them; the values you pass are recorded in the matrix as the *requested* parameters even if the underlying script uses a different default (the `iterations` and `req_total` columns reflect what k6 actually executed).
 
@@ -472,7 +472,7 @@ What it does:
 
 | Resource | Default name | Source if missing |
 |----------|--------------|-------------------|
-| Workflow + initial version | `loadtest-standard-ocr` | `POST /api/workflows` with the JSON template at [`docs-md/graph-workflows/templates/standard-ocr-workflow.json`](../../docs-md/graph-workflows/templates/standard-ocr-workflow.json) (the same template the prisma seed uses) |
+| Workflow + initial version | `loadtest-standard-ocr` | `POST /api/workflows` with the JSON template at [`docs-md/workflows/templates/standard-ocr-workflow.json`](../../docs-md/workflows/templates/standard-ocr-workflow.json) (the same template the prisma seed uses) |
 | Classifier | `loadtest-blob-classifier` | `POST /api/azure/classifier` (PRETRAINING, source AZURE) |
 
 Useful flags:

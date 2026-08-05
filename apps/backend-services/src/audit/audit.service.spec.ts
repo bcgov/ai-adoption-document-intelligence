@@ -1,3 +1,4 @@
+import { Prisma } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import * as requestContextModule from "@/logging/request-context";
@@ -60,6 +61,7 @@ describe("AuditService", () => {
           group_id: "grp-1",
           request_id: "req-1",
         }),
+        undefined,
       );
     });
 
@@ -74,13 +76,14 @@ describe("AuditService", () => {
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({ actor_id: null }),
+        undefined,
       );
     });
 
-    it("should use userId from request context when actor_id is omitted", async () => {
+    it("should use actorId from request context when actor_id is omitted", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
-        .mockReturnValue({ requestId: "req-ctx-1", actorId: undefined });
+        .mockReturnValue({ requestId: "req-ctx-1", actorId: "actor-ctx-1" });
       mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
 
       await service.recordEvent({
@@ -90,7 +93,8 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ actor_id: null }),
+        expect.objectContaining({ actor_id: "actor-ctx-1" }),
+        undefined,
       );
     });
 
@@ -107,11 +111,34 @@ describe("AuditService", () => {
       });
 
       expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ request_id: "ctx-req-1" }),
+        expect.objectContaining({
+          request_id: "ctx-req-1",
+          actor_id: "u",
+        }),
+        undefined,
       );
     });
 
-    it("should set optional fields to null when omitted and context has no userId", async () => {
+    it("should prefer explicit actor_id over request context", async () => {
+      jest
+        .spyOn(requestContextModule, "getRequestContext")
+        .mockReturnValue({ requestId: "ctx-req-1", actorId: "ctx-actor" });
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+
+      await service.recordEvent({
+        event_type: "TEST",
+        resource_type: "document",
+        resource_id: "res-1",
+        actor_id: "explicit-actor",
+      });
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ actor_id: "explicit-actor" }),
+        undefined,
+      );
+    });
+
+    it("should set optional fields to null when omitted and context has no actorId", async () => {
       jest
         .spyOn(requestContextModule, "getRequestContext")
         .mockReturnValue({ requestId: "ctx-req-1" });
@@ -130,7 +157,50 @@ describe("AuditService", () => {
           workflow_execution_id: null,
           group_id: null,
         }),
+        undefined,
       );
+    });
+
+    it("should pass tx to createAuditEvent when provided", async () => {
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      await service.recordEvent(
+        {
+          event_type: "TEST",
+          resource_type: "document",
+          resource_id: "res-1",
+        },
+        tx,
+      );
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "TEST",
+          resource_id: "res-1",
+        }),
+        tx,
+      );
+    });
+
+    it("should propagate errors when tx is provided", async () => {
+      mockAuditDb.createAuditEvent.mockRejectedValue(
+        new Error("DB write failed"),
+      );
+      const tx = {} as Prisma.TransactionClient;
+
+      await expect(
+        service.recordEvent(
+          {
+            event_type: "FAIL",
+            resource_type: "doc",
+            resource_id: "r1",
+          },
+          tx,
+        ),
+      ).rejects.toThrow("DB write failed");
+
+      expect(mockAppLogger.warn).not.toHaveBeenCalled();
     });
   });
 

@@ -7,6 +7,7 @@ export function UploadPage() {
       <PageHeader
         title="Upload documents"
         description="Add new images and track their ingestion progress."
+        showDateBadge={false}
       />
 
       <DocumentUploadPanel />

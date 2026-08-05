@@ -123,11 +123,11 @@ export const DatasetReviewQueuePage: FC = () => {
         <Anchor onClick={() => navigate(`/benchmarking/datasets/${datasetId}`)}>
           {dataset?.name || "Dataset"}
         </Anchor>
-        <Text>Ground Truth Review</Text>
+        <Text>Ground truth review</Text>
       </Breadcrumbs>
 
       <Stack gap={2}>
-        <Title order={2}>Ground Truth Review Queue</Title>
+        <Title order={2}>Ground truth review queue</Title>
         <Text c="dimmed" size="sm">
           Review OCR results to generate ground truth for dataset samples
         </Text>
@@ -139,7 +139,7 @@ export const DatasetReviewQueuePage: FC = () => {
             <Paper withBorder p="md">
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                  Total Jobs
+                  Total jobs
                 </Text>
                 <Text size="xl" fw={700}>
                   {activeQueue.stats.totalDocuments}
@@ -151,7 +151,7 @@ export const DatasetReviewQueuePage: FC = () => {
             <Paper withBorder p="md">
               <Stack gap={4}>
                 <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-                  Awaiting Review
+                  Awaiting review
                 </Text>
                 <Text size="xl" fw={700} c="orange">
                   {activeQueue.stats.awaitingReview}
@@ -189,7 +189,7 @@ export const DatasetReviewQueuePage: FC = () => {
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-            Pending Review ({pendingQueue.total})
+            Pending review ({pendingQueue.total})
           </Tabs.Tab>
           <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
             Reviewed ({reviewedQueue.total})
@@ -218,7 +218,7 @@ export const DatasetReviewQueuePage: FC = () => {
                   <DataTable.Tr>
                     <DataTable.Th>Sample ID</DataTable.Th>
                     <DataTable.Th>Document</DataTable.Th>
-                    <DataTable.Th>Avg Confidence</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
                     <DataTable.Th>Uploaded</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>

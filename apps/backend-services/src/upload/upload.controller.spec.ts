@@ -9,6 +9,7 @@ import {
   HttpException,
   HttpStatus,
 } from "@nestjs/common";
+import { AuditService } from "@/audit/audit.service";
 import * as identityHelpers from "@/auth/identity.helpers";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
@@ -37,17 +38,22 @@ describe("UploadController", () => {
       resolveWorkflowVersionId: jest.fn().mockResolvedValue(null),
       getModelIdDefault: jest.fn().mockResolvedValue(null),
     } as any;
+    const mockAuditService = {
+      recordEvent: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuditService;
     controller = new UploadController(
       documentService,
       queueService,
       workflowService,
       mockAppLogger,
+      mockAuditService,
     );
   });
 
   describe("uploadDocument", () => {
     const mockIdentity = {
       userId: "user-1",
+      actorId: "actor-1",
       isSystemAdmin: false,
       groupRoles: { "group-1": GroupRole.MEMBER },
     };
@@ -67,6 +73,8 @@ describe("UploadController", () => {
       original_filename: "test.pdf",
       file_type: FileType.PDF,
       file_size: 123,
+      content_hash:
+        "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
       status: DocumentStatus.extracted,
       created_at: new Date(),
       updated_at: new Date(),

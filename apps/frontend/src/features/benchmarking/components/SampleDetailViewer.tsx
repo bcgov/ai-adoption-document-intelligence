@@ -111,11 +111,11 @@ export function SampleDetailViewer({
           </Alert>
         )}
 
-        {/* Input Files */}
+        {/* Input files */}
         <div>
           <Group gap="xs" mb="xs">
             <IconFile size={16} />
-            <Title order={5}>Input Files</Title>
+            <Title order={5}>Input files</Title>
             <Badge size="sm" variant="light">
               {inputs.length}
             </Badge>
@@ -125,7 +125,7 @@ export function SampleDetailViewer({
               <DataTable.Thead>
                 <DataTable.Tr>
                   <DataTable.Th>Path</DataTable.Th>
-                  <DataTable.Th>MIME Type</DataTable.Th>
+                  <DataTable.Th>MIME type</DataTable.Th>
                   <DataTable.Th w={50}>Download</DataTable.Th>
                 </DataTable.Tr>
               </DataTable.Thead>
@@ -164,11 +164,11 @@ export function SampleDetailViewer({
           )}
         </div>
 
-        {/* Ground Truth */}
+        {/* Ground truth */}
         <div>
           <Group gap="xs" mb="xs">
             <IconFileCheck size={16} />
-            <Title order={5}>Ground Truth</Title>
+            <Title order={5}>Ground truth</Title>
             <Badge size="sm" variant="light">
               {groundTruthFiles.length}
             </Badge>
@@ -212,7 +212,7 @@ export function SampleDetailViewer({
                 </DataTable.Tbody>
               </DataTable>
 
-              {/* Ground Truth Content */}
+              {/* Ground truth Content */}
               {isLoadingGroundTruth ? (
                 <Group justify="center" py="md">
                   <Loader size="sm" />

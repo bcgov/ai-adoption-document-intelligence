@@ -442,6 +442,17 @@ export class AzureController {
       actorId,
     );
 
+    await this.auditService.recordEvent({
+      event_type: "classifier_training_requested",
+      resource_type: "classifier",
+      resource_id: name,
+      actor_id: actorId,
+      group_id: group_id,
+      payload: {
+        classifier_name: name,
+      },
+    });
+
     setImmediate(async () => {
       try {
         // Upload the documents required for training

@@ -7,6 +7,7 @@
 
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { BenchmarkProjectDbService } from "./benchmark-project-db.service";
 import { CreateProjectDto } from "./dto";
@@ -29,6 +30,10 @@ describe("BenchmarkProjectService", () => {
         {
           provide: BenchmarkProjectDbService,
           useValue: mockBenchmarkProjectDbService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();
@@ -346,7 +351,7 @@ describe("BenchmarkProjectService", () => {
         undefined,
       );
 
-      await service.deleteProject(projectId);
+      await service.deleteProject(projectId, "actor-1");
 
       expect(
         mockBenchmarkProjectDbService.deleteBenchmarkProject,
@@ -358,9 +363,9 @@ describe("BenchmarkProjectService", () => {
         null,
       );
 
-      await expect(service.deleteProject("non-existent")).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.deleteProject("non-existent", "actor-1"),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("throws ConflictException when project has active runs", async () => {
@@ -373,9 +378,9 @@ describe("BenchmarkProjectService", () => {
         },
       );
 
-      await expect(service.deleteProject("project-123")).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.deleteProject("project-123", "actor-1"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

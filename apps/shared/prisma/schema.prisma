@@ -30,6 +30,8 @@ model Document {
   normalized_file_path  String?
   file_type             String
   file_size             Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash          String?
   metadata              Json?
   source                String
   status                DocumentStatus         @default(pre_ocr)
@@ -43,6 +45,8 @@ model Document {
   workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
   workflow_execution_id String?                @unique // Temporal workflow execution ID
   model_id              String                 @default("prebuilt-layout")
+  /// Per-field review/skip plan produced by hitl.applyReviewCriteria (ReviewPlanEntry[]); drives HITL review UI filtering.
+  review_plan           Json?
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
   lock                  DocumentLock?
@@ -52,6 +56,7 @@ model Document {
   workflowVersion       WorkflowVersion?       @relation(fields: [workflow_config_id], references: [id], onDelete: SetNull)
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@index([workflow_config_id])
   // Supports the documents list endpoint's common access pattern:
   // filter by group_id, order by created_at DESC, limit/offset. Lets Postgres
@@ -79,6 +84,8 @@ model LabelingDocument {
   normalized_file_path String?
   file_type         String
   file_size         Int
+  /// SHA-256 hex digest of the original upload bytes (identifies file content).
+  content_hash      String?
   metadata          Json?
   source            String
   status            DocumentStatus    @default(pre_ocr)
@@ -92,6 +99,7 @@ model LabelingDocument {
   group             Group             @relation(fields: [group_id], references: [id])
 
   @@index([group_id])
+  @@index([group_id, content_hash])
   @@map("labeling_documents")
 }
 

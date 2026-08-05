@@ -13,7 +13,7 @@ export function ConfusionProfilesPage(): JSX.Element {
   return (
     <Stack gap="lg">
       <PageHeader
-        title="Confusion Profiles"
+        title="Confusion profiles"
         description="Manage OCR confusion profiles for the active group."
       />
       {activeGroup ? (

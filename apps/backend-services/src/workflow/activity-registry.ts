@@ -6,7 +6,7 @@
  * temporal worker). It provides the set of valid activity type strings
  * and their descriptions.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 9.5
  */
 
 export interface RegisteredActivityType {
@@ -29,7 +29,23 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "azureOcr.extract": { description: "Extract structured OCR data" },
     "mistralOcr.process": {
       description:
-        "Mistral Document AI OCR (sync) with optional document annotation",
+        "Mistral Document AI OCR (sync, native or Azure Foundry transport) with optional document annotation",
+    },
+    "azureContentUnderstanding.deployAnalyzer": {
+      description:
+        "Deploy (idempotent PUT) an Azure Content Understanding analyzer derived from a TemplateModel field schema",
+    },
+    "azureContentUnderstanding.analyze": {
+      description:
+        "Azure Content Understanding analyze (async; polls until terminal); deploys analyzer first if a template schema is supplied",
+    },
+    "vlmDirect.extract": {
+      description:
+        "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+    },
+    "vlmOcrHybrid.extract": {
+      description:
+        "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
     },
     "ocr.cleanup": { description: "Post-OCR text normalization" },
     "ocr.enrich": {
@@ -37,6 +53,14 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     },
     "ocr.checkConfidence": { description: "Calculate OCR confidence" },
     "ocr.storeResults": { description: "Store OCR results in database" },
+    "hitl.applyReviewCriteria": {
+      description:
+        "Evaluate configured, document-agnostic rules against every OCR field to build a per-field review/skip plan (prediction-only; no ground truth)",
+    },
+    "document.persistReviewPlan": {
+      description:
+        "Persist the per-field HITL review plan (from hitl.applyReviewCriteria) onto the document for the review UI",
+    },
     "document.storeRejection": { description: "Store document rejection data" },
     "document.split": { description: "Split multi-page PDF into segments" },
     "document.classify": { description: "Classify document type (rule-based)" },
@@ -62,6 +86,10 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     "ocr.normalizeFields": {
       description:
         "Field normalization; optional documentType (LabelingProject id) for schema-aware rules per field_type",
+    },
+    "ocr.recoverNumericZerosFromCheckboxes": {
+      description:
+        "Recover numeric values for custom-model fields that Azure DI misread as selection marks; per-table config in node parameters maps prefix→column and suffix→row",
     },
     getWorkflowGraphConfig: {
       description: "Load workflow configuration from database",

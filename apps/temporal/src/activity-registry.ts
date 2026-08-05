@@ -5,10 +5,13 @@
  * Temporal activity implementations. The graph runner resolves activityType
  * from node definitions to actual activity functions via this registry.
  *
- * See docs-md/graph-workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
+ * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 5.5 for the full specification.
  */
 
 import {
+  applyReviewCriteria,
+  azureCuAnalyze,
+  azureCuDeployAnalyzer,
   benchmarkAggregate,
   benchmarkCleanup,
   benchmarkCompareAgainstBaseline,
@@ -27,6 +30,7 @@ import {
   loadDatasetManifest,
   materializeDataset,
   mistralOcrProcess,
+  persistReviewPlan,
   pollOCRResults,
   postOcrCleanup,
   prepareFileData,
@@ -48,12 +52,15 @@ import { flattenClassifiedDocuments } from "./activities/flatten-classified-docu
 import { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 import { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 import { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+import { recoverNumericZerosFromCheckboxes } from "./activities/ocr-recover-numeric-zeros";
 import { spellcheckOcrResult } from "./activities/ocr-spellcheck";
 import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
 import type { RetryPolicy } from "./graph-workflow-types";
+import { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
+import { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,6 +152,71 @@ register({
 });
 
 register({
+  activityType: "azureContentUnderstanding.deployAnalyzer",
+  activityFn: azureCuDeployAnalyzer as (...args: unknown[]) => Promise<unknown>,
+  // Idempotent PUT against the CU control plane; the in-memory cache + GET
+  // probe make repeats cheap. Short timeout, three attempts is enough.
+  defaultTimeout: "2m",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Deploy (idempotent PUT) an Azure Content Understanding analyzer; in-memory cache short-circuits no-ops",
+});
+
+register({
+  activityType: "azureContentUnderstanding.analyze",
+  activityFn: azureCuAnalyze as (...args: unknown[]) => Promise<unknown>,
+  // CU is async (POST 202 + poll). The Foundry deployment shares the
+  // ~10 RPM quota model with Mistral on Foundry, so the retry policy
+  // mirrors `mistralAzureOcr.process`: 30 attempts × 15 s / 1.5x / 60 s
+  // cap. Generous startToClose to absorb slow analyses.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "Azure Content Understanding analyze (async, polls until terminal); deploys analyzer first if a template schema is supplied",
+});
+
+register({
+  activityType: "vlmDirect.extract",
+  activityFn: vlmDirectExtract as (...args: unknown[]) => Promise<unknown>,
+  // Vision chat-completions on gpt-5.x is rate-limited at the deployment
+  // level (default 100K TPM at GlobalStandard capacity 100; ~10 calls/min
+  // for a 200-DPI form image at ~10K input tokens/call). Apply the same
+  // 30 attempts × 15 s × 1.5x × 60 s cap retry shape we use for the other
+  // Foundry-quota-gated activities.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM-direct extraction (Azure OpenAI chat completions with vision input + strict JSON schema response_format)",
+});
+
+register({
+  activityType: "vlmOcrHybrid.extract",
+  activityFn: vlmHybridExtract as (...args: unknown[]) => Promise<unknown>,
+  // Same retry shape as vlmDirect.extract — the bottleneck is the same
+  // Azure OpenAI deployment quota. The DI read-plain leg upstream owns
+  // its own (lighter) retry policy.
+  defaultTimeout: "20m",
+  defaultRetry: {
+    maximumAttempts: 30,
+    initialInterval: "15s",
+    backoffCoefficient: 1.5,
+    maximumInterval: "60s",
+  },
+  description:
+    "VLM + OCR hybrid extraction (Azure DI prebuilt-layout markdown + Azure OpenAI chat completions with vision + strict JSON schema response_format)",
+});
+
+register({
   activityType: "ocr.checkConfidence",
   activityFn: checkOcrConfidence as (...args: unknown[]) => Promise<unknown>,
   defaultTimeout: "30s",
@@ -186,6 +258,24 @@ register({
   defaultTimeout: "3m",
   defaultRetry: { maximumAttempts: 2 },
   description: "Enrich OCR results with field schema and optional LLM",
+});
+
+register({
+  activityType: "hitl.applyReviewCriteria",
+  activityFn: applyReviewCriteria as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Evaluate configured, document-agnostic rules against every OCR field to build a per-field review/skip plan (prediction-only; no ground truth)",
+});
+
+register({
+  activityType: "document.persistReviewPlan",
+  activityFn: persistReviewPlan as (...args: unknown[]) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 5 },
+  description:
+    "Persist the per-field HITL review plan (from hitl.applyReviewCriteria) onto the document for the review UI",
 });
 
 // -- New activities (implementations in US-017, US-018, US-019) -------------
@@ -263,6 +353,17 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Field normalization (whitespace, digit grouping, dates); optional documentType for schema-aware rules",
+});
+
+register({
+  activityType: "ocr.recoverNumericZerosFromCheckboxes",
+  activityFn: recoverNumericZerosFromCheckboxes as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "1m",
+  defaultRetry: { maximumAttempts: 2 },
+  description:
+    "Recover numeric values from table cells where Azure DI misread a digit (commonly '0') as a selection mark. Driven entirely by per-table configuration in node parameters.",
 });
 
 // -- Benchmark activities ---------------------------------------------------

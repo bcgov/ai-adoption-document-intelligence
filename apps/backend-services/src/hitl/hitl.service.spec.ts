@@ -1,6 +1,7 @@
 import {
   CorrectionAction as DbCorrectionAction,
   DocumentStatus,
+  Prisma,
   ReviewStatus,
 } from "@generated/client";
 import {
@@ -8,8 +9,10 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
+import { ModuleRef } from "@nestjs/core";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
@@ -42,6 +45,8 @@ describe("HitlService", () => {
     normalized_file_path: "/path/to/normalized.pdf",
     file_type: "pdf",
     file_size: 1000,
+    content_hash:
+      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
     metadata: {},
     source: "upload",
     status: DocumentStatus.extracted,
@@ -54,6 +59,7 @@ describe("HitlService", () => {
     workflow_config_id: null,
     workflow_execution_id: null,
     group_id: "group-1",
+    review_plan: null,
   };
 
   const mockOcrResult = {
@@ -138,6 +144,13 @@ describe("HitlService", () => {
       getAnalytics: jest.fn(),
     };
 
+    const mockPrismaService = {
+      transaction: jest.fn(
+        async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+          fn({} as Prisma.TransactionClient),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HitlService,
@@ -157,6 +170,14 @@ describe("HitlService", () => {
         {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: ModuleRef,
+          useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
       ],
     }).compile();
@@ -414,13 +435,17 @@ describe("HitlService", () => {
       expect(mockReviewDbService.createReviewSession).toHaveBeenCalledWith(
         "doc-1",
         "reviewer-1",
+        expect.anything(),
       );
-      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
-        document_id: "doc-1",
-        reviewer_id: "reviewer-1",
-        session_id: "session-1",
-        expires_at: expect.any(Date),
-      });
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
 
       expect(result).toEqual({
         id: "session-1",
@@ -614,6 +639,75 @@ describe("HitlService", () => {
       });
     });
 
+    it("should return reviewPlan when document.review_plan is a well-formed array", async () => {
+      const reviewPlan = [
+        {
+          field: "total_amount",
+          decision: "review",
+          reason: "Low confidence extraction",
+          ruleName: "low-confidence",
+          confidence: 0.4,
+        },
+        {
+          field: "invoice_number",
+          decision: "skip",
+          reason: 'No rule matched; default action "skip" applied',
+          ruleName: "__default__",
+          confidence: 0.99,
+        },
+      ];
+      const sessionWithReviewPlan = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          review_plan: reviewPlan,
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithReviewPlan as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toEqual(reviewPlan);
+    });
+
+    it("should omit reviewPlan when document.review_plan is null", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toBeUndefined();
+    });
+
+    it("should omit reviewPlan when document.review_plan is malformed", async () => {
+      const sessionWithBadReviewPlan = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          review_plan: [{ field: "total_amount" }], // missing required keys
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithBadReviewPlan as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toBeUndefined();
+    });
+
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
@@ -720,9 +814,11 @@ describe("HitlService", () => {
           status: ReviewStatus.approved,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -782,6 +878,7 @@ describe("HitlService", () => {
           original_value: dto.reason,
           action: DbCorrectionAction.flagged,
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -789,9 +886,11 @@ describe("HitlService", () => {
           status: ReviewStatus.escalated,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -845,9 +944,11 @@ describe("HitlService", () => {
           status: ReviewStatus.skipped,
           completed_at: expect.any(Date),
         },
+        expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
+        expect.anything(),
       );
 
       expect(result).toEqual({
@@ -1064,13 +1165,17 @@ describe("HitlService", () => {
           status: ReviewStatus.in_progress,
           completed_at: null,
         },
+        expect.anything(),
       );
-      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith({
-        document_id: "doc-1",
-        reviewer_id: "reviewer-1",
-        session_id: "session-1",
-        expires_at: expect.any(Date),
-      });
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
       expect(result).toEqual({
         id: "session-1",
         status: ReviewStatus.in_progress,

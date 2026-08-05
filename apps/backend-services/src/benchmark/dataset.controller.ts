@@ -210,7 +210,7 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<void> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.deleteDataset(id);
+    return this.datasetService.deleteDataset(id, req.resolvedIdentity.actorId);
   }
 
   @Post(":id/versions/:versionId/upload")
@@ -384,6 +384,7 @@ export class DatasetController {
       id,
       versionId,
       updateDto.name ?? "",
+      req.resolvedIdentity.actorId,
     );
   }
 
@@ -413,7 +414,11 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<void> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.deleteVersion(id, versionId);
+    return this.datasetService.deleteVersion(
+      id,
+      versionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Delete(":id/versions/:versionId/samples/:sampleId")
@@ -444,7 +449,13 @@ export class DatasetController {
   ): Promise<void> {
     await this.assertDatasetGroupAccess(id, req);
     const groupId = (await this.datasetService.getDatasetById(id)).groupId;
-    return this.datasetService.deleteSample(id, versionId, sampleId, groupId);
+    return this.datasetService.deleteSample(
+      id,
+      versionId,
+      sampleId,
+      groupId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get(":id/versions/:versionId/samples")
@@ -669,7 +680,12 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.createSplit(id, versionId, createDto);
+    return this.datasetService.createSplit(
+      id,
+      versionId,
+      createDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get(":id/versions/:versionId/splits")
@@ -782,7 +798,13 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<SplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.updateSplit(id, versionId, splitId, updateDto);
+    return this.datasetService.updateSplit(
+      id,
+      versionId,
+      splitId,
+      updateDto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post(":id/versions/:versionId/freeze")
@@ -812,7 +834,11 @@ export class DatasetController {
     frozen: boolean;
   }> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.freezeVersion(id, versionId);
+    return this.datasetService.freezeVersion(
+      id,
+      versionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post(":id/versions/:versionId/splits/:splitId/freeze")
@@ -839,6 +865,11 @@ export class DatasetController {
     @Req() req: Request,
   ): Promise<FreezeSplitResponseDto> {
     await this.assertDatasetGroupAccess(id, req);
-    return this.datasetService.freezeSplit(id, versionId, splitId);
+    return this.datasetService.freezeSplit(
+      id,
+      versionId,
+      splitId,
+      req.resolvedIdentity.actorId,
+    );
   }
 }
