@@ -88,7 +88,7 @@ function copyDir(src, dest) {
 try {
   console.log('Generating Prisma client from shared schema...');
   
-  // Generate Prisma client to temporary location.
+  // Generate Prisma client to temporary location
   // Ensure `npx prisma` uses the same Node as this script (avoids Cursor/system Node
   // mismatch where Prisma 7 fails with ERR_REQUIRE_ESM on zeptomatch).
   const nodeBinDir = path.dirname(process.execPath);
