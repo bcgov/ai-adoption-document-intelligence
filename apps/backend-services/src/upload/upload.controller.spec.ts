@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
 import * as identityHelpers from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -120,7 +121,7 @@ describe("UploadController", () => {
       expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
         mockIdentity,
         "group-1",
-        GroupRole.MEMBER,
+        [Permission.DOCUMENT_CREATE],
       );
     });
 
@@ -141,7 +142,7 @@ describe("UploadController", () => {
       expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
         mockIdentity,
         "other-group",
-        GroupRole.MEMBER,
+        [Permission.DOCUMENT_CREATE],
       );
       expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });

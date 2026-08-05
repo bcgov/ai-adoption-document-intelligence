@@ -32,6 +32,7 @@ describe("AnalyticsService", () => {
   describe("getAnalytics", () => {
     it("should return analytics with calculated metrics", async () => {
       const filters: AnalyticsFilterDto = {
+        group_id: "group-1",
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-12-31"),
         reviewerId: "reviewer-1",
@@ -99,7 +100,7 @@ describe("AnalyticsService", () => {
         mockAnalyticsData,
       );
 
-      const result = await service.getAnalytics({});
+      const result = await service.getAnalytics({ group_id: "group-1" });
 
       expect(result.correctionRate).toBe(0.5); // (30 + 20) / 100
     });
@@ -117,7 +118,7 @@ describe("AnalyticsService", () => {
         mockAnalyticsData,
       );
 
-      const result = await service.getAnalytics({});
+      const result = await service.getAnalytics({ group_id: "group-1" });
 
       expect(result.correctionRate).toBe(0);
       expect(result.summary.confirmedFields).toBe(0);
@@ -142,7 +143,7 @@ describe("AnalyticsService", () => {
         mockAnalyticsData,
       );
 
-      const result = await service.getAnalytics({});
+      const result = await service.getAnalytics({ group_id: "group-1" });
 
       expect(result.correctionRate).toBeCloseTo(0.67, 2); // 10 / 15
       expect(result.summary.confirmedFields).toBe(0);
@@ -153,6 +154,7 @@ describe("AnalyticsService", () => {
 
     it("should pass filters to database service correctly", async () => {
       const filters: AnalyticsFilterDto = {
+        group_id: "group-1",
         startDate: new Date("2024-06-01"),
         endDate: new Date("2024-06-30"),
         reviewerId: "user-123",
@@ -178,6 +180,7 @@ describe("AnalyticsService", () => {
 
     it("should handle partial filters", async () => {
       const filters: AnalyticsFilterDto = {
+        group_id: "group-1",
         reviewerId: "reviewer-2",
       };
 
@@ -215,7 +218,7 @@ describe("AnalyticsService", () => {
         mockAnalyticsData,
       );
 
-      const result = await service.getAnalytics({});
+      const result = await service.getAnalytics({ group_id: "group-1" });
 
       // (1 + 1) / 3 = 0.666666... should be rounded to 0.67
       expect(result.correctionRate).toBe(0.67);
@@ -234,7 +237,7 @@ describe("AnalyticsService", () => {
         mockAnalyticsData,
       );
 
-      const result = await service.getAnalytics({});
+      const result = await service.getAnalytics({ group_id: "group-1" });
 
       expect(result.averageConfidence).toBe(0.7654);
     });

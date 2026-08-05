@@ -6,6 +6,7 @@ import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
+import { ReviewStatusFilter } from "./dto/status-constants.dto";
 import { HitlController } from "./hitl.controller";
 import { HitlService } from "./hitl.service";
 
@@ -89,10 +90,13 @@ describe("HitlController", () => {
       } as unknown as Request;
       const mockResult = { documents: [], total: 0 };
       hitlService.getQueue.mockResolvedValue(mockResult as any);
-      const result = await controller.getQueue({} as any, req);
+      const result = await controller.getQueue(
+        { group_id: "group-1" } as any,
+        req,
+      );
       expect(result).toEqual(mockResult);
       expect(hitlService.getQueue).toHaveBeenCalledWith(
-        {},
+        { group_id: "group-1" },
         ["group-1"],
         "actor-1",
       );
@@ -109,9 +113,9 @@ describe("HitlController", () => {
         documents: [],
         total: 0,
       } as any);
-      await controller.getQueue({} as any, req);
+      await controller.getQueue({ group_id: "group-1" } as any, req);
       expect(hitlService.getQueue).toHaveBeenCalledWith(
-        {},
+        { group_id: "group-1" },
         ["group-1"],
         "actor-1",
       );
@@ -137,31 +141,10 @@ describe("HitlController", () => {
         "actor-1",
       );
     });
-
-    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      await expect(
-        controller.getQueue({ group_id: "group-2" } as any, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(hitlService.getQueue).not.toHaveBeenCalled();
-    });
   });
 
   describe("getQueueStats", () => {
-    it("delegates to service with group IDs from JWT identity", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+    it("delegates to service with the provided group_id", async () => {
       const mockResult = {
         totalDocuments: 0,
         requiresReview: 0,
@@ -169,7 +152,7 @@ describe("HitlController", () => {
         reviewedToday: 0,
       };
       hitlService.getQueueStats.mockResolvedValue(mockResult as any);
-      const result = await controller.getQueueStats(req);
+      const result = await controller.getQueueStats("group-1");
       expect(result).toEqual(mockResult);
       expect(hitlService.getQueueStats).toHaveBeenCalledWith(
         ["group-1"],
@@ -177,95 +160,33 @@ describe("HitlController", () => {
       );
     });
 
-    it("scopes stats to a single group when group_id is provided and user is a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+    it("passes reviewStatus filter to service", async () => {
       hitlService.getQueueStats.mockResolvedValue({
         totalDocuments: 0,
         requiresReview: 0,
         averageConfidence: 0,
         reviewedToday: 0,
       } as any);
-      await controller.getQueueStats(req, "group-1");
+      await controller.getQueueStats("group-1", ReviewStatusFilter.REVIEWED);
       expect(hitlService.getQueueStats).toHaveBeenCalledWith(
+        ReviewStatusFilter.REVIEWED,
         ["group-1"],
-        undefined,
       );
-    });
-
-    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      await expect(controller.getQueueStats(req, "group-2")).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(hitlService.getQueueStats).not.toHaveBeenCalled();
     });
   });
 
   describe("getAnalytics", () => {
-    it("delegates to service with group IDs from JWT identity", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
+    it("delegates to service with group ID from filters", async () => {
       const mockResult = { totalDocuments: 0 };
       hitlService.getAnalytics.mockResolvedValue(mockResult as any);
-      const result = await controller.getAnalytics({} as any, req);
+      const result = await controller.getAnalytics({
+        group_id: "group-1",
+      } as any);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, ["group-1"]);
-    });
-
-    it("delegates to service with empty groupIds when no identity", async () => {
-      const req = {
-        resolvedIdentity: undefined,
-      } as unknown as Request;
-      hitlService.getAnalytics.mockResolvedValue({} as any);
-      await controller.getAnalytics({} as any, req);
-      expect(hitlService.getAnalytics).toHaveBeenCalledWith({}, []);
-    });
-
-    it("scopes analytics to a single group when group_id is provided and user is a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      hitlService.getAnalytics.mockResolvedValue({ totalDocuments: 0 } as any);
-      await controller.getAnalytics({ group_id: "group-1" } as any, req);
       expect(hitlService.getAnalytics).toHaveBeenCalledWith(
         { group_id: "group-1" },
         ["group-1"],
       );
-    });
-
-    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      await expect(
-        controller.getAnalytics({ group_id: "group-2" } as any, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(hitlService.getAnalytics).not.toHaveBeenCalled();
     });
   });
 
@@ -794,11 +715,20 @@ describe("HitlController", () => {
       } as unknown as Request;
       const mockResult = { id: "session-1", documentId: "doc-1" };
       hitlService.getNextSession.mockResolvedValue(mockResult as any);
-      const result = await controller.getNextSession({} as any, req);
+      const result = await controller.getNextSession(
+        {
+          group_id: "group-1",
+        } as any,
+        req,
+      );
       expect(result).toEqual(mockResult);
-      expect(hitlService.getNextSession).toHaveBeenCalledWith({}, "actor-1", [
-        "group-1",
-      ]);
+      expect(hitlService.getNextSession).toHaveBeenCalledWith(
+        {
+          group_id: "group-1",
+        },
+        "actor-1",
+        ["group-1"],
+      );
     });
 
     it("scopes to a single group when group_id is provided", async () => {
@@ -817,21 +747,6 @@ describe("HitlController", () => {
         "actor-1",
         ["group-1"],
       );
-    });
-
-    it("throws ForbiddenException when group_id is provided but user is not a member", async () => {
-      const req = {
-        resolvedIdentity: {
-          userId: "user-1",
-          actorId: "actor-1",
-          isSystemAdmin: false,
-          groupRoles: { "group-1": GroupRole.MEMBER },
-        },
-      } as unknown as Request;
-      await expect(
-        controller.getNextSession({ group_id: "group-2" } as any, req),
-      ).rejects.toThrow(ForbiddenException);
-      expect(hitlService.getNextSession).not.toHaveBeenCalled();
     });
   });
 });

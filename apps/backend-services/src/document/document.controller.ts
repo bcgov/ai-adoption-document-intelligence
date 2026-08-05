@@ -145,7 +145,7 @@ export class DocumentController {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    if (ids.length > 200) {
+    if (!ids || ids.length > 200) {
       throw new BadRequestException(
         "Too many IDs requested; maximum is 200 per call",
       );
