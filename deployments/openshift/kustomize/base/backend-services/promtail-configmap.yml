@@ -27,4 +27,7 @@ data:
               expression: '"level":"(debug|verbose)"'
           # Drop health-check hits - fired every few seconds by the router.
           - drop:
-              expression: '"path":"/(?:api/)?health"'
+              expression: '"path":"/(?:api/)?health.*"'
+          # Drop metrics checks
+          - drop:
+              expression: '"path":"/(?:api/)?metrics.*"'
