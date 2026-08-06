@@ -14,10 +14,7 @@ kind: Component
 patches:
   - path: backend-services-memory.yml
   - path: temporal-worker-memory.yml
-  # Prod's temporal Postgres data volume was expanded in-place to 5Gi. The base
-  # manifest is now also 5Gi, so this patch only guards against any future
-  # base regression and keeps the Crunchy operator from trying to reconcile
-  # a smaller value (PVCs cannot shrink).
+  # Prod's temporal-pg data volume was expanded in-place to 5Gi (base is 1.5Gi).
   - target:
       kind: PostgresCluster
       name: temporal-pg
@@ -25,24 +22,12 @@ patches:
       - op: replace
         path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
         value: 5Gi
-  # Prod's app Postgres data volume was expanded in-place to 5Gi. The base
-  # manifest is now also 5Gi, so this patch only guards against any future
-  # base regression and keeps the Crunchy operator from trying to reconcile
-  # a smaller value (PVCs cannot shrink).
+  # Prod's app-pg data volume was expanded in-place to 10Gi (base is 1.5Gi).
   - target:
       kind: PostgresCluster
       name: app-pg
     patch: |
       - op: replace
         path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
-        value: 5Gi
-  # Prod generates significantly more WAL and backup delta than test.
-  # The base 10Gi pgBackRest repo PVC was hitting >95% capacity in prod at
-  # 14-day retention. 20Gi provides headroom. PVCs cannot shrink.
-  - target:
-      kind: PostgresCluster
-      name: app-pg
-    patch: |
-      - op: replace
-        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
-        value: 20Gi
+        value: 10Gi
+

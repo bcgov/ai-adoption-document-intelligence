@@ -15,11 +15,7 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            # 10Gi: matches production size. Increased from 5Gi after backup repo
-            # filled (10Gi), stalling WAL archiving and causing unarchived WAL to
-            # accumulate on the data PVC until it hit capacity.
-            # PVCs cannot shrink, so base and prod must agree on a floor.
-            storage: 10Gi
+            storage: 1.5Gi
       sidecars:
         replicaCertCopy:
           resources:
@@ -50,7 +46,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 15Gi # Increased from 10Gi after repo filled and stalled WAL archiving
+                  storage: 10Gi # Overridden at deploy time by PG_BACKUP_STORAGE_SIZE secret via instance-template overlay
       repoHost:
         resources:
           requests:

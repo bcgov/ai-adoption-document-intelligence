@@ -1,3 +1,0 @@
-- op: replace
-  path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
-  value: 22Gi
