@@ -96,6 +96,93 @@ registerParameterSchema(
 );
 
 // ---------------------------------------------------------------------------
+// hitl.applyReviewCriteria schema
+// ---------------------------------------------------------------------------
+
+const VALID_REVIEW_CRITERIA_ACTIONS = new Set(["review", "skip"]);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+registerParameterSchema(
+  "hitl.applyReviewCriteria",
+  (_activityType, nodeId, parameters, errors) => {
+    const params = parameters ?? {};
+    const rules = params.rules;
+
+    if (!Array.isArray(rules) || rules.length === 0) {
+      errors.push({
+        path: `nodes.${nodeId}.parameters.rules`,
+        message: `Activity "${nodeId}" (hitl.applyReviewCriteria): rules is required and must be a non-empty array`,
+        severity: "error",
+      });
+      return;
+    }
+
+    rules.forEach((rule: unknown, index: number) => {
+      const rulePath = `nodes.${nodeId}.parameters.rules[${index}]`;
+      if (!isPlainObject(rule)) {
+        errors.push({
+          path: rulePath,
+          message: `Activity "${nodeId}" (hitl.applyReviewCriteria): each rule must be an object`,
+          severity: "error",
+        });
+        return;
+      }
+
+      if (typeof rule.name !== "string" || !rule.name.trim()) {
+        errors.push({
+          path: `${rulePath}.name`,
+          message: `Activity "${nodeId}" (hitl.applyReviewCriteria): rule name is required and must be a non-empty string`,
+          severity: "error",
+        });
+      }
+
+      if (!isPlainObject(rule.select)) {
+        errors.push({
+          path: `${rulePath}.select`,
+          message: `Activity "${nodeId}" (hitl.applyReviewCriteria): rule select is required and must be an object`,
+          severity: "error",
+        });
+      }
+
+      if (
+        typeof rule.action !== "string" ||
+        !VALID_REVIEW_CRITERIA_ACTIONS.has(rule.action)
+      ) {
+        errors.push({
+          path: `${rulePath}.action`,
+          message: `Activity "${nodeId}" (hitl.applyReviewCriteria): rule action must be one of: review, skip`,
+          severity: "error",
+        });
+      }
+
+      if (typeof rule.reason !== "string" || !rule.reason.trim()) {
+        errors.push({
+          path: `${rulePath}.reason`,
+          message: `Activity "${nodeId}" (hitl.applyReviewCriteria): rule reason is required and must be a non-empty string`,
+          severity: "error",
+        });
+      }
+    });
+
+    const defaultAction = params.defaultAction;
+    if (
+      defaultAction !== undefined &&
+      (typeof defaultAction !== "string" ||
+        !VALID_REVIEW_CRITERIA_ACTIONS.has(defaultAction))
+    ) {
+      errors.push({
+        path: `nodes.${nodeId}.parameters.defaultAction`,
+        message: `Activity "${nodeId}" (hitl.applyReviewCriteria): defaultAction must be one of: review, skip`,
+        severity: "error",
+      });
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 

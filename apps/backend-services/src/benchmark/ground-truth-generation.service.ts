@@ -431,6 +431,7 @@ export class GroundTruthGenerationService {
           workflow_execution_id: null,
           model_id: modelId,
           group_id: groupId,
+          review_plan: null,
         };
         await this.prismaService.transaction(async (tx) => {
           await this.documentService.createDocument(failedDoc, tx);
@@ -471,6 +472,7 @@ export class GroundTruthGenerationService {
         workflow_execution_id: null,
         model_id: modelId,
         group_id: groupId,
+        review_plan: null,
       };
 
       await this.prismaService.transaction(async (tx) => {

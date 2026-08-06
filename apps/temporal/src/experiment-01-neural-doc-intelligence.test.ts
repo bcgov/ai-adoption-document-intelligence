@@ -2,7 +2,7 @@
  * Experiment 01 — Neural Document Intelligence + post-processing
  *
  * Two-layer test suite for the
- * `docs-md/graph-workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`
+ * `docs-md/workflows/templates/experiment-01-neural-doc-intelligence-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (cheap, no
@@ -117,7 +117,7 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "docs-md",
-  "graph-workflows",
+  "workflows",
   "templates",
   "experiment-01-neural-doc-intelligence-workflow.json",
 );

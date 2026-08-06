@@ -169,4 +169,22 @@ describe("executeTransformNode activity — successful execution", () => {
 
     expect(result.output).toBe(JSON.stringify({ orderId: "ORD-001" }));
   });
+
+  it("ignores system-injected documentId and does not attempt to parse it as input", async () => {
+    // documentId is injected by the graph runner (buildActivityParams) into
+    // every activity call whenever ctx.documentId is set, and must never be
+    // treated as a port-binding input — a raw document ID string is not
+    // valid JSON/XML/CSV and would otherwise throw during input parsing.
+    const params: ExecuteTransformNodeParams = {
+      inputFormat: "json",
+      outputFormat: "json",
+      fieldMapping: JSON.stringify({ orderId: "{{src.OrderId}}" }),
+      src: JSON.stringify({ OrderId: "ORD-001" }),
+      documentId: "cmabc123not-valid-json",
+    };
+
+    const result = await executeTransformNode(params);
+
+    expect(result.output).toBe(JSON.stringify({ orderId: "ORD-001" }));
+  });
 });

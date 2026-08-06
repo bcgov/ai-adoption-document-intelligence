@@ -2,7 +2,7 @@
  * Experiment 03 — Azure Content Understanding
  *
  * Two-layer test suite for the
- * `docs-md/graph-workflows/templates/experiment-03-content-understanding-workflow.json`
+ * `docs-md/workflows/templates/experiment-03-content-understanding-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (cheap, no
@@ -89,7 +89,7 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "docs-md",
-  "graph-workflows",
+  "workflows",
   "templates",
   "experiment-03-content-understanding-workflow.json",
 );

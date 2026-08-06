@@ -45,6 +45,8 @@ model Document {
   workflow_config_id    String? // Reference to WorkflowVersion.id (pinned graph config)
   workflow_execution_id String?                @unique // Temporal workflow execution ID
   model_id              String                 @default("prebuilt-layout")
+  /// Per-field review/skip plan produced by hitl.applyReviewCriteria (ReviewPlanEntry[]); drives HITL review UI filtering.
+  review_plan           Json?
   ocr_result            OcrResult?
   review_sessions       ReviewSession[]
   lock                  DocumentLock?

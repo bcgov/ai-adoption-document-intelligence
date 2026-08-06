@@ -35,6 +35,7 @@ import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { SnippetView } from "../components/SnippetView";
 import { useAutoAdvance } from "../hooks/useAutoAdvance";
 import { useFieldFocus } from "../hooks/useFieldFocus";
+import type { ReviewPlanEntry } from "../hooks/useReviewSession";
 import { useReviewSession } from "../hooks/useReviewSession";
 import { useSessionHeartbeat } from "../hooks/useSessionHeartbeat";
 import { useUndoRedo } from "../hooks/useUndoRedo";
@@ -195,6 +196,7 @@ export const ReviewWorkspacePage: FC = () => {
   const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
+  const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
   const [viewMode, setViewMode] = useState<"document" | "snippet">("document");
   const [sortMode, setSortMode] = useState<"confidence" | "alphabetical">(
     "confidence",
@@ -391,6 +393,27 @@ export const ReviewWorkspacePage: FC = () => {
     return buildFieldValidators(session.fieldDefinitions);
   }, [session?.fieldDefinitions]);
 
+  const reviewPlanByField = useMemo(() => {
+    const map = new Map<string, ReviewPlanEntry>();
+    for (const entry of session?.reviewPlan ?? []) {
+      map.set(entry.field, entry);
+    }
+    return map;
+  }, [session?.reviewPlan]);
+
+  const hasReviewPlanFlags = useMemo(
+    () =>
+      (session?.reviewPlan ?? []).some((entry) => entry.decision === "review"),
+    [session?.reviewPlan],
+  );
+
+  // Default to showing only flagged fields whenever a session with a review
+  // plan loads; sessions without a plan (or without any flagged fields)
+  // always show everything, same as before this feature.
+  useEffect(() => {
+    setShowFlaggedOnly(hasReviewPlanFlags);
+  }, [session?.id, hasReviewPlanFlags]);
+
   const sortedFields = useMemo(() => {
     if (sortMode === "confidence") {
       return [...fields].sort(
@@ -400,11 +423,20 @@ export const ReviewWorkspacePage: FC = () => {
     return [...fields].sort((a, b) => a.fieldKey.localeCompare(b.fieldKey));
   }, [fields, sortMode]);
 
+  const flaggedFilteredFields = useMemo(() => {
+    if (!hasReviewPlanFlags || !showFlaggedOnly) return sortedFields;
+    return sortedFields.filter(
+      (f) => reviewPlanByField.get(f.fieldKey)?.decision === "review",
+    );
+  }, [sortedFields, hasReviewPlanFlags, showFlaggedOnly, reviewPlanByField]);
+
   const filteredSortedFields = useMemo(() => {
-    if (!fieldFilter) return sortedFields;
+    if (!fieldFilter) return flaggedFilteredFields;
     const lower = fieldFilter.toLowerCase();
-    return sortedFields.filter((f) => f.fieldKey.toLowerCase().includes(lower));
-  }, [sortedFields, fieldFilter]);
+    return flaggedFilteredFields.filter((f) =>
+      f.fieldKey.toLowerCase().includes(lower),
+    );
+  }, [flaggedFilteredFields, fieldFilter]);
 
   // Scale field coordinates to image pixels for useFieldFocus panTo
   const scaledFields = useMemo(
@@ -970,20 +1002,30 @@ export const ReviewWorkspacePage: FC = () => {
                   mb="sm"
                 />
               )}
-              <Text
-                size="sm"
-                fw={600}
-                mb="sm"
-                onClick={() => setActiveFieldKey(null)}
-                style={{ cursor: "pointer" }}
-              >
-                Fields
-              </Text>
+              <Group justify="space-between" mb="sm">
+                <Text
+                  size="sm"
+                  fw={600}
+                  onClick={() => setActiveFieldKey(null)}
+                  style={{ cursor: "pointer" }}
+                >
+                  Fields
+                </Text>
+                {hasReviewPlanFlags && (
+                  <Button
+                    variant="subtle"
+                    size="compact-xs"
+                    onClick={() => setShowFlaggedOnly((v) => !v)}
+                  >
+                    {showFlaggedOnly ? "Show all fields" : "Show flagged only"}
+                  </Button>
+                )}
+              </Group>
 
               <FieldFilterInput
                 value={fieldFilter}
                 onChange={setFieldFilter}
-                totalCount={sortedFields.length}
+                totalCount={flaggedFilteredFields.length}
                 filteredCount={filteredSortedFields.length}
               />
 
@@ -1039,6 +1081,12 @@ export const ReviewWorkspacePage: FC = () => {
                               confidence={field.confidence}
                             />
                           </Group>
+                          {reviewPlanByField.get(field.fieldKey)?.decision ===
+                            "review" && (
+                            <Text size="xs" c="orange" fs="italic">
+                              🚩 {reviewPlanByField.get(field.fieldKey)?.reason}
+                            </Text>
+                          )}
                           {(() => {
                             const displayValue =
                               correctionMap[field.fieldKey]?.corrected_value ??

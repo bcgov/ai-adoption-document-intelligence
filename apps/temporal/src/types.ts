@@ -96,6 +96,7 @@ export interface Page {
   words: Word[];
   lines: Line[];
   spans: Span[];
+  selectionMarks?: SelectionMark[];
 }
 
 export interface Word {
@@ -107,6 +108,13 @@ export interface Word {
    * not drown the evidence-based field confidence in `ocr.checkConfidence`.
    */
   confidence?: number;
+  span: Span;
+}
+
+export interface SelectionMark {
+  state: "selected" | "unselected";
+  polygon: number[];
+  confidence: number;
   span: Span;
 }
 
