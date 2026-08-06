@@ -2,7 +2,7 @@
 
 loki:
   pvcSize: 2Gi
-  retentionDays: 7
+  retentionDays: 30
 
   resources:
     requests:
