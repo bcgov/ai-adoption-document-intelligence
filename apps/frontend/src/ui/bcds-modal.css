@@ -6,6 +6,13 @@
  * from the design system package — only width, height, and inner layout.
  */
 
+/* Keep form modals within the viewport so body content can scroll instead of clipping */
+.bcds-react-aria-Modal.bcds-app-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 2 * var(--layout-margin-large));
+}
+
 /* Width presets (BC DS default modal width is 600px) */
 .bcds-react-aria-Modal.bcds-app-modal.bcds-modal--xs {
   width: min(20rem, calc(100vw - 2 * var(--layout-margin-large)));
@@ -93,6 +100,12 @@
   min-height: 0;
   flex: 1;
   padding: var(--layout-padding-medium) var(--layout-padding-large);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Tall modals (document viewer, etc.) manage scroll in nested regions */
+.bcds-modal--tall .bcds-modal-body {
   overflow: hidden;
 }
 
