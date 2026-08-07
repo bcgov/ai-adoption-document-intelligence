@@ -11,7 +11,9 @@
   outline: none;
 }
 
+/* Focus ring follows the theme's primary colour rather than a hardcoded
+   violet, so the composer matches every other focused field in the app. */
 .agent-chat-composer-input:focus {
-  border-color: #845ef7;
-  box-shadow: 0 0 0 1px #845ef7;
+  border-color: var(--mantine-color-blue-filled, #228be6);
+  box-shadow: 0 0 0 1px var(--mantine-color-blue-filled, #228be6);
 }

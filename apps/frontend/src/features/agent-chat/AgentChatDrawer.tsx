@@ -21,11 +21,11 @@ import {
 import {
   IconChevronDown,
   IconChevronUp,
-  IconCircleX,
   IconPaperclip,
-  IconPlayerStop,
-  IconRefresh,
+  IconPlayerStopFilled,
+  IconPlus,
   IconSend2,
+  IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport, type UIMessage } from "ai";
@@ -327,7 +327,10 @@ function ChatHeader({
               }}
               data-testid="agent-chat-abort"
             >
-              <IconPlayerStop size={16} />
+              {/* Filled, not outlined. An outlined square reads as a shape;
+                  the filled one reads as stop (Inderdeep, 2026-08-06 — "that
+                  shape probably will be filled and not outlined"). */}
+              <IconPlayerStopFilled size={16} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="New conversation">
@@ -336,7 +339,10 @@ function ChatHeader({
               onClick={onReset}
               data-testid="agent-chat-reset"
             >
-              <IconRefresh size={16} />
+              {/* A plus, not a refresh arrow: this starts a new conversation,
+                  it does not reload the current one (Inderdeep, 2026-08-06 —
+                  "this says new conversation, while the icon says a refresh"). */}
+              <IconPlus size={18} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="Close">
@@ -345,7 +351,10 @@ function ChatHeader({
               onClick={onClose}
               data-testid="agent-chat-close"
             >
-              <IconCircleX size={16} />
+              {/* Bare cross. `IconCircleX` spent most of its 16px on a ring and
+                  the cross inside it was unreadable — the same defect as the
+                  canvas status badge, reported in the same session. */}
+              <IconX size={18} />
             </ActionIcon>
           </Tooltip>
         </Group>
@@ -832,10 +841,14 @@ function Composer({
           className="agent-chat-composer-input"
         />
         <ComposerPrimitive.Send asChild>
+          {/* The theme's primary colour, not violet. The composer was the one
+              place in the app painting its main action off-palette (Inderdeep,
+              2026-08-06 — "I'm not sure where the purple comes from, because
+              this is not the basic colour"). `appTheme.primaryColor` is blue. */}
           <ActionIcon
             size="lg"
             variant="filled"
-            color="violet"
+            color="blue"
             type="submit"
             data-testid="agent-chat-send"
           >

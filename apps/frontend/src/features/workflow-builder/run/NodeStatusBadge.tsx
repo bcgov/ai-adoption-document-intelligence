@@ -3,16 +3,30 @@
  * top-right corner of every node renderer on the V2 canvas. Driven by
  * the live status map exposed through `RunStateContext` (US-138).
  *
+ * **The glyph is bare, and the disc is the only circle** (Inderdeep, 2026-08-06
+ * — *"to notice the cross within the circle is very hard … the more I zoom out,
+ * all I see is the circle, which is not the intent"*). The badge used to draw
+ * two concentric circles: the filled `ThemeIcon` disc, and inside it
+ * `IconCircleCheck` / `IconCircleX`, which carry their own ring. At 16px the
+ * rings ate the pixel budget and the check or cross that actually carries the
+ * meaning was reduced to a smudge. The icons are now `IconCheck` / `IconX`
+ * with no ring of their own, drawn heavier and larger inside a larger disc, so
+ * the shape survives at the zoom levels people work at.
+ *
  * Status → (icon, colour) mapping per REQUIREMENTS.md L32 +
  * TRY_IN_PLACE_DESIGN.md §3.5:
  *
- *   | Status    | Icon            | Colour |
- *   |-----------|-----------------|--------|
- *   | pending   | IconCircle      | gray   |
- *   | running   | Loader          | blue   |
- *   | succeeded | IconCircleCheck | green  |
- *   | failed    | IconCircleX     | red    |
- *   | skipped   | IconBolt        | violet |
+ *   | Status    | Icon       | Colour |
+ *   |-----------|------------|--------|
+ *   | pending   | IconCircle | gray   |
+ *   | running   | Loader     | blue   |
+ *   | succeeded | IconCheck  | green  |
+ *   | failed    | IconX      | red    |
+ *   | skipped   | IconBolt   | violet |
+ *
+ * `pending` keeps `IconCircle`: there, the ring IS the meaning — an empty
+ * outline reading "not started yet" — and it is the one status nobody has to
+ * distinguish at a glance.
  *
  * The badge is intentionally render-only — it never subscribes to a
  * query itself. The renderer that mounts it owns the
@@ -26,12 +40,7 @@
  */
 
 import { Box, Loader, ThemeIcon, Tooltip } from "@mantine/core";
-import {
-  IconBolt,
-  IconCircle,
-  IconCircleCheck,
-  IconCircleX,
-} from "@tabler/icons-react";
+import { IconBolt, IconCheck, IconCircle, IconX } from "@tabler/icons-react";
 import type { ComponentType, ReactNode } from "react";
 
 import type { NodeRunStatusValue } from "./node-status.types";
@@ -51,14 +60,25 @@ interface BadgeStyle {
   /** Mantine palette color. */
   color: string;
   /** Tabler icon component (or `null` to render a `<Loader>`). */
-  Icon: ComponentType<{ size?: number }> | null;
+  Icon: ComponentType<{ size?: number; stroke?: number }> | null;
 }
+
+/**
+ * Badge diameter and glyph size, in px. Both were raised on 2026-08-06 (disc
+ * 16→20, glyph 12→15) as the second half of dropping the icons' own rings —
+ * a bare check drawn at the old 12px inside the old 16px disc is legible, but
+ * only just, and the point of the change is that it survives being zoomed out.
+ */
+const BADGE_SIZE = 20;
+const GLYPH_SIZE = 15;
+/** Heavier than Tabler's default 2 — a thin stroke is the other way to vanish. */
+const GLYPH_STROKE = 2.6;
 
 const STATUS_STYLES: Record<NodeStatusBadgeStatus, BadgeStyle> = {
   pending: { color: "gray", Icon: IconCircle },
   running: { color: "blue", Icon: null },
-  succeeded: { color: "green", Icon: IconCircleCheck },
-  failed: { color: "red", Icon: IconCircleX },
+  succeeded: { color: "green", Icon: IconCheck },
+  failed: { color: "red", Icon: IconX },
   skipped: { color: "violet", Icon: IconBolt },
   // Cancelled is forwarded by the polling hook but has no dedicated
   // affordance yet — render it like "pending" until US-141 lands the
@@ -81,7 +101,7 @@ export interface NodeStatusBadgeProps {
  * Render a `ThemeIcon` containing the Tabler icon for `status`. The
  * `running` state swaps in Mantine's `<Loader>` (the spinner the
  * design doc calls out) so the badge spins visually without a CSS
- * animation of our own. Size is fixed at `xs` with `radius="xl"` to
+ * animation of our own. Size is `BADGE_SIZE` with `radius="xl"` to
  * match the small absolute-positioned corner overlay used by every
  * renderer.
  */
@@ -91,9 +111,9 @@ export function NodeStatusBadge({
 }: NodeStatusBadgeProps): ReactNode {
   const style = STATUS_STYLES[status];
   const inner: ReactNode = style.Icon ? (
-    <style.Icon size={12} />
+    <style.Icon size={GLYPH_SIZE} stroke={GLYPH_STROKE} />
   ) : (
-    <Loader size={10} color="white" />
+    <Loader size={12} color="white" />
   );
 
   const badge = (
@@ -103,7 +123,7 @@ export function NodeStatusBadge({
       data-color={style.color}
       color={style.color}
       variant="filled"
-      size="xs"
+      size={BADGE_SIZE}
       radius="xl"
       style={
         status === "failed" && errorMessage ? { cursor: "help" } : undefined

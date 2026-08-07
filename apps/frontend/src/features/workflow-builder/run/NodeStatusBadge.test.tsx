@@ -54,12 +54,12 @@ const STATUS_CASES = [
   {
     status: "succeeded" as const,
     color: "green",
-    iconClass: "tabler-icon-circle-check",
+    iconClass: "tabler-icon-check",
   },
   {
     status: "failed" as const,
     color: "red",
-    iconClass: "tabler-icon-circle-x",
+    iconClass: "tabler-icon-x",
   },
   {
     status: "skipped" as const,
@@ -84,6 +84,23 @@ describe("NodeStatusBadge — Scenario 1: icon + color per status", () => {
       expect(svg?.getAttribute("class") ?? "").toContain(iconClass);
     });
   }
+
+  /**
+   * Regression guard for the 2026-08-06 legibility fix. `succeeded` and
+   * `failed` used `IconCircleCheck` / `IconCircleX`, which draw their own ring
+   * INSIDE the badge's filled disc — two concentric circles, and at that size
+   * the glyph that carries the meaning disappeared. Anyone reaching for a
+   * circle-wrapped variant again should fail here rather than in a review.
+   */
+  it.each([
+    "succeeded",
+    "failed",
+  ] as const)("draws %s with a bare glyph — the filled disc is the only circle", (status) => {
+    renderBadge(status);
+    const badge = screen.getByTestId("node-status-badge");
+    expect(badge.querySelector(".tabler-icon-circle-check")).toBeNull();
+    expect(badge.querySelector(".tabler-icon-circle-x")).toBeNull();
+  });
 
   it("shows the failure reason as a hover tooltip on a failed badge", async () => {
     const { default: userEventDefault } = await import(
@@ -125,7 +142,7 @@ describe("NodeStatusBadge — Scenario 1: icon + color per status", () => {
     const loaderEl = badge.querySelector(".mantine-Loader-root");
     expect(loaderEl).not.toBeNull();
     // Defence in depth — no Tabler icon class smuggled in.
-    expect(badge.querySelector(".tabler-icon-circle-check")).toBeNull();
+    expect(badge.querySelector(".tabler-icon-check")).toBeNull();
   });
 });
 
