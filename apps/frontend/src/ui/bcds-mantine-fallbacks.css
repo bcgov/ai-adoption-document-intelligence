@@ -198,6 +198,16 @@
   max-width: min(100vw - 2rem, 32rem);
 }
 
+/*
+ * BC DS ModalOverlay is z-index 1000. Mantine Combobox/Select portals default
+ * lower (~300), so dropdowns opened inside modals render behind the overlay.
+ */
+.mantine-Select-dropdown,
+.mantine-Combobox-dropdown,
+.mantine-MultiSelect-dropdown {
+  z-index: 1100;
+}
+
 .bcds-mantine-dropzone:hover,
 .mantine-Dropzone-root:hover {
   background-color: var(--surface-color-forms-default);
