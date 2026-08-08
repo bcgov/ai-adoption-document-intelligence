@@ -293,6 +293,102 @@ speculative close button was added.
 
 ---
 
+## Wave C — the canvas batches, verified and committed 2026-08-08
+
+Wave C's code was written in the previous session and left uncommitted. This
+session verified it before committing anything: `tsc --noEmit` silent, Biome
+clean, and **684 tests across 35 files** passing on the wave's scope. Then four
+commits, cut so that no commit breaks the build.
+
+### Batch 8a — a port says there is something to add · items 3, 4
+
+**Commits `166a5aae` (item 3, with 5 and 7) and `0b9400fe` (item 4)**
+
+Item 3 needed a field that did not exist. `bound` is input-only in practice and
+hard-coded `true` for outputs, so nothing in the port model could answer "does
+anything actually leave this port". `connected` was added to
+[port-rows.ts](../../apps/frontend/src/features/workflow-builder/canvas/port-rows.ts),
+derived for outputs from a real data wire leaving that exact port.
+
+The glyph is a **knockout**: two bars in the canvas body colour cut across the
+family-coloured disc, the same treatment as the 2px body ring the dot already
+wears. Two constraints drove that. The hue encodes what can connect to what, so
+the drawing must not fight it — hence a knockout rather than a coloured glyph.
+And batch one's status-badge finding was that a glyph *inside* a ring loses at
+small sizes, so the plus is not drawn inside the existing 12px dot: an inviting
+handle grows to 16px, leaving a 12px disc inside the ring, with 8px arms at 2px
+thick. Two thirds of the disc is glyph. The dot grows by width/height rather
+than `transform: scale()`, which matters because xyflow's own handle classes
+apply `translate(-50%, -50%)` — percentages resolve against the handle's own
+box, so a bigger box stays centred on the same anchor for free.
+
+Item 4 became a radio group with the help text moved onto each option. The
+reason is not decoration: a single line of help below a vertical list reads as
+describing *the list*, not *the selection*.
+
+### Batch 8b — the error path, and failure at the title · items 5, 7, 19
+
+**Commits `166a5aae` (items 5, 7) and `ab16d4b6` (item 19)**
+
+The red dot at the bottom of a node now opens the same hover-extend popover
+every other output handle opens, in an error-path mode with a red banner
+(`hover-extend-error-path-banner`) naming what you are picking for. The pick
+lands a genuinely `error`-typed edge with `fallbackEdgeId` recorded — not an
+ordinary wire painted red. Failure is announced beside the node's name
+(`node-failure-chip-<nodeId>`) as well as in the corner, so scanning a failed
+graph tells you which step broke without hunting corners.
+
+Item 19 shipped **header-only**, and declined the pane hit-test that batch 3's
+investigation had left open. The reason: making the group's interior open a
+group menu would take "Add node here" away from a large part of the canvas, and
+adding a node inside a group's area is an ordinary thing to want.
+Discoverability came from a header tooltip instead.
+
+### Batch 9 — the workflows table fits · item 18
+
+**Commit `ffc14683`**
+
+Widths are now pixels derived from the buttons' actual dimensions rather than
+percentages that need re-tuning whenever a column changes. Name carries no width
+at all, so under fixed layout it absorbs the remainder and stays the focus
+column. **Honest limit:** jsdom runs no table layout, so the tests pin the rule —
+pixels not percentages, and a floor on the table — while the browser
+measurements are the real evidence. This one is on the browser pass list.
+
+---
+
+## Wave D — the top bar · item 14, and a defect found while measuring it
+
+**Commit `fe6051fe`** · `WorkflowSwitcher.tsx`, `WorkflowEditorV2Page.tsx`,
+`NodeSearchBox.tsx`
+
+The name is the leftmost thing in the top bar, click to rename as before, with a
+chevron beside it opening the switcher. The standalone Switch button is gone —
+the Google Sheets pattern Alex demonstrated in Figma. Items 15, 16 and 17 were
+checked not to regress, in the browser as well as in vitest.
+
+**The overflow defect, measured before anything was touched.** At seven widths
+in Chromium: from **1512px down** the centre zone's controls spilled out of
+their own box and Undo/Redo sat on top of the Simplified switch — at 1440 the
+overlap was exactly the reported `simplified-view ↔ undo/redo` — and at 1280 the
+bar itself overflowed by 15px. Three flex rules caused it: a left zone with
+`flexShrink: 0` that never yielded despite being mostly truncatable, a centre
+zone with `minWidth: 0` (which lets a `nowrap` flex container shrink below its
+own content while its children stay put and spill), and a right zone with no
+shrink rule at all. The shrink order is now stated explicitly. Retiring the
+Switch button returned ~93px and `NodeSearchBox` gave up 30px of its floor.
+**After: no overlap and no overflow at 1920 / 1600 / 1440 / 1366 / 1280 / 1152.**
+First overlap is now at 1024px, with the left zone fully collapsed. Nothing
+hidden, nothing duplicated into a menu.
+
+**Honest limit.** jsdom gives every box 0×0, so the overlap is not reproducible
+there. The tests pin the three flex rules so a revert fails in CI rather than in
+a screenshot months later; the Chromium measurements above are the evidence. The
+1280px degradation — "Standard …" truncating, the counter squeezed out — is a
+judgement call worth a look on a real screen.
+
+---
+
 ## Discovered during implementation — not on Inderdeep's list
 
 Two real defects surfaced that nobody reported. Neither was fixed, because
@@ -318,12 +414,52 @@ of "has expired": the expiry claim is not safe. Found while fixing item 10;
 
 ---
 
-## The four decisions
+## The six decisions
 
-Written overnight, filed to the review queue as one item with four separate
-rulings. Each leads with the question and a recommendation; the full evidence is
-in [DECISIONS/](DECISIONS/). Three of the four turned up findings that change
-what the work *is*, not just how to do it.
+Four were written overnight and filed to the review queue as one item with four
+separate rulings. **Two more were added on 2026-08-08** — items 9 and 13, which
+were on the batch list as fixes and turned out to be forks once the code was
+read. Each leads with the question and a recommendation; the full evidence is in
+[DECISIONS/](DECISIONS/). Most turned up findings that change what the work *is*,
+not just how to do it.
+
+### Item 9 — the Try reflow is a fork, not a fix
+
+[09-try-reflow.md](DECISIONS/09-try-reflow.md)
+
+The mechanism was measured rather than described. `estimateNodeHeight` makes no
+allowance for the preview pane — at rest there isn't one — dagre separates ranks
+by `DEFAULT_NODESEP = 60`, and the pane caps at `PREVIEW_MAX_HEIGHT_PX = 200`.
+So a card grows **up to 200px into a 60px gap**, and does it twice: once for the
+120px loading skeleton, again when real content replaces it. That is the "strange
+way" in the transcript — cards don't merely get bigger, they get bigger at two
+different moments, per node. Despite its name, `NodePreviewOverlay` renders
+inline in the card body, not as a positioned layer.
+
+Both options the checklist names cost something real: reserving the space makes
+every graph permanently ~200px taller per output-producing node in the state
+authors spend most of their time in, and growing downward-only trades reflow for
+occlusion while still failing the item's own acceptance line. Recommended
+instead: a fixed-height result strip in the card with the full preview in
+`WirePeekPopover`, which already renders this widget from the same batch-preview
+query — a presentation change, not new plumbing.
+
+### Item 13 — the replay chip is the only thing explaining a dead editor
+
+[13-replay-mode.md](DECISIONS/13-replay-mode.md)
+
+The badge already carries three states, one of them a sentence saying you are
+looking at the *current* graph for an *older* run — the single most important
+thing the editor can tell you at that moment, rendered in a control sized for a
+word. Meanwhile replay's real effect is scattered across controls that just go
+quiet: Undo and Redo disabled, and config edits dropped by `if (isReplay) return;`
+in three handlers. An author in replay can drag a node, type in a field, press
+Ctrl+Z, and nothing happens — with no explanation except the chip they read as a
+stray tag.
+
+Recommended: a banner over the canvas rather than a region in the top bar,
+because a top-bar region spends exactly the real estate item 14 just reclaimed.
+It should be built *after* batch 11 merges — same file, same region.
 
 ### Item 8 — Try and Run are the same feature
 
