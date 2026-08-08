@@ -7,7 +7,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowInfo } from "../../data/hooks/useWorkflows";
@@ -70,12 +70,87 @@ describe("WorkflowSwitcher", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/workflows/wf-2/edit");
   });
 
-  it("marks the current workflow and does not navigate to it", () => {
+  // Item 15 — the current row was dimmed and disabled while every other row
+  // was bold; it must now be the dominant row without reading as disabled.
+  it("marks the current workflow as dominant, not disabled", () => {
     renderSwitcher("wf-1");
     fireEvent.click(screen.getByTestId("workflow-switcher-button"));
     const current = screen.getByTestId("workflow-switcher-result-wf-1");
-    expect(current).toHaveTextContent("(current)");
-    expect(current).toBeDisabled();
+    expect(current).not.toBeDisabled();
+    expect(current).toHaveAttribute("aria-current", "true");
+    expect(current).not.toHaveTextContent("(current)");
+    expect(
+      screen.getByTestId("workflow-switcher-current-check"),
+    ).toBeInTheDocument();
+
+    const other = screen.getByTestId("workflow-switcher-result-wf-2");
+    expect(other).not.toHaveAttribute("aria-current");
+    expect(within(current).getByText("Standard OCR")).toHaveStyle({
+      fontWeight: "600",
+    });
+    expect(within(other).getByText("Handwriting extraction")).toHaveStyle({
+      fontWeight: "400",
+    });
+  });
+
+  it("does not navigate when the current workflow is clicked", () => {
+    renderSwitcher("wf-1");
+    fireEvent.click(screen.getByTestId("workflow-switcher-button"));
+    fireEvent.click(screen.getByTestId("workflow-switcher-result-wf-1"));
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // Item 15 — "do we need that here? No."
+  it("does not show the slug or version line", () => {
+    renderSwitcher();
+    fireEvent.click(screen.getByTestId("workflow-switcher-button"));
+    const row = screen.getByTestId("workflow-switcher-result-wf-2");
+    expect(row).not.toHaveTextContent("handwriting-extraction");
+    expect(row).not.toHaveTextContent("v1");
+  });
+
+  // Item 16 — the list used to stop at 12 rows and render a dead
+  // "+N more — refine the search" line.
+  it("lists every workflow with no cap and no '+N more' line", () => {
+    const many = Array.from({ length: 29 }, (_, i) =>
+      workflow(`wf-${i + 1}`, `Workflow ${i + 1}`, `workflow-${i + 1}`),
+    );
+    vi.mocked(useWorkflows).mockReturnValue({
+      data: many,
+    } as unknown as ReturnType<typeof useWorkflows>);
+
+    renderSwitcher("wf-1");
+    fireEvent.click(screen.getByTestId("workflow-switcher-button"));
+
+    for (const w of many) {
+      expect(
+        screen.getByTestId(`workflow-switcher-result-${w.id}`),
+      ).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/more — refine the search/)).toBeNull();
+  });
+
+  // Item 17 — clicking outside left the dropdown open.
+  it("closes on an outside click", () => {
+    renderSwitcher();
+    fireEvent.click(screen.getByTestId("workflow-switcher-button"));
+    expect(screen.getByTestId("workflow-switcher-search")).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    fireEvent.click(document.body);
+
+    expect(screen.queryByTestId("workflow-switcher-search")).toBeNull();
+  });
+
+  // Item 17 — Escape had to reach the search input to work; focus is now
+  // trapped in the dropdown so the popover handles it.
+  it("closes on Escape", () => {
+    renderSwitcher();
+    fireEvent.click(screen.getByTestId("workflow-switcher-button"));
+    fireEvent.keyDown(screen.getByTestId("workflow-switcher-search"), {
+      key: "Escape",
+    });
+    expect(screen.queryByTestId("workflow-switcher-search")).toBeNull();
   });
 
   it("filters by name or slug as you type", () => {

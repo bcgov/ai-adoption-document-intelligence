@@ -1,18 +1,18 @@
 /**
  * UX walkthrough 2026-07-29 — from inside the editor there was no way
  * to reach another workflow: no in-app back, no switcher, so every hop meant
- * browser-back to the list ("back and forth, back and forth"). A plain
- * dropdown was floated but doesn't scale past a few dozen workflows, so this
- * is a searchable switcher: type to filter by name or slug, pick to open.
+ * browser-back to the list ("back and forth, back and forth"). This is a
+ * searchable switcher: type to filter by name or slug, pick to open. Every
+ * match is listed; the search narrows a long list rather than gating it.
  *
  * Navigation goes through `navigate()`, so the G-027 unsaved-changes guard
  * still intercepts it when the current graph is dirty. The "All workflows"
  * row doubles as the in-app back affordance the top bar never had.
  */
 import {
-  Box,
   Button,
   Divider,
+  Group,
   Popover,
   ScrollArea,
   Stack,
@@ -22,6 +22,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowLeft,
+  IconCheck,
   IconSearch,
   IconSwitchHorizontal,
 } from "@tabler/icons-react";
@@ -29,8 +30,12 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkflows } from "../../data/hooks/useWorkflows";
 
-/** Cap on rendered rows — same reasoning as NodeSearchBox's cap. */
-const MAX_RESULTS = 12;
+/**
+ * UX walkthrough 2026-08-06 — the list is uncapped: every match renders and
+ * the scroll area carries the overflow. A cap plus a "+N more" line hid the
+ * workflow the reviewer had just been editing, with nothing to refine.
+ */
+const RESULTS_MAX_HEIGHT = 320;
 
 interface WorkflowSwitcherProps {
   /** Lineage id of the workflow open in the editor; null in create mode. */
@@ -52,7 +57,6 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
         w.name.toLowerCase().includes(q) || w.slug.toLowerCase().includes(q),
     );
   }, [workflows, query]);
-  const shown = results.slice(0, MAX_RESULTS);
 
   const close = () => {
     setOpened(false);
@@ -76,6 +80,19 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
       width={320}
       withinPortal
       transitionProps={{ duration: 0 }}
+      /**
+       * UX walkthrough 2026-08-06 — the dropdown would not dismiss on an
+       * outside click. `mousedown` alone never reaches the document from the
+       * React Flow pane — d3-zoom's `mousedowned` calls
+       * `stopImmediatePropagation` — so `click` is added (d3 only suppresses
+       * the click when the pointer actually moved),
+       * and `trapFocus` puts focus in the dropdown so Escape is caught there.
+       */
+      closeOnClickOutside
+      clickOutsideEvents={["mousedown", "touchstart", "click"]}
+      closeOnEscape
+      trapFocus
+      returnFocus
     >
       <Popover.Target>
         <Button
@@ -118,12 +135,9 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
             leftSection={<IconSearch size={14} />}
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") close();
-            }}
             data-autofocus
           />
-          {shown.length === 0 ? (
+          {results.length === 0 ? (
             <Text
               size="xs"
               c="dimmed"
@@ -135,39 +149,56 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
                 : `No workflow matches “${query.trim()}”.`}
             </Text>
           ) : (
-            <ScrollArea.Autosize mah={260} type="auto">
+            <ScrollArea.Autosize mah={RESULTS_MAX_HEIGHT} type="auto">
               <Stack gap={2}>
-                {shown.map((w) => {
+                {results.map((w) => {
                   const isCurrent = w.id === currentWorkflowId;
                   return (
                     <UnstyledButton
                       key={w.id}
                       data-testid={`workflow-switcher-result-${w.id}`}
+                      data-current={isCurrent ? "true" : undefined}
+                      aria-current={isCurrent ? "true" : undefined}
                       onClick={() => openWorkflow(w.id)}
-                      disabled={isCurrent}
                       px={8}
                       py={4}
-                      style={{ borderRadius: 4, opacity: isCurrent ? 0.6 : 1 }}
+                      style={{
+                        borderRadius: 4,
+                        backgroundColor: isCurrent
+                          ? "var(--mantine-color-blue-light, #1c7ed633)"
+                          : undefined,
+                      }}
                     >
-                      <Text size="xs" fw={600} lineClamp={1}>
-                        {w.name}
-                        {isCurrent ? " (current)" : ""}
-                      </Text>
-                      <Text size="10px" c="dimmed" lineClamp={1}>
-                        {w.slug} · v{w.version}
-                      </Text>
+                      <Group gap={6} wrap="nowrap" justify="space-between">
+                        <Text
+                          size="xs"
+                          fw={isCurrent ? 600 : 400}
+                          c={
+                            isCurrent
+                              ? "var(--mantine-color-blue-light-color)"
+                              : undefined
+                          }
+                          lineClamp={1}
+                        >
+                          {w.name}
+                        </Text>
+                        {isCurrent && (
+                          <IconCheck
+                            size={14}
+                            aria-hidden
+                            data-testid="workflow-switcher-current-check"
+                            style={{
+                              flexShrink: 0,
+                              color: "var(--mantine-color-blue-light-color)",
+                            }}
+                          />
+                        )}
+                      </Group>
                     </UnstyledButton>
                   );
                 })}
               </Stack>
             </ScrollArea.Autosize>
-          )}
-          {results.length > shown.length && (
-            <Box px={8} py={4}>
-              <Text size="10px" c="dimmed">
-                +{results.length - shown.length} more — refine the search.
-              </Text>
-            </Box>
           )}
         </Stack>
       </Popover.Dropdown>
