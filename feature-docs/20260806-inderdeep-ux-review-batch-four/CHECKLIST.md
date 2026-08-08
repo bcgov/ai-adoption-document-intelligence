@@ -68,7 +68,7 @@ leave it open.
 **Key file:** `apps/frontend/src/features/workflow-builder/WorkflowTitleField.tsx`
 and `apps/frontend/src/features/workflow-builder/settings/` field widgets.
 
-### 3. [ ] Unconnected ports render as a bare circle — make them a `+`
+### 3. [x] Unconnected ports render as a bare circle — make them a `+`
 **Area:** Frontend — workflow-builder canvas handles
 **Problem:** *"Maybe consider adding a small plus sign here … they might not be
 able to discover it by themselves that there is something here if they hover."*
@@ -84,7 +84,7 @@ something". Connected and optional handles keep their current treatment.
 
 ## Error handling — configuration and error state
 
-### 4. [ ] Error-handling options don't read as a choice set, and the third is clipped
+### 4. [x] Error-handling options don't read as a choice set, and the third is clipped
 **Area:** Frontend — workflow-builder settings drawer
 **Problem:** The three options (Stop the workflow / Follow the error path /
 Skip this step and continue) are a `SegmentedControl`. Alex, looking at it
@@ -98,7 +98,7 @@ at drawer width.
 **Key file:** `apps/frontend/src/features/workflow-builder/settings/ErrorPolicySection.tsx`
 — `SegmentedControl` at ~L189, options at L83–85.
 
-### 5. [ ] The error-path handle is an unexplained red dot with no popover
+### 5. [x] The error-path handle is an unexplained red dot with no popover
 **Area:** Frontend — workflow-builder canvas
 **Problem:** Choosing *Follow the error path* adds a second source handle
 (`id="error"`) at the bottom of the node. *"I don't even know first what the red
@@ -129,7 +129,7 @@ work at. Applies to `succeeded` and `failed` at minimum.
 **Key file:** `apps/frontend/src/features/workflow-builder/run/NodeStatusBadge.tsx`
 — `STATUS_STYLES`.
 
-### 7. [ ] Failure should be visible at the node's title, not only in the corner
+### 7. [x] Failure should be visible at the node's title, not only in the corner
 **Area:** Frontend — workflow-builder canvas node renderer
 **Problem:** *"If it's an error, maybe it's better to mention it alongside the
 node name or the title, because you will probably start reading from here and
@@ -169,6 +169,14 @@ other as an equivalent alternative.
 `features/workflow-builder/run/RunWorkflowDrawer.tsx`.
 
 ### 9. [ ] Pressing Try resizes nodes, which then overlap
+**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+[DECISIONS/09-try-reflow.md](DECISIONS/09-try-reflow.md). Mechanism measured:
+`estimateNodeHeight` makes no allowance for the preview, dagre separates ranks by
+60px, and the pane is capped at 200px — so a card grows up to 200px into a 60px
+gap, twice (skeleton, then content). The checklist's two options are a permanent
+resting-height cost (reserve) or occlusion instead of reflow (grow downward).
+Recommended: a fixed-height result strip in the card with the full preview in
+`WirePeekPopover`, which already renders this widget from the same query.
 **Area:** Frontend — workflow-builder canvas / preview
 **Problem:** Alex, watching the shared screen: *"when you hit try, it also
 resized the boxes and they started to overlap in a strange way … it's kind of
@@ -268,6 +276,14 @@ attempt, close the item with that stated.
 `run/RunWorkflowDrawer.tsx`.
 
 ### 13. [ ] The "Replay mode" chip is parked beside Undo and reads as a stray tag
+**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+[DECISIONS/13-replay-mode.md](DECISIONS/13-replay-mode.md). The badge already
+carries three states, one of them a sentence saying you are looking at the
+*current* graph for an *older* run. Meanwhile replay silently swallows edits —
+`if (isReplay) return;` in three handlers — with no explanation anywhere.
+Recommended: a banner over the canvas, not a top-bar region, because a top-bar
+region spends the real estate item 14 is reclaiming. Build after batch 11 merges;
+same file, same region.
 **Area:** Frontend — workflow-builder top bar
 **Problem:** Clicking a run-history row puts the editor into read-only replay
 mode, announced by a chip next to the Undo button. Alex, seeing it: *"there's
@@ -355,7 +371,7 @@ I still need to click Switch again to make it disappear."*
 
 ## Workflows list
 
-### 18. [ ] The workflows table overflows: delete column truncated, horizontal scroll at full width
+### 18. [x] The workflows table overflows: delete column truncated, horizontal scroll at full width
 **Area:** Frontend — `WorkflowListPage`
 **Problem:** *"The delete icon is outside of this row and it's truncated …
 there's no horizontal view, I'm at full view, I'm not zoomed in or zoomed out."*
@@ -376,7 +392,7 @@ room for the icon's padding).
 
 ## Grouping
 
-### 19. [ ] You can't right-click the group itself to ungroup it
+### 19. [x] You can't right-click the group itself to ungroup it
 **Area:** Frontend — workflow-builder groups
 **Problem:** *"I was trying to ungroup it … I'm just right clicking [the group].
 Nothing is happening. And then I realized, oh, I need to be on a particular
