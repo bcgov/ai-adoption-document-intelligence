@@ -195,17 +195,76 @@ describe("WorkflowListPage — column widths", () => {
     expect(description.style.getPropertyValue("-webkit-line-clamp")).toBe("2");
   });
 
-  it("S-2: Name is the widest column, ahead of Slug and Description", async () => {
+  it("S-2: Name carries no width, so it absorbs whatever is left", async () => {
     renderPage();
     await screen.findByTestId("workflow-description");
     const nameHeader = screen.getByRole("columnheader", { name: "Name" });
+    const slugHeader = screen.getByRole("columnheader", { name: "Slug" });
     const descriptionHeader = screen.getByRole("columnheader", {
       name: "Description",
     });
-    const slugHeader = screen.getByRole("columnheader", { name: "Slug" });
-    expect(nameHeader).toHaveStyle({ width: "30%" });
+    // Under `table-layout: fixed` the one unsized column takes the remainder,
+    // which is how Name stays the widest column at every viewport without a
+    // percentage that has to be re-tuned each time another column changes.
+    expect(nameHeader.style.width).toBe("");
     expect(slugHeader).toHaveStyle({ width: "12%" });
-    expect(descriptionHeader).toHaveStyle({ width: "18%" });
+    expect(descriptionHeader).toHaveStyle({ width: "13%" });
+  });
+
+  /**
+   * Item 18, Inderdeep UX review 2026-08-06 — *"the delete icon is outside of
+   * this row and it's truncated … I'm at full view, I'm not zoomed in or
+   * zoomed out."*
+   *
+   * Cause, measured in Chromium at a 1280px viewport: the actions column was
+   * `4%`, i.e. 39px, while its contents are two 52px BC DS icon buttons with a
+   * 4px gap inside 16px of cell padding either side — 140px that does not
+   * shrink. The delete button ended 85px past the row and the table wrapper
+   * grew a horizontal scrollbar (scrollWidth 1056 against clientWidth 972).
+   *
+   * jsdom performs no table layout, so it cannot see the overflow itself. What
+   * it CAN hold is the rule the overflow broke: the actions column is sized in
+   * pixels, not in a percentage of a width nobody controls, and the sized
+   * columns leave room for Name. The browser measurements are the real
+   * evidence and are recorded in the batch-nine worklog.
+   */
+  it("item 18: the actions column is pixel-sized, not a percentage", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-description");
+    const headers = screen.getAllByRole("columnheader");
+    const actionsHeader = headers[headers.length - 1];
+    expect(actionsHeader).toHaveTextContent("");
+    // Mantine renders numeric style props as `calc(<rem> * --mantine-scale)`;
+    // 8.75rem is 140px at the 16px root, the measured width of the two icon
+    // buttons plus the cell padding either side.
+    expect(actionsHeader.style.width).toContain("8.75rem");
+    expect(actionsHeader.style.width).not.toContain("%");
+  });
+
+  it("item 18: the percentage columns leave room for Name", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-description");
+    const percentTotal = screen
+      .getAllByRole("columnheader")
+      .map((header) => header.style.width)
+      .filter((width) => width.endsWith("%"))
+      .reduce((sum, width) => sum + Number.parseFloat(width), 0);
+    // The old widths summed to 100%, which left the actions column its 4% and
+    // Name nothing to grow into. Slug and Description are now the only
+    // percentages, and they have to leave the remainder for Name.
+    expect(percentTotal).toBeLessThan(50);
+  });
+
+  it("item 18: the table has a floor so Name cannot collapse", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-description");
+    // A `min-width` on a CELL is ignored under fixed layout — only `width`
+    // counts — so this has to sit on the table, where the layout algorithm
+    // reads it. Below it the wrapper's `overflow-x: auto` scrolls instead of
+    // crushing Name to a stack of single words.
+    // 58.125rem is 930px: the 496px of pixel columns plus 25% for Slug and
+    // Description leaves Name 0.75W − 496, which reaches 200px at W = 928.
+    expect(screen.getByRole("table").style.minWidth).toContain("58.125rem");
   });
 
   // S-2 — the percentages above only bind under `table-layout: fixed`. With

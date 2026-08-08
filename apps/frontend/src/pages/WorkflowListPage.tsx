@@ -251,31 +251,70 @@ export function WorkflowListPage() {
               max-content width is the whole token. Measured in the browser
               with 28 seeded workflows, that gave the slug column 495px against
               Name's 154px — the reported symptom, and the reason bumping the
-              percentages alone changed nothing. Fixed layout also means every
-              column needs a width, or the unsized ones split what is left. */}
+              percentages alone changed nothing. Fixed layout also means an
+              unsized column takes whatever the sized ones leave — used
+              deliberately below, for Name and nothing else. */}
           <DataTable
             striped
             highlightOnHover
             layout="fixed"
+            miw={930}
             caption={`${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`}
           >
             <DataTable.Thead>
               <DataTable.Tr>
-                {/* Name is the column people scan, so it takes the largest
-                    share — three times the slug's. The slug keeps a cap for
-                    the reason it was first given one: it is a single
-                    unbreakable token, it truncates on one line, and the full
-                    value lives in the hover title and the copy button beside
-                    it. Description is clamped to two lines below, so it needs
-                    width for two lines, not for four. */}
-                <DataTable.Th w="30%">Name</DataTable.Th>
+                {/* The actions column is the one column whose contents cannot
+                    shrink: two BC DS icon buttons, 52px each, a 4px gap and
+                    16px of cell padding either side — 140px, measured, not
+                    guessed. Expressed as a percentage it was 4% (39px at a
+                    1280px viewport), so the delete button hung 85px past the
+                    row and the wrapper grew a horizontal scrollbar. It is
+                    therefore FIXED in pixels: a percentage of a width nobody
+                    controls cannot promise room for a button that never
+                    changes size.
+
+                    Name carries no width at all, on purpose. Under
+                    `table-layout: fixed` the single unsized column absorbs
+                    whatever the sized ones leave, so Name stays the widest
+                    column and every extra pixel of viewport goes to the column
+                    people actually scan — and the sized widths can never sum
+                    past the table.
+
+                    That remainder needs a floor, and it has to sit on the
+                    TABLE, not on the Name cell: under fixed layout a cell's
+                    `min-width` is ignored — only `width` counts — so a `miw`
+                    on the header measured as a no-op, Name still collapsing to
+                    40px at a 1024px viewport. `miw` on the table is the same
+                    floor expressed where the layout algorithm reads it. 930 is
+                    derived, not chosen: 496px of pixel columns plus 25% of the
+                    table for Slug and Description leaves Name 0.75W − 496,
+                    which reaches 200px at W = 928. Below that the table
+                    outgrows its wrapper and the wrapper's existing
+                    `overflow-x: auto` scrolls. A scrollbar on a genuinely
+                    small window is the honest outcome; the reported bug was a
+                    scrollbar at full desktop width.
+
+                    Version, Schema, Created and Updated are pixels for the same
+                    reason as the actions column: their content is a fixed size
+                    that a wider window does not improve. Measured widest
+                    contents are 47px (version badge), 51px (schema badge) and
+                    58px (a date), and each header label is 52–60px; the widths
+                    below are those plus the 32px of cell padding. As
+                    percentages they simply ate space at large viewports.
+
+                    Slug and Description stay percentages because they are the
+                    two columns where extra width shows more: the slug is one
+                    unbreakable token that truncates on a single line (the full
+                    value is in the hover title and the copy button beside it),
+                    and the description is clamped to two lines below. */}
+                <DataTable.Th>Name</DataTable.Th>
                 <DataTable.Th w="12%">Slug</DataTable.Th>
-                <DataTable.Th w="18%">Description</DataTable.Th>
-                <DataTable.Th w="7%">Version</DataTable.Th>
-                <DataTable.Th w="8%">Schema</DataTable.Th>
-                <DataTable.Th w="11%">Created</DataTable.Th>
-                <DataTable.Th w="10%">Updated</DataTable.Th>
-                <DataTable.Th w="4%" />
+                <DataTable.Th w="13%">Description</DataTable.Th>
+                <DataTable.Th w={84}>Version</DataTable.Th>
+                <DataTable.Th w={88}>Schema</DataTable.Th>
+                <DataTable.Th w={92}>Created</DataTable.Th>
+                <DataTable.Th w={92}>Updated</DataTable.Th>
+                <DataTable.Th w={140} />
               </DataTable.Tr>
             </DataTable.Thead>
             <DataTable.Tbody>
