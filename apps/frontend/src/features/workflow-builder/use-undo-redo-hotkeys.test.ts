@@ -24,6 +24,16 @@ function mount(tag: string, contentEditable = false): HTMLElement {
   return el;
 }
 
+/** An `<input>` of a given type, as the settings drawer renders them. */
+function mountInput(type: string, readOnly = false): HTMLInputElement {
+  const el = document.createElement("input");
+  el.type = type;
+  el.readOnly = readOnly;
+  document.body.appendChild(el);
+  mounted.push(el);
+  return el;
+}
+
 interface KeyOpts {
   key: string;
   ctrlKey?: boolean;
@@ -129,6 +139,94 @@ describe("useUndoRedoHotkeys", () => {
     press({ key: "z", ctrlKey: true, shiftKey: true, target: mount("input") });
     press({ key: "y", ctrlKey: true, target: mount("input") });
     expect(redo).not.toHaveBeenCalled();
+  });
+
+  it("bails for every text-entry input type", () => {
+    const { undo } = setup();
+    for (const type of [
+      "text",
+      "search",
+      "url",
+      "tel",
+      "email",
+      "password",
+      "number",
+    ]) {
+      press({ key: "z", ctrlKey: true, target: mountInput(type) });
+    }
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  it("bails for an input with no type — the browser renders that as text", () => {
+    const { undo } = setup();
+    const input = mount("input");
+    expect((input as HTMLInputElement).type).toBe("text");
+    press({ key: "z", ctrlKey: true, target: input });
+    expect(undo).not.toHaveBeenCalled();
+  });
+
+  // -- the positive case: a non-text control must NOT swallow the hotkey -----
+  //
+  // Item 1 of Inderdeep's 2026-08-06 walkthrough. He set Error handling →
+  // Follow the error path, which is a Mantine `SegmentedControl`, i.e. a set of
+  // hidden `<input type="radio">`. The clicked radio keeps focus, so the
+  // keydown target is an INPUT and a tag-name guard dropped the undo.
+
+  it("DOES undo from a radio — a SegmentedControl option keeps focus after a click", () => {
+    const { undo } = setup();
+    const event = press({
+      key: "z",
+      ctrlKey: true,
+      target: mountInput("radio"),
+    });
+    expect(undo).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("DOES undo from a checkbox", () => {
+    const { undo } = setup();
+    press({ key: "z", ctrlKey: true, target: mountInput("checkbox") });
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("DOES undo from the other non-text input types", () => {
+    const { undo } = setup();
+    const types = ["range", "color", "file", "date", "time", "button"];
+    for (const type of types) {
+      press({ key: "z", ctrlKey: true, target: mountInput(type) });
+    }
+    expect(undo).toHaveBeenCalledTimes(types.length);
+  });
+
+  it("DOES undo from a read-only text input — a non-searchable Mantine Select", () => {
+    const { undo } = setup();
+    press({ key: "z", ctrlKey: true, target: mountInput("text", true) });
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("DOES undo from a read-only textarea", () => {
+    const { undo } = setup();
+    const textarea = mount("textarea") as HTMLTextAreaElement;
+    textarea.readOnly = true;
+    press({ key: "z", ctrlKey: true, target: textarea });
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("DOES undo from a native select — it has no text undo to protect", () => {
+    const { undo } = setup();
+    press({ key: "z", ctrlKey: true, target: mount("select") });
+    expect(undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("DOES redo from a radio too", () => {
+    const { redo } = setup();
+    press({
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+      target: mountInput("radio"),
+    });
+    expect(redo).toHaveBeenCalledTimes(1);
   });
 
   it("preventDefault stops the browser's own history navigation", () => {

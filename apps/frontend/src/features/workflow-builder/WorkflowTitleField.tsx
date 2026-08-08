@@ -12,6 +12,20 @@
  * title is now the only place the name is shown and a blank one leaves nothing
  * to click back into. (`handleSave` still coerces a blank name to "Untitled
  * workflow"; that is the persistence rule, this is the editing surface.)
+ *
+ * **Undo granularity (Inderdeep's 2026-08-06 walkthrough, item 2).** He saw
+ * Ctrl+Z undo a whole word here but a single character in the settings
+ * drawer's Description field, and asked for the two to match. Nothing in this
+ * file causes that. The draft lives in local state and is never re-derived
+ * from a parent mid-keystroke, so React's `updateInput` finds the DOM value
+ * already equal and writes nothing — the browser's own undo stack is intact,
+ * which is why this field behaves the way a plain text box should. The
+ * difference is `<input>` vs `<textarea>`: for a controlled textarea React's
+ * `updateTextarea` assigns `element.defaultValue` on every keystroke, and on a
+ * textarea `defaultValue` IS the element's child text, so each keystroke
+ * mutates the textarea's children and ends the browser's current typing
+ * transaction. That is React's behaviour for any controlled textarea, not
+ * ours. Closed as no-change here.
  */
 
 import { Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";

@@ -79,6 +79,22 @@ describe("WorkflowTitleField", () => {
     );
   });
 
+  /**
+   * Item 2 of the 2026-08-06 walkthrough: the field must not rebuild its value
+   * from a parent on every keystroke, because that is what destroys the
+   * browser's native text-undo stack. Keeping the draft local is the whole
+   * reason Ctrl+Z still undoes a word in here.
+   */
+  it("typing never round-trips through the parent, so native text undo survives", () => {
+    const onChange = renderField("Invoice intake");
+    const input = openEditor();
+    for (const next of ["M", "Ma", "Mail", "Mail room"]) {
+      fireEvent.change(input, { target: { value: next } });
+    }
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.value).toBe("Mail room");
+  });
+
   it("committing an unchanged name does not fire a rename", () => {
     const onChange = renderField("Invoice intake");
     fireEvent.keyDown(openEditor(), { key: "Enter" });
