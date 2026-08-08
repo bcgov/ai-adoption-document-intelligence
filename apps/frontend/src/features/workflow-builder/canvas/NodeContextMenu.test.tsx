@@ -292,3 +292,65 @@ describe("NodeContextMenu — selection mode", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Item 19 (Inderdeep 2026-08-06) — the menu opened on a group's container box.
+ * The box is a projection of `nodeGroups[<id>].nodeIds`, so the entries that
+ * act on a `config.nodes` entry have nothing to act on.
+ */
+describe("NodeContextMenu — group-container target", () => {
+  function renderContainerMenu(onUngroup = vi.fn(), onClose = vi.fn()) {
+    render(
+      <MantineProvider>
+        <NodeContextMenu
+          target="group-container"
+          groupId="g1"
+          groupLabel="Stage one"
+          position={{ x: 30, y: 40 }}
+          onClose={onClose}
+          onUngroup={onUngroup}
+        />
+      </MantineProvider>,
+    );
+    return { onUngroup, onClose };
+  }
+
+  it("offers Ungroup, naming the group", async () => {
+    renderContainerMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("context-menu-ungroup")).toHaveTextContent(
+      "Ungroup “Stage one” (steps stay)",
+    );
+  });
+
+  it("renders no entry that would silently do nothing on a projection", async () => {
+    renderContainerMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("context-menu-change-activity-type"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("context-menu-delete-node"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("context-menu-edit-script"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("context-menu-group-selection"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("fires the ungroup callback and closes", async () => {
+    const { onUngroup, onClose } = renderContainerMenu();
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-ungroup"));
+    expect(onUngroup).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalled();
+  });
+});

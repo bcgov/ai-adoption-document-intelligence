@@ -155,3 +155,31 @@ describe("GroupContainerNode — synthetic map body", () => {
     expect(opens).toBe(1);
   });
 });
+
+/**
+ * Item 19 (Inderdeep 2026-08-06) — the header's own hint has to mention the
+ * right-click, because a menu nobody knows to open was the defect.
+ */
+describe("GroupContainerNode — the header advertises Ungroup", () => {
+  it("names the right-click on an authored group's header", () => {
+    renderContainer(makeData({ groupId: "g1", label: "Stage one" }));
+    expect(
+      screen.getByTestId("group-container-header-g1").getAttribute("title"),
+    ).toContain("right-click to ungroup");
+  });
+
+  it("says nothing of the sort on a map body — there is no group to remove", () => {
+    renderContainer(
+      makeData({
+        groupId: "__map_body_m",
+        label: "Run for each",
+        icon: undefined,
+      }),
+    );
+    expect(
+      screen
+        .getByTestId("group-container-header-__map_body_m")
+        .getAttribute("title"),
+    ).not.toContain("ungroup");
+  });
+});

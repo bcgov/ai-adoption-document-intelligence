@@ -24,23 +24,46 @@
  * menu explicitly from `onPaneClick`, `onNodeClick` and `onMove`; the Mantine
  * listener stays for everything outside the pane, and `closeOnEscape` for the
  * keyboard.
+ *
+ * TARGET KIND (item 19, Inderdeep 2026-08-06). The menu opens on two different
+ * kinds of thing, and they are not interchangeable:
+ *
+ *   - `target: "node"` (the default) — a real `config.nodes` entry. Every
+ *     entry below applies.
+ *   - `target: "group-container"` — the dashed box drawn behind a group's
+ *     members. That box is a PROJECTION of `nodeGroups[<id>].nodeIds`, not a
+ *     graph node: "Change activity type" has nothing to swap and "Delete node"
+ *     would look for `config.nodes["container-<groupId>"]` and silently do
+ *     nothing. So a container target renders Ungroup and nothing else.
  */
 
 import { Menu, Tooltip } from "@mantine/core";
+import type { ReactNode } from "react";
 import type { GraphNode } from "../../../types/workflow";
 
 /** Same discriminator union the canvas uses to project nodes. */
 export type NodeContextMenuNodeType = GraphNode["type"];
 
-export interface NodeContextMenuProps {
-  /** Identifier of the node the menu was opened for. */
-  nodeId: string;
-  /** Discriminator type from the node's `GraphNode["type"]`. */
-  nodeType: NodeContextMenuNodeType;
+/** What the right-click landed on — see the TARGET KIND note above. */
+export type NodeContextMenuTarget = "node" | "group-container";
+
+interface NodeContextMenuCommonProps {
   /** Viewport-relative position the menu pins to (event.clientX/Y). */
   position: { x: number; y: number };
   /** Fired when the menu should close (click-away, item action, Escape). */
   onClose: () => void;
+}
+
+export interface NodeContextMenuNodeProps extends NodeContextMenuCommonProps {
+  /**
+   * Optional on this variant so every existing call site keeps meaning "a
+   * graph node" without restating it.
+   */
+  target?: "node";
+  /** Identifier of the node the menu was opened for. */
+  nodeId: string;
+  /** Discriminator type from the node's `GraphNode["type"]`. */
+  nodeType: NodeContextMenuNodeType;
   /**
    * Activity-type-swap callback. Wired to the type-picker flow in
    * US-047; from this story's perspective it's just an arbitrary callback
@@ -99,6 +122,28 @@ export interface NodeContextMenuProps {
   onGroupSelection?: () => void;
 }
 
+/**
+ * Item 19 (Inderdeep 2026-08-06) — the menu opened by right-clicking a group's
+ * container box. *"I was trying to ungroup it … I'm just right clicking.
+ * Nothing is happening. And then I realized, oh, I need to be on a particular
+ * node."* One entry, because one entry is all that means anything on a
+ * projection of a group.
+ */
+export interface NodeContextMenuGroupContainerProps
+  extends NodeContextMenuCommonProps {
+  target: "group-container";
+  /** `config.nodeGroups` key the container projects. */
+  groupId: string;
+  /** The group's label, quoted in the entry so it names what it removes. */
+  groupLabel: string;
+  /** Removes the group entry; its steps stay on the canvas. */
+  onUngroup: () => void;
+}
+
+export type NodeContextMenuProps =
+  | NodeContextMenuNodeProps
+  | NodeContextMenuGroupContainerProps;
+
 const CONTROL_FLOW_TYPE_SWAP_TOOLTIP =
   "Control-flow nodes can't be type-swapped";
 
@@ -106,7 +151,95 @@ function isActivityType(nodeType: NodeContextMenuNodeType): boolean {
   return nodeType === "activity";
 }
 
-export function NodeContextMenu({
+interface MenuShellProps {
+  position: { x: number; y: number };
+  onClose: () => void;
+  /** Stamped on the Mantine `Menu` so tests + tooling can see what it targets. */
+  dataNodeId?: string;
+  dataGroupId?: string;
+  children: ReactNode;
+}
+
+/**
+ * The Mantine plumbing both target kinds share: an invisible 1×1 anchor at the
+ * cursor, the portal dropdown, and the close wiring. Extracted so the two
+ * menus differ only in their entries.
+ */
+function MenuShell({
+  position,
+  onClose,
+  dataNodeId,
+  dataGroupId,
+  children,
+}: MenuShellProps) {
+  return (
+    <Menu
+      opened
+      onChange={(opened) => {
+        if (!opened) onClose();
+      }}
+      position="bottom-start"
+      withinPortal
+      closeOnClickOutside
+      closeOnEscape
+      shadow="md"
+      width={220}
+      data-node-id={dataNodeId}
+      data-group-id={dataGroupId}
+    >
+      <Menu.Target>
+        {/*
+         * Invisible anchor pinned to the click position. Mantine's Menu
+         * needs a target ref to compute floating positioning; a 1×1
+         * fixed-position div is the simplest reliable trigger when the
+         * menu has no on-page anchor element of its own.
+         */}
+        <div
+          data-testid="node-context-menu-anchor"
+          style={{
+            position: "fixed",
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            width: 1,
+            height: 1,
+            pointerEvents: "none",
+          }}
+        />
+      </Menu.Target>
+      <Menu.Dropdown data-testid="node-context-menu">{children}</Menu.Dropdown>
+    </Menu>
+  );
+}
+
+export function NodeContextMenu(props: NodeContextMenuProps) {
+  if (props.target === "group-container") {
+    return <GroupContainerContextMenu {...props} />;
+  }
+  return <GraphNodeContextMenu {...props} />;
+}
+
+function GroupContainerContextMenu({
+  groupId,
+  groupLabel,
+  position,
+  onClose,
+  onUngroup,
+}: NodeContextMenuGroupContainerProps) {
+  const handleUngroup = () => {
+    onUngroup();
+    onClose();
+  };
+  return (
+    <MenuShell position={position} onClose={onClose} dataGroupId={groupId}>
+      <Menu.Label>Group “{groupLabel}”</Menu.Label>
+      <Menu.Item data-testid="context-menu-ungroup" onClick={handleUngroup}>
+        Ungroup “{groupLabel}” (steps stay)
+      </Menu.Item>
+    </MenuShell>
+  );
+}
+
+function GraphNodeContextMenu({
   nodeId,
   nodeType,
   position,
@@ -120,7 +253,7 @@ export function NodeContextMenu({
   selectionCount = 1,
   onDeleteSelection,
   onGroupSelection,
-}: NodeContextMenuProps) {
+}: NodeContextMenuNodeProps) {
   const canChangeActivityType = isActivityType(nodeType);
   const isDynamicNode =
     canChangeActivityType && activityType?.startsWith("dyn.");
@@ -157,71 +290,38 @@ export function NodeContextMenu({
   };
 
   return (
-    <Menu
-      opened
-      onChange={(opened) => {
-        if (!opened) onClose();
-      }}
-      position="bottom-start"
-      withinPortal
-      closeOnClickOutside
-      closeOnEscape
-      shadow="md"
-      width={220}
-      data-node-id={nodeId}
-    >
-      <Menu.Target>
-        {/*
-         * Invisible anchor pinned to the click position. Mantine's Menu
-         * needs a target ref to compute floating positioning; a 1×1
-         * fixed-position div is the simplest reliable trigger when the
-         * menu has no on-page anchor element of its own.
-         */}
-        <div
-          data-testid="node-context-menu-anchor"
-          style={{
-            position: "fixed",
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: 1,
-            height: 1,
-            pointerEvents: "none",
-          }}
-        />
-      </Menu.Target>
-      <Menu.Dropdown data-testid="node-context-menu">
-        {isSelection ? (
-          <>
-            <Menu.Label>{selectionCount} steps selected</Menu.Label>
-            {onGroupSelection && (
-              <Menu.Item
-                data-testid="context-menu-group-selection"
-                onClick={handleGroupSelection}
-              >
-                Group these {selectionCount} steps
-              </Menu.Item>
-            )}
-            {groupLabel && onUngroup && (
-              <Menu.Item
-                data-testid="context-menu-ungroup"
-                onClick={handleUngroup}
-              >
-                Ungroup “{groupLabel}” (steps stay)
-              </Menu.Item>
-            )}
+    <MenuShell position={position} onClose={onClose} dataNodeId={nodeId}>
+      {isSelection ? (
+        <>
+          <Menu.Label>{selectionCount} steps selected</Menu.Label>
+          {onGroupSelection && (
             <Menu.Item
-              data-testid="context-menu-delete-selection"
-              color="red"
-              onClick={handleDeleteSelection}
+              data-testid="context-menu-group-selection"
+              onClick={handleGroupSelection}
             >
-              Delete {selectionCount} steps
+              Group these {selectionCount} steps
             </Menu.Item>
-          </>
-        ) : (
-          <SingleNodeEntries />
-        )}
-      </Menu.Dropdown>
-    </Menu>
+          )}
+          {groupLabel && onUngroup && (
+            <Menu.Item
+              data-testid="context-menu-ungroup"
+              onClick={handleUngroup}
+            >
+              Ungroup “{groupLabel}” (steps stay)
+            </Menu.Item>
+          )}
+          <Menu.Item
+            data-testid="context-menu-delete-selection"
+            color="red"
+            onClick={handleDeleteSelection}
+          >
+            Delete {selectionCount} steps
+          </Menu.Item>
+        </>
+      ) : (
+        <SingleNodeEntries />
+      )}
+    </MenuShell>
   );
 
   /**

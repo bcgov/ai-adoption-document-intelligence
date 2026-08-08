@@ -113,7 +113,10 @@ export const GroupContainerNode = memo(function GroupContainerNode({
         title={
           synthetic
             ? "Open the map node's settings"
-            : "Drag to move the whole group · click to open its settings"
+            : // Item 19 (2026-08-06) — the right-click menu on the header now
+              // offers Ungroup; say so, because a menu nobody knows to open is
+              // the defect being fixed, not the fix.
+              "Drag to move the whole group · click to open its settings · right-click to ungroup"
         }
         style={{
           position: "absolute",
