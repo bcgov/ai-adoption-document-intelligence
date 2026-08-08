@@ -387,6 +387,66 @@ a screenshot months later; the Chromium measurements above are the evidence. The
 1280px degradation — "Standard …" truncating, the counter squeezed out — is a
 judgement call worth a look on a real screen.
 
+### Batch 12 — the agent says why it failed · items 22, 24
+
+**Commit `c83884ce`** · `apps/backend-services/src/agent/`,
+`apps/frontend/src/features/agent-chat/`, a Prisma migration, the seeder
+
+**Item 22 was two silences, and neither was where the checklist guessed.**
+`ProviderResolver.resolve` threw a bare `Error`, which Nest can only render as
+`{"statusCode":500,"message":"Internal server error"}` — the cause was destroyed
+at the HTTP boundary before the frontend ever saw it. Separately, anything
+failing *after* the response headers were sent (bad key, missing deployment,
+429) went through the AI SDK's default masker, which writes the literal string
+`"An error occurred."`. And `useChatRuntime` was given no `onError`, so even that
+string was dropped on the floor.
+
+Now `AgentProviderNotConfiguredException` (503) carries `code` / `provider` /
+`missingConfig` — environment variable **names** only, never values — and
+`pipeUIMessageStreamToResponse` gets an `onError` that names the HTTP status and
+what the provider said, forwarding no URL, header or body and truncating at 400
+characters. Both render through one describer into a red `agent-chat-error`
+alert at the end of the thread, which clears when the next turn starts. The
+budget refusal was folded into the same structured shape.
+
+**Item 24 was per-user scoping doing its job.** `ChatConversation` rows are
+private to `createdBy`, so a transcript seeded under `SEED_USER_SUB` was
+invisible to every other identity — including the API-key identity, which is why
+a reload did not help. The fix encodes the distinction rather than the
+workaround: `ChatConversation.isDemo`, set by the seeder. Visibility is
+`groupId = caller's group AND (createdBy = caller OR isDemo)`, with the group
+filter a **sibling** of the OR rather than a branch of it, and a test guarding
+exactly that. Demo rows are read-only for everyone — `POST /api/agent/chat` on
+one returns 403 `demo-conversation-read-only` rather than putting one reader's
+follow-up into everybody else's demo, surfaced through item 22's alert. Delete
+stays owner-only; the switcher badges a demo replay and withholds delete.
+
+**State of the local box.** The migration has been applied to the dev database,
+and one row updated so the already-seeded demo works without `npm run seed:demos`
+— a re-seed would have recreated demo workflows and disturbed the screenshot
+pass running at the time.
+
+**Not verified.** The alert's appearance in the drawer at 540px, and the demo
+replay opening for a second identity, are on the browser pass list. The chat
+endpoint was deliberately not probed live: with Azure configured on this machine
+that would have started a real billable turn.
+
+---
+
+## Verification of the whole branch, 2026-08-08
+
+Run after every batch above had landed, with nothing else editing the tree:
+
+- **Backend** `jest` — **2843 tests, 152 suites, all passing.**
+- **Frontend** `vitest run` — **2596 tests, 209 files, all passing.**
+- `tsc --noEmit` clean on both; Biome clean on every changed file.
+
+One honest note on method: the *first* full frontend run reported 5 failures
+while the backend suite and a browser-driving agent were competing for the same
+machine (that run took 79s against a normal 46s, with import time alone at
+495s). Two clean re-runs on an idle box show 209/209. Recorded because a green
+number that followed a red one is worth explaining rather than quietly keeping.
+
 ---
 
 ## Discovered during implementation — not on Inderdeep's list
