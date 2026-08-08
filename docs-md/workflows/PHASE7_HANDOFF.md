@@ -16,8 +16,8 @@
 3. **Type a prompt** + Enter. Agent calls tools through the in-process MCP server.
 4. **Drop a PDF** on the composer (or click the paperclip). File uploads to the workflow's `source.upload` node via the existing Phase 8 endpoint.
 5. **The canvas live-updates** as the agent calls `addNode`, `connectNodes`, etc. via TanStack invalidation.
-6. **Conversation switcher** — open the collapsible panel below the drawer header to switch between past conversations on the current workflow (or globally when no workflow is open).
-7. **Abort** the in-flight stream with the red stop icon in the drawer header.
+6. **Conversation switcher** — the history button in the drawer header (beside new-conversation and close) opens the panel listing past conversations on the current workflow (or globally when no workflow is open).
+7. **Abort** the in-flight stream with the stop button in the composer — while a turn is streaming, the send button becomes the stop button and reverts when it ends.
 8. **Resume** by closing the drawer + reopening — full history reloads + the agent has context across reopens (DB-backed history hydration, not the SDK's session store).
 
 ## Demo prompts to show coworkers

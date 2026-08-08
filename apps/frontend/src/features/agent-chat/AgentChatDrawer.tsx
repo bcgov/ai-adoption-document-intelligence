@@ -4,6 +4,7 @@ import {
   MessagePrimitive,
   ThreadPrimitive,
   useAssistantRuntime,
+  useAuiState,
 } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import {
@@ -21,6 +22,7 @@ import {
 import {
   IconChevronDown,
   IconChevronUp,
+  IconHistory,
   IconPaperclip,
   IconPlayerStopFilled,
   IconPlus,
@@ -86,6 +88,9 @@ export function AgentChatDrawer() {
   // Messages the thread seeds from when it (re)mounts. Populated on an
   // explicit conversation switch so a past chat visually replays.
   const [seedMessages, setSeedMessages] = useState<UIMessage[]>([]);
+  // The past-conversations panel is opened from the header (item 30), so its
+  // open state lives here rather than inside ConversationSwitcher.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const currentWorkflowId = useCurrentWorkflowId();
   const { activeGroup } = useGroup();
@@ -100,6 +105,17 @@ export function AgentChatDrawer() {
     resetConversation();
     bumpResetKey();
   }, [resetConversation, bumpResetKey]);
+
+  // Tell the backend to stop the in-flight run. Fired from the composer's stop
+  // button alongside assistant-ui's own client-side cancel.
+  const handleAbort = useCallback(async () => {
+    const cid = conversationIdRef.current;
+    if (cid === null) return;
+    await fetch(`/api/agent/conversations/${cid}/abort`, {
+      method: "POST",
+      headers: getAgentAuthHeaders(activeGroupIdRef.current),
+    }).catch(() => undefined);
+  }, []);
 
   // Switch to a past conversation: load its history, seed it, then remount
   // the thread (resetKey). A fresh send that only sets conversationId from
@@ -161,21 +177,14 @@ export function AgentChatDrawer() {
     >
       <Stack gap={0} h="100%">
         <ChatHeader
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
           onClose={close}
           onReset={handleReset}
-          onAbort={async () => {
-            const cid = conversationIdRef.current;
-            if (cid === null) return;
-            await fetch(`/api/agent/conversations/${cid}/abort`, {
-              method: "POST",
-              headers: getAgentAuthHeaders(activeGroupIdRef.current),
-            }).catch(() => undefined);
-          }}
+          historyOpen={historyOpen}
+          onToggleHistory={() => setHistoryOpen((o) => !o)}
           workflowId={currentWorkflowId}
         />
         <ConversationSwitcher
+          open={historyOpen}
           workflowId={currentWorkflowId}
           activeConversationId={conversationId}
           activeGroupId={activeGroupId}
@@ -185,11 +194,13 @@ export function AgentChatDrawer() {
           key={resetKey}
           seedMessages={seedMessages}
           selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
           currentWorkflowId={currentWorkflowId}
           activeGroupId={activeGroupId}
           conversationIdRef={conversationIdRef}
           activeGroupIdRef={activeGroupIdRef}
           setConversationId={setConversationId}
+          onAbort={handleAbort}
         />
       </Stack>
     </Drawer>
@@ -205,19 +216,23 @@ export function AgentChatDrawer() {
 function ChatThread({
   seedMessages,
   selectedModel,
+  setSelectedModel,
   currentWorkflowId,
   activeGroupId,
   conversationIdRef,
   activeGroupIdRef,
   setConversationId,
+  onAbort,
 }: {
   seedMessages: UIMessage[];
   selectedModel: AgentModelOption;
+  setSelectedModel: (option: AgentModelOption) => void;
   currentWorkflowId: string | null;
   activeGroupId: string | null;
   conversationIdRef: MutableRefObject<string | null>;
   activeGroupIdRef: MutableRefObject<string | null>;
   setConversationId: (id: string | null) => void;
+  onAbort: () => void | Promise<void>;
 }) {
   const queryClient = useQueryClient();
 
@@ -264,7 +279,13 @@ function ChatThread({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <MessageList />
-      <Composer workflowId={currentWorkflowId} activeGroupId={activeGroupId} />
+      <Composer
+        workflowId={currentWorkflowId}
+        activeGroupId={activeGroupId}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
+        onAbort={onAbort}
+      />
       <ToolCallNavigator />
     </AssistantRuntimeProvider>
   );
@@ -275,20 +296,101 @@ function useResetKey() {
   return [counter, dispatch] as const;
 }
 
+/**
+ * Drawer header: identity, workflow binding, and the three panel-level
+ * controls — past conversations, new conversation, close. The model picker
+ * used to sit here and now lives beside the composer, and the abort button
+ * used to sit here and is now the composer's send/stop toggle (Inderdeep,
+ * 2026-08-06 — "the show past conversations should be somewhere here, next to
+ * the plus, along with the close").
+ */
 function ChatHeader({
-  selectedModel,
-  setSelectedModel,
   onClose,
   onReset,
-  onAbort,
+  historyOpen,
+  onToggleHistory,
   workflowId,
+}: {
+  onClose: () => void;
+  onReset: () => void;
+  historyOpen: boolean;
+  onToggleHistory: () => void;
+  workflowId: string | null;
+}) {
+  const historyLabel = historyOpen
+    ? "Hide past conversations"
+    : "Show past conversations";
+  return (
+    <Group
+      justify="space-between"
+      p="md"
+      style={{ borderBottom: "1px solid #e9ecef" }}
+    >
+      <Group gap="xs">
+        <Text fw={700}>Workflow Agent</Text>
+        {workflowId !== null ? (
+          <Badge color="violet" variant="light" size="sm">
+            workflow bound
+          </Badge>
+        ) : (
+          <Badge color="gray" variant="light" size="sm">
+            no workflow yet
+          </Badge>
+        )}
+      </Group>
+      <Group gap={4}>
+        <Tooltip label={historyLabel}>
+          <ActionIcon
+            variant={historyOpen ? "light" : "subtle"}
+            onClick={onToggleHistory}
+            aria-label={historyLabel}
+            data-testid="agent-chat-history-toggle"
+          >
+            <IconHistory size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="New conversation">
+          <ActionIcon
+            variant="subtle"
+            onClick={onReset}
+            aria-label="New conversation"
+            data-testid="agent-chat-reset"
+          >
+            {/* A plus, not a refresh arrow: this starts a new conversation,
+                it does not reload the current one (Inderdeep, 2026-08-06 —
+                "this says new conversation, while the icon says a refresh"). */}
+            <IconPlus size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Close">
+          <ActionIcon
+            variant="subtle"
+            onClick={onClose}
+            aria-label="Close"
+            data-testid="agent-chat-close"
+          >
+            {/* Bare cross. `IconCircleX` spent most of its 16px on a ring and
+                the cross inside it was unreadable — the same defect as the
+                canvas status badge, reported in the same session. */}
+            <IconX size={18} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Group>
+  );
+}
+
+/**
+ * The model in use, shown where the user is actually looking — at the
+ * composer (Inderdeep, 2026-08-06 — "the model selector should be at the
+ * bottom, because this is where I'm generally typing").
+ */
+function ModelPicker({
+  selectedModel,
+  setSelectedModel,
 }: {
   selectedModel: AgentModelOption;
   setSelectedModel: (option: AgentModelOption) => void;
-  onClose: () => void;
-  onReset: () => void;
-  onAbort: () => Promise<void> | void;
-  workflowId: string | null;
 }) {
   const selectData = useMemo(
     () =>
@@ -303,76 +405,80 @@ function ChatHeader({
       o.provider === selectedModel.provider && o.model === selectedModel.model,
   );
   return (
-    <Stack gap={4} p="md" style={{ borderBottom: "1px solid #e9ecef" }}>
-      <Group justify="space-between">
-        <Group gap="xs">
-          <Text fw={700}>Workflow Agent</Text>
-          {workflowId !== null ? (
-            <Badge color="violet" variant="light" size="sm">
-              workflow bound
-            </Badge>
-          ) : (
-            <Badge color="gray" variant="light" size="sm">
-              no workflow yet
-            </Badge>
-          )}
-        </Group>
-        <Group gap={4}>
-          <Tooltip label="Abort current request">
-            <ActionIcon
-              variant="subtle"
-              color="red"
-              onClick={() => {
-                void onAbort();
-              }}
-              data-testid="agent-chat-abort"
-            >
-              {/* Filled, not outlined. An outlined square reads as a shape;
-                  the filled one reads as stop (Inderdeep, 2026-08-06 — "that
-                  shape probably will be filled and not outlined"). */}
-              <IconPlayerStopFilled size={16} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="New conversation">
-            <ActionIcon
-              variant="subtle"
-              onClick={onReset}
-              data-testid="agent-chat-reset"
-            >
-              {/* A plus, not a refresh arrow: this starts a new conversation,
-                  it does not reload the current one (Inderdeep, 2026-08-06 —
-                  "this says new conversation, while the icon says a refresh"). */}
-              <IconPlus size={18} />
-            </ActionIcon>
-          </Tooltip>
-          <Tooltip label="Close">
-            <ActionIcon
-              variant="subtle"
-              onClick={onClose}
-              data-testid="agent-chat-close"
-            >
-              {/* Bare cross. `IconCircleX` spent most of its 16px on a ring and
-                  the cross inside it was unreadable — the same defect as the
-                  canvas status badge, reported in the same session. */}
-              <IconX size={18} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      </Group>
-      <Select
-        size="xs"
-        data={selectData}
-        value={String(selectedIndex === -1 ? 0 : selectedIndex)}
-        onChange={(value) => {
-          const idx = value === null ? 0 : Number(value);
-          if (!Number.isNaN(idx) && AGENT_MODEL_OPTIONS[idx]) {
-            setSelectedModel(AGENT_MODEL_OPTIONS[idx]);
-          }
-        }}
-        data-testid="agent-chat-model-picker"
-        allowDeselect={false}
-      />
-    </Stack>
+    <Select
+      size="xs"
+      mt={6}
+      aria-label="Model"
+      data={selectData}
+      value={String(selectedIndex === -1 ? 0 : selectedIndex)}
+      onChange={(value) => {
+        const idx = value === null ? 0 : Number(value);
+        if (!Number.isNaN(idx) && AGENT_MODEL_OPTIONS[idx]) {
+          setSelectedModel(AGENT_MODEL_OPTIONS[idx]);
+        }
+      }}
+      data-testid="agent-chat-model-picker"
+      allowDeselect={false}
+    />
+  );
+}
+
+/**
+ * The composer's primary action. While a turn is streaming it IS the stop
+ * button and reverts to send when the turn ends, so the control that stops a
+ * response sits inside the conversation that produced it (Inderdeep,
+ * 2026-08-06 — "generally what happens with other AI agents is this send
+ * button changes to stop when it's working"). Stopping does two things: the
+ * client-side cancel (`ComposerPrimitive.Cancel`, which tears down the stream)
+ * and `onAbort`, which tells the backend to end the run.
+ */
+function SendOrStopButton({
+  onAbort,
+}: {
+  onAbort: () => void | Promise<void>;
+}) {
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+
+  if (isRunning) {
+    return (
+      <Tooltip label="Stop this response">
+        <ComposerPrimitive.Cancel asChild>
+          {/* Same filled treatment as send, so the button does not appear to
+              change identity mid-turn — only its glyph and its job change. */}
+          <ActionIcon
+            size="lg"
+            variant="filled"
+            color="blue"
+            aria-label="Stop this response"
+            onClick={() => {
+              void onAbort();
+            }}
+            data-testid="agent-chat-stop"
+          >
+            <IconPlayerStopFilled size={18} />
+          </ActionIcon>
+        </ComposerPrimitive.Cancel>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <ComposerPrimitive.Send asChild>
+      {/* The theme's primary colour, not violet. The composer was the one
+          place in the app painting its main action off-palette (Inderdeep,
+          2026-08-06 — "I'm not sure where the purple comes from, because
+          this is not the basic colour"). `appTheme.primaryColor` is blue. */}
+      <ActionIcon
+        size="lg"
+        variant="filled"
+        color="blue"
+        type="submit"
+        aria-label="Send"
+        data-testid="agent-chat-send"
+      >
+        <IconSend2 size={18} />
+      </ActionIcon>
+    </ComposerPrimitive.Send>
   );
 }
 
@@ -593,9 +699,15 @@ function AgentToolCallCard(props: unknown) {
 function Composer({
   workflowId,
   activeGroupId,
+  selectedModel,
+  setSelectedModel,
+  onAbort,
 }: {
   workflowId: string | null;
   activeGroupId: string | null;
+  selectedModel: AgentModelOption;
+  setSelectedModel: (option: AgentModelOption) => void;
+  onAbort: () => void | Promise<void>;
 }) {
   const [attached, setAttached] = useState<
     Array<{
@@ -840,22 +952,12 @@ function Composer({
           data-testid="agent-chat-textarea"
           className="agent-chat-composer-input"
         />
-        <ComposerPrimitive.Send asChild>
-          {/* The theme's primary colour, not violet. The composer was the one
-              place in the app painting its main action off-palette (Inderdeep,
-              2026-08-06 — "I'm not sure where the purple comes from, because
-              this is not the basic colour"). `appTheme.primaryColor` is blue. */}
-          <ActionIcon
-            size="lg"
-            variant="filled"
-            color="blue"
-            type="submit"
-            data-testid="agent-chat-send"
-          >
-            <IconSend2 size={18} />
-          </ActionIcon>
-        </ComposerPrimitive.Send>
+        <SendOrStopButton onAbort={onAbort} />
       </ComposerPrimitive.Root>
+      <ModelPicker
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
+      />
     </Box>
   );
 }

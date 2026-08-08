@@ -25,7 +25,7 @@ export class AgentChatPage {
     this.drawer = page.getByTestId("agent-chat-drawer");
     this.textarea = page.getByTestId("agent-chat-textarea");
     this.send = page.getByTestId("agent-chat-send");
-    this.abort = page.getByTestId("agent-chat-abort");
+    this.abort = page.getByTestId("agent-chat-stop");
     this.reset = page.getByTestId("agent-chat-reset");
     this.close = page.getByTestId("agent-chat-close");
     this.thread = page.getByTestId("agent-chat-thread");
@@ -46,9 +46,13 @@ export class AgentChatPage {
     await this.fileInput.setInputFiles(file);
   }
 
-  /** The "Show/Hide past conversations" toggle inside the switcher. */
+  /**
+   * The past-conversations toggle. Lives in the drawer HEADER beside
+   * new-conversation and close (item 30) — it used to be a text control inside
+   * the switcher panel itself, which is why this is a testid and not text.
+   */
   get conversationSwitcherToggle(): Locator {
-    return this.conversationSwitcher.getByText(/past conversations/i);
+    return this.page.getByTestId("agent-chat-history-toggle");
   }
 
   /** A past-conversation row in the switcher, by conversation id. */

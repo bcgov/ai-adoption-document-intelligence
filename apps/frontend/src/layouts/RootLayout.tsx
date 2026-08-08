@@ -106,6 +106,20 @@ export function isEditorRoute(pathname: string): boolean {
   );
 }
 
+/**
+ * Routes where the workflow agent chat is offered. The agent's tools only act
+ * on workflows, so the entry point is scoped to the workflow section rather
+ * than the global header: `/workflows` (list), `/workflows/create`,
+ * `/workflows/:id/edit`, `/workflows/by-slug/:slug/edit` and the dev-only
+ * form preview — i.e. `/workflows` itself plus anything under it, and nothing
+ * else. Before this, the icon rendered on every route and silently did nothing
+ * off the editor (Inderdeep, 2026-08-06 — "nothing is telling me that I need to
+ * be on that screen").
+ */
+export function isAgentChatRoute(pathname: string): boolean {
+  return /^\/workflows(\/|$)/.test(pathname);
+}
+
 export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -121,6 +135,7 @@ export function RootLayout() {
   const isBenchmarkingRoute = location.pathname.startsWith("/benchmarking");
   const workspaceRoute = isWorkspaceRoute(location.pathname);
   const editorRoute = isEditorRoute(location.pathname);
+  const agentChatRoute = isAgentChatRoute(location.pathname);
 
   const navItems = useMemo(
     () => [
@@ -229,7 +244,7 @@ export function RootLayout() {
         >
           <div className="app-shell-header-actions">
             <Group gap="sm">
-              <AgentChatIcon />
+              {agentChatRoute && <AgentChatIcon />}
               <GroupSelector />
               <Menu shadow="md" width={260} position="bottom-end" withinPortal>
                 <Menu.Target>
@@ -462,7 +477,7 @@ export function RootLayout() {
           </>
         )}
       </AppShell.Main>
-      <AgentChatDrawer />
+      {agentChatRoute && <AgentChatDrawer />}
     </AppShell>
   );
 }

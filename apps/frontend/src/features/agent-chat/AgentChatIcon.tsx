@@ -3,9 +3,10 @@ import { IconMessageCircle } from "@tabler/icons-react";
 import { useAgentChatStore } from "./store";
 
 /**
- * Global header icon that opens the workflow-builder agent chat drawer.
- * Always visible from the app header; the drawer mounts at the layout
- * root so the chat persists across route changes.
+ * Header icon that opens the workflow-builder agent chat drawer. Mounted by
+ * `RootLayout` only on the workflow routes (`isAgentChatRoute`) — the agent's
+ * tools act on workflows and nothing else, so offering it elsewhere invited a
+ * click that could not do anything.
  */
 export function AgentChatIcon() {
   const toggle = useAgentChatStore((s) => s.toggle);

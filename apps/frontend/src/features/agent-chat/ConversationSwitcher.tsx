@@ -1,21 +1,19 @@
-import {
-  ActionIcon,
-  Box,
-  Group,
-  Stack,
-  Text,
-  Tooltip,
-  UnstyledButton,
-} from "@mantine/core";
-import { IconChevronDown, IconChevronUp, IconTrash } from "@tabler/icons-react";
+import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   getAgentAuthHeaders,
   useAgentConversations,
 } from "./useAgentConversations";
 
 interface Props {
+  /**
+   * Whether the panel is showing. Owned by the drawer, because the control
+   * that opens it is the header's history button, not a toggle inside the
+   * panel itself (Inderdeep, 2026-08-06 — item 30).
+   */
+  open: boolean;
   workflowId: string | null;
   activeConversationId: string | null;
   activeGroupId: string | null;
@@ -23,12 +21,12 @@ interface Props {
 }
 
 export function ConversationSwitcher({
+  open,
   workflowId,
   activeConversationId,
   activeGroupId,
   onSelect,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const { data, isFetching } = useAgentConversations({
     workflowId,
@@ -36,101 +34,88 @@ export function ConversationSwitcher({
   });
   const items = useMemo(() => data ?? [], [data]);
 
+  if (!open) return null;
+
   return (
     <Stack
       gap={0}
       style={{ borderBottom: "1px solid #e9ecef" }}
       data-testid="agent-chat-conversation-switcher"
     >
-      <UnstyledButton
-        onClick={() => setOpen((s) => !s)}
-        style={{
-          padding: "6px 14px",
-          fontSize: 12,
-          color: "#666",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Text size="xs" c="dimmed">
-          {open ? "Hide" : "Show"} past conversations
-          {items.length > 0 ? ` (${items.length})` : ""}
-        </Text>
-        {open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
-      </UnstyledButton>
-      {open && (
-        <Box style={{ maxHeight: 200, overflowY: "auto" }}>
-          {isFetching && (
-            <Text size="xs" c="dimmed" p="xs">
-              Loading…
-            </Text>
-          )}
-          {!isFetching && items.length === 0 && (
-            <Text size="xs" c="dimmed" p="xs">
-              No prior conversations
-              {workflowId !== null ? " for this workflow" : ""}.
-            </Text>
-          )}
-          {items.map((c) => {
-            const isActive = c.id === activeConversationId;
-            return (
-              <Group
-                key={c.id}
-                justify="space-between"
-                px="md"
-                py={4}
-                style={{
-                  background: isActive ? "#f3f0ff" : undefined,
-                  borderLeft: isActive
-                    ? "3px solid #7950f2"
-                    : "3px solid transparent",
-                  cursor: "pointer",
-                }}
-                onClick={() => onSelect(c.id)}
-                data-testid={`agent-chat-conversation-${c.id}`}
-              >
-                <Stack gap={0}>
-                  <Text size="xs" fw={600}>
-                    {c.title ?? "Untitled conversation"}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {new Date(c.lastMessageAt).toLocaleString()} · {c.provider}/
-                    {c.model}
-                  </Text>
-                </Stack>
-                <Tooltip label="Delete conversation">
-                  <ActionIcon
-                    size="sm"
-                    variant="subtle"
-                    color="red"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const url =
-                        activeGroupId !== null
-                          ? `/api/agent/conversations/${c.id}?groupId=${encodeURIComponent(activeGroupId)}`
-                          : `/api/agent/conversations/${c.id}`;
-                      await fetch(url, {
-                        method: "DELETE",
-                        headers: getAgentAuthHeaders(activeGroupId),
-                      });
-                      await queryClient.invalidateQueries({
-                        queryKey: ["agent", "conversations"],
-                      });
-                      if (c.id === activeConversationId) {
-                        onSelect(null);
-                      }
-                    }}
-                    data-testid={`agent-chat-conversation-${c.id}-delete`}
-                  >
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                </Tooltip>
-              </Group>
-            );
-          })}
-        </Box>
-      )}
+      <Text size="xs" c="dimmed" px="md" pt={6}>
+        Past conversations
+        {items.length > 0 ? ` (${items.length})` : ""}
+      </Text>
+      <Box style={{ maxHeight: 200, overflowY: "auto" }}>
+        {isFetching && (
+          <Text size="xs" c="dimmed" p="xs">
+            Loading…
+          </Text>
+        )}
+        {!isFetching && items.length === 0 && (
+          <Text size="xs" c="dimmed" p="xs">
+            No prior conversations
+            {workflowId !== null ? " for this workflow" : ""}.
+          </Text>
+        )}
+        {items.map((c) => {
+          const isActive = c.id === activeConversationId;
+          return (
+            <Group
+              key={c.id}
+              justify="space-between"
+              px="md"
+              py={4}
+              style={{
+                background: isActive ? "#f3f0ff" : undefined,
+                borderLeft: isActive
+                  ? "3px solid #7950f2"
+                  : "3px solid transparent",
+                cursor: "pointer",
+              }}
+              onClick={() => onSelect(c.id)}
+              data-testid={`agent-chat-conversation-${c.id}`}
+            >
+              <Stack gap={0}>
+                <Text size="xs" fw={600}>
+                  {c.title ?? "Untitled conversation"}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {new Date(c.lastMessageAt).toLocaleString()} · {c.provider}/
+                  {c.model}
+                </Text>
+              </Stack>
+              <Tooltip label="Delete conversation">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="red"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const url =
+                      activeGroupId !== null
+                        ? `/api/agent/conversations/${c.id}?groupId=${encodeURIComponent(activeGroupId)}`
+                        : `/api/agent/conversations/${c.id}`;
+                    await fetch(url, {
+                      method: "DELETE",
+                      headers: getAgentAuthHeaders(activeGroupId),
+                    });
+                    await queryClient.invalidateQueries({
+                      queryKey: ["agent", "conversations"],
+                    });
+                    if (c.id === activeConversationId) {
+                      onSelect(null);
+                    }
+                  }}
+                  data-testid={`agent-chat-conversation-${c.id}-delete`}
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          );
+        })}
+      </Box>
     </Stack>
   );
 }

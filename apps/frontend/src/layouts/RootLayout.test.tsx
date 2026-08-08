@@ -8,8 +8,53 @@
  * full-height branches.
  */
 
-import { describe, expect, it } from "vitest";
-import { isEditorRoute, isWorkspaceRoute } from "./RootLayout";
+import { MantineProvider } from "@mantine/core";
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { describe, expect, it, vi } from "vitest";
+import {
+  isAgentChatRoute,
+  isEditorRoute,
+  isWorkspaceRoute,
+  RootLayout,
+} from "./RootLayout";
+
+// The BC DS header/footer are web-component wrappers that do not render in
+// jsdom; the layout only uses them as slots, so stub them to pass children
+// through.
+vi.mock("@bcgov/design-system-react-components", () => ({
+  Header: ({ children }: { children?: ReactNode }) => (
+    <div data-testid="bcds-header">{children}</div>
+  ),
+  Footer: () => <div data-testid="bcds-footer" />,
+}));
+
+vi.mock("../auth/useAuth", () => ({
+  useAuth: () => ({ logout: vi.fn(), user: undefined }),
+}));
+
+vi.mock("../components/group/GroupSelector", () => ({
+  GroupSelector: () => <div data-testid="group-selector" />,
+}));
+
+// The real drawer drags in the assistant-ui runtime and TanStack Query; the
+// question here is only whether the layout mounts it at all.
+vi.mock("../features/agent-chat/AgentChatDrawer", () => ({
+  AgentChatDrawer: () => <div data-testid="agent-chat-drawer" />,
+}));
+
+function renderLayoutAt(pathname: string) {
+  return render(
+    <MantineProvider>
+      <MemoryRouter initialEntries={[pathname]}>
+        <Routes>
+          <Route path="*" element={<RootLayout />} />
+        </Routes>
+      </MemoryRouter>
+    </MantineProvider>,
+  );
+}
 
 describe("isEditorRoute", () => {
   it("matches the create route", () => {
@@ -51,6 +96,47 @@ describe("isWorkspaceRoute", () => {
   it("does NOT match editor routes", () => {
     expect(isWorkspaceRoute("/workflows/create")).toBe(false);
     expect(isWorkspaceRoute("/workflows/abc123/edit")).toBe(false);
+  });
+});
+
+describe("isAgentChatRoute", () => {
+  it("matches every route in the workflow section", () => {
+    expect(isAgentChatRoute("/workflows")).toBe(true);
+    expect(isAgentChatRoute("/workflows/create")).toBe(true);
+    expect(isAgentChatRoute("/workflows/abc123/edit")).toBe(true);
+    expect(isAgentChatRoute("/workflows/by-slug/my-slug/edit")).toBe(true);
+    expect(isAgentChatRoute("/workflows/dev-form-preview")).toBe(true);
+  });
+
+  it("does NOT match routes outside the workflow section", () => {
+    expect(isAgentChatRoute("/")).toBe(false);
+    expect(isAgentChatRoute("/documents")).toBe(false);
+    expect(isAgentChatRoute("/dynamic-nodes")).toBe(false);
+    expect(isAgentChatRoute("/review/doc-1")).toBe(false);
+    expect(isAgentChatRoute("/benchmarking/datasets")).toBe(false);
+  });
+
+  it("does NOT match a path that merely starts with the same characters", () => {
+    expect(isAgentChatRoute("/workflows-archive")).toBe(false);
+  });
+});
+
+describe("the agent chat entry point is scoped to the workflow routes", () => {
+  it("renders neither the icon nor the drawer on a non-workflow route", () => {
+    renderLayoutAt("/documents");
+    expect(screen.queryByTestId("agent-chat-icon")).toBeNull();
+    expect(screen.queryByTestId("agent-chat-drawer")).toBeNull();
+  });
+
+  it("renders the icon and the drawer on the workflow editor route", () => {
+    renderLayoutAt("/workflows/abc123/edit");
+    expect(screen.getByTestId("agent-chat-icon")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-chat-drawer")).toBeInTheDocument();
+  });
+
+  it("renders the icon on the workflows list route", () => {
+    renderLayoutAt("/workflows");
+    expect(screen.getByTestId("agent-chat-icon")).toBeInTheDocument();
   });
 });
 
