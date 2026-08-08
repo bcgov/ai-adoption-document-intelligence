@@ -16,7 +16,14 @@ Where the transcript's diagnosis and the code disagree, the item says so.
 
 ## Canvas — ports, handles and node affordances
 
-### 1. [ ] Ctrl/Cmd+Z does nothing for side-panel changes
+### 1. [x] Ctrl/Cmd+Z does nothing for side-panel changes
+**Done 2026-08-08 (batch 5, `f9077fd0`)** — diagnosis held, verified in the
+shipped Mantine 8.3.9 source. The guard now stands down only for genuinely
+text-editable targets (text-like `<input>` types, `<textarea>`, contenteditable,
+and only when not `readOnly`); radio, checkbox, and the date/time family fall
+through to the graph undo. Also fixed unreported: a non-searchable Mantine
+`Select` is a `readOnly` text input and would still have swallowed undo, and the
+old `SELECT` branch suppressed the hotkey for a control with no text undo.
 **Area:** Frontend — workflow-builder undo/redo
 **Problem:** Inderdeep set **Error handling → Follow the error path** in the
 settings drawer, pressed Cmd+Z to back it out, and nothing happened; the
@@ -36,7 +43,18 @@ controls should fall through to the graph undo.
 **Key file:** `apps/frontend/src/features/workflow-builder/use-undo-redo-hotkeys.ts`
 — `isTextEntryTarget`, the `tag === "INPUT"` branch.
 
-### 2. [ ] Undo granularity differs between the title field and drawer fields
+### 2. [x] Undo granularity differs between the title field and drawer fields
+**Closed no-change 2026-08-08 (batch 5).** Neither field rebuilds its value per
+keystroke — the title keeps a local draft and commits on Enter/blur, and the
+drawer's description round-trips losslessly through a synchronous `useState`, so
+React writes nothing back to the DOM in either case. The word-vs-character
+difference is `<input>` vs `<textarea>` in React itself: `updateTextarea`
+assigns `element.defaultValue` on every keystroke, and on a textarea that
+property *is* the element's child text, so each keystroke mutates the children
+and ends the browser's typing transaction. `updateInput` writes only the `value`
+attribute, which the editing host ignores. No application-code cause. Making the
+two match would mean rendering the description uncontrolled, a behaviour change
+this item did not ask for.
 **Area:** Frontend — workflow-builder text inputs
 **Problem:** *"On the name field, that's by word. And the side panel is by
 character."* Both are browser-native undo, so a difference means one of the two
@@ -128,6 +146,13 @@ goes.
 ## Try / Run and the in-canvas preview
 
 ### 8. [ ] "Try" and "Run this workflow" are indistinguishable
+**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+[DECISIONS/08-try-vs-run.md](DECISIONS/08-try-vs-run.md). The finding: both
+buttons open the **same** `RunWorkflowDrawer`, differing only in which existing
+tab is pre-selected. The one real difference is a server-side `RunTrigger` stamp
+of `"try"` vs `"api"` that makes a Try **disposable** — every run start cancels
+in-flight runs stamped `"try"` — which nothing in the UI states. Recommended:
+one `Run…` button over the existing tabbed surface.
 **Area:** Frontend — workflow-builder top bar
 **Problem:** *"Two options pretty much doing the same thing. And even if I
 choose one, I still have the option to go to the other."* Nothing in the UI
@@ -157,7 +182,14 @@ of pressing Try.
 `canvas/WorkflowEditorCanvas.tsx` node sizing, `canvas/auto-layout.ts` for the
 size constants layout uses.
 
-### 10. [ ] A node can show a green success check and a red failure message at once
+### 10. [x] A node can show a green success check and a red failure message at once
+**Done 2026-08-08 (batch 7, `38e472f7`)** — the distinction went into the panel,
+not the badge. The badge was already correct: the step really did succeed.
+`CacheEvictedAlert` is only ever reached for `succeeded`/`skipped`, so its
+resting state can never legitimately be an error; it now presents neutral grey
+at idle, red only when a re-run itself fails, and yellow for retention-cleaned
+(a dead end, not a step failure). Copy leads with the verdict: *"This step
+completed. Preview unavailable — its output isn't in the preview cache."*
 **Area:** Frontend — workflow-builder preview
 **Problem:** *"It got a little green checkbox. So it's like both green and red
 at the same time."* — a node reporting `succeeded` while its preview pane says
@@ -174,7 +206,17 @@ payload" visually, so the badge and the panel never contradict.
 **Key file:** `apps/frontend/src/features/workflow-builder/preview/CacheEvictedAlert.tsx`,
 `preview/useActivityOutputPreview.ts`, `run/NodeStatusBadge.tsx`.
 
-### 11. [ ] Failure messages are dimmed, unexplained, and offer no action
+### 11. [x] Failure messages are dimmed, unexplained, and offer no action
+**Done 2026-08-08 (batch 7, `38e472f7`)** — `NoOutputNotice` routes
+`reason === "failed"` to a red alert carrying the engine's own
+`NodeRunStatus.errorMessage` (the field already feeding the badge tooltip) plus
+a **Re-run workflow** button. Absent detail says so rather than fabricating a
+cause; in the wire-peek popover, which renders from an edge, the reason line is
+omitted rather than guessed. Non-`failed` reasons keep the grey treatment on
+purpose — "the run took a different branch" is a fact, not a fault.
+**Note the framing here was wrong:** "bring one surface up to the other" is not
+what happened. Items 10 and 11 pull in opposite directions, so the treatments
+**swapped** — `NoOutputNotice` took the red, `CacheEvictedAlert` gave it up.
 **Area:** Frontend — workflow-builder preview / node error surface
 **Problem:** *"This error message is grayed out, should be similar [to the other
 error treatment] … with a red background. And if it failed, there is an action
@@ -203,7 +245,16 @@ Try, and iterate until the rendered result reads correctly.
 
 ## Run history and replay
 
-### 12. [ ] Reported: an error message in the run-history flow can't be dismissed
+### 12. [x] Reported: an error message in the run-history flow can't be dismissed
+**Closed not-reproduced 2026-08-08 (batch 7), after a genuine attempt.** Opened
+run history (54 rows), entered replay on the newest run, pressed Try from that
+state, drove it to failure, then enumerated every `.mantine-Alert-root` and
+`.mantine-Notification-root` on the page: only the two node preview panels, both
+carrying actions, no undismissable surface. Separately forcing the run-list
+endpoint to 500 *does* produce a non-dismissable "Failed to load runs" alert —
+but it appears before a run is selected, clears itself on the next successful
+fetch, and sits inside a Drawer with its own close, so it is not the reported
+surface. No close affordance was added speculatively.
 **Area:** Frontend — workflow-builder run history
 **Problem:** From Inderdeep's written notes: run history → run → *"no way to
 cancel the error message"*, i.e. no way to dismiss it. He could not reproduce it
@@ -247,7 +298,11 @@ button goes away.
 **Key file:** `apps/frontend/src/features/workflow-builder/WorkflowSwitcher.tsx`,
 `WorkflowTitleField.tsx`, `WorkflowEditorV2Page.tsx` (top-bar zones ~L1598).
 
-### 15. [ ] In the switcher, the current workflow is dimmed — it should be the highlighted one
+### 15. [x] In the switcher, the current workflow is dimmed — it should be the highlighted one
+**Done 2026-08-08 (batch 2, `b53d9510`)** — current row takes the highlight, the
+weight and a check mark; others drop to regular. State moved to
+`aria-current`/`data-current` so it reads as current rather than disabled. The
+`{slug} · v{version}` subline is gone.
 **Area:** Frontend — workflow-builder switcher
 **Problem:** *"The current workflow is kind of grayed out … all the others are
 highlighted with a bold, and the one that I am on is actually disabled — its
@@ -261,7 +316,9 @@ need that here? No."*
 **Key file:** `apps/frontend/src/features/workflow-builder/WorkflowSwitcher.tsx`
 — L141–158.
 
-### 16. [ ] The switcher hides most workflows behind "+13 more — refine the search"
+### 16. [x] The switcher hides most workflows behind "+13 more — refine the search"
+**Done 2026-08-08 (batch 2, `b53d9510`)** — cap and dead "+N more" line removed;
+scroll-area max height 260 → 320 and the list scrolls.
 **Area:** Frontend — workflow-builder switcher
 **Problem:** `MAX_RESULTS = 12`, and anything beyond that becomes the dimmed
 line *"+N more — refine the search."* Inderdeep could not find the Standard OCR
@@ -276,7 +333,16 @@ line.
 **Key file:** `apps/frontend/src/features/workflow-builder/WorkflowSwitcher.tsx`
 — `MAX_RESULTS` L33, `shown` L55, the "+N more" text L165–171.
 
-### 17. [ ] The switcher popover doesn't close on an outside click
+### 17. [x] The switcher popover doesn't close on an outside click
+**Done 2026-08-08 (batch 2, `b53d9510`) — and this item's diagnosis was wrong.**
+`closeOnClickOutside` already defaults to `true`. The real cause is React Flow's
+pane: d3-zoom's mousedown handler calls `stopImmediatePropagation`, and Mantine's
+`useClickOutside` listens for `mousedown`/`touchstart` only, so the event never
+reached the document. Adding `click` to `clickOutsideEvents` fixes it. Esc was
+broken separately — Mantine handles it via `onKeyDownCapture` on the dropdown,
+which needs focus inside, so `trapFocus` is what makes it work. jsdom has no
+d3-zoom, so the test guards the prop but cannot reproduce the bug; confirmed by
+source reading and on the browser pass.
 **Area:** Frontend — workflow-builder switcher
 **Problem:** *"Once I click, if I click outside, this probably should disappear.
 I still need to click Switch again to make it disappear."*
@@ -330,6 +396,17 @@ and L268–271), `canvas/PaneContextMenu.tsx`.
 ## Colour system and the legend
 
 ### 20. [ ] The port/wire colour vocabulary is too large to hold in your head
+**Premise settled 2026-08-08; decision artifact awaiting Alex's ruling.** See
+[DECISIONS/20-colour-vocabulary.md](DECISIONS/20-colour-vocabulary.md). The
+legend renders **exactly 13 rows** (4 wire + 7 family + 2 ring-modifier), so
+"12–13" is precisely what was on screen — but they are not 13 colours. The full
+vocabulary is **32 rendered hex values carrying ~24 decodable meanings**, plus
+37 icon glyphs, and the registry has 32 kinds not the 33 stated below. So the
+count was right and the interpretation understated the load. Collisions were
+measured, not asserted: under deuteranopia the Untyped grey and References teal
+are effectively the same dot (1.02:1 luminance), and activity blue vs
+childWorkflow purple are visually identical. Recommended: 4 typed colours plus
+grey, with a handle-**shape** carrier so colour is never the only signal.
 **Area:** Frontend — workflow-builder canvas colour + legend · **design decision**
 **Problem:** *"Do you remember what this color means? … I don't know how many of
 these are, 12 to 13 different colors, and then different shapes as well, dotted
@@ -365,7 +442,11 @@ then?"*
 
 ## Agent chat
 
-### 21. [ ] The chat icon appears everywhere but only works in the workflow editor
+### 21. [x] The chat icon appears everywhere but only works in the workflow editor
+**Done 2026-08-08 (batch 6, `5903a414`)** — both the icon and the drawer are
+gated on `/^\/workflows(\/|$)/`, read off the router. Gating both matters, or an
+open drawer strands on `/documents`. Not narrowed to the editor alone: the
+agent's `createWorkflow` tool navigates from the list into the editor.
 **Area:** Frontend — agent chat mounting
 **Problem:** *"I just pressed here to come to the main screen and then I saw
 chat. I'm like, okay, let's do this … and then nothing is stopping me. Nothing
@@ -394,6 +475,13 @@ runtime/transport wiring, ~L207–250), and the agent module's error path in
 `apps/backend-services`.
 
 ### 23. [ ] The agent must work with the LLMs BC Gov actually has
+**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+[DECISIONS/23-bcgov-models.md](DECISIONS/23-bcgov-models.md). The backend is
+**already APIM-aware**, so re-pointing at a BC Gov deployment is a
+three-environment-variable config change, not code. The code-shaped blocker is
+that the frontend model list is six hardcoded strings and the default is simply
+the first array element. The store does not record which deployments this
+project can call — that needs one question to one named person.
 **Area:** Backend — agent providers
 **Problem:** Alex: *"it should also work with models other than 5.4 that is
 currently set up for my personal account, and it should instead work with the
@@ -443,7 +531,12 @@ on one button. See [ILLUSTRATED.md §3](ILLUSTRATED.md).
 **Key file:** `apps/frontend/src/ui/bcds-mantine-fallbacks.css`,
 `apps/frontend/src/features/agent-chat/AgentChatDrawer.tsx`, `agent-chat.css`.
 
-### 26. [ ] The stop control is detached from the conversation it stops
+### 26. [x] The stop control is detached from the conversation it stops
+**Done 2026-08-08 (batch 6, `5903a414`)** — the composer's send button becomes
+the stop button while a turn streams and reverts when it ends; the header abort
+is gone. Stopping still does both halves, the client-side stream teardown and
+the backend abort call. Batch one's palette fix is intact — both states stay
+filled blue, so the button changes its job and its glyph, not its identity.
 **Area:** Frontend — agent chat
 **Problem:** *"The option is right at the top here, which is outside of the
 conversation … generally what happens with other AI agents is this send button
@@ -487,7 +580,12 @@ Same root cause as item 6.
 **Expected:** A plain `IconX` at a legible size.
 **Key file:** `apps/frontend/src/features/agent-chat/AgentChatDrawer.tsx` — L349.
 
-### 30. [ ] Chat panel layout: model picker belongs at the composer, history at the top
+### 30. [x] Chat panel layout: model picker belongs at the composer, history at the top
+**Done 2026-08-08 (batch 6, `5903a414`)** — model picker moved down beside the
+composer; past-conversations became a header button beside new-conversation and
+close. **One detail here was wrong:** the switcher was never *in* the header —
+it was a separate collapsible strip rendered below it, which is why the fix is a
+lifted `open` prop rather than a move of markup.
 **Area:** Frontend — agent chat layout
 **Problem:** *"The model selector should be at the bottom, because this is where
 I'm generally typing, I'll be generally interacting with this, and this is where
@@ -504,7 +602,15 @@ conversations moves to the header group with new-conversation and close.
 
 ## Demos, docs and the test plan
 
-### 31. [ ] The Part 14 demo link 404s — the workflow isn't there
+### 31. [x] The Part 14 demo link 404s — the workflow isn't there
+**Done 2026-08-08 (batch 4, `37e0253b`)** — the by-slug miss now names both
+possible causes and the `npm run seed:demos` command. It deliberately does *not*
+branch on a `demo-`-looking slug: the seeder marks demos with an emoji name
+prefix that the backend slugifier destroys, so `demo-` is not exclusive to
+seeded demos, and branching on it would tell someone whose own workflow vanished
+to run a command that *deletes* the demo set. No seeder change was needed — the
+seeder was correct all along. The test plan now repeats the seed instruction
+locally at Part 14; it already said it twice, 630 lines earlier.
 **Area:** Seed / demo data
 **Problem:** *"This link was not working for me … not found."* The test plan
 links to
@@ -527,7 +633,12 @@ first, and that a by-slug miss says "this demo is not seeded — run
 **Key file:** `scripts/seed-feature-demos.mjs` L1713;
 `docs-md/workflows/MANUAL_TEST_PLAN.md` Part 14 demo link (L645).
 
-### 32. [ ] Manual test plan Part 14 jumps from 14.6 to 14.14
+### 32. [x] Manual test plan Part 14 jumps from 14.6 to 14.14
+**Done 2026-08-08 (batch 4, `37e0253b`)** — 14.14 **moved** to the end of Part 14
+under its own heading rather than renumbering. Renumbering would have broken
+references in three docs and in e2e spec titles, since
+`tier3-dynamic-node-security` names 14.11/14.12/14.13 in its test names. Reading
+order is monotonic and zero cross-references changed.
 **Area:** Docs — manual test plan
 **Problem:** *"After 14.6, it directly comes to 14.14."* Confirmed: **14.14** is
 filed at the end of the *Publish / manage (API)* section, while 14.7–14.13 come
@@ -538,6 +649,15 @@ Part 14 where its number puts it.
 **Key file:** `docs-md/workflows/MANUAL_TEST_PLAN.md` — Part 14, L651–673.
 
 ### 33. [ ] Get a developer through the infrastructure-level test steps
+**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+[DECISIONS/33-infra-test-steps.md](DECISIONS/33-infra-test-steps.md). The nine
+skipped steps are **not** nine unverified steps: 14.1–14.6 run on every CI build
+via the dynamic-nodes controller/service/repository specs, and 14.11–14.13 have
+an `@infra` e2e suite that passes but is excluded from every default run.
+Recommended inversion of the ask: run the two suites yourself (one command), and
+give a developer the **cold-setup walk** of 14.1–14.6 — choosing someone who has
+*not* built this repo, since anyone who has will silently skip the steps that
+break.
 **Area:** Process — no code change
 **Problem:** Inderdeep completed the plan from a UX lens but could not execute
 the `curl`/infra items: *"this network egress blocked, I had no clue. Remote
