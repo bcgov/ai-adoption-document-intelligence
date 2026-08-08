@@ -1594,7 +1594,7 @@ function WorkflowEditorV2PageBody({
           P-3 (ruling R-2, 2026-08-03) — one row, one baseline, four
           divider-separated groups:
 
-            [ switcher · name ] │ [ find · simplified · arrange · fit ] │
+            [ name ⌄ · counts ] │ [ find · simplified · arrange · fit ] │
             [ undo/redo · validity ] │ [ Save · Try · Run · More ]
 
           What it replaces: Name and Description as labelled `TextInput`s. Their
@@ -1617,21 +1617,55 @@ function WorkflowEditorV2PageBody({
           `topbar-zone-right` now wraps BOTH right-hand groups, because the
           validation e2e scopes its "Valid" / "1 warning" button lookup to it
           to avoid colliding with the identically-labelled node badges.
+
+          ── How the row survives a narrow window (2026-08-06 batch, the
+          overflow defect the screenshot script documents) ───────────────
+          Measured in Chromium at the widths below: from 1512px down the bar
+          overflowed and the disabled Undo button sat ON TOP of the Simplified
+          switch. Three flex mistakes, all in the styles just below:
+
+            · the LEFT zone was `flexShrink: 0`, so a 448px zone whose content
+              is mostly a truncatable title never gave a pixel back;
+            · the CENTRE zone was `minWidth: 0`, which lets a nowrap flex
+              container shrink BELOW its own content — the children do not
+              shrink with it, they spill out of the box and under the next
+              zone. That spill is the overlap;
+            · the RIGHT zone had no shrink rule at all.
+
+          So the shrink order is now stated explicitly. Right (the actions) is
+          `flexShrink: 0` and never yields. Centre may shrink but is floored at
+          `min-content`, so its children can never spill. Left absorbs all the
+          remaining pressure, and its two shrinkable children truncate — the
+          counts first (`flexShrink: 3`), the title second, because a squeezed
+          "12 nodes · 11 edges" costs less than a squeezed name.
+
+          Nothing is hidden and nothing is duplicated into a menu: every
+          control stays where it was, it just gets narrower. jsdom runs no
+          layout, so the tests can only pin these rules; the evidence is the
+          browser measurement recorded in WORKLOG.
         */}
         <Group
           gap="xs"
           wrap="nowrap"
-          style={{ minWidth: 0, flexShrink: 0 }}
+          style={{ minWidth: 0, flexShrink: 1 }}
           data-testid="topbar-zone-left"
         >
           {/*
-              UX walkthrough 2026-07-29 — searchable switcher +
-              in-app way back to the list. The title beside it is the rename
-              affordance, so the switcher never has to double as one.
+              UX walkthrough 2026-08-06 item 14 — the name is the leftmost
+              thing (click it to rename) and the chevron beside it opens the
+              switcher. They sit in their own tight group so the chevron reads
+              as belonging to the name rather than as a separate control.
             */}
-          <WorkflowSwitcher currentWorkflowId={workflowId ?? null} />
-          <WorkflowTitleField value={name} onChange={setName} />
-          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+          <Group gap={2} wrap="nowrap" style={{ minWidth: 0 }}>
+            <WorkflowTitleField value={name} onChange={setName} />
+            <WorkflowSwitcher currentWorkflowId={workflowId ?? null} />
+          </Group>
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate="end"
+            style={{ flexShrink: 3, minWidth: 0 }}
+          >
             {nodeCount} node{nodeCount === 1 ? "" : "s"} · {config.edges.length}{" "}
             edge
             {config.edges.length === 1 ? "" : "s"}
@@ -1644,7 +1678,7 @@ function WorkflowEditorV2PageBody({
         <Group
           gap="xs"
           wrap="nowrap"
-          style={{ flex: 1, minWidth: 0 }}
+          style={{ flex: "1 1 auto", minWidth: "min-content" }}
           data-testid="topbar-zone-center"
         >
           {/*
@@ -1702,7 +1736,12 @@ function WorkflowEditorV2PageBody({
 
         <TopBarDivider />
 
-        <Group gap="sm" wrap="nowrap" data-testid="topbar-zone-right">
+        <Group
+          gap="sm"
+          wrap="nowrap"
+          style={{ flexShrink: 0 }}
+          data-testid="topbar-zone-right"
+        >
           <Group gap="xs" wrap="nowrap" data-testid="topbar-group-state">
             <TopBarReplayIndicator
               versionUnavailable={replayVersionUnavailable}

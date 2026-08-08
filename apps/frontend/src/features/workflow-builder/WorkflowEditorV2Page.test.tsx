@@ -1745,7 +1745,7 @@ describe("WorkflowEditorV2Page — top bar (P-3)", () => {
     return renderPage();
   }
 
-  it("identifies the workflow in the left group: switcher, title, counts", () => {
+  it("identifies the workflow in the left group: title, chevron, counts", () => {
     renderEditor();
     const left = screen.getByTestId("topbar-zone-left");
     expect(
@@ -1755,6 +1755,51 @@ describe("WorkflowEditorV2Page — top bar (P-3)", () => {
       "New workflow",
     );
     expect(left).toHaveTextContent(/node/);
+  });
+
+  // Item 14 — "The title, where I am, probably should be the first thing.
+  // Switch probably should be somewhere else. I don't think it should be a
+  // button." The name leads and the switcher trails it as a chevron.
+  it("puts the title before the switcher chevron, and drops the Switch button", () => {
+    renderEditor();
+    const title = screen.getByTestId("workflow-title");
+    const chevron = screen.getByTestId("workflow-switcher-button");
+    expect(
+      title.compareDocumentPosition(chevron) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Switch$/ })).toBeNull();
+    expect(chevron).toHaveTextContent("");
+  });
+
+  // ── The sub-1600px overflow defect ──────────────────────────────────────
+  // Measured in Chromium before the fix: from 1512px down, the centre zone
+  // shrank below its own content, its children spilled out of the box, and
+  // the disabled Undo button landed on top of the Simplified switch. After
+  // the fix there is no overlap and no overflow from 1920px down to 1280px.
+  //
+  // jsdom runs NO layout — every box here is 0x0 — so this test cannot
+  // reproduce the overlap and must not pretend to. What it CAN do is pin the
+  // three flex rules whose absence caused it, so a later edit that reverts
+  // one fails here instead of in a screenshot six weeks later. The browser
+  // measurement is the real evidence.
+  it("states a shrink order for the top bar so no zone can spill into the next", () => {
+    renderEditor();
+    const left = screen.getByTestId("topbar-zone-left");
+    const centre = screen.getByTestId("topbar-zone-center");
+    const right = screen.getByTestId("topbar-zone-right");
+
+    // Left absorbs the pressure: it may shrink to nothing and its children
+    // truncate.
+    expect(left.style.flexShrink).toBe("1");
+    expect(left.style.minWidth).toBe("0px");
+
+    // Centre may shrink, but never below its own content — `minWidth: 0` here
+    // is what let the view controls slide out from under their container.
+    expect(centre.style.minWidth).toBe("min-content");
+    expect(centre.style.minWidth).not.toBe("0px");
+
+    // Right is the action group; it never gives a pixel.
+    expect(right.style.flexShrink).toBe("0");
   });
 
   it("puts the view controls in the centre group", () => {

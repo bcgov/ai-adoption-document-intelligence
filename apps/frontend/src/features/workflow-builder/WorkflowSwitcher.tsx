@@ -8,9 +8,22 @@
  * Navigation goes through `navigate()`, so the G-027 unsaved-changes guard
  * still intercepts it when the current graph is dirty. The "All workflows"
  * row doubles as the in-app back affordance the top bar never had.
+ *
+ * **The trigger is a chevron, not a button** (UX walkthrough 2026-08-06, item
+ * 14). It used to be a labelled `Switch` button sitting to the LEFT of the
+ * workflow name, which put a verb where the reader expects to be told where
+ * they are: *"The title, where I am, probably should be the first thing.
+ * Switch probably should be somewhere else. I don't think it should be a
+ * button."* The pattern asked for is the Google Sheets / Microsoft 365 one —
+ * document name first, click it to rename, and a chevron beside it lists the
+ * other documents. The component therefore renders only the chevron and is
+ * placed immediately after `WorkflowTitleField`; the testid is unchanged
+ * because e2e reaches for it by id and the id is a name, not an address.
+ * Retiring the labelled button also returned ~93px to the top bar, which is
+ * most of the fix for its sub-1600px overflow.
  */
 import {
-  Button,
+  ActionIcon,
   Divider,
   Group,
   Popover,
@@ -23,8 +36,8 @@ import {
 import {
   IconArrowLeft,
   IconCheck,
+  IconChevronDown,
   IconSearch,
-  IconSwitchHorizontal,
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -95,16 +108,18 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
       returnFocus
     >
       <Popover.Target>
-        <Button
-          variant="default"
-          size="xs"
-          leftSection={<IconSwitchHorizontal size={14} />}
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
           onClick={() => setOpened((o) => !o)}
           aria-label="Switch workflow"
+          aria-expanded={opened}
           data-testid="workflow-switcher-button"
+          style={{ flexShrink: 0 }}
         >
-          Switch
-        </Button>
+          <IconChevronDown size={16} />
+        </ActionIcon>
       </Popover.Target>
       <Popover.Dropdown p={4}>
         <Stack gap={4}>

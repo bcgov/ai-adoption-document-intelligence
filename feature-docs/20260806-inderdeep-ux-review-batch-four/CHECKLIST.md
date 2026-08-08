@@ -299,7 +299,27 @@ it, not a chip lost among the action buttons.
 
 ## Workflow editor top bar and switcher
 
-### 14. [ ] Title first; retire the Switch button for a chevron on the title
+### 14. [x] Title first; retire the Switch button for a chevron on the title
+**Done 2026-08-08** — the left zone is now `[ name ⌄ · counts ]`: the title
+leads, and `WorkflowSwitcher` renders a chevron `ActionIcon` in its own tight
+group beside it. The labelled Switch button is gone; the
+`workflow-switcher-button` testid is kept because e2e reaches for it by id.
+Items 15/16/17 are untouched and still pass.
+
+**It also fixed the top bar's sub-1600px overflow** (the defect the capture
+script's header documents). Measured in Chromium at 1920 → 1024 before and
+after. Before: from **1512px** down the centre zone's controls spilled out of
+their box and Undo/Redo landed on top of the Simplified switch; at 1280px the
+bar itself overflowed by 15px. Cause was three flex rules — left zone
+`flexShrink: 0` (never yielded), centre zone `minWidth: 0` (a nowrap flex
+container allowed to shrink below its own content spills its children), right
+zone with no shrink rule at all. Now: right `flexShrink: 0`, centre floored at
+`min-content`, left absorbs the pressure with a truncating title and counts,
+and `NodeSearchBox` gives up 30px of its floor so the name keeps more of it.
+**No overlap and no overflow from 1920px down to 1280px**; the first overlap is
+now at 1024px, where the left zone is fully collapsed. Nothing is hidden and
+nothing is duplicated into a menu — the controls just get narrower.
+
 **Area:** Frontend — workflow-builder top bar
 **Problem:** *"The title, where I am, probably should be the first thing.
 Switch probably should be somewhere else. I don't think it should be a

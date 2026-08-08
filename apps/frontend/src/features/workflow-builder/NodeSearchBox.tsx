@@ -71,7 +71,12 @@ export function NodeSearchBox({ config, onSelectNode }: NodeSearchBoxProps) {
           onKeyDown={(e) => {
             if (e.key === "Escape") setQuery("");
           }}
-          style={{ flex: 1, minWidth: 140, maxWidth: 240 }}
+          // `minWidth` is this box's share of the top bar's shrink budget: the
+          // centre zone is floored at its own min-content, so whatever this
+          // field refuses to give up is taken out of the workflow title
+          // instead. 110px still shows the magnifier and "Find a n…", and it
+          // only ever applies once the window is narrow enough to squeeze.
+          style={{ flex: 1, minWidth: 110, maxWidth: 240 }}
         />
       </Popover.Target>
       <Popover.Dropdown p={4}>

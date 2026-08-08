@@ -63,6 +63,29 @@ describe("WorkflowSwitcher", () => {
     } as unknown as ReturnType<typeof useWorkflows>);
   });
 
+  // Item 14 — the trigger was a `Switch` button sitting to the left of the
+  // workflow name. It is now the chevron that hangs off the name itself, so
+  // the component must contribute a label-less icon control and nothing else.
+  it("triggers from a chevron, not a labelled Switch button", () => {
+    renderSwitcher();
+    const trigger = screen.getByTestId("workflow-switcher-button");
+    expect(trigger).toHaveAccessibleName("Switch workflow");
+    expect(trigger).toHaveTextContent("");
+    expect(screen.queryByRole("button", { name: /^Switch$/ })).toBeNull();
+    expect(trigger.querySelector("svg")).not.toBeNull();
+  });
+
+  it("reports its expanded state to assistive tech", () => {
+    renderSwitcher();
+    const trigger = screen.getByTestId("workflow-switcher-button");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    expect(screen.getByTestId("workflow-switcher-button")).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
   it("lists workflows on open and navigates to the picked one", () => {
     renderSwitcher();
     fireEvent.click(screen.getByTestId("workflow-switcher-button"));
