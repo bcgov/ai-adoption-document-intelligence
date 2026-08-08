@@ -18,6 +18,18 @@
  * the Re-run button disabled. The user can dismiss the error state via a
  * Close link to fall back to the standard evicted-cache Alert.
  *
+ * **A missing preview is not a failed step** (Inderdeep, 2026-08-06 —
+ * *"It got a little green checkbox. So it's like both green and red at the
+ * same time."*). This Alert is only ever rendered for a node whose run status
+ * is `succeeded` or `skipped` (see `noOutputReasonForNode`), so its idle state
+ * used to dress a perfectly good step in the same red-alert treatment a
+ * genuine failure gets, directly contradicting the green check on the same
+ * card. The idle (and in-flight) presentation is therefore NEUTRAL — a grey
+ * Alert with a "no stored data" icon — and leads with the step's verdict
+ * before saying what is missing. Red is reserved for the two states that
+ * really are errors: a re-run that failed, and a re-run that cannot be offered
+ * at all. See `MODE_PRESENTATION` below.
+ *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L42
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-155-cache-evicted-preview-and-rerun.md
@@ -33,8 +45,8 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
-import { type ReactNode, useState } from "react";
+import { IconAlertTriangle, IconDatabaseOff } from "@tabler/icons-react";
+import { type ComponentType, type ReactNode, useState } from "react";
 
 import { builderFetch } from "../../../data/services/builder-fetch";
 import { API_BASE_URL } from "../../../shared/constants";
@@ -202,6 +214,58 @@ export interface CacheEvictedAlertProps {
 type Mode = "idle" | "rerunning" | "retention-cleaned" | "error";
 
 /**
+ * How each mode is drawn. `tone` is exposed on the Alert as `data-tone` so a
+ * spec can assert "a succeeded node's evicted preview is NOT drawn as an
+ * error" without reaching into Mantine's class names.
+ *
+ *   - `neutral` — the step is fine, we simply do not hold its preview. Grey,
+ *     with a "no stored data" icon and an unstyled button. This is the state
+ *     that used to contradict the node's green check badge.
+ *   - `error`   — the re-run itself failed. Red, and the button stays enabled
+ *     so the user can try again.
+ *   - `warning` — the historical input is gone, so no recovery can be
+ *     offered. Not a failure of the step, so not red.
+ */
+interface ModePresentation {
+  tone: "neutral" | "warning" | "error";
+  color: string;
+  Icon: ComponentType<{ size?: number }>;
+  buttonVariant: "default" | "filled";
+  buttonColor: string | undefined;
+}
+
+const MODE_PRESENTATION: Record<Mode, ModePresentation> = {
+  idle: {
+    tone: "neutral",
+    color: "gray",
+    Icon: IconDatabaseOff,
+    buttonVariant: "default",
+    buttonColor: undefined,
+  },
+  rerunning: {
+    tone: "neutral",
+    color: "gray",
+    Icon: IconDatabaseOff,
+    buttonVariant: "default",
+    buttonColor: undefined,
+  },
+  "retention-cleaned": {
+    tone: "warning",
+    color: "yellow",
+    Icon: IconAlertTriangle,
+    buttonVariant: "default",
+    buttonColor: undefined,
+  },
+  error: {
+    tone: "error",
+    color: "red",
+    Icon: IconAlertTriangle,
+    buttonVariant: "filled",
+    buttonColor: "red",
+  },
+};
+
+/**
  * Cache-evicted recovery Alert. Owns its own transient state for the
  * loading + error flows — the parent `PreviewWidget` only routes to this
  * component when the preview-cache hook returns `data === null` with a
@@ -263,22 +327,28 @@ export function CacheEvictedAlert({
       case "error":
         return errorMessage ?? "Re-run failed";
       case "idle":
-        // Name the target so the user is not guessing which graph runs.
+        // Lead with the step's verdict: this Alert only renders for a node
+        // that succeeded (or was served from cache), so saying only
+        // "unavailable" read as a second, contradictory failure verdict next
+        // to the green check. Name the re-run target too, so the user is not
+        // guessing which graph runs.
         return versionLabel
-          ? `Preview unavailable — cache evicted. Re-run ${versionLabel} (the version you are viewing) to repopulate.`
-          : "Preview unavailable — cache evicted. Re-run to repopulate.";
+          ? `This step completed. Preview unavailable — its output isn't in the preview cache. Re-run ${versionLabel} (the version you are viewing) to see it.`
+          : "This step completed. Preview unavailable — its output isn't in the preview cache. Re-run to see it.";
     }
   })();
 
   const buttonDisabled = mode === "rerunning" || mode === "retention-cleaned";
+  const presentation = MODE_PRESENTATION[mode];
 
   return (
     <Alert
-      color="red"
+      color={presentation.color}
       variant="light"
-      icon={<IconAlertCircle size={16} />}
+      icon={<presentation.Icon size={16} />}
       data-testid={`cache-evicted-alert-${nodeId}`}
       data-mode={mode}
+      data-tone={presentation.tone}
     >
       <Stack gap="xs">
         <Text size="sm" data-testid={`cache-evicted-alert-text-${nodeId}`}>
@@ -287,13 +357,14 @@ export function CacheEvictedAlert({
         <Group gap="xs" align="center">
           <Button
             size="xs"
-            variant="filled"
-            color="red"
+            variant={presentation.buttonVariant}
+            color={presentation.buttonColor}
             onClick={onRerun}
             disabled={buttonDisabled}
-            leftSection={
-              mode === "rerunning" ? <Loader size="xs" color="white" /> : null
-            }
+            // No `color` on the Loader: the button is now an unstyled
+            // `variant="default"` in `rerunning`, where a white spinner would
+            // be invisible against its light background.
+            leftSection={mode === "rerunning" ? <Loader size="xs" /> : null}
             data-testid={`cache-evicted-rerun-${nodeId}`}
             data-version-id={replayVersion?.id ?? ""}
           >

@@ -117,7 +117,7 @@ describe("Scenario 1 — default Alert + Re-run button", () => {
 
     const text = screen.getByTestId(`cache-evicted-alert-text-${NODE_ID}`);
     expect(text).toHaveTextContent(
-      "Preview unavailable — cache evicted. Re-run to repopulate.",
+      "This step completed. Preview unavailable — its output isn't in the preview cache. Re-run to see it.",
     );
 
     const button = screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`);
@@ -127,6 +127,52 @@ describe("Scenario 1 — default Alert + Re-run button", () => {
 
     // Initial mode is `idle` so no Close link should render yet.
     expect(screen.queryByTestId(`cache-evicted-close-${NODE_ID}`)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch-four item 10 — a succeeded node showed a green check AND this Alert in
+// red at the same time (Inderdeep: "it's like both green and red at the same
+// time"). This Alert only ever renders for `succeeded` / `skipped`, so its
+// resting state must not use the failure treatment.
+// ---------------------------------------------------------------------------
+
+describe("item 10 — an evicted preview on a succeeded step is not an error", () => {
+  it("renders the idle Alert with a neutral tone, not the failure treatment", () => {
+    renderAlert();
+
+    const alert = screen.getByTestId(`cache-evicted-alert-${NODE_ID}`);
+    expect(alert.getAttribute("data-mode")).toBe("idle");
+    expect(alert.getAttribute("data-tone")).toBe("neutral");
+    expect(alert.getAttribute("data-tone")).not.toBe("error");
+  });
+
+  it("leads with the step's verdict so the copy agrees with the green badge", () => {
+    renderAlert();
+
+    // The first thing said is that the STEP is fine; the missing thing is the
+    // preview payload, not the result.
+    expect(
+      screen.getByTestId(`cache-evicted-alert-text-${NODE_ID}`).textContent,
+    ).toMatch(/^This step completed\./);
+  });
+
+  it("keeps the error tone for a re-run that actually failed", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ message: "boom" }, { status: 500 }),
+    );
+
+    renderAlert();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`));
+    });
+
+    const alert = await screen.findByTestId(`cache-evicted-alert-${NODE_ID}`);
+    await waitFor(() => {
+      expect(alert.getAttribute("data-mode")).toBe("error");
+    });
+    expect(alert.getAttribute("data-tone")).toBe("error");
   });
 });
 
@@ -319,7 +365,7 @@ describe("Scenario 5 — 404 input-ctx path", () => {
     expect(
       screen.getByTestId(`cache-evicted-alert-text-${NODE_ID}`),
     ).toHaveTextContent(
-      "Preview unavailable — cache evicted. Re-run to repopulate.",
+      "This step completed. Preview unavailable — its output isn't in the preview cache. Re-run to see it.",
     );
     expect(
       screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`),
