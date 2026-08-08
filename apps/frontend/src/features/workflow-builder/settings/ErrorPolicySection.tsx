@@ -35,13 +35,21 @@
  *     nothing is the same failure mode as the missing form it would sit in.
  *   - **The author never sees `fail` / `fallback` / `skip`.** Those are
  *     engine values; the form speaks in outcomes.
+ *   - **The three outcomes are a radio group, not a `SegmentedControl`**
+ *     (Inderdeep UX walkthrough 2026-08-06, item 4). Two separate failures
+ *     came out of the segmented row: it read as a toolbar rather than as a
+ *     decision — *"it's not obvious to me that those are like the three
+ *     options"* — and three full sentences do not fit one row at drawer
+ *     width, so *"the third option also doesn't fit on the screen"*. One
+ *     option per line fixes both: the set is visibly a choice, and each
+ *     label has the whole column width to render in.
  */
 
 import {
   Box,
   Button,
   Group,
-  SegmentedControl,
+  Radio,
   Stack,
   Switch,
   Text,
@@ -85,6 +93,14 @@ const ON_ERROR_OPTIONS: Array<{
   { value: "skip", label: "Skip this step and continue" },
 ];
 
+/**
+ * One line of explanation per outcome, rendered as that radio's own
+ * description. It used to be a single line under the segmented row, which
+ * described whichever option happened to be selected — ambiguous the moment
+ * the options stack vertically, since a line under a LIST reads as
+ * describing the list. Attaching each sentence to its own option removes the
+ * ambiguity and lets the author compare all three before committing.
+ */
 const ON_ERROR_HELP: Record<ErrorPolicy["onError"], string> = {
   fail: "The run ends here and the failure is reported.",
   fallback:
@@ -182,21 +198,26 @@ export function ErrorPolicySection({
         </Button>
       </Group>
       <Stack gap="xs">
-        <Box>
-          <Text size="xs" fw={500} mb={4}>
-            If this step fails
-          </Text>
-          <SegmentedControl
-            size="xs"
-            value={policy.onError}
-            data={ON_ERROR_OPTIONS}
-            onChange={setOnError}
-            data-testid="error-policy-on-error"
-          />
-          <Text size="10px" c="dimmed" mt={4}>
-            {ON_ERROR_HELP[policy.onError]}
-          </Text>
-        </Box>
+        <Radio.Group
+          value={policy.onError}
+          onChange={setOnError}
+          label="If this step fails"
+          size="xs"
+          data-testid="error-policy-on-error"
+        >
+          <Stack gap={6} mt={6}>
+            {ON_ERROR_OPTIONS.map((option) => (
+              <Radio
+                key={option.value}
+                size="xs"
+                value={option.value}
+                label={option.label}
+                description={ON_ERROR_HELP[option.value]}
+                data-testid={`error-policy-on-error-${option.value}`}
+              />
+            ))}
+          </Stack>
+        </Radio.Group>
 
         {policy.onError === "fallback" && (
           <EdgePicker

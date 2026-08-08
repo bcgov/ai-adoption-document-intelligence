@@ -87,9 +87,13 @@ function latestNode(
   return next?.nodes[nodeId];
 }
 
-/** Click a SegmentedControl option by its visible, user-facing label. */
+/**
+ * Pick one of the three outcomes by its visible, user-facing label. Goes
+ * through the labelled radio input rather than clicking the label text, so
+ * the assertion exercises the same control a keyboard user would reach.
+ */
 function chooseOnError(label: string) {
-  fireEvent.click(screen.getByText(label));
+  fireEvent.click(screen.getByLabelText(label));
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +130,45 @@ describe("ErrorPolicySection", () => {
     expect(section.textContent).toContain("Skip this step and continue");
     expect(section.textContent).not.toMatch(/\bfallback\b/);
     expect(section.textContent).not.toMatch(/\bskip\b/);
+  });
+
+  it("presents the three outcomes as a radio group, one per line, each fully labelled", () => {
+    // Inderdeep UX walkthrough 2026-08-06, item 4. The three outcomes used to
+    // be a `SegmentedControl`, which failed twice over: it read as a toolbar
+    // rather than a decision ("it's not obvious to me that those are like the
+    // three options"), and three full sentences do not fit one row at drawer
+    // width ("the third option also doesn't fit on the screen"). Radios stack,
+    // so each label gets the whole column and the set reads as a choice.
+    const config = makeConfig([
+      activity("a1", { errorPolicy: { onError: "fallback", retryable: true } }),
+    ]);
+    mountWithSpy(config, "a1");
+
+    const radios = screen.getAllByRole("radio");
+    expect(radios).toHaveLength(3);
+    // Every option carries its whole label — nothing is abbreviated to fit.
+    for (const label of [
+      "Stop the workflow",
+      "Follow the error path",
+      "Skip this step and continue",
+    ]) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+    // A radio group states the current answer on the control itself, which a
+    // row of buttons cannot.
+    expect(screen.getByLabelText("Follow the error path")).toBeChecked();
+    expect(screen.getByLabelText("Stop the workflow")).not.toBeChecked();
+
+    // Each outcome explains itself in place. As a single line under a
+    // segmented row this described "the selected one"; under a vertical list
+    // that reading is ambiguous, so the sentence moved onto its own option.
+    const section = screen.getByTestId("error-policy-section");
+    expect(section.textContent).toContain(
+      "The run ends here and the failure is reported.",
+    );
+    expect(section.textContent).toContain(
+      "This step is marked skipped and the run carries on to the next one.",
+    );
   });
 
   it("sets onError and persists it", () => {
