@@ -13,10 +13,12 @@
  *
  *   node …/capture-screenshots.mjs 2 3
  *
- * VIEWPORT — 1920x1080, for the reason the previous script documented: below
- * ~1600 the editor's top bar overflows and the disabled Undo button covers the
- * Simplified switch, which is a separately-tracked defect rather than something
- * to hide.
+ * VIEWPORT — 1920x1080, matching the walkthrough. The reason the previous
+ * script gave for pinning it — below ~1600 the editor's top bar overflowed and
+ * the disabled Undo button covered the Simplified switch — was fixed with item
+ * 14 on 2026-08-08: the bar now shrinks without overlap or overflow from
+ * 1920px down to 1280px, verified by measuring every top-bar control's
+ * rectangle in Chromium at seven widths.
  *
  * The API key is the seeded dev default, read from the environment or from
  * playwright.config.ts's fallback, and never printed.
@@ -130,13 +132,95 @@ async function runViaTry(page) {
 }
 
 /**
- * Zooms the canvas in on `selector` until it is at least `minWidth` wide.
+ * The box that contains every one of `subject` — one CSS selector or a list of
+ * them. Everything below that takes a "subject" takes either, because half
+ * these shots are about a relationship between two elements (a node and the
+ * popover explaining it, two nodes and the edge between them) and the frame,
+ * the pan and the zoom all have to agree on what they are aiming at.
+ */
+async function subjectBox(page, subject) {
+  const selectors = Array.isArray(subject) ? subject : [subject];
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const selector of selectors) {
+    const box = await page.locator(selector).first().boundingBox();
+    if (!box) return null;
+    left = Math.min(left, box.x);
+    top = Math.min(top, box.y);
+    right = Math.max(right, box.x + box.width);
+    bottom = Math.max(bottom, box.y + box.height);
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/**
+ * Pans the canvas until `subject` sits in the middle of the graph pane.
+ *
+ * Needed before any hard zoom. The pane is 1040px of a 1920px window — the
+ * palette rail takes the first 520 and the settings panel the last 360 — and
+ * xyflow does not clip to it: a card zoomed near the right-hand edge grows
+ * *under* the settings panel and off the window, so the crop comes back with
+ * the half of the card the shot was about missing. Centring first means the
+ * card grows into free pane in every direction.
+ *
+ * Panning is a drag on empty pane (xyflow's default `panOnDrag`), done in
+ * <=300px steps so both ends of every drag stay inside the pane, and started
+ * from a point `elementFromPoint` confirms is bare pane rather than a card.
+ */
+async function centreInCanvas(page, subject) {
+  const canvas = await page.locator(".react-flow").boundingBox();
+  for (let i = 0; i < 8; i++) {
+    const box = await subjectBox(page, subject);
+    if (!box) return;
+    const dx = canvas.x + canvas.width / 2 - (box.x + box.width / 2);
+    const dy = canvas.y + canvas.height / 2 - (box.y + box.height / 2);
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) break;
+    const stepX = Math.max(-300, Math.min(300, dx));
+    const stepY = Math.max(-300, Math.min(300, dy));
+    const start = await page.evaluate(
+      ({ rect, sx, sy }) => {
+        // Scan for bare pane, leaving room for the drag at both ends.
+        for (let fx = 0.15; fx <= 0.85; fx += 0.1) {
+          for (let fy = 0.15; fy <= 0.85; fy += 0.1) {
+            const x = rect.x + rect.width * fx;
+            const y = rect.y + rect.height * fy;
+            if (
+              x + sx < rect.x + 20 ||
+              x + sx > rect.x + rect.width - 20 ||
+              y + sy < rect.y + 20 ||
+              y + sy > rect.y + rect.height - 20
+            ) {
+              continue;
+            }
+            const el = document.elementFromPoint(x, y);
+            if (el?.classList.contains("react-flow__pane")) return { x, y };
+          }
+        }
+        return null;
+      },
+      { rect: canvas, sx: stepX, sy: stepY },
+    );
+    if (!start) return;
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + stepX, start.y + stepY, { steps: 12 });
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+  }
+  await page.mouse.move(4, VIEWPORT.height - 4);
+  await page.waitForTimeout(400);
+}
+
+/**
+ * Zooms the canvas in on `subject` until it is at least `minWidth` wide.
  * Wheel-zooms with the cursor over the subject, because xyflow zooms toward
  * the cursor — the subject stays put while everything else grows away from it.
  */
-async function zoomOnto(page, selector, minWidth = 620, maxSteps = 14) {
+async function zoomOnto(page, subject, minWidth = 620, maxSteps = 14) {
   for (let i = 0; i < maxSteps; i++) {
-    const box = await page.locator(selector).first().boundingBox();
+    const box = await subjectBox(page, subject);
     if (!box) return;
     if (box.width >= minWidth) break;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -171,6 +255,28 @@ async function shootAround(page, selector, file, { left, right, up, down }) {
 async function shootElement(page, selector, file, pad = 12) {
   const box = await page.locator(selector).first().boundingBox();
   if (!box) throw new Error(`nothing to shoot at ${selector}`);
+  const x = Math.max(0, box.x - pad);
+  const y = Math.max(0, box.y - pad);
+  await page.screenshot({
+    path: join(OUT, file),
+    clip: {
+      x,
+      y,
+      width: Math.min(VIEWPORT.width - x, box.width + pad * 2),
+      height: Math.min(VIEWPORT.height - y, box.height + pad * 2),
+    },
+  });
+}
+
+/**
+ * Crops to the box that contains ALL of `selectors` — for shots whose subject
+ * is two things that must be seen together and that no single element wraps.
+ * A hover popover renders through Mantine's portal, so it is not a descendant
+ * of the node it explains; a union box is the only way to frame both.
+ */
+async function shootUnion(page, selectors, file, pad = 16) {
+  const box = await subjectBox(page, selectors);
+  if (!box) throw new Error(`nothing to shoot at ${selectors.join(" + ")}`);
   const x = Math.max(0, box.x - pad);
   const y = Math.max(0, box.y - pad);
   await page.screenshot({
@@ -267,12 +373,253 @@ const SHOTS = {
     await shootElement(page, ".mantine-Drawer-content", "05-agent-chat-panel.png", 0);
     await page.close();
   },
+
+  /** §5 — the "+" on an unconnected port, next to a connected plain dot. */
+  5: async (browser) => {
+    const page = await newPage(browser);
+    // The auto-wire demo, because its `submit` node carries the contrast on a
+    // single card: `fileData` on the left is bound to the node before it, so
+    // it stays a plain dot; `apimRequestId` on the right is required and goes
+    // nowhere, so it gets the "+". Its two other outputs (`statusCode`,
+    // `headers`) are optional, so they stay plain too — which is the second
+    // half of the rule and would be invisible in a shot of an all-"+" node.
+    await openEditor(page, "demo-auto-wire-typed-input-binding-states-part-8");
+    const node = '[data-testid="canvas-node-submit"]';
+    // 760px of a 1920px frame. An inviting dot is 16px at 1:1 and a canvas
+    // fitted to a graph sits well below 1:1, so the shot has to be zoomed to
+    // the level the change is arguing about, which is "can you tell it is a
+    // plus".
+    await centreInCanvas(page, node);
+    await zoomOnto(page, node, 760);
+    await shootElement(page, node, "06-port-plus-unconnected.png", 34);
+    await page.close();
+  },
+
+  /** §6 — the error handle's popover, in error-path mode. */
+  6: async (browser) => {
+    const page = await newPage(browser);
+    // The switch/error-edges demo: its `prep` node is the only seeded node
+    // with `errorPolicy.onError === "fallback"`, which is what mounts the
+    // bottom `error` handle at all.
+    await openEditor(page, "demo-switch-error-edges-validatefields-editor-part-5");
+    const node = '[data-testid="canvas-node-prep"]';
+    // Modest zoom, and centred high-ish: the popover opens *below* the handle
+    // and is up to 500px tall, so the node has to leave room under itself.
+    await centreInCanvas(page, node);
+    await zoomOnto(page, node, 460);
+    // Hover the handle itself, not the tooltip span around it — the mouse
+    // handlers that open the popover are on the xyflow `<Handle>`.
+    await page
+      .locator('[data-testid="error-handle-tooltip-prep"] .react-flow__handle')
+      .hover();
+    await page.waitForSelector('[data-testid="hover-extend-error-path-banner"]', {
+      timeout: 15000,
+    });
+    await page.waitForTimeout(700);
+    // Three boxes, because item 5 asked for two things and hovering produces
+    // both at once: the tooltip that names the red dot, and the popover that
+    // now opens from it. Neither is a descendant of the node — both render
+    // through Mantine's portal — so a union is the only frame that shows the
+    // banner attached to the node it belongs to rather than floating alone.
+    await shootUnion(
+      page,
+      [
+        node,
+        ".mantine-Tooltip-tooltip",
+        '[data-testid="hover-extend-popover"]',
+      ],
+      "07-error-path-popover.png",
+      20,
+    );
+    // NOT SHOT: the edge a pick draws.
+    //
+    // Landing a pick works — clicking a row really does add the node and wire
+    // it from the `error` handle — but it is not photographable here. The new
+    // node is dropped at an offset from its source with no re-layout, so on
+    // this graph it lands ON TOP of `prep`, hiding both the source card and
+    // the new edge; and fitting the view to recover puts the pair at a zoom
+    // where no label is readable. Three framings were tried on 2026-08-08 and
+    // all three produced a frame that argued the wrong thing. A shot that has
+    // to be explained away is worse than no shot, so item 5's evidence is the
+    // popover above and the checklist entry stands on the tests.
+    await page.close();
+  },
+
+  /** §7 — failure named at the node's title, not only in the corner. */
+  7: async (browser) => {
+    const page = await newPage(browser);
+    // Same demo and same reason as shot 1: it is the one that reliably puts a
+    // real failure on the canvas, because its Azure steps have no credentials
+    // here. The chip only exists during a live run, so this needs a real one.
+    await openEditor(page, "demo-workflow-as-api-trigger-url-schema-part-11");
+    await runViaTry(page);
+    const failed =
+      '.react-flow__node:has([data-testid^="node-failure-chip-"])';
+    // Select the card first. xyflow's `elevateNodesOnSelect` raises the
+    // selected node's z-index, and it has to be raised: mid-run this graph's
+    // cards overlap (item 9, unfixed), and the neighbour that lands on top of
+    // this one covers the title the shot is about. Clicked on the header
+    // strip, which is the part no neighbour is sitting on.
+    await page.locator(failed).click({ position: { x: 30, y: 14 } });
+    await page.waitForTimeout(600);
+    await centreInCanvas(page, failed);
+    await zoomOnto(page, failed, 560);
+    // The whole card, not a crop of the header: the point of item 7 is that
+    // the title now carries the verdict *as well as* the corner badge, and a
+    // frame that excluded the badge would be arguing the opposite case.
+    await shootElement(page, failed, "08-node-failure-chip.png", 30);
+    await page.close();
+  },
+
+  /** §8 — error handling as a radio group, all three options unclipped. */
+  8: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-switch-error-edges-validatefields-editor-part-5");
+    // The settings panel is the right-hand column of the editor and it renders
+    // for whatever node is selected — clicking the card is the whole gesture.
+    // `prep` again, because a node with no policy shows the "Add error
+    // handling" button instead of the radios.
+    await page.locator('[data-testid="canvas-node-prep"]').click();
+    await page.waitForSelector('[data-testid="error-policy-section"]', {
+      timeout: 15000,
+    });
+    await page
+      .locator('[data-testid="error-policy-section"]')
+      .scrollIntoViewIfNeeded();
+    await page.waitForTimeout(600);
+    // The section whole, with air: the complaint was that the third option did
+    // not fit, so a crop that clipped anything would be the defect, not the
+    // fix.
+    await shootElement(
+      page,
+      '[data-testid="error-policy-section"]',
+      "09-error-policy-radio-group.png",
+      18,
+    );
+    await page.close();
+  },
+
+  /** §9 — the group's own right-click menu. */
+  9: async (browser) => {
+    const page = await newPage(browser);
+    // The grouping demo is the only seeded workflow with `nodeGroups` — two of
+    // them, "OCR Extraction" (`ocr`) and "Finalize".
+    await openEditor(page, "demo-grouping-simplified-view-node-swap-part-6");
+    const header = '[data-testid="group-container-header-ocr"]';
+    // Zoom before opening the menu. The header strip's label is drawn in
+    // canvas units, so at the resting zoom of a five-node graph it is a few
+    // pixels tall — and a frame in which the reader cannot tell what was
+    // right-clicked does not show the thing item 19 is about.
+    await centreInCanvas(page, '[data-testid="group-container-ocr"]');
+    await zoomOnto(page, '[data-testid="group-container-ocr"]', 900);
+    // Click near the strip's left end so the menu opens into the frame rather
+    // than off the right-hand side of the pane.
+    await page.locator(header).click({ button: "right", position: { x: 60, y: 8 } });
+    await page.waitForSelector('[data-testid="node-context-menu"]', {
+      timeout: 15000,
+    });
+    await page.waitForTimeout(500);
+    // The whole dashed container plus the menu. The menu is portalled, and a
+    // shot of the menu alone would not show what was right-clicked — which is
+    // the entire point of the item: the target, not the entry, was what was
+    // missing. Framing the box rather than just its header also shows that the
+    // three cards inside it are what "Ungroup … (steps stay)" is promising to
+    // leave behind.
+    await shootUnion(
+      page,
+      ['[data-testid="group-container-ocr"]', '[data-testid="node-context-menu"]'],
+      "10-group-context-menu.png",
+      24,
+    );
+    await page.close();
+  },
+
+  /** §10 — the workflows table at full width, delete column intact. */
+  10: async (browser) => {
+    const page = await newPage(browser);
+    await page.goto(`${FRONTEND}/workflows`, {
+      waitUntil: "networkidle",
+      timeout: 45000,
+    });
+    await page.waitForSelector('[data-testid="workflow-name-link"]', {
+      timeout: 25000,
+    });
+    await page.waitForTimeout(1200);
+    // This is the only real evidence for item 18. The unit tests assert the
+    // column widths as strings; jsdom runs no table layout at all, so nothing
+    // in the suite can tell whether the row actually fits. The browser can.
+    //
+    // The whole window, uncropped, and deliberately so: the complaint was a
+    // horizontal scrollbar at full desktop width, and a scrollbar is a fact
+    // about the window's right and bottom edges. A crop to the table would cut
+    // off the evidence along with the frame.
+    await page.screenshot({
+      path: join(OUT, "11-workflows-table.png"),
+      clip: { x: 0, y: 0, ...VIEWPORT },
+    });
+    await page.close();
+  },
+
+  /**
+   * §11 — item 9, BEFORE. The one shot here that is of a defect rather than a
+   * fix: pressing Try grows the cards to fit their preview panes and they
+   * collide with their neighbours. It is unfixed and awaiting a ruling
+   * (DECISIONS/09-try-reflow.md), so the evidence has to be taken now — every
+   * option on the table removes exactly what this frame shows.
+   */
+  11: async (browser) => {
+    const page = await newPage(browser);
+    // The workflow-as-API demo again, and it is the right one rather than the
+    // convenient one. The eight-node switch/error-edges demo was tried first,
+    // on the theory that a bigger graph shows more collisions — it shows none.
+    // Its nodes are authored ~570px apart on one horizontal rank, so a card
+    // that grows 200px taller still hits nothing. The collision needs a
+    // VERTICAL neighbour, which is what the 60px rank separation produces, and
+    // this demo has one.
+    await openEditor(page, "demo-workflow-as-api-trigger-url-schema-part-11");
+    await runViaTry(page);
+    // Find the collision rather than assume where it is. Which pair of cards
+    // ends up on top of which depends on how far each preview grew, which
+    // depends on what the run produced — so the shot asks the page which two
+    // rectangles overlap most and frames those. If no two cards overlap, the
+    // defect did not reproduce on this run and the shot fails loudly instead
+    // of saving a frame of a graph that looks fine.
+    const pair = await page.evaluate(() => {
+      const cards = [...document.querySelectorAll(".react-flow__node")]
+        .map((el) => ({
+          id: el.getAttribute("data-id"),
+          r: el.getBoundingClientRect(),
+        }))
+        .filter((c) => c.id);
+      let best = null;
+      for (let i = 0; i < cards.length; i++) {
+        for (let j = i + 1; j < cards.length; j++) {
+          const a = cards[i].r;
+          const b = cards[j].r;
+          const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          if (w <= 0 || h <= 0) continue;
+          if (!best || w * h > best.area) {
+            best = { area: w * h, ids: [cards[i].id, cards[j].id] };
+          }
+        }
+      }
+      return best;
+    });
+    if (!pair) throw new Error("no two node cards overlap — item 9 did not reproduce");
+    const overlapping = pair.ids.map((id) => `.react-flow__node[data-id="${id}"]`);
+    await centreInCanvas(page, overlapping);
+    await zoomOnto(page, overlapping, 820);
+    await shootUnion(page, overlapping, "12-BEFORE-try-reflow-overlap.png", 30);
+    await page.close();
+  },
 };
 
 const requested = process.argv.slice(2);
 const ids = requested.length > 0 ? requested : Object.keys(SHOTS);
 
 const browser = await chromium.launch({ headless: true });
+const failures = [];
 try {
   for (const id of ids) {
     const shot = SHOTS[id];
@@ -281,9 +628,38 @@ try {
       continue;
     }
     process.stdout.write(`  shooting ${id} … `);
-    await shot(browser);
-    console.log("ok");
+    // Three attempts, because the dev stack this shoots against is a watcher:
+    // an edit anywhere under `apps/` restarts nest or vite mid-shot and the
+    // page that was loading gets a connection refused instead of a graph.
+    // That is a property of the environment, not of the change being
+    // photographed, so retry rather than record a broken frame — and if all
+    // three fail, say which shot and why instead of leaving a stale image
+    // silently in place.
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await shot(browser);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) {
+          process.stdout.write(`retry ${attempt} … `);
+          await new Promise((r) => setTimeout(r, 30000));
+        }
+      }
+    }
+    if (lastError) {
+      console.log(`FAILED — ${lastError.message.split("\n")[0]}`);
+      failures.push(id);
+    } else {
+      console.log("ok");
+    }
   }
 } finally {
   await browser.close();
+}
+if (failures.length > 0) {
+  console.log(`\n  ${failures.length} shot(s) failed: ${failures.join(", ")}`);
+  process.exitCode = 1;
 }
