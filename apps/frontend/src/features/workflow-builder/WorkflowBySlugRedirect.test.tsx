@@ -87,4 +87,17 @@ describe("WorkflowBySlugRedirect", () => {
     expect(screen.getByText(/couldn't find a workflow/i)).toBeDefined();
     expect(screen.queryByText("EDITOR")).toBeNull();
   });
+
+  // Batch-four item 31: a by-slug miss used to dead-end on a bare "not found",
+  // which is what a walker of the manual test plan sees when the demo set was
+  // never seeded (or a `seed:demos` run was interrupted after it cleared the
+  // previous set). The miss copy must name the command that fixes it.
+  it("names the demo seeder command on a miss", () => {
+    useWorkflowBySlug.mockReturnValue(result({ isError: true }));
+    renderAt("demo-dynamic-custom-code-node-dyn-pill-script-editor-part-14");
+    expect(
+      screen.getByText(/isn't\s+seeded in this environment/i),
+    ).toBeDefined();
+    expect(screen.getByText("npm run seed:demos")).toBeDefined();
+  });
 });

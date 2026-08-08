@@ -11,7 +11,7 @@
  * all the editor's own machinery continues to run off the resolved id.
  */
 
-import { Alert, Center, Loader, Stack, Text } from "@mantine/core";
+import { Alert, Center, Code, Loader, Stack, Text } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router-dom";
@@ -35,11 +35,19 @@ export function WorkflowBySlugRedirect(): ReactNode {
           title="Workflow not found"
           maw={480}
         >
-          We couldn't find a workflow with the handle{" "}
-          <Text span fw={600}>
-            {slug}
-          </Text>{" "}
-          in this group. It may have been renamed or deleted.
+          <Text size="sm">
+            We couldn't find a workflow with the handle{" "}
+            <Text span fw={600}>
+              {slug}
+            </Text>{" "}
+            in this group.
+          </Text>
+          <Text size="sm" mt="xs">
+            If you followed a demo link from the docs, this demo workflow isn't
+            seeded in this environment — run <Code>npm run seed:demos</Code> to
+            load the feature demos. Otherwise the workflow may have been renamed
+            or deleted.
+          </Text>
         </Alert>
       </Center>
     );
