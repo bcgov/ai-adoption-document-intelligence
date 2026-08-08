@@ -494,3 +494,80 @@ describe("computePortRows — a ctxKey-less binding is not a source (G-072)", ()
     expect(fileData?.needsSource).toBe(false);
   });
 });
+
+describe("computePortRows — `connected` (the '+' invitation's input, Inderdeep item 3)", () => {
+  /**
+   * A bare port dot invites nothing, so `PortRows` draws a "+" on ports that
+   * are BOTH unconnected and non-optional. `connected` is the "unconnected"
+   * half, and it is asymmetric: an input is connected when a value arrives
+   * (wire, ctx variable or persisted binding — i.e. `bound`), while an
+   * output is connected only when a derived data wire actually LEAVES that
+   * exact port. `bound` is hard-coded `true` for outputs and so cannot
+   * answer the output question at all — which is the reason this field
+   * exists rather than the glyph reading `bound` directly.
+   */
+  const wiredPair = () =>
+    config({
+      nodes: {
+        A: node<ActivityNode>({
+          id: "A",
+          type: "activity",
+          activityType: "file.prepare",
+          outputs: [{ port: "preparedData", ctxKey: "__auto.A.preparedData" }],
+        }),
+        B: node<ActivityNode>({
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+        }),
+      },
+      edges: [{ id: "e1", source: "A", target: "B", type: "normal" }],
+    });
+
+  it("marks an output connected only when a data wire leaves that exact port", () => {
+    const cfg = wiredPair();
+    const wires = deriveWires(cfg);
+
+    const producer = computePortRows(cfg, "A", wires);
+    expect(
+      producer.outputs.find((row) => row.name === "preparedData"),
+    ).toMatchObject({ connected: true, required: true });
+
+    // B's own outputs feed nothing, so every one of them still invites.
+    const consumer = computePortRows(cfg, "B", wires);
+    expect(consumer.outputs.length).toBeGreaterThan(0);
+    for (const row of consumer.outputs) expect(row.connected).toBe(false);
+  });
+
+  it("mirrors `bound` on inputs — wired, ctx-bound and unbound alike", () => {
+    const cfg = wiredPair();
+    const wires = deriveWires(cfg);
+
+    const consumer = computePortRows(cfg, "B", wires);
+    const fileData = consumer.inputs.find((row) => row.name === "fileData");
+    expect(fileData).toMatchObject({ bound: true, connected: true });
+
+    // A's required inputs have no source at all.
+    const producer = computePortRows(cfg, "A", wires);
+    for (const row of producer.inputs) {
+      expect(row.connected).toBe(row.bound);
+    }
+    expect(
+      producer.inputs.find((row) => row.name === "documentId"),
+    ).toMatchObject({ connected: false, required: true });
+  });
+
+  it("leaves optional inputs unconnected without making them urgent", () => {
+    // `fileName` is declared `required: false`, so it is unconnected but must
+    // NOT invite — an optional port the workflow does not need is not a gap.
+    const cfg = wiredPair();
+    const { inputs } = computePortRows(cfg, "A", deriveWires(cfg));
+    const fileName = inputs.find((row) => row.name === "fileName");
+    expect(fileName).toMatchObject({
+      required: false,
+      connected: false,
+      needsSource: false,
+    });
+  });
+});

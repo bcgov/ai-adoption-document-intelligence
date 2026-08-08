@@ -95,6 +95,20 @@ export interface PortRowModel {
   handleId: string;
   /** Input only: satisfied by a wire, a ctx variable, or any persisted binding. Outputs: always true. */
   bound: boolean;
+  /**
+   * Whether anything is attached to this port on the canvas — the test the
+   * "+" invitation reads (Inderdeep UX walkthrough 2026-08-06, item 3).
+   *
+   * The two directions have genuinely different tests, which is why this is
+   * not just `bound`:
+   *   - INPUT: same as `bound` — a wire, a ctx variable, or a persisted
+   *     binding all mean a value already arrives here, so there is nothing
+   *     to invite.
+   *   - OUTPUT: at least one derived data wire LEAVES this port. `bound` is
+   *     hard-coded `true` for outputs (an output is never waiting on a
+   *     source), so it cannot answer this question at all.
+   */
+  connected: boolean;
   /** Set when the binding reads a declared workflow variable (renders a chip). */
   fromCtx?: string;
   /** required && !bound — renders the amber ring. */
@@ -169,6 +183,7 @@ export function computePortRows(
       required,
       handleId: inputHandleId(descriptor.name),
       bound,
+      connected: bound,
       fromCtx,
       needsSource: required && !bound,
     };
@@ -183,6 +198,9 @@ export function computePortRows(
     required: descriptor.required === true,
     handleId: outputHandleId(descriptor.name),
     bound: true,
+    connected: dataWires.some(
+      (wire) => wire.source === nodeId && wire.sourcePort === descriptor.name,
+    ),
     fromCtx: undefined,
     needsSource: false,
   }));

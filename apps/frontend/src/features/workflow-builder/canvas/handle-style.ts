@@ -26,6 +26,7 @@
  */
 
 import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
+import type { CSSProperties } from "react";
 
 import { splitKindRef } from "./artifact-kind-colour";
 
@@ -79,6 +80,82 @@ export function handleBackground(color: string): string {
  */
 export function handleArrayOutline(color: string): string {
   return `var(--mantine-color-${color}-3, ${color})`;
+}
+
+// ---------------------------------------------------------------------------
+// The "+" invitation on an unconnected port handle
+// (Inderdeep UX walkthrough 2026-08-06, item 3).
+//
+// A bare dot says nothing, so the hover-to-extend popover — the main way a
+// graph gets built — is invisible to anyone handed the tool cold. A "+"
+// says "there is something to add here".
+//
+// Two constraints shaped the drawing:
+//
+//   1. It must not fight the port's family colour, which encodes what can
+//      connect to what. So the glyph is a KNOCKOUT: two bars in the canvas
+//      body colour cut across the coloured disc, exactly like the 2px body
+//      ring the dot already wears (`workflow-editor-canvas.css`). The hue is
+//      untouched; only the shape inside it changes.
+//   2. It must survive the zoom levels people work at. The batch-1 status
+//      badge finding was that a glyph INSIDE a ring loses at 16px, because
+//      the ring eats the pixel budget. So the plus is not drawn inside the
+//      existing 12px dot: an inviting handle grows to
+//      `UNCONNECTED_HANDLE_SIZE`, which leaves a 12px coloured disc inside
+//      the 2px body ring, and the bars span 8 of those 12px at 2px thick.
+//      Two thirds of the disc is glyph — the plus is the shape you read,
+//      not a detail inside a circle.
+//
+// Growing the dot via width/height (not `transform: scale()`) is deliberate
+// and matches the drop-target highlight in `PortRows` — xyflow's own
+// `.react-flow__handle-left/-right` classes apply `translate(-50%, -50%)`,
+// whose percentages resolve against the handle's own box, so a bigger box
+// stays centred on the same anchor for free.
+// ---------------------------------------------------------------------------
+
+/** Dot size for a handle that renders the "+" invitation, in px. */
+export const UNCONNECTED_HANDLE_SIZE = 16;
+/** Length of each arm of the "+", in px. */
+export const PLUS_GLYPH_ARM = 8;
+/** Thickness of each arm of the "+", in px. */
+export const PLUS_GLYPH_STROKE = 2;
+/** Knockout colour — the canvas body, same tone as the dot's own ring. */
+export const PLUS_GLYPH_COLOR = "var(--mantine-color-body, #fff)";
+
+const PLUS_BAR_BASE: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  background: PLUS_GLYPH_COLOR,
+  borderRadius: 1,
+  // The bars are decoration sitting inside a drag target; they must never
+  // intercept the pointer events the handle itself needs.
+  pointerEvents: "none",
+};
+
+/**
+ * Inline styles for the two bars that draw the "+" inside a handle dot.
+ * Rendered as children of the xyflow `<Handle>` (which forwards `children`
+ * into the dot element) rather than as a background image, so the glyph is
+ * a real, assertable DOM shape at any zoom.
+ */
+export function plusGlyphBarStyles(): {
+  horizontal: CSSProperties;
+  vertical: CSSProperties;
+} {
+  return {
+    horizontal: {
+      ...PLUS_BAR_BASE,
+      width: PLUS_GLYPH_ARM,
+      height: PLUS_GLYPH_STROKE,
+    },
+    vertical: {
+      ...PLUS_BAR_BASE,
+      width: PLUS_GLYPH_STROKE,
+      height: PLUS_GLYPH_ARM,
+    },
+  };
 }
 
 /**

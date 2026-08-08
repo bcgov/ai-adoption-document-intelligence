@@ -36,6 +36,7 @@ import {
 import { Anchor, Badge, Modal, Text, Tooltip } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
+import { IconX } from "@tabler/icons-react";
 import {
   Background,
   type Connection,
@@ -279,6 +280,18 @@ interface CommonNodeData extends Record<string, unknown> {
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
   /**
+   * Item 5 (Inderdeep 2026-08-06) — the same bridge for the bottom red
+   * `error` handle: *"I don't even know first what the red dot is … and then
+   * like even if I notice it, then it doesn't do anything."* Hovering it now
+   * opens the SAME picker every other output handle opens, in its error-path
+   * mode, and the pick lands an `error`-typed edge. Leave reuses
+   * `onSourceHandleLeave` — the close grace is identical.
+   */
+  onErrorHandleEnter?: (
+    nodeId: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  /**
    * §9 — hover-to-extend from a typed per-port OUTPUT handle (PortRows).
    * The activity renderer forwards these to `<PortRows>`; the canvas routes
    * them into the kind-aware extend popover. Node-level `out` hover keeps
@@ -489,6 +502,14 @@ interface NodeHandlesProps {
     anchor: { x: number; y: number },
   ) => void;
   onSourceHandleLeave?: (nodeId: string) => void;
+  /**
+   * Item 5 — hover bridge for the bottom `error` handle, opening the picker
+   * in its error-path mode. Absent for renderers that mount no error handle.
+   */
+  onErrorHandleEnter?: (
+    nodeId: string,
+    anchor: { x: number; y: number },
+  ) => void;
   /** Kind-aware styles for the input + output handles (US-095). */
   inputHandleStyle: HandleStyle;
   outputHandleStyle: HandleStyle;
@@ -509,6 +530,72 @@ interface NodeHandlesProps {
 }
 
 const ERROR_HANDLE_BACKGROUND = "#e03131";
+
+/**
+ * Item 5 — the bottom red dot had no name anywhere in the UI, so it read as
+ * decoration. This is that name, on hover, in the words the settings drawer
+ * uses for the policy that mounts it.
+ */
+const ERROR_HANDLE_TOOLTIP = "Error path: runs when this step fails";
+
+/**
+ * Item 7 (Inderdeep 2026-08-06) — failure, at the title.
+ *
+ * *"If it's an error, maybe it's better to mention it alongside the node name
+ * or the title, because you will probably start reading from here and then you
+ * know which step is an error — rather than at the top right of it."* Reading
+ * order is title-first, and the corner badge is the last place the eye goes.
+ * This chip is IN ADDITION to that badge, not instead of it: the badge is the
+ * at-a-glance-when-zoomed-out marker, the chip is what you read.
+ *
+ * It marks a genuinely FAILED step only — never a cache miss. A `skipped`
+ * (cache-hit) node and an evicted preview are neutral states, which is the
+ * same split `NoOutputNotice` (red, carries the engine's `errorMessage`) and
+ * `CacheEvictedAlert` (neutral) draw.
+ *
+ * Consistent with the corner badge by construction: same red, same bare
+ * `IconX` with no ring of its own, same 2.6 stroke — scaled down to chip size
+ * because it sits inline in a text row rather than alone in a 20px disc.
+ */
+const FAILURE_CHIP_GLYPH_SIZE = 11;
+const FAILURE_CHIP_GLYPH_STROKE = 2.6;
+
+function NodeFailureChip({ nodeId }: { nodeId: string }) {
+  const ctx = useOptionalRunState();
+  // Same idle suppression the corner badge uses: with no run in flight there
+  // is no failure to report, and no provider at all when a renderer is mounted
+  // in isolation.
+  if (!ctx?.activeRunId) return null;
+  const entry = ctx.nodeStatuses[nodeId];
+  if (entry?.status !== "failed") return null;
+  const chip = (
+    <Badge
+      size="xs"
+      variant="filled"
+      color="red"
+      radius="sm"
+      data-testid={`node-failure-chip-${nodeId}`}
+      leftSection={
+        <IconX
+          size={FAILURE_CHIP_GLYPH_SIZE}
+          stroke={FAILURE_CHIP_GLYPH_STROKE}
+        />
+      }
+      style={entry.errorMessage ? { cursor: "help" } : undefined}
+    >
+      Error
+    </Badge>
+  );
+  // The engine's own message, on hover — the same text the corner badge and
+  // `NoOutputNotice` surface, so all three agree on why the step failed.
+  return entry.errorMessage ? (
+    <Tooltip label={entry.errorMessage} multiline w={300} withArrow>
+      {chip}
+    </Tooltip>
+  ) : (
+    chip
+  );
+}
 
 /**
  * Builds the mouseenter/mouseleave pair the source `out` handle uses to
@@ -572,6 +659,7 @@ const NodeHandles = memo(function NodeHandles({
   errorPolicy,
   onSourceHandleEnter,
   onSourceHandleLeave,
+  onErrorHandleEnter,
   inputHandleStyle,
   outputHandleStyle,
   inputPillEntries,
@@ -585,6 +673,11 @@ const NodeHandles = memo(function NodeHandles({
       onSourceHandleEnter,
       onSourceHandleLeave,
     );
+  const errorHoverHandlers = makeSourceHandleHoverHandlers(
+    nodeId,
+    onErrorHandleEnter,
+    onSourceHandleLeave,
+  );
 
   // Doubled-outline cue for `T[]` cardinality (US-095 Scenario 1).
   // Applied via inline outline so it nests around the existing handle
@@ -647,12 +740,21 @@ const NodeHandles = memo(function NodeHandles({
         </span>
       </Tooltip>
       {showErrorHandle && (
-        <Handle
-          id="error"
-          type="source"
-          position={Position.Bottom}
-          style={{ background: ERROR_HANDLE_BACKGROUND }}
-        />
+        <Tooltip label={ERROR_HANDLE_TOOLTIP} withArrow position="bottom">
+          <span
+            data-testid={`error-handle-tooltip-${nodeId}`}
+            data-port-tooltip={ERROR_HANDLE_TOOLTIP}
+          >
+            <Handle
+              id="error"
+              type="source"
+              position={Position.Bottom}
+              style={{ background: ERROR_HANDLE_BACKGROUND }}
+              onMouseEnter={errorHoverHandlers.onMouseEnter}
+              onMouseLeave={errorHoverHandlers.onMouseLeave}
+            />
+          </span>
+        </Tooltip>
       )}
       {selected ? (
         <NodeTypePillRow
@@ -729,6 +831,13 @@ const ActivityNodeRenderer = memo(
     const hoverHandlers = makeSourceHandleHoverHandlers(
       id,
       data.onSourceHandleEnter,
+      data.onSourceHandleLeave,
+    );
+    // Item 5 — the bottom `error` handle drives the same picker, in its
+    // error-path mode.
+    const errorHoverHandlers = makeSourceHandleHoverHandlers(
+      id,
+      data.onErrorHandleEnter,
       data.onSourceHandleLeave,
     );
     return (
@@ -814,7 +923,17 @@ const ActivityNodeRenderer = memo(
             </span>
           )}
         </div>
-        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{data.label}</span>
+          <NodeFailureChip nodeId={id} />
+        </div>
         {isMissingFromCatalog && (
           <div
             style={{
@@ -851,12 +970,21 @@ const ActivityNodeRenderer = memo(
           </span>
         </Tooltip>
         {data.errorPolicy?.onError === "fallback" && (
-          <Handle
-            id="error"
-            type="source"
-            position={Position.Bottom}
-            style={{ background: ERROR_HANDLE_BACKGROUND }}
-          />
+          <Tooltip label={ERROR_HANDLE_TOOLTIP} withArrow position="bottom">
+            <span
+              data-testid={`error-handle-tooltip-${id}`}
+              data-port-tooltip={ERROR_HANDLE_TOOLTIP}
+            >
+              <Handle
+                id="error"
+                type="source"
+                position={Position.Bottom}
+                style={{ background: ERROR_HANDLE_BACKGROUND }}
+                onMouseEnter={errorHoverHandlers.onMouseEnter}
+                onMouseLeave={errorHoverHandlers.onMouseLeave}
+              />
+            </span>
+          </Tooltip>
         )}
         <PortRows
           nodeId={id}
@@ -1012,13 +1140,24 @@ const ControlFlowRectangleRenderer = memo(
         />
         <NodeStatusBadgeOverlay nodeId={id} />
         {renderControlFlowHeader({ id, data, selected, hints })}
-        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{data.label}</span>
+          <NodeFailureChip nodeId={id} />
+        </div>
         <NodePreviewOverlay nodeId={id} producesOutput={false} />
         <NodeHandles
           nodeId={id}
           errorPolicy={data.errorPolicy}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
+          onErrorHandleEnter={data.onErrorHandleEnter}
           inputHandleStyle={data.inputHandleStyle}
           outputHandleStyle={data.outputHandleStyle}
           inputPillEntries={data.inputPillEntries}
@@ -1119,7 +1258,17 @@ const PollUntilNodeRenderer = memo(
         />
         <NodeStatusBadgeOverlay nodeId={id} />
         {renderControlFlowHeader({ id, data, selected, hints })}
-        <div style={{ fontWeight: 600 }}>{data.label}</div>
+        <div
+          style={{
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <span>{data.label}</span>
+          <NodeFailureChip nodeId={id} />
+        </div>
         {/* The wrapped activity, named on the card — the pollUntil's own
             header names the CONTROL-FLOW type, so without this row the
             activity it repeats is invisible on the canvas. */}
@@ -1176,6 +1325,7 @@ const PollUntilNodeRenderer = memo(
           errorPolicy={data.errorPolicy}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
+          onErrorHandleEnter={data.onErrorHandleEnter}
           inputHandleStyle={data.inputHandleStyle}
           outputHandleStyle={data.outputHandleStyle}
           inputPillEntries={data.inputPillEntries}
@@ -1286,6 +1436,7 @@ const SwitchNodeRenderer = memo(
             >
               {data.label}
             </span>
+            <NodeFailureChip nodeId={id} />
           </div>
           {data.isEntry ? (
             <div
@@ -1363,6 +1514,10 @@ interface ProjectionCallbacks {
     | ((nodeId: string, anchor: { x: number; y: number }) => void)
     | undefined;
   onSourceHandleLeave: ((nodeId: string) => void) | undefined;
+  /** Item 5 — hover bridge for the bottom `error` handle. */
+  onErrorHandleEnter:
+    | ((nodeId: string, anchor: { x: number; y: number }) => void)
+    | undefined;
   onOutputHandleEnter:
     | ((
         nodeId: string,
@@ -1443,6 +1598,7 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          onErrorHandleEnter: callbacks.onErrorHandleEnter,
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           onInputHandleEnter: callbacks.onInputHandleEnter,
@@ -1473,6 +1629,7 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          onErrorHandleEnter: callbacks.onErrorHandleEnter,
           onOutputHandleEnter: callbacks.onOutputHandleEnter,
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           onInputHandleEnter: callbacks.onInputHandleEnter,
@@ -1503,6 +1660,7 @@ function projectFlowNodes(
           errorPolicy: node.errorPolicy,
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
+          onErrorHandleEnter: callbacks.onErrorHandleEnter,
           inputHandleStyle: sides.input.handleStyle,
           outputHandleStyle: sides.output.handleStyle,
           inputPillEntries: sides.input.pillEntries,
@@ -2200,11 +2358,48 @@ function WorkflowEditorCanvasInner({
     closeHoverExtend,
   } = useHoverExtend();
 
+  /**
+   * Item 5 — the node whose bottom `error` handle opened the current picker,
+   * or `null` when an ordinary handle opened it. The hover hook owns ONE
+   * `HoverExtendState` shape shared by every trigger, so which dot started the
+   * gesture is tracked here: it decides the popover's banner and the type of
+   * the edge the pick lands. Every ordinary opener clears it, so it cannot
+   * outlive its own gesture.
+   */
+  const [errorExtendNodeId, setErrorExtendNodeId] = useState<string | null>(
+    null,
+  );
+
+  /** Node-level `out` hover — ordinary wiring, so the error flag clears. */
+  const handleFlowSourceHandleEnter = useCallback(
+    (nodeId: string, anchor: { x: number; y: number }) => {
+      setErrorExtendNodeId(null);
+      handleSourceHandleEnter(nodeId, anchor);
+    },
+    [handleSourceHandleEnter],
+  );
+
+  /** Bottom `error` hover — same picker, error-path mode. */
+  const handleErrorHandleEnter = useCallback(
+    (nodeId: string, anchor: { x: number; y: number }) => {
+      setErrorExtendNodeId(nodeId);
+      handleSourceHandleEnter(nodeId, anchor);
+    },
+    [handleSourceHandleEnter],
+  );
+
+  /** Dismissing the picker ends the gesture, error-path intent included. */
+  const closeExtendPopover = useCallback(() => {
+    setErrorExtendNodeId(null);
+    closeHoverExtend();
+  }, [closeHoverExtend]);
+
   // §9 — per-port output-handle hover routes through the same debounced
   // opener as the node-level `out` handle, carrying the port name so the
   // popover can filter/rank by that port's kind.
   const handlePortOutputHandleEnter = useCallback(
     (nodeId: string, portName: string, anchor: { x: number; y: number }) => {
+      setErrorExtendNodeId(null);
       handleSourceHandleEnter(nodeId, anchor, portName);
     },
     [handleSourceHandleEnter],
@@ -2216,6 +2411,7 @@ function WorkflowEditorCanvasInner({
   // right-to-left" — now you can).
   const handlePortInputHandleEnter = useCallback(
     (nodeId: string, portName: string, anchor: { x: number; y: number }) => {
+      setErrorExtendNodeId(null);
       handleSourceHandleEnter(nodeId, anchor, portName, "upstream");
     },
     [handleSourceHandleEnter],
@@ -2224,8 +2420,9 @@ function WorkflowEditorCanvasInner({
   const projectionCallbacks = useMemo<ProjectionCallbacks>(
     () => ({
       onBadgeClick: onNodeBadgeClick,
-      onSourceHandleEnter: handleSourceHandleEnter,
+      onSourceHandleEnter: handleFlowSourceHandleEnter,
       onSourceHandleLeave: handleSourceHandleLeave,
+      onErrorHandleEnter: handleErrorHandleEnter,
       onOutputHandleEnter: handlePortOutputHandleEnter,
       onOutputHandleLeave: handleSourceHandleLeave,
       onInputHandleEnter: handlePortInputHandleEnter,
@@ -2233,7 +2430,8 @@ function WorkflowEditorCanvasInner({
     }),
     [
       onNodeBadgeClick,
-      handleSourceHandleEnter,
+      handleFlowSourceHandleEnter,
+      handleErrorHandleEnter,
       handleSourceHandleLeave,
       handlePortOutputHandleEnter,
       handlePortInputHandleEnter,
@@ -3270,18 +3468,34 @@ function WorkflowEditorCanvasInner({
 
   /**
    * Live menu state — null when no menu is open, otherwise carries the
-   * target node's id + discriminator type and the viewport coordinates
-   * (event.clientX / clientY) the menu pins to.
+   * target's identity and the viewport coordinates (event.clientX /
+   * clientY) the menu pins to.
+   *
+   * Item 19 (2026-08-06) — the right-click can also land on a group's
+   * container box, which is a PROJECTION of `nodeGroups[<id>]` and has no
+   * `config.nodes` entry. Those two targets carry different fields, so the
+   * state is a discriminated union rather than a node id that is sometimes
+   * not a node.
    */
-  const [contextMenu, setContextMenu] = useState<{
-    nodeId: string;
-    nodeType: GraphNode["type"];
-    activityType?: string;
-    /** W-3 — nodes selected when the menu opened; 1 means "just this one". */
-    selectionCount: number;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<
+    | {
+        target: "node";
+        nodeId: string;
+        nodeType: GraphNode["type"];
+        activityType?: string;
+        /** W-3 — nodes selected when the menu opened; 1 means "just this one". */
+        selectionCount: number;
+        x: number;
+        y: number;
+      }
+    | {
+        target: "group-container";
+        groupId: string;
+        x: number;
+        y: number;
+      }
+    | null
+  >(null);
 
   // Phase 6 (US-183): the in-situ Edit-script modal — opened by right-clicking
   // a dyn.* node on the canvas; mounts the DynamicNodeEditor scoped to that
@@ -3301,6 +3515,25 @@ function WorkflowEditorCanvasInner({
       // Suppress the browser's native right-click menu so the workflow
       // menu can sit on top without competition.
       event.preventDefault();
+      // Item 19 — a group container's id is `container-<groupId>` and is never
+      // a key in `config.nodes`, so before this branch existed the handler DID
+      // fire for the box and then bailed one line later, which is why
+      // right-clicking a group looked like it did nothing at all. The box is a
+      // projection: offer the one action that means anything on it.
+      const containerGroupId = groupIdFromContainerId(node.id);
+      if (containerGroupId !== null) {
+        const group = config.nodeGroups?.[containerGroupId];
+        // A synthetic map-body box is derived from its map node's entry/exit —
+        // there is no authored group entry to remove, so it gets no menu.
+        if (!group || isSyntheticMapBodyGroupId(containerGroupId)) return;
+        setContextMenu({
+          target: "group-container",
+          groupId: containerGroupId,
+          x: event.clientX,
+          y: event.clientY,
+        });
+        return;
+      }
       const graphNode = config.nodes[node.id];
       if (!graphNode) return;
       // W-3 — the menu acts on the selection only when the node under the
@@ -3320,6 +3553,7 @@ function WorkflowEditorCanvasInner({
         );
       }
       setContextMenu({
+        target: "node",
         nodeId: node.id,
         nodeType: graphNode.type,
         activityType:
@@ -3331,7 +3565,7 @@ function WorkflowEditorCanvasInner({
         y: event.clientY,
       });
     },
-    [config.nodes, reactFlow],
+    [config.nodes, config.nodeGroups, reactFlow],
   );
 
   /**
@@ -3356,7 +3590,7 @@ function WorkflowEditorCanvasInner({
    * (`handleDelete`) so both flows remove nodes identically.
    */
   const deleteNodeFromContextMenu = useCallback(() => {
-    if (!contextMenu) return;
+    if (contextMenu?.target !== "node") return;
     const target = config.nodes[contextMenu.nodeId];
     if (!target) return;
     const flowNode: Node = {
@@ -3374,9 +3608,17 @@ function WorkflowEditorCanvasInner({
    * context-menu node, when it belongs to one. Drives the menu's
    * "Ungroup" entry so ungrouping is reachable from the canvas (the only
    * paths before were undo and the right-rail group settings).
+   *
+   * Item 19 — when the menu was opened on the group's own container box the
+   * group is named directly, so the same `ungroupFromContextMenu` below serves
+   * both gestures rather than there being two ungroup implementations.
    */
   const contextMenuGroup = useMemo(() => {
     if (!contextMenu) return null;
+    if (contextMenu.target === "group-container") {
+      const group = config.nodeGroups?.[contextMenu.groupId];
+      return group ? { groupId: contextMenu.groupId, group } : null;
+    }
     for (const [gid, group] of Object.entries(config.nodeGroups ?? {})) {
       if (isSyntheticMapBodyGroupId(gid)) continue;
       if (group.nodeIds.includes(contextMenu.nodeId)) {
@@ -3592,7 +3834,7 @@ function WorkflowEditorCanvasInner({
   const [swapState, setSwapState] = useState<{ nodeId: string } | null>(null);
 
   const changeActivityTypeFromContextMenu = useCallback(() => {
-    if (!contextMenu) return;
+    if (contextMenu?.target !== "node") return;
     const target = config.nodes[contextMenu.nodeId];
     // Defence in depth — the menu's `disabled` state already gates this
     // for control-flow nodes (US-046 Scenario 2), but the canvas guards
@@ -3966,6 +4208,9 @@ function WorkflowEditorCanvasInner({
         connectionState.toNode == null &&
         connectionState.fromNode
       ) {
+        // Item 5 — a port-drag release is ordinary wiring, whatever the last
+        // hover was, so the error-path intent does not carry into it.
+        setErrorExtendNodeId(null);
         openHoverExtendNow({
           nodeId: connectionState.fromNode.id,
           sourcePort: fromPort,
@@ -3997,7 +4242,18 @@ function WorkflowEditorCanvasInner({
    * control-flow-picker branches of the hover popover.
    */
   const extendFromSource = useCallback(
-    (sourceNodeId: string, newNode: GraphNode) => {
+    (
+      sourceNodeId: string,
+      newNode: GraphNode,
+      /**
+       * Item 5 — the extend launched from the bottom `error` handle lands an
+       * `error` edge, not an ordinary one. Same shape as drawing the wire by
+       * hand: the edge is typed AND `recordErrorEdge` names it on the source's
+       * policy, or the validator reports a missing `fallbackEdgeId` the author
+       * has no way to clear (G-001).
+       */
+      edgeType?: GraphEdge["type"],
+    ) => {
       if (!config.nodes[sourceNodeId]) return;
       const position = findNextFreePosition(config, sourceNodeId);
       const newNodeWithPosition: GraphNode = {
@@ -4011,13 +4267,14 @@ function WorkflowEditorCanvasInner({
         id: makeEdgeId(),
         source: sourceNodeId,
         target: newNode.id,
-        type: inferExtendEdgeType(sourceNodeId),
+        type: edgeType ?? inferExtendEdgeType(sourceNodeId),
       };
-      onConfigChange({
+      const withNewNode: GraphWorkflowConfig = {
         ...config,
         nodes: { ...config.nodes, [newNode.id]: newNodeWithPosition },
         edges: [...config.edges, newEdge],
-      });
+      };
+      onConfigChange(recordErrorEdge(withNewNode, newEdge));
       onSelectNode(newNode.id);
       openConnectSummary(newNode.id);
     },
@@ -4107,30 +4364,50 @@ function WorkflowEditorCanvasInner({
     [config, onConfigChange, onSelectNode, openConnectSummary],
   );
 
+  /**
+   * The catalog-shaped `ActivityNode` a pick lands, with its declared ports
+   * self-named in ctx. Extracted from `handleHoverPickActivity` when the
+   * error-path branch (item 5) needed the same node before the downstream
+   * pin logic runs.
+   */
+  const buildActivityNode = useCallback(
+    (activityType: string): ActivityNode => {
+      const entry = getActivityCatalogEntry(activityType);
+      return {
+        id: makeUniqueNodeId("activity", config.nodes),
+        type: "activity",
+        label: entry?.displayName ?? activityType,
+        activityType,
+        inputs: entry
+          ? entry.inputs.map((p) => ({ port: p.name, ctxKey: p.name }))
+          : [],
+        outputs: entry
+          ? entry.outputs.map((p) => ({ port: p.name, ctxKey: p.name }))
+          : [],
+        parameters: {},
+      };
+    },
+    [config.nodes],
+  );
+
   const handleHoverPickActivity = useCallback(
     (activityType: string) => {
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
       const sourcePort = hoverExtend.sourcePort;
       const extendDirection = hoverExtend.direction ?? "downstream";
+      // Item 5 — read before the close, which clears the gesture.
+      const isErrorPath = errorExtendNodeId === sourceNodeId;
       closeHoverExtend();
-      const newId = makeUniqueNodeId("activity", config.nodes);
-      const entry = getActivityCatalogEntry(activityType);
-      const inputs = entry
-        ? entry.inputs.map((p) => ({ port: p.name, ctxKey: p.name }))
-        : [];
-      const outputs = entry
-        ? entry.outputs.map((p) => ({ port: p.name, ctxKey: p.name }))
-        : [];
-      const newNode: ActivityNode = {
-        id: newId,
-        type: "activity",
-        label: entry?.displayName ?? activityType,
-        activityType,
-        inputs,
-        outputs,
-        parameters: {},
-      };
+      setErrorExtendNodeId(null);
+      const newNode = buildActivityNode(activityType);
+      // Item 5 — the error path is a flow decision, not a data hand-off: the
+      // picked step runs INSTEAD of the rest, on failure. So it never takes
+      // the kind-driven auto-pin below; it lands one `error` edge.
+      if (isErrorPath) {
+        extendFromSource(sourceNodeId, newNode, "error");
+        return;
+      }
       // UX walkthrough 2026-07-29 — upstream extend: the gesture node
       // is the CONSUMER and `sourcePort` is its INPUT port. Insert the picked
       // activity as a producer wired into that port.
@@ -4178,6 +4455,8 @@ function WorkflowEditorCanvasInner({
     },
     [
       hoverExtend,
+      errorExtendNodeId,
+      buildActivityNode,
       closeHoverExtend,
       extendFromSource,
       extendFromSourceAndPin,
@@ -4190,12 +4469,24 @@ function WorkflowEditorCanvasInner({
     (controlFlowType: ControlFlowNodeType) => {
       if (!hoverExtend) return;
       const sourceNodeId = hoverExtend.nodeId;
+      const isErrorPath = errorExtendNodeId === sourceNodeId;
       closeHoverExtend();
+      setErrorExtendNodeId(null);
       const newId = makeUniqueNodeId(controlFlowType, config.nodes);
       const newNode = buildControlFlowSkeleton(controlFlowType, newId);
-      extendFromSource(sourceNodeId, newNode);
+      extendFromSource(
+        sourceNodeId,
+        newNode,
+        isErrorPath ? "error" : undefined,
+      );
     },
-    [hoverExtend, closeHoverExtend, extendFromSource, config.nodes],
+    [
+      hoverExtend,
+      errorExtendNodeId,
+      closeHoverExtend,
+      extendFromSource,
+      config.nodes,
+    ],
   );
 
   return (
@@ -4268,7 +4559,7 @@ function WorkflowEditorCanvasInner({
           </Panel>
         </ReactFlow>
       </PortDragContext.Provider>
-      {contextMenu && (
+      {contextMenu?.target === "node" && (
         <NodeContextMenu
           nodeId={contextMenu.nodeId}
           nodeType={contextMenu.nodeType}
@@ -4290,6 +4581,21 @@ function WorkflowEditorCanvasInner({
           selectionCount={contextMenu.selectionCount}
           onDeleteSelection={deleteSelectionFromContextMenu}
           onGroupSelection={onGroupSelection}
+        />
+      )}
+      {/*
+        Item 19 — right-clicking the group's header. Same menu component and
+        the same `ungroupFromContextMenu` the member-node entry uses; the
+        target kind is what drops the entries a projection can't honour.
+      */}
+      {contextMenu?.target === "group-container" && contextMenuGroup && (
+        <NodeContextMenu
+          target="group-container"
+          groupId={contextMenuGroup.groupId}
+          groupLabel={contextMenuGroup.group.label}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={closeContextMenu}
+          onUngroup={ungroupFromContextMenu}
         />
       )}
       {paneMenu && (
@@ -4358,7 +4664,7 @@ function WorkflowEditorCanvasInner({
         <HoverExtendPopover
           opened
           anchorPosition={hoverExtend.anchor}
-          onClose={closeHoverExtend}
+          onClose={closeExtendPopover}
           onPickActivity={handleHoverPickActivity}
           onPickControlFlow={handleHoverPickControlFlow}
           filterKind={
@@ -4377,6 +4683,9 @@ function WorkflowEditorCanvasInner({
               : undefined
           }
           direction={hoverExtend.direction ?? "downstream"}
+          intent={
+            errorExtendNodeId === hoverExtend.nodeId ? "error-path" : "extend"
+          }
           gestureKey={`${hoverExtend.nodeId}:${hoverExtend.direction ?? "downstream"}:${hoverExtend.sourcePort ?? ""}`}
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handlePopoverLeave}

@@ -24,6 +24,7 @@ function renderPopover(
     filterKind: overrides.filterKind,
     direction: overrides.direction,
     gestureKey: overrides.gestureKey,
+    intent: overrides.intent,
   };
   const utils = render(
     <MantineProvider>
@@ -243,6 +244,34 @@ describe("HoverExtendPopover — upstream direction", () => {
     renderPopover({ filterKind: "PreparedFile" });
     expect(
       screen.getByTestId("hover-extend-control-flow-switch"),
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * Item 5 (Inderdeep 2026-08-06) — the picker opened from the bottom red
+ * `error` handle must say what the pick is FOR, so choosing an error-path
+ * target is visibly a different act from ordinary wiring.
+ */
+describe("HoverExtendPopover — error-path intent", () => {
+  it("says nothing extra for ordinary wiring", () => {
+    renderPopover();
+    expect(
+      screen.queryByTestId("hover-extend-error-path-banner"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("banners the error path, and still offers the whole catalogue", () => {
+    renderPopover({ intent: "error-path" });
+    const banner = screen.getByTestId("hover-extend-error-path-banner");
+    expect(banner).toHaveTextContent("Error path");
+    expect(banner).toHaveTextContent(
+      "Pick the step that runs when this step fails.",
+    );
+    // A failure handler can be a control-flow node (a human gate, say), so
+    // nothing is filtered out — only the framing changes.
+    expect(
+      screen.getByTestId("hover-extend-control-flow-humanGate"),
     ).toBeInTheDocument();
   });
 });

@@ -119,6 +119,17 @@ export interface HoverExtendPopoverProps {
    */
   gestureKey?: string;
   /**
+   * Item 5 (Inderdeep 2026-08-06) — WHAT the pick is for.
+   *
+   * `"extend"` (default) is ordinary wiring: the picked node runs next.
+   * `"error-path"` is the extend launched from the node's bottom red `error`
+   * handle, where the picked node runs only when this step FAILS. That is a
+   * different act, so the popover says so in a banner instead of looking
+   * identical to normal wiring and leaving the author to infer it from which
+   * dot they happened to hover.
+   */
+  intent?: "extend" | "error-path";
+  /**
    * Optional hover-bridge callbacks — the host uses these to cancel /
    * re-arm its 200ms close timer when the cursor crosses from the handle
    * to the popover.
@@ -136,6 +147,7 @@ export function HoverExtendPopover({
   filterKind,
   direction = "downstream",
   gestureKey,
+  intent = "extend",
   onMouseEnter,
   onMouseLeave,
 }: HoverExtendPopoverProps) {
@@ -303,6 +315,24 @@ export function HoverExtendPopover({
         mah="calc(100vh - 120px)"
       >
         <Stack gap="xs">
+          {intent === "error-path" && (
+            <Box
+              data-testid="hover-extend-error-path-banner"
+              style={{
+                borderRadius: 6,
+                padding: "6px 8px",
+                borderLeft: "3px solid var(--mantine-color-red-6, #e03131)",
+                background: "var(--mantine-color-red-light, #e0313122)",
+              }}
+            >
+              <Text size="xs" fw={600} c="red">
+                Error path
+              </Text>
+              <Text size="10px" c="dimmed">
+                Pick the step that runs when this step fails.
+              </Text>
+            </Box>
+          )}
           <TextInput
             placeholder="Search nodes..."
             leftSection={<IconSearch size={14} />}

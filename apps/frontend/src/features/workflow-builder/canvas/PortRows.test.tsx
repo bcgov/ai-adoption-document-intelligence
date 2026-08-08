@@ -39,6 +39,9 @@ vi.mock("@mantine/core", async (importOriginal) => {
   };
 });
 
+// The mock forwards `children` because the real xyflow `Handle` does
+// (`HandleComponent` spreads them into the dot element) — that is how the
+// "+" invitation's two bars end up inside the dot.
 vi.mock("@xyflow/react", () => ({
   Handle: ({
     type,
@@ -48,6 +51,7 @@ vi.mock("@xyflow/react", () => ({
     isConnectable,
     onMouseEnter,
     onMouseLeave,
+    children,
   }: {
     type: string;
     position: string;
@@ -56,6 +60,7 @@ vi.mock("@xyflow/react", () => ({
     isConnectable?: boolean;
     onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
     onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
+    children?: React.ReactNode;
   }) => (
     <div
       data-testid={`handle-${type}-${position}`}
@@ -64,7 +69,9 @@ vi.mock("@xyflow/react", () => ({
       style={style}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-    />
+    >
+      {children}
+    </div>
   ),
   Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
 }));
@@ -82,6 +89,8 @@ function makeRow(overrides: Partial<PortRowModel>): PortRowModel {
     required: true,
     handleId: "in-source",
     bound: true,
+    // Default rows are connected, so the "+" invitation is opt-in per test.
+    connected: true,
     fromCtx: undefined,
     needsSource: false,
     ...overrides,
@@ -569,5 +578,146 @@ describe("PortRows — tooltip trigger is scoped off the handle", () => {
         .closest("[data-tooltip-position]")
         ?.getAttribute("data-tooltip-position"),
     ).toBe("right");
+  });
+});
+
+describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3)", () => {
+  /**
+   * A bare circle carries no invitation, so the hover-to-extend popover —
+   * the main way a graph gets built — was undiscoverable to anyone handed
+   * the tool cold. Unconnected, non-optional ports now draw a "+" inside
+   * the dot: two knockout bars in the body colour, so the port's family
+   * colour (which encodes what can connect to what) is untouched.
+   */
+  function handleOf(container: HTMLElement, handleId: string): HTMLElement {
+    const el = container.querySelector(`[data-handleid='${handleId}']`);
+    expect(el).not.toBeNull();
+    return el as HTMLElement;
+  }
+
+  function plusBars(handle: HTMLElement): HTMLElement[] {
+    return Array.from(handle.querySelectorAll("[data-port-plus]"));
+  }
+
+  it("draws the plus on a required unconnected input and on a required unconnected output", () => {
+    const { container } = renderRows(
+      [makeRow({ connected: false, needsSource: true })],
+      [
+        makeRow({
+          name: "segments",
+          label: "Segments",
+          kind: "Segment[]",
+          direction: "output",
+          handleId: "out-segments",
+          connected: false,
+        }),
+      ],
+    );
+
+    for (const handleId of ["in-source", "out-segments"]) {
+      const handle = handleOf(container, handleId);
+      const bars = plusBars(handle);
+      expect(bars).toHaveLength(2);
+      // One 8×2 bar and one 2×8 bar, centred — a plus, not a dot.
+      expect(
+        bars.map((bar) => `${bar.style.width}/${bar.style.height}`),
+      ).toEqual(["8px/2px", "2px/8px"]);
+      for (const bar of bars) {
+        expect(bar.style.background).toContain("--mantine-color-body");
+        expect(bar.style.transform).toBe("translate(-50%, -50%)");
+        // Decoration inside a drag target must not eat the pointer.
+        expect(bar.style.pointerEvents).toBe("none");
+      }
+    }
+
+    expect(
+      screen
+        .getByTestId("port-row-node_1-in-source")
+        .getAttribute("data-invites-connection"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByTestId("port-row-node_1-out-segments")
+        .getAttribute("data-invites-connection"),
+    ).toBe("true");
+  });
+
+  it("grows the inviting dot to 16px so the glyph survives at working zoom", () => {
+    // The batch-1 status-badge finding: a glyph inside a ring loses at 16px
+    // because the ring eats the pixel budget. The plus is therefore not
+    // squeezed into the base 12px dot — the dot grows, leaving a 12px
+    // coloured disc inside the 2px body ring for an 8px plus to sit in.
+    const { container } = renderRows(
+      [makeRow({ connected: false, needsSource: true })],
+      [],
+    );
+    const handle = handleOf(container, "in-source");
+    expect(handle.style.width).toBe("16px");
+    expect(handle.style.height).toBe("16px");
+  });
+
+  it("leaves the family colour alone — the plus never repaints the dot", () => {
+    const { container } = renderRows(
+      [makeRow({ connected: false, needsSource: true })],
+      [],
+    );
+    // MultiPageDocument is the blue family; an inviting port still says so.
+    expect(handleOf(container, "in-source").style.background).toContain(
+      "--mantine-color-blue-6",
+    );
+  });
+
+  it("draws no plus on a connected port, at the base dot size", () => {
+    const { container } = renderRows(
+      [makeRow({ connected: true })],
+      [
+        makeRow({
+          name: "segments",
+          label: "Segments",
+          direction: "output",
+          handleId: "out-segments",
+          connected: true,
+        }),
+      ],
+    );
+
+    for (const handleId of ["in-source", "out-segments"]) {
+      const handle = handleOf(container, handleId);
+      expect(plusBars(handle)).toHaveLength(0);
+      // Untouched by this feature — the CSS 12px dot stands.
+      expect(handle.style.width).toBe("");
+    }
+    expect(
+      screen
+        .getByTestId("port-row-node_1-in-source")
+        .getAttribute("data-invites-connection"),
+    ).toBe("false");
+  });
+
+  it("draws no plus on an optional unconnected port", () => {
+    // Inviting a user to fill in something the workflow does not need is the
+    // opposite of guidance, so `required: false` keeps the plain circle.
+    const { container } = renderRows(
+      [makeRow({ required: false, connected: false })],
+      [],
+    );
+    expect(plusBars(handleOf(container, "in-source"))).toHaveLength(0);
+    expect(
+      screen
+        .getByTestId("port-row-node_1-in-source")
+        .getAttribute("data-invites-connection"),
+    ).toBe("false");
+  });
+
+  it("keeps the amber needs-source ring alongside the plus", () => {
+    // Two cues, two messages: the ring says "this is missing", the plus says
+    // "here is how to fix it". They must coexist on the same dot.
+    const { container } = renderRows(
+      [makeRow({ connected: false, needsSource: true })],
+      [],
+    );
+    const handle = handleOf(container, "in-source");
+    expect(handle.style.boxShadow).toContain("yellow");
+    expect(plusBars(handle)).toHaveLength(2);
   });
 });

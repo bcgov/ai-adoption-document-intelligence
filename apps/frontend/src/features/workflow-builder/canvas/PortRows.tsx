@@ -36,7 +36,12 @@ import {
 } from "react";
 
 import { colorForKind } from "./artifact-kind-colour";
-import { handleArrayOutline, handleBackground } from "./handle-style";
+import {
+  handleArrayOutline,
+  handleBackground,
+  plusGlyphBarStyles,
+  UNCONNECTED_HANDLE_SIZE,
+} from "./handle-style";
 import {
   PORT_ROW_HEIGHT,
   PORT_ROWS_TOP_MARGIN,
@@ -114,6 +119,29 @@ function rowTooltip(row: PortRowModel): string {
   return row.description ? `${kindText} — ${row.description}` : kindText;
 }
 
+/**
+ * Whether this port's dot should carry the "+" invitation (Inderdeep UX
+ * walkthrough 2026-08-06, item 3).
+ *
+ * Two conditions, both from the port model:
+ *   - **unconnected** — `connected` is false: nothing arrives at this input,
+ *     or nothing leaves this output. A port that already has something
+ *     attached needs no invitation.
+ *   - **non-optional** — `required` is true, i.e. the catalog descriptor
+ *     declares `required: true`. Optional ports (`document.classify`'s
+ *     `confidence`, a `validation` output nobody has to consume) keep the
+ *     plain circle: inviting a user to fill in something the workflow does
+ *     not need is the opposite of guidance.
+ *
+ * For an input this is exactly `needsSource`, and deliberately so — the two
+ * cues stack on the same dot (amber "this is missing" ring + "+" "here is
+ * how to fix it"). For an output `needsSource` is always false, so this is
+ * the only thing that can drive the glyph there.
+ */
+function invitesConnection(row: PortRowModel): boolean {
+  return row.required && !row.connected;
+}
+
 function PortRow({
   nodeId,
   row,
@@ -142,6 +170,8 @@ function PortRow({
   const isInput = row.direction === "input";
   const color = colorForKind(row.kind);
   const isArray = row.kind?.endsWith("[]") === true;
+  const invites = invitesConnection(row);
+  const plusBars = plusGlyphBarStyles();
 
   const drag = useContext(PortDragContext);
   // Input rows classify against the in-flight drag; wildcard (base
@@ -169,6 +199,12 @@ function PortRow({
     ...(row.needsSource
       ? { boxShadow: isArray ? NEEDS_SOURCE_RING_ARRAY : NEEDS_SOURCE_RING }
       : {}),
+    // An inviting dot grows so the "+" it carries reads as a plus rather
+    // than as a smudge inside a ring — see `handle-style.ts` for why the
+    // glyph is drawn at this size and not inside the base 12px dot.
+    ...(invites
+      ? { width: UNCONNECTED_HANDLE_SIZE, height: UNCONNECTED_HANDLE_SIZE }
+      : {}),
     // Enlarge the dot for a compatible drop target during a drag. Grown via
     // explicit width/height (not `transform: scale()`): xyflow's base
     // `.react-flow__handle-left`/`-right` CSS classes already apply a
@@ -190,6 +226,7 @@ function PortRow({
       data-testid={`port-row-${nodeId}-${row.handleId}`}
       data-port-kind={row.kind ?? "Artifact"}
       data-needs-source={row.needsSource ? "true" : "false"}
+      data-invites-connection={invites ? "true" : "false"}
       data-from-ctx={row.fromCtx}
       {...(dropCompatible === null
         ? {}
@@ -254,7 +291,30 @@ function PortRow({
               },
               onMouseLeave: () => onOutputHandleLeave?.(),
             })}
-      />
+      >
+        {/*
+         * The "+" invitation. Two knockout bars drawn as real children of
+         * the handle dot (xyflow forwards `children` straight into the dot
+         * element), so the glyph scales with the dot at every canvas zoom
+         * instead of depending on a background image the browser may
+         * resample. Decorative only — the port's meaning is already in the
+         * row label and the tooltip.
+         */}
+        {invites && (
+          <>
+            <span
+              aria-hidden
+              data-port-plus="horizontal"
+              style={plusBars.horizontal}
+            />
+            <span
+              aria-hidden
+              data-port-plus="vertical"
+              style={plusBars.vertical}
+            />
+          </>
+        )}
+      </Handle>
       <Tooltip
         label={rowTooltip(row)}
         withArrow

@@ -9,7 +9,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { computeHandleStyle } from "./handle-style";
+import {
+  computeHandleStyle,
+  PLUS_GLYPH_ARM,
+  PLUS_GLYPH_COLOR,
+  PLUS_GLYPH_STROKE,
+  plusGlyphBarStyles,
+  UNCONNECTED_HANDLE_SIZE,
+} from "./handle-style";
 
 describe("computeHandleStyle — Scenario 1: single typed port is coloured by kind", () => {
   it("colours a single `Segment[]` output handle green with doubled outline + verbatim tooltip", () => {
@@ -190,5 +197,48 @@ describe("computeHandleStyle — Scenario 4: multi/gray tooltip explains the ind
     });
     expect(style.tooltipText).toBe("No typed inputs");
     expect(style.isMultiPort).toBe(true);
+  });
+});
+
+describe("plusGlyphBarStyles — the '+' drawn on an unconnected port", () => {
+  /**
+   * Inderdeep UX walkthrough 2026-08-06, item 3. Two properties are
+   * load-bearing and neither is obvious from reading the styles, so they are
+   * pinned here rather than left to a visual check.
+   */
+
+  it("keeps the glyph big enough to survive a zoomed-out canvas", () => {
+    // The batch-1 status-badge finding was that a glyph INSIDE a ring loses
+    // at 16px, because the ring spends the pixel budget. So the plus is not
+    // squeezed into the base 12px dot: the dot grows, the 2px body ring
+    // leaves a 12px disc, and the arms take 8 of those 12px — two thirds of
+    // the disc is glyph. If any of these three numbers drifts, the shape
+    // stops reading and this is the test that says so.
+    expect(UNCONNECTED_HANDLE_SIZE).toBe(16);
+    const innerDisc = UNCONNECTED_HANDLE_SIZE - 2 * 2; // dot minus the body ring
+    expect(PLUS_GLYPH_ARM / innerDisc).toBeGreaterThanOrEqual(0.6);
+    expect(PLUS_GLYPH_STROKE).toBe(2);
+  });
+
+  it("draws two centred bars in the body colour, so the port's family hue is untouched", () => {
+    const { horizontal, vertical } = plusGlyphBarStyles();
+
+    expect(horizontal.width).toBe(PLUS_GLYPH_ARM);
+    expect(horizontal.height).toBe(PLUS_GLYPH_STROKE);
+    expect(vertical.width).toBe(PLUS_GLYPH_STROKE);
+    expect(vertical.height).toBe(PLUS_GLYPH_ARM);
+
+    for (const bar of [horizontal, vertical]) {
+      // A knockout, not a tint: the bars are the canvas body colour, the same
+      // tone as the dot's own ring, so the kind colour (which encodes what can
+      // connect to what) still reads as itself.
+      expect(bar.background).toBe(PLUS_GLYPH_COLOR);
+      expect(bar.position).toBe("absolute");
+      expect(bar.left).toBe("50%");
+      expect(bar.top).toBe("50%");
+      expect(bar.transform).toBe("translate(-50%, -50%)");
+      // Decoration sitting inside a drag target must never eat the pointer.
+      expect(bar.pointerEvents).toBe("none");
+    }
   });
 });

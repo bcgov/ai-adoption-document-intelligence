@@ -196,25 +196,31 @@ vi.mock("@xyflow/react", () => {
     Controls: () => null,
     MiniMap: () => null,
     Panel: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+    // `children` is forwarded because the real `Handle` forwards it — that is
+    // where the unconnected-port "+" invitation's bars live.
     Handle: ({
       type,
       position,
       id,
       style,
       isConnectable,
+      children,
     }: {
       type: string;
       position: string;
       id?: string;
       style?: React.CSSProperties;
       isConnectable?: boolean;
+      children?: React.ReactNode;
     }) => (
       <div
         data-testid={`handle-${type}-${position}`}
         data-handleid={id ?? null}
         data-isconnectable={isConnectable === false ? "false" : "true"}
         style={style}
-      />
+      >
+        {children}
+      </div>
     ),
     MarkerType: { ArrowClosed: "arrowclosed" },
     Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
@@ -489,5 +495,58 @@ describe("WorkflowEditorCanvas — document.classify port rows come from the rea
         .getByTestId("port-row-activity_1-out-matchedRule")
         .getAttribute("data-port-kind"),
     ).toBe("Artifact");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The "+" invitation on unconnected ports (Inderdeep UX walkthrough
+// 2026-08-06, item 3). End-to-end through the canvas projection, so the
+// `computePortRows` → `PortRows` wiring of `connected`/`required` is covered
+// as it actually renders, not only in the two unit suites.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorCanvas — unconnected required ports invite with a '+'", () => {
+  function plusBarsIn(handleId: string): HTMLElement[] {
+    return Array.from(handleFor(handleId).querySelectorAll("[data-port-plus]"));
+  }
+
+  it("draws the plus on every required port of a freshly-dropped node, inputs and outputs alike", () => {
+    // The fixture node has no bindings and the config has no wires, so every
+    // port is unconnected — exactly the state a user sees after dropping a
+    // node onto the canvas, which is the moment Inderdeep was describing.
+    renderCanvas(makeConfigWith("test.classify-multi"));
+
+    for (const handleId of ["in-segment", "in-ocr", "out-classification"]) {
+      expect(plusBarsIn(handleId)).toHaveLength(2);
+      expect(
+        screen
+          .getByTestId(`port-row-activity_1-${handleId}`)
+          .getAttribute("data-invites-connection"),
+      ).toBe("true");
+    }
+  });
+
+  it("leaves the optional `validation` output as a plain circle", () => {
+    renderCanvas(makeConfigWith("test.classify-multi"));
+    expect(plusBarsIn("out-validation")).toHaveLength(0);
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-validation")
+        .getAttribute("data-invites-connection"),
+    ).toBe("false");
+  });
+
+  it("keeps the port's family colour under the plus", () => {
+    // The colour encodes what can connect to what; the glyph is a knockout in
+    // the body colour, so it must not repaint the dot.
+    renderCanvas(makeConfigWith("test.split"));
+    const inputHandle = handleFor("in-source");
+    expect(inputHandle.style.background).toContain("--mantine-color-blue-6");
+    expect(inputHandle.querySelectorAll("[data-port-plus]")).toHaveLength(2);
+    const outputHandle = handleFor("out-segments");
+    expect(outputHandle.style.background).toContain("--mantine-color-green-6");
+    // The array-cardinality outline survives alongside the glyph.
+    expect(outputHandle.style.outline).toContain("2px solid");
+    expect(outputHandle.querySelectorAll("[data-port-plus]")).toHaveLength(2);
   });
 });

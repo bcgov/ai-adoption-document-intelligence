@@ -82,6 +82,32 @@ vi.mock("../dynamic-nodes", async (importOriginal) => {
   };
 });
 
+/**
+ * Item 7 (2026-08-06) — the failure chip beside a node's title reads the live
+ * run-state context, which in the app is provided by `RunStateProvider` (a
+ * react-query consumer). Swap the context READER for a settable value so a
+ * test can put one node into `failed` without booting the query layer. The
+ * default is `null`, which is exactly what the real hook returns outside a
+ * provider, so every other test in this file is unaffected.
+ */
+const { mockRunState } = vi.hoisted(() => ({
+  mockRunState: {
+    current: null as {
+      activeRunId: string | null;
+      nodeStatuses: Record<string, { status: string; errorMessage?: string }>;
+    } | null,
+  },
+}));
+
+vi.mock("../run/RunStateContext", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../run/RunStateContext")>();
+  return {
+    ...actual,
+    useOptionalRunState: () => mockRunState.current,
+  };
+});
+
 interface MockNodeProps {
   id: string;
   type: string;
@@ -238,6 +264,7 @@ vi.mock("@xyflow/react", () => {
 });
 
 beforeEach(() => {
+  mockRunState.current = null;
   mockFitView.mockClear();
   mockScreenToFlowPosition.mockClear();
   mockGetNodes.mockClear();
@@ -6848,5 +6875,322 @@ describe("WorkflowEditorCanvas — G-4: Auto-arrange in simplified view", () => 
     // jsdom measures nothing, so the live-instance width sweep is empty and
     // the helper runs on its defaults — byte-comparable with a direct call.
     expect(next).toEqual(layoutGraphWithMapBodies(makeCollapsedFixture()));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batch 8b — Inderdeep UX review 2026-08-06
+// ---------------------------------------------------------------------------
+
+/**
+ * Item 19 — *"I was trying to ungroup it … I'm just right clicking. Nothing is
+ * happening. And then I realized, oh, I need to be on a particular node."*
+ *
+ * The handler DID fire for the group's box; it bailed one line later on
+ * `config.nodes[node.id]`, because a container's id is `container-<groupId>`
+ * and is never a key in `config.nodes`.
+ */
+describe("WorkflowEditorCanvas — item 19: right-click the group to ungroup it", () => {
+  function groupedConfig(): GraphWorkflowConfig {
+    const nodes: Record<string, GraphNode> = {};
+    for (const id of ["a", "b"]) {
+      nodes[id] = {
+        id,
+        type: "activity",
+        label: id.toUpperCase(),
+        activityType: "file.prepare",
+        parameters: {},
+        metadata: { position: { x: 0, y: 0 } },
+      } as GraphNode;
+    }
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "grouped", version: "1.0.0" },
+      ctx: {},
+      nodes,
+      edges: [],
+      entryNodeId: "a",
+      nodeGroups: { g1: { label: "Stage one", nodeIds: ["a", "b"] } },
+    };
+  }
+
+  function rightClick(nodeId: string) {
+    const props = latestReactFlowProps.current;
+    const handler = props?.onNodeContextMenu as (
+      event: React.MouseEvent,
+      node: FlowNode,
+    ) => void;
+    if (typeof handler !== "function") {
+      throw new Error("ReactFlow mock did not capture onNodeContextMenu");
+    }
+    const preventDefault = vi.fn();
+    act(() => {
+      handler(
+        {
+          preventDefault,
+          clientX: 40,
+          clientY: 50,
+        } as unknown as React.MouseEvent,
+        {
+          id: nodeId,
+          data: {},
+          position: { x: 0, y: 0 },
+        } as unknown as FlowNode,
+      );
+    });
+    return { preventDefault };
+  }
+
+  it("offers Ungroup on the group container, and nothing that means nothing for a projection", async () => {
+    renderCanvas(groupedConfig());
+    rightClick("container-g1");
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("context-menu-ungroup")).toHaveTextContent(
+      "Ungroup",
+    );
+    expect(screen.getByTestId("context-menu-ungroup")).toHaveTextContent(
+      "Stage one",
+    );
+    // "Change activity type" has nothing to swap and "Delete node" would look
+    // up `config.nodes["container-g1"]` and silently do nothing.
+    expect(screen.queryByTestId("context-menu-delete-node")).toBeNull();
+    expect(
+      screen.queryByTestId("context-menu-change-activity-type"),
+    ).toBeNull();
+    expect(screen.queryByTestId("context-menu-delete-selection")).toBeNull();
+  });
+
+  it("ungroups through the SAME path the member-node entry uses", async () => {
+    const { onConfigChange } = renderCanvas(groupedConfig());
+    rightClick("container-g1");
+    await waitFor(() => {
+      expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("context-menu-ungroup"));
+    await waitFor(() => {
+      expect(onConfigChange).toHaveBeenCalled();
+    });
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodeGroups?.g1).toBeUndefined();
+    // The steps stay — ungrouping removes the group entry, not the work.
+    expect(Object.keys(next.nodes).sort()).toEqual(["a", "b"]);
+    expect(notifications.show).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Ungrouped" }),
+    );
+  });
+
+  it("still shows the full node menu when the right-click lands on a member", async () => {
+    renderCanvas(groupedConfig());
+    rightClick("a");
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("context-menu-delete-node"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("context-menu-change-activity-type"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("context-menu-ungroup")).toBeInTheDocument();
+  });
+
+  it("opens no menu on a map-body box — there is no authored group to remove", async () => {
+    renderCanvas(makeMapWithBodyDisplayConfig());
+    rightClick("container-__map_body_m");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId("node-context-menu")).toBeNull();
+  });
+});
+
+/**
+ * Item 5 — *"I don't even know first what the red dot is … and then like even
+ * if I notice it, then it doesn't do anything."*
+ */
+describe("WorkflowEditorCanvas — item 5: the error-path handle", () => {
+  function fallbackConfig(): GraphWorkflowConfig {
+    const seed: ActivityNode = {
+      id: "seed",
+      type: "activity",
+      label: "Seed",
+      activityType: "data.transform",
+      parameters: {},
+      errorPolicy: { retryable: false, onError: "fallback" },
+      metadata: { position: { x: 100, y: 50 } },
+    };
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "E", version: "1.0.0" },
+      ctx: {},
+      nodes: { seed },
+      edges: [],
+      entryNodeId: "seed",
+    };
+  }
+
+  function hoverErrorHandle(nodeId: string) {
+    const nodeEl = screen.getByTestId(`canvas-node-${nodeId}`);
+    const handle = nodeEl.querySelector<HTMLElement>(
+      '[data-testid="handle-source-bottom"][data-handleid="error"]',
+    );
+    if (!handle) throw new Error(`error handle missing on ${nodeId}`);
+    fireEvent.mouseEnter(handle);
+  }
+
+  it("names the red dot on hover", () => {
+    renderCanvas(fallbackConfig());
+    expect(screen.getByTestId("error-handle-tooltip-seed")).toHaveAttribute(
+      "data-port-tooltip",
+      "Error path: runs when this step fails",
+    );
+  });
+
+  it("opens the SAME picker every other output handle opens, saying what the pick is for", async () => {
+    vi.useFakeTimers();
+    try {
+      renderCanvas(fallbackConfig());
+      hoverErrorHandle("seed");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId("hover-extend-popover")).toBeInTheDocument();
+      const banner = screen.getByTestId("hover-extend-error-path-banner");
+      expect(banner).toHaveTextContent("Error path");
+      expect(banner).toHaveTextContent(
+        "Pick the step that runs when this step fails.",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lands an error-typed edge and records it on the source's policy", async () => {
+    vi.useFakeTimers();
+    try {
+      const { onConfigChange } = renderCanvas(fallbackConfig());
+      hoverErrorHandle("seed");
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const row = screen.getByTestId("hover-extend-activity-file.prepare");
+      vi.useRealTimers();
+      fireEvent.click(row);
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+      expect(next.edges).toHaveLength(1);
+      const edge = next.edges[0];
+      expect(edge.type).toBe("error");
+      expect(edge.source).toBe("seed");
+      // G-001 — drawing the path IS naming it, so the validator has nothing
+      // left to complain about.
+      const seed = next.nodes.seed;
+      expect(seed.errorPolicy?.fallbackEdgeId).toBe(edge.id);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps ordinary wiring ordinary — the node-level handle still lands a normal edge", async () => {
+    vi.useFakeTimers();
+    try {
+      const { onConfigChange } = renderCanvas(fallbackConfig());
+      const nodeEl = screen.getByTestId("canvas-node-seed");
+      const outHandle = nodeEl.querySelector<HTMLElement>(
+        '[data-testid="handle-source-right"][data-handleid="out"]',
+      );
+      if (!outHandle) throw new Error("out handle missing");
+      fireEvent.mouseEnter(outHandle);
+      act(() => {
+        vi.advanceTimersByTime(210);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.queryByTestId("hover-extend-error-path-banner")).toBeNull();
+      const row = screen.getByTestId("hover-extend-activity-file.prepare");
+      vi.useRealTimers();
+      fireEvent.click(row);
+      await waitFor(() => {
+        expect(onConfigChange).toHaveBeenCalled();
+      });
+      const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+      expect(next.edges[0].type).toBe("normal");
+      expect(next.nodes.seed.errorPolicy?.fallbackEdgeId).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/**
+ * Item 7 — *"If it's an error, maybe it's better to mention it alongside the
+ * node name or the title … rather than at the top right of it."*
+ */
+describe("WorkflowEditorCanvas — item 7: failure is visible at the title", () => {
+  function twoNodeConfig(): GraphWorkflowConfig {
+    const nodes: Record<string, GraphNode> = {};
+    for (const id of ["ok", "boom"]) {
+      nodes[id] = {
+        id,
+        type: "activity",
+        label: id.toUpperCase(),
+        activityType: "file.prepare",
+        parameters: {},
+        metadata: { position: { x: 0, y: 0 } },
+      } as GraphNode;
+    }
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "run", version: "1.0.0" },
+      ctx: {},
+      nodes,
+      edges: [],
+      entryNodeId: "ok",
+    };
+  }
+
+  it("shows an Error chip beside the failed node's title, and only there", () => {
+    mockRunState.current = {
+      activeRunId: "run_1",
+      nodeStatuses: {
+        ok: { status: "succeeded" },
+        boom: { status: "failed", errorMessage: "Azure OCR rejected the PDF" },
+      },
+    };
+    renderCanvas(twoNodeConfig());
+    const chip = screen.getByTestId("node-failure-chip-boom");
+    expect(chip).toHaveTextContent("Error");
+    // Beside the title, not in the corner: the chip's parent row is the one
+    // carrying the node's label.
+    expect(chip.parentElement?.textContent).toContain("BOOM");
+    expect(screen.queryByTestId("node-failure-chip-ok")).toBeNull();
+  });
+
+  it("never marks a cache hit or a succeeded step as failed", () => {
+    mockRunState.current = {
+      activeRunId: "run_1",
+      nodeStatuses: {
+        ok: { status: "succeeded" },
+        boom: { status: "skipped" },
+      },
+    };
+    renderCanvas(twoNodeConfig());
+    expect(screen.queryByTestId("node-failure-chip-boom")).toBeNull();
+    expect(screen.queryByTestId("node-failure-chip-ok")).toBeNull();
+  });
+
+  it("shows nothing at design time — no run, no failure to report", () => {
+    renderCanvas(twoNodeConfig());
+    expect(screen.queryByTestId("node-failure-chip-boom")).toBeNull();
   });
 });
