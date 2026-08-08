@@ -8,6 +8,8 @@
  *  - item 30: the model picker sits at the composer (where the user is
  *    looking while typing) and "past conversations" is opened from the header
  *    group, beside new-conversation and close.
+ *  - item 22: a failed turn renders a visible error in the conversation,
+ *    naming the cause the backend gave.
  *
  * assistant-ui's runtime is stubbed: these are questions about which control
  * renders in which container, and the real runtime would only add a network
@@ -16,7 +18,7 @@
 
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,8 +56,17 @@ vi.mock("@assistant-ui/react", () => ({
     selector({ thread: threadState }),
 }));
 
+/** Captures the options the drawer hands the runtime, so a test can fire
+ *  the `onError` the AI SDK would fire on a failed turn. */
+const runtimeOptions = vi.hoisted(() => ({
+  current: null as { onError?: (error: unknown) => void } | null,
+}));
+
 vi.mock("@assistant-ui/react-ai-sdk", () => ({
-  useChatRuntime: () => ({}),
+  useChatRuntime: (options: { onError?: (error: unknown) => void }) => {
+    runtimeOptions.current = options;
+    return {};
+  },
 }));
 
 vi.mock("../../auth/GroupContext", () => ({
@@ -68,22 +79,27 @@ vi.mock("./useAgentConversations", () => ({
   fetchAgentConversation: vi.fn(),
 }));
 
-function renderDrawer() {
+function drawerTree() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return (
     <MantineProvider>
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={["/workflows/wf-1/edit"]}>
           <AgentChatDrawer />
         </MemoryRouter>
       </QueryClientProvider>
-    </MantineProvider>,
+    </MantineProvider>
   );
 }
 
+function renderDrawer() {
+  return render(drawerTree());
+}
+
 beforeEach(() => {
+  runtimeOptions.current = null;
   threadState.isRunning = false;
   useAgentChatStore.setState({ isOpen: true, conversationId: "conv-1" });
 });
@@ -159,5 +175,75 @@ describe("item 30 — panel layout", () => {
     expect(
       within(group as HTMLElement).getByTestId("agent-chat-close"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("item 22 — a failed turn says what went wrong", () => {
+  /** Fire the failure the AI SDK reports for a non-2xx `POST /agent/chat`: */
+  function failTurn(body: string) {
+    act(() => {
+      runtimeOptions.current?.onError?.(new Error(body));
+    });
+  }
+
+  it("renders nothing until a turn actually fails", () => {
+    renderDrawer();
+    expect(screen.queryByTestId("agent-chat-error")).toBeNull();
+  });
+
+  it("names an unconfigured provider inside the conversation", () => {
+    renderDrawer();
+
+    failTurn(
+      JSON.stringify({
+        statusCode: 503,
+        code: "provider-not-configured",
+        provider: "azure",
+        message:
+          "Provider 'azure' is not configured on this backend. Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT, or pick a model from a provider that is configured.",
+      }),
+    );
+
+    const alert = screen.getByTestId("agent-chat-error");
+    expect(alert).toHaveTextContent(
+      "That model is not configured on this server",
+    );
+    expect(alert).toHaveTextContent("Provider 'azure' is not configured");
+    expect(alert).toHaveTextContent("provider-not-configured");
+  });
+
+  it("shows the error inside the thread, not as panel chrome", () => {
+    renderDrawer();
+    failTurn(JSON.stringify({ statusCode: 500, message: "boom" }));
+    const thread = within(screen.getByTestId("agent-chat-thread"));
+    expect(thread.getByTestId("agent-chat-error")).toBeInTheDocument();
+  });
+
+  it("surfaces a mid-stream provider rejection too", () => {
+    renderDrawer();
+    // Already-streaming failures arrive as the sentence the backend wrote
+    // into the stream rather than as a JSON body.
+    failTurn(
+      "The model provider rejected the request (HTTP 401): the configured credential is not valid for this deployment.",
+    );
+    expect(screen.getByTestId("agent-chat-error")).toHaveTextContent(
+      "HTTP 401",
+    );
+  });
+
+  it("clears the error when the next turn starts", () => {
+    renderDrawer();
+    failTurn(JSON.stringify({ statusCode: 500, message: "boom" }));
+    expect(screen.getByTestId("agent-chat-error")).toBeInTheDocument();
+
+    // A new send flips the thread to running; the stale failure must not
+    // sit under the answer to the next question. The header toggle is just
+    // a cheap way to drive the re-render a real send would cause — the
+    // drawer is NOT remounted, so the error clearing is the effect's doing
+    // and not lost state.
+    threadState.isRunning = true;
+    fireEvent.click(screen.getByTestId("agent-chat-history-toggle"));
+
+    expect(screen.queryByTestId("agent-chat-error")).toBeNull();
   });
 });

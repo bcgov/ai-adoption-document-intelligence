@@ -20,9 +20,9 @@ function makeService(repo: Partial<ChatRepository>): AgentService {
 }
 
 describe("AgentService — conversation queries", () => {
-  it("listConversationsForCaller maps the caller's actorId onto the repo `createdBy` filter", async () => {
-    const listConversationsForUser = jest.fn().mockResolvedValue([]);
-    const service = makeService({ listConversationsForUser });
+  it("listConversationsForCaller asks for what the caller can see, in their group", async () => {
+    const listConversationsVisibleTo = jest.fn().mockResolvedValue([]);
+    const service = makeService({ listConversationsVisibleTo });
 
     await service.listConversationsForCaller({
       actorId: "user-1",
@@ -30,34 +30,41 @@ describe("AgentService — conversation queries", () => {
       workflowId: "wf-1",
     });
 
-    // Regression guard: previously the whole input (with `actorId`, no
-    // `createdBy`) was forwarded, so the query filtered on createdBy=undefined.
-    expect(listConversationsForUser).toHaveBeenCalledWith({
+    // Item 24: the list is the caller's own conversations PLUS the group's
+    // seeded demo replays — the repository owns that union, so all the
+    // service must do is hand over both identifiers.
+    expect(listConversationsVisibleTo).toHaveBeenCalledWith({
       groupId: "g1",
-      createdBy: "user-1",
+      actorId: "user-1",
       workflowId: "wf-1",
     });
   });
 
-  it("getConversationForCaller throws NotFound when the conversation is not owned by the caller", async () => {
+  it("getConversationForCaller throws NotFound when the conversation is not visible to the caller", async () => {
     const service = makeService({
-      findConversationByIdForUser: jest.fn().mockResolvedValue(null),
+      findConversationForReader: jest.fn().mockResolvedValue(null),
     });
     await expect(
-      service.getConversationForCaller("c1", "user-1"),
+      service.getConversationForCaller("c1", "user-1", "g1"),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("getConversationForCaller returns the conversation and its messages", async () => {
     const conversation = { id: "c1" };
     const messages = [{ id: "m1" }];
+    const findConversationForReader = jest.fn().mockResolvedValue(conversation);
     const service = makeService({
-      findConversationByIdForUser: jest.fn().mockResolvedValue(conversation),
+      findConversationForReader,
       listMessagesForConversation: jest.fn().mockResolvedValue(messages),
     });
     await expect(
-      service.getConversationForCaller("c1", "user-1"),
+      service.getConversationForCaller("c1", "user-1", "g1"),
     ).resolves.toEqual({ conversation, messages });
+    expect(findConversationForReader).toHaveBeenCalledWith(
+      "c1",
+      "user-1",
+      "g1",
+    );
   });
 
   it("deleteConversationForCaller throws NotFound when the conversation is missing", async () => {
@@ -77,5 +84,17 @@ describe("AgentService — conversation queries", () => {
     });
     await service.deleteConversationForCaller("c1", "user-1");
     expect(deleteConversation).toHaveBeenCalledWith("c1");
+  });
+
+  it("deleting still uses the owner-only lookup, so a demo is not deletable by a reader", async () => {
+    const findConversationByIdForUser = jest.fn().mockResolvedValue(null);
+    const service = makeService({ findConversationByIdForUser });
+    await expect(
+      service.deleteConversationForCaller("demo-agent-1", "someone-else"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(findConversationByIdForUser).toHaveBeenCalledWith(
+      "demo-agent-1",
+      "someone-else",
+    );
   });
 });

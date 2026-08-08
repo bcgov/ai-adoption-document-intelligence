@@ -3,6 +3,16 @@ import { createAzure } from "@ai-sdk/azure";
 import { Injectable } from "@nestjs/common";
 import type { LanguageModel } from "ai";
 import { AgentEnv, type AgentProvider } from "./agent.env";
+import { AgentProviderNotConfiguredException } from "./agent-errors";
+
+/**
+ * Which environment variables have to be present for a provider to be
+ * usable. NAMES only — the resolver never reads a value into a message.
+ */
+const REQUIRED_CONFIG: Record<AgentProvider, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  azure: ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
+};
 
 export interface ProviderSelection {
   provider: AgentProvider;
@@ -26,8 +36,12 @@ export class ProviderResolver {
   resolve(selection: Partial<ProviderSelection>): ProviderSelection {
     const provider = selection.provider ?? this.env.defaultProvider;
     if (!this.env.hasProvider(provider)) {
-      throw new Error(
-        `Provider '${provider}' is not configured on this backend.`,
+      // A structured HTTP refusal, not a bare Error: a bare Error leaves
+      // Nest with nothing to say but "Internal server error", and the chat
+      // drawer then had no cause to name (Inderdeep, 2026-08-06 — item 22).
+      throw new AgentProviderNotConfiguredException(
+        provider,
+        REQUIRED_CONFIG[provider],
       );
     }
     const model = selection.model ?? this.env.defaultModelFor(provider);
@@ -37,15 +51,19 @@ export class ProviderResolver {
   buildModel(selection: ProviderSelection): LanguageModel {
     if (selection.provider === "anthropic") {
       if (this.env.anthropicApiKey === null) {
-        throw new Error("ANTHROPIC_API_KEY is not configured.");
+        throw new AgentProviderNotConfiguredException(
+          "anthropic",
+          REQUIRED_CONFIG.anthropic,
+        );
       }
       const anthropic = createAnthropic({ apiKey: this.env.anthropicApiKey });
       return anthropic(selection.model);
     }
     if (selection.provider === "azure") {
       if (this.env.azureApiKey === null || this.env.azureEndpoint === null) {
-        throw new Error(
-          "AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT are not configured.",
+        throw new AgentProviderNotConfiguredException(
+          "azure",
+          REQUIRED_CONFIG.azure,
         );
       }
       // Build a baseURL that works for both standard Azure OpenAI and

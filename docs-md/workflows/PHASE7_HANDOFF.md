@@ -77,21 +77,23 @@ Add a source.api node so this workflow can be triggered via webhook with documen
 - `agent.service.ts` — `streamText` orchestration with auto-mode (`stopWhen: stepCountIs`), session resume via history hydration, side title-gen call
 - `agent.controller.ts` — `POST /api/agent/chat` (SSE) + `GET/DELETE /api/agent/conversations*` + `POST /api/agent/conversations/:id/abort`
 - `system-prompt.ts` — canonical workflow-builder system prompt
+- `agent-errors.ts` — the deliberate refusals (`provider-not-configured`, `conversation-budget-exceeded`, `demo-conversation-read-only`) and `describeAgentStreamError` for failures raised after the stream has started
 - 19 unit tests covering chat repo, abort flag map, and provider resolver
 
 **Frontend** — `apps/frontend/src/features/agent-chat/`
 - `AgentChatDrawer.tsx` — Mantine Drawer + assistant-ui's `Thread` + custom Composer with file-drop + tool-call cards
 - `AgentChatIcon.tsx` — global header bubble icon, toggleable
-- `ConversationSwitcher.tsx` — collapsible panel + per-conversation list + delete
+- `ConversationSwitcher.tsx` — collapsible panel + per-conversation list + delete (demo replays are badged and undeletable)
 - `error-renderers.tsx` — structured `ParseError[]` + binding-walk error UI
+- `agent-error.ts` — reads the backend's refusal body (or the stream's error sentence) into the title/detail/cause the thread shows
 - `useAgentConversations.ts` — TanStack hooks for the conversation list + detail
 - `store.ts` — Zustand store (drawer open/close, conversationId, selected model)
 - `agent-chat.css` — composer input styling
 
 **Prisma** — `apps/shared/prisma/schema.prisma`
-- `ChatConversation` — `id, workflowId, groupId, createdBy, provider, model, title, createdAt, lastMessageAt`
+- `ChatConversation` — `id, workflowId, groupId, createdBy, provider, model, title, isDemo, createdAt, lastMessageAt`
 - `ChatMessage` — `id, conversationId, role, content (Json), inputTokens, outputTokens, createdAt`
-- Migration: `20260526041213_add_chat_conversation_and_message`
+- Migrations: `20260526041213_add_chat_conversation_and_message`, `20260808000000_add_chat_conversation_is_demo`
 
 ## Test counts after Phase 7 close
 
@@ -123,7 +125,8 @@ Optional tuning:
 2. **Azure-walkthrough not yet automated.** Walkthrough script tests Anthropic only since Azure deployment is currently 400-ing on tool-use. Switch the model in the dropdown to verify by hand once the APIM is fixed.
 3. **assistant-ui v0.14** — using the headless primitives but not assistant-ui's auto-streaming markdown renderer (we have plain `pre-wrap` text). For richer UX, swap in `MessagePartPrimitive.Text` with markdown rendering later.
 4. **Concurrent-edit safety** is "last write wins" per the design lock L51 — the agent's tool calls do full read-modify-write on the workflow `config`, so if a human is also editing the canvas the agent's write may clobber edits. Not load-bearing for the demo but worth being aware of.
-5. **Per-user-private conversations** enforced at the repository level (every `findById` filters by `createdBy`). Cross-user access returns 404.
+5. **Per-user-private conversations** enforced at the repository level. `findConversationForReader` / `listConversationsVisibleTo` match `createdBy = caller` OR `isDemo = true`, always inside the caller's `groupId`; cross-user access to a real conversation still returns 404. Seeded demo transcripts are the deliberate exception — group-visible so the demo link replays for whoever opens it, and read-only for everyone (`POST /api/agent/chat` on one returns 403 `demo-conversation-read-only`). Delete stays owner-only via `findConversationByIdForUser`.
+6. **Failed turns are visible, not silent.** Refusals before the stream starts carry a structured body (`{ statusCode, code, message, provider?, missingConfig? }` — env var NAMES only, never values); failures after the headers are sent go through `describeAgentStreamError` into the stream, because the AI SDK's default masks them as "An error occurred.". The drawer's `describeAgentChatError` turns either into the `agent-chat-error` alert rendered at the end of the thread.
 
 ## Verification screenshots
 

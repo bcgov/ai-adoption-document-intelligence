@@ -1,4 +1,12 @@
-import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Box,
+  Group,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { IconTrash } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -77,41 +85,58 @@ export function ConversationSwitcher({
               data-testid={`agent-chat-conversation-${c.id}`}
             >
               <Stack gap={0}>
-                <Text size="xs" fw={600}>
-                  {c.title ?? "Untitled conversation"}
-                </Text>
+                <Group gap={6}>
+                  <Text size="xs" fw={600}>
+                    {c.title ?? "Untitled conversation"}
+                  </Text>
+                  {c.isDemo && (
+                    <Badge
+                      size="xs"
+                      color="teal"
+                      variant="light"
+                      data-testid={`agent-chat-conversation-${c.id}-demo-badge`}
+                    >
+                      demo replay
+                    </Badge>
+                  )}
+                </Group>
                 <Text size="xs" c="dimmed">
                   {new Date(c.lastMessageAt).toLocaleString()} · {c.provider}/
                   {c.model}
                 </Text>
               </Stack>
-              <Tooltip label="Delete conversation">
-                <ActionIcon
-                  size="sm"
-                  variant="subtle"
-                  color="red"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    const url =
-                      activeGroupId !== null
-                        ? `/api/agent/conversations/${c.id}?groupId=${encodeURIComponent(activeGroupId)}`
-                        : `/api/agent/conversations/${c.id}`;
-                    await fetch(url, {
-                      method: "DELETE",
-                      headers: getAgentAuthHeaders(activeGroupId),
-                    });
-                    await queryClient.invalidateQueries({
-                      queryKey: ["agent", "conversations"],
-                    });
-                    if (c.id === activeConversationId) {
-                      onSelect(null);
-                    }
-                  }}
-                  data-testid={`agent-chat-conversation-${c.id}-delete`}
-                >
-                  <IconTrash size={14} />
-                </ActionIcon>
-              </Tooltip>
+              {/* A seeded demo is shared with the whole group, so it is not
+                  any one person's to delete — and the backend would refuse
+                  anyway for everyone but the seeder (item 24). */}
+              {!c.isDemo && (
+                <Tooltip label="Delete conversation">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="red"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const url =
+                        activeGroupId !== null
+                          ? `/api/agent/conversations/${c.id}?groupId=${encodeURIComponent(activeGroupId)}`
+                          : `/api/agent/conversations/${c.id}`;
+                      await fetch(url, {
+                        method: "DELETE",
+                        headers: getAgentAuthHeaders(activeGroupId),
+                      });
+                      await queryClient.invalidateQueries({
+                        queryKey: ["agent", "conversations"],
+                      });
+                      if (c.id === activeConversationId) {
+                        onSelect(null);
+                      }
+                    }}
+                    data-testid={`agent-chat-conversation-${c.id}-delete`}
+                  >
+                    <IconTrash size={14} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
             </Group>
           );
         })}

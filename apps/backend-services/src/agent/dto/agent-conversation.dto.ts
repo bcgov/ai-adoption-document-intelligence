@@ -26,6 +26,12 @@ export class ChatConversationDto {
   @ApiProperty({ type: String, nullable: true })
   title!: string | null;
 
+  @ApiProperty({
+    description:
+      "True for a seeded demo transcript: readable by everyone in the group, and a read-only replay that no turn can be appended to.",
+  })
+  isDemo!: boolean;
+
   @ApiProperty({ type: String, format: "date-time" })
   createdAt!: Date;
 

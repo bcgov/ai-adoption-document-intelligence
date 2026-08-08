@@ -9,8 +9,10 @@ import {
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
+  Code,
   Drawer,
   Group,
   ScrollArea,
@@ -20,6 +22,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import {
+  IconAlertTriangle,
   IconChevronDown,
   IconChevronUp,
   IconHistory,
@@ -42,6 +45,7 @@ import {
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "../../auth/GroupContext";
+import { type AgentChatError, describeAgentChatError } from "./agent-error";
 import { ConversationSwitcher } from "./ConversationSwitcher";
 import {
   parseAgentChatDeepLink,
@@ -235,6 +239,13 @@ function ChatThread({
   onAbort: () => void | Promise<void>;
 }) {
   const queryClient = useQueryClient();
+  // The last turn's failure, shown inside the conversation. Before this the
+  // runtime swallowed every rejection and the drawer just sat there
+  // (Inderdeep, 2026-08-06 — item 22: "No error message, no feedback").
+  const [turnError, setTurnError] = useState<AgentChatError | null>(null);
+  const clearTurnError = useCallback(() => {
+    setTurnError((current) => (current === null ? current : null));
+  }, []);
 
   const transport = useMemo(
     () =>
@@ -268,6 +279,12 @@ function ChatThread({
     // Seed the thread from a selected conversation's history (empty for a
     // fresh chat). Read once at mount; the parent remounts on switch/reset.
     messages: seedMessages,
+    // Fires for both halves of a failure: a non-2xx `POST /api/agent/chat`
+    // (the AI SDK throws with the response body as the message) and an
+    // error chunk written into an already-streaming response.
+    onError: (error: unknown) => {
+      setTurnError(describeAgentChatError(error));
+    },
     onFinish: () => {
       queryClient.invalidateQueries({ queryKey: ["activity-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-node-list"] });
@@ -278,7 +295,7 @@ function ChatThread({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <MessageList />
+      <MessageList turnError={turnError} onClearTurnError={clearTurnError} />
       <Composer
         workflowId={currentWorkflowId}
         activeGroupId={activeGroupId}
@@ -482,7 +499,13 @@ function SendOrStopButton({
   );
 }
 
-function MessageList() {
+function MessageList({
+  turnError,
+  onClearTurnError,
+}: {
+  turnError: AgentChatError | null;
+  onClearTurnError: () => void;
+}) {
   return (
     <ScrollArea
       style={{ flex: 1 }}
@@ -519,8 +542,50 @@ function MessageList() {
             AssistantMessage,
           }}
         />
+        {/* Last in the viewport, so a failure reads as the turn's outcome
+            rather than as panel chrome. */}
+        <TurnErrorAlert error={turnError} onClear={onClearTurnError} />
       </ThreadPrimitive.Viewport>
     </ScrollArea>
+  );
+}
+
+/**
+ * The visible half of item 22. Renders whatever cause the backend named
+ * — an unconfigured provider, a spent budget, a provider rejection — and
+ * clears itself the moment the next turn starts.
+ */
+function TurnErrorAlert({
+  error,
+  onClear,
+}: {
+  error: AgentChatError | null;
+  onClear: () => void;
+}) {
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+  useEffect(() => {
+    if (isRunning) onClear();
+  }, [isRunning, onClear]);
+
+  if (error === null) return null;
+  return (
+    <Box px="sm" pb="sm" pt={4} data-testid="agent-chat-error">
+      <Alert
+        color="red"
+        variant="light"
+        title={error.title}
+        icon={<IconAlertTriangle size={18} />}
+      >
+        <Stack gap={4}>
+          <Text size="sm">{error.detail}</Text>
+          {error.code !== null && (
+            <Text size="xs" c="dimmed">
+              cause: <Code>{error.code}</Code>
+            </Text>
+          )}
+        </Stack>
+      </Alert>
+    </Box>
   );
 }
 

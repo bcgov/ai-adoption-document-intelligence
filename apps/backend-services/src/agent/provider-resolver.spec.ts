@@ -1,6 +1,10 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AgentEnv } from "./agent.env";
+import {
+  type AgentErrorBody,
+  AgentProviderNotConfiguredException,
+} from "./agent-errors";
 import { ProviderResolver } from "./provider-resolver";
 
 function makeConfig(values: Record<string, string | undefined>): ConfigService {
@@ -85,9 +89,42 @@ describe("ProviderResolver", () => {
       ],
     }).compile();
     const resolver = moduleRef.get(ProviderResolver);
-    expect(() => resolver.resolve({ provider: "azure" })).toThrow(
-      /Provider 'azure' is not configured/,
-    );
+    // Item 22: a bare Error here became a generic 500 with nothing for the
+    // chat drawer to name. It is now a 503 carrying the cause and the
+    // environment variable NAMES (never values) that would fix it.
+    let thrown: unknown;
+    try {
+      resolver.resolve({ provider: "azure" });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentProviderNotConfiguredException);
+    const body = (
+      thrown as AgentProviderNotConfiguredException
+    ).getResponse() as AgentErrorBody;
+    expect(body.code).toBe("provider-not-configured");
+    expect(body.provider).toBe("azure");
+    expect(body.missingConfig).toEqual([
+      "AZURE_OPENAI_API_KEY",
+      "AZURE_OPENAI_ENDPOINT",
+    ]);
+  });
+
+  it("buildModel refuses the same way when the key is absent", async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        ProviderResolver,
+        AgentEnv,
+        {
+          provide: ConfigService,
+          useValue: makeConfig({ ANTHROPIC_API_KEY: "x" }),
+        },
+      ],
+    }).compile();
+    const resolver = moduleRef.get(ProviderResolver);
+    expect(() =>
+      resolver.buildModel({ provider: "azure", model: "gpt-5.4" }),
+    ).toThrow(AgentProviderNotConfiguredException);
   });
 
   it("throws if no provider is configured at all", async () => {

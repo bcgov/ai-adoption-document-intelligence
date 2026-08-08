@@ -14,10 +14,12 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -27,12 +29,14 @@ import { Identity } from "@/auth/identity.decorator";
 import { getIdentityGroupIds } from "@/auth/identity.helpers";
 import { AbortFlagMap } from "./abort-flag-map";
 import { AgentService } from "./agent.service";
+import { describeAgentStreamError } from "./agent-errors";
 import { AgentChatRequestDto } from "./dto/agent-chat-request.dto";
 import {
   AbortConversationResponseDto,
   ConversationDetailResponseDto,
   ConversationListResponseDto,
 } from "./dto/agent-conversation.dto";
+import { AgentErrorResponseDto } from "./dto/agent-error.dto";
 
 @ApiTags("agent")
 @Controller("api/agent")
@@ -55,6 +59,16 @@ export class AgentController {
   })
   @ApiUnauthorizedResponse({
     description: "Caller is unauthenticated or could not be scoped to a group.",
+  })
+  @ApiForbiddenResponse({
+    type: AgentErrorResponseDto,
+    description:
+      "The turn was refused: the conversation's token budget is spent, or it is a seeded demo replay that cannot be appended to.",
+  })
+  @ApiServiceUnavailableResponse({
+    type: AgentErrorResponseDto,
+    description:
+      "The requested model provider is not configured on this backend.",
   })
   async chat(
     @Req() req: Request,
@@ -83,6 +97,12 @@ export class AgentController {
     res.setHeader("x-conversation-id", result.conversationId);
     result.streamResult.pipeUIMessageStreamToResponse(res, {
       sendReasoning: false,
+      // Without this the AI SDK masks every mid-stream failure as the
+      // string "An error occurred." — the response headers are already on
+      // the wire by then, so this is the only channel a provider rejection
+      // (bad key, missing deployment, rate limit) can reach the user
+      // (Inderdeep, 2026-08-06 — item 22).
+      onError: describeAgentStreamError,
     });
   }
 
@@ -117,14 +137,15 @@ export class AgentController {
     description: "Caller is unauthenticated or could not be scoped to a group.",
   })
   @ApiNotFoundResponse({
-    description: "No conversation with that id is owned by the caller.",
+    description:
+      "No conversation with that id is visible to the caller (their own conversations, plus their group's seeded demo replays).",
   })
   async getConversation(
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<ConversationDetailResponseDto> {
-    const { actorId } = resolveCallerOrThrow(req);
-    return this.agentService.getConversationForCaller(id, actorId);
+    const { actorId, groupId } = resolveCallerOrThrow(req);
+    return this.agentService.getConversationForCaller(id, actorId, groupId);
   }
 
   @Delete("conversations/:id")
@@ -162,9 +183,9 @@ export class AgentController {
     @Req() req: Request,
     @Param("id") id: string,
   ): Promise<AbortConversationResponseDto> {
-    const { actorId } = resolveCallerOrThrow(req);
-    // Verify ownership (throws 404 on cross-user access).
-    await this.agentService.getConversationForCaller(id, actorId);
+    const { actorId, groupId } = resolveCallerOrThrow(req);
+    // Verify the caller can see this conversation (throws 404 otherwise).
+    await this.agentService.getConversationForCaller(id, actorId, groupId);
     const aborted = this.abortFlags.abort(id);
     return { ok: true, aborted };
   }

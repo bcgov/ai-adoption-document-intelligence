@@ -496,7 +496,22 @@ workflow routes.
 **Key file:** `apps/frontend/src/layouts/RootLayout.tsx` — `<AgentChatIcon />`
 L232, `<AgentChatDrawer />` L465.
 
-### 22. [ ] The agent fails silently — no error, no feedback, nothing
+### 22. [x] The agent fails silently — no error, no feedback, nothing
+**Done 2026-08-08 (batch 12).** Two silences, not one, and both were real.
+(1) `ProviderResolver.resolve` threw a bare `Error`, which Nest can only
+render as `{"statusCode":500,"message":"Internal server error"}` — the cause
+was destroyed at the boundary. It now throws
+`AgentProviderNotConfiguredException` (503) carrying `code`, `provider` and
+the environment variable **names** that are missing. (2) Anything that fails
+*after* the response headers are sent — a bad key, a missing deployment, a
+429 — went through the AI SDK's default masker, which writes the literal
+string "An error occurred."; `pipeUIMessageStreamToResponse` now gets an
+`onError` that says which HTTP status the provider returned and what it said.
+The frontend never rendered either: `useChatRuntime` had no `onError`, so
+every rejection was dropped on the floor. It now stores the failure and
+renders it as a red alert at the end of the thread (`agent-chat-error`),
+clearing when the next turn starts. Never echoes a URL, header or body — only
+the provider's own message, truncated to 400 chars.
 **Area:** Frontend/Backend — agent chat
 **Problem:** *"I ran the prompt. Nothing. Why is it not working?"* and *"No
 error message, no feedback."* He hit this on both the editor and
@@ -530,7 +545,20 @@ the feature.
 (`AGENT_MODEL_OPTIONS`); provider config documented in
 `docs-md/workflows/MANUAL_TEST_PLAN.md` Part 15 env table.
 
-### 24. [ ] "Show past conversations" is empty on the seeded demo
+### 24. [x] "Show past conversations" is empty on the seeded demo
+**Done 2026-08-08 (batch 12).** Diagnosis held: `ChatConversation` rows are
+private to `createdBy`, so a transcript seeded under `SEED_USER_SUB` was
+invisible to every other identity — including the API-key identity, which is
+why a reload did not help. Fixed by encoding the distinction the review names:
+`ChatConversation.isDemo` (migration
+`20260808000000_add_chat_conversation_is_demo`), set by the seeder. A demo row
+is visible to every member of **its own group** and read-only for everyone —
+`POST /api/agent/chat` on one returns 403 `demo-conversation-read-only` rather
+than putting one reader's follow-up into everybody else's demo. Per-user
+scoping of real conversations is untouched: the visibility filter is
+`groupId = caller's group AND (createdBy = caller OR isDemo)`, and delete
+stays owner-only. The switcher badges a demo **demo replay** and withholds its
+delete control.
 **Area:** Frontend/Seed — agent chat history
 **Problem:** He opened the seeded agent demo, clicked *Show past conversations*,
 and got nothing — twice, including after a reload. Alex expected a seeded

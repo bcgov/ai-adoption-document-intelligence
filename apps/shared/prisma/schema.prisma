@@ -975,6 +975,10 @@ model ChatConversation {
   provider       String          @default("anthropic")
   model          String
   title          String?
+  /// Seeded demo transcript rather than a real user's chat. Demo
+  /// conversations are readable by everyone in their group and are a
+  /// read-only replay — no turn may be appended to one.
+  isDemo         Boolean         @default(false) @map("is_demo")
   createdAt      DateTime        @default(now()) @map("created_at")
   lastMessageAt  DateTime        @default(now()) @map("last_message_at")
   messages       ChatMessage[]

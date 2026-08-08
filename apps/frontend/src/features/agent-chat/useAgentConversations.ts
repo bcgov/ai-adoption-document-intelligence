@@ -12,6 +12,13 @@ export interface AgentConversationListItem {
   provider: string;
   model: string;
   title: string | null;
+  /**
+   * A seeded demo transcript. The backend shows these to everyone in the
+   * group (item 24 — the replay used to be visible only to the identity
+   * that ran the seed) and refuses any turn appended to one, so the UI
+   * labels them and withholds the delete control.
+   */
+  isDemo: boolean;
   createdAt: string;
   lastMessageAt: string;
 }

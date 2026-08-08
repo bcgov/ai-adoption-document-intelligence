@@ -92,7 +92,7 @@ function makeHarness(opts: {
   const setWorkflowId = jest.fn().mockResolvedValue(undefined);
 
   const chatRepository: jest.Mocked<Partial<ChatRepository>> = {
-    findConversationByIdForUser: jest.fn().mockResolvedValue(conversation),
+    findConversationForReader: jest.fn().mockResolvedValue(conversation),
     createConversation: jest
       .fn()
       .mockResolvedValue({ id: "conv-new", workflowId: null, title: null }),
@@ -193,6 +193,51 @@ describe("AgentService.startChat — resume group scoping (SECURITY §2.4)", () 
 
     // The mismatch is caught before any message is persisted.
     expect(chatRepository.createMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("AgentService.startChat — seeded demo replays (item 24)", () => {
+  it("refuses to append a turn to a demo conversation, naming why", async () => {
+    const { service, chatRepository } = makeHarness({
+      conversation: {
+        id: "demo-agent-ocr-pipeline",
+        workflowId: "wf-1",
+        title: "Invoice OCR pipeline",
+        groupId: "g1",
+        isDemo: true,
+      },
+    });
+
+    // A demo is group-visible so anyone can REPLAY it; writing to it would
+    // put one reader's follow-up into everyone else's demo.
+    await expect(
+      service.startChat({
+        ...baseInput,
+        conversationId: "demo-agent-ocr-pipeline",
+        messages: [userMsg("carry on")],
+      } as never),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: { code: "demo-conversation-read-only" },
+    });
+    expect(chatRepository.createMessage).not.toHaveBeenCalled();
+  });
+
+  it("leaves an ordinary conversation writable", async () => {
+    const { service } = makeHarness({
+      conversation: {
+        id: "conv-1",
+        workflowId: null,
+        title: "existing",
+        groupId: "g1",
+        isDemo: false,
+      },
+    });
+    const result = await service.startChat({
+      ...baseInput,
+      messages: [userMsg("hi")],
+    } as never);
+    expect(result.conversationId).toBe("conv-1");
   });
 });
 

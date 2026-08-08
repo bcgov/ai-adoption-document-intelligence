@@ -9,6 +9,13 @@ export interface ChatConversationRow {
   provider: string;
   model: string;
   title: string | null;
+  /**
+   * A seeded demo transcript. Demo conversations are readable by anyone in
+   * their group (the demo link is opened by whoever is walking the test
+   * plan, not only by the identity that ran the seed) and are a read-only
+   * replay — no turn may be appended to one.
+   */
+  isDemo: boolean;
   createdAt: Date;
   lastMessageAt: Date;
 }
@@ -46,16 +53,41 @@ export class ChatRepository {
     });
   }
 
-  async listConversationsForUser(input: {
+  /**
+   * A conversation is visible to a caller when the caller created it, or
+   * when it is a seeded demo transcript belonging to the caller's group.
+   * Everything else stays private to its author.
+   */
+  private visibilityWhere(
+    actorId: string,
+    groupId: string,
+  ): { groupId: string; OR: Array<{ createdBy: string } | { isDemo: true }> } {
+    return {
+      groupId,
+      OR: [{ createdBy: actorId }, { isDemo: true }],
+    };
+  }
+
+  async findConversationForReader(
+    id: string,
+    actorId: string,
+    groupId: string,
+  ): Promise<ChatConversationRow | null> {
+    return this.prisma.prisma.chatConversation.findFirst({
+      where: { id, ...this.visibilityWhere(actorId, groupId) },
+    });
+  }
+
+  async listConversationsVisibleTo(input: {
     groupId: string;
-    createdBy: string;
+    actorId: string;
     workflowId?: string | null;
   }): Promise<ChatConversationRow[]> {
     const where: {
       groupId: string;
-      createdBy: string;
+      OR: Array<{ createdBy: string } | { isDemo: true }>;
       workflowId?: string | null;
-    } = { groupId: input.groupId, createdBy: input.createdBy };
+    } = this.visibilityWhere(input.actorId, input.groupId);
     if (input.workflowId !== undefined) {
       where.workflowId = input.workflowId;
     }

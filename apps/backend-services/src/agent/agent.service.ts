@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import type { OnFinishEvent } from "ai";
 import {
   convertToModelMessages,
@@ -18,6 +14,10 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { WorkflowService } from "@/workflow/workflow.service";
 import { AbortFlagMap } from "./abort-flag-map";
 import { AgentEnv, type AgentProvider } from "./agent.env";
+import {
+  AgentBudgetExceededException,
+  AgentDemoConversationReadOnlyException,
+} from "./agent-errors";
 import { ChatRepository } from "./chat.repository";
 import { ProviderResolver } from "./provider-resolver";
 import { RunBudgetMap } from "./run-budget-map";
@@ -73,13 +73,22 @@ export class AgentService {
     let conversation =
       input.conversationId === null
         ? null
-        : await this.chatRepository.findConversationByIdForUser(
+        : await this.chatRepository.findConversationForReader(
             input.conversationId,
             input.actorId,
+            input.groupId,
           );
 
     if (input.conversationId !== null && conversation === null) {
       throw new NotFoundException("Conversation not found");
+    }
+
+    // A seeded demo is a shared replay of a chat that already happened.
+    // Reading it is open to the group; appending to it is open to nobody,
+    // or the next reader would see one person's follow-up as part of the
+    // demo.
+    if (conversation?.isDemo === true) {
+      throw new AgentDemoConversationReadOnlyException();
     }
 
     // A conversation is bound to the group it was created in. Resuming it
@@ -148,8 +157,9 @@ export class AgentService {
       conversation.id,
     );
     if (spentTokens >= this.env.maxConversationTokens) {
-      throw new ForbiddenException(
-        `Conversation token budget exceeded (${spentTokens} / ${this.env.maxConversationTokens}). Start a new conversation to continue.`,
+      throw new AgentBudgetExceededException(
+        spentTokens,
+        this.env.maxConversationTokens,
       );
     }
 
@@ -257,25 +267,29 @@ export class AgentService {
     return { conversationId: conversation.id, streamResult: result };
   }
 
+  /**
+   * The caller's own conversations in this group, plus the group's seeded
+   * demo replays. Without the demo half, "Show past conversations" on a
+   * demo link was empty for everyone except the identity that ran the seed
+   * (Inderdeep, 2026-08-06 — item 24).
+   */
   async listConversationsForCaller(input: {
     actorId: string;
     groupId: string;
     workflowId?: string | null;
   }) {
-    // Conversations are keyed by `createdBy` (set to the actor id at creation
-    // time), so map the caller's actorId onto the repository's `createdBy`
-    // filter. Passing `actorId` straight through queried `createdBy: undefined`.
-    return this.chatRepository.listConversationsForUser({
+    return this.chatRepository.listConversationsVisibleTo({
       groupId: input.groupId,
-      createdBy: input.actorId,
+      actorId: input.actorId,
       workflowId: input.workflowId,
     });
   }
 
-  async getConversationForCaller(id: string, actorId: string) {
-    const conversation = await this.chatRepository.findConversationByIdForUser(
+  async getConversationForCaller(id: string, actorId: string, groupId: string) {
+    const conversation = await this.chatRepository.findConversationForReader(
       id,
       actorId,
+      groupId,
     );
     if (conversation === null) {
       throw new NotFoundException("Conversation not found");

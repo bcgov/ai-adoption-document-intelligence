@@ -86,14 +86,51 @@ describe("AgentController", () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it("abort: verifies ownership then signals the abort flag", async () => {
+  it("abort: verifies visibility then signals the abort flag", async () => {
     const { controller, agentService, abortFlags } = makeController();
     const result = await controller.abortConversation(reqWith(member), "c1");
     expect(agentService.getConversationForCaller).toHaveBeenCalledWith(
       "c1",
       "u1",
+      "g1",
     );
     expect(abortFlags.abort).toHaveBeenCalledWith("c1");
     expect(result).toEqual({ ok: true, aborted: true });
+  });
+
+  it("getConversation: scopes the lookup to the caller AND their group", async () => {
+    const { controller, agentService } = makeController();
+    await controller.getConversation(reqWith(member), "c1");
+    // The group half is what keeps item 24's demo visibility from leaking
+    // one group's seeded transcripts into another's.
+    expect(agentService.getConversationForCaller).toHaveBeenCalledWith(
+      "c1",
+      "u1",
+      "g1",
+    );
+  });
+
+  it("chat: gives the stream a real error describer, not the SDK's silence", async () => {
+    const { controller, pipe } = makeController();
+    const res = { setHeader: jest.fn() } as unknown as Response;
+    const body = plainToInstance(AgentChatRequestDto, { messages: [] });
+
+    await controller.chat(
+      reqWith(member, { body: { messages: [] } }),
+      res,
+      body,
+    );
+
+    // Item 22: without an `onError` the AI SDK masks every mid-stream
+    // failure as "An error occurred." — the response headers are already
+    // sent, so this callback is the only way the cause reaches the user.
+    const options = pipe.mock.calls[0][1] as {
+      onError?: (error: unknown) => string;
+    };
+    expect(typeof options.onError).toBe("function");
+    const described = options.onError?.(
+      Object.assign(new Error("Access denied"), { statusCode: 401 }),
+    );
+    expect(described).toContain("HTTP 401");
   });
 });

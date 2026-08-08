@@ -1865,12 +1865,13 @@ function renderGuide(results, agentResults = []) {
     );
     lines.push("");
     lines.push(
-      "> The chat log opens for the **signed-in user the demos were seeded" +
-        " for** (`SEED_USER_SUB`). Conversations are private per user, so if" +
-        " you're signed in as someone else, re-run `npm run seed:demos` as" +
-        " that identity. The transcript replays as it happened — including the" +
-        " agent's own end-to-end self-test against the built-in sample" +
-        " document.",
+      "> The chat log opens for **anyone in the group**: seeded transcripts" +
+        " are flagged as demo data (`isDemo`), which makes them group-visible" +
+        " and **read-only** — your own conversations stay private to you, and" +
+        " nobody can append a turn to a demo replay. Start a new conversation" +
+        " to chat with the agent yourself. The transcript replays as it" +
+        " happened — including the agent's own end-to-end self-test against" +
+        " the built-in sample document.",
     );
     lines.push("");
     for (const r of agentResults) {
@@ -1935,8 +1936,9 @@ async function resolveApiKey() {
  * workflow via the API, then insert its ChatConversation + ChatMessage rows
  * directly (there is no API to create an arbitrary transcript). The
  * conversation gets a FIXED id so the guide's `?agentChat=<id>` deep link is
- * stable across reseeds, and `createdBy` is the actor the seeded x-api-key
- * resolves to (so the demo session — which sends that key — can open it).
+ * stable across reseeds, and `isDemo` marks it as demo data — group-visible
+ * to whoever opens the link, and a read-only replay for everyone including
+ * the identity that seeded it.
  */
 async function seedAgentDemos() {
   const require = createRequire(import.meta.url);
@@ -1964,13 +1966,12 @@ async function seedAgentDemos() {
   });
   const results = [];
   try {
-    // Own the demo conversations as the identity that will VIEW them.
-    // Conversations are private per `createdBy`, so this must match the
-    // caller the demo session resolves to:
-    //   • A human browsing via IDIR → the SEED_USER_SUB user's actor
-    //     (seed.ts upserts that user into the group). This is the primary
-    //     path — the FEATURE_DEMO_GUIDE links are opened in a real browser.
-    //   • CI / e2e (x-api-key) → the group's ApiKey actor (fallback).
+    // `createdBy` is NOT NULL, so a demo still records who seeded it — but
+    // it no longer decides who can SEE it. Visibility comes from `isDemo`
+    // (group-wide), which is what makes the replay open for the person
+    // walking the test plan rather than only for the seeder. Preference
+    // order is unchanged: the SEED_USER_SUB user's actor (the IDIR identity
+    // the links are opened as), else the group's ApiKey actor (CI / e2e).
     let createdBy = null;
     let ownerLabel = "";
     const seedUserSub = process.env.SEED_USER_SUB;
@@ -2043,6 +2044,7 @@ async function seedAgentDemos() {
           provider: fx.provider,
           model: fx.model,
           title: fx.title,
+          isDemo: true,
         },
         create: {
           id: fx.conversationId,
@@ -2052,6 +2054,7 @@ async function seedAgentDemos() {
           provider: fx.provider,
           model: fx.model,
           title: fx.title,
+          isDemo: true,
         },
       });
 

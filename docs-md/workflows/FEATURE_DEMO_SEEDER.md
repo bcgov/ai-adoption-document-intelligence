@@ -99,9 +99,18 @@ For each fixture, `seedAgentDemos()`:
 2. Inserts a `ChatConversation` + its `ChatMessage` rows **directly via Prisma**
    (there is no API to create an arbitrary transcript). The conversation id is
    **fixed by the fixture** (e.g. `demo-agent-ocr-pipeline`) so the guide's
-   `?agentChat=<id>` deep link is stable across reseeds, and `createdBy` is the
-   actor the seeded `x-api-key` resolves to (`ApiKey.actor_id` for the group) so
-   the demo session — which sends that key — can open it.
+   `?agentChat=<id>` deep link is stable across reseeds, and the row is written
+   with `isDemo: true`.
+
+`isDemo` is what makes the replay openable by whoever follows the link. Ordinary
+conversations are private to their `createdBy` actor, and a demo seeded under one
+identity was invisible to everyone else — the drawer's *Show past conversations*
+came up empty for anybody but the seeder. A demo row is instead visible to every
+member of its group and **read-only for all of them**: `POST /api/agent/chat`
+refuses a turn on one with `demo-conversation-read-only`, and the switcher badges
+it **demo replay** and withholds delete. `createdBy` still records who seeded it
+(`SEED_USER_SUB`'s actor, else the group's `ApiKey.actor_id`) but no longer
+decides who can see it.
 
 The guide then renders an **🤖 AI agent chat logs** section: each row has a
 **💬 Chat log** link (`?agentChat=<id>` — opens the drawer and replays the whole

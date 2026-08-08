@@ -70,26 +70,51 @@ describe("ChatRepository", () => {
     expect(result).toBeNull();
   });
 
-  it("listConversationsForUser passes workflowId when provided", async () => {
+  it("findConversationForReader also matches the group's seeded demos", async () => {
+    mockPrisma.chatConversation.findFirst.mockResolvedValue(null);
+    await repo.findConversationForReader("c1", "userA", "g");
+    expect(mockPrisma.chatConversation.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: "c1",
+        groupId: "g",
+        OR: [{ createdBy: "userA" }, { isDemo: true }],
+      },
+    });
+  });
+
+  it("listConversationsVisibleTo passes workflowId when provided", async () => {
     mockPrisma.chatConversation.findMany.mockResolvedValue([]);
-    await repo.listConversationsForUser({
+    await repo.listConversationsVisibleTo({
       groupId: "g",
-      createdBy: "u",
+      actorId: "u",
       workflowId: "wf-1",
     });
     expect(mockPrisma.chatConversation.findMany).toHaveBeenCalledWith({
-      where: { groupId: "g", createdBy: "u", workflowId: "wf-1" },
+      where: {
+        groupId: "g",
+        OR: [{ createdBy: "u" }, { isDemo: true }],
+        workflowId: "wf-1",
+      },
       orderBy: { lastMessageAt: "desc" },
     });
   });
 
-  it("listConversationsForUser omits workflowId when not provided", async () => {
+  it("listConversationsVisibleTo omits workflowId when not provided", async () => {
     mockPrisma.chatConversation.findMany.mockResolvedValue([]);
-    await repo.listConversationsForUser({ groupId: "g", createdBy: "u" });
+    await repo.listConversationsVisibleTo({ groupId: "g", actorId: "u" });
     expect(mockPrisma.chatConversation.findMany).toHaveBeenCalledWith({
-      where: { groupId: "g", createdBy: "u" },
+      where: { groupId: "g", OR: [{ createdBy: "u" }, { isDemo: true }] },
       orderBy: { lastMessageAt: "desc" },
     });
+  });
+
+  it("listConversationsVisibleTo never widens past the caller's group", async () => {
+    // Item 24 opened demo transcripts to a whole group; the guard is that
+    // the group filter is a sibling of the OR, not one of its branches.
+    mockPrisma.chatConversation.findMany.mockResolvedValue([]);
+    await repo.listConversationsVisibleTo({ groupId: "g", actorId: "u" });
+    const where = mockPrisma.chatConversation.findMany.mock.calls[0][0].where;
+    expect(where.groupId).toBe("g");
   });
 
   it("setWorkflowId updates the conversation", async () => {
