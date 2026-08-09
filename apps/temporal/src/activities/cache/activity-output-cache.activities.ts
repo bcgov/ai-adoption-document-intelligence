@@ -22,7 +22,7 @@
  * US-132 worker decorator's "bypass list" logic so the decorator does not
  * recurse into caching its own cache operations.
  *
- * Specs: docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.4 and
+ * Specs: docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.4 and
  * feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L14.
  */
 

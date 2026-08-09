@@ -1,7 +1,7 @@
 /**
  * Tests for `deriveWires` — the pure selector that maps a workflow config
  * to renderable port-to-port wires. See
- * docs-md/workflow-builder/PORT_WIRING_DESIGN.md §5 for the semantics and
+ * docs-md/workflows/PORT_WIRING_DESIGN.md §5 for the semantics and
  * §14 for the acceptance scenarios these tests cover.
  */
 import { describe, expect, it } from "vitest";

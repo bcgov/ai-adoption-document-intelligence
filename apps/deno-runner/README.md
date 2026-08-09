@@ -90,6 +90,6 @@ OpenShift manifests live at [`deployments/openshift/kustomize/base/deno-runner/`
 
 ## Related design docs
 
-- [DYNAMIC_NODES_DESIGN.md §1 + §1.5](../../docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md) — runner architecture
+- [DYNAMIC_NODES_DESIGN.md §1 + §1.5](../../docs-md/workflows/DYNAMIC_NODES_DESIGN.md) — runner architecture
 - [REQUIREMENTS.md L28 + L32 + L49 + L50](../../feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/REQUIREMENTS.md) — locked decisions
 - [US-186](../../feature-docs/20260601-workflow-builder-phase6-dynamic-nodes/user_stories/US-186-deno-runner-service.md) — this service's story

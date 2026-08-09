@@ -9,7 +9,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L32
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-138-node-status-badge.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.5
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §3.5
  */
 
 import {

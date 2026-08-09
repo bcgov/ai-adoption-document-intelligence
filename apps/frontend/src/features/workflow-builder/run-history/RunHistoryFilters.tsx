@@ -20,7 +20,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L39
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-153-run-history-drawer-and-filters.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.2
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.2
  */
 
 import { Group, Select } from "@mantine/core";

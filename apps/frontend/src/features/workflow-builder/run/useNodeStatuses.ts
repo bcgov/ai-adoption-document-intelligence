@@ -5,7 +5,7 @@
  *   GET /api/workflows/:workflowId/runs/:runId/node-statuses
  *
  * Polls every 1.5s (within the 1–2s budget — see
- * [TRY_IN_PLACE_DESIGN.md §3.3](../../../../../../docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md)),
+ * [TRY_IN_PLACE_DESIGN.md §3.3](../../../../../../docs-md/workflows/TRY_IN_PLACE_DESIGN.md)),
  * pauses when the browser tab is backgrounded, and stops polling
  * automatically once every node in the returned map is in a terminal
  * state.
@@ -26,7 +26,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L29
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-137-use-node-statuses-hook.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.3
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §3.3
  */
 
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";

@@ -27,7 +27,7 @@
  * fixed fields are declared properties.
  *
  * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L25,
- *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §5.1.
+ *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §5.1.
  */
 
 import { ApiProperty } from "@nestjs/swagger";

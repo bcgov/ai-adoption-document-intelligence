@@ -4,7 +4,7 @@
  * "currently flowing" animation on the canvas.
  *
  * Per [REQUIREMENTS.md L33](../../../../../../feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md)
- * and [TRY_IN_PLACE_DESIGN.md §3.4](../../../../../../docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md):
+ * and [TRY_IN_PLACE_DESIGN.md §3.4](../../../../../../docs-md/workflows/TRY_IN_PLACE_DESIGN.md):
  *
  *   An edge `{ id, source, target }` is "active" when the source node is
  *   `"running"` AND the target node is `"pending"`. Nodes that are absent

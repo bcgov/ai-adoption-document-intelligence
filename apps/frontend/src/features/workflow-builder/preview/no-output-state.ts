@@ -17,6 +17,7 @@
  *   | `branch-not-taken` | look elsewhere — control went another way        |
  *   | `failed`           | read the error; the step produced nothing        |
  *   | `cancelled`        | the run is over; re-run if you still want output |
+ *   | `awaiting-cache`   | wait — the step finished, the row is in flight   |
  *   | `evicted`          | Re-run to repopulate the cache (recovery exists) |
  *   | `not-previewable`  | nothing to do — this step never writes output    |
  *
@@ -50,6 +51,7 @@ export const NO_OUTPUT_REASONS = [
   "branch-not-taken",
   "failed",
   "cancelled",
+  "awaiting-cache",
   "evicted",
   "not-cached",
   "not-previewable",
@@ -84,6 +86,14 @@ export interface NoOutputCopy {
   reason: NoOutputReason;
   /** One sentence naming what actually happened. */
   message: string;
+  /**
+   * Two or three words for the fixed-height result strip on the node card
+   * (item 9, Option C). The strip has one line and cannot grow, so it cannot
+   * carry `message`; it names the state and the popover carries the sentence.
+   * Empty string for `not-previewable`, whose tone is `silent` — there is
+   * nothing to say and no strip is drawn.
+   */
+  label: string;
   /**
    * True only for `evicted` — the single reason whose output DID exist and
    * can be repopulated by re-running. Every other reason must NOT offer a
@@ -122,6 +132,7 @@ export function describeNoOutput(
       return {
         reason,
         message: "Run this workflow to see what this step produces.",
+        label: "Not run yet",
         offersRerun: false,
         tone: "neutral",
       };
@@ -129,6 +140,7 @@ export function describeNoOutput(
       return {
         reason,
         message: "Waiting — the run hasn't reached this step yet.",
+        label: "Waiting",
         offersRerun: false,
         tone: "neutral",
       };
@@ -136,6 +148,7 @@ export function describeNoOutput(
       return {
         reason,
         message: "Running now — output appears when this step finishes.",
+        label: "Running…",
         offersRerun: false,
         tone: "neutral",
       };
@@ -144,6 +157,7 @@ export function describeNoOutput(
         reason,
         message:
           "This step was never reached — the run took a different branch.",
+        label: "Not reached",
         offersRerun: false,
         tone: "notable",
       };
@@ -151,6 +165,7 @@ export function describeNoOutput(
       return {
         reason,
         message: "This step failed — no output was produced to preview.",
+        label: "Failed",
         offersRerun: false,
         tone: "notable",
       };
@@ -158,14 +173,31 @@ export function describeNoOutput(
       return {
         reason,
         message: "The run was cancelled before this step produced output.",
+        label: "Cancelled",
         offersRerun: false,
         tone: "notable",
+      };
+    case "awaiting-cache":
+      // §4.7 / item 9: the node reported `succeeded` (or `skipped`) but the
+      // batch preview map has no row for it *yet*. During a LIVE Try that is
+      // the normal 250ms-debounced gap between the status transition and the
+      // worker's cache decorator writing the row — not an eviction, and the
+      // reason `evicted` must never be reachable outside replay. Offering
+      // "Re-run to repopulate" here would cancel or duplicate the run that is
+      // in the middle of producing the very output being waited for.
+      return {
+        reason,
+        message: "This step finished — its output preview is still on its way.",
+        label: "Output pending",
+        offersRerun: false,
+        tone: "neutral",
       };
     case "evicted":
       return {
         reason,
         message:
           "This step's cached output has expired. Re-run to repopulate it.",
+        label: "Preview expired",
         offersRerun: true,
         tone: "notable",
       };
@@ -180,6 +212,7 @@ export function describeNoOutput(
           options?.isDynamicNode === true
             ? "This step ran, but its output isn't cached: the script is marked non-deterministic, so it re-executes every run instead of being stored. Tag it `@deterministic true` to make its output previewable."
             : "This step ran, but this activity never caches its output — it re-executes on every run instead of being stored, so there's nothing here to preview.",
+        label: "Not cached",
         offersRerun: false,
         tone: "notable",
       };
@@ -187,6 +220,7 @@ export function describeNoOutput(
       return {
         reason,
         message: "This step doesn't produce a previewable output.",
+        label: "",
         offersRerun: false,
         tone: "silent",
       };
@@ -256,9 +290,17 @@ export function noOutputReasonForNode(input: NoOutputInput): NoOutputReason {
       // node) has no row to have lost, so "evicted" would blame a TTL that
       // never applied and offer a recovery that cannot work.
       if (neverCached === true) return "not-cached";
-      // Otherwise the node DID produce output (ran fresh, or was served from
-      // cache), so a missing cache row is a genuine TTL eviction — the one
-      // reason with a working recovery.
+      // §4.7 — `evicted` is a REPLAY-ONLY conclusion. `PreviewWidget`'s
+      // docblock has always said so ("the cache-evicted recovery alert must
+      // only appear in replay mode"), but nothing enforced it, so a live Try
+      // showed "cached output has expired · Re-run" in the gap between a node
+      // going green and its cache row landing — blaming a TTL that had not
+      // expired and offering a Re-run that would cancel the run in flight.
+      // That is how item 10 was reproduced on a FIRST, non-replay Try.
+      if (!runFinished) return "awaiting-cache";
+      // The run is over and the node DID produce output (ran fresh, or was
+      // served from cache), so a missing cache row is a genuine TTL eviction —
+      // the one reason with a working recovery.
       return "evicted";
     default:
       return assertNever(status, "noOutputReasonForNode");

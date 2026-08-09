@@ -1,6 +1,6 @@
 /**
  * Canonical system prompt for the workflow-builder agent. See
- * docs-md/workflow-builder/AI_AGENT_DESIGN.md §8 for the design rules
+ * docs-md/workflows/AI_AGENT_DESIGN.md §8 for the design rules
  * behind each section, and §12c for the "functional-by-default" tools
  * (describeNode / validateWorkflow / listSampleDocuments / startTestRun)
  * this prompt drives.

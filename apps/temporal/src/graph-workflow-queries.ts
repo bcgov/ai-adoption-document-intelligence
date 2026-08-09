@@ -9,7 +9,7 @@
  *
  * Specs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L18.
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.1.
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §3.1.
  *
  * Design notes:
  *   - `NodeRunStatus` is intentionally separate from the pre-existing

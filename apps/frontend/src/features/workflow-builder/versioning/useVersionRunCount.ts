@@ -13,7 +13,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L24 + L43
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-152-version-run-count-endpoint-and-badge.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.5
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.5
  */
 
 import { useQuery } from "@tanstack/react-query";

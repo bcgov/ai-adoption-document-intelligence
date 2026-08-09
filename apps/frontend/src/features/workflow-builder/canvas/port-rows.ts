@@ -12,31 +12,48 @@
  */
 import { getActivityCatalogEntry, type KindRef } from "@ai-di/graph-workflow";
 import type { GraphNode, GraphWorkflowConfig } from "../../../types/workflow";
+import { PREVIEW_STRIP_TOTAL_HEIGHT_PX } from "../preview/strip-metrics";
 import type { DataWire, DerivedWire } from "./derive-wires";
 
 /**
  * Height constants below are CALIBRATED against rendered cards (measured
- * via `offsetHeight` on the seed workflows, 2026-07). An activity card
- * stacks: type-pill row (13px) + label (16px) + the `<PortRows>` grid
- * (6px top margin + 22px per row) + a 120px preview-widget skeleton +
- * card padding/gaps/border — so the row-less activity card measures
- * 177px, NOT just "header + label". Measured activity heights land
- * exactly on `177 + 6 + rows * 22`: 205 (1 row), 227 (2), 249 (3),
- * 271 (4), 293 (5) — the 22px/row slope is exact; only the intercept
- * needed calibrating.
+ * via `offsetHeight` on the seed workflows, 2026-07, re-measured 2026-08-08).
+ * An activity card stacks: type-pill row (13px) + label (16px) + the
+ * `<PortRows>` grid (6px top margin + 22px per row) + the fixed result strip
+ * + card padding/gaps/border. The 22px/row slope is exact; only the
+ * intercept needed calibrating.
  *
- * CAVEAT — the 120px preview block is STATE-DEPENDENT, so 177 is a
- * deliberate mid-point, not a universal fact: `PreviewWidget` renders the
- * 120px skeleton while pending, `null` when a node has no fresh preview
- * (a never-run workflow's cards are ~57px — over-estimating is safe,
- * layout just gets sparser), and ready content up to
- * `PREVIEW_MAX_HEIGHT_PX` (200px, i.e. up to +80px beyond the estimate,
- * which can eat into the 60px nodesep after a run). Re-measure if the
- * preview widget's sizing changes.
+ * **The old caveat is gone, and that is item 9's whole point.** These
+ * constants used to carry a 120px allowance for the preview widget, and the
+ * docblock had to admit the number was "a deliberate mid-point, not a
+ * universal fact": the widget rendered nothing at rest (~57px cards), a 120px
+ * skeleton while pending, and up to `PREVIEW_MAX_HEIGHT_PX` (200px) when
+ * content landed — so a card could exceed its estimate by 80px and eat dagre's
+ * 60px `nodesep`, which is exactly the overlap Alex saw on the shared screen.
+ *
+ * The preview now lives in a popover behind a fixed-height strip
+ * (`NodeResultStrip`), so the card's height is state-INDEPENDENT and the
+ * estimate is a fact rather than an average. Re-measure only if the card
+ * chrome itself changes; `PREVIEW_STRIP_TOTAL_HEIGHT_PX` keeps the strip's
+ * contribution honest on its own.
  */
 export const PORT_ROW_HEIGHT = 22;
-/** Row-less activity card: pill + label + 120px preview widget + padding. */
-export const ACTIVITY_BASE_HEIGHT = 177;
+/**
+ * Chrome of an activity card WITHOUT the port-row grid and WITHOUT the result
+ * strip: type pill + label + padding + border. Split out from
+ * `ACTIVITY_BASE_HEIGHT` so the strip's contribution is visible rather than
+ * baked into a magic number.
+ *
+ * Measured 2026-08-08 on `standard-ocr` at 1920×1080 via `offsetHeight` (which
+ * ignores the canvas zoom transform, so it needs no scale correction). Every
+ * activity card on that graph reported the identical decomposition:
+ * `offsetHeight − grid − strip = 70` including the grid's and the strip's 6px
+ * top margins, i.e. 58px of chrome. Six cards, one to five rows, no variance.
+ */
+export const ACTIVITY_CHROME_HEIGHT = 58;
+/** Row-less activity card: chrome + the fixed result strip. */
+export const ACTIVITY_BASE_HEIGHT =
+  ACTIVITY_CHROME_HEIGHT + PREVIEW_STRIP_TOTAL_HEIGHT_PX;
 /**
  * Control-flow rectangles/diamonds render WITHOUT port rows: map / join /
  * childWorkflow / humanGate measure 178px, the switch diamond 180×180 —
@@ -45,8 +62,21 @@ export const ACTIVITY_BASE_HEIGHT = 177;
  * renders the same `<PortRows>` grid an activity card does.
  */
 export const CONTROL_FLOW_NODE_HEIGHT = 180;
-/** Source cards (e.g. `source.upload`) render a slimmer fixed card: 165px. */
-export const SOURCE_NODE_HEIGHT = 165;
+/**
+ * Source cards (e.g. `source.upload`, `source.api`) render a slimmer fixed
+ * card. Like the activity card they mount a result strip, so the constant is
+ * chrome + strip.
+ *
+ * Measured 2026-08-08: an `apiSource` card decomposed to 41px of chrome + the
+ * 30px strip = 71px. The constant is deliberately ~25px more generous, one
+ * text line, because `SourceNodeRenderer` adds a subtitle whenever the author
+ * renamed the node (`node.label !== displayName`) and this selector has no
+ * source catalog to resolve `displayName` against. Over-estimating only makes
+ * the layout sparser; under-estimating is what puts cards on top of each other.
+ */
+export const SOURCE_CHROME_HEIGHT = 66;
+export const SOURCE_NODE_HEIGHT =
+  SOURCE_CHROME_HEIGHT + PREVIEW_STRIP_TOTAL_HEIGHT_PX;
 
 // --- Width estimates (mirror the height constants above) --------------------
 // Cards vary in width by type. These are the RENDERED footprints the map-body

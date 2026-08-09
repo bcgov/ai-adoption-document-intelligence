@@ -288,7 +288,7 @@ DYNAMIC_NODE_ALLOW_NET=
 
 Dynamic nodes are user-authored TypeScript activities published at runtime
 via the API (POST/PUT `/api/dynamic-nodes`) and executed in a sandboxed
-Deno subprocess. See `docs-md/workflow-builder/DYNAMIC_NODES_DESIGN.md` for
+Deno subprocess. See `docs-md/workflows/DYNAMIC_NODES_DESIGN.md` for
 the full design; the publish/CRUD endpoints live in
 `src/dynamic-nodes/`.
 

@@ -9,7 +9,7 @@
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L20
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.5
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.5
  */
 
 import {

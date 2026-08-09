@@ -12,7 +12,7 @@
  *
  * Specs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L14, L16.
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.4 + §2.6.
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.4 + §2.6.
  *
  * ## Architecture
  *

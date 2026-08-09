@@ -12,7 +12,7 @@
  * then `sleep("1 hour")` in a loop. `continueAsNew` is invoked once per
  * day so the workflow history doesn't grow unbounded.
  *
- * See `docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md` §2.7 and the
+ * See `docs-md/workflows/TRY_IN_PLACE_DESIGN.md` §2.7 and the
  * `REQUIREMENTS.md` L17 entry for the scheduling rationale.
  *
  * Operator note: this workflow is NOT auto-started by the worker. Start it

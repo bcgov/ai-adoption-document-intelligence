@@ -203,8 +203,11 @@ test.describe("try-in-place previews @infra", () => {
       });
       await expect(page.getByTestId("wire-peek-value")).toBeVisible();
 
-      // Assert the completed source node renders its cached output as an inline
-      // preview widget. We RELOAD first: during a live Try the preview hook
+      // Assert the completed source node renders its cached output. Since item
+      // 9 (2026-08-08) the card carries a fixed-height RESULT STRIP and the
+      // full widget lives in the popover behind it, so this checks both: the
+      // strip reports `ready` on the card, and opening it renders the widget
+      // with the right kind. We RELOAD first: during a live Try the preview hook
       // fires a single debounced refetch on the running→succeeded transition,
       // which can race ahead of the cache-row write; a fresh mount instead
       // fetches the now-committed "most recent" cache row deterministically.
@@ -216,9 +219,15 @@ test.describe("try-in-place previews @infra", () => {
       // would be testing a non-viewable artifact, so we don't.
       await editor.openExisting(created.id, 2);
 
+      const uploadStrip = page.getByTestId("node-result-strip-upload1");
+      await expect(uploadStrip).toHaveAttribute("data-state", "ready", {
+        timeout: 60_000,
+      });
+
+      await uploadStrip.click();
       const uploadPreview = page.getByTestId("preview-widget-upload1");
       await expect(uploadPreview).toHaveAttribute("data-state", "ready", {
-        timeout: 60_000,
+        timeout: 15_000,
       });
       await expect(uploadPreview).toHaveAttribute(
         "data-output-kind",

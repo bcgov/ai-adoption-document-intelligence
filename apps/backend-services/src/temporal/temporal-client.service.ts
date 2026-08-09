@@ -538,7 +538,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * `@temporalio/client`) so the controller can map them to HTTP semantics.
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L19,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §3.2.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §3.2.
    *
    * @param workflowId Temporal workflow execution id (runId in the canvas)
    * @returns The query response — a `Record<string, NodeRunStatus>`-shaped map
@@ -569,7 +569,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * semantics in the same way `queryNodeStatuses` does.
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L20,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §2.5.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.5.
    *
    * @param workflowId Temporal workflow execution id (runId in the canvas)
    * @returns `{ startedAt, endedAt }` where `endedAt` is `null` for runs
@@ -610,7 +610,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * so the controller can map them to HTTP semantics.
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L23,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.4.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.4.
    *
    * @param workflowId Temporal workflow execution id (runId in the canvas)
    * @returns `{ initialCtx, workflowLineageId }` decoded from the start
@@ -701,7 +701,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * helper (`WorkflowService.cancelInFlightTriesForLineage`).
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L26,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §5.1.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §5.1.
    *
    * Returns an empty array when no runs match — the visibility-store
    * query is safe to issue against a lineage that's never been Tried.
@@ -752,7 +752,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * I/O than `list` + paginate-count.
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L24,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.5.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.5.
    *
    * @param workflowLineageId The `WorkflowLineage.id` to filter on.
    * @param workflowVersionId The `WorkflowVersion.id` to filter on.
@@ -811,7 +811,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * start, see `startGraphWorkflow`).
    *
    * Spec: feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L21,
-   *       docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.1.
+   *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.1.
    *
    * @param params.workflowLineageId Lineage to filter on (required).
    * @param params.status Optional Temporal `ExecutionStatus` filter value

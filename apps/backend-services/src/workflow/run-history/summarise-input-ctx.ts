@@ -18,7 +18,7 @@
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L22
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.1
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.1
  */
 
 const MAX_TOP_LEVEL_KEYS = 4;

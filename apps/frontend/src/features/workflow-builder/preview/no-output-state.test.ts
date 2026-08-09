@@ -70,10 +70,33 @@ describe("noOutputReasonForNode", () => {
     ["running", "running"],
     ["failed", "failed"],
     ["cancelled", "cancelled"],
-    ["succeeded", "evicted"],
-    ["skipped", "evicted"],
+    // `base` is a LIVE run (`runFinished: false`), where a green node with no
+    // cache row is the 250ms gap before the row lands — never an eviction.
+    ["succeeded", "awaiting-cache"],
+    ["skipped", "awaiting-cache"],
   ])("maps status %s to reason %s", (status, expected) => {
     expect(noOutputReasonForNode({ ...base, status })).toBe(expected);
+  });
+
+  /*
+   * Item 9 / §4.7 — `PreviewWidget`'s docblock has always said the
+   * cache-evicted recovery alert "must only appear in replay mode", but
+   * nothing enforced it: a live Try showed "cached output has expired ·
+   * Re-run" between a node going green and its row being written, blaming a
+   * TTL that had not expired and offering a Re-run that would have cancelled
+   * the run producing the output. That is how item 10 was reproduced on a
+   * first, non-replay Try.
+   */
+  it("never concludes 'evicted' while the run is still live", () => {
+    for (const status of ["succeeded", "skipped"] as const) {
+      const reason = noOutputReasonForNode({
+        ...base,
+        runFinished: false,
+        status,
+      });
+      expect(reason).toBe("awaiting-cache");
+      expect(describeNoOutput(reason).offersRerun).toBe(false);
+    }
   });
 
   it("treats a produced-output node with a missing row as an eviction, not a 'didn't run'", () => {

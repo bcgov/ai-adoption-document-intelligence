@@ -64,7 +64,7 @@ export interface ActivityOutputCacheUpsertInput extends ActivityOutputCacheKey {
  *
  * The worker decorator (US-132) and the preview-cache endpoint (US-140)
  * are the primary consumers. See
- * `docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md` §2.2 + §2.6.
+ * `docs-md/workflows/TRY_IN_PLACE_DESIGN.md` §2.2 + §2.6.
  */
 @Injectable()
 export class ActivityOutputCacheRepository {

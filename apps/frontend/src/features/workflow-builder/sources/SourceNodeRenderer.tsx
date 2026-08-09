@@ -16,7 +16,7 @@
  * Icon / colour hints are resolved via `source-catalog-utils.ts`
  * (US-118) so the palette + settings surfaces share the same mapping.
  *
- * See docs-md/workflow-builder/DOCUMENT_SOURCES_DESIGN.md §7.2.
+ * See docs-md/workflows/DOCUMENT_SOURCES_DESIGN.md §7.2.
  */
 
 import {

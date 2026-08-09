@@ -7,7 +7,7 @@
  *
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L21 + L22
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.1
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.1
  */
 
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";

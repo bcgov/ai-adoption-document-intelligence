@@ -15,7 +15,7 @@ import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -757,7 +757,7 @@ describe("Scenario 5 — loading + error states", () => {
 // ---------------------------------------------------------------------------
 
 describe("Scenario 6 — NodePreviewOverlay reads context", () => {
-  it("forwards workflowId + activeRunId to PreviewWidget", async () => {
+  it("forwards workflowId + activeRunId, and puts the full preview behind the strip", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
       rowResponse(buildRow("Document", { nodeOut: doc })),
@@ -771,7 +771,16 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
       },
     );
 
+    // Item 9 — the card now carries a fixed-height STRIP, not the widget. The
+    // widget is one click away, in the popover.
+    const strip = await screen.findByTestId(`node-result-strip-${NODE_ID}`);
+    await waitFor(() => expect(strip).toHaveAttribute("data-state", "ready"));
+    expect(screen.queryByTestId("stub-document-preview")).toBeNull();
+
+    fireEvent.click(strip);
     await screen.findByTestId("stub-document-preview");
+
+    // Still ONE request: the popover's widget shares the strip's batch query.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const url = fetchSpy.mock.calls[0][0] as string;
     expect(url).toContain(`/workflows/${WORKFLOW_ID}/preview-cache-batch`);
@@ -780,7 +789,14 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
     expect(url).toContain(`runId=${RUN_ID}`);
   });
 
-  it("renders nothing and does NOT fetch when there is no activeRunId (idle suppression)", async () => {
+  /*
+   * Item 9 — the idle branch is the RESERVED SPACE, and it is why pressing
+   * Try no longer reflows the graph: the strip is on the card before a run
+   * exists, so a run changes what it says and never how tall the card is.
+   * Idle suppression survives as the rule that matters — no query fires, so a
+   * PRIOR run's rows can never be shown as current state.
+   */
+  it("reserves the strip at idle, saying so, and still does NOT fetch", async () => {
     const doc = { blob: { storage_key: "abc" } };
     fetchSpy.mockResolvedValue(
       rowResponse(buildRow("Document", { nodeOut: doc })),
@@ -791,12 +807,23 @@ describe("Scenario 6 — NodePreviewOverlay reads context", () => {
       activeRunId: null,
     });
 
-    // Idle (no run selected): the overlay stays empty and never queries the
-    // preview cache — matching the status badges, which are also suppressed at
-    // idle. Previews only appear once a Try/replay sets an active run.
+    const strip = screen.getByTestId(`node-result-strip-${NODE_ID}`);
+    expect(strip).toHaveAttribute("data-state", "no-run");
+    expect(strip).toHaveTextContent("Not run yet");
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(screen.queryByTestId(`preview-widget-${NODE_ID}`)).toBeNull();
     expect(screen.queryByTestId("stub-document-preview")).toBeNull();
+  });
+
+  it("renders nothing at all for a control-flow node, at idle and in a run", () => {
+    renderWithProviders(
+      <NodePreviewOverlay nodeId={NODE_ID} producesOutput={false} />,
+      { workflowId: WORKFLOW_ID, activeRunId: RUN_ID },
+    );
+    // Zero height is as constant as a strip is, so the no-reflow guarantee
+    // holds without papering every switch/map/join with an identical band.
+    expect(screen.queryByTestId(`node-result-strip-${NODE_ID}`)).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("renders null when mounted outside <RunStateProvider> (legacy unit tests)", () => {

@@ -247,8 +247,10 @@ before you name it, no wire is correct, because there's nothing to hand over yet
 
 **Look for**
 
-- Every step that ran wears its result. On a live run you'd watch these turn from
-  grey to blue to green as it goes.
+- Every step that ran wears its result on a slim one-line band under the step's
+  name — the kind it produced and the first line of the value. On a live run
+  you'd watch these turn from grey to blue to green as it goes, and the cards
+  never move: the band is there before you run anything, saying *"Not run yet"*.
 - The wires the run actually travelled are drawn in blue. A branch it didn't take
   stays in its resting colour — you can see the path it chose.
 - A banner across the top of the canvas says **Replay mode — you are looking at
@@ -269,24 +271,32 @@ aren't looking at.
 
 ![A step's preview card showing a truncation notice and a table of extracted values including success, status and a request id](./gallery-images/09-reading-results.png)
 
-Each step keeps what it produced, and shows it in place.
+Each step keeps what it produced. The card shows you a one-line taste of it;
+**click that line** and the full, scrollable result opens beside the step.
+
+> *The two screenshots above were taken before 2026-08-08, when the full result
+> pane still sat inside the card. It now opens in a panel on click — everything
+> described below is the same, one click further in.*
 
 **Look for**
 
 - A table of the actual values — for the OCR step that's `success`, `status`, the
   request id, the recognised text. **Not** a storage path: the point is to see
-  what came out, not where it was filed.
+  what came out, not where it was filed. The one-line version on the card follows
+  the same rule: it summarises the text, not the file it was stored in.
 - When a result is too big to show whole, a dimmed line says exactly what was
   trimmed — *"showing the first 5 of 8 items"*, *"showing 40 of 74 fields"*. It
   never quietly shortens something.
-- A step with more than one output gets a row of small chips above the preview,
-  one per output; click between them.
+- A step with more than one output gets a row of small chips above the opened
+  result, one per output; click between them, and the line on the card follows
+  your choice.
 - A step that produces nothing to look at — a branch, a loop, a wait — shows
-  nothing, and that's correct.
+  nothing at all, not even the line, and that's correct.
 
 **Something's off if** a step shows a blank card with no explanation. Every state
 has words: waiting, running, never reached, failed, not stored. A blank card is a
-bug.
+bug. So is a card that changes size when you press run — the line is a fixed
+height precisely so the diagram holds still.
 
 *Covers 9.5, 9.5a, 9.5b, 9.5c*
 
@@ -304,10 +314,13 @@ bug.
 - Filters across the top — by status, by date, by version.
 - **Replay** on any row puts that run back on the canvas.
 
-**Try this.** Replay an old run, then click a step whose stored result has since
-been cleaned up. Instead of an empty card you get a red note — *"Preview
-unavailable — cache evicted"* — and a button to run it again. Results are kept
-for 14 days.
+**Try this.** Replay an old run, then click the result line on a step whose stored
+result has since been cleaned up. The line reads *"Preview expired"*, and behind
+it is a red note — *"Preview unavailable — cache evicted"* — with a button to run
+it again. Results are kept for 14 days. You will only ever see this on a run that
+has finished; on a live run a step that has just gone green says *"Output
+pending"* instead, because nothing has expired — the result is simply still on
+its way.
 
 *Covers 9.8, 9.9, 9.10, 9.10a*
 

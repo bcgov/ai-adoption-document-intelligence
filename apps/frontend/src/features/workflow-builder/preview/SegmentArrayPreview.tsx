@@ -35,7 +35,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L36
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-143-segment-array-preview.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §4.3
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §4.3
  */
 
 import {

@@ -28,7 +28,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L30
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-141-preview-hook-and-dispatch-shell.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §4.1 + §4.6
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §4.1 + §4.6
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,6 +49,14 @@ export { ApiError } from "../sources/useSourceUpload";
  * the design doc's "debounced by 250ms" callout (§4.6).
  */
 export const PREVIEW_REFETCH_DEBOUNCE_MS = 250;
+
+/**
+ * How long a fetched batch map counts as fresh. Stops a newly-mounted
+ * observer (the preview popover opening over a card whose strip already has
+ * the data) from refetching the whole lineage. Explicit invalidation still
+ * wins, so this delays nothing that matters.
+ */
+export const PREVIEW_STALE_TIME_MS = 30_000;
 
 /** `nodeId → cached preview row` map returned by the batch endpoint. */
 export type ActivityOutputPreviewMap = Record<string, ActivityOutputPreview>;
@@ -154,6 +162,16 @@ export function useActivityOutputPreview(
     // Only run when we have a workflowId. `runId` is optional; without it
     // the endpoint returns each node's most-recent fresh row.
     enabled: !!workflowId,
+    // Item 9 — a SECOND observer of this key now mounts later than the rest:
+    // the node card's result strip subscribes on render, and the full
+    // `PreviewWidget` behind it subscribes only when the author opens the
+    // popover. With the default `staleTime: 0`, TanStack refetches on every
+    // new observer's mount, so opening a preview fired a second whole-lineage
+    // request for data already in the cache. Freshness does not depend on this
+    // window: the debounced `invalidateQueries` below refetches on every node
+    // status transition regardless of `staleTime`, which is what actually
+    // makes a row appear when a step finishes.
+    staleTime: PREVIEW_STALE_TIME_MS,
     // Per-observer projection — every node widget shares the underlying
     // fetch but selects only its own row. Absent node ⇒ `null`.
     select: (map) => map[nodeId] ?? null,

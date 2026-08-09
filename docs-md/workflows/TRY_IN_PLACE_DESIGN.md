@@ -1,7 +1,7 @@
 # Try-in-Place + Caching + Per-Node Previews — Design
 
 **Status:** Decided. Phase 4 of the post-1A plan. Analog of [TYPED_IO_DESIGN.md](TYPED_IO_DESIGN.md) (Phase 3) and [DOCUMENT_SOURCES_DESIGN.md](DOCUMENT_SOURCES_DESIGN.md) (Phase 8) for the "ComfyUI for documents" experience.
-**Last updated:** 2026-05-24.
+**Last updated:** 2026-08-08 (§4 — the node-card preview became a fixed-height result strip plus a popover; see §4.7).
 **Why now:** Phase 3 (typed I/O) supplies the artifact kinds that the per-node preview widgets render against; Phase 2 Track 2 (workflow-as-API) supplies the run-spec + run-start surface that Try-in-place builds on; Phase 8 (source nodes — `source.upload` in particular) supplies the canvas-side upload affordance that the Try-flow plugs into. With all three closed, Phase 4 is the next sequenced milestone in the dependency DAG ([IMPLEMENTATION_PLAN.md §4](IMPLEMENTATION_PLAN.md)).
 
 This document commits to concrete decisions for the try-in-place, cached re-execution, per-node preview-widget, and run-history features. Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A — single in / single out + blackboard ctx). Phase 4 is layered as: a worker-side cache decorator (transparent to workflow code), a Temporal query handler (point-in-time status from the canvas), a small set of new read endpoints, and a redesigned canvas-side experience.
@@ -218,14 +218,14 @@ class ActivityOutputPreviewDto {
 
 Full Swagger decorators per CLAUDE.md. The endpoint is read-only — there's no `POST /preview-cache` (cache rows are only written by the worker decorator).
 
-**Batch read (perf).** The canvas mounts a preview widget on *every* node, so reading previews one-per-node fired an O(nodes) request storm on every editor load — the main driver behind the API rate-limit (429) issues. The batch twin collapses that into one round-trip:
+**Batch read (perf).** The canvas mounts a preview surface on *every* node, so reading previews one-per-node fired an O(nodes) request storm on every editor load — the main driver behind the API rate-limit (429) issues. The batch twin collapses that into one round-trip:
 
 ```
 GET /api/workflows/:id/preview-cache-batch[?runId=<runId>]
 → { previews: { [nodeId]: ActivityOutputPreviewDto } }
 ```
 
-Same `runId` semantics (default = each node's most-recent fresh row; with `runId` = rows in that run's execution window, 5s slack). Nodes with no fresh row are simply **absent** from the map — the consumer treats an absent key exactly like the per-node endpoint's 404, so there's no 404-for-missing-rows here (an unknown `runId` returns an empty map rather than erroring). Backed by `ActivityOutputCacheRepository.findManyMostRecentFresh` / `findManyInRunWindow`, which fetch all fresh rows for the lineage ordered `createdAt DESC` and keep one (newest) per node. Frontend: `useActivityOutputPreview(nodeId)` reads a single shared TanStack query keyed by `(workflowId, runId)` and selects its node's row via a per-observer `select` — N widgets → one fetch, one refetch-on-transition. The per-node endpoint stays for the cache-evicted single-node Re-run flow (§6.3).
+Same `runId` semantics (default = each node's most-recent fresh row; with `runId` = rows in that run's execution window, 5s slack). Nodes with no fresh row are simply **absent** from the map — the consumer treats an absent key exactly like the per-node endpoint's 404, so there's no 404-for-missing-rows here (an unknown `runId` returns an empty map rather than erroring). Backed by `ActivityOutputCacheRepository.findManyMostRecentFresh` / `findManyInRunWindow`, which fetch all fresh rows for the lineage ordered `createdAt DESC` and keep one (newest) per node. Frontend: `useActivityOutputPreview(nodeId)` reads a single shared TanStack query keyed by `(workflowId, runId)` and selects its node's row via a per-observer `select` — N surfaces → one fetch, one refetch-on-transition. Since §4.7 there are two observers per node (the card's strip, and the widget in its popover once opened), which is why the query carries a `staleTime` — a later-mounting observer must not refetch data the strip already has. The per-node endpoint stays for the cache-evicted single-node Re-run flow (§6.3).
 
 ### 2.6 Opt-out via `nonCacheable?`
 
@@ -374,7 +374,9 @@ Render-only via a new `NodeStatusBadge` component in `apps/frontend/src/features
 
 ## 4. Per-node preview widgets (4 core)
 
-Each node grows a preview pane under its renderer that shows the last cached output. The widget is chosen by the node's declared output `kind` (Phase 3).
+Each node that can produce output carries a fixed-height one-line **result strip** under its renderer, and clicking that strip opens a popover holding the full preview of the last cached output. The widget rendered inside the popover is chosen by the node's declared output `kind` (Phase 3).
+
+The strip replaced an inline preview pane on 2026-08-08. The widgets themselves (§4.2–§4.5) and the no-output state model (§4.6) are unchanged by that move — only *where* they render, and what the card reserves for them, changed. §4.7 covers the strip, the height contract behind it, and the live-run eviction bug the move exposed.
 
 ### 4.1 Dispatch shell
 
@@ -411,6 +413,8 @@ export function PreviewWidget({ outputKind, outputCtx, port }: {
 > 2. **The dispatch never returns `null`.** `renderKindValue` (`preview/render-kind-value.tsx`) resolves a renderer by walking the kind's `baseKind` chain from the EXACT kind upward, so an exact-kind entry overrides its family (this is how `LabeledDocumentMap` — a schema-free `Record`, `baseKind: Classification` — stops being handed to the label-pill widget). Anything unresolved falls to a **generic view**: a caption naming the kind above a bounded JSON snippet. An absent value renders "No value was recorded for this output (expected `<Kind>`)". Of the 27 registered kinds, 15 scalar and 15 array forms previously rendered as an empty card.
 > 3. **Values are read by ctxKey**, via `resolveCtxBinding` — the same read the engine resolver performs — not from fixed `outputCtx.document` / `.segments` slots.
 > 4. **Blob-backed values are dereferenced server-side.** See §4.4.
+> 5. **It renders in a popover, not in the card body** (2026-08-08). `NodePreviewOverlay` still owns the mount and still resolves `workflowId` + `activeRunId` from `RunStateContext`, but what it puts on the card is `<NodeResultStrip>`; `PreviewWidget` renders inside that strip's popover. The widget's own `PREVIEW_MAX_HEIGHT_PX = 200` scroll cap is unchanged and now bounds the popover body instead of the card. See §4.7.
+> 6. **Port selection is shared, not duplicated.** The port-chip selector still lives in the widget, but *which* port is selected is owned by the strip and passed down through the optional `selectedPort` / `onSelectPort` props — the strip summarises one port and the popover must show the same one. The resolution itself (pick the port, read its value via `resolveCtxBinding`, fall back to the cache row's `outputKind` for the first port only) is factored into `preview/select-preview-output.ts` and called by both, so the one-line summary and the panel it opens cannot resolve to different values. A direct mount with no `selectedPort` (unit tests) falls back to internal state.
 
 ### 4.2 `DocumentPreview`
 
@@ -446,24 +450,71 @@ New file: `apps/frontend/src/features/workflow-builder/preview/ClassificationPre
 
 ### 4.6 Preview loading + error states
 
-Each preview component receives a single `value` prop (the unwrapped ctx fragment). Loading state (cache row hasn't arrived yet) is owned by the parent — the dispatch shell wraps `PreviewWidget` in a `<Skeleton>` while the `useActivityOutputPreview(workflowId, nodeId, runId)` hook is loading. Error state — a small red `<Alert>` saying "Preview unavailable".
+Each preview component receives a single `value` prop (the unwrapped ctx fragment). Loading and error state are owned by the parent, and there are now two parents, because the same query drives two surfaces (§4.7):
 
-**G-012 — "no output" is a typed state model, not one sentence (fix batch 7).** The shipped code replaces the single "This step didn't run" string (which covered `pending`, `running`, `cancelled` and absent, and only appeared in replay) with `preview/no-output-state.ts`:
+| surface | loading | error |
+|---|---|---|
+| the card's result strip (`NodeResultStrip`) | a small `<Skeleton>` **inside** the strip's fixed 24px band | one line, "Preview unavailable", in red |
+| the popover body (`PreviewWidget`) | `<Skeleton h={120}>` | a small red `<Alert>` saying "Preview unavailable" |
 
-| `NoOutputReason` | when | copy | Re-run offered |
-|---|---|---|---|
-| `no-run` | no run selected | "Run this workflow to see what this step produces." | no |
-| `not-started` | live run, node not reached | "Waiting — the run hasn't reached this step yet." | no |
-| `running` | live run, node executing | "Running now — output appears when this step finishes." | no |
-| `branch-not-taken` | run over, node never walked | "This step was never reached — the run took a different branch." | no |
-| `failed` | node failed | "This step failed — no output was produced to preview." | no |
-| `cancelled` | run cancelled | "The run was cancelled before this step produced output." | no |
-| `evicted` | node succeeded/skipped, row TTL-evicted | `CacheEvictedAlert` | **yes** |
-| `not-previewable` | control-flow node | (no copy; `data-state` only) | no |
+The widget's 120px skeleton is unchanged; what changed is that it now sits in a popover, so it can no longer move the card it belongs to.
 
-`noOutputReasonForNode` switches exhaustively over `NodeRunStatusValue` and `describeNoOutput` over `NoOutputReason`, both with an `assertNever` guard — adding a run status without deciding its copy fails compilation. `PreviewState` (`loading | error | ready | empty | NoOutputReason`) types `data-state` on BOTH `PreviewWidget` and `WirePeekPopover`, which previously named the same derived state `not-run` and `no-run` with `state: string`.
+**G-012 — "no output" is a typed state model, not one sentence (fix batch 7).** The shipped code replaces the single "This step didn't run" string (which covered `pending`, `running`, `cancelled` and absent, and only appeared in replay) with `preview/no-output-state.ts`. Each reason carries a one-sentence `message` for the popover and a two-or-three-word `label` for the strip, which has one line and cannot carry a sentence:
 
-**Eviction is deliberately NOT a flavour of "didn't run".** It is the only reason whose output actually existed, and therefore the only one with a working recovery; the others would offer a Re-run that repopulates nothing.
+| `NoOutputReason` | when | strip label | popover copy | Re-run offered |
+|---|---|---|---|---|
+| `no-run` | no run selected | "Not run yet" | "Run this workflow to see what this step produces." | no |
+| `not-started` | live run, node not reached | "Waiting" | "Waiting — the run hasn't reached this step yet." | no |
+| `running` | live run, node executing | "Running…" | "Running now — output appears when this step finishes." | no |
+| `branch-not-taken` | run over, node never walked | "Not reached" | "This step was never reached — the run took a different branch." | no |
+| `failed` | node failed | "Failed" | "This step failed — no output was produced to preview." | no |
+| `cancelled` | run cancelled | "Cancelled" | "The run was cancelled before this step produced output." | no |
+| `awaiting-cache` | node succeeded/skipped **while the run is still live**, row not written yet | "Output pending" | "This step finished — its output preview is still on its way." | no |
+| `evicted` | **replay only** — node succeeded/skipped, row TTL-evicted | "Preview expired" | `CacheEvictedAlert` | **yes** |
+| `not-cached` | node succeeded/skipped but this activity never caches (catalog `nonCacheable`, or a `@deterministic:false` dynamic node — D-12/D-18a) | "Not cached" | "This step ran, but this activity never caches its output…" (a variant naming the `@deterministic true` tag for dynamic nodes) | no |
+| `not-previewable` | control-flow node | (none — no strip is drawn at all) | (no copy; `data-state` only) | no |
+
+`noOutputReasonForNode` switches exhaustively over `NodeRunStatusValue` and `describeNoOutput` over `NoOutputReason`, both with an `assertNever` guard — adding a run status without deciding its copy fails compilation. `PreviewState` (`loading | error | ready | empty | NoOutputReason`) types `data-state` on `PreviewWidget`, `NodeResultStrip` and `WirePeekPopover`, which previously named the same derived state `not-run` and `no-run` with `state: string`.
+
+**Eviction is deliberately NOT a flavour of "didn't run".** It is the only reason whose output actually existed, and therefore the only one with a working recovery; the others would offer a Re-run that repopulates nothing. That is also why `awaiting-cache` had to be split out of it — see §4.7.
+
+### 4.7 The result strip and the card's height contract
+
+**The bug (UX walkthrough 2026-08-06, item 9).** Every card mounted `NodePreviewOverlay`, which rendered the full `PreviewWidget` *inline in the card body* — despite the name it was a `<Box>` in normal flow, not an absolutely-positioned layer. The pane was capped at `PREVIEW_MAX_HEIGHT_PX` (200px) and its loading state was a 120px skeleton, while `estimateNodeHeight` (`canvas/port-rows.ts`) made no allowance for a preview at all and dagre separates neighbours by `DEFAULT_NODESEP = 60`px. So pressing Try grew every producing card by up to 200px into a 60px gap — and grew it *twice*, once for the skeleton and again when real content replaced it. Cards overlapped their neighbours, at different moments, per node.
+
+**Option C, ruled 2026-08-08** (the alternatives — reserving 200px per node in the resting layout, or letting the pane grow out of flow and occlude what is below — are written up in `feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/09-try-reflow.md`). The card's height becomes *state-independent*:
+
+- **The strip is always there.** `preview/NodeResultStrip.tsx` renders a one-line band on every card that can produce output, **including before any run**, where it reads "Not run yet". Pressing Try changes what the strip says, never how tall the card is.
+- **Its height is a constant, not a minimum.** `preview/strip-metrics.ts` owns the geometry — `PREVIEW_STRIP_HEIGHT_PX = 24`, `PREVIEW_STRIP_MARGIN_TOP_PX = 6`, `PREVIEW_STRIP_TOTAL_HEIGHT_PX = 30`. Every state (loading skeleton, label, ready summary) renders through one `StripShell`, which is what guarantees they are all the same height. The module is deliberately React-free so `canvas/port-rows.ts` can add the same number to `estimateNodeHeight` without importing a component.
+- **Control-flow nodes draw no strip.** `switch` / `map` / `join` / `humanGate` / `childWorkflow` / `pollUntil` mount with `producesOutput={false}`, whose copy tone is `silent`; a row of identical "doesn't produce output" bands would paper the canvas. Zero height is also a constant, so the no-reflow property holds for them too.
+- **The full preview moved into a popover** opened by clicking the strip (`nodrag`/`nopan` so the click doesn't drag the node or pan the pane; `clickOutsideEvents` includes `click` because the React Flow pane swallows `mousedown`). It renders the same `PreviewWidget` off the same shared batch query, so opening it costs no extra request.
+
+**What the ready state says.** `preview/summarize-output.ts` collapses any value into one line — the kind (prefixed with the port label when the node has more than one output), then `summarizeValueLine(value, blobExcerpts)`. The summariser is **kind-agnostic by design**: it reads the shape of the JSON and never a field name, so no document-, OCR- or classification-specific key is privileged and a new output kind needs no change here. It is bounded at `SUMMARY_MAX_CHARS = 72` (calibrated to the narrowest card, the 320px source card) with CSS truncation behind it, collapses whitespace so the line cannot wrap, recurses only one level (a nested object becomes `{3 fields}`, an array `[5]`), and follows a `blobPath` pointer into the server-resolved `blobExcerpts` map (§4.4) so an `OcrResult` summarises its *content* rather than its blob path.
+
+**One query, two observers.** `useActivityOutputPreview` gained `staleTime: PREVIEW_STALE_TIME_MS` (30s). The strip subscribes on render and the widget subscribes only when the popover opens, and with TanStack's default `staleTime: 0` that second, later observer refetched the whole lineage for data already in the cache. Freshness does not depend on the window: the debounced `invalidateQueries` on every node-status transition (`PREVIEW_REFETCH_DEBOUNCE_MS = 250`) is what actually makes a row appear when a step finishes, and explicit invalidation always wins over `staleTime`.
+
+**Idle still suppresses the query.** `IdleNodeResultStrip` draws the reserved band but calls no hook at all. `useActivityOutputPreview` without a `runId` returns each node's most-recent row from a *prior* run, and showing last week's output as current state is what the old idle-suppression existed to prevent (the status badges suppress for the same reason). The difference from before is only that the reserved space is now drawn rather than absent.
+
+**The real bug this exposed — `evicted` during a live run.** `noOutputReasonForNode` returned `evicted` for a `succeeded`/`skipped` node with no cache row *whether or not the run had finished*. During a live Try that is the normal ~250ms gap between a node going green and the worker's cache decorator writing its row, so the canvas said "This step's cached output has expired. Re-run to repopulate it." — blaming a TTL that had not expired and offering a Re-run that would cancel the run in flight. `PreviewWidget`'s docblock had always said the recovery alert "must only appear in replay mode"; nothing enforced it. `evicted` is now reachable only when `runFinished` is true, and the live-run case returns the new `awaiting-cache` (§4.6): neutral tone, no Re-run, "This step finished — its output preview is still on its way."
+
+**Layout constants, re-measured.** The old `ACTIVITY_BASE_HEIGHT = 177` folded a 120px preview allowance into a number the docblock had to admit was "a deliberate mid-point, not a universal fact". With the preview's contribution now constant, the estimate is a fact:
+
+| constant (`canvas/port-rows.ts`) | value | note |
+|---|---|---|
+| `ACTIVITY_CHROME_HEIGHT` | 58 | type pill + label + padding + border, without the port-row grid and without the strip |
+| `PREVIEW_STRIP_TOTAL_HEIGHT_PX` | 30 | from `preview/strip-metrics.ts`, so the strip's contribution is visible rather than baked in |
+| `ACTIVITY_BASE_HEIGHT` | 88 | chrome + strip (was 177) |
+| `PORT_ROW_HEIGHT` | 22 | unchanged; the slope was always exact, only the intercept needed calibrating |
+| `PORT_ROWS_TOP_MARGIN` | 6 | unchanged |
+| `SOURCE_CHROME_HEIGHT` | 66 | measured 41; deliberately ~25px generous — one text line — because `SourceNodeRenderer` adds a subtitle when the author renamed the node, and this selector has no source catalog to resolve the default display name against |
+| `SOURCE_NODE_HEIGHT` | 96 | chrome + strip (was 165) |
+| `CONTROL_FLOW_NODE_HEIGHT` | 180 | unchanged — these cards draw no strip |
+
+Measured 2026-08-08 via `offsetHeight` on the `standard-ocr` demo at 1920×1080 (`offsetHeight` ignores the canvas zoom transform, so it needs no scale correction). Every activity card on that graph decomposed identically — `offsetHeight − grid − strip = 70` including both 6px top margins, i.e. 58px of chrome — across six cards and one to five rows, with no variance. An `azureOcr.extract` card is now estimated at **204px, down from 293px**. Over-estimating (the source card) only makes the layout sparser; under-estimating is what puts cards on top of each other.
+
+**Verified.** Every card's `offsetHeight` on `standard-ocr` was measured before a Try, 24 times during it, and after. Worst height drift across the whole run: 5px on one node — the failure chip that appears on a failed node, not the strip — and 0px on the other 14. The same measurement before this change showed cards growing by up to 200px into a 60px gap.
+
+**The accepted cost.** During a run you see *that* each node produced something and roughly what, rather than every node's whole payload at once; the full value is one click away. The resting card is one line taller than it used to be, against the ~200px per producing node that reserving the pane's space would have cost in the state authors spend most of their time in.
 
 ---
 
@@ -599,14 +650,15 @@ If a historical run's cache rows have been TTL-evicted (14 days after the run, b
 
 The historical input ctx is captured in `RunSummaryDto.inputCtxSummary` (compact form for display) AND fetched in full from the existing `GET /api/workflows/:id/runs/:runId/input-ctx` endpoint (new, Phase 4 — small) when the user clicks Re-run.
 
-**A missing cache row is not always an eviction — the copy must be honest.** A 404 in replay can mean the node never produced an output row in the first place, which is NOT a TTL eviction and re-running wouldn't "repopulate" it. `PreviewWidget` disambiguates using the replayed node's status (from the same node-statuses map the badges use) plus a `producesOutput` flag from the renderer:
+**A missing cache row is not always an eviction — the copy must be honest.** A 404 in replay can mean the node never produced an output row in the first place, which is NOT a TTL eviction and re-running wouldn't "repopulate" it. `noOutputReasonForNode` disambiguates using the replayed node's status (from the same node-statuses map the badges use) plus a `producesOutput` flag from the renderer; §4.6 is the full table, and the cases that land here are:
 
-- **`succeeded` / `skipped` (cache-hit)** — the node produced output but its row is gone → the genuine "Cache evicted — re-run to repopulate" recovery alert (above).
-- **`failed`** — "This step failed in this run — no output was produced to preview." (No Re-run-to-repopulate framing.)
-- **`pending` / not-reached / branch-not-taken** — "This step didn't run in this run, so there's no output to preview."
-- **Control-flow nodes** (switch / map / join / humanGate / childWorkflow / pollUntil, mounted with `producesOutput={false}`) — silent: they never write an output-cache row, so a missing row is expected, not an eviction.
+- **`succeeded` / `skipped` (cache-hit), run finished** — the node produced output but its row is gone → the genuine "Cache evicted — re-run to repopulate" recovery alert (above). **Only** when the run has finished: the same status during a live Try is `awaiting-cache`, not an eviction (§4.7).
+- **`succeeded` / `skipped` on an activity that never caches** (catalog `nonCacheable`, or a `@deterministic:false` dynamic node) — `not-cached`: nothing expired, so no Re-run is offered.
+- **`failed`** — "This step failed — no output was produced to preview." (No Re-run-to-repopulate framing.)
+- **`pending` / not-reached / branch-not-taken** — "This step was never reached — the run took a different branch."
+- **Control-flow nodes** (switch / map / join / humanGate / childWorkflow / pollUntil, mounted with `producesOutput={false}`) — silent: they never write an output-cache row, so a missing row is expected, not an eviction. They draw no result strip at all.
 
-This mirrors what `PreviewWidget` reads for a live Try: activity nodes surface their output via `outputCtxKey` (the node's primary output binding, threaded through the projection as `ActivityNodeData.primaryOutputCtxKey`; the source renderer supplies its own single key). Without that key the preview resolves `undefined` and every value renders its "unavailable" placeholder — so the key must be passed for the preview to render at all.
+This mirrors what the preview surfaces read for a live Try: the mounting renderer projects `previewOutputs: PreviewOutputBinding[]` — every bound output port with its catalog label and kind (§4.1, G-011) — and `selectPreviewOutput` resolves the selected port's ctx key through `resolveCtxBinding`. With no bindings the surfaces render "This step's output isn't bound to a workflow value yet, so there's nothing to read" ("Not bound to a value" on the strip), so the bindings must be passed for anything to render at all.
 
 ### 6.5 Run-count badge on version rows
 
@@ -660,7 +712,7 @@ Phase 4 needs minimal validator changes (the cache is a runtime concern; status 
 9. **`GET /api/workflows/:id/runs`** endpoint (§6.1).
 10. **`useNodeStatuses` + `useActivityOutputPreview` + `useWorkflowRuns`** TanStack hooks.
 11. **`NodeStatusBadge`** + **`computeActiveEdges`** + edge-styling updates in `WorkflowEdge.tsx` (§3.4 + §3.5).
-12. **`PreviewWidget` dispatch shell** + the 4 widgets (`DocumentPreview`, `SegmentArrayPreview`, `OcrResultPreview`, `ClassificationPreview`) (§4).
+12. **`PreviewWidget` dispatch shell** + the 4 widgets (`DocumentPreview`, `SegmentArrayPreview`, `OcrResultPreview`, `ClassificationPreview`) (§4), then the `NodeResultStrip` band + popover that mounts it on the card (§4.7).
 13. **Try-button wiring** — extend `SourceUploadButton` (§5.1); new in-canvas Try button + drawer tab (§5.2).
 14. **`RunHistoryDrawer`** + filters + replay flow (§6.2 + §6.3).
 15. **Run-count badge** on `VersionHistoryDrawer` rows (§6.5).

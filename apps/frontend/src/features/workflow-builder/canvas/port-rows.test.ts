@@ -157,12 +157,16 @@ describe("computePortRows — Scenario 5: estimateNodeHeight scales with the wid
     const { inputs, outputs } = computePortRows(cfg, "E", []);
     expect(inputs).toHaveLength(5);
     expect(outputs).toHaveLength(1);
-    // Calibrated against the rendered card: 177 + 6 + 5×22 = 293px, the
-    // measured offsetHeight of azureOcr.extract on the seed workflows.
+    // Calibrated against the rendered card: 88 + 6 + 5×22 = 204px, which is the
+    // measured offsetHeight of extractResults on `standard-ocr`. It was
+    // 293px until item 9 (2026-08-08) moved the preview into a popover behind
+    // a fixed 30px result strip — the base carried a 120px allowance for an
+    // inline preview pane that could actually render anywhere from 0 to 200px,
+    // which is what let a card overrun dagre's 60px nodesep after a Try.
     expect(estimateNodeHeight(cfg, "E")).toBe(
       ACTIVITY_BASE_HEIGHT + PORT_ROWS_TOP_MARGIN + 5 * PORT_ROW_HEIGHT,
     );
-    expect(estimateNodeHeight(cfg, "E")).toBe(293);
+    expect(estimateNodeHeight(cfg, "E")).toBe(204);
   });
 });
 

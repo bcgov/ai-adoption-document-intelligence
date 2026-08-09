@@ -25,7 +25,7 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L40 + L41
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-154-run-row-and-replay-flow.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §6.3
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §6.3
  */
 
 import {

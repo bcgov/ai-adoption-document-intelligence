@@ -178,7 +178,7 @@ npm run seed:demos
 
 1. Select the **Upload** source node → use **Upload & Try** and pick any PDF/image.
 1. Watch the per-node **run-status badges** go blue → green as the run executes (no Azure needed — this chain just prepares the file).
-1. The **Upload** node renders a **document preview** of what you uploaded.
+1. The **Upload** node's one-line **result strip** switches from *"Not run yet"* to the uploaded document's kind and first line; **click it** to open the full **document preview** of what you uploaded. No card changes height while the run goes — the strip is a fixed height in every state.
 1. **Click a data wire** (a coloured port-to-port wire) — a popover pops at the wire midpoint showing the exact value that flowed across it (a kind widget where one exists, else a truncated JSON snippet). Right-clicking the wire offers the same thing via **“View data.”** Click a wire *before* running and it reads **“Run to see the data flowing here.”**
 1. ⚠️ Requires the Temporal **worker** + **deno-runner** to be running (the `dev: all` task).
 
@@ -216,7 +216,7 @@ npm run seed:demos
 1. Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).
 1. **+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).
 1. **Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).
-1. **Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node shows a real **preview** after a run — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so it has no preview to show.
+1. **Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node's result strip shows a real value after a run (click it for the full preview) — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so its strip reads **"Not cached"** and says so rather than offering a re-run that would repopulate nothing.
 1. ⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).
 
 ---

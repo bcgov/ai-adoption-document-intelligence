@@ -1,8 +1,15 @@
 /**
  * `PreviewWidget` — dispatch shell choosing the right per-node preview
- * widget based on the cached row's `outputKind`. Mounted under every
- * node renderer via `<NodePreviewOverlay>` (which resolves
- * `workflowId` + `activeRunId` from `RunStateContext`).
+ * widget based on the cached row's `outputKind`.
+ *
+ * **Where it renders changed in item 9 (2026-08-08).** It used to mount
+ * INLINE in every node card, which is what made pressing Try reflow the graph:
+ * a card grew by up to `PREVIEW_MAX_HEIGHT_PX` into dagre's 60px `nodesep`,
+ * twice. It now renders inside the popover behind `NodeResultStrip` — a
+ * fixed-height band on the card — so the widget itself is unchanged but the
+ * card's height no longer depends on it. `NodePreviewOverlay` (below) still
+ * owns the mount and still resolves `workflowId` + `activeRunId` from
+ * `RunStateContext`; it just mounts the strip instead of this widget.
  *
  * The dispatch is intentionally a flat `switch` so the parallel widget
  * stories (US-142 → US-145) can fill in each widget's body without
@@ -29,16 +36,16 @@
  * Spec refs:
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md L30 + L34
  *   - feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/US-141-preview-hook-and-dispatch-shell.md
- *   - docs-md/workflow-builder/TRY_IN_PLACE_DESIGN.md §4.1 + §4.6
+ *   - docs-md/workflows/TRY_IN_PLACE_DESIGN.md §4.1 + §4.6
  */
 
-import { resolveCtxBinding } from "@ai-di/graph-workflow";
 import { Alert, Box, Chip, Group, Skeleton, Text } from "@mantine/core";
 import { type ReactNode, useState } from "react";
 
 import type { NodeRunStatusValue } from "../run/node-status.types";
 import { useOptionalRunState } from "../run/RunStateContext";
 import { CacheEvictedAlert } from "./CacheEvictedAlert";
+import { IdleNodeResultStrip, NodeResultStrip } from "./NodeResultStrip";
 import { NoOutputNotice } from "./NoOutputNotice";
 import {
   describeNoOutput,
@@ -47,6 +54,7 @@ import {
 } from "./no-output-state";
 import type { PreviewOutputBinding } from "./preview.types";
 import { renderKindValue } from "./render-kind-value";
+import { selectPreviewOutput } from "./select-preview-output";
 import { useActivityOutputPreview } from "./useActivityOutputPreview";
 
 /**
@@ -116,15 +124,25 @@ export interface PreviewWidgetProps {
    * of a built-in `nonCacheable` activity cannot, and must not be told to.
    */
   isDynamicNode?: boolean;
+  /**
+   * Item 9 — the selected port, when the CALLER owns it. `NodeResultStrip`
+   * summarises one port on the card and opens this widget showing the same
+   * one, so the selection has to be shared; two independent `useState`s would
+   * let the summary and the panel disagree. Omitted (the test-only direct
+   * mount) falls back to internal state and behaves exactly as before.
+   */
+  selectedPort?: string | null;
+  /** Companion to `selectedPort`. Ignored unless `selectedPort` is supplied. */
+  onSelectPort?: (port: string) => void;
 }
 
 /**
  * Dispatch shell — switches on the cache row's `outputKind` and
  * renders the matching widget. Unknown kinds render nothing.
  *
- * Test-only callers can mount this directly; the production mount is
- * via `<NodePreviewOverlay nodeId={node.id} />` (below) which resolves
- * `workflowId` + `activeRunId` from `RunStateContext`.
+ * Test-only callers can mount this directly; the production mount is inside
+ * the popover of `<NodeResultStrip>`, which `<NodePreviewOverlay nodeId={…} />`
+ * (below) puts on the card.
  */
 export function PreviewWidget({
   workflowId,
@@ -136,6 +154,8 @@ export function PreviewWidget({
   producesOutput = true,
   neverCached = false,
   isDynamicNode = false,
+  selectedPort: controlledPort,
+  onSelectPort,
 }: PreviewWidgetProps): ReactNode {
   const { data, isLoading, error } = useActivityOutputPreview(
     workflowId,
@@ -144,7 +164,10 @@ export function PreviewWidget({
   );
   // Which output port the author is looking at. `null` = "the first one",
   // which keeps the single-output case identical to before.
-  const [selectedPort, setSelectedPort] = useState<string | null>(null);
+  const [ownPort, setOwnPort] = useState<string | null>(null);
+  const selectedPort = controlledPort === undefined ? ownPort : controlledPort;
+  const setSelectedPort =
+    controlledPort === undefined ? setOwnPort : (onSelectPort ?? setOwnPort);
   const previewOutputs = outputs ?? EMPTY_OUTPUTS;
 
   if (isLoading) {
@@ -216,26 +239,14 @@ export function PreviewWidget({
     );
   }
 
-  // G-011: preview the SELECTED output, not `outputs[0]`. `data.outputKind`
-  // types only the first port (the worker's cache decorator records
-  // `entry.outputs[0].kind`), so it is used as the kind only for that port;
-  // later ports rely on their own catalog descriptor, and fall through to the
-  // generic renderer when they have none.
-  const selected =
-    previewOutputs.find((o) => o.port === selectedPort) ?? previewOutputs[0];
-  const value =
-    selected !== undefined
-      ? // `outputCtx` is stored NESTED at runtime (the engine splits the ctxKey
-        // on "." and namespace-remaps prefixes). `resolveCtxBinding` performs
-        // the identical read the engine resolver uses, so flat, `__auto.*` and
-        // namespaced keys all resolve.
-        resolveCtxBinding(selected.ctxKey, data.outputCtx)
-      : undefined;
-  const kind =
-    selected?.kind ??
-    (selected !== undefined && selected === previewOutputs[0]
-      ? data.outputKind
-      : null);
+  // G-011: preview the SELECTED output, not `outputs[0]`. Shared with
+  // `NodeResultStrip` so the card's one-line summary and this panel can never
+  // resolve to different values.
+  const { selected, value, kind } = selectPreviewOutput(
+    previewOutputs,
+    selectedPort,
+    data,
+  );
 
   return (
     <Box
@@ -306,10 +317,22 @@ export interface NodePreviewOverlayProps {
 
 /**
  * Thin wrapper mounted at the bottom of every node renderer. Resolves
- * `workflowId` + `activeRunId` from `RunStateContext` and forwards
- * them to `<PreviewWidget>`. Soft-fails when no `<RunStateProvider>`
- * is mounted (legacy unit tests) so node-renderer tests don't need
- * the context plumbing.
+ * `workflowId` + `activeRunId` from `RunStateContext` and mounts the
+ * fixed-height `<NodeResultStrip>`, whose popover renders `<PreviewWidget>`.
+ * Soft-fails when no `<RunStateProvider>` is mounted (legacy unit tests) so
+ * node-renderer tests don't need the context plumbing.
+ *
+ * **Item 9 — the height contract.** Whatever this returns must be the same
+ * height before, during and after a run, because dagre laid the graph out
+ * from `estimateNodeHeight` and cannot be re-run mid-Try. Two shapes satisfy
+ * that and nothing else does:
+ *
+ *   - a strip (`producesOutput`), constant at
+ *     `PREVIEW_STRIP_TOTAL_HEIGHT_PX` in every state including idle; or
+ *   - nothing at all (control-flow nodes), constant at zero.
+ *
+ * Note the idle branch no longer returns `null`. It used to, which is why
+ * pressing Try grew the card: the resting layout reserved nothing.
  */
 export function NodePreviewOverlay({
   nodeId,
@@ -319,6 +342,12 @@ export function NodePreviewOverlay({
   isDynamicNode = false,
 }: NodePreviewOverlayProps): ReactNode {
   const ctx = useOptionalRunState();
+  // Control-flow nodes never write a cache row. Nothing to preview, no strip,
+  // and — the part that matters here — zero height at rest and zero during a
+  // run, so they cannot reflow either.
+  if (!producesOutput) {
+    return null;
+  }
   if (!ctx) {
     return null;
   }
@@ -332,25 +361,40 @@ export function NodePreviewOverlay({
   if (!ctx.workflowId) {
     return null;
   }
-  // Idle suppression — mirror `NodeStatusBadgeOverlay`. A per-node preview is
-  // meaningful only while a run (Try) or replay is active. With no active run,
-  // the hook would fetch the most-recent cached row from a PRIOR run and show
-  // it as if it were current state — confusing, and inconsistent with the
-  // status badges (also idle-suppressed). Stay empty until a run is selected.
+  // Idle: the strip is drawn (that is the reserved space) but NO query runs.
+  // `useActivityOutputPreview` without a runId returns each node's most-recent
+  // row from a PRIOR run, and showing that as current state is the thing the
+  // old idle-suppression existed to prevent — the status badges suppress for
+  // the same reason. `IdleNodeResultStrip` therefore calls no hook at all.
   if (!ctx.activeRunId) {
-    return null;
+    return <IdleNodeResultStrip nodeId={nodeId} />;
   }
   return (
-    <PreviewWidget
+    <NodeResultStrip
       workflowId={ctx.workflowId}
       nodeId={nodeId}
-      runId={ctx.activeRunId ?? undefined}
+      runId={ctx.activeRunId}
       isReplay={ctx.isReplay}
       outputs={outputs}
       nodeStatus={ctx.nodeStatuses[nodeId]?.status}
       producesOutput={producesOutput}
       neverCached={neverCached}
       isDynamicNode={isDynamicNode}
+      renderDetail={({ selectedPort, onSelectPort }) => (
+        <PreviewWidget
+          workflowId={ctx.workflowId}
+          nodeId={nodeId}
+          runId={ctx.activeRunId ?? undefined}
+          isReplay={ctx.isReplay}
+          outputs={outputs}
+          nodeStatus={ctx.nodeStatuses[nodeId]?.status}
+          producesOutput={producesOutput}
+          neverCached={neverCached}
+          isDynamicNode={isDynamicNode}
+          selectedPort={selectedPort}
+          onSelectPort={onSelectPort}
+        />
+      )}
     />
   );
 }
