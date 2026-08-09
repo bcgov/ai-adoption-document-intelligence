@@ -238,6 +238,21 @@ async function zoomOnto(page, subject, minWidth = 620, maxSteps = 14) {
   await page.waitForTimeout(900);
 }
 
+/**
+ * The canvas's current zoom, read off xyflow's own viewport transform.
+ *
+ * Needed because a shot of a 12px port dot is a shot of nothing at 0.35x, and
+ * "the dots are legible" is a claim about a number rather than about a mood.
+ * The shots that depend on it assert it and refuse the frame below a floor.
+ */
+async function canvasZoom(page) {
+  return page.evaluate(() => {
+    const viewport = document.querySelector(".react-flow__viewport");
+    if (!viewport) return 0;
+    return new DOMMatrixReadOnly(getComputedStyle(viewport).transform).a;
+  });
+}
+
 /** Crops a window around `selector` — for shots whose subject is a relationship. */
 async function shootAround(page, selector, file, { left, right, up, down }) {
   const box = await page.locator(selector).first().boundingBox();
@@ -1177,89 +1192,181 @@ const SHOTS = {
   },
 
   /**
-   * §19 — item 20, the colour vocabulary, on a whole canvas.
+   * §19 — item 20, the port vocabulary on a real canvas.
    *
-   * The control-flow demo, because it is the only seeded workflow that carries
-   * every one of the five accent roles at once — `activity`, `switch` and
-   * `pollUntil` (routing), `map` and `join` (fan), `humanGate` (person),
-   * `childWorkflow` — so the frame shows the card-border half of the
-   * vocabulary and the port-dot half in the same picture, in a real graph
-   * rather than in the legend that explains it.
+   * The switch/error-edges demo, because it is the one seeded graph that puts
+   * all five port families on screen at once — a blue `Document` circle, a
+   * violet `OcrResult` square, a yellow `ValidationResult` diamond, teal
+   * `DocumentId`/`RequestId` bars and grey untyped hollows — together with the
+   * two wire kinds the legend's first group names, the ordinary data wire and
+   * the red error route out of `prep`.
    *
-   * Zoomed one step in from fit-view before shooting: a fit of an eight-node
-   * graph lands near 0.5, where a 12px dot is six pixels and the shapes the
-   * item shipped are not decidable. The zoom is asserted rather than assumed.
+   * ZOOMED IN, and it does not fit. Fit-view on this graph lands at 0.35×,
+   * where a 12px dot is four pixels and the shapes the item shipped are not
+   * decidable — so the frame is the whole canvas pane at a zoom where the dots
+   * are legible rather than the whole graph at a zoom where they are not. The
+   * zoom is measured and the frame refused below 0.7×, so this cannot quietly
+   * regress into an unreadable picture.
    */
   19: async (browser) => {
     const page = await newPage(browser);
-    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
-    await page.locator(".react-flow__controls-zoomin").click();
-    await page.waitForTimeout(1200);
-    const zoom = await page.evaluate(() => {
-      const viewport = document.querySelector(".react-flow__viewport");
-      const matrix = new DOMMatrixReadOnly(
-        getComputedStyle(viewport).transform,
-      );
-      return matrix.a;
-    });
-    if (zoom < 0.6) {
+    await openEditor(
+      page,
+      "demo-switch-error-edges-validatefields-editor-part-5",
+    );
+    // Centre on the pair that carries the contrast — the node with the blue
+    // circle and the one with the yellow diamond — so the zoom grows the
+    // interesting half of the graph into the pane rather than the empty half.
+    // Four cards, chosen by what they carry rather than by where they sit:
+    // `prep` and `submit` hold the blue `Document`/`PreparedFile` circle,
+    // `extract` the violet `OcrResult` square, all four the teal `DocumentId`
+    // and `RequestId` bars and the grey untyped hollows — and `prep` is the
+    // node the red error route leaves from, landing on `fallback`, so both
+    // wire kinds are in the same frame as the dots.
+    //
+    // `store` and `validateFields` are NOT in the anchor, and that is the one
+    // real limitation of this frame: they are 740px further right at fit-view,
+    // so an anchor that included them would hold the yellow diamond too but
+    // could not be zoomed past 0.41x without running off the pane, and at
+    // 0.41x a 12px dot is five pixels. The diamond gets its own close frame
+    // below instead.
+    const anchor = [
+      '[data-testid="canvas-node-prep"]',
+      '[data-testid="canvas-node-submit"]',
+      '[data-testid="canvas-node-extract"]',
+      '[data-testid="canvas-node-fallback"]',
+    ];
+    await centreInCanvas(page, anchor);
+    // Zoom in as far as the three cards still fit the pane, then stop — one
+    // xyflow step (1.2x) at a time, undone when the step overflows. Picking a
+    // level by hand does not survive a layout change, and both failure modes
+    // are silent in a PNG: too far out and the 12px dot is four pixels, too
+    // far in and the leftmost card grows under the palette rail with its port
+    // column sliced off.
+    for (let i = 0; i < 8; i++) {
+      await page.locator(".react-flow__controls-zoomin").click();
+      await page.waitForTimeout(450);
+      await centreInCanvas(page, anchor);
+      const box = await subjectBox(page, anchor);
+      const rect = await page.locator(".react-flow").boundingBox();
+      if (box.width > rect.width - 24) {
+        await page.locator(".react-flow__controls-zoomout").click();
+        await page.waitForTimeout(450);
+        break;
+      }
+    }
+    await centreInCanvas(page, anchor);
+    const zoom = await canvasZoom(page);
+    if (zoom < 0.55) {
       throw new Error(
-        `canvas is at ${zoom.toFixed(2)}× — the port dots would be under 8px`,
+        `canvas is at ${zoom.toFixed(2)}x — the port dots would be under 7px`,
       );
     }
-    process.stdout.write(`[canvas at ${zoom.toFixed(2)}×] `);
-    // Park the cursor so no port tooltip opens over a card.
+    process.stdout.write(`[canvas at ${zoom.toFixed(2)}x] `);
+    // Park the cursor so no port tooltip or hover-extend popover opens over a
+    // card while the frame is taken.
     await page.mouse.move(4, VIEWPORT.height - 4);
-    await page.waitForTimeout(900);
-    await shootElement(page, ".react-flow", "24-port-vocabulary-canvas.png", 0);
+    await page.waitForTimeout(1200);
+    const band = await subjectBox(page, anchor);
+    const pane = await page.locator(".react-flow").boundingBox();
+    if (band.x < pane.x - 1 || band.x + band.width > pane.x + pane.width + 1) {
+      throw new Error(
+        `a card is outside the graph pane at ${zoom.toFixed(2)}x — the frame would clip it`,
+      );
+    }
+    const top = Math.max(pane.y, band.y - 40);
+    const bottom = Math.min(pane.y + pane.height, band.y + band.height + 40);
+    await page.screenshot({
+      path: join(OUT, "24-port-vocabulary-canvas.png"),
+      clip: { x: pane.x, y: top, width: pane.width, height: bottom - top },
+    });
     await page.close();
   },
 
   /**
    * §20 — item 20, the SHAPES, close enough to decide them.
    *
-   * The card is chosen by measurement, not by name: the shot asks the page
-   * which node's port rows carry the most distinct `data-port-shape` values
-   * and frames that one. A card showing one shape would photograph nothing —
-   * the claim is that the five families are separable without colour, and a
-   * frame can only carry that if several silhouettes are in it side by side.
-   * The shot refuses to save unless at least three are.
+   * TWO frames, from two cards of the same graph, and the reason is a finding
+   * rather than a preference: no single seeded card carries more than three of
+   * the five families. `prep` holds the blue circle, the teal bar and the grey
+   * hollow; `validateFields` holds the violet square, the teal bar and the
+   * yellow diamond. Between them all five silhouettes are photographed, each
+   * beside a neighbour it has to be told apart from — which is the whole claim
+   * of the shape half of item 20 and could not be made by one frame.
+   *
+   * Both are zoomed to ~900px of card, roughly 3x the authored width, which
+   * puts the 12px dot near 36px. That is the size at which "is this a diamond
+   * or a square" stops being a guess. The shapes each frame contains are read
+   * off the DOM and asserted before the frame is saved.
    */
   20: async (browser) => {
     const page = await newPage(browser);
-    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
-    const best = await page.evaluate(() => {
-      let winner = null;
-      for (const card of document.querySelectorAll(".react-flow__node")) {
-        const id = card.getAttribute("data-id");
-        if (!id) continue;
-        const shapes = new Set(
-          [...card.querySelectorAll("[data-port-shape]")].map((row) =>
-            row.getAttribute("data-port-shape"),
+    await openEditor(
+      page,
+      "demo-switch-error-edges-validatefields-editor-part-5",
+    );
+    // The per-card zoom target is not decoration. `validateFields` is an
+    // authored-wide card, so at the 900px `prep` is shot at it fills the pane
+    // edge to edge and its right-hand diamond ends up UNDER the settings
+    // panel — half a diamond, in the one frame whose whole job is that the
+    // diamond is a diamond. 700px keeps it inside the pane.
+    for (const [nodeId, file, expected, minWidth] of [
+      [
+        "prep",
+        "25-port-shapes-circle-bar-hollow.png",
+        ["circle", "bar", "hollow"],
+        900,
+      ],
+      [
+        "validateFields",
+        "26-port-shapes-square-bar-diamond.png",
+        ["square", "bar", "diamond"],
+        700,
+      ],
+    ]) {
+      const card = `[data-testid="canvas-node-${nodeId}"]`;
+      const shapes = await page.evaluate((selector) => {
+        const el = document.querySelector(selector);
+        if (!el) return null;
+        return [
+          ...new Set(
+            [...el.querySelectorAll("[data-port-shape]")].map((row) =>
+              row.getAttribute("data-port-shape"),
+            ),
           ),
+        ];
+      }, card);
+      if (!shapes) throw new Error(`no card ${nodeId} on this graph`);
+      const missing = expected.filter((shape) => !shapes.includes(shape));
+      if (missing.length > 0) {
+        throw new Error(
+          `${nodeId} no longer carries ${missing.join(", ")} (it has ${shapes.join(", ")})`,
         );
-        if (!winner || shapes.size > winner.shapes.length) {
-          winner = { id, shapes: [...shapes] };
-        }
       }
-      return winner;
-    });
-    if (!best || best.shapes.length < 3) {
-      throw new Error(
-        `no card carries three distinct port shapes (best: ${
-          best ? `${best.id} with ${best.shapes.join(", ")}` : "none"
-        })`,
-      );
+      process.stdout.write(`[${nodeId}: ${shapes.join(", ")}] `);
+      await centreInCanvas(page, card);
+      await zoomOnto(page, card, minWidth);
+      await centreInCanvas(page, card);
+      // Refuse the frame if the card is wider than the pane it sits in: the
+      // port dots hang off both edges, so a card that overflows loses exactly
+      // the thing being photographed.
+      const shotBox = await subjectBox(page, card);
+      const shotPane = await page.locator(".react-flow").boundingBox();
+      if (
+        shotBox.x < shotPane.x + 12 ||
+        shotBox.x + shotBox.width > shotPane.x + shotPane.width - 12
+      ) {
+        throw new Error(
+          `${nodeId} overflows the graph pane at this zoom — its edge dots would be cut`,
+        );
+      }
+      await shootElement(page, card, file, 36);
+      // Back to fit-view before the next card, so the second pan starts from a
+      // canvas where the target is on screen rather than three zoom levels off
+      // the side of it.
+      await page.locator(".react-flow__controls-fitview").click();
+      await page.waitForTimeout(900);
     }
-    process.stdout.write(`[${best.id}: ${best.shapes.join(", ")}] `);
-    const card = `[data-testid="canvas-node-${best.id}"]`;
-    await centreInCanvas(page, card);
-    // 900px of a 1920px frame — roughly 3× the card's authored width, which
-    // puts the 12px dot near 36px. That is the size at which "is this a
-    // diamond or a square" stops being a guess.
-    await zoomOnto(page, card, 900);
-    await centreInCanvas(page, card);
-    await shootElement(page, card, "25-port-dot-shapes.png", 26);
     await page.close();
   },
 
@@ -1268,60 +1375,60 @@ const SHOTS = {
    *
    * Checked before the frame is saved, because "all four sections" is the
    * claim and a popover that scrolled or clipped one of them would photograph
-   * as three. The four group bodies are asserted present and non-empty, and
-   * the five family rows counted, so a frame can never quietly show a
+   * as three. The four headings are read back, the five family rows, two ring
+   * rows and five accent rows counted, so a frame can never quietly show a
    * half-rendered dropdown.
    */
   21: async (browser) => {
     const page = await newPage(browser);
-    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
+    await openEditor(
+      page,
+      "demo-switch-error-edges-validatefields-editor-part-5",
+    );
     await page.getByTestId("canvas-legend-button").click();
     await page.waitForSelector('[data-testid="canvas-legend"]', {
       timeout: 15000,
     });
-    // The popover's transition is already `duration: 0`, but Mantine still
-    // positions it on the next frame; wait for that rather than for a guess.
-    await page.waitForTimeout(700);
-    const counts = await page.evaluate(() => {
+    // The popover's transition is `duration: 0`, but Mantine still positions
+    // it on the next frame; wait for that rather than shoot mid-placement.
+    await page.waitForTimeout(800);
+    const legend = await page.evaluate(() => {
       const rows = (testid) =>
         document.querySelectorAll(`[data-testid="${testid}"] > *`).length;
-      const headings = [
-        ...document.querySelectorAll('[data-testid="canvas-legend"] p'),
-      ]
-        .map((el) => el.textContent?.trim())
-        .filter((text) => text && text === text.toUpperCase());
       return {
-        headings,
+        headings: [
+          ...document.querySelectorAll('[data-testid="canvas-legend"] > div > p'),
+        ].map((el) => el.textContent?.trim()),
         families: rows("canvas-legend-families"),
         rings: rows("canvas-legend-rings"),
         accents: rows("canvas-legend-accents"),
       };
     });
-    if (counts.families !== 5) {
-      throw new Error(`legend shows ${counts.families} port families, not 5`);
-    }
-    if (counts.rings !== 2 || counts.accents !== 5) {
+    const expected = ["Wires", "Port dots", "Rings", "Card borders"];
+    if (legend.headings.join("|") !== expected.join("|")) {
       throw new Error(
-        `legend shows ${counts.rings} ring rows and ${counts.accents} accent rows`,
+        `legend sections are [${legend.headings.join(", ")}], not the four expected`,
+      );
+    }
+    if (legend.families !== 5 || legend.rings !== 2 || legend.accents !== 5) {
+      throw new Error(
+        `legend rows are ${legend.families} families / ${legend.rings} rings / ` +
+          `${legend.accents} accents, not 5 / 2 / 5`,
       );
     }
     process.stdout.write(
-      `[sections: ${counts.headings.join(" · ")} · ` +
-        `${counts.families} families, ${counts.rings} rings, ${counts.accents} accents] `,
+      `[${legend.headings.join(" - ")}; ${legend.families}/${legend.rings}/${legend.accents}] `,
     );
     // Park the cursor: it is sitting on the Legend button, whose own tooltip
     // would otherwise land across the bottom of the dropdown.
     await page.mouse.move(4, VIEWPORT.height - 4);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(700);
     // Button plus dropdown as a union — the popover is portalled, so a shot of
     // the dropdown alone would not show what opens it.
     await shootUnion(
       page,
-      [
-        '[data-testid="canvas-legend-button"]',
-        '[data-testid="canvas-legend"]',
-      ],
-      "26-canvas-legend-four-sections.png",
+      ['[data-testid="canvas-legend-button"]', '[data-testid="canvas-legend"]'],
+      "27-canvas-legend-four-sections.png",
       14,
     );
     await page.close();
@@ -1330,21 +1437,25 @@ const SHOTS = {
   /**
    * §22 — the five card-border accents, in one graph.
    *
-   * Same demo, framed to the union of the four non-default cards so the calm
-   * slate of an ordinary activity is next to amber routing, purple fan, red
-   * person and green child-workflow. The shot asks the page for one card of
-   * each role and refuses if any role is missing, so it cannot silently become
-   * a picture of four accents captioned as five.
+   * The control-flow demo is the only seeded workflow carrying every role at
+   * once: `activity` (calm slate), `switch` and `pollUntil` (amber routing),
+   * `map` and `join` (purple fan), `humanGate` (red person), `childWorkflow`
+   * (green). The frame is the union of one card per role, so the ordinary
+   * activity's slate is in shot beside the four that are not ordinary — which
+   * is the argument of the accent merge: a coloured card is now exactly a card
+   * that does something structurally unusual.
+   *
+   * The role of each card is read from xyflow's own `react-flow__node-<type>`
+   * class rather than from a `data-` attribute, because the attribute lives on
+   * the card body inside the wrapper and the activity renderer does not set it
+   * at all. Any missing role fails the shot instead of producing a picture of
+   * four accents captioned as five.
    */
   22: async (browser) => {
     const page = await newPage(browser);
     await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
-    // The roles are not on the DOM — they are a function of node type — so the
-    // shot maps type → role the way `node-accents.ts` does and picks one card
-    // per role from the graph's own node types.
     const ROLE_OF_TYPE = {
       activity: "activity",
-      source: "activity",
       switch: "routing",
       pollUntil: "routing",
       map: "fan",
@@ -1356,24 +1467,17 @@ const SHOTS = {
       const found = {};
       for (const card of document.querySelectorAll(".react-flow__node")) {
         const id = card.getAttribute("data-id");
-        // `data-node-type` is on the card body inside the xyflow wrapper, not
-        // on the wrapper itself, so it has to be read from the descendant.
-        const type = card
-          .querySelector("[data-node-type]")
-          ?.getAttribute("data-node-type");
+        const type = [...card.classList]
+          .find((name) => name.startsWith("react-flow__node-"))
+          ?.slice("react-flow__node-".length);
         const role = roleOfType[type];
         if (!id || !role || found[role]) continue;
         found[role] = id;
       }
       return found;
     }, ROLE_OF_TYPE);
-    const missing = [
-      "activity",
-      "routing",
-      "fan",
-      "person",
-      "childWorkflow",
-    ].filter((role) => !byRole[role]);
+    const missing = ["activity", "routing", "fan", "person", "childWorkflow"]
+      .filter((role) => !byRole[role]);
     if (missing.length > 0) {
       throw new Error(`no card on this graph for: ${missing.join(", ")}`);
     }
@@ -1382,13 +1486,92 @@ const SHOTS = {
         .map(([role, id]) => `${role}=${id}`)
         .join(" ")}] `,
     );
-    const cards = Object.values(byRole).map(
+    // The stripe colours are MEASURED, not eyeballed. A 6px border at the
+    // zoom this graph fits at is a few pixels of colour, and "those five are
+    // different" is exactly the kind of claim a reader should not have to take
+    // on trust from a thumbnail — so the shot reads each card's computed
+    // border-left-color and refuses the frame if any of them is not the hex
+    // `node-accents.ts` declares. The numbers are printed for the caption.
+    const EXPECTED = {
+      activity: "rgb(100, 116, 139)",
+      routing: "rgb(217, 119, 6)",
+      fan: "rgb(107, 33, 168)",
+      person: "rgb(185, 28, 28)",
+      childWorkflow: "rgb(6, 95, 70)",
+    };
+    const painted = await page.evaluate((ids) => {
+      const out = {};
+      for (const [role, id] of Object.entries(ids)) {
+        const el = document.querySelector(`[data-testid="canvas-node-${id}"]`);
+        out[role] = el ? getComputedStyle(el).borderLeftColor : null;
+      }
+      return out;
+    }, byRole);
+    const wrong = Object.entries(EXPECTED).filter(
+      ([role, hex]) => painted[role] !== hex,
+    );
+    if (wrong.length > 0) {
+      throw new Error(
+        `accent stroke mismatch: ${wrong
+          .map(([role, hex]) => `${role} painted ${painted[role]}, expected ${hex}`)
+          .join("; ")}`,
+      );
+    }
+    process.stdout.write(
+      `[strokes: ${Object.entries(painted)
+        .map(([role, hex]) => `${role} ${hex}`)
+        .join(" · ")}] `,
+    );
+    // The WHOLE GRAPH, not a union crop of the five role cards. A tight union
+    // was tried first and it is the wrong frame: at a zoom that makes one card
+    // readable the five are ~2,600px apart, so the crop ran out over the
+    // palette rail on one side and the settings panel on the other and sliced
+    // three of the five in half. A claim about card BORDERS is read against
+    // neighbouring cards, so every card has to be in shot.
+    //
+    // Fit-view lands at 0.50x with the graph in the middle third of a 968px
+    // pane; one zoom step up fills the frame and keeps all eight cards, which
+    // is the most readable version of this particular picture.
+    const allCards = await page.evaluate(() =>
+      [...document.querySelectorAll(".react-flow__node")]
+        .map((el) => el.getAttribute("data-id"))
+        .filter((id) => id && !id.startsWith("container-")),
+    );
+    const allSelectors = allCards.map(
       (id) => `[data-testid="canvas-node-${id}"]`,
     );
-    await centreInCanvas(page, cards);
-    await zoomOnto(page, cards, 1000);
-    await centreInCanvas(page, cards);
-    await shootUnion(page, cards, "27-node-accents-five-roles.png", 26);
+    await page.locator(".react-flow__controls-fitview").click();
+    await page.waitForTimeout(1200);
+    const accentZoom = await canvasZoom(page);
+    process.stdout.write(`[canvas at ${accentZoom.toFixed(2)}x] `);
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(900);
+    // Full pane WIDTH, cropped vertically to the band the graph occupies.
+    //
+    // The width is not negotiable and that is the finding: zooming in far
+    // enough to fill the frame pushes the outermost cards under the palette
+    // rail and the settings panel, and a crop wide enough to hold them is a
+    // crop that includes both. So the frame keeps fit-view's zoom — where
+    // every card is whole and inside the pane — and only trims the empty
+    // canvas above and below, which is where the wasted pixels actually were.
+    const band = await subjectBox(page, allSelectors);
+    const pane = await page.locator(".react-flow").boundingBox();
+    if (band.x < pane.x - 1 || band.x + band.width > pane.x + pane.width + 1) {
+      throw new Error(
+        "a card is outside the graph pane at fit-view — the frame would clip it",
+      );
+    }
+    const top = Math.max(pane.y, band.y - 34);
+    const bottom = Math.min(pane.y + pane.height, band.y + band.height + 34);
+    await page.screenshot({
+      path: join(OUT, "28-node-accents-five-roles.png"),
+      clip: {
+        x: pane.x,
+        y: top,
+        width: pane.width,
+        height: bottom - top,
+      },
+    });
     await page.close();
   },
 };

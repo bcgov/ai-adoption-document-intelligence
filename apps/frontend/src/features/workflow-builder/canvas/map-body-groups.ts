@@ -8,6 +8,7 @@
  */
 
 import type { GraphWorkflowConfig, NodeGroup } from "../../../types/workflow";
+import { MAP_BODY_ACCENT } from "../node-accents";
 
 export const SYNTHETIC_MAP_BODY_PREFIX = "__map_body_";
 
@@ -56,7 +57,13 @@ export function synthesizeMapBodyGroups(
     out[groupId] = {
       label: `${mapNode.label ?? mapNode.id} · body`,
       description: `Body of map node "${mapNode.label ?? mapNode.id}". Updates automatically.`,
-      color: "#22c55e",
+      // The map node's OWN accent — this box is that node's body, so the two
+      // are one thing and share one colour. It used to be a hardcoded
+      // `#22c55e`, which was ALSO the map node's accent AND an activity
+      // category's: one hex, three meanings (item 20). `GroupContainerNode`
+      // has the same default, but this wins, because the projection always
+      // supplies `color` — so setting it there alone changed nothing.
+      color: MAP_BODY_ACCENT,
       nodeIds: [...bodyIds],
       exposedParams: [],
     };

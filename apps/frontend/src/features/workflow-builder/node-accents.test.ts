@@ -14,6 +14,11 @@ import {
   getActivityCatalogEntry,
 } from "@ai-di/graph-workflow";
 import { describe, expect, it } from "vitest";
+import type { GraphWorkflowConfig } from "../../types/workflow";
+import {
+  SYNTHETIC_MAP_BODY_PREFIX,
+  synthesizeMapBodyGroups,
+} from "./canvas/map-body-groups";
 import { getActivityVisualHints } from "./catalog-utils";
 import { CONTROL_FLOW_VISUAL_HINTS } from "./control-flow-visual-hints";
 import {
@@ -108,5 +113,44 @@ describe("node accents — group outlines", () => {
   it("gives an authored group the neutral, not a colour of its own", () => {
     expect(AUTHORED_GROUP_ACCENT).toBe(ACTIVITY_ACCENT);
     expect(AUTHORED_GROUP_ACCENT).not.toBe(MAP_BODY_ACCENT);
+  });
+
+  it("PROJECTS the map accent onto the body box, not just defaults to it", () => {
+    /*
+     * The regression this exists for, found in a screenshot after the rest of
+     * item 20 had shipped and every suite was green: `GroupContainerNode`
+     * defaults a synthetic group to `MAP_BODY_ACCENT`, but that default is
+     * `data.color ?? …` and the projection ALWAYS supplies `color` — so the box
+     * kept rendering the old hardcoded `#22c55e` and the default was dead code.
+     * Asserting the constant alone could never have caught it; this asserts the
+     * value that actually reaches the renderer.
+     */
+    const config: GraphWorkflowConfig = {
+      nodes: {
+        loop: {
+          id: "loop",
+          type: "map",
+          label: "Run for each document",
+          bodyEntryNodeId: "body",
+          bodyExitNodeId: "body",
+          itemsFrom: "docs",
+          itemCtxKey: "doc",
+        },
+        body: {
+          id: "body",
+          type: "activity",
+          label: "Work",
+          activityType: "file.prepare",
+          inputs: [],
+        },
+      },
+      edges: [],
+      ctx: {},
+    } as unknown as GraphWorkflowConfig;
+
+    const synthetic = synthesizeMapBodyGroups(config);
+    const body = synthetic[`${SYNTHETIC_MAP_BODY_PREFIX}loop`];
+    expect(body).toBeDefined();
+    expect(body.color).toBe(nodeAccent("fan"));
   });
 });

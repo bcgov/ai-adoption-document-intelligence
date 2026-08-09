@@ -948,3 +948,96 @@ Found while doing it: the plan already said to seed the database before Part 14
 — twice, in a header block 630 lines earlier, including the sentence *"Links 404
 until the seeder has run."* That note is now repeated locally beside the demo
 links, because 630 lines is further than any reader carries an instruction.
+
+## Thirty-two colours became ten — item 20
+
+**TL;DR — Inderdeep counted the legend and got "12 to 13". He was exactly right
+about the number on screen and understating the problem: the canvas painted 32
+distinct colour values carrying about 24 separate meanings. The port dots are
+now five families, each with a SHAPE as well as a colour, and the card borders
+are five roles instead of thirteen. The one thing worth arguing about is that
+this took the seven activity-category border colours down to one.**
+
+Why it had to shrink rather than be re-picked: I simulated red-blind and
+green-blind vision on the hexes actually being rendered and scored the distance
+between every pair. Two colours under about 11 read as the *same* colour. Three
+port pairs and fourteen border pairs were under it, several with no brightness
+difference to fall back on either — References teal and Untyped grey simulated
+to `#9E9E9C` against `#9E9E89`, which is one dot. Thirteen hues cannot be pulled
+apart no matter which thirteen you pick.
+
+### The five port families, on a real graph
+
+![The canvas with the five port families](screenshots/24-port-vocabulary-canvas.png)
+
+Four cards of the switch/error-edges demo. Blue circles for documents, teal bars
+for IDs, violet squares for content taken out of a document, grey hollow circles
+for untyped — plus the data wire in its producer's family colour and the red
+error route leaving `prep`.
+
+### The shapes, close enough to see
+
+![Circle, bar and hollow circle on one card](screenshots/25-port-shapes-circle-bar-hollow.png)
+
+`Prepare File Data` at about 3×. One teal **bar** (Document ID — a pointer), one
+blue **circle** (File reference — a document), three grey **hollow circles**
+(untyped), and a blue circle output.
+
+![Square, bar and diamond on one card](screenshots/26-port-shapes-square-bar-diamond.png)
+
+`Validate Fields` completes the set: a violet **square** wearing the double ring
+that means "a list of these" (Processed segments), a teal bar (Document ID), and
+a yellow **diamond** output (Validation results — a judgement about a document).
+
+No single seeded card carries more than three of the five families, which is why
+this is two frames rather than one.
+
+### The legend now teaches all four codes
+
+![The legend popover, four sections](screenshots/27-canvas-legend-four-sections.png)
+
+Wires, port dots, rings, card borders. Card borders had never been explained
+anywhere in the product, because until now there were thirteen of them and no
+popover can teach thirteen. Each family row names its shape in words as well as
+showing it, so the legend is readable without colour at all.
+
+The row count went **up**, from 13 to 16 — and that is the right trade. The
+thing being taught went from about 24 decodable distinctions to 14, and the rows
+are grouped by what you are looking at instead of run together in one list.
+Counting rows was the symptom; the size of the vocabulary was the disease.
+
+### Card borders: five roles
+
+![The five node accents on one graph](screenshots/28-node-accents-five-roles.png)
+
+The control-flow demo — the only seeded workflow carrying all five roles at
+once. Measured off the rendered DOM in this exact frame:
+
+| Role | Rendered | Cards here |
+|---|---|---|
+| Does work | `rgb(100,116,139)` slate | Store Results, Extract OCR result |
+| Decides where to go next | `rgb(217,119,6)` amber | Wait until condition, Branch by condition |
+| Fans out or back in | `rgb(107,33,168)` purple | Run for each document, Collect results |
+| Waits for a person | `rgb(185,28,28)` red | Wait for approval |
+| Runs another workflow | `rgb(6,95,70)` green | Sub-workflow (inline OCR) |
+
+The map body's box is that purple too, because it *is* the map node's body —
+where the old scheme had one green (`#22c55e`) doing duty as the map node's
+accent, the map body's outline, **and** an activity category, three things that
+were never the same thing.
+
+**This frame is also what caught a bug that every test had missed.** The first
+capture still showed the body box green: `GroupContainerNode` defaults a
+synthetic group to the map accent, but the default reads `data.color ?? …` and
+the projection always supplies `color`, so the default was dead code and the old
+hex was still winning. Asserting the constant could never have found it; there
+is now a test that asserts the value which actually reaches the renderer.
+
+**And the thing to push back on if you want to.** Every activity card is the
+same slate now — OCR, validation, storage, transform, all of it. The upside is
+that a *coloured* card is exactly a card doing something structurally unusual,
+which is what you want to spot at a glance in a large graph. The cost is that
+category is no longer in the border; it is in the icon, the label, and the
+palette sidebar's grouping. The reduction was forced by the measurement, but the
+choice of axis is taste. One line in `catalog-utils.ts` puts per-category
+colours back, and brings the collisions with them.
