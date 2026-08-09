@@ -3300,7 +3300,12 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
     };
   });
 
-  async function openHistoryAndReplay() {
+  async function openHistoryAndReplay(
+    version: { id: string; versionNumber: number } = {
+      id: "v-old",
+      versionNumber: 2,
+    },
+  ) {
     await act(async () => {
       fireEvent.click(screen.getByTestId("topbar-more-button"));
     });
@@ -3313,7 +3318,7 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
       | undefined;
     if (!onReplay) throw new Error("run-history stub captured no onReplay");
     act(() => {
-      onReplay("run-42", { id: "v-old", versionNumber: 2 });
+      onReplay("run-42", version);
     });
   }
 
@@ -3390,7 +3395,15 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
     ).toEqual(["a", "b", "c"]);
   });
 
-  it("names the version on the replay chip so the graph on screen is identifiable", async () => {
+  // -------------------------------------------------------------------
+  // UX walkthrough 2026-08-06 item 13 — replay announces itself as a
+  // BANNER between the top bar and the canvas, not as a chip beside Undo.
+  // The three states are sentences: which version you are on, that the
+  // canvas is read-only, and the loud one — the version could not be
+  // fetched, so the graph on screen is TODAY'S and not the one that ran.
+  // -------------------------------------------------------------------
+
+  it("names the version in the replay banner so the graph on screen is identifiable", async () => {
     versionQueryRef.current = {
       data: { config: historicalConfig() },
       isLoading: false,
@@ -3401,9 +3414,57 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
     await openHistoryAndReplay();
-    const chip = screen.getByTestId("replay-mode-indicator");
-    expect(chip).toHaveTextContent("v2");
-    expect(chip).toHaveTextContent(/read-only/i);
+    const banner = screen.getByTestId("replay-mode-indicator");
+    expect(banner).toHaveTextContent("v2");
+    expect(banner).toHaveTextContent(/read-only/i);
+    // Not a compressed label: it says what read-only actually costs you.
+    expect(banner).toHaveTextContent(/Undo and Redo do nothing/i);
+    expect(banner).toHaveAttribute("data-version-number", "2");
+    expect(banner).toHaveAttribute("data-version-unavailable", "false");
+  });
+
+  it("renders the banner outside the top bar, and only while replaying", async () => {
+    versionQueryRef.current = {
+      data: { config: historicalConfig() },
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    // Normal editing: no banner at all, so it costs no vertical space.
+    expect(screen.queryByTestId("replay-mode-indicator")).toBeNull();
+
+    await openHistoryAndReplay();
+    const banner = screen.getByTestId("replay-mode-indicator");
+    // The point of item 13: it is NOT among the controls it explains the
+    // deadness of, and it does not spend the top bar's horizontal budget
+    // that item 14 just reclaimed.
+    expect(screen.getByTestId("topbar-zone-right").contains(banner)).toBe(
+      false,
+    );
+    expect(screen.getByTestId("topbar-group-state").contains(banner)).toBe(
+      false,
+    );
+  });
+
+  it("says the version is unknown rather than inventing a v0", async () => {
+    versionQueryRef.current = {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    };
+    renderEditPage("wf-1");
+    await waitFor(() => {
+      expect(capturedCanvasProps.current?.config).toBeDefined();
+    });
+    // A run started without a version memo reports `versionNumber: 0`.
+    await openHistoryAndReplay({ id: "v-none", versionNumber: 0 });
+    const banner = screen.getByTestId("replay-mode-indicator");
+    expect(banner).toHaveTextContent(/version unknown/i);
+    expect(banner).not.toHaveTextContent(/\bv0\b/);
+    expect(banner).toHaveTextContent(/read-only/i);
   });
 
   it("says so when the run's version cannot be loaded, instead of silently using head", async () => {
@@ -3417,9 +3478,15 @@ describe("WorkflowEditorV2Page — G-004 replay renders the version that ran", (
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
     await openHistoryAndReplay();
-    expect(screen.getByTestId("replay-mode-indicator")).toHaveTextContent(
-      /unavailable/i,
-    );
+    const banner = screen.getByTestId("replay-mode-indicator");
+    expect(banner).toHaveAttribute("data-version-unavailable", "true");
+    // The state the chip could not carry, now said in full: this is the
+    // CURRENT graph and the run came from an older one.
+    expect(banner).toHaveTextContent(/could not be loaded/i);
+    expect(banner).toHaveTextContent(/current graph/i);
+    expect(banner).toHaveTextContent(/as it stands today/i);
+    expect(banner).toHaveTextContent(/may differ from what actually ran/i);
+    expect(banner).toHaveTextContent("v2");
   });
 
   it("entering and leaving replay cannot lose unsaved work", async () => {

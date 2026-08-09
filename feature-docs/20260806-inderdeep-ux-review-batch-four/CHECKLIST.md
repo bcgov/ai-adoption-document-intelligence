@@ -275,15 +275,34 @@ attempt, close the item with that stated.
 **Key file:** `apps/frontend/src/features/workflow-builder/run-history/RunHistoryDrawer.tsx`,
 `run/RunWorkflowDrawer.tsx`.
 
-### 13. [ ] The "Replay mode" chip is parked beside Undo and reads as a stray tag
-**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
-[DECISIONS/13-replay-mode.md](DECISIONS/13-replay-mode.md). The badge already
-carries three states, one of them a sentence saying you are looking at the
-*current* graph for an *older* run. Meanwhile replay silently swallows edits —
-`if (isReplay) return;` in three handlers — with no explanation anywhere.
-Recommended: a banner over the canvas, not a top-bar region, because a top-bar
-region spends the real estate item 14 is reclaiming. Build after batch 11 merges;
-same file, same region.
+### 13. [x] The "Replay mode" chip is parked beside Undo and reads as a stray tag
+**Done 2026-08-08 — Option A, the banner, per Alex's ruling on
+[DECISIONS/13-replay-mode.md](DECISIONS/13-replay-mode.md).** `Badge`
+`TopBarReplayIndicator` is gone; `ReplayModeBanner` renders a full-width strip
+between the top bar and the canvas, only while `isReplay`. Each of the three
+states is now a headline plus a sentence instead of a squeezed label: **"Replay
+mode — you are looking at v2, the graph this run used"**, **"…version unknown,
+so this is the graph the run recorded"**, and the loud one, **"…v2 could not be
+loaded, so this is the current graph"** followed by *the workflow as it stands
+today, which may differ from what actually ran*. All three say the canvas is
+read-only and that **edits, Undo and Redo do nothing until you leave replay** —
+the thing that was previously unexplained anywhere, since the three
+`if (isReplay) return;` guards drop work silently. Those guards are unchanged;
+the transient "your edit was discarded" note floated in the decision doc was
+**not** built — it is still an open question to Alex.
+`replay-mode-indicator` and `replay-mode-clear` testids are kept (the clear
+button now reads **Leave replay**), and `data-version-number` survives with a
+new `data-version-unavailable` beside it. Layout: the banner is a `flexShrink:
+0` sibling of the top bar, so its height comes out of the canvas and the bar's
+own horizontal budget is *reduced* rather than spent — removing the chip gives
+`topbar-group-state` its width back, so item 14's overflow fix is not at risk.
+Tests: `WorkflowEditorV2Page.test.tsx` gains a placement pin (the banner is not
+inside `topbar-zone-right`, and absent entirely outside replay) and a
+`versionNumber: 0` case proving it says "unknown" rather than printing a v0
+that does not exist; 122 pass in that file, 2116 across
+`src/features/workflow-builder`. jsdom runs no layout, so the banner's real
+height and the canvas not jolting are browser-only — logged as MANUAL_TEST_PLAN
+**9.9d**, unticked.
 **Area:** Frontend — workflow-builder top bar
 **Problem:** Clicking a run-history row puts the editor into read-only replay
 mode, announced by a chip next to the Undo button. Alex, seeing it: *"there's
@@ -781,7 +800,7 @@ steps of Part 14 to a developer and record the results in the plan's checkboxes.
 | Canvas handles & ports | `.../workflow-builder/canvas/handle-style.ts`, `canvas/PortRows.tsx`, `canvas/HoverExtendPopover.tsx`, `canvas/WorkflowEditorCanvas.tsx` |
 | Error policy & error state | `.../workflow-builder/settings/ErrorPolicySection.tsx`, `run/NodeStatusBadge.tsx`, `canvas/WorkflowEditorCanvas.tsx` (`id="error"` handles) |
 | Try / Run / preview | `.../workflow-builder/WorkflowEditorV2Page.tsx`, `run/RunWorkflowDrawer.tsx`, `preview/PreviewWidget.tsx`, `preview/CacheEvictedAlert.tsx`, `preview/NoOutputNotice.tsx`, `preview/useActivityOutputPreview.ts` |
-| Run history & replay | `.../workflow-builder/run-history/RunHistoryDrawer.tsx`, `WorkflowEditorV2Page.tsx` (replay chip ~L2178) |
+| Run history & replay | `.../workflow-builder/run-history/RunHistoryDrawer.tsx`, `WorkflowEditorV2Page.tsx` (`ReplayModeBanner`, and its mount point just below the top bar) |
 | Top bar & switcher | `.../workflow-builder/WorkflowEditorV2Page.tsx` (top-bar zones ~L1598), `WorkflowSwitcher.tsx`, `WorkflowTitleField.tsx` |
 | Workflows list | `apps/frontend/src/pages/WorkflowListPage.tsx` |
 | Groups | `.../workflow-builder/canvas/GroupContainerNode.tsx`, `canvas/NodeContextMenu.tsx`, `canvas/PaneContextMenu.tsx` |

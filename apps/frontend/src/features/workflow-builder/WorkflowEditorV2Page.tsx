@@ -30,8 +30,6 @@ import {
   stripRedundantLocks,
 } from "@ai-di/graph-workflow";
 import {
-  ActionIcon,
-  Badge,
   Box,
   Button,
   Divider,
@@ -65,7 +63,6 @@ import {
   IconRewindBackward10,
   IconSettings,
   IconUsersGroup,
-  IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ReactFlowInstance } from "@xyflow/react";
@@ -1743,9 +1740,6 @@ function WorkflowEditorV2PageBody({
           data-testid="topbar-zone-right"
         >
           <Group gap="xs" wrap="nowrap" data-testid="topbar-group-state">
-            <TopBarReplayIndicator
-              versionUnavailable={replayVersionUnavailable}
-            />
             {/*
                 G-003 — visible undo/redo. The shortcuts exist too, but a
                 keyboard-only affordance is undiscoverable, which is the same
@@ -1927,6 +1921,15 @@ function WorkflowEditorV2PageBody({
           </Group>
         </Group>
       </Group>
+
+      {/*
+        UX walkthrough 2026-08-06 item 13 — replay announces itself here,
+        between the bar and the canvas it makes read-only, instead of as a
+        chip among the buttons it disables. Rendered only while replaying, so
+        it costs no vertical space in normal editing; while it is up, the
+        canvas below (flex: 1) simply gets that much shorter.
+      */}
+      <ReplayModeBanner versionUnavailable={replayVersionUnavailable} />
 
       <WorkflowSettingsDrawer
         opened={settingsOpen}
@@ -2214,16 +2217,35 @@ function ValidationButton({
 }
 
 /**
- * Top-bar "Replay mode" indicator (US-154). Renders a small blue chip
- * with a "Clear" button when `isReplay === true`; otherwise renders
- * nothing. Clicking Clear restores live mode by resetting both
- * `activeRunId` and `isReplay` on `RunStateContext`.
+ * Replay-mode banner (US-154; reshaped by the 2026-08-06 UX walkthrough,
+ * item 13). Renders a full-width strip between the top bar and the canvas
+ * when `isReplay === true`; otherwise renders nothing. "Leave replay"
+ * restores live mode by resetting both `activeRunId` and `isReplay` on
+ * `RunStateContext`. Must be mounted inside the `RunStateProvider` subtree.
  *
- * Lives next to the other top-bar buttons so the user sees at-a-glance
- * that the canvas is displaying historical state. Must be mounted
- * inside the `RunStateProvider` subtree.
+ * Why a banner and not the chip it replaces (DECISIONS/13-replay-mode.md):
+ * this was a filled Mantine `Badge` parked in the top bar's action row, and
+ * Alex read it as a stray tag — *"there's like a weird tag there … it makes
+ * sense for it to be an indicator somewhere, but perhaps not there and not
+ * like that."* Two things were wrong with the chip beyond where it sat.
+ * First, replay is a MODE that silently swallows work — Undo/Redo are
+ * disabled and config edits hit `if (isReplay) return;` in three handlers —
+ * so an author drags a node, types in a field, presses Ctrl+Z, and nothing
+ * happens with no explanation. A badge is not proportionate to that.
+ * Second, the badge was already carrying a full sentence with a caveat in a
+ * control sized for a word: the orange state means the run's version could
+ * not be loaded, so **the graph on screen is the current one while the run
+ * came from an older one** — the single most important thing the editor can
+ * say at that moment, and it was squeezed into a chip. Here each state is a
+ * sentence with room to be one.
+ *
+ * Layout: a `flexShrink: 0` sibling of the top bar inside the page's
+ * height-100% column, so the space it takes comes out of the canvas below
+ * and nothing overflows. It is deliberately NOT in the top bar, which is
+ * where the controls it explains the deadness of live, and whose horizontal
+ * budget item 14 has just finished reclaiming.
  */
-function TopBarReplayIndicator({
+function ReplayModeBanner({
   versionUnavailable,
 }: {
   versionUnavailable?: boolean;
@@ -2236,45 +2258,77 @@ function TopBarReplayIndicator({
     setIsReplay(false);
   };
   // G-004 — an author who cannot tell WHICH graph they are looking at has
-  // the same problem in a new form, so name the version on the chip and say
-  // plainly when it could not be loaded.
+  // the same problem in a new form, so name the version and say plainly when
+  // it could not be loaded.
   // A run started without a version memo reports `versionNumber: 0` (the
   // API's `?? 0` fallback). v0 is not a version that exists, so say the
   // version is unknown rather than inventing one — same rule as RunRow.
   const namedVersion =
     replayVersion && replayVersion.versionNumber > 0 ? replayVersion : null;
-  const label = versionUnavailable
+  const headline = versionUnavailable
     ? namedVersion
-      ? `Replay mode — v${namedVersion.versionNumber} unavailable, showing current graph`
-      : "Replay mode — version unavailable"
+      ? `Replay mode — v${namedVersion.versionNumber} could not be loaded, so this is the current graph`
+      : "Replay mode — the run's version could not be loaded, so this is the current graph"
     : namedVersion
-      ? `Replay mode — v${namedVersion.versionNumber} (read-only)`
-      : "Replay mode — version unknown (read-only)";
+      ? `Replay mode — you are looking at v${namedVersion.versionNumber}, the graph this run used`
+      : "Replay mode — version unknown, so this is the graph the run recorded";
+  const detail = versionUnavailable
+    ? namedVersion
+      ? `This run was executed on v${namedVersion.versionNumber}, but that version could not be fetched. What you see is the workflow as it stands today, which may differ from what actually ran — nodes may have been added, removed or reconfigured since. The canvas is read-only: edits, Undo and Redo do nothing until you leave replay.`
+      : "The version this run was executed on could not be fetched. What you see is the workflow as it stands today, which may differ from what actually ran. The canvas is read-only: edits, Undo and Redo do nothing until you leave replay."
+    : namedVersion
+      ? `The canvas is read-only while you are here: edits, Undo and Redo do nothing until you leave replay. Leaving returns you to the workflow you were editing, with your unsaved changes intact.`
+      : "This run did not record which version it used, so the version on screen cannot be named. The canvas is read-only: edits, Undo and Redo do nothing until you leave replay.";
+  const accent = versionUnavailable ? "orange" : "blue";
   return (
-    <Badge
-      size="md"
-      color={versionUnavailable ? "orange" : "blue"}
-      variant="filled"
-      data-version-number={replayVersion?.versionNumber ?? ""}
-      leftSection={<IconRewindBackward10 size={12} />}
-      rightSection={
-        <Tooltip label="Clear replay mode" withArrow>
-          <ActionIcon
-            size="xs"
-            variant="transparent"
-            color="white"
-            onClick={handleClear}
-            data-testid="replay-mode-clear"
-            aria-label="Clear replay mode"
-          >
-            <IconX size={12} />
-          </ActionIcon>
-        </Tooltip>
-      }
+    <Box
       data-testid="replay-mode-indicator"
+      data-version-number={replayVersion?.versionNumber ?? ""}
+      data-version-unavailable={versionUnavailable ? "true" : "false"}
+      role="status"
+      px="sm"
+      py={8}
+      style={{
+        flexShrink: 0,
+        borderBottom: "1px solid var(--mantine-color-default-border, #2c2e33)",
+        borderLeft: `3px solid var(--mantine-color-${accent}-6)`,
+        background: `var(--mantine-color-${accent}-light)`,
+      }}
     >
-      {label}
-    </Badge>
+      <Group gap="sm" wrap="nowrap" align="flex-start">
+        {versionUnavailable ? (
+          <IconAlertTriangle
+            size={18}
+            style={{ flexShrink: 0, marginTop: 2 }}
+            color={`var(--mantine-color-${accent}-6)`}
+          />
+        ) : (
+          <IconRewindBackward10
+            size={18}
+            style={{ flexShrink: 0, marginTop: 2 }}
+            color={`var(--mantine-color-${accent}-6)`}
+          />
+        )}
+        <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+          <Text size="sm" fw={600} c={`${accent}.8`}>
+            {headline}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {detail}
+          </Text>
+        </Stack>
+        <Button
+          variant="default"
+          size="xs"
+          onClick={handleClear}
+          data-testid="replay-mode-clear"
+          aria-label="Leave replay mode"
+          style={{ flexShrink: 0 }}
+        >
+          Leave replay
+        </Button>
+      </Group>
+    </Box>
   );
 }
 

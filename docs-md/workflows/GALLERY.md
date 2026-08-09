@@ -251,8 +251,9 @@ before you name it, no wire is correct, because there's nothing to hand over yet
   grey to blue to green as it goes.
 - The wires the run actually travelled are drawn in blue. A branch it didn't take
   stays in its resting colour — you can see the path it chose.
-- The top bar shows **Replay mode — v1 (read-only)**. You're looking at history,
-  not the live diagram.
+- A banner across the top of the canvas says **Replay mode — you are looking at
+  v1, the graph this run used**, that the canvas is read-only, and offers
+  **Leave replay**. You're looking at history, not the live diagram.
 
 **Try this.** Click **Try** on a workflow you've edited but not saved. It refuses,
 and says why: *"Save your changes first — a run always executes the saved graph,
