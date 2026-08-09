@@ -87,6 +87,18 @@ services:
       POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
       POSTGRES_SEEDS: temporal-postgresql
       SKIP_DEFAULT_NAMESPACE_CREATION: "false"
+      # Closed executions are purged after this, and with them the run history
+      # that Run history and the canvas's node statuses are BOTH read from
+      # (Temporal owns runs — there is no run table in our Postgres). At
+      # auto-setup's 24h default a seeded demo run, or any run a developer wants
+      # to come back to, is unreplayable the next morning: node-statuses 410s
+      # with "Run history no longer available". 30 days makes a seeded run last
+      # as long as the demo it belongs to.
+      #
+      # Applies at namespace CREATION only. An existing namespace needs:
+      #   docker exec temporal temporal operator namespace update -n default \
+      #     --retention 720h --address 127.0.0.1:7233
+      DEFAULT_NAMESPACE_RETENTION: 720h
       BIND_ON_IP: 0.0.0.0
     depends_on:
       temporal-postgresql:

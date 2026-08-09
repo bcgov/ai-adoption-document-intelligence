@@ -23,6 +23,9 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// Names and node ids shared with scripts/seed-demo-runs.mjs — see that module
+// for why they don't live in either script.
+import { NAME_PREFIX, RUN_DEMOS } from "./demo-run-targets.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,7 +67,6 @@ const CANDIDATE_KEYS = [
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3002";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const GROUP_ID = "seeddefaultgroup";
-const NAME_PREFIX = "🎯 Demo — ";
 // Agent chat-log demos: transcripts captured from real live agent runs
 // (Azure gpt-5.4), seeded as ChatConversation + ChatMessage rows so the
 // FEATURE_DEMO_GUIDE `?agentChat=<id>` links replay them. Fixture workflow
@@ -402,6 +404,299 @@ function sourcePrepConfig(name) {
       { id: "upload1-prep", source: "upload1", target: "prep", type: "normal" },
     ],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Runnable run-state demos (Part 9 run-time).
+//
+// The control-flow demo (`controlFlowConfig`) and the edges demo
+// (`edgesValidateConfig`) both contain a switch and an error edge — but they
+// are FORMS showcases: the control-flow graph has deliberate dead-ends, and
+// the edges graph routes through `azureOcr.submit`, which needs Azure
+// credentials. Neither can produce a run, so neither can ever show what a
+// taken branch or a taken error edge LOOKS like.
+//
+// These three graphs exist to be executed. Every node in them is an activity
+// that runs against local Postgres + local blob storage — `file.prepare`,
+// `document.updateStatus`, `document.storeRejection` — so `npm run
+// seed:demo-runs` can drive real Temporal executions through them with no
+// Azure, no LLM and no credential. They are ordinary demos in their own right
+// (open one and the canvas shows the shape); the runs are the separate,
+// opt-in second step.
+// ---------------------------------------------------------------------------
+
+/**
+ * `source.upload → file.prepare → switch` with a red error edge off the
+ * prepare step. One graph, two very different runs:
+ *
+ *   - a real file → `prep` succeeds → the switch reads `preparedData.fileType`
+ *     (a value the prepare step actually computed) and routes down the **pdf**
+ *     case, so `selectedEdgeId` marks `to-pdf` as the taken edge;
+ *   - an unreadable blob key → `prep` fails → `errorPolicy.onError:
+ *     "fallback"` diverts the run down the **error** edge to *Mark rejected*,
+ *     which really writes `failed` onto the document row.
+ *
+ * `retry.maximumAttempts: 1` is deliberate: the default is 3, and a failure
+ * demo that takes three activity attempts to land spends ~3s looking hung.
+ *
+ * The obvious handler for the error edge would be `document.storeRejection`
+ * (the edges-and-validateFields demo uses it). It cannot run: the activity
+ * upserts a `DocumentRejection` model that was never added to the Prisma
+ * schema, so every execution dies with "Cannot read properties of undefined
+ * (reading 'upsert')". `document.updateStatus` is the honest substitute here.
+ *
+ * Every `status` below is a real `DocumentStatus` enum member
+ * (apps/shared/prisma/schema.prisma) — the catalog's suggestion list offers
+ * `pending` / `completed` / `rejected`, none of which the database accepts.
+ */
+function runBranchErrorConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "upload1",
+    ctx: {
+      documentUrl: { type: "string" },
+      documentId: { type: "string" },
+      preparedFileData: { type: "object" },
+    },
+    nodes: {
+      upload1: {
+        id: "upload1",
+        type: "source",
+        sourceType: "source.upload",
+        label: "Upload",
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(80, 260),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare file",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        retry: { maximumAttempts: 1 },
+        errorPolicy: {
+          onError: "fallback",
+          fallbackEdgeId: "prep-reject",
+          retryable: false,
+        },
+        ...pos(400, 260),
+      },
+      reject: {
+        id: "reject",
+        type: "activity",
+        label: "Mark rejected",
+        activityType: "document.updateStatus",
+        inputs: [{ port: "documentId", ctxKey: "documentId" }],
+        parameters: { status: "failed" },
+        ...pos(760, 480),
+      },
+      routeByType: {
+        id: "routeByType",
+        type: "switch",
+        label: "Route by file type",
+        cases: [
+          {
+            condition: {
+              operator: "equals",
+              left: { ref: "ctx.preparedFileData.fileType" },
+              right: { literal: "pdf" },
+            },
+            edgeId: "to-pdf",
+          },
+        ],
+        defaultEdge: "to-image",
+        ...pos(760, 260),
+      },
+      markPdf: {
+        id: "markPdf",
+        type: "activity",
+        label: "Mark as PDF work",
+        activityType: "document.updateStatus",
+        inputs: [{ port: "documentId", ctxKey: "documentId" }],
+        parameters: { status: "ongoing_ocr" },
+        ...pos(1120, 160),
+      },
+      markImage: {
+        id: "markImage",
+        type: "activity",
+        label: "Mark as image work",
+        activityType: "document.updateStatus",
+        inputs: [{ port: "documentId", ctxKey: "documentId" }],
+        parameters: { status: "pre_ocr" },
+        ...pos(1120, 360),
+      },
+    },
+    edges: [
+      { id: "upload1-prep", source: "upload1", target: "prep", type: "normal" },
+      { id: "prep-reject", source: "prep", target: "reject", type: "error" },
+      {
+        id: "prep-route",
+        source: "prep",
+        target: "routeByType",
+        type: "normal",
+      },
+      {
+        id: "to-pdf",
+        source: "routeByType",
+        target: "markPdf",
+        type: "conditional",
+        condition: "file type is pdf",
+      },
+      {
+        id: "to-image",
+        source: "routeByType",
+        target: "markImage",
+        type: "conditional",
+        condition: "default",
+      },
+    ],
+  };
+}
+
+/**
+ * `source.upload → file.prepare → humanGate → document.updateStatus`.
+ *
+ * The gate waits 30 days for a `humanApproval` signal that the seeder never
+ * sends, which is the point: a finished run can never show `running` node
+ * badges or an un-started downstream step, so the only honest way to
+ * photograph an in-flight run is to leave one genuinely in flight.
+ */
+function runHumanGateConfig(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "upload1",
+    ctx: {
+      documentUrl: { type: "string" },
+      documentId: { type: "string" },
+      preparedFileData: { type: "object" },
+    },
+    nodes: {
+      upload1: {
+        id: "upload1",
+        type: "source",
+        sourceType: "source.upload",
+        label: "Upload",
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(80, 260),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare file",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...pos(400, 260),
+      },
+      approve: {
+        id: "approve",
+        type: "humanGate",
+        label: "Wait for approval",
+        signal: {
+          name: "humanApproval",
+          payloadSchema: { approved: "boolean", reviewer: "string" },
+        },
+        // 30 days — the dev namespace's retention window, so the waiting run
+        // outlives the history that would let you look at it.
+        timeout: "720h",
+        onTimeout: "fail",
+        ...pos(760, 260),
+      },
+      complete: {
+        id: "complete",
+        type: "activity",
+        label: "Mark complete",
+        activityType: "document.updateStatus",
+        inputs: [{ port: "documentId", ctxKey: "documentId" }],
+        parameters: { status: "complete" },
+        ...pos(1120, 260),
+      },
+    },
+    edges: [
+      { id: "upload1-prep", source: "upload1", target: "prep", type: "normal" },
+      { id: "prep-approve", source: "prep", target: "approve", type: "normal" },
+      {
+        id: "approve-complete",
+        source: "approve",
+        target: "complete",
+        type: "normal",
+      },
+    ],
+  };
+}
+
+/**
+ * v1 of the replay demo — the graph the seeded run executes against.
+ * `runReplayVersionsV2Config` adds a step after it, so head and the run's
+ * pinned version genuinely differ and the replay banner has something true to
+ * say.
+ */
+function runReplayVersionsV1Config(name) {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name },
+    entryNodeId: "upload1",
+    ctx: {
+      documentUrl: { type: "string" },
+      documentId: { type: "string" },
+      preparedFileData: { type: "object" },
+    },
+    nodes: {
+      upload1: {
+        id: "upload1",
+        type: "source",
+        sourceType: "source.upload",
+        label: "Upload",
+        outputs: [{ port: "documentUrl", ctxKey: "documentUrl" }],
+        ...pos(80, 260),
+      },
+      prep: {
+        id: "prep",
+        type: "activity",
+        label: "Prepare file",
+        activityType: "file.prepare",
+        inputs: [
+          { port: "documentId", ctxKey: "documentId" },
+          { port: "blobKey", ctxKey: "documentUrl" },
+        ],
+        outputs: [{ port: "preparedData", ctxKey: "preparedFileData" }],
+        ...pos(400, 260),
+      },
+    },
+    edges: [
+      { id: "upload1-prep", source: "upload1", target: "prep", type: "normal" },
+    ],
+  };
+}
+
+/** v2 — v1 plus a *Mark as processing* step that the v1 run never saw. */
+function runReplayVersionsV2Config(name) {
+  const config = runReplayVersionsV1Config(name);
+  config.nodes.markProcessing = {
+    id: "markProcessing",
+    type: "activity",
+    label: "Mark as processing (added in v2)",
+    activityType: "document.updateStatus",
+    inputs: [{ port: "documentId", ctxKey: "documentId" }],
+    parameters: { status: "ongoing_ocr" },
+    ...pos(760, 260),
+  };
+  config.edges.push({
+    id: "prep-mark",
+    source: "prep",
+    target: "markProcessing",
+    type: "normal",
+  });
+  return config;
 }
 
 /**
@@ -1334,7 +1629,7 @@ const DEMOS = [
   },
   {
     key: "try-preview",
-    title: "Try-in-place — run a workflow & see previews (Part 9)",
+    title: RUN_DEMOS.tryPreview.title,
     config: sourcePrepConfig,
     infra: true,
     steps: [
@@ -1342,7 +1637,51 @@ const DEMOS = [
       "Watch the per-node **run-status badges** go blue → green as the run executes (no Azure needed — this chain just prepares the file).",
       "The **Upload** node renders a **document preview** of what you uploaded.",
       "**Click a data wire** (a coloured port-to-port wire) — a popover pops at the wire midpoint showing the exact value that flowed across it (a kind widget where one exists, else a truncated JSON snippet). Right-clicking the wire offers the same thing via **“View data.”** Click a wire *before* running and it reads **“Run to see the data flowing here.”**",
+      "**Don't want to upload anything?** Run `npm run seed:demo-runs` once and this workflow arrives with three real runs already in its history — a green one, a **cache-hit** re-run whose *Prepare* step comes back `skipped`, and one that genuinely **failed**. Open **Run history** from the top bar and pick one.",
       "⚠️ Requires the Temporal **worker** + **deno-runner** to be running (the `dev: all` task).",
+    ],
+  },
+  {
+    key: "run-branch-error",
+    title: RUN_DEMOS.branchError.title,
+    config: runBranchErrorConfig,
+    infra: true,
+    steps: [
+      "Run `npm run seed:demo-runs` first — it drives **two real runs** through this graph, and the states below only exist once it has.",
+      "Open **Run history** (top bar) and pick the **older** run (the one whose input `documentUrl` ends in a real upload path). *Prepare file* is green, and the **switch** routed down the **file type is pdf** edge — that edge is drawn as **taken**, the *image* edge stays dim, and *Mark as image work* never ran.",
+      "The switch is not routing on a hand-set flag: its case compares `ctx.preparedFileData.fileType` against `\"pdf\"`, and `fileType` is a value the *Prepare file* step computed from the actual bytes.",
+      "Now pick the **newer** run (input `documentUrl` = `does/not/exist.pdf`). *Prepare file* is **red** — and because it carries an `errorPolicy` of **fallback**, the run did not die: the red **error edge** to *Mark rejected* is drawn as **taken**, and that step really wrote `failed` onto the document.",
+      "Select *Prepare file* → **Settings ▸ Error handling** shows the `fallback` policy and the edge it falls back to. Its `retry` is set to a single attempt so the failure lands immediately.",
+      "⚠️ Requires the Temporal **worker** (the `dev: all` task).",
+    ],
+  },
+  {
+    key: "run-human-gate",
+    title: RUN_DEMOS.humanGate.title,
+    config: runHumanGateConfig,
+    infra: true,
+    steps: [
+      "Run `npm run seed:demo-runs` first.",
+      "Open **Run history**. The newest run is still **running** — it is parked on *Wait for approval*, a **humanGate** waiting up to 30 days for a `humanApproval` signal nobody sent. This is the only way to see a run mid-flight: *Upload* and *Prepare file* are green, the gate is blue/running, and *Mark completed* has not started.",
+      "The run **below** it reads **cancelled**. That is not a fabrication either: both were started as canvas **Tries**, and starting a Try cancels the lineage's previous one (D-17), so the first was cancelled server-side by the second.",
+      "Filter Run history by **cancelled**, then by **running** — each filter has a real row behind it.",
+      "The document behind the waiting run sits at `awaiting_review`, because that is what a gate does to the document it is holding.",
+      "⚠️ Requires the Temporal **worker** (the `dev: all` task). The waiting run is left open **on purpose** — it is not a hung workflow.",
+    ],
+  },
+  {
+    key: "run-replay-versions",
+    title: RUN_DEMOS.replayVersions.title,
+    config: runReplayVersionsV1Config,
+    secondVersion: runReplayVersionsV2Config,
+    infra: true,
+    steps: [
+      "Run `npm run seed:demo-runs` first.",
+      "This workflow has **two versions**. `v2` (head) has a third step, *Mark as processing (added in v2)*; `v1` stops after *Prepare file*.",
+      "The seeded run was executed against **v1**, on purpose — **Run history** shows it stamped `v1` while the canvas you are looking at is `v2`.",
+      "Open that run and **Replay** it: the canvas swaps to the graph **as it was at v1** — the *Mark as processing* step disappears, because it did not exist when the run happened. The replay banner names the pinned version.",
+      "Leave replay (any of its exits) → the canvas returns to head (`v2`) and the step comes back.",
+      "⚠️ Requires the Temporal **worker** (the `dev: all` task).",
     ],
   },
   {
@@ -1891,12 +2230,22 @@ function renderGuide(results, agentResults = []) {
       lines.push("");
     }
   }
+  lines.push(
+    "> **Want the run-time states too?** This script only builds graphs — it" +
+      " never executes one. `npm run seed:demo-runs` (a separate, opt-in step;" +
+      " needs the Temporal worker) drives **real** runs through the four" +
+      " run-state demos above, so node badges, taken edges, cache hits, an" +
+      " in-flight run, a cancelled run and replay all have something true" +
+      " behind them. Run it after this script; re-seeding here orphans the" +
+      " runs, so re-run it too.",
+  );
+  lines.push("");
   const dynSeeded = results.some((r) => r.dyn);
   lines.push(
     "_Not seeded here because they need a live worker" +
       (dynSeeded ? "" : ", the deno-runner") +
-      " or LLM credentials: real OCR output previews + incremental cache-hit" +
-      " re-runs (Part 9 run-time), dynamic-node " +
+      " or LLM credentials: real OCR output previews (Part 9 run-time)," +
+      " dynamic-node " +
       (dynSeeded
         ? "execution/security (Part 14 run-time — the editor surface is seeded above)"
         : "authoring/execution/security (Part 14)") +

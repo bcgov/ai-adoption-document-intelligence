@@ -32,6 +32,9 @@ npm run seed:demos
 - [Workflow-as-API — trigger URL & schema (Part 11)](#workflowasapi-trigger-url-schema-part-11)
 - [Document sources — file upload (Part 13)](#document-sources-file-upload-part-13)
 - [Try-in-place — run a workflow & see previews (Part 9)](#tryinplace-run-a-workflow-see-previews-part-9)
+- [Run states — a taken branch and a taken error path (Part 9)](#run-states-a-taken-branch-and-a-taken-error-path-part-9)
+- [Run states — a run waiting on a person (Part 9)](#run-states-a-run-waiting-on-a-person-part-9)
+- [Run states — replay against an older version (Part 12)](#run-states-replay-against-an-older-version-part-12)
 - [Versioning — history & revert (Part 12)](#versioning-history-revert-part-12)
 - [Library workflow (Part 10)](#library-workflow-part-10)
 - [Dynamic (custom-code) node — DYN pill & script editor (Part 14)](#dynamic-customcode-node-dyn-pill-script-editor-part-14)
@@ -178,9 +181,55 @@ npm run seed:demos
 
 1. Select the **Upload** source node → use **Upload & Try** and pick any PDF/image.
 1. Watch the per-node **run-status badges** go blue → green as the run executes (no Azure needed — this chain just prepares the file).
-1. The **Upload** node's one-line **result strip** switches from *"Not run yet"* to the uploaded document's kind and first line; **click it** to open the full **document preview** of what you uploaded. No card changes height while the run goes — the strip is a fixed height in every state.
+1. The **Upload** node renders a **document preview** of what you uploaded.
 1. **Click a data wire** (a coloured port-to-port wire) — a popover pops at the wire midpoint showing the exact value that flowed across it (a kind widget where one exists, else a truncated JSON snippet). Right-clicking the wire offers the same thing via **“View data.”** Click a wire *before* running and it reads **“Run to see the data flowing here.”**
+1. **Don't want to upload anything?** Run `npm run seed:demo-runs` once and this workflow arrives with three real runs already in its history — a green one, a **cache-hit** re-run whose *Prepare* step comes back `skipped`, and one that genuinely **failed**. Open **Run history** from the top bar and pick one.
 1. ⚠️ Requires the Temporal **worker** + **deno-runner** to be running (the `dev: all` task).
+
+---
+
+## Run states — a taken branch and a taken error path (Part 9)
+
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-run-states-a-taken-branch-and-a-taken-error-path-part-9/edit](http://localhost:3000/workflows/by-slug/demo-run-states-a-taken-branch-and-a-taken-error-path-part-9/edit)
+
+> Needs the Temporal worker + deno-runner live (the `dev: all` task).
+
+1. Run `npm run seed:demo-runs` first — it drives **two real runs** through this graph, and the states below only exist once it has.
+1. Open **Run history** (top bar) and pick the **older** run (the one whose input `documentUrl` ends in a real upload path). *Prepare file* is green, and the **switch** routed down the **file type is pdf** edge — that edge is drawn as **taken**, the *image* edge stays dim, and *Mark as image work* never ran.
+1. The switch is not routing on a hand-set flag: its case compares `ctx.preparedFileData.fileType` against `"pdf"`, and `fileType` is a value the *Prepare file* step computed from the actual bytes.
+1. Now pick the **newer** run (input `documentUrl` = `does/not/exist.pdf`). *Prepare file* is **red** — and because it carries an `errorPolicy` of **fallback**, the run did not die: the red **error edge** to *Mark rejected* is drawn as **taken**, and that step really wrote `failed` onto the document.
+1. Select *Prepare file* → **Settings ▸ Error handling** shows the `fallback` policy and the edge it falls back to. Its `retry` is set to a single attempt so the failure lands immediately.
+1. ⚠️ Requires the Temporal **worker** (the `dev: all` task).
+
+---
+
+## Run states — a run waiting on a person (Part 9)
+
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-run-states-a-run-waiting-on-a-person-part-9/edit](http://localhost:3000/workflows/by-slug/demo-run-states-a-run-waiting-on-a-person-part-9/edit)
+
+> Needs the Temporal worker + deno-runner live (the `dev: all` task).
+
+1. Run `npm run seed:demo-runs` first.
+1. Open **Run history**. The newest run is still **running** — it is parked on *Wait for approval*, a **humanGate** waiting up to 30 days for a `humanApproval` signal nobody sent. This is the only way to see a run mid-flight: *Upload* and *Prepare file* are green, the gate is blue/running, and *Mark completed* has not started.
+1. The run **below** it reads **cancelled**. That is not a fabrication either: both were started as canvas **Tries**, and starting a Try cancels the lineage's previous one (D-17), so the first was cancelled server-side by the second.
+1. Filter Run history by **cancelled**, then by **running** — each filter has a real row behind it.
+1. The document behind the waiting run sits at `awaiting_review`, because that is what a gate does to the document it is holding.
+1. ⚠️ Requires the Temporal **worker** (the `dev: all` task). The waiting run is left open **on purpose** — it is not a hung workflow.
+
+---
+
+## Run states — replay against an older version (Part 12)
+
+**▶ Open:** [http://localhost:3000/workflows/by-slug/demo-run-states-replay-against-an-older-version-part-12/edit](http://localhost:3000/workflows/by-slug/demo-run-states-replay-against-an-older-version-part-12/edit)
+
+> Needs the Temporal worker + deno-runner live (the `dev: all` task).
+
+1. Run `npm run seed:demo-runs` first.
+1. This workflow has **two versions**. `v2` (head) has a third step, *Mark as processing (added in v2)*; `v1` stops after *Prepare file*.
+1. The seeded run was executed against **v1**, on purpose — **Run history** shows it stamped `v1` while the canvas you are looking at is `v2`.
+1. Open that run and **Replay** it: the canvas swaps to the graph **as it was at v1** — the *Mark as processing* step disappears, because it did not exist when the run happened. The replay banner names the pinned version.
+1. Leave replay (any of its exits) → the canvas returns to head (`v2`) and the step comes back.
+1. ⚠️ Requires the Temporal **worker** (the `dev: all` task).
 
 ---
 
@@ -216,7 +265,7 @@ npm run seed:demos
 1. Right-click the node → **Edit script** opens the script editor with the published TypeScript source (JSDoc `@inputs`/`@outputs` drive the ports).
 1. **+ New custom node** (palette) opens the authoring editor — publishing runs the jsdoc → signature → ts-check → allowlist gates (`MANUAL_TEST_PLAN.md` Part 14).
 1. **Delete + re-create restores the node:** delete this custom node (**Dynamic nodes** page), then **+ New custom node** and publish the *same* name — it comes back with its history continued (v2), instead of dead-ending on a reserved-slug conflict (14.14).
-1. **Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node's result strip shows a real value after a run (click it for the full preview) — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so its strip reads **"Not cached"** and says so rather than offering a re-run that would repopulate nothing.
+1. **Try it (14.9):** the script is tagged `@deterministic true`, so its output is **cached** and the node shows a real **preview** after a run — an untagged (non-deterministic) script re-executes every run and is deliberately never cached, so it has no preview to show.
 1. ⚠️ *Executing* this node in a run additionally needs the Temporal worker started with `PLATFORM_API_KEY` (14.9).
 
 ---
@@ -237,7 +286,7 @@ npm run seed:demos
 
 Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.4). Open the demo link — the workflow the agent built loads on the canvas **and** the agent drawer opens and **replays** the whole conversation (your prompt + every tool call it made) beside it, so you can see the result and how it was built in one place.
 
-> The chat log opens for the **signed-in user the demos were seeded for** (`SEED_USER_SUB`). Conversations are private per user, so if you're signed in as someone else, re-run `npm run seed:demos` as that identity. The transcript replays as it happened — including the agent's own end-to-end self-test against the built-in sample document.
+> The chat log opens for **anyone in the group**: seeded transcripts are flagged as demo data (`isDemo`), which makes them group-visible and **read-only** — your own conversations stay private to you, and nobody can append a turn to a demo replay. Start a new conversation to chat with the agent yourself. The transcript replays as it happened — including the agent's own end-to-end self-test against the built-in sample document.
 
 ### Agent demo — Invoice OCR pipeline (built + tested end-to-end)
 
@@ -252,4 +301,6 @@ Transcripts captured from **real live runs** of the workflow agent (Azure gpt-5.
 
 ---
 
-_Not seeded here because they need a live worker or LLM credentials: real OCR output previews + incremental cache-hit re-runs (Part 9 run-time), dynamic-node execution/security (Part 14 run-time — the editor surface is seeded above). The AI agent (Part 15) chat-log replays are seeded above; driving the live agent to build a NEW workflow still needs the stack + a configured model. Walk those from `MANUAL_TEST_PLAN.md` with the stack up._
+> **Want the run-time states too?** This script only builds graphs — it never executes one. `npm run seed:demo-runs` (a separate, opt-in step; needs the Temporal worker) drives **real** runs through the four run-state demos above, so node badges, taken edges, cache hits, an in-flight run, a cancelled run and replay all have something true behind them. Run it after this script; re-seeding here orphans the runs, so re-run it too.
+
+_Not seeded here because they need a live worker or LLM credentials: real OCR output previews (Part 9 run-time), dynamic-node execution/security (Part 14 run-time — the editor surface is seeded above). The AI agent (Part 15) chat-log replays are seeded above; driving the live agent to build a NEW workflow still needs the stack + a configured model. Walk those from `MANUAL_TEST_PLAN.md` with the stack up._
