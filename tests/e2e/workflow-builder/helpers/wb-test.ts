@@ -48,8 +48,16 @@ const MOCK_PROFILE = {
  * Register order matters: the broad `**​/api/**` continue-handler goes first,
  * then the specific `/api/auth/*` fulfil-handlers, because Playwright gives the
  * most-recently-registered matching route priority.
+ *
+ * `startPath` is the route to land on, defaulting to the app root. Pass
+ * `/workflows` when the test needs a header control that RootLayout only mounts
+ * inside the workflow section — the agent chat icon and drawer are gated on
+ * `isAgentChatRoute` (`/^\/workflows(\/|$)/`), so they do not exist at `/`.
  */
-export async function setupWorkflowBuilderTest(page: Page): Promise<void> {
+export async function setupWorkflowBuilderTest(
+  page: Page,
+  startPath = "/",
+): Promise<void> {
   await page.route("**/api/**", async (route, request) => {
     const headers = { ...request.headers(), "x-api-key": TEST_API_KEY };
     delete headers["authorization"];
@@ -72,6 +80,6 @@ export async function setupWorkflowBuilderTest(page: Page): Promise<void> {
     });
   });
 
-  await page.goto(FRONTEND_URL);
+  await page.goto(`${FRONTEND_URL}${startPath}`);
   await page.waitForLoadState("networkidle");
 }

@@ -20,15 +20,24 @@ import { Page } from "@playwright/test";
 export async function stubAgentChat(
   page: Page,
   fixtureFile: string,
-  opts?: { conversationId?: string },
+  opts?: { conversationId?: string; delayMs?: number },
 ): Promise<void> {
   const body = fs.readFileSync(
     path.join(__dirname, "..", "fixtures", "agent", fixtureFile),
     "utf8",
   );
   const conversationId = opts?.conversationId ?? "e2e-stub-conversation";
+  const delayMs = opts?.delayMs ?? 0;
 
   await page.route("**/api/agent/chat", async (route) => {
+    // `route.fulfill` delivers the whole recorded stream in one go, so a turn
+    // normally starts and ends within a tick and the composer's running state
+    // is never observable. Holding the response back keeps the thread
+    // `isRunning` for a bounded, deterministic window, which is how a test can
+    // assert on the stop button without racing the stream.
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
     await route.fulfill({
       status: 200,
       headers: {

@@ -38,7 +38,7 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  *   - wire:submit:fileData      prep.preparedData → submit.fileData
  *                               (Document kind match → auto:nearest-kind)
  *   - wire:extract:apimRequestId submit.apimRequestId → extract.apimRequestId
- *                               (Artifact identifier port → auto:name-match)
+ *                               (RequestId kind match → auto:nearest-kind)
  *   - wire:clean:ocrResult      extract.ocrResult → clean.ocrResult
  *                               (OcrResult kind match → auto:nearest-kind)
  *
@@ -198,11 +198,22 @@ test.describe("typed I/O artifacts", () => {
       "auto:nearest-kind",
     );
 
-    // Name-match auto-wire for wildcard Artifact identifier ports:
-    // submit.apimRequestId → extract.apimRequestId.
+    // Identifier auto-wire: submit.apimRequestId → extract.apimRequestId.
+    // Provenance is `nearest-kind`, not `name-match`, and that is the CURRENT
+    // contract, not a regression: the Identifier-family retag (commit b6b86d40,
+    // 2026-08-02) gave both ends the concrete kind `RequestId`
+    // (catalog/activities/azure-ocr-submit.ts:64, azure-ocr-extract.ts:23), so
+    // the typed-kind pass in resolveInputPort binds it before the base-Artifact
+    // name-match branch is ever reached. Same wire, same producer — the
+    // provenance now names the real reason. The name-match path still exists
+    // for identifier ports whose producer is untyped and is covered by
+    // packages/graph-workflow/src/auto-wire/resolve-input-port.test.ts:731.
     const idWire = wireGroup(page, "wire:extract:apimRequestId");
     await expect(idWire).toHaveAttribute("data-wire-variant", "data");
-    await expect(idWire).toHaveAttribute("data-provenance", "auto:name-match");
+    await expect(idWire).toHaveAttribute(
+      "data-provenance",
+      "auto:nearest-kind",
+    );
 
     // Kind-based auto-wire across the extract → clean hop: extract.ocrResult
     // (OcrResult) → clean.ocrResult (OcrResult). Regression coverage for the
@@ -249,14 +260,16 @@ test.describe("typed I/O artifacts", () => {
     );
     await edge.hover();
 
-    // The native SVG <title> inside the wire group is the hover tooltip.
+    // The native SVG <title> inside the wire group is the hover tooltip. It
+    // names the KIND because this hop resolves through the typed-kind pass —
+    // see the provenance test above for why `RequestId` and not a name match.
     await expect(edge.locator("title")).toHaveText(
-      'Connected automatically — matched by name "apimRequestId"',
+      "Connected automatically — nearest RequestId producer",
     );
     // The same provenance is mirrored to assistive tech via aria-label.
     await expect(edge).toHaveAttribute(
       "aria-label",
-      'Connected automatically — matched by name "apimRequestId"',
+      "Connected automatically — nearest RequestId producer",
     );
 
     expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);

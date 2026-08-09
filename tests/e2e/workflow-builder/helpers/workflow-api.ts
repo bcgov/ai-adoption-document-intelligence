@@ -419,8 +419,18 @@ export function buildLinearConfig(opts?: {
         // Bind BOTH required inputs (documentId + the typed OcrResult) so the
         // node has no auto-wire "needs a source" warning — those now fold into
         // the unified validation surface.
+        //
+        // `documentId` binds to the `documentId` ctx key, NOT to
+        // `apimRequestId`. Since identifier ports became kind-typed, the
+        // validator kind-checks every ctx binding against its producer, and
+        // `azureOcr.submit` writes `apimRequestId` as a `RequestId` — which is
+        // not assignable to this port's `DocumentId`, so the old binding made
+        // this "valid" fixture carry an error-severity issue
+        // (`nodes.store.inputs.documentId`). `documentId` is declared in `ctx`
+        // above, which the validator accepts as a legitimate workflow-input
+        // source, so the chain stays clean.
         inputs: [
-          { port: "documentId", ctxKey: "apimRequestId" },
+          { port: "documentId", ctxKey: "documentId" },
           { port: "ocrResult", ctxKey: "ocrResult" },
         ],
         ...pos(1000, 80),

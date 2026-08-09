@@ -2733,6 +2733,41 @@ describe("WorkflowEditorV2Page — orphaned ctx keys on delete (G-002)", () => {
     const restored = readLiveConfig();
     expect(restored.nodes.prep).toBeDefined();
     expect(restored.ctx.preparedFile).toEqual({ type: "object" });
+    // …and retires the toast, for the reason the next test spells out.
+    expect(notifications.hide).toHaveBeenCalledWith(ORPHANED_DELETE_TOAST_ID);
+  });
+
+  it("undoing from the top bar retires the toast it superseded", () => {
+    // The toast is a statement about ONE history step, and its Undo link
+    // re-enters the same `undo` the button just ran. Left standing it says
+    // something false ("Deleted …") and offers a link that would now rewind a
+    // DIFFERENT, unrelated edit. It also sits over the top bar's right-hand
+    // controls for its full 8s life, so a stale one blocks the buttons the
+    // author is mid-gesture with.
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    expect(orphanToast()).toBeDefined();
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("undo-button"));
+    });
+    expect(readLiveConfig().nodes.prep).toBeDefined();
+    expect(notifications.hide).toHaveBeenCalledWith(ORPHANED_DELETE_TOAST_ID);
+  });
+
+  it("redoing retires it too — the history moved either way", () => {
+    renderPage(prepThenOcrTemplate(true));
+    selectAndDelete("prep");
+    act(() => {
+      fireEvent.click(screen.getByTestId("undo-button"));
+    });
+    vi.mocked(notifications.hide).mockClear();
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("redo-button"));
+    });
+    expect(readLiveConfig().nodes.prep).toBeUndefined();
+    expect(notifications.hide).toHaveBeenCalledWith(ORPHANED_DELETE_TOAST_ID);
   });
 
   it("shows no toast when the delete orphans nothing", () => {

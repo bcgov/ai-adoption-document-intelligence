@@ -19,9 +19,11 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  *
  * Pure-API and fully deterministic: every case here fails BEFORE the upload
  * endpoint kicks off its Temporal Try run (the guards run first), and the
- * single-source rule is enforced at `POST /api/workflows`. So — unlike the
- * happy-path upload (covered by `tier3-try-*`, `@infra`) — none of this needs
- * the worker or blob storage, and it stays in default CI.
+ * single-source rule is reported by `POST /api/workflows` in its `validation`
+ * verdict (draft-save persists the config and blocks it at RUN start — see the
+ * 13.7 test below). So — unlike the happy-path upload (covered by
+ * `tier3-try-*`, `@infra`) — none of this needs the worker or blob storage,
+ * and it stays in default CI.
  */
 
 const jsonHeaders = {
@@ -239,7 +241,18 @@ test.describe("document sources — upload validation + single-source rule", () 
     expect(oversize.status(), await oversize.text()).toBe(413);
   });
 
-  test("13.7 — a second source of the same subtype is rejected (400)", async ({
+  /**
+   * The single-source rule is still enforced — but as a save-response VERDICT,
+   * not a 400. Draft-save (commit b76d651c, "saving and running are different
+   * things", UX walkthrough item 3) split the old create-time gate in two:
+   * `assertConfigStorable` still refuses a config the store cannot hold, and
+   * everything semantic moved to `assertConfigRunnable` at run start
+   * (apps/backend-services/src/workflow/workflow.service.ts:697-730, unit-tested
+   * at workflow.service.spec.ts:576 and :941). So `POST /api/workflows` returns
+   * 201 and reports the finding in `validation`, which is what the editor
+   * renders in its validation drawer.
+   */
+  test("13.7 — a second source of the same subtype is reported as a save-time error", async ({
     request,
   }, testInfo) => {
     const name = `e2e two-uploads ${testInfo.testId}`;
@@ -258,18 +271,25 @@ test.describe("document sources — upload validation + single-source rule", () 
       headers: jsonHeaders,
       data: { name, config, groupId: SEED_GROUP_ID },
     });
-    expect(res.status(), await res.text()).toBe(400);
+    expect(res.status(), await res.text()).toBe(201);
     const body = (await res.json()) as {
-      message: string;
-      errors: { path: string; message: string; severity: string }[];
+      workflow: { id: string };
+      validation: {
+        valid: boolean;
+        errors: { path: string; message: string; severity: string }[];
+      };
     };
-    expect(body.message).toBe("Invalid workflow configuration");
-    const dup = body.errors.find(
+    created.push(body.workflow.id);
+
+    // `valid` counts severity-`error` findings only, so the draft is saved and
+    // flagged unrunnable in the same response.
+    expect(body.validation.valid).toBe(false);
+    const dup = body.validation.errors.find(
       (e) =>
         e.severity === "error" &&
         /at most one source of subtype/.test(e.message),
     );
-    expect(dup, JSON.stringify(body.errors)).toBeTruthy();
+    expect(dup, JSON.stringify(body.validation.errors)).toBeTruthy();
     // Anchored at the offending (second) source node's sourceType.
     expect(dup?.path).toBe("nodes.upload2.sourceType");
   });

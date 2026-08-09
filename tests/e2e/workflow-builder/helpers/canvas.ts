@@ -38,8 +38,20 @@ export async function panBy(page: Page, dx: number, dy: number): Promise<void> {
 }
 
 /**
- * Ensures the node's center is in the clickable canvas area (right of the
- * sidebar), panning the viewport if it isn't. Returns the resulting center.
+ * Ensures the node is in the clickable canvas area (right of the sidebar),
+ * panning the viewport if it isn't. Returns a point on the card that SELECTS
+ * the node when clicked.
+ *
+ * That point is the card's centre only when the centre is not covered by the
+ * result strip (`node-result-strip-<id>`, added 2026-08-09). The strip is a
+ * real control — an `UnstyledButton` carrying `nodrag nopan` and
+ * `stopPropagation` on mousedown/click, so xyflow never sees the gesture and
+ * the node is not selected (preview/NodeResultStrip.tsx:150-162). On a SHORT
+ * card the strip's 24px band plus its 6px margin is most of what sits below
+ * the header, so the geometric centre lands inside it: a `source.upload` card
+ * measures 38.6 screen px tall at a 2-node fitView zoom, with the strip's top
+ * edge 0.3px ABOVE the centre. Clicking the card body above the strip is the
+ * gesture these helpers mean by "click the node".
  */
 export async function bringNodeIntoClear(
   page: Page,
@@ -56,7 +68,19 @@ export async function bringNodeIntoClear(
     if (!bb) throw new Error(`node ${nodeId} lost its box after pan`);
     cx = bb.x + bb.width / 2;
   }
-  return { x: cx, y: bb.y + bb.height / 2 };
+  // Control-flow cards render no strip at all, and `boundingBox()` auto-waits
+  // for an element that will never attach — so check presence first.
+  const stripLocator = page.getByTestId(`node-result-strip-${nodeId}`);
+  const strip =
+    (await stripLocator.count()) > 0 ? await stripLocator.boundingBox() : null;
+  const centreY = bb.y + bb.height / 2;
+  // Only step off the centre when the strip actually covers it — a tall card
+  // keeps exactly the old behaviour.
+  const y =
+    strip && strip.y > bb.y && strip.y <= centreY
+      ? (bb.y + strip.y) / 2
+      : centreY;
+  return { x: cx, y };
 }
 
 export function rfNode(page: Page, id: string): Locator {

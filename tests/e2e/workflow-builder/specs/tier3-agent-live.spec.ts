@@ -21,7 +21,10 @@ test.describe("agent chat — live model @llm", () => {
     test.setTimeout(180_000);
     const pageErrors: string[] = [];
     page.on("pageerror", (e) => pageErrors.push(e.message));
-    await setupWorkflowBuilderTest(page);
+    // The workflow list, not the app root: RootLayout mounts the agent chat
+    // only inside the workflow section (`isAgentChatRoute`), and the list is a
+    // legitimate starting point — createWorkflow navigates on from it.
+    await setupWorkflowBuilderTest(page, "/workflows");
 
     const chat = new AgentChatPage(page);
     await chat.open();

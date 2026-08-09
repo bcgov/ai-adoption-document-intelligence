@@ -18,13 +18,26 @@ import { WorkflowEditorPage } from "../pages/WorkflowEditorPage";
  * with a per-node entry (`validation-entry-<id>`) whose row carries the message
  * and the `nodes.<id>...` path that anchors it.
  *
- * Deterministic-on-load constraint: `POST /api/workflows` runs the SAME
- * validator server-side and REJECTS any error-severity config, so a persisted
- * fixture can only carry WARNING-severity issues. We use an unreachable node
- * (reachability check → warning, path `nodes.<id>`) — enough to prove the whole
- * surfacing + node-anchoring chain. Error-severity badges (red, with counts)
- * are unit-covered by `WorkflowEditorCanvas.test.tsx` (Scenario 5); driving the
- * UI into a persisted error state is intentionally out of scope here.
+ * The drawer has TWO titles, and which one you get says which mode it opened
+ * in. The top-bar button opens the global list, titled "Validation". A node
+ * badge opens the node-SCOPED list (`ValidationDrawer`'s `filterNodeId`), which
+ * shows only that node's issues and is titled `Problems on <node label>` — so a
+ * single badge never dumps the whole workflow's issue list at the user.
+ *
+ * This fixture carries WARNING-severity issues only — an unreachable node
+ * (reachability check → warning, path `nodes.<id>`), which is enough to prove
+ * the whole surfacing + node-anchoring chain. Error-severity badges (red, with
+ * counts) are unit-covered by `WorkflowEditorCanvas.test.tsx` (Scenario 5).
+ *
+ * That is a CHOICE now, not a constraint. This comment used to say
+ * `POST /api/workflows` "runs the SAME validator server-side and REJECTS any
+ * error-severity config" — true when it was written, false since draft-save
+ * (2026-08-02). Create only refuses a config the store cannot physically hold
+ * (`WorkflowService.assertConfigStorable` — an object with a `nodes` map);
+ * everything semantic saves fine and comes back in the save response, and the
+ * refusal moved to the RUN path (`assertConfigRunnable`). So an on-load
+ * error-severity fixture IS buildable if anyone wants to close the manual gap —
+ * it just isn't built here.
  */
 
 /** buildLinearConfig + one orphan (edge-less) node → a reachability warning. */
@@ -119,10 +132,16 @@ test.describe("validation surfacing", () => {
       }),
     ).toBeVisible();
 
-    // Clicking the badge opens the Validation drawer focused on that node.
+    // Clicking the badge opens the drawer SCOPED to that node, which names the
+    // node in its title rather than reading "Validation".
     await badge.click();
-    const drawer = page.getByRole("dialog", { name: "Validation" });
+    const drawer = page.getByRole("dialog", { name: "Problems on Orphan" });
     await expect(drawer).toBeVisible();
+    // The escape hatch back to the whole workflow's list is part of the
+    // node-scoped mode — without it the badge would be a dead end.
+    await expect(
+      drawer.getByRole("button", { name: "Show all problems" }),
+    ).toBeVisible();
 
     // The drawer's per-node entry carries the reachability message + the
     // `nodes.<id>` path that anchors the issue to the offending node.

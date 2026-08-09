@@ -15,7 +15,15 @@ import { AgentChatPage } from "../pages/AgentChatPage";
  * rendering, tool-call chip rendering, abort/model-picker presence, no page
  * errors. Real graph-building (server-side tools + a live model) lives in the
  * @llm tier.
+ *
+ * Every test starts on the workflow list rather than the app root: RootLayout
+ * mounts the agent chat icon and drawer only inside the workflow section
+ * (`isAgentChatRoute`), so at `/` there is no chat to open. The list is the
+ * lightest route that satisfies that — it loads no workflow, so the composer
+ * still sees `currentWorkflowId === null`.
  */
+const AGENT_CHAT_START_PATH = "/workflows";
+
 test.describe("agent chat — stubbed model", () => {
   let pageErrors: string[] = [];
 
@@ -25,7 +33,7 @@ test.describe("agent chat — stubbed model", () => {
   });
 
   test("renders a streamed text response", async ({ page }) => {
-    await setupWorkflowBuilderTest(page);
+    await setupWorkflowBuilderTest(page, AGENT_CHAT_START_PATH);
     await stubAgentChat(page, SIMPLE_TEXT_FIXTURE);
 
     const chat = new AgentChatPage(page);
@@ -39,7 +47,7 @@ test.describe("agent chat — stubbed model", () => {
   test("renders tool-call chips from a workflow-building turn", async ({
     page,
   }) => {
-    await setupWorkflowBuilderTest(page);
+    await setupWorkflowBuilderTest(page, AGENT_CHAT_START_PATH);
     await stubAgentChat(page, CREATE_WORKFLOW_FIXTURE);
 
     const chat = new AgentChatPage(page);
@@ -56,23 +64,44 @@ test.describe("agent chat — stubbed model", () => {
     test.expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
-  test("model picker and abort control are present", async ({ page }) => {
-    await setupWorkflowBuilderTest(page);
-    await stubAgentChat(page, SIMPLE_TEXT_FIXTURE);
+  test("the model picker shows and the send button becomes stop while a turn streams", async ({
+    page,
+  }) => {
+    // There is no standing abort control any more: it used to sit in the drawer
+    // header, and now the composer's send button IS the stop button for the
+    // duration of a turn (batch four, item 26). So "the abort control is
+    // present" is only a meaningful assertion mid-stream — the stub holds the
+    // response open to make that window observable.
+    await setupWorkflowBuilderTest(page, AGENT_CHAT_START_PATH);
+    await stubAgentChat(page, SIMPLE_TEXT_FIXTURE, { delayMs: 3_000 });
 
     const chat = new AgentChatPage(page);
     await chat.open();
     await test.expect(chat.modelPicker).toBeVisible();
+
+    // Idle: send is the primary action and there is no stop button.
+    await test.expect(chat.send).toBeVisible();
+    await test.expect(chat.abort).toHaveCount(0);
+
+    await chat.sendPrompt("How many activities are in the catalog?");
+
+    // Streaming: the same control has become stop.
     await test.expect(chat.abort).toBeVisible();
+    await test.expect(chat.send).toHaveCount(0);
+
+    // ...and reverts once the turn ends.
+    await test.expect(chat.send).toBeVisible({ timeout: 15_000 });
+    await test.expect(chat.abort).toHaveCount(0);
+    test.expect(pageErrors, pageErrors.join("\n")).toHaveLength(0);
   });
 
   test("attaching a file renders an attachment chip (queued until a workflow exists)", async ({
     page,
   }) => {
-    // Opened from the app root (no workflow loaded) → currentWorkflowId is
-    // null, so the composer QUEUES the file client-side and renders a chip
+    // Opened from the workflow LIST (no workflow loaded) → currentWorkflowId
+    // is null, so the composer QUEUES the file client-side and renders a chip
     // instead of firing an upload. Fully deterministic — no backend call.
-    await setupWorkflowBuilderTest(page);
+    await setupWorkflowBuilderTest(page, AGENT_CHAT_START_PATH);
 
     const chat = new AgentChatPage(page);
     await chat.open();
@@ -90,7 +119,7 @@ test.describe("agent chat — stubbed model", () => {
   test("the conversation switcher lists prior conversations and selecting one marks it active", async ({
     page,
   }) => {
-    await setupWorkflowBuilderTest(page);
+    await setupWorkflowBuilderTest(page, AGENT_CHAT_START_PATH);
     // Stub the history list (registered after setup's broad `**​/api/**`
     // handler, so it wins). A URL predicate matches ONLY the list path — the
     // detail / delete / abort sub-paths fall through to the real backend

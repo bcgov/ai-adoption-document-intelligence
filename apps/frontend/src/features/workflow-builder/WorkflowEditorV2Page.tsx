@@ -99,7 +99,10 @@ import {
 } from "./canvas/map-body-groups";
 import { removeNodesFromConfig } from "./canvas/remove-nodes";
 import { WorkflowEditorCanvas } from "./canvas/WorkflowEditorCanvas";
-import { showOrphanedDeleteToast } from "./delete-orphan-toast";
+import {
+  ORPHANED_DELETE_TOAST_ID,
+  showOrphanedDeleteToast,
+} from "./delete-orphan-toast";
 import {
   ACTIVITY_CATALOG_QUERY_KEY,
   type ActivityCatalogResponse,
@@ -702,13 +705,25 @@ function WorkflowEditorV2PageBody({
   // only discovers the loss after leaving replay. Refusing at the two wrappers
   // covers every entry point at once — the top-bar buttons, the Ctrl+Z /
   // Ctrl+Shift+Z hotkeys, and the canvas's own `onUndo` all call these.
+  //
+  // Both wrappers also retire the orphaned-delete toast. That toast is a
+  // statement about ONE history step — "Deleted <node> — N variables lost their
+  // source" — with an Undo link bound to this same `undo`. Once the history has
+  // moved by any other route (the top-bar buttons, Ctrl+Z, the canvas), the
+  // sentence is false and the link is worse than useless: clicking it would
+  // rewind a DIFFERENT, unrelated edit. It also sits over the top bar's
+  // right-hand controls for its full 8s life, so a stale one blocks the very
+  // buttons the author just used. `hide` on an absent id is a no-op, which is
+  // why this needs no "was it showing" bookkeeping.
   const undo = useCallback(() => {
     if (isReplay) return;
+    notifications.hide(ORPHANED_DELETE_TOAST_ID);
     undoHistory();
     setLayoutNonce((n) => n + 1);
   }, [isReplay, undoHistory]);
   const redo = useCallback(() => {
     if (isReplay) return;
+    notifications.hide(ORPHANED_DELETE_TOAST_ID);
     redoHistory();
     setLayoutNonce((n) => n + 1);
   }, [isReplay, redoHistory]);
