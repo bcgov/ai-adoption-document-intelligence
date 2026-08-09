@@ -105,8 +105,9 @@ test.describe("run drawer UI", () => {
       .getByTestId("run-drawer-tabs")
       .waitFor({ state: "visible", timeout: 10_000 });
 
-    // "Run this workflow" pre-selects the Run tab (openMode="run"), where
-    // the API section lives. Click it anyway to be order-independent.
+    // Since batch-four item 8 the one Run… button pre-selects "Try on
+    // canvas" for a source.api workflow, so the API section lives one tab
+    // over — click "Call from outside" to reach it.
     await page.getByTestId("run-drawer-tab-run").click();
     const apiSection = page.getByTestId("run-drawer-api-section");
     await expect(apiSection).toBeVisible();

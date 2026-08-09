@@ -48,7 +48,6 @@ import {
   IconAlertTriangle,
   IconArrowBackUp,
   IconArrowForwardUp,
-  IconBolt,
   IconBookmark,
   IconCircleCheck,
   IconClipboardList,
@@ -579,14 +578,13 @@ function WorkflowEditorV2PageBody({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
   const [saveAsLibraryOpen, setSaveAsLibraryOpen] = useState(false);
-  // US-148: the Run drawer is shared by two top-bar buttons — "Run this
-  // workflow" (Phase 2 Track 2) and the new "Try" button (Phase 4). A
-  // single state slot tracks both: `null` means the drawer is closed;
-  // a non-null value identifies which trigger opened it so US-149's tab
-  // logic can pre-select the right tab via `RunWorkflowDrawer`'s
-  // `openMode` prop.
-  const [runDrawerMode, setRunDrawerMode] =
-    useState<RunWorkflowDrawerOpenMode | null>(null);
+  // Batch-four item 8 (2026-08-08): the top bar used to carry TWO buttons
+  // ("Try" and "Run this workflow") that opened this one drawer on
+  // different tabs — the same surface behind two doors, which is what
+  // Inderdeep objected to. There is now ONE entry point, so the state is
+  // a plain open/closed flag and the tab is pre-selected from the
+  // workflow's own inputs (`runDrawerOpenMode` below).
+  const [runDrawerOpen, setRunDrawerOpen] = useState(false);
   // US-081: version-history drawer open/close state. The drawer body
   // (`VersionHistoryDrawer`) is mounted in US-082; this story owns the
   // top-bar button + state plumbing. The state is read by the inline
@@ -1532,16 +1530,23 @@ function WorkflowEditorV2PageBody({
     [config.nodes],
   );
 
-  // US-148: the in-canvas "Try" button is the canvas-iteration trigger
-  // for workflows whose input does NOT come from a source.upload (the
-  // upload settings panel's "Upload & Try" button is the canonical
-  // trigger for those). The button is hidden only when source.upload is
-  // the SOLE input path — i.e. no source.api and no isInput-flagged
-  // ctx. Walks `config.nodes` for source subtype and inspects
-  // `config.ctx` for any `isInput: true` declaration; same detection
-  // pattern the RunWorkflowDrawer uses (US-123 derives an equivalent
-  // signal from the backend's `/run-spec` payload).
-  const tryButtonVisible = useMemo(() => {
+  // Which tab the one Run… button opens on. Until batch-four item 8 this
+  // same input analysis decided whether the separate "Try" button was
+  // shown at all (US-148); with one entry point it decides the DEFAULT
+  // TAB instead, which is what the decision doc asked for
+  // (feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md):
+  // pre-select from the workflow, not from which button was pressed.
+  //
+  // "Try on canvas" is meaningful whenever there is an input path that is
+  // NOT a file upload — a source.api node or an isInput-flagged ctx key,
+  // or no source.upload at all. When source.upload is the SOLE input path
+  // there is nothing to type into a Try, so the drawer opens on "Call
+  // from outside" and the upload dropzone below the tabs (plus the source
+  // node's own "Upload & Try") is the way in. Walks `config.nodes` for
+  // source subtype and inspects `config.ctx` for `isInput: true` — the
+  // same detection the RunWorkflowDrawer applies to the backend's
+  // `/run-spec` payload (US-123).
+  const runDrawerOpenMode = useMemo<RunWorkflowDrawerOpenMode>(() => {
     let hasSourceApi = false;
     let hasSourceUpload = false;
     for (const node of Object.values(config.nodes)) {
@@ -1552,9 +1557,9 @@ function WorkflowEditorV2PageBody({
     const hasIsInputCtx = Object.values(config.ctx).some(
       (decl) => decl.isInput === true,
     );
-    // Visible whenever there's a non-upload-driven input path. Hidden
-    // only when source.upload is the ONLY input.
-    return hasSourceApi || hasIsInputCtx || !hasSourceUpload;
+    const canvasTryMeaningful =
+      hasSourceApi || hasIsInputCtx || !hasSourceUpload;
+    return canvasTryMeaningful ? "try" : "run";
   }, [config.nodes, config.ctx]);
 
   if (isEditMode && isLoading) {
@@ -1802,39 +1807,30 @@ function WorkflowEditorV2PageBody({
             matters most. The inline-flex span is the hover target that does
             fire, so the tooltip works disabled or not.
           */}
-            {tryButtonVisible && (
-              <Tooltip label={runBlockedReason ?? "Run this graph now"}>
-                <span style={{ display: "inline-flex" }}>
-                  <Button
-                    variant="filled"
-                    color="blue"
-                    leftSection={<IconBolt size={14} />}
-                    onClick={() => setRunDrawerMode("try")}
-                    size="xs"
-                    data-testid="try-button"
-                    disabled={runBlockedReason !== null}
-                  >
-                    Try
-                  </Button>
-                </span>
-              </Tooltip>
-            )}
+            {/*
+            Batch-four item 8 (2026-08-08): one button, not two. "Try" and
+            "Run this workflow" opened the SAME drawer on different tabs,
+            so the top bar offered a choice the drawer then offered again
+            one click later. The choice now lives where it belongs — on
+            the drawer's two tabs — and the button says only that a run is
+            about to be configured.
+          */}
             <Tooltip
               label={
                 runBlockedReason ??
-                "Open the run-trigger panel for this workflow"
+                "Try this workflow on the canvas, or call it from outside"
               }
             >
               <span style={{ display: "inline-flex" }}>
                 <Button
                   variant="light"
                   leftSection={<IconPlayerPlay size={14} />}
-                  onClick={() => setRunDrawerMode("run")}
+                  onClick={() => setRunDrawerOpen(true)}
                   size="xs"
                   data-testid="run-this-workflow-button"
                   disabled={runBlockedReason !== null}
                 >
-                  Run this workflow
+                  Run…
                 </Button>
               </span>
             </Tooltip>
@@ -1965,11 +1961,11 @@ function WorkflowEditorV2PageBody({
 
       {isEditMode && workflowId && (
         <RunWorkflowDrawer
-          opened={runDrawerMode !== null}
-          onClose={() => setRunDrawerMode(null)}
+          opened={runDrawerOpen}
+          onClose={() => setRunDrawerOpen(false)}
           workflowId={workflowId}
           headVersionId={existingWorkflow?.workflowVersionId}
-          openMode={runDrawerMode ?? "run"}
+          openMode={runDrawerOpenMode}
         />
       )}
 

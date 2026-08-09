@@ -11,7 +11,9 @@ export class WorkflowEditorPage {
 
   // Top bar
   readonly saveButton: Locator;
-  readonly tryButton: Locator;
+  // One run entry point since batch-four item 8 (2026-08-08): the separate
+  // "Try" button (testid `try-button`) is gone — it opened the same drawer
+  // this one does, on a different tab.
   readonly runButton: Locator;
   readonly moreButton: Locator;
   readonly menuHistory: Locator;
@@ -40,7 +42,6 @@ export class WorkflowEditorPage {
   constructor(page: Page) {
     this.page = page;
     this.saveButton = page.getByTestId("save-button");
-    this.tryButton = page.getByTestId("try-button");
     this.runButton = page.getByTestId("run-this-workflow-button");
     this.moreButton = page.getByTestId("topbar-more-button");
     this.menuHistory = page.getByTestId("topbar-menu-history");

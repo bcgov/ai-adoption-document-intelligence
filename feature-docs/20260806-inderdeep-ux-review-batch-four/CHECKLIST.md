@@ -145,14 +145,35 @@ goes.
 
 ## Try / Run and the in-canvas preview
 
-### 8. [ ] "Try" and "Run this workflow" are indistinguishable
-**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
-[DECISIONS/08-try-vs-run.md](DECISIONS/08-try-vs-run.md). The finding: both
-buttons open the **same** `RunWorkflowDrawer`, differing only in which existing
-tab is pre-selected. The one real difference is a server-side `RunTrigger` stamp
-of `"try"` vs `"api"` that makes a Try **disposable** — every run start cancels
-in-flight runs stamped `"try"` — which nothing in the UI states. Recommended:
-one `Run…` button over the existing tabbed surface.
+### 8. [x] "Try" and "Run this workflow" are indistinguishable
+**Done 2026-08-08 — Option A, per Alex's ruling of the same day.** See
+[DECISIONS/08-try-vs-run.md](DECISIONS/08-try-vs-run.md) for the full trace. The
+finding held: both buttons opened the **same** `RunWorkflowDrawer`, differing
+only in which existing tab was pre-selected, and the one real difference — a
+server-side `RunTrigger` stamp of `"try"` vs `"api"` that makes a try
+**disposable**, since every run start cancels in-flight runs stamped `"try"` —
+was stated nowhere in the UI. The top bar now carries **one** `Run…` button;
+the tabs read **"Try on canvas"** and **"Call from outside"** instead of "Try"
+and "Run", naming *where the answer appears* rather than a strength of
+commitment that does not exist (both are real Temporal executions on the saved
+version and both land in run history); the Try tab states in place that *"A try
+is disposable — starting another run cancels a try that is still going."*; and
+the second tab's run box is headed **"Start a run"**, not "Test run" — a run
+begun there is stamped `"api"` and nothing later sweeps it up, so the old
+heading read backwards. **Which tab opens is derived from the workflow, not
+from a click:** "Try on canvas" when there is a non-upload input path (a
+`source.api` node, an `isInput`-flagged ctx key, or no `source.upload` at all),
+"Call from outside" when a file upload is the sole way in — the same input
+analysis that used to decide whether the separate Try button was *shown*
+(`runDrawerOpenMode`, was `tryButtonVisible`). **No backend change:** the
+trigger stamp, both endpoints and the cancel rule are untouched.
+**One deliberate departure from the brief**, flagged for a ruling: the surviving
+button is **shown for every workflow**, where the old Try button was hidden for
+upload-only ones. Porting that hide would have left an upload-driven workflow
+with *no* top-bar path to the Run drawer at all — the drawer's upload dropzone
+and e2e 13.6 both reach it only through this button — so the "no canvas try for
+upload-only workflows" rule is kept where it actually lives: the drawer already
+suppresses the tabs entirely for those and shows the dropzone instead.
 **Area:** Frontend — workflow-builder top bar
 **Problem:** *"Two options pretty much doing the same thing. And even if I
 choose one, I still have the option to go to the other."* Nothing in the UI

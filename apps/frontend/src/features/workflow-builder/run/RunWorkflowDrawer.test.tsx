@@ -796,6 +796,52 @@ describe("RunWorkflowDrawer", () => {
       expect(screen.getByText(sampleSpec.triggerUrl)).toBeInTheDocument();
     });
 
+    // -------------------------------------------------------------------
+    // Batch-four item 8 (2026-08-08) — the tabs say what each is FOR, and
+    // the Try tab states the one thing a user can be burned by.
+    //   feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md
+    // -------------------------------------------------------------------
+
+    it("item 8: the tabs are labelled by what each is for, not by commitment", async () => {
+      mockDefaultGets(apiMock);
+
+      renderDrawerWithRunState({ openMode: "try" });
+
+      expect(await screen.findByTestId("run-drawer-tab-try")).toHaveTextContent(
+        "Try on canvas",
+      );
+      expect(screen.getByTestId("run-drawer-tab-run")).toHaveTextContent(
+        "Call from outside",
+      );
+    });
+
+    it("item 8: the Try tab states that a try is disposable", async () => {
+      mockDefaultGets(apiMock);
+
+      renderDrawerWithRunState({ openMode: "try" });
+
+      expect(
+        await screen.findByTestId("try-disposable-note"),
+      ).toHaveTextContent(
+        "A try is disposable — starting another run cancels a try that is still going.",
+      );
+    });
+
+    it("item 8: the Call-from-outside tab heads its run box 'Start a run', not 'Test run'", async () => {
+      mockDefaultGets(apiMock);
+
+      renderDrawerWithRunState({ openMode: "run" });
+
+      const apiSection = await screen.findByTestId("run-drawer-api-section");
+      expect(apiSection).toHaveTextContent("Start a run");
+      expect(apiSection).not.toHaveTextContent("Test run");
+      // The disposability note belongs to the Try tab only — a run started
+      // here is stamped "api" server-side and nothing later cancels it.
+      expect(
+        screen.queryByTestId("try-disposable-note"),
+      ).not.toBeInTheDocument();
+    });
+
     it("Scenario 2 + 5: Try submit POSTs /runs, sets activeRunId BEFORE onClose, and closes the drawer", async () => {
       mockDefaultGets(apiMock);
       apiMock.post.mockResolvedValue({

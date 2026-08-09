@@ -233,11 +233,12 @@ vi.mock("./validation/ValidationDrawer", () => ({
   },
 }));
 
-// US-148 — capture the live props the page passes so the trigger tests
-// can verify both `opened` and `openMode` for either button. The stub
-// renders nothing; the page-level assertions are about which trigger
-// requested what, not about the drawer body itself (US-149 owns the
-// tab UI).
+// Capture the live props the page passes so the trigger tests can verify
+// both `opened` and `openMode`. Since batch-four item 8 there is one
+// button, so `openMode` is what the page DERIVED from the workflow's
+// inputs rather than which button was clicked. The stub renders nothing:
+// the page-level assertions are about what the page requested, not about
+// the drawer body itself (RunWorkflowDrawer.test.tsx owns the tab UI).
 vi.mock("./run/RunWorkflowDrawer", () => ({
   RunWorkflowDrawer: (props: Record<string, unknown>) => {
     capturedRunDrawerProps.current = props;
@@ -1451,9 +1452,16 @@ describe("WorkflowEditorV2Page — US-121: entryNodeId autoset on source drop", 
 // US-148 — In-canvas "Try" top-bar button (Phase 4 — Milestone E)
 //   feature-docs/20260531-workflow-builder-phase4-try-in-place/user_stories/
 //   US-148-in-canvas-try-button.md
+//
+// Superseded in part by batch-four item 8 (2026-08-08):
+//   feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md
+// The separate "Try" button is gone — "Try" and "Run this workflow" opened
+// the SAME drawer on different tabs. One `Run…` button remains, and the
+// input analysis that used to decide whether the Try button was SHOWN now
+// decides which tab the drawer OPENS ON.
 // ---------------------------------------------------------------------------
 
-describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
+describe("WorkflowEditorV2Page — item 8: one Run… button, tab pre-selected from the workflow", () => {
   beforeEach(() => {
     capturedCanvasProps.current = null;
     capturedCreateDto.current = null;
@@ -1467,7 +1475,7 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
    * Builds a fully-populated existing workflow record matching the
    * shape `useWorkflow` returns to the editor. Each helper varies only
    * in the `config.nodes` map + the `config.ctx` declarations so the
-   * tests can exercise the page's `tryButtonVisible` predicate.
+   * tests can exercise the page's `runDrawerOpenMode` predicate.
    */
   function makeExistingWorkflow(
     config: GraphWorkflowConfig,
@@ -1580,24 +1588,27 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     };
   }
 
-  it("Scenario 1: renders a Try button between Save and Run this workflow", async () => {
-    // Task 6 reordered the right-zone cluster to Save → Try → Run →
-    // More, and "Save as library" moved into the More menu.
+  it("Scenario 1: renders exactly one run entry point, labelled Run…, between Save and More", async () => {
+    // The right-zone cluster is Save → Run… → More. Before item 8 it was
+    // Save → Try → Run → More; the Try button is gone because it opened
+    // the same drawer the Run button did.
     existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
     renderEditPage("wf-test");
 
-    const tryBtn = screen.getByTestId("try-button");
-    expect(tryBtn).toBeInTheDocument();
-    expect(tryBtn).toHaveTextContent(/^Try$/);
+    expect(screen.queryByTestId("try-button")).not.toBeInTheDocument();
+
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+    expect(runBtn).toHaveTextContent(/^Run…$/);
 
     const saveBtn = screen.getByTestId("save-button");
-    const runBtn = screen.getByTestId("run-this-workflow-button");
+    const moreBtn = screen.getByTestId("topbar-more-button");
     expect(
-      saveBtn.compareDocumentPosition(tryBtn) &
+      saveBtn.compareDocumentPosition(runBtn) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      tryBtn.compareDocumentPosition(runBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+      runBtn.compareDocumentPosition(moreBtn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
     // Save as library moved into the More menu — confirm it's available
@@ -1610,41 +1621,38 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     ).toBeInTheDocument();
   });
 
-  it("Scenario 2: Try button is disabled in create mode with the 'Save the workflow first' tooltip", async () => {
+  it("Scenario 2: Run… is disabled in create mode with the 'Save the workflow first' tooltip", async () => {
     renderPage();
-    // Create mode → no source nodes yet, no isInput ctx → the predicate
-    // simplifies to "no source.upload" so the button is visible-and-disabled
-    // (the documented Phase-4 behaviour for empty / legacy workflows).
-    const tryBtn = screen.getByTestId("try-button");
-    expect(tryBtn).toBeDisabled();
+    const runBtn = screen.getByTestId("run-this-workflow-button");
+    expect(runBtn).toBeDisabled();
     // Hover the WRAPPER, not the button. A disabled button fires no pointer
     // events in a real browser, so a tooltip bound to the button itself never
     // opens — jsdom dispatches synthetic events on disabled elements anyway,
     // which is how this went unnoticed until it was checked in a browser
     // (2026-08-02). Hovering the wrapper is what a user's pointer does.
-    fireEvent.mouseEnter(tryBtn.parentElement as HTMLElement);
+    fireEvent.mouseEnter(runBtn.parentElement as HTMLElement);
     await waitFor(() => {
       expect(screen.getByText("Save the workflow first")).toBeInTheDocument();
     });
   });
 
-  it("Scenario 2b: the Run button explains itself while disabled too", async () => {
-    // Run used a native `title` attribute, which Chrome suppresses on a
-    // disabled control — so the one moment the reason matters (draft save
-    // persisted an unrunnable graph) it was invisible. Now it shares Try's
-    // tooltip treatment.
-    renderPage();
+  it("Scenario 2b: the enabled Run… tooltip names both tabs rather than the panel", async () => {
+    existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
+    renderEditPage("wf-test");
+
     const runBtn = screen.getByTestId("run-this-workflow-button");
-    expect(runBtn).toBeDisabled();
+    expect(runBtn).toBeEnabled();
     fireEvent.mouseEnter(runBtn.parentElement as HTMLElement);
     await waitFor(() => {
       expect(
-        screen.getAllByText("Save the workflow first").length,
-      ).toBeGreaterThan(0);
+        screen.getByText(
+          "Try this workflow on the canvas, or call it from outside",
+        ),
+      ).toBeInTheDocument();
     });
   });
 
-  it('Scenario 3: clicking Try opens the Run drawer with openMode="try"', async () => {
+  it('Scenario 3: clicking Run… opens the drawer on "try" for a source.api workflow', async () => {
     existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
     renderEditPage("wf-test");
 
@@ -1653,9 +1661,8 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
       screen.queryByTestId("run-workflow-drawer-stub"),
     ).not.toBeInTheDocument();
 
-    const tryBtn = screen.getByTestId("try-button");
     await act(async () => {
-      fireEvent.click(tryBtn);
+      fireEvent.click(screen.getByTestId("run-this-workflow-button"));
     });
 
     const drawerStub = await screen.findByTestId("run-workflow-drawer-stub");
@@ -1665,56 +1672,45 @@ describe("WorkflowEditorV2Page — US-148: in-canvas Try button", () => {
     expect(capturedRunDrawerProps.current?.openMode).toBe("try");
   });
 
-  it('Scenario 3 (Run vs Try): the existing Run this workflow button opens the drawer with openMode="run"', async () => {
-    existingWorkflowRef.current = makeExistingWorkflow(configWithSourceApi());
-    renderEditPage("wf-test");
-
-    const runBtn = screen.getByTestId("run-this-workflow-button");
-    await act(async () => {
-      fireEvent.click(runBtn);
-    });
-
-    const drawerStub = await screen.findByTestId("run-workflow-drawer-stub");
-    expect(drawerStub.getAttribute("data-open-mode")).toBe("run");
-    expect(capturedRunDrawerProps.current?.openMode).toBe("run");
-  });
-
-  it("Scenario 4: Try button is HIDDEN for source.upload-only workflows", () => {
+  it('Scenario 4: a source.upload-only workflow keeps the button and opens on "run"', () => {
+    // Upload is the sole way in, so there is nothing to type into a Try —
+    // the drawer opens on "Call from outside" and its upload dropzone
+    // (which the drawer renders instead of the tabs) is the way in. The
+    // button itself stays: it is the only top-bar path to that dropzone.
     existingWorkflowRef.current = makeExistingWorkflow(
       configWithSourceUploadOnly(),
     );
     renderEditPage("wf-test");
 
-    expect(screen.queryByTestId("try-button")).not.toBeInTheDocument();
-    // The Run button stays visible — only the Try button is conditional.
     expect(screen.getByTestId("run-this-workflow-button")).toBeInTheDocument();
+    expect(capturedRunDrawerProps.current?.openMode).toBe("run");
   });
 
-  it("Scenario 5: Try button is VISIBLE for mixed workflows (source.api + source.upload)", () => {
+  it('Scenario 5: a mixed workflow (source.api + source.upload) opens on "try"', () => {
     existingWorkflowRef.current = makeExistingWorkflow(
       configWithMixedSources(),
     );
     renderEditPage("wf-test");
 
-    expect(screen.getByTestId("try-button")).toBeInTheDocument();
+    expect(capturedRunDrawerProps.current?.openMode).toBe("try");
   });
 
-  it("Scenario 5 (legacy isInput): Try button is VISIBLE when isInput-flagged ctx coexists with source.upload", () => {
+  it('Scenario 5 (legacy isInput): isInput-flagged ctx alongside source.upload opens on "try"', () => {
     const config = configWithSourceUploadOnly();
     config.ctx = { callerInput: { type: "string", isInput: true } };
     existingWorkflowRef.current = makeExistingWorkflow(config);
     renderEditPage("wf-test");
 
-    expect(screen.getByTestId("try-button")).toBeInTheDocument();
+    expect(capturedRunDrawerProps.current?.openMode).toBe("try");
   });
 
-  it("Scenario 5 (legacy isInput, no source): Try button is VISIBLE for legacy isInput-only workflows", () => {
+  it('Scenario 5 (legacy isInput, no source): a legacy isInput-only workflow opens on "try"', () => {
     existingWorkflowRef.current = makeExistingWorkflow(
       configWithLegacyIsInputCtx(),
     );
     renderEditPage("wf-test");
 
-    expect(screen.getByTestId("try-button")).toBeInTheDocument();
+    expect(capturedRunDrawerProps.current?.openMode).toBe("try");
   });
 });
 
@@ -3821,16 +3817,15 @@ describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable gr
     existingWorkflowRef.current = null;
   });
 
-  it("enables Try and Run on a clean, saved, valid graph", async () => {
+  it("enables Run… on a clean, saved, valid graph", async () => {
     renderEditPage("wf-1");
     await waitFor(() => {
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
-    expect(screen.getByTestId("try-button")).toBeEnabled();
     expect(screen.getByTestId("run-this-workflow-button")).toBeEnabled();
   });
 
-  it("D-11 — disables Try and Run while the graph has validation errors", async () => {
+  it("D-11 — disables Run… while the graph has validation errors", async () => {
     validationRef.current = {
       errorCount: 1,
       warningCount: 0,
@@ -3848,11 +3843,10 @@ describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable gr
     await waitFor(() => {
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
-    expect(screen.getByTestId("try-button")).toBeDisabled();
     expect(screen.getByTestId("run-this-workflow-button")).toBeDisabled();
   });
 
-  it("D-11 — a warning alone does NOT disable them", async () => {
+  it("D-11 — a warning alone does NOT disable it", async () => {
     validationRef.current = {
       errorCount: 0,
       warningCount: 3,
@@ -3864,16 +3858,15 @@ describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable gr
     await waitFor(() => {
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
-    expect(screen.getByTestId("try-button")).toBeEnabled();
     expect(screen.getByTestId("run-this-workflow-button")).toBeEnabled();
   });
 
-  it("D-16 — disables Try and Run once there are unsaved edits", async () => {
+  it("D-16 — disables Run… once there are unsaved edits", async () => {
     renderEditPage("wf-1");
     await waitFor(() => {
       expect(capturedCanvasProps.current?.config).toBeDefined();
     });
-    expect(screen.getByTestId("try-button")).toBeEnabled();
+    expect(screen.getByTestId("run-this-workflow-button")).toBeEnabled();
 
     const onConfigChange = capturedCanvasProps.current?.onConfigChange as (
       c: GraphWorkflowConfig,
@@ -3889,7 +3882,6 @@ describe("WorkflowEditorV2Page — D-11/D-16 Try and Run refuse an unrunnable gr
       });
     });
 
-    expect(screen.getByTestId("try-button")).toBeDisabled();
     expect(screen.getByTestId("run-this-workflow-button")).toBeDisabled();
   });
 });

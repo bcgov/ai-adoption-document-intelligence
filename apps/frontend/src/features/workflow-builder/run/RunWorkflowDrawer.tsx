@@ -200,19 +200,28 @@ export function RunWorkflowDrawer({
               data-testid="run-drawer-tabs"
             >
               <Tabs.List>
+                {/*
+                  Batch-four item 8 (2026-08-08): the tabs used to read
+                  "Try" and "Run", which names a strength of commitment
+                  that does not exist — both start a real Temporal
+                  execution against the saved version and both land in run
+                  history. The axis that DOES exist is where the answer
+                  appears: on the canvas you are looking at, or through a
+                  URL somebody else calls. The labels now say that.
+                */}
                 <Tabs.Tab
                   value="try"
                   leftSection={<IconBolt size={14} />}
                   data-testid="run-drawer-tab-try"
                 >
-                  Try
+                  Try on canvas
                 </Tabs.Tab>
                 <Tabs.Tab
                   value="run"
                   leftSection={<IconPlayerPlay size={14} />}
                   data-testid="run-drawer-tab-run"
                 >
-                  Run
+                  Call from outside
                 </Tabs.Tab>
               </Tabs.List>
 
@@ -362,7 +371,13 @@ function ApiSourceSection({
         <Text size="sm">{runSpec.authNotes}</Text>
       </Section>
 
-      <Section title="Test run">
+      {/*
+        Batch-four item 8 (2026-08-08): this box was headed "Test run",
+        which reads backwards — a run started here is stamped `"api"`
+        server-side, so nothing later cancels it. The disposable path is
+        the OTHER tab. The heading now says what the button does.
+      */}
+      <Section title="Start a run">
         <Stack gap="xs">
           <Select
             label="Version"
@@ -785,6 +800,16 @@ function TrySourceSection({
               Try
             </Button>
           </Group>
+          {/*
+            Batch-four item 8 (2026-08-08): the one difference a user can
+            be burned by, and until now nothing in the UI said it. A try
+            posts `/tries`, which stamps `RunTrigger = "try"`, and every
+            later run start cancels in-flight runs carrying that stamp.
+          */}
+          <Text size="xs" c="dimmed" data-testid="try-disposable-note">
+            A try is disposable — starting another run cancels a try that is
+            still going.
+          </Text>
           {runError && (
             <Alert
               color="red"
