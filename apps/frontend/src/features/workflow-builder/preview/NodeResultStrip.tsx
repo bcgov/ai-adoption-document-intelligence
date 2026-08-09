@@ -162,7 +162,20 @@ function StripShell({
           onMouseDown={(event) => event.stopPropagation()}
           style={{
             display: "block",
-            width: "100%",
+            /*
+             * `width: 0` + `minWidth: 100%` — NOT `width: 100%`. A node card is
+             * shrink-to-fit, so a child's preferred width feeds back into the
+             * card's own width: with `width: 100%` a long summary widened the
+             * card instead of being clipped by it. Measured on the try-in-place
+             * demo, the upload card went from 200px at rest to 606px the moment
+             * its DocumentRef landed — the same reflow as item 9, turned
+             * sideways, and one dagre never sees because auto-layout estimates
+             * width per node TYPE. Zero preferred width contributes nothing to
+             * the card's intrinsic size; the percentage min-width then fills
+             * whatever width the card's other rows settled on.
+             */
+            width: 0,
+            minWidth: "100%",
             height: PREVIEW_STRIP_HEIGHT_PX,
             marginTop: PREVIEW_STRIP_MARGIN_TOP_PX,
             padding: "0 6px",
@@ -353,7 +366,7 @@ export function NodeResultStrip({
     );
   }
 
-  const { selected, value, kind } = selectPreviewOutput(
+  const { selected, value } = selectPreviewOutput(
     previewOutputs,
     selectedPort,
     data,
@@ -388,24 +401,34 @@ export function NodeResultStrip({
     >
       <Group gap={6} wrap="nowrap" style={{ overflow: "hidden" }}>
         {/*
-         * The kind is what makes a ragged one-liner readable — Alex's ruling
-         * was "show the first line of the value", and a first line is much
-         * easier to read once you know whether it is a Document or a
-         * Classification. Suppressed when nothing declares a kind rather than
-         * printing an empty pill.
+         * Only the PORT is named, and only when there is more than one of
+         * them — then the strip has to say which output you are looking at,
+         * because the popover's chips can change it.
+         *
+         * The kind used to be printed here too. It was measured out: on the
+         * try-in-place demo the upload card is 200px wide, and "DocumentRef"
+         * took so much of the strip that the value it was labelling showed as
+         * "seedd…". The kind is already on the card — the output port's kind
+         * pill and, on activity cards, the port rows — so spending a narrow
+         * card's only line repeating it buys nothing, while the value's first
+         * line is the thing Alex ruled the strip should show.
          */}
-        {kind !== null && kind !== "" && (
+        {previewOutputs.length > 1 && (
           <Text
             size="xs"
             fw={600}
             c="dimmed"
-            data-testid={`strip-kind-${nodeId}`}
+            data-testid={`strip-port-${nodeId}`}
             style={{
               flexShrink: 0,
+              maxWidth: "40%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
               lineHeight: `${PREVIEW_STRIP_HEIGHT_PX}px`,
             }}
           >
-            {previewOutputs.length > 1 ? `${selected.label} · ${kind}` : kind}
+            {selected.label}
           </Text>
         )}
         <StripLine

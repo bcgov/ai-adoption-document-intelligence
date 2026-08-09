@@ -323,6 +323,17 @@ describe("NodeResultStrip — the card's height never changes", () => {
     // height silently becomes content-driven again.
     expect(strip.style.minHeight).toBe("");
     expect(strip.style.maxHeight).toBe("");
+    /*
+     * And the same guarantee sideways. A node card is shrink-to-fit, so a
+     * child with `width: 100%` still reports its CONTENT as its preferred
+     * width and drags the card out with it: measured in Chromium, the
+     * try-in-place demo's upload card went 200px → 606px the moment a long
+     * DocumentRef landed in the strip. `width: 0` contributes nothing to the
+     * card's intrinsic width; `minWidth: 100%` fills whatever the card's
+     * other rows settled on.
+     */
+    expect(strip.style.width).toBe("0px");
+    expect(strip.style.minWidth).toBe("100%");
   });
 
   it("is the same height at idle, before any run exists", () => {
@@ -359,17 +370,18 @@ describe("NodeResultStrip — states are named on the element", () => {
     });
   });
 
-  it("shows the kind and a one-line summary of the value when ready", async () => {
+  it("spends the whole line on the value when a node has one output", async () => {
     mockFetch("row");
     renderStrip({ runId: RUN_ID, outputs: NODE_OUT });
 
-    // The kind comes from the row (`outputKind`) when the port declares none.
     expect(
-      await screen.findByTestId(`strip-kind-${NODE_ID}`),
-    ).toHaveTextContent("Document");
-    expect(screen.getByTestId(`strip-summary-${NODE_ID}`)).toHaveTextContent(
-      "a scanned invoice",
-    );
+      await screen.findByTestId(`strip-summary-${NODE_ID}`),
+    ).toHaveTextContent("a scanned invoice");
+    // The kind is on the card already (the output port's kind pill, and the
+    // port rows on an activity card). Repeating it here cost the value its
+    // room: on the try-in-place demo's 200px upload card, "DocumentRef" left
+    // the DocumentRef itself rendering as "seedd…".
+    expect(screen.queryByTestId(`strip-port-${NODE_ID}`)).toBeNull();
   });
 
   it("collapses a multi-line value onto the single line", async () => {
@@ -387,7 +399,7 @@ describe("NodeResultStrip — states are named on the element", () => {
     expect(summary.textContent).not.toContain("second line");
   });
 
-  it("names the port alongside the kind when a node has several outputs", async () => {
+  it("names the port when a node has several outputs", async () => {
     fetchSpy.mockImplementation(() =>
       Promise.resolve(
         rowResponse(
@@ -400,22 +412,23 @@ describe("NodeResultStrip — states are named on the element", () => {
     );
     renderStrip({ runId: RUN_ID, outputs: TWO_OUTPUTS });
 
-    // One line has room for the kind alone; with a port selection in play the
-    // author also needs to know WHICH port the line is describing.
+    // With a port selection in play — the popover's chips can change it — the
+    // author has to know WHICH output this line is describing.
     expect(
-      await screen.findByTestId(`strip-kind-${NODE_ID}`),
-    ).toHaveTextContent("document · Document");
+      await screen.findByTestId(`strip-port-${NODE_ID}`),
+    ).toHaveTextContent("document");
   });
 
-  it("shows no kind cell when nothing declares a kind", async () => {
+  it("still summarises a value whose kind nothing declares", async () => {
     fetchSpy.mockImplementation(() =>
       Promise.resolve(rowResponse(buildRow(null, { nodeOut: "plain text" }))),
     );
     renderStrip({ runId: RUN_ID, outputs: NODE_OUT });
 
-    await screen.findByTestId(`strip-summary-${NODE_ID}`);
-    // An empty pill would read as a bug; the summary alone is the fallback.
-    expect(screen.queryByTestId(`strip-kind-${NODE_ID}`)).toBeNull();
+    expect(
+      await screen.findByTestId(`strip-summary-${NODE_ID}`),
+    ).toHaveTextContent("plain text");
+    expect(screen.queryByTestId(`strip-port-${NODE_ID}`)).toBeNull();
   });
 
   it("renders NOTHING for a control-flow node rather than an empty band", async () => {
@@ -567,8 +580,8 @@ describe("NodeResultStrip — the popover behind the strip", () => {
       );
     });
     // Kind follows the same selection — the two can never disagree.
-    expect(screen.getByTestId(`strip-kind-${NODE_ID}`)).toHaveTextContent(
-      "label · Classification",
+    expect(screen.getByTestId(`strip-port-${NODE_ID}`)).toHaveTextContent(
+      "label",
     );
     expect(screen.getByTestId("detail")).toHaveAttribute(
       "data-selected-port",
