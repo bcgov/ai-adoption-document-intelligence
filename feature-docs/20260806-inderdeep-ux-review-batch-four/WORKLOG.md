@@ -743,17 +743,56 @@ Result: `RUN_INFRA=1 PLAYWRIGHT_SKIP_DB_RESET=1 npx playwright test
 tests/e2e/workflow-builder/ --grep "@infra"` → **11 passed**, three consecutive
 runs, no flake.
 
-### What running the default suite next turned up
+### What running the default suite next turned up — and its own fix
 
 The `@infra` set is opt-in; the *default* one is supposed to be the hermetic
-green one. It is not: **12 tests fail** on this branch, across
+green one. It was not: **12 tests failing** on this branch, across
 `tier2-validation`, `tier2-typed-io`, `tier2-sources`,
 `tier2-coupling-invariants` and all five of `tier3-agent-stubbed`. Proven
 pre-existing by stashing this wave's changes and re-running — the same tests
-fail without them. The shapes point at this batch's own UI work (a top-bar
-"Valid" button no longer in `topbar-zone-right`, a Validation drawer no longer
-exposing itself as a dialog named "Validation"), which means the rebuild landed
-without the default suite being re-run.
+failed without them.
+
+Now green (`ef977a50`): **65 passed**, and the `@infra` eleven still pass with
+the shared helpers changed. Eleven of the twelve were **specs describing a UI
+this batch had deliberately changed**, which is the finding: the UX work shipped
+and nobody re-ran the suite against it. One was a real defect.
+
+**The real one — the orphaned-delete toast outlives the step it describes.** It
+says *"Deleted `<node>` — N variables lost their source"* and its Undo link
+re-enters the same `undo`; nothing retired it when the author undid by any other
+route, so for the rest of its 8-second life the sentence was false and the link
+would have rewound a **different, unrelated** edit. It also sits directly over
+the top bar's right-hand controls, which is how a test found it at all —
+`topbar-more-button` was pointer-intercepted. Both the `undo` and `redo`
+wrappers now hide it; they are the single choke point for the top-bar buttons,
+the hotkeys and the canvas. Three unit tests.
+
+The eleven stale ones, and what had actually moved under them:
+
+| Spec | What moved |
+|---|---|
+| `tier3-agent-stubbed` (5) | Item 21 gated the chat to `/workflows*` (*"the chat only appears where it works"*, `5903a414`) — the shared setup still landed on the app root, where there is no icon. One test also asserted the standing header stop button item 26 deleted; send *becomes* stop mid-turn now, so it could never pass again. |
+| `tier2-typed-io` (2) | The identifier retag (`b6b86d40`) gave both ends of the asserted hop a concrete `RequestId`, so auto-wire resolves it in the typed pass, not the name-match pass. Same wire, same producer — the provenance label is now the honest one. |
+| `tier2-validation` (2) | The "valid" fixture stopped being valid once the kind taxonomy could see a `RequestId` feeding a `DocumentId` port; and a node badge now opens the drawer **node-scoped** (`Problems on <node>`, `83c036fe`). |
+| `tier2-sources` (1) | Draft-save (`b76d651c`) moved semantic refusal from create to run, so the one-source-per-subtype rule is reported in the save response instead of a 400. Still enforced, still asserted, different surface. |
+| `tier2-sources` (1) | **Wave F's own result strip** covers the geometric centre of a *short* card: a `source.upload` card is 38.6 screen px tall at a two-node fitView and the strip's top edge sits 0.3px above the centre, so the shared click helper opened the preview popover instead of selecting the node. `bringNodeIntoClear` now aims above the strip when the strip covers the centre. |
+
+That last row is worth keeping: item 9 was measured to 0px in both axes and still
+changed where a click lands. Geometry that does not move can still move what is
+*under the cursor*.
+
+One stale claim was corrected while in there: the validation spec's header said
+`POST /api/workflows` rejects error-severity configs. True when written, false
+since draft-save — create now refuses only a config the store cannot physically
+hold (`assertConfigStorable`), and the refusal moved to the run path
+(`assertConfigRunnable`). So an on-load red fixture *is* buildable now; it just
+isn't built.
+
+**Left undone deliberately:** a *live* orphaned-delete toast still covers the top
+bar for its 8 seconds, and because `<Notifications position="top-right" />` is
+global it does the same to the app header on every page. Fixing that means
+deciding where toasts live app-wide — a design call, not a bug fix. The
+recommendation is a top offset that clears the header and the page action bar.
 
 ## Where the batch stands at close
 

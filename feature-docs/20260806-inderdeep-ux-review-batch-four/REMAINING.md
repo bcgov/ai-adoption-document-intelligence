@@ -122,6 +122,21 @@ blue meaning both "any data" and "document") will be fixed regardless.
 
 ---
 
+## Needs a design call — found 2026-08-09, not invented
+
+**Where toasts live.** The orphaned-delete toast covers the top bar's right-hand
+controls (More, part of the Save/Run group) for its full 8-second life, and
+because `<Notifications position="top-right" />` is global (`main.tsx`), the same
+toast sits over the app header's user menu on **every** page. The stale-toast
+half is fixed (`ef977a50`: undo/redo retire it, because its Undo link would
+otherwise rewind an unrelated edit), but a *live* toast still blocks a live
+toolbar. **Recommendation:** give the global `<Notifications>` a top offset that
+clears the app header plus the page action bar, so a toast can never sit over a
+toolbar. That is one line and one decision — it changes toast placement
+everywhere in the product, which is why it is here and not done.
+
+---
+
 ## Known defects, unfixed, nobody reported them
 
 **The settings drawer floods the undo stack.** The Description and Version fields
