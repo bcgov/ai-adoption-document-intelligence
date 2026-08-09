@@ -116,6 +116,28 @@ describe("WorkflowSwitcher", () => {
     });
   });
 
+  /*
+   * Item 14 traded a button labelled "Switch" for a bare chevron, which left a
+   * sighted mouse user with no explanation of it at all — `aria-label` serves
+   * screen readers and nobody else. Found in a browser during the screenshot
+   * pass, not by any test, which is the point of pinning it here.
+   *
+   * jsdom renders a tooltip that a real browser may not (see the disabled-button
+   * lesson in earlier batches), so this asserts the tooltip is WIRED — the
+   * trigger is described and the label text exists — rather than claiming to
+   * have seen it on screen. The browser evidence is the top-bar screenshot.
+   */
+  it("names the chevron on hover, and gets out of the way once open", async () => {
+    renderSwitcher();
+    const trigger = screen.getByTestId("workflow-switcher-button");
+    fireEvent.mouseEnter(trigger);
+    expect(await screen.findByText("Switch workflow")).toBeInTheDocument();
+
+    // Open the list: the dropdown is now the answer, so the tooltip stands down.
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("does not navigate when the current workflow is clicked", () => {
     renderSwitcher("wf-1");
     fireEvent.click(screen.getByTestId("workflow-switcher-button"));

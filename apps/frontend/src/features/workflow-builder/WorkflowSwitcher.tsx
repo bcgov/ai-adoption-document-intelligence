@@ -31,6 +31,7 @@ import {
   Stack,
   Text,
   TextInput,
+  Tooltip,
   UnstyledButton,
 } from "@mantine/core";
 import {
@@ -108,18 +109,30 @@ export function WorkflowSwitcher({ currentWorkflowId }: WorkflowSwitcherProps) {
       returnFocus
     >
       <Popover.Target>
-        <ActionIcon
-          variant="subtle"
-          color="gray"
-          size="sm"
-          onClick={() => setOpened((o) => !o)}
-          aria-label="Switch workflow"
-          aria-expanded={opened}
-          data-testid="workflow-switcher-button"
-          style={{ flexShrink: 0 }}
-        >
-          <IconChevronDown size={16} />
-        </ActionIcon>
+        {/*
+         * The chevron replaced a button that said the word "Switch" (item 14),
+         * so a sighted mouse user lost the only explanation of what it does —
+         * `aria-label` is read by screen readers and by nobody else. That is a
+         * discoverability regression against items 15-17, which were entirely
+         * about not being able to find the workflow list, so it gets the same
+         * remedy item 19's group header got: name the affordance on hover.
+         * Suppressed while the list is open, where the dropdown is the answer
+         * and a tooltip is just something in the way.
+         */}
+        <Tooltip label="Switch workflow" withArrow disabled={opened}>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="sm"
+            onClick={() => setOpened((o) => !o)}
+            aria-label="Switch workflow"
+            aria-expanded={opened}
+            data-testid="workflow-switcher-button"
+            style={{ flexShrink: 0 }}
+          >
+            <IconChevronDown size={16} />
+          </ActionIcon>
+        </Tooltip>
       </Popover.Target>
       <Popover.Dropdown p={4}>
         <Stack gap={4}>
