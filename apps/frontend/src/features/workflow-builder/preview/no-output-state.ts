@@ -185,9 +185,20 @@ export function describeNoOutput(
       // reason `evicted` must never be reachable outside replay. Offering
       // "Re-run to repopulate" here would cancel or duplicate the run that is
       // in the middle of producing the very output being waited for.
+      //
+      // The copy has to be true in BOTH readings, because a live run cannot
+      // tell them apart: the row may be seconds away, or it may never come
+      // (the run is over and this step's row was never written). There is no
+      // run-level status in `RunStateContext` to distinguish them — only
+      // per-node statuses, and a node in an untaken branch stays `pending`
+      // forever, so "every node is terminal" is not derivable. So it states
+      // what is known and names the one surface that CAN settle the question:
+      // re-opening the run from history is replay, where the same absence is
+      // classified as an eviction and offers the Re-run that repopulates it.
       return {
         reason,
-        message: "This step finished — its output preview is still on its way.",
+        message:
+          "This step finished, but no preview of its output has arrived. Usually that is the moment before it lands; if it stays empty, re-open this run from the run history to see whether its cached output has expired.",
         label: "Output pending",
         offersRerun: false,
         tone: "neutral",

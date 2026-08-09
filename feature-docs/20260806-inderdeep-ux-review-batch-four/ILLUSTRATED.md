@@ -42,23 +42,25 @@ Now the disc is the only circle. The glyph is a bare `IconCheck` / `IconX`,
 raised from 12px to 15px inside a disc raised from 16px to 20px, and stroked at
 2.6 instead of Tabler's default 2.
 
-![Failed node — bare cross in a red disc](screenshots/01-node-status-badge-failed.png)
+![Both badges in one frame — a bare check in a green disc, a bare cross in a red disc](screenshots/01-node-status-badges.png)
 
-![Succeeded node — bare check in a green disc](screenshots/02-node-status-badge-succeeded.png)
-
-Both shots are of a real run of the **workflow-as-API** demo — the same demo
-Inderdeep had open when he reported this. The badges only exist while a run is
-active (`NodeStatusBadgeOverlay` renders nothing without an `activeRunId`, so
-that a design-time canvas isn't littered with gray dots), so there is no way to
+A real run of the **workflow-as-API** demo — the same demo Inderdeep had open
+when he reported this. The badges only exist while a run is active
+(`NodeStatusBadgeOverlay` renders nothing without an `activeRunId`, so that a
+design-time canvas isn't littered with gray dots), so there is no way to
 photograph them except by really running something.
 
-**Two open items are visible in these frames, and both are worth seeing:**
+**This was two tight crops until 2026-08-08, and the reason is the point.** The
+capture script's own comment said a wide frame "is unreadable right now because
+the preview panels grow the cards mid-run and they overlap their neighbours" —
+which was item 9. Item 9 is fixed, so both badges now fit in one legible frame
+of the graph they actually live in.
 
-- The neighbouring card overlapping the failed node is **item 9** — pressing
-  Try grows the cards to fit their preview panels, and they collide. Unfixed.
-- The second shot is **item 10** in one frame: a **green success check** on a
-  node whose panel reads *"Preview unavailable — cache evicted."* Both verdicts
-  on the same card, which is exactly what Inderdeep called confusing.
+Two other things this frame happens to show, both new in the same batch: the
+grey band at the foot of each card is the **result strip** (§18 below), and
+**item 10** — the green check sitting above *"cached output has expired"* — is
+gone, because that verdict is no longer reachable during a live run. The API
+Endpoint card says *Output pending* instead.
 
 ### §2 · Agent chat header — items 27, 28, 29
 
@@ -504,34 +506,69 @@ picture of the wrong half of the item.
 
 ---
 
-## Not fixed — pressing Try still reflows the graph · item 9
-
-The one frame here that is of a defect. Item 9 is open and awaiting a ruling
-between three options — see [DECISIONS/09-try-reflow.md](DECISIONS/09-try-reflow.md)
-— and every option on the table removes exactly what this frame shows, so the
-evidence had to be taken while the bug still exists.
+## §18 · Pressing Try no longer moves anything · item 9
 
 Alex, watching the shared screen: *"when you hit try, it also resized the boxes
 and they started to overlap in a strange way … it's kind of jarring."*
 
 ![BEFORE — a preview pane grows its card until it lies across the card below](screenshots/12-BEFORE-try-reflow-overlap.png)
 
-The **API Endpoint** card has grown to fit its preview pane and is now lying
-straight across **Prepare File Data** — covering its port rows, its bindings and
-half its body. Measured mechanism: `estimateNodeHeight` makes no allowance for a
-preview because at rest there isn't one, dagre separates ranks by 60px, and the
-preview pane is capped at 200px. So a card grows up to 200px into a 60px gap,
-and does it twice — once for the loading skeleton, again when real content
-replaces it.
+That is the **before**, kept. The **API Endpoint** card has grown to fit its
+preview pane and is lying straight across **Prepare File Data**, covering its
+port rows, its bindings and half its body.
 
-**How the frame was chosen, since it matters for re-running this.** The script
-asks the page which two cards overlap most and frames those, rather than
-assuming where the collision is — what grows and by how much depends on what the
-run produced. It also fails loudly if nothing overlaps. That check earned its
-keep: the eight-node switch/error-edges demo was tried first, on the theory that
-a bigger graph shows more collisions, and it shows **none** — its nodes are
-authored ~570px apart on one horizontal rank, so a card 200px taller still hits
-nothing. The collision needs a *vertical* neighbour.
+The mechanism was arithmetic, not styling. `estimateNodeHeight` made no
+allowance for a preview because at rest there isn't one, dagre separates ranks
+by 60px, and the preview pane was capped at 200px with a 120px loading
+skeleton. So a card grew up to 200px into a 60px gap — and grew *twice*, once
+for the skeleton and again when real content replaced it. That is the "strange
+way": cards don't just get bigger, they get bigger at two different moments,
+per node.
+
+**Option C, as ruled.** Every card that can produce output now carries a
+fixed-height, one-line **result strip** at all times — including before any run,
+where it says *Not run yet*. The full scrollable preview moved into a popover
+behind it, reading the same shared query, so opening one costs no request.
+
+![The card before any run — a reserved strip reading "Not run yet"](screenshots/21-result-strip-at-rest.png)
+
+![The same card after a run — the same size, now carrying the value](screenshots/22-result-strip-ready.png)
+
+Those two frames are the whole fix: **the same card, the same size**, before and
+after. Pressing Try changes what the strip says and never how tall the card is.
+
+![Clicking the strip opens the full preview](screenshots/23-result-strip-popover.png)
+
+The value is one click away, not gone.
+
+![AFTER — the same graph, the same run, nothing overlapping](screenshots/20-AFTER-try-no-reflow.png)
+
+And the wide frame that used to be impossible. The shot that hunted for the
+worst overlap now runs the **same search as an assertion**: if any two cards
+still overlap after a Try, the capture fails loudly rather than saving a frame
+that quietly contradicts its caption.
+
+**Measured, not eyeballed.** jsdom runs no layout, so the guarantee was checked
+in Chromium: every card's `offsetHeight` and `offsetWidth` on `standard-ocr`,
+sampled before a Try, twenty-four times during it, and after. **0px drift in
+both axes on all fifteen nodes.** An earlier run of the same measurement caught
+5px on the one node that failed — the failure chip appearing, not the strip.
+
+**And a second reflow, found by taking these pictures rather than by any of the
+2,685 tests.** A node card is shrink-to-fit, so a child with `width: 100%` still
+offers its *content* as its preferred width and drags the card out with it: the
+upload card measured 200px at rest and **606px** the moment its DocumentRef
+landed, covering the node beside it. Auto-layout never sees that one — it
+estimates width per node *type*, not per value. Fixed with `width: 0` +
+`minWidth: 100%`, and pinned by the same table that pins the height.
+
+**What it cost.** During a run you now see *that* each node produced something
+and roughly what, rather than every node's whole payload at once. The strip
+shows the value's first line, per the ruling on the follow-up question. It does
+**not** show the kind: on the 200px upload card, "DocumentRef" took so much of
+the one line that the DocumentRef itself rendered as "seedd…", and the kind is
+already on the card's output port pill. It names the port instead, and only when
+a node has more than one.
 
 ---
 

@@ -96,3 +96,40 @@ should be re-taken as one wide frame — under C it would actually be legible.
 **What I need from you:** A, B or C. If C, one follow-up — should the strip show
 the value's first line, or only the kind and status? The first is more useful and
 more likely to look ragged across kinds.
+
+---
+
+## Ruled: C, with the first line · 2026-08-08
+
+Alex: *"#9 - C"*, then *"go with recommendations"* on the follow-up. Shipped
+2026-08-09 in `b6877863` (the strip) and `033664cf` (a second reflow, in the
+width axis, found while photographing the first).
+
+Three things came out differently from the sketch above, and they are worth
+recording because each was decided by a measurement rather than by taste.
+
+**The full preview did NOT go into `WirePeekPopover`.** That popover is keyed on
+a *wire* — a producer node plus a ctx key — and the node card needs the node's
+own selected port, including the port chips when there is more than one. Reusing
+it would have meant bending a wire-shaped surface into a node-shaped one. The
+strip opens its own popover which mounts the unchanged `PreviewWidget`, off the
+same shared batch query, so the "costs no extra round-trip" argument survives
+intact. It cost one thing the sketch did not anticipate: the query needed a
+`staleTime`, because a second observer mounting later refetched the whole
+lineage for data already in the cache.
+
+**The strip shows no kind.** The follow-up was answered "first line of the
+value", and printing the kind alongside it turned out to defeat that on a narrow
+card: the try-in-place demo's upload card is 200px wide, and "DocumentRef" left
+the DocumentRef itself rendering as "seedd…". The kind is already on the card —
+the output port's kind pill, and the port rows on an activity card — so the
+strip names the *port* instead, and only when a node has more than one, where
+the popover's chips can change which output the line describes.
+
+**"A small constant resting-height increase" was wrong — the graph got
+shorter.** `ACTIVITY_BASE_HEIGHT` already carried a 120px allowance for the
+inline pane, and its own docblock conceded the number was "a deliberate
+mid-point, not a universal fact". Trading that for a measured 58px of chrome
+plus a 30px strip takes an `azureOcr.extract` card from 293px to 204px. Option
+A's objection — that reserving space makes the building state worse to fix the
+running one — turned out to apply to the code as it already stood.

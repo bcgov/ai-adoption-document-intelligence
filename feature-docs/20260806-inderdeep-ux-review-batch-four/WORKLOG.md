@@ -600,20 +600,112 @@ those items says so in its own entry.
 
 ---
 
+## Wave F — item 9, the Try reflow · 2026-08-09
+
+Alex ruled **Option C** and said "go with recommendations" on the open
+sub-question, so the strip shows the value's first line rather than only kind
+and status.
+
+**What shipped.** Every card that can produce output carries a fixed-height
+one-line result strip at all times, including before any run, where it says
+*Not run yet*. The full scrollable preview moved into a popover behind it,
+reading the same shared batch query, so opening one costs no extra request.
+Control-flow nodes draw no strip at all — zero height is as constant as 30px is,
+and a row of identical "doesn't produce output" bands would paper the canvas.
+
+New: `preview/NodeResultStrip.tsx`, `preview/strip-metrics.ts`,
+`preview/summarize-output.ts` (kind-agnostic, bounded at 72 characters,
+following blob pointers into the server's excerpt map so an OcrResult
+summarises its text rather than its `blobPath`), and
+`preview/select-preview-output.ts` — the port selection shared by the strip and
+the widget, so the card's one-line summary and the panel it opens cannot
+resolve to different values.
+
+**The constants were re-measured, not adjusted.** `ACTIVITY_BASE_HEIGHT` was
+177 and carried a 120px allowance for a pane that actually rendered anywhere
+from 0 to 200px; its own docblock admitted the number was "a deliberate
+mid-point, not a universal fact". In Chromium every activity card on
+`standard-ocr` decomposes to exactly 58px of chrome — six cards, one to five
+rows, no variance — so the base is now 58 + the 30px strip, and an
+`azureOcr.extract` card estimates at 204px instead of 293px. The estimate is a
+fact now rather than an average.
+
+**Verified where jsdom cannot go.** Every card's `offsetHeight` and
+`offsetWidth`, sampled before a Try, twenty-four times during it, and after.
+0px drift in both axes on all fifteen nodes. An earlier run of the same
+measurement caught 5px on the one node that failed, which is the failure chip
+appearing, not the strip — recorded here rather than quietly kept out of the
+number.
+
+### Two defects found while fixing it
+
+**`evicted` was reachable during a live run.** `noOutputReasonForNode` returned
+it for any `succeeded`/`skipped` node with no cache row, regardless of whether
+the run had finished — so in the 250ms gap between a node going green and the
+worker writing its row, the card said *"This step's cached output has expired.
+Re-run to repopulate it."* That blames a TTL that had not expired and offers a
+Re-run that would cancel the run producing the very output being waited for.
+`PreviewWidget`'s docblock had said since it was written that the alert "must
+only appear in replay mode"; nothing enforced it. **This is how item 10 was
+reproduced on a first, non-replay Try.** There is now an `awaiting-cache`
+reason for that gap, and `evicted` requires a finished run.
+
+Its copy is deliberately true in both readings, because a live run cannot tell
+them apart — the row may be seconds away, or the run may be over and the row
+never written. `RunStateContext` has no run-level status to distinguish them,
+and "every node is terminal" is not derivable (a node in an untaken branch stays
+`pending` forever). So the message says what is known and names the surface that
+can settle it: re-open the run from history, which is replay, where the same
+absence is classified as an eviction and offers the Re-run that works.
+
+**The strip widened the card**, which is the same bug turned sideways and was
+found by photographing the fix rather than by any of the 2,685 tests. A node
+card is shrink-to-fit, so a child with `width: 100%` still offers its content as
+its preferred width: the upload card measured 200px at rest and **606px** the
+moment its DocumentRef landed, covering the node beside it. Auto-layout never
+sees that axis — it estimates width per node *type*, not per value. Fixed with
+`width: 0` + `minWidth: 100%`, pinned by the same table that pins the height.
+
+That measurement also killed the kind label. On the 200px upload card
+"DocumentRef" took so much of the one line that the DocumentRef itself rendered
+as "seedd…" — labelling a value with something the card already shows on its
+output port pill, at the cost of the value Alex asked to see. The strip names
+the port instead, and only when a node has more than one.
+
+### A third `@infra` failure, found not caused
+
+`tier3-try-preview` fails, and it failed identically at `ebd52e1b` — checked by
+running it at the previous commit, where it dies *earlier*, at the wire peek
+(line 201), before it ever reaches the node preview. So the known-broken
+`@infra` set is **three**, not the two recorded above. Its later assertion is
+also unsound on its own terms: it reloads the editor and then expects a preview,
+but `RunStateProvider` starts every mount with `activeRunId = null`, which the
+strip correctly reports as *Not run yet*. Item 33's problem, recorded here so it
+is not rediscovered.
+
+### Screenshots
+
+Shot 1 became **one wide frame**. It was two tight crops, and the capture
+script's own comment said why: a wide frame "is unreadable right now because the
+preview panels grow the cards mid-run and they overlap their neighbours". That
+was item 9. Shot 11 — which hunted for the worst overlap and framed it — now
+runs the same search as an **assertion** and fails loudly if two cards ever
+overlap again; `12-BEFORE-try-reflow-overlap.png` is kept as the before-picture
+and never re-taken. Shot 18 is new: the same card at rest, after a run, and with
+the popover open.
+
 ## Where the batch stands at close
 
-**30 of 33 items done.** The three open ones are not code that anybody failed to
+**31 of 33 items done.** The two open ones are not code that anybody failed to
 write:
 
-- **Item 9** (the Try reflow) — a written fork awaiting Alex's pick between
-  reserving the full pane, growing out of flow, or the recommended fixed strip
-  plus popover.
 - **Item 20** (the colour vocabulary) — deferred by Alex until the rest landed.
   The measurement is done and the recommendation is written; it needs a session
   of its own because it changes how every saved workflow looks.
 - **Item 33** (the cold-setup walk) — needs a named person who has never built
   this repo. Half of it is now answered by evidence: the `@infra` suites were
-  run and two of six failed, so "they exist and pass" was too generous.
+  run and two of six failed, so "they exist and pass" was too generous. Wave F
+  found a third: `tier3-try-preview`, broken before this batch touched it.
 
 Four earlier decisions — items 8, 13, 23 and the two above — were ruled on during
 the session and are recorded in their own entries above.

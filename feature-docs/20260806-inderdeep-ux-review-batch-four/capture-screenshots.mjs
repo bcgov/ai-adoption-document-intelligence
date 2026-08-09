@@ -425,6 +425,40 @@ async function shootReplayBand(page, geometry, file, canvasBand = 460) {
   });
 }
 
+
+/**
+ * Runs the upload-driven try-in-place demo for real: picks the source card,
+ * pushes a sample PDF through its "Upload & Try" affordance, and waits until
+ * a result strip is actually carrying a value.
+ *
+ * There is no shortcut. A strip in its `ready` state is the one that shows the
+ * value's first line — the thing Alex ruled on — and the only way to get one
+ * is to make a run really produce a value.
+ */
+async function uploadAndRun(page) {
+  const sourceId = await page.evaluate(() => {
+    const el = document.querySelector('[data-node-type="source"]');
+    return el?.getAttribute("data-testid")?.replace("canvas-node-", "") ?? null;
+  });
+  if (!sourceId) throw new Error("no source node on this workflow");
+  await page.getByTestId(`canvas-node-${sourceId}`).click();
+  await page
+    .getByTestId("source-upload-button-section")
+    .waitFor({ timeout: 15000 });
+  await page
+    .getByTestId("source-upload-button-input")
+    .setInputFiles(join(REPO, "tests/e2e/workflow-builder/fixtures/documents/sample-invoice.pdf"));
+  await page
+    .getByTestId("source-upload-button-success")
+    .waitFor({ timeout: 90000 });
+  await page
+    .locator('[data-testid^="node-result-strip-"][data-state="ready"]')
+    .first()
+    .waitFor({ timeout: 90000 });
+  await page.waitForTimeout(2000);
+  return sourceId;
+}
+
 const SHOTS = {
   /** §1 — run-status badges: bare glyph inside the filled disc. */
   1: async (browser) => {
@@ -440,18 +474,19 @@ const SHOTS = {
       '.react-flow__node:has([data-testid="node-status-badge"][data-status="failed"])';
     const succeeded =
       '.react-flow__node:has([data-testid="node-status-badge"][data-status="succeeded"])';
-    await zoomOnto(page, failed, 460);
-    // Two tight crops rather than one wide one. A wide frame of this graph is
-    // unreadable right now because the preview panels grow the cards mid-run
-    // and they overlap their neighbours — that is checklist item 9, still
-    // open, and it is not what this shot is about.
-    await shootElement(page, failed, "01-node-status-badge-failed.png", 26);
-    await shootElement(
-      page,
-      succeeded,
-      "02-node-status-badge-succeeded.png",
-      26,
-    );
+    // ONE wide frame, since 2026-08-08. This was two tight crops, and the
+    // script said why: "a wide frame of this graph is unreadable right now
+    // because the preview panels grow the cards mid-run and they overlap
+    // their neighbours". That was item 9, and item 9 is fixed — the cards now
+    // keep their height and their width through a run, so both badges can be
+    // shown in the same frame, in the graph they actually live in.
+    await centreInCanvas(page, [failed, succeeded]);
+    await zoomOnto(page, [failed, succeeded], 760);
+    // Re-centre AFTER the zoom: zooming grows the pair about the cursor, so a
+    // union that fitted the pane before is half outside it after, and the crop
+    // comes back with the card the shot is about sliced down the middle.
+    await centreInCanvas(page, [failed, succeeded]);
+    await shootUnion(page, [failed, succeeded], "01-node-status-badges.png", 30);
     await page.close();
   },
 
@@ -761,14 +796,26 @@ const SHOTS = {
       }
       return best;
     });
-    if (!pair)
-      throw new Error("no two node cards overlap — item 9 did not reproduce");
-    const overlapping = pair.ids.map(
-      (id) => `.react-flow__node[data-id="${id}"]`,
-    );
-    await centreInCanvas(page, overlapping);
-    await zoomOnto(page, overlapping, 820);
-    await shootUnion(page, overlapping, "12-BEFORE-try-reflow-overlap.png", 30);
+    // INVERTED on 2026-08-08. This shot used to hunt for the worst overlap
+    // and frame it; `12-BEFORE-try-reflow-overlap.png` is that frame, kept as
+    // the before-picture and never re-taken. Now the same search runs as an
+    // ASSERTION: if any two cards still overlap after a Try, item 9 has
+    // regressed and the shot fails loudly rather than saving a frame that
+    // quietly contradicts its own caption.
+    if (pair) {
+      throw new Error(
+        `item 9 has regressed — ${pair.ids.join(" and ")} overlap by ` +
+          `${Math.round(pair.area)}px² after a Try`,
+      );
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(600);
+    await shootAround(page, ".react-flow", "20-AFTER-try-no-reflow.png", {
+      left: 0,
+      right: 0,
+      up: 0,
+      down: 0,
+    });
     await page.close();
   },
 
@@ -1088,6 +1135,43 @@ const SHOTS = {
       '[data-testid="run-drawer-tabs"]',
       "19-run-drawer-tabs-disposable-note.png",
       16,
+    );
+    await page.close();
+  },
+  /**
+   * §18 — item 9, the result strip. Three frames of the same card: before any
+   * run, after one, and with the popover open. The point of the set is that
+   * the first two are the SAME SIZE — which is the whole fix — and that the
+   * full value is still one click away rather than gone.
+   */
+  18: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-try-in-place-run-a-workflow-see-previews-part-9");
+
+    const sourceCard = '[data-node-type="source"]';
+    await centreInCanvas(page, sourceCard);
+    await zoomOnto(page, sourceCard, 620);
+    await shootElement(page, sourceCard, "21-result-strip-at-rest.png", 22);
+
+    // The upload panel needs the node selected, which the zoom above did not
+    // do; `uploadAndRun` selects it, and selecting it also opens the settings
+    // panel, so re-frame afterwards.
+    const sourceId = await uploadAndRun(page);
+    const card = `[data-testid="canvas-node-${sourceId}"]`;
+    await centreInCanvas(page, card);
+    await zoomOnto(page, card, 620);
+    await shootElement(page, card, "22-result-strip-ready.png", 22);
+
+    // The popover renders through Mantine's portal at 1:1, so it is legible
+    // whatever the canvas zoom — but it is not a descendant of the card, so
+    // the frame has to be the union of the two.
+    await page.getByTestId(`node-result-strip-${sourceId}`).click();
+    await page.waitForTimeout(1000);
+    await shootUnion(
+      page,
+      [card, '[data-testid^="node-result-detail-"]'],
+      "23-result-strip-popover.png",
+      24,
     );
     await page.close();
   },

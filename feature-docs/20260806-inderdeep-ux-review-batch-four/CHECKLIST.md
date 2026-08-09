@@ -189,15 +189,30 @@ other as an equivalent alternative.
 — top-bar actions ~L1784 (Try) and ~L1804 (Run this workflow);
 `features/workflow-builder/run/RunWorkflowDrawer.tsx`.
 
-### 9. [ ] Pressing Try resizes nodes, which then overlap
-**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
-[DECISIONS/09-try-reflow.md](DECISIONS/09-try-reflow.md). Mechanism measured:
-`estimateNodeHeight` makes no allowance for the preview, dagre separates ranks by
-60px, and the pane is capped at 200px — so a card grows up to 200px into a 60px
-gap, twice (skeleton, then content). The checklist's two options are a permanent
-resting-height cost (reserve) or occlusion instead of reflow (grow downward).
-Recommended: a fixed-height result strip in the card with the full preview in
-`WirePeekPopover`, which already renders this widget from the same query.
+### 9. [x] Pressing Try resizes nodes, which then overlap
+**Done 2026-08-08 (`b6877863`, `033664cf`) — Option C, as ruled.** See
+[DECISIONS/09-try-reflow.md](DECISIONS/09-try-reflow.md) for the ruling and
+[ILLUSTRATED.md §18](ILLUSTRATED.md) for the before/after. Mechanism measured:
+`estimateNodeHeight` made no allowance for the preview, dagre separates ranks by
+60px, and the pane was capped at 200px — so a card grew up to 200px into a 60px
+gap, twice (skeleton, then content). Every card that can produce output now
+carries a fixed-height one-line result strip at all times, including at rest
+("Not run yet"); the full preview opens in a popover behind it off the same
+shared query. Control-flow nodes draw no strip — zero height is as constant as
+30px is. The height constants were re-measured in Chromium rather than adjusted.
+
+**Verified in a browser**, because jsdom runs no layout: every card's
+`offsetHeight` and `offsetWidth` on `standard-ocr`, sampled before a Try, 24
+times during, and after — **0px drift in both axes on all 15 nodes**. The
+capture script's overlap hunt now runs as an assertion and fails loudly if two
+cards ever overlap again.
+
+**Two defects found while fixing it, both fixed here.** `evicted` was reachable
+during a live run, so a node that had just gone green reported "cached output
+has expired · Re-run" — blaming a TTL that had not expired and offering a
+Re-run that would have cancelled the run producing the output (this is how item
+10 was reproduced on a first, non-replay Try). And the strip itself widened the
+card: 200px → 606px when a long value landed, an axis auto-layout never checks.
 **Area:** Frontend — workflow-builder canvas / preview
 **Problem:** Alex, watching the shared screen: *"when you hit try, it also
 resized the boxes and they started to overlap in a strange way … it's kind of

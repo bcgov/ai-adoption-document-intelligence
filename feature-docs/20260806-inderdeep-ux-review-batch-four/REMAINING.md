@@ -1,8 +1,8 @@
 # What is left — batch four and the rest of Inderdeep's work
 
-**As at 2026-08-08, end of session.** 30 of 33 checklist items are done and
-committed on `feature/visual-workflow-builder`; the branch is clean and the full
-suites are green (backend 2863 tests / 153 suites, frontend 2614 / 210).
+**As at 2026-08-09.** 31 of 33 checklist items are done and committed on
+`feature/visual-workflow-builder`; the branch is clean and the frontend suite is
+green (2,685 tests / 212 files, up from 2,614 — item 9 added 71).
 
 This file exists so the chat can be compacted without losing the thread. The
 narrative is in [WORKLOG.md](WORKLOG.md), the pictures and the written change log
@@ -13,35 +13,15 @@ are in [ILLUSTRATED.md](ILLUSTRATED.md), the index is
 
 ## Ready to build — Alex has ruled
 
-### 1. Item 9 — stop the Try reflow · **Option C**
+### ~~1. Item 9 — the Try reflow~~ · **DONE 2026-08-09**
 
-Pressing Try grows each node's card by up to 200px into a 60px gap, twice (the
-loading skeleton, then the real content), so cards overrun their neighbours.
-Option C: reserve a **small fixed strip** in the card at rest — one line, roughly
-30px, showing a quiet "not run yet" — and move the full scrollable preview into
-`WirePeekPopover`, which already renders that widget from the same query. The
-card's height then never changes, so nothing can reflow.
+Shipped as Option C in `b6877863` + `033664cf`. Measured 0px height and width
+drift across a whole Try on all fifteen `standard-ocr` cards. The cache-evicted
+alert bug went with it — `evicted` is now reachable only in replay. Before and
+after are in [ILLUSTRATED.md §18](ILLUSTRATED.md); the narrative is Wave F in
+[WORKLOG.md](WORKLOG.md).
 
-Files: `preview/PreviewWidget.tsx`, `canvas/WorkflowEditorCanvas.tsx` node sizing,
-`canvas/port-rows.ts` (`estimateNodeHeight`), `canvas/WirePeekPopover.tsx`.
-
-**Do at the same time — the cache-evicted alert bug**, because it is the same
-file. `PreviewWidget`'s docblock says the recovery alert must only appear in
-replay, but the code has no replay check, which is how item 10 was reproduced on
-a first non-replay Try. Consequence: that preview row was probably never
-*written* rather than expired, which is why the copy says "isn't in the preview
-cache" rather than "has expired".
-
-**Then re-shoot** `screenshots/01-node-status-badge-failed.png` and
-`02-…-succeeded.png` as one wide frame. They are two tight crops only because the
-reflow made a wide frame unreadable; `12-BEFORE-try-reflow-overlap.png` is the
-kept before-shot.
-
-**Open sub-question:** does the strip show the **first line of the value**, or
-only **kind and status**? Recommended: the first line, accepting that it will
-look ragged across kinds.
-
-### 2. Item 33 — fix the two failing `@infra` tests
+### 2. Item 33 — fix the failing `@infra` tests
 
 Alex, 2026-08-08: *"just fix the tests."* Run with the **whole stack up** —
 frontend, backend, Temporal worker **and the deno-runner**. His standing rule from
@@ -54,10 +34,17 @@ tests/e2e/workflow-builder/specs/tier3-dynamic-node-*.spec.ts`
 (skip the DB reset so the seeded demos and the agent-chat demo row survive).
 
 - **`tier3-dynamic-node-run` — "a published node executes in a run and the node
-  succeeds"** fails in 55ms with a bare `Activity task failed`. Too fast to be the
-  sandbox, which is healthy. **Undiagnosed** — the real error is in the Temporal
-  worker's console, which was not readable last session. Start the worker
-  yourself and read it.
+  succeeds"** fails in 55ms with a bare `Activity task failed`. **Diagnosed
+  2026-08-09** by reading the worker log this session, which is the thing the
+  last one could not do. The worker says it plainly:
+
+  > `PLATFORM_API_KEY is not configured on the worker; dynamic-node scripts
+  > cannot authenticate their platform callbacks. Set the
+  > temporal-worker-secrets PLATFORM_API_KEY.`
+
+  So it is a worker configuration gap, not a code defect, and the 55ms is the
+  activity refusing before it ever reaches the sandbox. The fix is to give the
+  local worker that variable (name only — never the value) and re-run.
 - **`tier3-dynamic-node-security` — 14.11, "granting the host lifts the denial"**
   returns exit code −1; the runner log shows that `/execute` taking **5,006ms**,
   i.e. a timeout. The test assumes a fetch to a non-existent host fails fast; on
@@ -65,7 +52,16 @@ tests/e2e/workflow-builder/specs/tier3-dynamic-node-*.spec.ts`
   fine — the failing assertion is the exit code, and the companion test proving
   the allowlist *blocks* an ungranted host passed.
 
-The other four passed. Also worth fixing while there: the five experiment
+**`tier3-try-preview` is a THIRD pre-existing failure**, found on 2026-08-09
+and proven pre-existing by running it at `ebd52e1b`, where it fails *earlier* —
+at the wire peek, line 201, before reaching the node preview at all. Its later
+assertion is also unsound on its own terms: it reloads the editor and then
+expects a preview, but `RunStateProvider` starts every mount with
+`activeRunId = null`, which the result strip correctly reports as "Not run yet".
+Decide whether the assertion moves before the reload or the provider learns to
+restore the run.
+
+The other three passed. Also worth fixing while there: the five experiment
 runtime suites are gated on `CI` alone rather than an opt-in flag, so locally they
 run **by default** and connect to Temporal unguarded — a developer without the
 stack up gets a hard failure rather than a skip. That inverts the repo's own
