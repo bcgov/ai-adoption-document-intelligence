@@ -28,6 +28,23 @@ import type {
   GraphNode,
   GraphWorkflowConfig,
 } from "../../../types/workflow";
+import { portDotColor } from "./artifact-kind-colour";
+
+/**
+ * jsdom's CSSOM normalises every colour it parses to `rgb(r, g, b)`, so the
+ * literal family hexes the canvas paints since item 20 (they are literals
+ * because the app theme overrides Mantine's blue/gray scales, and the old
+ * `var(--mantine-color-*-6)` indirection therefore painted an unmeasured
+ * colour) read back in that form. Converting here keeps the assertions
+ * pointed at `portDotColor(...)` rather than at a pasted value.
+ */
+function rgbOf(hex: string): string {
+  const value = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) =>
+    Number.parseInt(value.slice(i, i + 2), 16),
+  );
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 // ---------------------------------------------------------------------------
 // `useActivityCatalog` depends on `GroupProvider` (via `useGroup`). The
@@ -313,8 +330,12 @@ describe("WorkflowEditorCanvas — activity port rows: single typed ports", () =
     const inputHandle = handleFor("in-source");
     expect(inputHandle.getAttribute("data-testid")).toBe("handle-target-left");
     expect(inputHandle.getAttribute("data-isconnectable")).toBe("true");
-    // MultiPageDocument → blue kind family.
-    expect(inputHandle.style.background).toContain("--mantine-color-blue-6");
+    // MultiPageDocument → the blue "Documents & files" family, drawn as a
+    // circle. Colour and shape are both stamped on the row since item 20, so
+    // the silhouette is asserted beside the hue.
+    expect(inputRow.getAttribute("data-port-color")).toBe("blue");
+    expect(inputRow.getAttribute("data-port-shape")).toBe("circle");
+    expect(inputHandle.style.background).toBe(rgbOf(portDotColor("blue")));
 
     const outputRow = screen.getByTestId("port-row-activity_1-out-segments");
     expect(outputRow.getAttribute("data-port-kind")).toBe("Segment[]");
@@ -324,8 +345,12 @@ describe("WorkflowEditorCanvas — activity port rows: single typed ports", () =
       "handle-source-right",
     );
     expect(outputHandle.getAttribute("data-isconnectable")).toBe("true");
-    // Segment[] → green kind family with the doubled array outline.
-    expect(outputHandle.style.background).toContain("--mantine-color-green-6");
+    // Segment[] → the violet "content taken out of a document" family (item
+    // 20 merged the old green Segment family into it), drawn as a square,
+    // with the doubled array outline on top.
+    expect(outputRow.getAttribute("data-port-color")).toBe("violet");
+    expect(outputRow.getAttribute("data-port-shape")).toBe("square");
+    expect(outputHandle.style.background).toBe(rgbOf(portDotColor("violet")));
     expect(outputHandle.style.outline).toContain("2px solid");
   });
 
@@ -368,30 +393,57 @@ describe("WorkflowEditorCanvas — activity port rows: multi-port nodes get one 
     ).toBe("ValidationResult");
 
     // Per-port colours replace the old side-level gray collapse.
-    expect(handleFor("in-segment").style.background).toContain(
-      "--mantine-color-green-6",
-    );
-    expect(handleFor("in-ocr").style.background).toContain(
-      "--mantine-color-violet-6",
-    );
-    expect(handleFor("out-classification").style.background).toContain(
-      "--mantine-color-yellow-6",
-    );
+    //
+    // `Segment` and `OcrResult` are deliberately ONE family now (item 20):
+    // both are "content taken out of a document", and the extra hue they used
+    // to spend on being separate collided with another family under
+    // colour-vision deficiency. So these two rows must AGREE — what still
+    // tells the ports apart is the kind literal asserted above, which the row
+    // carries as `data-port-kind` and renders in its tooltip.
+    const violet = rgbOf(portDotColor("violet"));
+    expect(handleFor("in-segment").style.background).toBe(violet);
+    expect(handleFor("in-ocr").style.background).toBe(violet);
+    for (const handleId of ["in-segment", "in-ocr"]) {
+      expect(
+        screen
+          .getByTestId(`port-row-activity_1-${handleId}`)
+          .getAttribute("data-port-shape"),
+      ).toBe("square");
+    }
+
+    // Classification and ValidationResult are the yellow "judgements about a
+    // document" family — a diamond, so the two output rows are separable from
+    // the violet inputs without relying on hue at all.
+    const yellow = rgbOf(portDotColor("yellow"));
+    expect(handleFor("out-classification").style.background).toBe(yellow);
+    expect(handleFor("out-validation").style.background).toBe(yellow);
+    expect(
+      screen
+        .getByTestId("port-row-activity_1-out-classification")
+        .getAttribute("data-port-shape"),
+    ).toBe("diamond");
   });
 
   it("test.untyped (no kinds declared) renders rows as the gray Artifact wildcard", () => {
     renderCanvas(makeConfigWith("test.untyped"));
 
-    const inputRow = screen.getByTestId("port-row-activity_1-in-in");
-    expect(inputRow.getAttribute("data-port-kind")).toBe("Artifact");
-    expect(handleFor("in-in").style.background).toContain(
-      "--mantine-color-gray-6",
-    );
-    const outputRow = screen.getByTestId("port-row-activity_1-out-out");
-    expect(outputRow.getAttribute("data-port-kind")).toBe("Artifact");
-    expect(handleFor("out-out").style.background).toContain(
-      "--mantine-color-gray-6",
-    );
+    // The untyped family is the one that is NOT filled: a hollow circle with
+    // the family colour on its border and the canvas body colour in the
+    // middle, which is what "this port takes anything" should look like. So
+    // the gray hex is asserted on the border, not the background.
+    const gray = rgbOf(portDotColor("gray"));
+    for (const [handleId, testId] of [
+      ["in-in", "port-row-activity_1-in-in"],
+      ["out-out", "port-row-activity_1-out-out"],
+    ] as const) {
+      const row = screen.getByTestId(testId);
+      expect(row.getAttribute("data-port-kind")).toBe("Artifact");
+      expect(row.getAttribute("data-port-color")).toBe("gray");
+      expect(row.getAttribute("data-port-shape")).toBe("hollow");
+      const handle = handleFor(handleId);
+      expect(handle.style.background).toContain("--mantine-color-body");
+      expect(handle.style.border).toContain(gray);
+    }
   });
 });
 
@@ -541,10 +593,11 @@ describe("WorkflowEditorCanvas — unconnected required ports invite with a '+'"
     // the body colour, so it must not repaint the dot.
     renderCanvas(makeConfigWith("test.split"));
     const inputHandle = handleFor("in-source");
-    expect(inputHandle.style.background).toContain("--mantine-color-blue-6");
+    expect(inputHandle.style.background).toBe(rgbOf(portDotColor("blue")));
     expect(inputHandle.querySelectorAll("[data-port-plus]")).toHaveLength(2);
     const outputHandle = handleFor("out-segments");
-    expect(outputHandle.style.background).toContain("--mantine-color-green-6");
+    // Segment[] is the violet family since item 20 — the glyph leaves it be.
+    expect(outputHandle.style.background).toBe(rgbOf(portDotColor("violet")));
     // The array-cardinality outline survives alongside the glyph.
     expect(outputHandle.style.outline).toContain("2px solid");
     expect(outputHandle.querySelectorAll("[data-port-plus]")).toHaveLength(2);

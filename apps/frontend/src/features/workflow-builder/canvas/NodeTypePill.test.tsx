@@ -32,7 +32,10 @@ describe("NodeTypePill — Scenario 1: single typed port renders one uppercase b
     expect(pill).toBeInTheDocument();
     expect(pill).toHaveTextContent("SEGMENT[]");
     expect(pill.getAttribute("data-pill-direction")).toBe("output");
-    expect(pill.getAttribute("data-pill-color")).toBe("green");
+    // Item 20 (2026-08-09): `Segment*` was its own green family; it now shares
+    // the violet "content taken out of a document" family with `Ocr*`, and
+    // `green` is no longer a family token at all.
+    expect(pill.getAttribute("data-pill-color")).toBe("violet");
     expect(pill.getAttribute("data-pill-kind")).toBe("Segment[]");
   });
 
@@ -79,15 +82,22 @@ describe("NodeTypePill — Scenario 2: multi-port renders an expanded list with 
     expect(confidenceRow).toHaveTextContent("confidence: Artifact");
     expect(matchedRuleRow).toHaveTextContent("matchedRule: Artifact");
 
-    // Per-row colour: Classification → yellow (Mantine's amber); Artifact
-    // wildcards → gray. The colour differs between the two families which
-    // satisfies the "different colour attribute" assertion in the story.
+    // Per-row colour: Classification → yellow (the "judgements about a
+    // document" family); Artifact wildcards → gray. The colour differs
+    // between the two families which satisfies the "different colour
+    // attribute" assertion in the story.
     expect(classificationRow?.getAttribute("data-pill-color")).toBe("yellow");
     expect(confidenceRow?.getAttribute("data-pill-color")).toBe("gray");
     expect(matchedRuleRow?.getAttribute("data-pill-color")).toBe("gray");
   });
 
-  it("renders the multi-port input pill with two typed rows and distinct family colours", () => {
+  it("renders OcrResult and Segment as one violet family, told apart by the kind literal", () => {
+    // This test used to assert that these two rows carried DIFFERENT colours.
+    // Item 20 deliberately merged them: `Ocr*` and `Segment*` both mean
+    // "content taken out of a document", and keeping them apart cost a hue
+    // that collided with another family under colour-vision deficiency. So
+    // the contract now is that they AGREE on the family — and that the row
+    // text, which reads `<portName>: <kind>`, is what separates them.
     renderPill(
       [
         { portName: "ocrResult", kind: "OcrResult" },
@@ -104,7 +114,11 @@ describe("NodeTypePill — Scenario 2: multi-port renders an expanded list with 
     expect(ocrRow).toHaveTextContent("ocrResult: OcrResult");
     expect(segmentRow).toHaveTextContent("segment: Segment");
     expect(ocrRow?.getAttribute("data-pill-color")).toBe("violet");
-    expect(segmentRow?.getAttribute("data-pill-color")).toBe("green");
+    expect(segmentRow?.getAttribute("data-pill-color")).toBe("violet");
+    // The kind literal is the surviving distinction, and it is on the pill
+    // itself as well as in its text.
+    expect(ocrRow?.getAttribute("data-pill-kind")).toBe("OcrResult");
+    expect(segmentRow?.getAttribute("data-pill-kind")).toBe("Segment");
   });
 });
 

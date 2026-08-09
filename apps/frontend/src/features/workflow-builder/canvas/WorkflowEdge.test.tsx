@@ -25,8 +25,13 @@ import type {
   SwitchNode,
 } from "../../../types/workflow";
 import { getControlFlowVisualHints } from "../control-flow-visual-hints";
+import { portDotColor } from "./artifact-kind-colour";
 import type { DataWire, StructuralWire } from "./derive-wires";
 import {
+  ACTIVE_STROKE,
+  ERROR_STROKE,
+  SEQUENCE_STROKE,
+  TAKEN_STROKE,
   WorkflowEdge,
   type WorkflowEdgeData,
   wireTooltip,
@@ -88,6 +93,24 @@ vi.mock("@xyflow/react", () => ({
 // ---------------------------------------------------------------------------
 
 const SWITCH_ACCENT = getControlFlowVisualHints("switch").color;
+
+/**
+ * jsdom's CSSOM normalises every colour it parses to `rgb(r, g, b)`, so the
+ * literal stroke hexes this component now uses read back in that form. Since
+ * item 20 (2026-08-09) the sequence, error and data-wire strokes are LITERALS
+ * rather than `var(--mantine-color-*-6)` — the app theme overrides Mantine's
+ * gray/red/blue scales, so the old indirection painted a colour nobody had
+ * measured. Converting here lets the assertions name the exported constant
+ * (`SEQUENCE_STROKE`, `ERROR_STROKE`, `portDotColor(...)`) instead of pasting
+ * the value the constant exists to own.
+ */
+function rgbOf(hex: string): string {
+  const value = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) =>
+    Number.parseInt(value.slice(i, i + 2), 16),
+  );
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 type WorkflowEdgeProps = EdgeProps & { data?: WorkflowEdgeData };
 
@@ -185,7 +208,7 @@ describe("WorkflowEdge — Scenario 1: normal edge", () => {
         data: { graphEdge },
       }),
     );
-    expectBaseEdgeStroke("rgb(156, 163, 175)");
+    expectBaseEdgeStroke(rgbOf(SEQUENCE_STROKE));
     expect(screen.queryByTestId("edge-label")).not.toBeInTheDocument();
   });
 });
@@ -217,16 +240,19 @@ describe("WorkflowEdge — Scenario 2: conditional edge from switch with matchin
     );
     const label = screen.getByTestId("edge-label");
     expect(label).toHaveTextContent("if ctx.requiresReview is true");
-    // SWITCH_ACCENT is "#facc15" → rgb(250, 204, 21) once jsdom
-    // normalises the CSSOM colour.
-    expectBaseEdgeStroke("rgb(250, 204, 21)");
+    // The switch accent is its own thing — a control-flow hint, not a port
+    // family — so it is read from `getControlFlowVisualHints` and converted
+    // the same way the family hexes are.
+    expectBaseEdgeStroke(rgbOf(SWITCH_ACCENT));
     // Label border uses the switch accent colour too — jsdom serialises
     // the colour as the same rgb(...) string.
-    expect(label.getAttribute("style") ?? "").toContain("rgb(250, 204, 21)");
-    // Sanity check the source-of-truth hex hasn't drifted away from the
-    // computed rgb. If the visual-hints accent ever changes, this catches
-    // it before the rgb assertions go stale.
-    expect(SWITCH_ACCENT).toBe("#facc15");
+    expect(label.getAttribute("style") ?? "").toContain(rgbOf(SWITCH_ACCENT));
+    // There used to be a hardcoded `expect(SWITCH_ACCENT).toBe("#facc15")`
+    // here, guarding hand-written `rgb(250, 204, 21)` assertions against the
+    // accent moving. Both assertions above now derive from the constant
+    // itself, so the stroke and the label border are pinned to ONE source of
+    // truth — pinning the hex a second time only re-creates the drift this
+    // test file was trying to catch.
   });
 });
 
@@ -304,10 +330,13 @@ describe("WorkflowEdge — Scenario 5: error edge", () => {
         data: { graphEdge },
       }),
     );
-    // The component uses `var(--mantine-color-red-6, #e03131)` for the
-    // error stroke. jsdom doesn't resolve the var token but keeps the
-    // raw string in the serialised style attribute.
-    expectBaseEdgeStroke("var(--mantine-color-red-6, #e03131)");
+    // The error stroke is now the exported literal `ERROR_STROKE`, not
+    // `var(--mantine-color-red-6, …)`: the app theme overrides Mantine's red
+    // scale, so that variable resolved to a dark maroon on the wire while the
+    // handle dot beside it was a bright red — two reds for one concept. The
+    // dot imports the same constant, so wire and dot are one colour by
+    // construction (item 20, drift 2).
+    expectBaseEdgeStroke(rgbOf(ERROR_STROKE));
     expect(screen.getByTestId("edge-label")).toHaveTextContent("on error");
   });
 });
@@ -323,9 +352,10 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         data: { wire },
       }),
     );
-    // `Document` → registry colour "blue" → the same shade-6 Mantine
-    // variable the port dots use.
-    expectBaseEdgeStroke("var(--mantine-color-blue-6, blue)");
+    // `Document` → the blue "Documents & files" family → literally the same
+    // value `portDotColor` hands the port dots, so wire and endpoints cannot
+    // drift apart.
+    expectBaseEdgeStroke(rgbOf(portDotColor("blue")));
     expect(screen.queryByTestId("edge-label")).not.toBeInTheDocument();
     const group = getWireGroup(container);
     expect(group.getAttribute("data-wire-variant")).toBe("data");
@@ -402,7 +432,7 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         data: { wire, graphEdge },
       }),
     );
-    expectBaseEdgeStroke("rgb(156, 163, 175)");
+    expectBaseEdgeStroke(rgbOf(SEQUENCE_STROKE));
     const styleAttr =
       screen.getByTestId("base-edge").getAttribute("style") ?? "";
     expect(styleAttr).toContain("stroke-dasharray: 6 4");
@@ -433,7 +463,8 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         data: { wire, graphEdge },
       }),
     );
-    expectBaseEdgeStroke("var(--mantine-color-red-6, #e03131)");
+    // Same one red as the Scenario 5 edge and as the error handle dot.
+    expectBaseEdgeStroke(rgbOf(ERROR_STROKE));
     expect(screen.getByTestId("edge-label")).toHaveTextContent("on error");
     expect(getWireGroup(container).getAttribute("data-wire-variant")).toBe(
       "error",
@@ -451,7 +482,7 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         data: { wire: makeDataWire({ kind: undefined }), isActive: true },
       }),
     );
-    expectBaseEdgeStroke("var(--mantine-color-blue-6, #228be6)");
+    expectBaseEdgeStroke(rgbOf(ACTIVE_STROKE));
     const styleAttr =
       screen.getByTestId("base-edge").getAttribute("style") ?? "";
     expect(styleAttr).toContain("stroke-width: 2.5");
@@ -468,7 +499,7 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         data: { wire: makeDataWire({ kind: undefined }), isTaken: true },
       }),
     );
-    expectBaseEdgeStroke("var(--mantine-color-blue-4, #74c0fc)");
+    expectBaseEdgeStroke(rgbOf(TAKEN_STROKE));
   });
 
   it("a live in-flight edge still wins over the taken-path stroke (regression)", () => {
@@ -484,7 +515,7 @@ describe("WorkflowEdge — wire variants (port-to-port wires phase)", () => {
         },
       }),
     );
-    expectBaseEdgeStroke("var(--mantine-color-blue-6, #228be6)");
+    expectBaseEdgeStroke(rgbOf(ACTIVE_STROKE));
   });
 });
 
@@ -515,7 +546,7 @@ describe("WorkflowEdge — selection indicator", () => {
     expect(styleAttr).toContain("stroke-width: 3.5");
     // Selection is additive — the sequence dash + grey stroke survive.
     expect(styleAttr).toContain("stroke-dasharray: 6 4");
-    expect(styleAttr).toContain("stroke: rgb(156, 163, 175)");
+    expect(styleAttr).toContain(`stroke: ${rgbOf(SEQUENCE_STROKE)}`);
     expect(styleAttr).toContain("drop-shadow");
   });
 

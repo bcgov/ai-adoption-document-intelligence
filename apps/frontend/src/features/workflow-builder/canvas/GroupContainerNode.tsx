@@ -26,6 +26,7 @@
 import type { Node, NodeProps } from "@xyflow/react";
 import { memo } from "react";
 import { GROUP_ICONS } from "../group/group-icons";
+import { AUTHORED_GROUP_ACCENT, MAP_BODY_ACCENT } from "../node-accents";
 import { isSyntheticMapBodyGroupId } from "./map-body-groups";
 
 /**
@@ -74,16 +75,22 @@ export type GroupContainerFlowNode = Node<
   "group-container"
 >;
 
-/** Default accents: violet for authored groups, green for map bodies. */
-const AUTHORED_ACCENT = "#7950f2";
-const MAP_BODY_ACCENT = "#22c55e";
+/*
+ * Default accents. Both come from `node-accents.ts` now (item 20): a map
+ * body's outline is the SAME value as the map node's own accent, because it
+ * IS that node's body, and an authored group takes the neutral because it is
+ * a plain user-made grouping. The old pair was a violet that matched nothing
+ * and a green (`#22c55e`) shared with the map node AND an activity category —
+ * one colour, three meanings.
+ */
 
 export const GroupContainerNode = memo(function GroupContainerNode({
   data,
   selected,
 }: NodeProps<GroupContainerFlowNode>) {
   const synthetic = isSyntheticMapBodyGroupId(data.groupId);
-  const accent = data.color ?? (synthetic ? MAP_BODY_ACCENT : AUTHORED_ACCENT);
+  const accent =
+    data.color ?? (synthetic ? MAP_BODY_ACCENT : AUTHORED_GROUP_ACCENT);
   const IconComponent = data.icon ? GROUP_ICONS[data.icon] : undefined;
   return (
     <div

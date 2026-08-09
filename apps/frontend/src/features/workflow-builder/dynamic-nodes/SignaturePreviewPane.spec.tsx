@@ -8,15 +8,13 @@
 
 import "@testing-library/jest-dom";
 
-import type { DynamicNodeSignature } from "@ai-di/graph-workflow";
+import type { DynamicNodeSignature, KindRef } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { colorForKind, portDotColor } from "../canvas/artifact-kind-colour";
 import { SignaturePreviewPane } from "./SignaturePreviewPane";
-import {
-  KIND_COLOR_TOKENS,
-  resolveKindColor,
-} from "./signature-preview-helpers";
+import { resolveKindColor } from "./signature-preview-helpers";
 
 function fullSignature(): DynamicNodeSignature {
   return {
@@ -108,17 +106,17 @@ describe("SignaturePreviewPane (US-178)", () => {
       screen.queryByTestId("signature-preview-inputs-required-opts"),
     ).not.toBeInTheDocument();
 
-    // Kind dots use the Phase 3 palette tokens
+    // Kind dots use the SAME family colours the canvas paints
     const docDot = screen.getByTestId("signature-preview-inputs-dot-document");
     expect(docDot.getAttribute("data-kind-color")).toBe(
-      KIND_COLOR_TOKENS.Document,
+      portDotColor(colorForKind("Document")),
     );
     const resultDot = screen.getByTestId(
       "signature-preview-outputs-dot-result",
     );
     // `OcrTable[]` strips to `OcrTable` for the colour lookup.
     expect(resultDot.getAttribute("data-kind-color")).toBe(
-      KIND_COLOR_TOKENS.OcrTable,
+      portDotColor(colorForKind("OcrTable")),
     );
   });
 
@@ -168,17 +166,41 @@ describe("SignaturePreviewPane (US-178)", () => {
   });
 });
 
-describe("resolveKindColor (US-178 — Phase 3 palette dot helper)", () => {
-  it("maps known scalar kinds to their Phase 3 token", () => {
-    expect(resolveKindColor("Document")).toBe(KIND_COLOR_TOKENS.Document);
-    expect(resolveKindColor("OcrTable")).toBe(KIND_COLOR_TOKENS.OcrTable);
+describe("resolveKindColor (US-178 dot helper, rebased on the registry in item 20)", () => {
+  /*
+   * These used to compare `resolveKindColor(k)` with `KIND_COLOR_TOKENS[k]` —
+   * the helper against the map it read, which passes no matter what either one
+   * says. What actually matters is that the signature preview and the CANVAS
+   * paint one kind one colour, so that is what is asserted now. It is the
+   * assertion that would have caught the real defect: the old map coloured
+   * `Segment` teal where the registry says violet.
+   */
+  it("agrees with the canvas on every kind the canvas knows", () => {
+    const kinds: KindRef[] = [
+      "Document",
+      "Segment",
+      "OcrTable",
+      "ValidationResult",
+    ];
+    for (const kind of kinds) {
+      expect(resolveKindColor(kind)).toBe(portDotColor(colorForKind(kind)));
+    }
+  });
+
+  it("puts a kind in its family's colour, not its own", () => {
+    // Both are "content taken out of a document" — one violet, by design.
+    expect(resolveKindColor("Segment")).toBe(resolveKindColor("OcrTable"));
+    // A judgement about a document is a different family from the document.
+    expect(resolveKindColor("ValidationResult")).not.toBe(
+      resolveKindColor("Document"),
+    );
   });
 
   it("treats `<Kind>[]` arrays as the scalar kind for color", () => {
-    expect(resolveKindColor("Document[]")).toBe(KIND_COLOR_TOKENS.Document);
+    expect(resolveKindColor("Document[]")).toBe(resolveKindColor("Document"));
   });
 
-  it("falls back to gray for unknown kinds", () => {
-    expect(resolveKindColor("UnknownKind")).toBe("#6b7280");
+  it("falls back to the untyped grey for unknown kinds", () => {
+    expect(resolveKindColor("UnknownKind")).toBe(portDotColor("gray"));
   });
 });

@@ -35,11 +35,13 @@ import {
   useContext,
 } from "react";
 
-import { colorForKind } from "./artifact-kind-colour";
+import { colorForKind, shapeForColor } from "./artifact-kind-colour";
 import {
+  BASE_HANDLE_SIZE,
   handleArrayOutline,
   handleBackground,
   plusGlyphBarStyles,
+  portShapeStyle,
   UNCONNECTED_HANDLE_SIZE,
 } from "./handle-style";
 import {
@@ -110,7 +112,8 @@ const DROP_COMPATIBLE_HANDLE_SIZE = 16;
  * so their ring widens to 7px to clear the outline — otherwise the two
  * cues stack into one muddled halo.
  */
-const NEEDS_SOURCE_RING = "0 0 0 3px var(--mantine-color-yellow-5, #fab005)";
+export const NEEDS_SOURCE_RING =
+  "0 0 0 3px var(--mantine-color-yellow-5, #fab005)";
 const NEEDS_SOURCE_RING_ARRAY =
   "0 0 0 7px var(--mantine-color-yellow-5, #fab005)";
 
@@ -169,9 +172,11 @@ function PortRow({
 }) {
   const isInput = row.direction === "input";
   const color = colorForKind(row.kind);
+  // The family's silhouette — the same signal the colour carries, drawn a
+  // second way so colour is never load-bearing on its own (item 20).
+  const shape = shapeForColor(color);
   const isArray = row.kind?.endsWith("[]") === true;
   const invites = invitesConnection(row);
-  const plusBars = plusGlyphBarStyles();
 
   const drag = useContext(PortDragContext);
   // Input rows classify against the in-flight drag; wildcard (base
@@ -184,12 +189,46 @@ function PortRow({
         isAssignable(drag.sourceKind, row.kind)
       : null;
 
+  /*
+   * The dot grows in two states, and `portShapeStyle` derives the shape's
+   * width/height from whichever size wins here.
+   *
+   * An inviting dot grows so the "+" it carries reads as a plus rather than as
+   * a smudge inside a ring — see `handle-style.ts` for why the glyph is drawn
+   * at this size and not inside the base 12px dot. A compatible drop target
+   * grows for the same reason it always did (§6.2).
+   *
+   * Both grow via explicit width/height, never `transform: scale()`: xyflow's
+   * base `.react-flow__handle-left`/`-right` CSS classes already apply a
+   * `translate(±50%, -50%)` positioning transform, and that percentage is
+   * resolved against the handle's OWN box size at layout time — so enlarging
+   * width/height keeps the dot centred on the same anchor point for free,
+   * whereas an inline `transform` would outright replace (not compose with)
+   * the class's translate and knock the dot off-position. `portShapeStyle`
+   * composes the translate back in for the one shape that needs a transform.
+   */
+  const size =
+    dropCompatible === true
+      ? DROP_COMPATIBLE_HANDLE_SIZE
+      : invites
+        ? UNCONNECTED_HANDLE_SIZE
+        : BASE_HANDLE_SIZE;
+  const plusBars = plusGlyphBarStyles(shape, size);
+
   const handleStyle: CSSProperties = {
     background: handleBackground(color),
     top: "50%",
     ...(isInput ? { left: INPUT_HANDLE_LEFT } : { right: OUTPUT_HANDLE_RIGHT }),
+    // Sizing + silhouette. Spread AFTER `background` because the `hollow`
+    // family empties the dot and spends its border on the family colour.
+    ...portShapeStyle(shape, {
+      color,
+      size,
+      side: isInput ? "left" : "right",
+    }),
     // Doubled outline signals `T[]` cardinality — mirrors the node-level
-    // handle cue. `outline` (not `border`) so hit-testing is unaffected.
+    // handle cue. `outline` (not `border`) so hit-testing is unaffected, and
+    // it follows the shape's `border-radius` for free.
     ...(isArray
       ? {
           outline: `2px solid ${handleArrayOutline(color)}`,
@@ -199,32 +238,14 @@ function PortRow({
     ...(row.needsSource
       ? { boxShadow: isArray ? NEEDS_SOURCE_RING_ARRAY : NEEDS_SOURCE_RING }
       : {}),
-    // An inviting dot grows so the "+" it carries reads as a plus rather
-    // than as a smudge inside a ring — see `handle-style.ts` for why the
-    // glyph is drawn at this size and not inside the base 12px dot.
-    ...(invites
-      ? { width: UNCONNECTED_HANDLE_SIZE, height: UNCONNECTED_HANDLE_SIZE }
-      : {}),
-    // Enlarge the dot for a compatible drop target during a drag. Grown via
-    // explicit width/height (not `transform: scale()`): xyflow's base
-    // `.react-flow__handle-left`/`-right` CSS classes already apply a
-    // `translate(-50%, -50%)` positioning transform, and that percentage is
-    // resolved against the handle's OWN box size at layout time — so
-    // enlarging width/height keeps the dot centred on the same anchor point
-    // for free, whereas an inline `transform` would outright replace (not
-    // compose with) the class's translate and knock the dot off-position.
-    ...(dropCompatible === true
-      ? {
-          width: DROP_COMPATIBLE_HANDLE_SIZE,
-          height: DROP_COMPATIBLE_HANDLE_SIZE,
-        }
-      : {}),
   };
 
   return (
     <div
       data-testid={`port-row-${nodeId}-${row.handleId}`}
       data-port-kind={row.kind ?? "Artifact"}
+      data-port-color={color}
+      data-port-shape={shape}
       data-needs-source={row.needsSource ? "true" : "false"}
       data-invites-connection={invites ? "true" : "false"}
       data-from-ctx={row.fromCtx}

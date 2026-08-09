@@ -51,19 +51,15 @@ import {
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
 
-const COLOR_TOKENS: Record<string, string> = {
-  blue: "#3b82f6",
-  teal: "#14b8a6",
-  green: "#22c55e",
-  orange: "#f97316",
-  red: "#ef4444",
-  indigo: "#6366f1",
-  gray: "#6b7280",
-  cyan: "#06b6d4",
-  violet: "#8b5cf6",
-  lavender: "#a78bfa",
-  yellow: "#eab308",
-};
+import { ACTIVITY_ACCENT } from "./node-accents";
+
+// The seven-colour `COLOR_TOKENS` map that used to live here is gone (item 20,
+// 2026-08-09). It gave each activity CATEGORY its own accent, and those seven
+// plus the six control-flow accents produced 14 colliding pairs under
+// colour-vision simulation — including `#22c55e` meaning three different
+// things. Every activity now takes one accent; the category is still carried
+// by the icon, the label, and the palette sidebar's grouping. See
+// `node-accents.ts` for the measurement and the roles.
 
 export interface TablerIconProps {
   size?: number | string;
@@ -142,7 +138,7 @@ export function getActivityVisualHints(
     return {
       displayName: activityType,
       category: "Unknown",
-      color: COLOR_TOKENS.gray,
+      color: ACTIVITY_ACCENT,
       Icon: UNKNOWN_ACTIVITY_ICON,
       description: "Unregistered activity.",
     };
@@ -150,7 +146,7 @@ export function getActivityVisualHints(
   return {
     displayName: entry.displayName ?? entry.activityType,
     category: entry.category,
-    color: COLOR_TOKENS[entry.colorHint] ?? COLOR_TOKENS.gray,
+    color: ACTIVITY_ACCENT,
     Icon: ICON_COMPONENTS[entry.iconHint] ?? UNKNOWN_HINT_ICON,
     description: entry.description,
   };

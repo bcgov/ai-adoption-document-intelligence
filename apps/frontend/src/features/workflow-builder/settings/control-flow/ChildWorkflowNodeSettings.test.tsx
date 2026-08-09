@@ -749,12 +749,14 @@ describe("ChildWorkflowNodeSettings — US-100 Scenario 2: signature summary sur
       "child-workflow-node-settings-input-port-Doc",
     );
     expect(inputRow.textContent ?? "").toContain("Doc (string, Document)");
-    // The KindDot's `data-kind-dot` attribute is rendered as a child span.
+    // The KindDot's `data-kind-dot` attribute is rendered as a child span. It
+    // carries the family token AND its silhouette as attributes (item 20), so
+    // the assertion no longer has to reach into the inline style — which is
+    // just as well, because the palette is literal hexes now.
     const inputDot = inputRow.querySelector('[data-kind-dot="Document"]');
     expect(inputDot).not.toBeNull();
-    expect((inputDot as HTMLElement).style.background).toContain(
-      "--mantine-color-blue-6",
-    );
+    expect(inputDot?.getAttribute("data-kind-color")).toBe("blue");
+    expect(inputDot?.getAttribute("data-kind-shape")).toBe("circle");
 
     // Output row — surfaces the typed text + dot.
     const outputRow = await screen.findByTestId(
@@ -767,10 +769,9 @@ describe("ChildWorkflowNodeSettings — US-100 Scenario 2: signature summary sur
       '[data-kind-dot="Classification"]',
     );
     expect(outputDot).not.toBeNull();
-    // Classification → "yellow" in the registry (per artifact-registry.ts).
-    expect((outputDot as HTMLElement).style.background).toContain(
-      "--mantine-color-yellow-6",
-    );
+    // Classification is a JUDGEMENT about a document — yellow, and a diamond.
+    expect(outputDot?.getAttribute("data-kind-color")).toBe("yellow");
+    expect(outputDot?.getAttribute("data-kind-shape")).toBe("diamond");
 
     // The Track 3 version badge MUST still render alongside the new
     // annotations (Scenario 2 explicit: kind annotations coexist with the

@@ -39,11 +39,13 @@ import type {
   PollUntilNode,
   SwitchNode,
 } from "../../../types/workflow";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
 import { ORPHANED_DELETE_TOAST_ID } from "../delete-orphan-toast";
 import { layoutGraphWithMapBodies } from "./auto-layout";
 import { projectGroupedConfig } from "./group-projection";
 import { mergeNodeGroups, synthesizeMapBodyGroups } from "./map-body-groups";
 import type { WorkflowEdgeData } from "./WorkflowEdge";
+import { ERROR_STROKE, SEQUENCE_STROKE } from "./WorkflowEdge";
 import {
   DETACH_FULLY_TOAST_ID,
   releaseAnchorFromEvent,
@@ -1854,17 +1856,15 @@ describe("WorkflowEditorCanvas — US-025 wiring: WorkflowEdge edge-type registr
     // arrowhead marker colour, which must use the SAME palette so the
     // arrowhead never mismatches the stroke users see.
 
-    // Normal (bindings-free → sequence wire): grey marker.
-    expect(normalEdge?.markerEnd).toMatchObject({ color: "#9ca3af" });
-
-    // Conditional: switch accent marker.
-    expect(conditionalEdge?.markerEnd).toMatchObject({ color: "#facc15" });
-
-    // Error: red marker (matches the WorkflowEdge renderer's
-    // ERROR_STROKE colour).
-    expect(errorEdge?.markerEnd).toMatchObject({
-      color: "var(--mantine-color-red-6, #e03131)",
+    // Each marker is asserted against the constant the STROKE uses, not
+    // against a pasted hex. The pasted hexes are how these drifted: the error
+    // marker read the theme's dark `#822623` while the stroke it claimed to
+    // match rendered `#e03131` (item 20, drift 2).
+    expect(normalEdge?.markerEnd).toMatchObject({ color: SEQUENCE_STROKE });
+    expect(conditionalEdge?.markerEnd).toMatchObject({
+      color: getControlFlowVisualHints("switch").color,
     });
+    expect(errorEdge?.markerEnd).toMatchObject({ color: ERROR_STROKE });
   });
 });
 
@@ -1988,7 +1988,7 @@ describe("WorkflowEditorCanvas — wire projection (port-to-port wires)", () => 
     // wire data (WorkflowEdge.test.tsx covers it); the projection only
     // supplies the matching grey arrowhead marker.
     const projected = getCapturedEdges().find((e) => e.id === "e_bare");
-    expect(projected?.markerEnd).toMatchObject({ color: "#9ca3af" });
+    expect(projected?.markerEnd).toMatchObject({ color: SEQUENCE_STROKE });
   });
 
   it("anchors error edges at the bottom `error` source handle", async () => {

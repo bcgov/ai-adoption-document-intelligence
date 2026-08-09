@@ -28,13 +28,14 @@ import { useMemo } from "react";
 
 import type { GraphWorkflowConfig } from "../../../types/workflow";
 import { JsonSchemaForm, type JsonSchemaProperty } from "../json-schema-form";
+import { ACTIVITY_ACCENT } from "../node-accents";
 import { replaceNode } from "../replace-node";
 import {
   applySourceFieldRenames,
   readFields,
 } from "../settings/source-field-rename";
 import { SourceUploadButton } from "./SourceUploadButton";
-import { resolveSourceColor, resolveSourceIcon } from "./source-catalog-utils";
+import { resolveSourceIcon } from "./source-catalog-utils";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -149,7 +150,7 @@ export function SourceNodeSettings({
   }
 
   const Icon = resolveSourceIcon(entry.iconHint);
-  const iconColor = resolveSourceColor(entry.colorHint);
+  const iconColor = ACTIVITY_ACCENT;
 
   const showLabelOverride =
     node.label.length > 0 && node.label !== entry.displayName;

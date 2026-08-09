@@ -18,6 +18,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SourceNode } from "../../../types/workflow";
+import { handleBackground } from "../canvas/handle-style";
 
 // ---------------------------------------------------------------------------
 // xyflow mock — surfaces a minimal `<Handle>` stub that exposes
@@ -44,6 +45,7 @@ vi.mock("@xyflow/react", () => {
         data-handle-position={position}
         data-handleid={id ?? null}
         data-bg={style?.background as string | undefined}
+        data-border={style?.border as string | undefined}
       />
     ),
     Position: { Top: "top", Bottom: "bottom", Left: "left", Right: "right" },
@@ -128,8 +130,11 @@ describe("SourceNodeRenderer — Scenario 2: output handle colour per outputKind
     expect(wrapper.getAttribute("data-port-tooltip")).toBe("DocumentRef");
     const handle = screen.getByTestId("handle-source-right");
     expect(handle).toBeInTheDocument();
-    // The handle dot picks up the `--mantine-color-blue-6` CSS variable.
-    expect(handle.getAttribute("data-bg")).toContain("blue");
+    // The dot takes the SAME value every other Documents-family port dot
+    // takes. This file used to hold its own copy of the colour helper, which
+    // would have painted a source's output dot differently from an identical
+    // port anywhere else once the palette became literal (item 20).
+    expect(handle.getAttribute("data-bg")).toBe(handleBackground("blue"));
   });
 
   it("colours the output handle gray for source.api (Artifact)", () => {
@@ -138,7 +143,15 @@ describe("SourceNodeRenderer — Scenario 2: output handle colour per outputKind
     expect(wrapper.getAttribute("data-port-color")).toBe("gray");
     expect(wrapper.getAttribute("data-port-tooltip")).toBe("Artifact");
     const handle = screen.getByTestId("handle-source-right");
-    expect(handle.getAttribute("data-bg")).toContain("gray");
+    // An untyped port is drawn HOLLOW (item 20) — the shape carrier empties
+    // the dot and spends its border on the family colour, so the grey is in
+    // the border and the background is the canvas body.
+    expect(handle.getAttribute("data-bg")).toBe(
+      "var(--mantine-color-body, #fff)",
+    );
+    expect(handle.getAttribute("data-border")).toBe(
+      `2px solid ${handleBackground("gray")}`,
+    );
   });
 
   it("renders exactly one `type='source'` handle (no extras)", () => {

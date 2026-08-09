@@ -91,26 +91,42 @@ describe("ARTIFACT_REGISTRY (v1 snapshot)", () => {
     }
   });
 
-  it("matches TYPED_IO_DESIGN.md §4 palette (colour spot-checks)", () => {
+  it("matches TYPED_IO_DESIGN.md §4 palette — FIVE families, not one per kind", () => {
+    // Item 20 (2026-08-09) cut seven port families to five, because the seven
+    // had three pairs a dichromat cannot separate. `green` and `cyan` are gone
+    // as family tokens: Segment merged into OcrResult's violet ("content taken
+    // out of a document") and Identifier into Reference's teal ("pointers").
     expect(ARTIFACT_REGISTRY.Artifact.color).toBe("gray");
 
     expect(ARTIFACT_REGISTRY.Document.color).toBe("blue");
     expect(ARTIFACT_REGISTRY.MultiPageDocument.color).toBe("blue");
     expect(ARTIFACT_REGISTRY.SinglePageDocument.color).toBe("blue");
 
-    expect(ARTIFACT_REGISTRY.Segment.color).toBe("green");
-    expect(ARTIFACT_REGISTRY["Segment<Table>"].color).toBe("green");
-    expect(ARTIFACT_REGISTRY["Segment<KeyValue>"].color).toBe("green");
-
+    expect(ARTIFACT_REGISTRY.Segment.color).toBe("violet");
+    expect(ARTIFACT_REGISTRY["Segment<Table>"].color).toBe("violet");
+    expect(ARTIFACT_REGISTRY["Segment<KeyValue>"].color).toBe("violet");
     expect(ARTIFACT_REGISTRY.OcrResult.color).toBe("violet");
     expect(ARTIFACT_REGISTRY.OcrFields.color).toBe("violet");
     expect(ARTIFACT_REGISTRY.OcrTable.color).toBe("violet");
 
-    // "amber" in the design doc → "yellow" in Mantine's default palette.
     expect(ARTIFACT_REGISTRY.Classification.color).toBe("yellow");
     expect(ARTIFACT_REGISTRY.ValidationResult.color).toBe("yellow");
 
+    expect(ARTIFACT_REGISTRY.Identifier.color).toBe("teal");
+    expect(ARTIFACT_REGISTRY.DocumentId.color).toBe("teal");
     expect(ARTIFACT_REGISTRY.Reference.color).toBe("teal");
+  });
+
+  it("declares no family token beyond the five the renderer knows", () => {
+    // The frontend maps each token to one measured hex AND one handle shape.
+    // A sixth token silently renders as the untyped grey circle, so a kind
+    // added with a colour of its own would look untyped — hence a guard rather
+    // than a comment asking people to remember.
+    const FAMILIES = ["blue", "violet", "yellow", "teal", "gray"];
+    const offenders = Object.entries(ARTIFACT_REGISTRY)
+      .filter(([, meta]) => !FAMILIES.includes(meta.color))
+      .map(([kind, meta]) => `${kind}: ${meta.color}`);
+    expect(offenders).toEqual([]);
   });
 
   it("matches TYPED_IO_DESIGN.md §1 hierarchy (baseKind spot-checks)", () => {
@@ -297,7 +313,7 @@ describe("getArtifactKindMeta", () => {
     const meta = getArtifactKindMeta("Segment<Table>");
     expect(meta).toBeDefined();
     expect(meta?.displayName).toBe("Segment (Table)");
-    expect(meta?.color).toBe("green");
+    expect(meta?.color).toBe("violet");
     expect(meta?.baseKind).toBe("Segment");
   });
 

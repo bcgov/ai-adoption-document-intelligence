@@ -111,17 +111,39 @@ outputs: [
 
 **Per Model A's "single in / single out" rule** ([WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)), each activity node renders with exactly one input handle and one output handle on the canvas — regardless of how many typed ports the activity declares. We do not adopt ComfyUI-style per-port handles. Wires are execution order; data flows through ctx via per-port bindings configured in the settings panel.
 
-**Colour-coded handle dots + hover-tooltip with type name.** Mantine + Tabler:
+**Colour-coded handle dots + hover-tooltip with type name.** Since **2026-08-09
+(Inderdeep UX review batch four, item 20)** there are **five** port families,
+each carrying a **colour AND a shape**, so colour is never the only signal:
 
-| Kind family | Colour | Shape |
-|---|---|---|
-| `Document`, `Multi/SinglePageDocument` | blue | round dot |
-| `Segment`, `Segment<...>` | green | round dot, lighter outline for parameterised |
-| `OcrResult`, `OcrFields`, `OcrTable` | violet | round dot |
-| `Classification`, `ValidationResult` | amber | round dot |
-| `Reference` | teal | round dot |
-| `Artifact` (default / wildcard) | gray | round dot |
-| Array (`T[]`) | (same as `T`) | doubled outline |
+| Family — what the data IS | Kinds | Colour | Shape |
+|---|---|---|---|
+| Documents & files | `Document`, `DocumentRef`, `Multi`/`SinglePageDocument`, `PreparedFile`, `DocumentContent` | `#5595D9` blue | filled circle |
+| Content taken out of a document | `Segment`, `Segment<...>`, `DocumentSegment`, `TypedSegment`, `ClassifiedPageSegment`, `LabeledSegment`, `OcrResult`, `OcrFields`, `OcrTable` | `#6741D9` violet | filled square |
+| Judgements about a document | `Classification`, `ClassificationLabel`, `LabeledDocumentMap`, `ValidationResult` | `#FAB005` yellow | diamond |
+| Pointers — IDs and lookups | `Identifier`, `DocumentId`, `GroupId`, `ModelId`, `RequestId`, `Reference` | `#0CA678` teal | vertical bar |
+| Untyped / wildcard | `Artifact`, unregistered kinds | `#605E5C` grey | hollow circle |
+| Array (`T[]`) | (same family as `T`) | (same) | doubled outline |
+
+**Why five, and why a shape.** The previous seven-colour scheme had pairs that
+are the same colour to a dichromat, with no lightness difference to fall back
+on — References teal vs Untyped grey came out at **ΔE 5.2** under deuteranopia
+at a 1.06:1 luminance ratio, and Documents blue vs Identifiers cyan at ΔE 6.4.
+Anything under ΔE ≈ 11 reads as one colour. The five above hold a worst pair of
+**ΔE 14.2** under both deuteranopia and protanopia (Viénot 1999 simulation,
+CIEDE2000 distance), and the shape carries the same information a second way.
+
+**What that costs.** An `OcrResult` and a `Segment` are both violet squares —
+you can no longer tell them apart by dot. The kind literal is still on the
+handle tooltip verbatim, on the per-port pill row, and in the validator's
+refusal. Colour degrades from "the exact type" to "the neighbourhood", which is
+what lets it survive the kind list growing.
+
+**The values are literal hexes, not Mantine variables.** The app theme
+overrides Mantine's `blue`, `gray` and `red` scales, so `var(--mantine-color-
+<token>-6)` silently paid out a different colour than the palette was measured
+against. That indirection produced three separate drifts, all fixed in the same
+change. One source of truth:
+`apps/frontend/src/features/workflow-builder/canvas/artifact-kind-colour.ts`.
 
 **Single-port-side colouring rule.** A node's single canvas handle is coloured by its port's kind **only when exactly one typed port is declared on that side**:
 
@@ -146,7 +168,17 @@ The pill is the canonical place to read multi-port signatures on the canvas. The
 
 **Wires are NOT type-rejected at draw time.** In Model A, wires represent execution order only — data flows through the ctx blackboard via per-node `inputs[]` / `outputs[]` port bindings (`PortBinding { port, ctxKey }`), not along the wire. Drawing a wire from a typed output handle to an incompatible input handle is allowed — the wire just adds an ordering constraint. The picker is the first design-time discovery surface for kind mismatches (see §5).
 
-**Wire body colour stays unchanged from Phase 1B** — wires are coloured by edge type (switch case / error / normal), not by data kind. The kind signal lives on the handle dot + type pill.
+**Wire body colour** — a DATA wire takes its producer kind's family colour (so
+the wire, its arrowhead and both endpoint dots agree); structural wires are
+coloured by edge type (sequence / switch case / error). The sequence grey is
+`#9CA3AF` and the error red `#E03131`, both exported from `WorkflowEdge.tsx` so
+the legend and the arrowhead markers read them rather than restating them.
+
+**Node accents are a SEPARATE code** — the 6px left border on a card says what
+kind of STEP it is, not what kind of data it carries, and there are five of
+those too. See `apps/frontend/src/features/workflow-builder/node-accents.ts`;
+the two codes are measured against themselves, not against each other, because
+ten mutually-separable hues do not exist under dichromacy.
 
 ---
 

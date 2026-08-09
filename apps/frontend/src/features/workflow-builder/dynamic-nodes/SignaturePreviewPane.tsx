@@ -24,7 +24,6 @@ import { JsonSchemaForm } from "../json-schema-form";
 import type { JsonSchemaProperty } from "./signature-preview-helpers";
 import {
   isParamsSchemaEmpty,
-  KIND_COLOR_TOKENS,
   resolveKindColor,
 } from "./signature-preview-helpers";
 
@@ -214,4 +213,3 @@ function PortsList({ title, ports, showRequired, testId }: PortsListProps) {
 
 // Re-export the color tokens at file scope so tests can assert against
 // the palette without poking into the helper module.
-export { KIND_COLOR_TOKENS };

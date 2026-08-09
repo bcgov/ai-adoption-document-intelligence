@@ -60,8 +60,36 @@ export interface ArtifactKindMeta {
 /**
  * Frozen snapshot of the v1 vocabulary. Indexed by the `ArtifactKind`
  * union — TypeScript enforces full coverage via the `satisfies` clause
- * below. The hierarchy declared via `baseKind` matches TYPED_IO_DESIGN.md
- * §1; the palette matches §4.
+ * below. The hierarchy declared via `baseKind` matches TYPED_IO_DESIGN.md §1.
+ *
+ * ── The palette: FIVE tokens, not one per family (item 20, 2026-08-09) ────
+ *
+ * `color` is a family token, and there are exactly five of them. It is NOT a
+ * free-form Mantine colour name any more: the frontend maps each token to one
+ * measured hex AND to a non-chromatic handle SHAPE
+ * (`apps/frontend/src/features/workflow-builder/canvas/artifact-kind-colour.ts`),
+ * so colour is never the only signal. Adding a sixth token silently gets the
+ * fallback grey circle — merge into an existing family instead.
+ *
+ *   blue    Documents & files — the document, or a file standing in for one
+ *   violet  Content taken OUT of a document — Segment* and Ocr*
+ *   yellow  Judgements ABOUT a document — Classification*, ValidationResult
+ *   teal    Pointers at something — Identifier*, Reference
+ *   gray    Untyped / wildcard — `Artifact`, and anything unregistered
+ *
+ * Why five and not seven. The seven-colour scheme this replaces had three
+ * pairs that are the same colour to a dichromat, with no lightness difference
+ * to fall back on: References teal vs Untyped grey (ΔE 5.2 deuteranopia,
+ * 1.06:1 luminance), Documents blue vs Identifiers cyan (ΔE 6.4), Identifiers
+ * cyan vs Untyped grey (ΔE 6.9 protanopia). Anything under ΔE ≈ 11 reads as
+ * one colour. The five above hold a worst pair of **ΔE 14.2** under BOTH
+ * deuteranopia and protanopia (Viénot 1999 simulation, CIEDE2000 distance).
+ *
+ * What that costs, said plainly: you can no longer tell an `OcrResult` from a
+ * `Segment` by dot colour — both are violet. The kind literal is still on the
+ * handle tooltip verbatim, on the per-port pill row, and in the validator's
+ * refusal. Colour degrades from "the exact type" to "the neighbourhood",
+ * which is what lets it survive the kind list growing.
  */
 export const ARTIFACT_REGISTRY: Readonly<
   Record<ArtifactKind, ArtifactKindMeta>
@@ -107,34 +135,36 @@ export const ARTIFACT_REGISTRY: Readonly<
     isArray: false,
   },
 
-  // Segment family → green
+  // Segment family → violet, WITH the OcrResult family below it: both are
+  // "content taken out of a document", and item 20 merged them into one
+  // visual family. See the block comment above `ARTIFACT_REGISTRY`.
   Segment: {
     displayName: "Segment",
-    color: "green",
+    color: "violet",
     baseKind: "Artifact",
     isArray: false,
   },
   "Segment<Text>": {
     displayName: "Segment (Text)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   "Segment<Table>": {
     displayName: "Segment (Table)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   "Segment<Figure>": {
     displayName: "Segment (Figure)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   "Segment<Form>": {
     displayName: "Segment (Form)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
@@ -142,25 +172,25 @@ export const ARTIFACT_REGISTRY: Readonly<
     // Sentence-cased rendering of the camelCase `KeyValue` parameter
     // so the UI label doesn't leak camelCase per Scenario 2.
     displayName: "Segment (Key/value)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   "Segment<Signature>": {
     displayName: "Segment (Signature)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   "Segment<Header>": {
     displayName: "Segment (Header)",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     isArray: false,
   },
   DocumentSegment: {
     displayName: "Document segment",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     fields: zodToFields(DocumentSegmentSchema, KIND_SCHEMAS),
     isArray: false,
@@ -169,27 +199,27 @@ export const ARTIFACT_REGISTRY: Readonly<
     // fields from the extend-schema repeat DocumentSegment's four;
     // resolveKindFields dedupes by name, so resolution stays 7 fields.
     displayName: "Typed segment",
-    color: "green",
+    color: "violet",
     baseKind: "DocumentSegment",
     fields: zodToFields(TypedSegmentSchema, KIND_SCHEMAS),
     isArray: false,
   },
   ClassifiedPageSegment: {
     displayName: "Classified page segment",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     fields: zodToFields(ClassifiedPageSegmentSchema, KIND_SCHEMAS),
     isArray: false,
   },
   LabeledSegment: {
     displayName: "Labeled segment",
-    color: "green",
+    color: "violet",
     baseKind: "Segment",
     fields: zodToFields(LabeledSegmentSchema, KIND_SCHEMAS),
     isArray: false,
   },
 
-  // OcrResult family → violet
+  // OcrResult family → violet, same family as Segment above.
   OcrResult: {
     displayName: "OCR result",
     color: "violet",
@@ -210,8 +240,8 @@ export const ARTIFACT_REGISTRY: Readonly<
     isArray: false,
   },
 
-  // Classification + ValidationResult → "amber" per design doc; using
-  // `"yellow"` as the closest match in Mantine v7's default palette.
+  // Classification + ValidationResult → yellow. Both are JUDGEMENTS about a
+  // document rather than the document or its content (item 20).
   Classification: {
     displayName: "Classification",
     color: "yellow",
@@ -240,7 +270,8 @@ export const ARTIFACT_REGISTRY: Readonly<
     isArray: false,
   },
 
-  // Reference → teal
+  // Reference → teal, WITH the Identifier family below it: both are
+  // POINTERS at something rather than the thing itself (item 20).
   Reference: {
     displayName: "Reference",
     color: "teal",
@@ -248,38 +279,38 @@ export const ARTIFACT_REGISTRY: Readonly<
     isArray: false,
   },
 
-  // Identifier family → cyan (2026-08-02, UX-walkthrough follow-up).
+  // Identifier family → teal (2026-08-02, UX-walkthrough follow-up).
   // Branded ids that were previously untyped `Artifact` strings, which made
   // them invisible to auto-wire and both hover-extend directions and painted
   // most port dots grey. Sibling identifiers deliberately share only the
   // `Identifier` base, so a DocumentId can never satisfy a GroupId port.
   Identifier: {
     displayName: "Identifier",
-    color: "cyan",
+    color: "teal",
     baseKind: "Artifact",
     isArray: false,
   },
   DocumentId: {
     displayName: "Document ID",
-    color: "cyan",
+    color: "teal",
     baseKind: "Identifier",
     isArray: false,
   },
   GroupId: {
     displayName: "Group ID",
-    color: "cyan",
+    color: "teal",
     baseKind: "Identifier",
     isArray: false,
   },
   ModelId: {
     displayName: "Model ID",
-    color: "cyan",
+    color: "teal",
     baseKind: "Identifier",
     isArray: false,
   },
   RequestId: {
     displayName: "Request ID",
-    color: "cyan",
+    color: "teal",
     baseKind: "Identifier",
     isArray: false,
   },

@@ -8,9 +8,11 @@
  *
  * - `resolveSourceIcon` — `iconHint` → Tabler icon component (or
  *   `undefined` when the hint is unknown / absent).
- * - `resolveSourceColor` — `colorHint` → hex token (or `undefined` for
- *   unknown / absent hints). Uses the same palette as the activity
- *   catalog so source nodes pick up identical accent shades.
+ * `resolveSourceColor` is gone (item 20): it mapped the six source subtypes
+ * through a private copy of the activity `COLOR_TOKENS` palette, onto two of
+ * the colours the colour-vision measurement retired. A source is a step that
+ * does work, so it takes `ACTIVITY_ACCENT` like every other working step, and
+ * which source it is, is carried by its icon and its title.
  * - `getSourceVisualHints` — convenience wrapper that resolves a
  *   `sourceType` to its rendered display strings with sensible
  *   gray / fallback defaults for unregistered subtypes.
@@ -24,6 +26,8 @@ import {
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+
+import { ACTIVITY_ACCENT } from "../node-accents";
 
 export interface TablerIconProps {
   size?: number | string;
@@ -57,36 +61,6 @@ export function resolveSourceIcon(
   }
 }
 
-/**
- * Mantine palette tokens — matches `COLOR_TOKENS` in
- * `catalog-utils.ts` so the two surfaces stay visually consistent.
- */
-const COLOR_TOKENS: Record<string, string> = {
-  blue: "#3b82f6",
-  teal: "#14b8a6",
-  green: "#22c55e",
-  orange: "#f97316",
-  red: "#ef4444",
-  indigo: "#6366f1",
-  gray: "#6b7280",
-  cyan: "#06b6d4",
-  violet: "#8b5cf6",
-  lavender: "#a78bfa",
-  yellow: "#eab308",
-};
-
-/**
- * Resolves a `SourceCatalogEntry.colorHint` to a hex colour token.
- * Returns `undefined` when the hint is missing or unknown — callers
- * fall back to a neutral gray of their choice.
- */
-export function resolveSourceColor(
-  colorHint: string | undefined,
-): string | undefined {
-  if (!colorHint) return undefined;
-  return COLOR_TOKENS[colorHint];
-}
-
 export interface SourceVisualHints {
   displayName: string;
   description: string;
@@ -108,7 +82,7 @@ export interface SourceVisualHints {
   colorHint?: string;
 }
 
-const FALLBACK_COLOR = COLOR_TOKENS.gray;
+const FALLBACK_COLOR = ACTIVITY_ACCENT;
 const FALLBACK_ICON: ComponentType<TablerIconProps> = IconDatabase;
 
 /**
@@ -127,11 +101,10 @@ export function getSourceVisualHints(sourceType: string): SourceVisualHints {
     };
   }
   const Icon = resolveSourceIcon(entry.iconHint) ?? FALLBACK_ICON;
-  const color = resolveSourceColor(entry.colorHint) ?? FALLBACK_COLOR;
   return {
     displayName: entry.displayName,
     description: entry.description,
-    color,
+    color: FALLBACK_COLOR,
     Icon,
     colorHint: entry.colorHint,
   };

@@ -28,37 +28,26 @@ import { Text, Tooltip } from "@mantine/core";
 import { Handle, type Node, type NodeProps, Position } from "@xyflow/react";
 import { memo } from "react";
 
-import { colorForKind } from "../canvas/artifact-kind-colour";
+import { colorForKind, shapeForColor } from "../canvas/artifact-kind-colour";
+import { handleBackground, portShapeStyle } from "../canvas/handle-style";
 import { NodeTypePill, type NodeTypePillEntry } from "../canvas/NodeTypePill";
 import { ValidationBadge } from "../canvas/ValidationBadge";
+import { ACTIVITY_ACCENT } from "../node-accents";
 import { NodePreviewOverlay } from "../preview/PreviewWidget";
 import type { PreviewOutputBinding } from "../preview/preview.types";
 import { NodeStatusBadgeOverlay } from "../run/NodeStatusBadge";
-import {
-  getSourceVisualHints,
-  resolveSourceColor,
-} from "./source-catalog-utils";
+import { getSourceVisualHints } from "./source-catalog-utils";
 
-/**
- * Translate a Mantine colour name into the matching theme CSS variable
- * for the handle dot background. Falls back to the literal value (so
- * `"gray"` still resolves) when the variable is undefined.
+/*
+ * This file used to carry its own `handleBackground`, a copy of the canvas
+ * helper that interpolated `var(--mantine-color-<token>-6)`. Once the port
+ * palette became literal hexes (item 20) that copy would have painted a source
+ * node's output dot a DIFFERENT colour from every other port dot of the same
+ * kind. It imports the real one now, and the family's shape with it.
+ *
+ * The header accent is no longer resolved from the entry's `colorHint` either:
+ * a source is a step that does work, and every working step takes one accent.
  */
-function handleBackground(color: string): string {
-  return `var(--mantine-color-${color}-6, ${color})`;
-}
-
-/**
- * Header accent colour — resolved via `resolveSourceColor` so the
- * palette, canvas, and settings surfaces share the same mapping
- * (US-118). Falls back to the neutral gray token when the catalog
- * entry doesn't declare a `colorHint`.
- */
-const FALLBACK_HEADER_COLOR = "#6b7280";
-
-function resolveHeaderColor(colorHint: string | undefined): string {
-  return resolveSourceColor(colorHint) ?? FALLBACK_HEADER_COLOR;
-}
 
 /**
  * xyflow node data for a `source` node — the projection layer passes
@@ -96,7 +85,7 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
   const entry = getSourceCatalogEntry(data.sourceType);
   const hints = getSourceVisualHints(data.sourceType);
   const displayName = hints.displayName;
-  const accent = resolveHeaderColor(entry?.colorHint);
+  const accent = ACTIVITY_ACCENT;
   const Icon = hints.Icon;
   const outputKind: KindRef = entry?.outputKind ?? "Artifact";
   const handleColor = colorForKind(outputKind);
@@ -234,7 +223,13 @@ export const SourceNodeRenderer = memo(function SourceNodeRenderer({
             id="out"
             type="source"
             position={Position.Right}
-            style={{ background: handleBackground(handleColor) }}
+            style={{
+              background: handleBackground(handleColor),
+              ...portShapeStyle(shapeForColor(handleColor), {
+                color: handleColor,
+                side: "right",
+              }),
+            }}
           />
         </span>
       </Tooltip>

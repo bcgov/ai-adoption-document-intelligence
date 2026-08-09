@@ -114,20 +114,46 @@ function wireProvenance(wire: DataWire): string {
   return "manual";
 }
 
-const NORMAL_STROKE = "#9ca3af";
-const ERROR_STROKE = "var(--mantine-color-red-6, #e03131)";
+/**
+ * The sequence wire — execution order only, no data. Exported because the
+ * legend has to draw the SAME grey: it used to sample `gray-5`, which the app
+ * theme overrides to `#C6C5C3`, so the legend taught one grey and the canvas
+ * painted another (item 20, drift 1).
+ */
+export const SEQUENCE_STROKE = "#9CA3AF";
+/**
+ * The error route, on both the wire and the bottom handle dot it leaves from.
+ *
+ * A literal, not `var(--mantine-color-red-6)`: the app theme overrides
+ * Mantine's red scale, so that variable resolved to the dark `#822623` on the
+ * wire while the handle dot beside it was hardcoded `#e03131` — two reds for
+ * one concept (item 20, drift 2). This is the brighter of the two, because a
+ * 2px wire in a dark maroon barely reads against the canvas.
+ */
+export const ERROR_STROKE = "#E03131";
 const SWITCH_ACCENT = getControlFlowVisualHints("switch").color;
 /**
- * Stroke applied to "currently flowing" edges per US-139 / §3.4. Matches
- * `theme.colors.blue[6]` (same blue the "running" node-status badge
- * uses — visual consistency).
+ * Stroke applied to "currently flowing" edges per US-139 / §3.4. The same blue
+ * the "running" node-status badge uses, so a live run reads as one story.
+ *
+ * Literal, not `var(--mantine-color-blue-6)` — that variable resolves to the
+ * app theme's blue, and its fallback (`#228be6`) was stock Mantine's, so the
+ * two disagreed by 20 ΔE depending on whether the stylesheet had loaded.
+ *
+ * It IS the same value as the Documents port family, which is a collision on
+ * paper and not one in practice: an active wire is the only thing on the
+ * canvas that MOVES (xyflow's marching-ants animation, engaged via the edge's
+ * `animated` flag) and it is 2.5px against a data wire's 2px. Motion is a
+ * stronger carrier than hue, and it is one no colour deficiency touches. The
+ * taken trail below is far lighter than any family colour, so it separates on
+ * lightness alone.
  */
-const ACTIVE_STROKE = "var(--mantine-color-blue-6, #228be6)";
+export const ACTIVE_STROKE = "#5595D9";
 const ACTIVE_STROKE_WIDTH = 2.5;
 // G-014 — the path a run took: same blue family as the live hop so the two
 // read as one story, but calmer (no animation, slightly thinner) so a live
 // run's in-flight edge still stands out against the trail behind it.
-const TAKEN_STROKE = "var(--mantine-color-blue-4, #74c0fc)";
+export const TAKEN_STROKE = "#C1DDFC";
 const TAKEN_STROKE_WIDTH = 2.5;
 /**
  * Width applied to a selected edge. Wider than both the resting (2) and
@@ -172,8 +198,8 @@ function computeConditionalLabel(
 export const SEQUENCE_DASH = "6 4";
 
 /**
- * Kind-coloured stroke for a data wire — the same shade-6 Mantine variable
- * the port dots use (`handleBackground`), so the wire, its arrowhead
+ * Family-coloured stroke for a data wire — the same value the port dots use
+ * (`handleBackground`), so the wire, its arrowhead
  * marker, and both endpoint dots share one kind colour. The canvas
  * projection imports this for the arrowhead `markerEnd` colour; the edge
  * renderer uses it for the stroke itself.
@@ -196,7 +222,7 @@ interface StyleResolution {
 
 function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
   if (!data) {
-    return { stroke: NORMAL_STROKE, label: null };
+    return { stroke: SEQUENCE_STROKE, label: null };
   }
   const { graphEdge, sourceSwitch, wire } = data;
   if (wire?.variant === "data") {
@@ -210,7 +236,7 @@ function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
   }
   if (wire?.variant === "sequence") {
     return {
-      stroke: NORMAL_STROKE,
+      stroke: SEQUENCE_STROKE,
       strokeDasharray: SEQUENCE_DASH,
       label: null,
       wireVariant: "sequence",
@@ -219,11 +245,11 @@ function resolveStyle(data: WorkflowEdgeData | undefined): StyleResolution {
   // Structural conditional/error wires + legacy (no-wire) projections
   // resolve through the underlying GraphEdge exactly as before.
   if (!graphEdge) {
-    return { stroke: NORMAL_STROKE, label: null };
+    return { stroke: SEQUENCE_STROKE, label: null };
   }
   switch (graphEdge.type) {
     case "normal":
-      return { stroke: NORMAL_STROKE, label: null };
+      return { stroke: SEQUENCE_STROKE, label: null };
     case "conditional": {
       const label = computeConditionalLabel(graphEdge, sourceSwitch);
       return { stroke: label.accent, label, wireVariant: wire?.variant };

@@ -26,7 +26,7 @@
 import type { KindRef } from "@ai-di/graph-workflow";
 import { Badge, Stack } from "@mantine/core";
 import type React from "react";
-import { colorForKind } from "./artifact-kind-colour";
+import { colorForKind, portDotColor } from "./artifact-kind-colour";
 
 export interface NodeTypePillEntry {
   /** Port name as declared in the activity catalog (e.g. `"segments"`). */
@@ -68,7 +68,10 @@ export function NodeTypePill({
     if (kind === undefined) return null;
     return (
       <Badge
-        color={colorForKind(kind)}
+        // The family's own hex, not the token — passing the token would let
+        // Mantine resolve it against ITS palette and paint a pill that
+        // disagrees with the dot beside it (item 20).
+        color={portDotColor(colorForKind(kind))}
         size="sm"
         variant="light"
         data-testid={`node-type-pill-${direction}`}
@@ -98,7 +101,7 @@ export function NodeTypePill({
         return (
           <Badge
             key={entry.portName}
-            color={color}
+            color={portDotColor(color)}
             size="sm"
             variant="light"
             data-pill-port={entry.portName}

@@ -15,7 +15,7 @@
 import type { KindRef } from "@ai-di/graph-workflow";
 import { Badge, Group, Stack } from "@mantine/core";
 import type React from "react";
-import { colorForKind } from "./artifact-kind-colour";
+import { colorForKind, portDotColor } from "./artifact-kind-colour";
 import type { NodeTypePillEntry } from "./NodeTypePill";
 
 export interface NodeTypePillRowProps {
@@ -66,7 +66,7 @@ export function NodeTypePillRow({
           return (
             <Badge
               key={`in-${entry.portName}`}
-              color={color}
+              color={portDotColor(color)}
               size="sm"
               variant="light"
               data-pill-direction="input"
@@ -84,7 +84,7 @@ export function NodeTypePillRow({
           return (
             <Badge
               key={`out-${entry.portName}`}
-              color={color}
+              color={portDotColor(color)}
               size="sm"
               variant="light"
               data-pill-direction="output"
@@ -109,7 +109,7 @@ export function NodeTypePillRow({
   const inputBadge =
     typedInputs.length === 1 ? (
       <Badge
-        color={inputColor}
+        color={portDotColor(inputColor)}
         size="sm"
         variant="light"
         data-pill-direction="input"
@@ -124,7 +124,7 @@ export function NodeTypePillRow({
   const outputBadge =
     typedOutputs.length === 1 ? (
       <Badge
-        color={outputColor}
+        color={portDotColor(outputColor)}
         size="sm"
         variant="light"
         data-pill-direction="output"

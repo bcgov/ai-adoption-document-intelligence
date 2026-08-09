@@ -9,7 +9,9 @@
 import type {
   ActivityCatalogEntry,
   DynamicNodeSignature,
+  KindRef,
 } from "@ai-di/graph-workflow";
+import { colorForKind, portDotColor } from "../canvas/artifact-kind-colour";
 import type { JsonSchemaProperty as ImportedJsonSchemaProperty } from "../json-schema-form";
 
 /**
@@ -21,45 +23,20 @@ import type { JsonSchemaProperty as ImportedJsonSchemaProperty } from "../json-s
 export type JsonSchemaProperty = ImportedJsonSchemaProperty;
 
 /**
- * The Phase 3 kind palette. Mirrors `catalog-utils.ts`'s `COLOR_TOKENS`
- * but mapped from `ArtifactKind` names rather than `colorHint` tokens —
- * the dynamic-node signature carries declared kinds (`Document`,
- * `Segment[]`, `OcrTable[]` …), so we map kind → color directly.
+ * Map an `ArtifactKind` declaration string to the colour the canvas paints
+ * that kind's ports in. Strips a trailing `[]` so `Document[]` and `Document`
+ * share a colour. Unknown kinds fall back to the untyped grey.
  *
- * The mapping is deliberately small + extensible: unknown kinds fall
- * back to gray. Phase 3's typed-I/O registry will grow this list as new
- * kinds are added.
- */
-export const KIND_COLOR_TOKENS: Record<string, string> = {
-  // Document / content kinds
-  Document: "#3b82f6", // blue
-  Segment: "#14b8a6", // teal
-  Artifact: "#6b7280", // gray (generic)
-  // OCR-related kinds
-  OcrPage: "#8b5cf6", // violet
-  OcrLine: "#a78bfa", // lavender
-  OcrTable: "#06b6d4", // cyan
-  OcrToken: "#eab308", // yellow
-  // Validation / quality kinds
-  ValidationResult: "#22c55e", // green
-  QualityReport: "#f97316", // orange
-  // Reference / catalog kinds
-  ReferenceData: "#6366f1", // indigo
-};
-
-const FALLBACK_KIND_COLOR = "#6b7280"; // gray
-
-/**
- * Map an `ArtifactKind` declaration string to a Mantine-token-style hex.
- * Strips a trailing `[]` so `Document[]` and `Document` share a colour
- * (per the Phase 3 brief — array-of-kind colours match scalar-kind).
- * Unknown kinds fall back to gray.
+ * This used to be a hand-written `KIND_COLOR_TOKENS` map, and by 2026-08-09 it
+ * had drifted badly: it coloured `Segment` teal and `ValidationResult` green
+ * where the registry says violet and yellow, and half its keys — `OcrPage`,
+ * `OcrLine`, `OcrToken`, `QualityReport`, `ReferenceData` — were not registry
+ * kinds at all, so they could never match anything a signature declares. A
+ * developer previewing a dynamic node saw one colour here and a different one
+ * on the canvas for the same port. It reads the live registry now (item 20).
  */
 export function resolveKindColor(kindDeclaration: string): string {
-  const stripped = kindDeclaration.endsWith("[]")
-    ? kindDeclaration.slice(0, -2)
-    : kindDeclaration;
-  return KIND_COLOR_TOKENS[stripped] ?? FALLBACK_KIND_COLOR;
+  return portDotColor(colorForKind(kindDeclaration as KindRef));
 }
 
 /**

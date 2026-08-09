@@ -23,7 +23,6 @@ export {
 export {
   adaptEntryToSignature,
   isParamsSchemaEmpty,
-  KIND_COLOR_TOKENS,
   resolveKindColor,
 } from "./signature-preview-helpers";
 export {

@@ -15,8 +15,26 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { portDotColor } from "./artifact-kind-colour";
+import { BASE_HANDLE_SIZE } from "./handle-style";
 import type { PortRowModel } from "./port-rows";
 import { PORT_ROW_HEIGHT } from "./port-rows";
+
+/**
+ * jsdom's CSSOM normalises every colour it parses to `rgb(r, g, b)`, so the
+ * literal family hexes the canvas now paints (item 20 — they are literals
+ * precisely because the app theme overrides Mantine's scales) read back in
+ * that form. This converts a hex from the shared palette into what jsdom
+ * reports, so the assertions below compare against `portDotColor(...)`
+ * instead of pasting a colour the palette would then own in two places.
+ */
+function rgbOf(hex: string): string {
+  const value = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) =>
+    Number.parseInt(value.slice(i, i + 2), 16),
+  );
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 // Replace Mantine's Tooltip with a passthrough that stamps its `position` on a
 // wrapper element. Mantine 8 resolves tooltip placement through floating-ui at
@@ -194,7 +212,7 @@ describe("PortRows — per-port handles (drag-to-bind, §6.1)", () => {
     expect(outputHandle.getAttribute("data-isconnectable")).toBe("true");
   });
 
-  it("colours the handle dot by kind family (gray for the Artifact wildcard)", () => {
+  it("colours AND shapes the handle dot by kind family (gray hollow for the Artifact wildcard)", () => {
     const { container } = renderRows(
       [
         makeRow({}),
@@ -208,16 +226,31 @@ describe("PortRows — per-port handles (drag-to-bind, §6.1)", () => {
       [],
     );
 
+    // The row stamps both halves of the signal — `data-port-color` and
+    // `data-port-shape` — which is the assertion the canvas actually owes:
+    // since item 20 every family carries a non-chromatic silhouette so hue is
+    // never the only thing telling two ports apart.
+    const typedRow = screen.getByTestId("port-row-node_1-in-source");
+    expect(typedRow.getAttribute("data-port-color")).toBe("blue");
+    expect(typedRow.getAttribute("data-port-shape")).toBe("circle");
     const typed = container.querySelector(
       "[data-handleid='in-source']",
     ) as HTMLElement;
-    // MultiPageDocument resolves to the blue kind family.
-    expect(typed.style.background).toContain("--mantine-color-blue-6");
+    // MultiPageDocument resolves to the blue "Documents & files" family.
+    expect(typed.style.background).toBe(rgbOf(portDotColor("blue")));
 
+    const wildcardRow = screen.getByTestId("port-row-node_1-in-meta");
+    expect(wildcardRow.getAttribute("data-port-color")).toBe("gray");
+    expect(wildcardRow.getAttribute("data-port-shape")).toBe("hollow");
     const wildcard = container.querySelector(
       "[data-handleid='in-meta']",
     ) as HTMLElement;
-    expect(wildcard.style.background).toContain("--mantine-color-gray-6");
+    // Gray is the one family that is NOT filled: the untyped dot empties its
+    // middle to the canvas body colour and spends its border on the family
+    // colour, which is what "takes anything" should look like. So the family
+    // hex is on the border here, not on the background.
+    expect(wildcard.style.background).toContain("--mantine-color-body");
+    expect(wildcard.style.border).toContain(rgbOf(portDotColor("gray")));
   });
 
   it("adds the doubled outline only for array kinds", () => {
@@ -662,9 +695,16 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
       [],
     );
     // MultiPageDocument is the blue family; an inviting port still says so.
-    expect(handleOf(container, "in-source").style.background).toContain(
-      "--mantine-color-blue-6",
+    expect(handleOf(container, "in-source").style.background).toBe(
+      rgbOf(portDotColor("blue")),
     );
+    // …and it still says so with its silhouette too — the "+" is drawn inside
+    // the family shape, it does not replace it.
+    expect(
+      screen
+        .getByTestId("port-row-node_1-in-source")
+        .getAttribute("data-port-shape"),
+    ).toBe("circle");
   });
 
   it("draws no plus on a connected port, at the base dot size", () => {
@@ -684,8 +724,14 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
     for (const handleId of ["in-source", "out-segments"]) {
       const handle = handleOf(container, handleId);
       expect(plusBars(handle)).toHaveLength(0);
-      // Untouched by this feature — the CSS 12px dot stands.
-      expect(handle.style.width).toBe("");
+      // The dot stays at the BASE size — it only grows to carry the "+" or to
+      // flag a live drop target. Since item 20 that size is stamped inline
+      // rather than left to the stylesheet: `portShapeStyle` has to size every
+      // silhouette itself (a bar is 0.67×1.17 of the base, a diamond 0.84),
+      // so the base dot now renders an explicit 12px instead of an empty
+      // inline width.
+      expect(handle.style.width).toBe(`${BASE_HANDLE_SIZE}px`);
+      expect(handle.style.height).toBe(`${BASE_HANDLE_SIZE}px`);
     }
     expect(
       screen

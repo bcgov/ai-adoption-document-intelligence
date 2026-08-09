@@ -128,6 +128,7 @@ import {
   type HandleStyle,
   handleArrayOutline,
   handleBackground,
+  portShapeStyle,
 } from "./handle-style";
 import {
   isSyntheticMapBodyGroupId,
@@ -164,6 +165,8 @@ import { ValidationBadge } from "./ValidationBadge";
 import { WireContextMenu } from "./WireContextMenu";
 import {
   dataWireStroke,
+  ERROR_STROKE,
+  SEQUENCE_STROKE,
   WorkflowEdge,
   type WorkflowEdgeData,
   wireTooltip,
@@ -406,21 +409,21 @@ type FlowNode =
 const DEFAULT_POSITION = { x: 80, y: 80 };
 const STAGGER_X = 220;
 
-// Stroke colours match `WorkflowEdge`'s palette so the arrowhead marker
-// colours line up with the rendered stroke (US-023 follow-up — flagged in
-// US-025).
-const NORMAL_STROKE_COLOR = "#9ca3af";
-const ERROR_STROKE_COLOR = "var(--mantine-color-red-6, #e03131)";
-const CONDITIONAL_STROKE_COLOR = getControlFlowVisualHints("switch").color;
-
+// The arrowhead marker takes its colour from the same constants the stroke
+// does, so the head can never mismatch the line it sits on (US-023 follow-up,
+// flagged in US-025). These used to be a re-declared copy "matching
+// `WorkflowEdge`'s palette", and they had already stopped matching it: the
+// error marker read `var(--mantine-color-red-6)`, which the app theme
+// overrides to the dark `#822623`, while the stroke it was meant to match
+// rendered `#e03131` (item 20, drift 2).
 function getEdgeStrokeColor(edgeType: GraphEdge["type"]): string {
   switch (edgeType) {
     case "normal":
-      return NORMAL_STROKE_COLOR;
+      return SEQUENCE_STROKE;
     case "conditional":
-      return CONDITIONAL_STROKE_COLOR;
+      return getControlFlowVisualHints("switch").color;
     case "error":
-      return ERROR_STROKE_COLOR;
+      return ERROR_STROKE;
   }
 }
 
@@ -529,7 +532,12 @@ interface NodeHandlesProps {
   selected: boolean;
 }
 
-const ERROR_HANDLE_BACKGROUND = "#e03131";
+/**
+ * The bottom error handle takes the SAME red as the wire that leaves it —
+ * imported rather than re-typed, which is how the two drifted apart in the
+ * first place (item 20, drift 2).
+ */
+const ERROR_HANDLE_BACKGROUND = ERROR_STROKE;
 
 /**
  * Item 5 — the bottom red dot had no name anywhere in the UI, so it read as
@@ -703,6 +711,7 @@ const NodeHandles = memo(function NodeHandles({
           data-testid={`port-tooltip-input-${nodeId}`}
           data-port-direction="input"
           data-port-color={inputHandleStyle.color}
+          data-port-shape={inputHandleStyle.shape}
           data-port-array={inputHandleStyle.isArray ? "true" : "false"}
           data-port-multi={inputHandleStyle.isMultiPort ? "true" : "false"}
           data-port-tooltip={inputHandleStyle.tooltipText}
@@ -712,6 +721,10 @@ const NodeHandles = memo(function NodeHandles({
             position={Position.Left}
             style={{
               background: handleBackground(inputHandleStyle.color),
+              ...portShapeStyle(inputHandleStyle.shape, {
+                color: inputHandleStyle.color,
+                side: "left",
+              }),
               ...inputArrayOutline,
             }}
           />
@@ -722,6 +735,7 @@ const NodeHandles = memo(function NodeHandles({
           data-testid={`port-tooltip-output-${nodeId}`}
           data-port-direction="output"
           data-port-color={outputHandleStyle.color}
+          data-port-shape={outputHandleStyle.shape}
           data-port-array={outputHandleStyle.isArray ? "true" : "false"}
           data-port-multi={outputHandleStyle.isMultiPort ? "true" : "false"}
           data-port-tooltip={outputHandleStyle.tooltipText}
@@ -732,6 +746,10 @@ const NodeHandles = memo(function NodeHandles({
             position={Position.Right}
             style={{
               background: handleBackground(outputHandleStyle.color),
+              ...portShapeStyle(outputHandleStyle.shape, {
+                color: outputHandleStyle.color,
+                side: "right",
+              }),
               ...outputArrayOutline,
             }}
             onMouseEnter={handleEnter}

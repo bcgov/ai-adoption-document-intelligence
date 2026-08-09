@@ -9,7 +9,11 @@
  * - `iconHint` is the same string the palette catalog uses.
  * - `Icon` is the Tabler React component the palette already maps to
  *   (kept here so the canvas doesn't have to re-derive the mapping).
- * - `color` is the accent colour rendered on the node border + handles.
+ * - `color` is the accent colour rendered on the node border + handles. It
+ *   comes from `node-accents.ts` and names a ROLE, not a type: `switch` and
+ *   `pollUntil` share the routing accent, `map` and `join` share the fan
+ *   accent. Six types, four accents — see that file for the measurement that
+ *   forced the reduction (item 20).
  * - `shape` is the geometric form the canvas should render: `diamond`
  *   for `switch`, `rectangle` for the rest.
  * - `fanIndicator` is the secondary overlay icon for map (fan-out) and
@@ -25,6 +29,7 @@ import {
   IconRoute,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { nodeAccent } from "./node-accents";
 import type { ControlFlowNodeType } from "./palette/control-flow-skeletons";
 
 export interface TablerIconProps {
@@ -52,7 +57,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Branch by condition",
     iconHint: "switch",
     Icon: IconRoute,
-    color: "#facc15",
+    color: nodeAccent("routing"),
     shape: "diamond",
   },
   map: {
@@ -60,7 +65,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Run for each item",
     iconHint: "map",
     Icon: IconArrowsSplit,
-    color: "#22c55e",
+    color: nodeAccent("fan"),
     shape: "rectangle",
     fanIndicator: IconArrowsSplit,
     fanIndicatorLabel: "fan-out",
@@ -70,7 +75,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Collect results",
     iconHint: "join",
     Icon: IconArrowMerge,
-    color: "#16a34a",
+    color: nodeAccent("fan"),
     shape: "rectangle",
     fanIndicator: IconArrowMerge,
     fanIndicatorLabel: "fan-in",
@@ -80,7 +85,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Sub-workflow",
     iconHint: "childWorkflow",
     Icon: IconExternalLink,
-    color: "#a855f7",
+    color: nodeAccent("childWorkflow"),
     shape: "rectangle",
   },
   pollUntil: {
@@ -88,7 +93,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Wait until condition",
     iconHint: "pollUntil",
     Icon: IconRefresh,
-    color: "#fb923c",
+    color: nodeAccent("routing"),
     shape: "rectangle",
   },
   humanGate: {
@@ -96,7 +101,7 @@ const HINTS: Record<ControlFlowNodeType, ControlFlowVisualHints> = {
     displayName: "Wait for approval",
     iconHint: "humanGate",
     Icon: IconHandStop,
-    color: "#ef4444",
+    color: nodeAccent("person"),
     shape: "rectangle",
   },
 };
