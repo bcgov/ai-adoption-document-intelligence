@@ -97,9 +97,19 @@ test.describe("dynamic-node run @infra", () => {
         runId,
         ["dyn"],
       );
+      // The hint is not decoration. Temporal reports the activity's cause as a
+      // bare "Activity task failed" in node-statuses, so the single most likely
+      // reason this test fails on a working tree — a worker with no
+      // PLATFORM_API_KEY, where `dyn.run` refuses in ~50ms before it ever
+      // reaches the sandbox — arrives here with no clue attached. Say it.
       expect(
         statuses.dyn.status,
-        `dyn node did not succeed: ${JSON.stringify(statuses.dyn)}`,
+        `dyn node did not succeed: ${JSON.stringify(statuses.dyn)}\n` +
+          "Prerequisite: the Temporal worker needs PLATFORM_API_KEY set (any " +
+          "non-empty value locally, e.g. in $DI_SECRETS_DIR/temporal.env or " +
+          "the repo-root .env) and a restart. Without it `dyn.run` throws " +
+          "DynamicNodeConfigError, which surfaces here only as the wrapper " +
+          "message above. See docs-md/workflows/MANUAL_TEST_PLAN.md.",
       ).toBe("succeeded");
     },
   );

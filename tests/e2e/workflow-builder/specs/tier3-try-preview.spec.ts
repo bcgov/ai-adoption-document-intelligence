@@ -212,12 +212,25 @@ test.describe("try-in-place previews @infra", () => {
       // which can race ahead of the cache-row write; a fresh mount instead
       // fetches the now-committed "most recent" cache row deterministically.
       //
+      // The reload costs us the run, though, and that has to be paid back
+      // explicitly: `RunStateProvider` starts every mount with
+      // `activeRunId = null` and restores nothing (RunStateContext.tsx), so a
+      // freshly-loaded editor has no run selected and the strip correctly
+      // reports "Not run yet" (`data-state="no-run"`) — for ever. Re-opening
+      // the run from **Run history** is the product's own answer to that, and
+      // the one the preview copy points authors at; it is also the only path
+      // that puts the canvas in replay, which is where a missing cache row is
+      // allowed to mean "evicted". Driving it here is what makes the
+      // post-reload assertion sound, and it is the first e2e coverage the
+      // replay surface has had.
+      //
       // We assert the SOURCE node's preview: it carries the real uploaded
       // Document (a `documentUrl`), so its DocumentPreview renders to `ready`.
       // `file.prepare`'s cached output is a degenerate empty Document
       // (`outputCtx: {}`) whose preview has nothing to render — asserting it
       // would be testing a non-viewable artifact, so we don't.
       await editor.openExisting(created.id, 2);
+      await editor.replayMostRecentRun();
 
       const uploadStrip = page.getByTestId("node-result-strip-upload1");
       await expect(uploadStrip).toHaveAttribute("data-state", "ready", {

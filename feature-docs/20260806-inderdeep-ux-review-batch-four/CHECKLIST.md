@@ -807,7 +807,47 @@ reads it as six missing steps.
 Part 14 where its number puts it.
 **Key file:** `docs-md/workflows/MANUAL_TEST_PLAN.md` — Part 14, L651–673.
 
-### 33. [ ] Get a developer through the infrastructure-level test steps
+### 33. [x] Get a developer through the infrastructure-level test steps
+**Alex ruled 2026-08-08: *"just fix the tests."* Done 2026-08-09 — all eleven
+`@infra` tests in the workflow-builder suite pass, three consecutive runs, no
+flake.** Three were failing; each had a different cause and only one was in the
+product's own test logic:
+
+1. **`tier3-dynamic-node-run` (both tests) — worker configuration.** The worker
+   had no `PLATFORM_API_KEY`, so `dyn.run` refused in ~50ms before reaching the
+   sandbox. Set it in `~/.config/bcgov-di/temporal.env` (the loader's first
+   source, ahead of the repo-root `.env`) and restarted the worker. No code
+   defect. Because Temporal reports the cause to node-statuses as a bare
+   `Activity task failed`, the spec's assertion message now carries the
+   prerequisite — the diagnosis cost a worker-log read that the failure itself
+   should have told us.
+2. **`tier3-dynamic-node-security` 14.11 (grant half) — the test depended on
+   DNS.** It granted `blocked.example.com` and expected the fetch to fail fast;
+   inside the runner container a lookup for a non-existent host takes **8.1s**
+   (six search domains, corporate forwarders), overrunning the runner's own 5s
+   timeout → `timedOut: true`, exit −1. Nothing to do with permissions.
+   Rewritten as an A/B on **one script and one host** — a closed loopback port
+   (`127.0.0.1:9`), which refuses in ~40ms with no resolution at all: denied
+   without `allowNet`, permitted with it. The manual step 14.11 gave the same
+   misleading instruction and was corrected too.
+3. **`tier3-try-preview` — pre-existing, and unsound on its own terms.** It
+   reloads the editor for a deterministic post-commit cache fetch, but
+   `RunStateProvider` starts every mount with `activeRunId = null` and restores
+   nothing, so the strip correctly reported "Not run yet" for ever. Fixed by
+   re-opening the run from **Run history** — the product's own answer, and the
+   one its preview copy points authors at. Side benefit: that surface had **no**
+   e2e coverage at all before this.
+
+Verified: `RUN_INFRA=1 PLAYWRIGHT_SKIP_DB_RESET=1 npx playwright test
+tests/e2e/workflow-builder/ --grep "@infra"` → 11 passed, ×3.
+
+**Still open, and it is the half that produces new information:** the cold walk
+of 14.1–14.6 by a developer who has *not* built this repo. Naming that person is
+Alex's. The reasoning is in
+[DECISIONS/33-infra-test-steps.md](DECISIONS/33-infra-test-steps.md).
+
+<details><summary>Original entry (2026-08-08)</summary>
+
 **Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
 [DECISIONS/33-infra-test-steps.md](DECISIONS/33-infra-test-steps.md). The nine
 skipped steps are **not** nine unverified steps: 14.1–14.6 run on every CI build
@@ -825,6 +865,8 @@ not."* That leaves 14.1–14.6 and 14.11–14.13 unverified by anyone but Alex.
 **Action:** Alex: *"it would be good to get some of the technical walkthrough —
 maybe some of the guys can help me. Developers."* Assign the API and security
 steps of Part 14 to a developer and record the results in the plan's checkboxes.
+
+</details>
 
 ---
 

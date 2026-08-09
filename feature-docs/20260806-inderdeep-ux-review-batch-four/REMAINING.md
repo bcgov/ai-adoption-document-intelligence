@@ -21,7 +21,38 @@ alert bug went with it — `evicted` is now reachable only in replay. Before and
 after are in [ILLUSTRATED.md §18](ILLUSTRATED.md); the narrative is Wave F in
 [WORKLOG.md](WORKLOG.md).
 
-### 2. Item 33 — fix the failing `@infra` tests
+### ~~2. Item 33 — fix the failing `@infra` tests~~ · **DONE 2026-08-09**
+
+All eleven `@infra` tests in `tests/e2e/workflow-builder/` pass — three
+consecutive full runs, no flake. Three were failing; the causes were all
+different and only one lived in the product's own test logic:
+
+- **`tier3-dynamic-node-run`** (both tests) — worker configuration, as
+  diagnosed. `PLATFORM_API_KEY` now lives in `~/.config/bcgov-di/temporal.env`
+  (the loader's first source, ahead of the repo-root `.env`), worker restarted.
+  The spec's assertion message now carries the prerequisite, because Temporal
+  reports the cause as a bare `Activity task failed` and the failure otherwise
+  tells the next person nothing.
+- **`tier3-dynamic-node-security` 14.11 (grant half)** — the test's clock was
+  **DNS**, not the sandbox. Inside the runner container a lookup for a
+  non-existent public host takes **8.1 seconds** (six search domains, corporate
+  forwarders), overrunning the runner's own 5s timeout. Now an A/B on one script
+  and one host — a closed loopback port, ~40ms, no resolution at all: denied
+  without `allowNet`, permitted with it. Manual step 14.11 told a human to do the
+  same misleading thing and was corrected.
+- **`tier3-try-preview`** — pre-existing, and unsound as written. Fixed by
+  re-opening the run from **Run history**, which is the product's own answer to a
+  reload losing the run and what the preview copy already tells authors to do.
+  That surface had no e2e coverage before this.
+
+`RUN_INFRA=1 PLAYWRIGHT_SKIP_DB_RESET=1 npx playwright test
+tests/e2e/workflow-builder/ --grep "@infra"` → **11 passed**, ×3.
+
+**What is still open on item 33** is the half that produces new information: a
+cold walk of 14.1–14.6 by a developer who has *not* built this repo. Naming that
+person is Alex's — see [DECISIONS/33-infra-test-steps.md](DECISIONS/33-infra-test-steps.md).
+
+<details><summary>The original entry, and the diagnosis it recorded</summary>
 
 Alex, 2026-08-08: *"just fix the tests."* Run with the **whole stack up** —
 frontend, backend, Temporal worker **and the deno-runner**. His standing rule from

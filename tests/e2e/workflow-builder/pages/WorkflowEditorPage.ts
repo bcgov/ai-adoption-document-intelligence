@@ -109,6 +109,45 @@ export class WorkflowEditorPage {
       .waitFor({ state: "visible" });
   }
 
+  /** Open the Run history drawer and wait for its list (or empty state). */
+  async openRunHistory(): Promise<void> {
+    await this.openMoreMenu();
+    await this.menuRunHistory.click();
+    await this.page
+      .locator(
+        '[data-testid="run-history-drawer-list"], [data-testid="run-history-drawer-empty"]',
+      )
+      .first()
+      .waitFor({ state: "visible" });
+  }
+
+  /**
+   * Re-open the most recent run from Run history, putting the canvas into
+   * replay mode.
+   *
+   * `RunStateProvider` starts every mount with `activeRunId = null` and
+   * restores nothing, so after a reload this is the ONLY way back to a
+   * finished run's statuses and cached previews — it is what the preview
+   * surfaces' own copy tells the author to do ("re-open this run from the run
+   * history"). Rows are newest-first; the row body itself is the replay
+   * affordance (the Replay button on it fires the same handler).
+   *
+   * The `[data-status]` qualifier matters: several of a row's CHILDREN also
+   * carry `run-row-`-prefixed testids (status dot, version pin, started,
+   * input ctx, replay button), and only the row root has `data-status`.
+   */
+  async replayMostRecentRun(): Promise<void> {
+    await this.openRunHistory();
+    const firstRow = this.page
+      .locator('[data-testid^="run-row-"][data-status]')
+      .first();
+    await firstRow.waitFor({ state: "visible" });
+    await firstRow.click();
+    await this.page
+      .getByTestId("replay-mode-indicator")
+      .waitFor({ state: "visible" });
+  }
+
   async openSaveAsLibrary(): Promise<void> {
     await this.openMoreMenu();
     await this.menuSaveAsLibrary.click();

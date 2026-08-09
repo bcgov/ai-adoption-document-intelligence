@@ -86,24 +86,57 @@ export default async function dynamicNode(
   test("14.11 — the allowlist is the gate: granting the host lifts the denial", {
     tag: "@infra",
   }, async ({ request }) => {
-    // Same script, but the host is now in the computed allowlist. The Deno
-    // net permission is granted, so the call is no longer permission-denied
-    // (it returns cleanly — the script swallows any downstream network error).
-    const result = await execViaRunner(request, {
-      script: `export default async function () {
+    // An A/B on ONE script and ONE host: denied when the host is absent from
+    // allowNet, permitted when it is present. That is the whole claim — the
+    // allowlist, and nothing else, is what produces the denial above.
+    //
+    // The target is a CLOSED LOOPBACK PORT, not a public hostname, and that is
+    // deliberate. The granted half has to let the fetch actually reach the
+    // network layer to prove no permission error is raised, which means the
+    // request's failure mode becomes the test's clock. Against a non-existent
+    // public host that clock is DNS, and DNS is not ours: on a corporate
+    // network the sandbox's resolver took >8s to conclude NXDOMAIN (six search
+    // domains, upstream forwarders), overrunning the runner's own 5s timeout,
+    // so the runner returned `timedOut: true` / exit −1 and this test failed
+    // for a reason that had nothing to do with permissions. 127.0.0.1:9 (the
+    // discard port, closed) skips resolution entirely and refuses in ~40ms.
+    // Deno gates loopback exactly as it gates any other host, so the gate
+    // under test is unchanged — only the environmental dependency is gone.
+    const script = `export default async function () {
   try {
-    await fetch("https://blocked.example.com/");
+    await fetch("http://127.0.0.1:9/");
     return { reached: true };
-  } catch (_e) {
-    return { reached: false };
+  } catch (e) {
+    return { reached: false, error: String(e) };
   }
-}`,
-      allowNet: ["blocked.example.com"],
+}`;
+
+    // The script catches its own failure, so the denial surfaces as the
+    // returned error string rather than a non-zero exit — which is the point
+    // of the A/B: one script, one host, and the ONLY difference between the
+    // two outcomes below is the allowNet argument. (The uncaught form, where
+    // the denial kills the process, is the preceding test.)
+    const denied = await execViaRunner(request, { script, allowNet: [] });
+    expect(denied.stdout).toMatch(/Requires net access/i);
+    expect(denied.stdout).toContain("127.0.0.1:9");
+    expect(denied.stdout).toContain(`"reached":false`);
+
+    const granted = await execViaRunner(request, {
+      script,
+      allowNet: ["127.0.0.1:9"],
     });
 
-    expect(result.exitCode).toBe(0);
-    // Crucially, the failure mode (if any) is NOT a permission denial.
-    expect(result.stderr).not.toMatch(/Requires net access/i);
+    expect(
+      granted.timedOut,
+      `granted run timed out: ${JSON.stringify(granted)}`,
+    ).toBe(false);
+    expect(granted.exitCode).toBe(0);
+    // Crucially, the failure mode is NOT a permission denial — the script got
+    // past the gate and reported an ordinary connection error instead.
+    expect(granted.stderr).not.toMatch(/Requires net access/i);
+    expect(granted.stdout).not.toMatch(/Requires net access/i);
+    expect(granted.stdout).not.toMatch(/NotCapable/);
+    expect(granted.stdout).toContain(`"reached":false`);
   });
 
   test("14.13 — env isolation: reading a host env var beyond the ambient set is denied", {

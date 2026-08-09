@@ -40,7 +40,9 @@ Tests that need a live dependency are **opt-in**, and the two states are honest:
 - a **seeded DB** — if the DB was reset without a seed, API calls 401; run `npm run db:seed` (from `apps/backend-services`)
 
 Dynamic-node **run** tests additionally need the worker started with a
-`PLATFORM_API_KEY` (any non-empty value locally) — see
+`PLATFORM_API_KEY` (any non-empty value locally). To make it survive a worker
+restart, put it in `$DI_SECRETS_DIR/temporal.env` (default
+`~/.config/bcgov-di/temporal.env`) — see
 [workflows/MANUAL_TEST_PLAN.md](workflows/MANUAL_TEST_PLAN.md).
 
 For a friendlier pass over the same product — 16 stops, screenshots, no setup —
