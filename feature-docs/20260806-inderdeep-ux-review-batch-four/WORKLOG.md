@@ -493,6 +493,58 @@ Alex has not answered it; the three `if (isReplay) return;` guards are untouched
 not jolting on entry, and the top bar still fitting from 1920 down are browser
 evidence — manual test plan 9.9d, deliberately left unticked.
 
+### Item 8 — one `Run…` button, and a try admits it is disposable
+
+**Commit `9cf679ff`**
+
+**Alex approved the recommendation.** Two buttons opened the same drawer and
+differed only in which existing tab was pre-selected, so Inderdeep's *"even if I
+choose one, I still have the option to go to the other"* was literally true.
+
+The trace behind that ruling is worth keeping, because it is stronger than the
+decision doc could claim. `RunTrigger` is a Temporal **search attribute** — a
+label used for querying — and it is read in exactly **one** place in the whole
+codebase: the query that finds in-flight tries to cancel. It is never passed into
+the workflow input, so the worker **cannot know** which it was, which makes every
+downstream behaviour provably identical: same outputs, same cache, same
+documents, same human gates. Tries appear in run history exactly like runs, and
+the run summary carries no trigger field, so nothing can tell them apart
+afterwards. Both endpoints fire the cancel, so starting a Run also kills your
+in-flight tries; a Run is simply immune to being killed.
+
+There is a further irony. The only path that creates a `Document` row from the
+builder is the **upload** endpoint — and that one stamps `"try"`. The Run tab's
+JSON box creates none. So "Run puts it in a queue" is exactly backwards.
+
+Shipped: one `Run…` button; tabs renamed **"Try on canvas"** and **"Call from
+outside"**; the second tab's box relabelled from *"Test run"*, which sat on the
+non-disposable path and read backwards; and the disposability finally stated
+under the Try button — the one genuinely useful property of the distinction,
+which until now only the source code knew. Which tab opens is derived from the
+workflow rather than from which button was pressed.
+
+**One deliberate departure, recorded for Alex.** The surviving button is shown
+for every workflow rather than inheriting Try's hide rule. Hiding it for
+upload-driven workflows would leave them with **no top-bar route to the drawer at
+all**, and the drawer is the only way to reach the upload dropzone; it would also
+have killed an existing e2e test. The rule's intent survives where it already
+lived — those workflows get the dropzone and no tabs.
+
+### A regression this batch introduced, caught in a browser
+
+**Commit `001ec032`**
+
+Item 14 traded a button labelled **"Switch"** for a bare chevron, leaving
+`aria-label` as the only explanation — which serves screen readers and nobody
+else. A sighted mouse user hovering it got nothing. That is the same complaint
+items 15, 16 and 17 were about, so it got the same remedy item 19's group header
+got: name the affordance on hover, and stand down once the list is open.
+
+Worth noting **how** it was found: not by a test, but by the agent taking the
+screenshots, because it was the only one that looked at the thing in a browser.
+No unit test could have caught it — jsdom will happily render a tooltip a real
+browser does not.
+
 ---
 
 ## The @infra suites, actually run — 2026-08-08
@@ -523,19 +575,48 @@ are **automated but never run**, and the first time anyone ran them, two failed.
 
 ## Verification of the whole branch, 2026-08-08
 
-Run after every batch above had landed, with nothing else editing the tree:
+Final run, after every batch above had landed, on an idle machine:
 
-- **Backend** `jest` — **2843 tests, 152 suites, all passing.**
-- **Frontend** `vitest run` — **2596 tests, 209 files, all passing.**
+- **Backend** `jest` — **2863 tests, 153 suites, all passing.**
+- **Frontend** `vitest run` — **2614 tests, 210 files, all passing.**
 - `tsc --noEmit` clean on both; Biome clean on every changed file.
 
-One honest note on method: the *first* full frontend run reported 5 failures
-while the backend suite and a browser-driving agent were competing for the same
-machine (that run took 79s against a normal 46s, with import time alone at
-495s). Two clean re-runs on an idle box show 209/209. Recorded because a green
-number that followed a red one is worth explaining rather than quietly keeping.
+Two honest notes on method, both recorded because a green number that followed a
+red one is worth explaining rather than quietly keeping:
+
+- An earlier full frontend run reported 5 failures while the backend suite and a
+  browser-driving agent were competing for the same machine (79s against a normal
+  46s, with import time alone at 495s). Clean on re-run.
+- A later run reported 1 failure, again while a browser agent was driving the
+  same box; two clean re-runs followed. In neither case did the failing test
+  reproduce in isolation.
+
+**What tests do not cover, stated once rather than per item.** jsdom runs no
+layout: every box is 0×0, tables are not laid out, and a tooltip renders that a
+real browser may not. So for the workflows table, the top-bar overflow, the
+replay banner's height and the switcher's tooltip, the tests pin the *rule* and
+the browser evidence is the screenshots and the measured Chromium runs. Each of
+those items says so in its own entry.
 
 ---
+
+## Where the batch stands at close
+
+**30 of 33 items done.** The three open ones are not code that anybody failed to
+write:
+
+- **Item 9** (the Try reflow) — a written fork awaiting Alex's pick between
+  reserving the full pane, growing out of flow, or the recommended fixed strip
+  plus popover.
+- **Item 20** (the colour vocabulary) — deferred by Alex until the rest landed.
+  The measurement is done and the recommendation is written; it needs a session
+  of its own because it changes how every saved workflow looks.
+- **Item 33** (the cold-setup walk) — needs a named person who has never built
+  this repo. Half of it is now answered by evidence: the `@infra` suites were
+  run and two of six failed, so "they exist and pass" was too generous.
+
+Four earlier decisions — items 8, 13, 23 and the two above — were ruled on during
+the session and are recorded in their own entries above.
 
 ## Discovered during implementation — not on Inderdeep's list
 
