@@ -486,7 +486,13 @@ and L268–271), `canvas/PaneContextMenu.tsx`.
 
 ## Colour system and the legend
 
-### 20. [ ] The port/wire colour vocabulary is too large to hold in your head
+### 20. [x] The port/wire colour vocabulary is too large to hold in your head
+
+**Done 2026-08-09 (Wave H).** Seven port families → five, each carrying a shape
+as well as a colour (worst CVD pair ΔE 5.2 → 14.2). Thirteen node accents → five
+by role (worst pair ΔE 0 → 12.9). Seven copies of the palette collapsed to one.
+The collapse of the seven activity CATEGORY accents into a single slate is the
+one judgement Alex has not seen on screen yet.
 **Premise settled 2026-08-08; decision artifact awaiting Alex's ruling.** See
 [DECISIONS/20-colour-vocabulary.md](DECISIONS/20-colour-vocabulary.md). The
 legend renders **exactly 13 rows** (4 wire + 7 family + 2 ring-modifier), so

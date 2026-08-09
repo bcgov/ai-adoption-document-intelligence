@@ -1,8 +1,10 @@
 # What is left — batch four and the rest of Inderdeep's work
 
-**As at 2026-08-09.** 31 of 33 checklist items are done and committed on
-`feature/visual-workflow-builder`; the branch is clean and the frontend suite is
-green (2,685 tests / 212 files, up from 2,614 — item 9 added 71).
+**As at 2026-08-09.** All **33 of 33** checklist items are done and committed on
+`feature/visual-workflow-builder` (item 33 keeps one open half — a cold setup
+walk that needs a name, not code). The branch is clean and every suite is green:
+frontend unit **2,706 / 213 files**, `@ai-di/graph-workflow` **1,082**, default
+workflow-builder e2e **65**, `RUN_INFRA=1` e2e **11**.
 
 This file exists so the chat can be compacted without losing the thread. The
 narrative is in [WORKLOG.md](WORKLOG.md), the pictures and the written change log
@@ -99,41 +101,38 @@ stack up gets a hard failure rather than a skip. That inverts the repo's own
 contract in `docs-md/TESTING.md`. Tracked separately under the EXPERIMENTS
 FOLLOWUP item / AI-1641.
 
-### 3. Item 20 — the colour vocabulary · **Option D** · its own session
+### ~~3. Item 20 — the colour vocabulary~~ · **DONE 2026-08-09**
 
-Four typed colours plus grey, each carrying a **handle shape** so colour is never
-the only signal. Not combinatorial — the shape says the *same* thing the colour
-says, so the vocabulary is five, not five-times-four. Today's real load is 32
-rendered colour values carrying ~24 meanings plus 37 glyphs, with two measured
-collisions: under deuteranopia the Untyped grey and References teal are the same
-dot, and activity blue is identical to childWorkflow purple.
+Shipped as Option D **plus** the node accents folded in, on Alex's *"ok, can do
+#20 now"*. Port families 7 → 5, each with a shape; node accents 13 → 5 by role;
+seven separate copies of the palette collapsed to one. Worst colour-vision pair
+went from ΔE 5.2 to **14.2** on the ports and from ΔE 0 to **12.9** on the
+accents. Full detail in Wave H of [WORKLOG.md](WORKLOG.md) and the "Ruled" block
+in [DECISIONS/20-colour-vocabulary.md](DECISIONS/20-colour-vocabulary.md).
 
-Alex deferred this until the rest landed. It changes how every saved workflow
-looks, so it wants a session of its own. Full detail and the palette table in
-[DECISIONS/20-colour-vocabulary.md](DECISIONS/20-colour-vocabulary.md).
-
-**Open sub-question:** the ruling covers *port dots*. **Node accent colours** are
-a separate, larger problem — 12 hex values across 10 activity categories and 6
-control-flow types, with red/green at ΔE 5.4 and **blue/purple at ΔE 0.6**, which
-is indistinguishable. Fold in, or keep separate? Recommended: fold in — same
-channel, same files, and doing the ports alone leaves the louder collision on
-screen. Three unambiguous drifts (two greys for one wire, two reds for one error,
-blue meaning both "any data" and "document") will be fixed regardless.
+**One thing in it wants Alex's eye, not his approval in the abstract:** the
+seven activity *category* accents collapsed into one slate, so every OCR /
+validation / storage / transform card now has the same border. The measurement
+forced a reduction (13 hues cannot be separated); the choice of axis is taste as
+much as evidence. Reverting to per-category is one line in `catalog-utils.ts`,
+and brings the collisions back with it.
 
 ---
 
 ## Needs a design call — found 2026-08-09, not invented
 
-**Where toasts live.** The orphaned-delete toast covers the top bar's right-hand
-controls (More, part of the Save/Run group) for its full 8-second life, and
-because `<Notifications position="top-right" />` is global (`main.tsx`), the same
-toast sits over the app header's user menu on **every** page. The stale-toast
-half is fixed (`ef977a50`: undo/redo retire it, because its Undo link would
-otherwise rewind an unrelated edit), but a *live* toast still blocks a live
-toolbar. **Recommendation:** give the global `<Notifications>` a top offset that
-clears the app header plus the page action bar, so a toast can never sit over a
-toolbar. That is one line and one decision — it changes toast placement
-everywhere in the product, which is why it is here and not done.
+### ~~Where toasts live~~ · **DONE 2026-08-09**
+
+Alex: *"i also like your idea of toast moving down below the header."* Toasts now
+start at `top: 120px` — measured in Chromium, the app header ends at 65 and the
+workflow top bar at 112, and a toast used to run 16 → 110, covering both.
+
+It also had to stop the container eating clicks. Mantine's `Notifications` root
+is a 440px `position: fixed` box that exists whether or not it holds anything; at
+16px it only overlapped the header, but moved down it lands on the canvas and an
+**empty** toast container swallowed every node click and wire hover in the
+top-right quadrant. 2,706 unit tests passed with that in — jsdom runs no layout
+and cannot see a fixed overlay. The e2e caught it in one run.
 
 ---
 

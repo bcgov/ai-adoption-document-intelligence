@@ -1,5 +1,56 @@
 # Decision 20 — the canvas colour vocabulary
 
+> ## Ruled — 2026-08-09
+>
+> Alex: **"ok, can do #20 now"**, on a recommendation that answered §5's four
+> questions as: (1) keep a per-family port colour — Option D, (2) shape rather
+> than outline pattern, (3) **fold the node accents in**, (4) fix the three
+> drifts regardless. Shipped on that basis. What the build learned that the
+> analysis had not:
+>
+> - **The port palette's own numbers moved.** Re-measured on the exact values
+>   about to ship rather than on the doc's candidates, Option D as written held
+>   a worst pair of only **ΔE 11.0** (Documents blue vs the merged content
+>   violet, deuteranopia) — at the threshold, not clear of it. A search over
+>   Mantine shades lifted it to **ΔE 14.2** by moving content to `violet-8`
+>   `#6741D9`, pointers to `teal-7` `#0CA678`, and untyped to the theme's
+>   `gray-7` `#605E5C`. The doc's `#099268` / `#12B886` teal and `#9F9D9C` grey
+>   were the binding pair; `#9F9D9C` against a teal is what forced the change.
+> - **The fifth shape is a bar, not a triangle.** Four filled silhouettes plus a
+>   hollow one, none using `clip-path` — `clip-path` clips `outline` and
+>   `box-shadow` away, and those two draw the array double-ring and the amber
+>   needs-a-source ring. `diamond` is a rotated square for the same reason.
+> - **The legend went to ELEVEN rows, not nine, and then to sixteen.** §4 said
+>   the two ring modifiers would "fold into the family rows"; there is nowhere
+>   to fold them, because a family row shows one dot and a ring is a thing that
+>   happens *to* a dot of any family. Deleting them would have removed the only
+>   explanation of the amber ring in the product. Then card borders got a
+>   section of their own — they were never explained anywhere, because until now
+>   there were thirteen of them. Four named groups instead of one undifferentiated
+>   list; the row count is up, the decodable vocabulary is down from ~24 to 14.
+> - **Question 3 could not be answered "fix the collisions".** Measured, the 13
+>   accents produced **14 pairs under ΔE 11**, including `#22c55e` used for
+>   three unrelated things and one pair at ΔE 0.2. Thirteen hues cannot be
+>   separated at all, so the reduction was forced by the measurement, not
+>   chosen. The axis it reduced along — what KIND of step this is — collapses
+>   the seven activity CATEGORY accents into one. **That is the part Alex has
+>   not seen yet**: every activity card is one slate now, and the category it
+>   used to encode is carried by the icon, the label and the palette sidebar.
+>   Easy to revert to per-category if he disagrees; see the worklog.
+> - **Four more copies of the palette were found while wiring it up**, none of
+>   them in §1's count: `dynamic-nodes/signature-preview-helpers.ts` (which had
+>   `Segment` teal where the registry says violet, and five keys that are not
+>   registry kinds at all), `sources/source-catalog-utils.ts`,
+>   `sources/SourceNodeRenderer.tsx`, and `WorkflowEditorCanvas.tsx`'s arrowhead
+>   markers. All now read one source.
+> - **One regression, found by the e2e and not by the tests.** The toast
+>   placement fix (a separate ask, same session) moved Mantine's `Notifications`
+>   container down to clear the page action bar — which put a 440px-wide
+>   `position: fixed` box, *empty*, on top of the canvas, swallowing every node
+>   click and wire hover in the top-right quadrant. `pointerEvents: none` on the
+>   container, `auto` on the notifications inside it.
+
+
 **The question:** how many distinct visual signals should the workflow canvas
 use to say "this is a piece of data of type X, and it can connect to Y" — and
 should any of them be colour alone?

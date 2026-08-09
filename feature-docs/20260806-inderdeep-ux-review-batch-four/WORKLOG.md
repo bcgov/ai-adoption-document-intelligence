@@ -964,3 +964,190 @@ choosing someone who has *not* set the repo up, because anyone who has will
 silently skip the steps that break.
 
 ---
+## Wave H — item 20, the colour vocabulary · 2026-08-09
+
+Alex, after the batch-four report: *"ok, can do #20 now, i also like your idea
+of toast moving down below the header."* Two asks in one line, and they turned
+out to be connected — the toast fix broke the canvas, and the canvas e2e is what
+caught it.
+
+The ruling and everything the build learned that the analysis had not are
+recorded in [DECISIONS/20-colour-vocabulary.md](DECISIONS/20-colour-vocabulary.md).
+This is what shipped.
+
+### The port palette: seven families → five, each with a shape
+
+Inderdeep counted the legend — *"there are like 12 to 13 of them"* — and the
+legend really did render 13 rows. The canvas underneath was worse: **32 distinct
+hex values carrying about 24 meanings**.
+
+Seven port families became **five**, and the merge is by what the data *is*:
+
+| Family | Was | Now | Shape |
+|---|---|---|---|
+| Documents & files | blue | `#5595D9` blue | filled circle |
+| Content taken out of a document | Segment green **+** OcrResult violet | `#6741D9` violet | filled square |
+| Judgements about a document | yellow | `#FAB005` yellow | diamond |
+| Pointers — IDs and lookups | Identifier cyan **+** Reference teal | `#0CA678` teal | vertical bar |
+| Untyped / wildcard | grey | `#605E5C` grey | hollow circle |
+
+**Why the merge was forced.** Simulated with the Viénot 1999 dichromat
+transform and scored with CIEDE2000, on the values actually rendered:
+
+| Pair, as shipped before today | Deuteranopia | Protanopia | Luminance ratio |
+|---|---:|---:|---|
+| References teal vs Untyped grey | **ΔE 5.2** | 11.0 | **1.06 : 1** |
+| Documents blue vs Identifiers cyan | **ΔE 6.4** | 8.5 | 1.13 : 1 |
+| Identifiers cyan vs Untyped grey | 9.9 | **ΔE 6.9** | **1.03 : 1** |
+
+Anything under ΔE ≈ 11 reads as one colour, and those pairs have no brightness
+difference to fall back on either — grey and teal simulate to `#9E9E9C` against
+`#9E9E89`. They are the same dot. The five that shipped hold a worst pair of
+**ΔE 14.2 under both deficiencies**.
+
+**The shape is the half that makes the merge honest.** Shipping the merge alone
+would have removed distinctions without replacing them. Each family draws a
+different silhouette on the port dot, so a reader who cannot separate two hues
+can still separate two ports. None of the five uses `clip-path`, deliberately:
+`clip-path` clips `outline` and `box-shadow`, which are exactly what draw the
+array double-ring and the amber needs-a-source ring. The diamond is a rotated
+square for the same reason — and it carries the side's own translate in the
+composed transform, because xyflow's `.react-flow__handle-left`/`-right` classes
+already set one and an inline `transform` replaces rather than composes with it.
+The "+" invitation counter-rotates inside a diamond, or it renders as a ×, which
+means the opposite of what that glyph is for.
+
+**What it costs, said plainly.** An `OcrResult` and a `Segment` are both violet
+squares now. You cannot tell them apart by dot. The kind literal is still on the
+handle tooltip verbatim, on the per-port pill row, and in the validator's
+refusal. Colour went from "the exact type" to "the neighbourhood".
+
+### Node accents: thirteen → five, and this one needs Alex's eye
+
+The decision doc asked whether to fold the node accents in and I recommended
+yes. Measured, they could not be fixed any other way:
+
+| Accent pair, before | Worst ΔE | |
+|---|---:|---|
+| activity "green" vs `map` | **0** | the same hex `#22c55e` — which ALSO painted the map-body group outline. One colour, three meanings. |
+| activity violet vs `childWorkflow` | **0.2** | protanopia |
+| activity indigo vs activity violet | **0.7** | |
+| activity blue vs `childWorkflow` | **0.7** | deuteranopia |
+| `humanGate` red vs `join` green | **8.5** | opposite meanings |
+
+Fourteen pairs under ΔE 11 in total. Thirteen hues cannot be pulled apart, so
+re-picking the hexes was not an option — the count had to come down. It came
+down along the axis the canvas already draws: **what kind of step this is**.
+
+| Role | Colour | Which nodes |
+|---|---|---|
+| Does work | `#64748B` slate | **every activity, and every source** |
+| Decides where to go next | `#D97706` amber | `switch`, `pollUntil` |
+| Fans out or back in | `#6B21A8` purple | `map`, `join`, and the map-body group outline |
+| Waits for a person | `#B91C1C` red | `humanGate` |
+| Runs another workflow | `#065F46` green | `childWorkflow` |
+
+Worst pair **ΔE 12.9**. A coloured card is now exactly a card that does
+something structurally unusual.
+
+**The part to look at before agreeing:** this collapses the seven activity
+*category* accents into one. Every OCR / validation / storage / transform card
+is the same slate. The category is still carried by the icon (31 distinct
+glyphs), the card's own label, and the palette sidebar's grouping — but it is a
+visible change to every saved workflow, and it is the one judgement here that is
+taste as much as measurement. Reverting to per-category accents is a one-line
+change in `catalog-utils.ts`; the collisions come back with it.
+
+### The two codes are measured separately, on purpose
+
+Port dots say what the DATA is; card borders say what the STEP is. Ten
+mutually-separable hues do not exist under dichromacy, so each code is scored
+against itself. They are different elements, in different places, never asked to
+be compared. Stated rather than assumed, because the cross-code pairs *are*
+close in places and a future reader will otherwise think it was missed.
+
+### Seven copies of the palette, and the drifts they had already caused
+
+§1 of the decision doc found three drifts. Wiring the change up found four more
+copies of the palette nobody had counted:
+
+1. **Two greys for one wire** — the legend sampled `gray-5`, which the app theme
+   overrides to `#C6C5C3`, while the real sequence wire is `#9CA3AF`.
+2. **Two reds for one concept** — the error *wire* read `var(--mantine-color-red-6)`
+   → the theme's dark `#822623`; the error *handle dot* was a hardcoded
+   `#e03131`. Now one exported `ERROR_STROKE`, imported by both.
+3. **Blue meaning two things** — the legend's "Data flows — colour = data family"
+   sample was painted `blue-6`, which is also the Documents family colour. It is
+   now drawn as a run of all five family colours, which is what that sentence
+   looks like.
+4. **`dynamic-nodes/signature-preview-helpers.ts`** — a hand-written kind→colour
+   map that had `Segment` teal where the registry says violet and
+   `ValidationResult` green where it says yellow, plus five keys (`OcrPage`,
+   `OcrLine`, `OcrToken`, `QualityReport`, `ReferenceData`) that are not registry
+   kinds at all and could never match anything. Deleted; reads the registry now.
+5. **`sources/source-catalog-utils.ts`** — a private copy of the activity
+   `COLOR_TOKENS`, mapping the source subtypes onto two of the retired hexes.
+6. **`sources/SourceNodeRenderer.tsx`** — its own `handleBackground`, which once
+   the palette became literal would have painted a source's output dot a
+   different colour from an identical port anywhere else.
+7. **`WorkflowEditorCanvas.tsx`** — arrowhead marker colours re-declared "to
+   match `WorkflowEdge`'s palette", already not matching it.
+
+The root cause in every case is the same: `var(--mantine-color-<token>-6)`. The
+app theme overrides Mantine's `blue`, `gray` and `red` scales, so code written
+against stock Mantine paints one colour and reads another. **The five family
+values are literal hexes now**, in one file, with a unit test that fails if any
+of them turns back into a variable, and a registry test that fails if any kind
+declares a sixth family token.
+
+`ACTIVE_STROKE` and `TAKEN_STROKE` were the last two and are now literals as
+well. `ACTIVE_STROKE` is the same value as the Documents family — a collision on
+paper that is not one in practice, because an active wire is the only thing on
+the canvas that *moves*, and motion is a carrier no colour deficiency touches.
+Written down in the source rather than left to be rediscovered.
+
+### The toast, and the regression it caused
+
+Separately ruled the same message: *"i also like your idea of toast moving down
+below the header."* Measured in Chromium at 1280×720 and 1280×800 — identical at
+both, all of this chrome being fixed-height:
+
+```
+app header (.mantine-AppShell-header)   0 →  65
+workflow editor top bar                65 → 112
+toast, before this change              16 → 110   ← covers both
+```
+
+So `top: 120px` — the bar's bottom plus an 8px gap.
+
+**And that broke the canvas.** Mantine's `Notifications` root is a 440px-wide
+`position: fixed` box that exists whether or not anything is in it. At 16px it
+overlapped only the app header; moved down to clear the action bar it lands on
+the canvas, and an *empty* toast container was swallowing every node click and
+wire hover in the top-right quadrant. Twenty-six e2e tests went red. The fix is
+`pointerEvents: "none"` on the container and `auto` on the notifications inside
+it, which the toasts need for their close button and Undo link.
+
+Worth naming the sequence: **2,706 unit tests and a clean type-check all passed
+with that bug in.** Nothing that runs in jsdom can see a fixed-position overlay,
+because jsdom runs no layout. The e2e found it in one run.
+
+### Verified
+
+- frontend unit — **2,706 passed / 213 files** (up 20: the shape carrier, the
+  five accent roles, the registry family guard, and the source-accent rebase)
+- `@ai-di/graph-workflow` — **1,082 passed / 48 suites**
+- default workflow-builder e2e — **65 passed**
+- `RUN_INFRA=1` e2e — **11 passed**
+- `tsc --noEmit` clean; `biome check src` clean (2 pre-existing warnings in
+  `data/services/builder-fetch.test.ts`, untouched)
+
+Stale assertions were rebased rather than deleted. Where a test used to say "these
+two kinds have different colours" and they are now deliberately one family, it
+says that instead, and asserts the kind literal as the surviving distinction.
+Two tests that compared a helper against the map it read — `resolveKindColor(k)`
+vs `KIND_COLOR_TOKENS[k]`, which passes no matter what either says — were
+rewritten to assert the thing that actually matters: that the signature preview
+and the canvas agree.
+
+---

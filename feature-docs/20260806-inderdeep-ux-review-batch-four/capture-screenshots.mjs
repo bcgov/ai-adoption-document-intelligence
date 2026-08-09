@@ -1175,6 +1175,222 @@ const SHOTS = {
     );
     await page.close();
   },
+
+  /**
+   * §19 — item 20, the colour vocabulary, on a whole canvas.
+   *
+   * The control-flow demo, because it is the only seeded workflow that carries
+   * every one of the five accent roles at once — `activity`, `switch` and
+   * `pollUntil` (routing), `map` and `join` (fan), `humanGate` (person),
+   * `childWorkflow` — so the frame shows the card-border half of the
+   * vocabulary and the port-dot half in the same picture, in a real graph
+   * rather than in the legend that explains it.
+   *
+   * Zoomed one step in from fit-view before shooting: a fit of an eight-node
+   * graph lands near 0.5, where a 12px dot is six pixels and the shapes the
+   * item shipped are not decidable. The zoom is asserted rather than assumed.
+   */
+  19: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
+    await page.locator(".react-flow__controls-zoomin").click();
+    await page.waitForTimeout(1200);
+    const zoom = await page.evaluate(() => {
+      const viewport = document.querySelector(".react-flow__viewport");
+      const matrix = new DOMMatrixReadOnly(
+        getComputedStyle(viewport).transform,
+      );
+      return matrix.a;
+    });
+    if (zoom < 0.6) {
+      throw new Error(
+        `canvas is at ${zoom.toFixed(2)}× — the port dots would be under 8px`,
+      );
+    }
+    process.stdout.write(`[canvas at ${zoom.toFixed(2)}×] `);
+    // Park the cursor so no port tooltip opens over a card.
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(900);
+    await shootElement(page, ".react-flow", "24-port-vocabulary-canvas.png", 0);
+    await page.close();
+  },
+
+  /**
+   * §20 — item 20, the SHAPES, close enough to decide them.
+   *
+   * The card is chosen by measurement, not by name: the shot asks the page
+   * which node's port rows carry the most distinct `data-port-shape` values
+   * and frames that one. A card showing one shape would photograph nothing —
+   * the claim is that the five families are separable without colour, and a
+   * frame can only carry that if several silhouettes are in it side by side.
+   * The shot refuses to save unless at least three are.
+   */
+  20: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
+    const best = await page.evaluate(() => {
+      let winner = null;
+      for (const card of document.querySelectorAll(".react-flow__node")) {
+        const id = card.getAttribute("data-id");
+        if (!id) continue;
+        const shapes = new Set(
+          [...card.querySelectorAll("[data-port-shape]")].map((row) =>
+            row.getAttribute("data-port-shape"),
+          ),
+        );
+        if (!winner || shapes.size > winner.shapes.length) {
+          winner = { id, shapes: [...shapes] };
+        }
+      }
+      return winner;
+    });
+    if (!best || best.shapes.length < 3) {
+      throw new Error(
+        `no card carries three distinct port shapes (best: ${
+          best ? `${best.id} with ${best.shapes.join(", ")}` : "none"
+        })`,
+      );
+    }
+    process.stdout.write(`[${best.id}: ${best.shapes.join(", ")}] `);
+    const card = `[data-testid="canvas-node-${best.id}"]`;
+    await centreInCanvas(page, card);
+    // 900px of a 1920px frame — roughly 3× the card's authored width, which
+    // puts the 12px dot near 36px. That is the size at which "is this a
+    // diamond or a square" stops being a guess.
+    await zoomOnto(page, card, 900);
+    await centreInCanvas(page, card);
+    await shootElement(page, card, "25-port-dot-shapes.png", 26);
+    await page.close();
+  },
+
+  /**
+   * §21 — the legend, rebuilt: four named groups instead of one list.
+   *
+   * Checked before the frame is saved, because "all four sections" is the
+   * claim and a popover that scrolled or clipped one of them would photograph
+   * as three. The four group bodies are asserted present and non-empty, and
+   * the five family rows counted, so a frame can never quietly show a
+   * half-rendered dropdown.
+   */
+  21: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
+    await page.getByTestId("canvas-legend-button").click();
+    await page.waitForSelector('[data-testid="canvas-legend"]', {
+      timeout: 15000,
+    });
+    // The popover's transition is already `duration: 0`, but Mantine still
+    // positions it on the next frame; wait for that rather than for a guess.
+    await page.waitForTimeout(700);
+    const counts = await page.evaluate(() => {
+      const rows = (testid) =>
+        document.querySelectorAll(`[data-testid="${testid}"] > *`).length;
+      const headings = [
+        ...document.querySelectorAll('[data-testid="canvas-legend"] p'),
+      ]
+        .map((el) => el.textContent?.trim())
+        .filter((text) => text && text === text.toUpperCase());
+      return {
+        headings,
+        families: rows("canvas-legend-families"),
+        rings: rows("canvas-legend-rings"),
+        accents: rows("canvas-legend-accents"),
+      };
+    });
+    if (counts.families !== 5) {
+      throw new Error(`legend shows ${counts.families} port families, not 5`);
+    }
+    if (counts.rings !== 2 || counts.accents !== 5) {
+      throw new Error(
+        `legend shows ${counts.rings} ring rows and ${counts.accents} accent rows`,
+      );
+    }
+    process.stdout.write(
+      `[sections: ${counts.headings.join(" · ")} · ` +
+        `${counts.families} families, ${counts.rings} rings, ${counts.accents} accents] `,
+    );
+    // Park the cursor: it is sitting on the Legend button, whose own tooltip
+    // would otherwise land across the bottom of the dropdown.
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(600);
+    // Button plus dropdown as a union — the popover is portalled, so a shot of
+    // the dropdown alone would not show what opens it.
+    await shootUnion(
+      page,
+      [
+        '[data-testid="canvas-legend-button"]',
+        '[data-testid="canvas-legend"]',
+      ],
+      "26-canvas-legend-four-sections.png",
+      14,
+    );
+    await page.close();
+  },
+
+  /**
+   * §22 — the five card-border accents, in one graph.
+   *
+   * Same demo, framed to the union of the four non-default cards so the calm
+   * slate of an ordinary activity is next to amber routing, purple fan, red
+   * person and green child-workflow. The shot asks the page for one card of
+   * each role and refuses if any role is missing, so it cannot silently become
+   * a picture of four accents captioned as five.
+   */
+  22: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-control-flow-forms-condition-editor-part-4");
+    // The roles are not on the DOM — they are a function of node type — so the
+    // shot maps type → role the way `node-accents.ts` does and picks one card
+    // per role from the graph's own node types.
+    const ROLE_OF_TYPE = {
+      activity: "activity",
+      source: "activity",
+      switch: "routing",
+      pollUntil: "routing",
+      map: "fan",
+      join: "fan",
+      humanGate: "person",
+      childWorkflow: "childWorkflow",
+    };
+    const byRole = await page.evaluate((roleOfType) => {
+      const found = {};
+      for (const card of document.querySelectorAll(".react-flow__node")) {
+        const id = card.getAttribute("data-id");
+        // `data-node-type` is on the card body inside the xyflow wrapper, not
+        // on the wrapper itself, so it has to be read from the descendant.
+        const type = card
+          .querySelector("[data-node-type]")
+          ?.getAttribute("data-node-type");
+        const role = roleOfType[type];
+        if (!id || !role || found[role]) continue;
+        found[role] = id;
+      }
+      return found;
+    }, ROLE_OF_TYPE);
+    const missing = [
+      "activity",
+      "routing",
+      "fan",
+      "person",
+      "childWorkflow",
+    ].filter((role) => !byRole[role]);
+    if (missing.length > 0) {
+      throw new Error(`no card on this graph for: ${missing.join(", ")}`);
+    }
+    process.stdout.write(
+      `[${Object.entries(byRole)
+        .map(([role, id]) => `${role}=${id}`)
+        .join(" ")}] `,
+    );
+    const cards = Object.values(byRole).map(
+      (id) => `[data-testid="canvas-node-${id}"]`,
+    );
+    await centreInCanvas(page, cards);
+    await zoomOnto(page, cards, 1000);
+    await centreInCanvas(page, cards);
+    await shootUnion(page, cards, "27-node-accents-five-roles.png", 26);
+    await page.close();
+  },
 };
 
 const requested = process.argv.slice(2);
