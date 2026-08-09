@@ -52,15 +52,12 @@ import {
   storedMessagesToUIMessages,
 } from "./conversation-replay";
 import { ErrorBodyRenderer } from "./error-renderers";
-import {
-  AGENT_MODEL_OPTIONS,
-  type AgentModelOption,
-  useAgentChatStore,
-} from "./store";
+import { type AgentModelOption, useAgentChatStore } from "./store";
 import {
   fetchAgentConversation,
   getAgentAuthHeaders,
 } from "./useAgentConversations";
+import { resolveEffectiveModel, useAgentModels } from "./useAgentModels";
 import "./agent-chat.css";
 
 const DRAWER_SIZE = 540;
@@ -148,6 +145,12 @@ export function AgentChatDrawer() {
     [setConversationId, bumpResetKey, handleReset],
   );
 
+  // The model a turn is actually sent with: the user's pick when the backend
+  // still offers it, otherwise the backend's own default, and `null` until
+  // the list arrives — never a frontend guess (item 23).
+  const { data: models } = useAgentModels();
+  const effectiveModel = resolveEffectiveModel(models, selectedModel);
+
   // Deep link: `?agentChat=<id>` (used by FEATURE_DEMO_GUIDE links) opens the
   // drawer and replays that conversation. Handled once per id so it doesn't
   // re-fire on unrelated location changes or re-renders.
@@ -197,7 +200,7 @@ export function AgentChatDrawer() {
         <ChatThread
           key={resetKey}
           seedMessages={seedMessages}
-          selectedModel={selectedModel}
+          selectedModel={effectiveModel}
           setSelectedModel={setSelectedModel}
           currentWorkflowId={currentWorkflowId}
           activeGroupId={activeGroupId}
@@ -229,7 +232,7 @@ function ChatThread({
   onAbort,
 }: {
   seedMessages: UIMessage[];
-  selectedModel: AgentModelOption;
+  selectedModel: AgentModelOption | null;
   setSelectedModel: (option: AgentModelOption) => void;
   currentWorkflowId: string | null;
   activeGroupId: string | null;
@@ -258,8 +261,12 @@ function ChatThread({
           conversationId: conversationIdRef.current,
           workflowId: currentWorkflowId,
           groupId: activeGroupIdRef.current,
-          provider: selectedModel.provider,
-          model: selectedModel.model,
+          // Undefined while the model list is loading or if it failed to
+          // load; `JSON.stringify` drops the keys, and the backend then
+          // applies its own configured provider + deployment. A user is
+          // never blocked from sending because a list request failed.
+          provider: selectedModel?.provider,
+          model: selectedModel?.model,
         }),
         fetch: async (input, init) => {
           const res = await fetch(input, init);
@@ -271,7 +278,7 @@ function ChatThread({
         },
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedModel.provider, selectedModel.model, currentWorkflowId],
+    [selectedModel?.provider, selectedModel?.model, currentWorkflowId],
   );
 
   const runtime = useChatRuntime({
@@ -401,25 +408,59 @@ function ChatHeader({
  * The model in use, shown where the user is actually looking — at the
  * composer (Inderdeep, 2026-08-06 — "the model selector should be at the
  * bottom, because this is where I'm generally typing").
+ *
+ * It renders the backend's list and nothing else (item 23). Three shapes,
+ * all carrying the same `agent-chat-model-picker` test id:
+ *
+ *  - **Two or more models** — a dropdown, as before.
+ *  - **Exactly one model** — a static label. A dropdown whose only option is
+ *    the one already selected is a control that cannot do anything; the fact
+ *    worth showing is *which* model is answering. One Azure deployment is
+ *    today's real case: `AZURE_OPENAI_DEPLOYMENT` names a single deployment.
+ *  - **Loading, or the list failed to load** — a static label saying so. The
+ *    composer stays live either way: with no selection the turn carries no
+ *    model override and the backend uses its own default, so a failed list
+ *    request costs the user a label, not the ability to send.
  */
 function ModelPicker({
   selectedModel,
   setSelectedModel,
 }: {
-  selectedModel: AgentModelOption;
+  selectedModel: AgentModelOption | null;
   setSelectedModel: (option: AgentModelOption) => void;
 }) {
+  const { data, isPending, isError } = useAgentModels();
+  const options = useMemo(() => data ?? [], [data]);
   const selectData = useMemo(
-    () =>
-      AGENT_MODEL_OPTIONS.map((o, i) => ({
-        value: String(i),
-        label: o.label,
-      })),
-    [],
+    () => options.map((o, i) => ({ value: String(i), label: o.label })),
+    [options],
   );
-  const selectedIndex = AGENT_MODEL_OPTIONS.findIndex(
+
+  if (isPending) {
+    return <StaticModelLabel text="Loading models…" />;
+  }
+  if (isError || options.length === 0) {
+    return (
+      <StaticModelLabel
+        text="Server default model"
+        tooltip="The model list could not be loaded — your message will be answered by whichever model this server is configured for."
+      />
+    );
+  }
+  if (options.length === 1) {
+    return (
+      <StaticModelLabel
+        text={options[0].label}
+        tooltip="The only model this server is configured for."
+      />
+    );
+  }
+
+  const selectedIndex = options.findIndex(
     (o) =>
-      o.provider === selectedModel.provider && o.model === selectedModel.model,
+      selectedModel !== null &&
+      o.provider === selectedModel.provider &&
+      o.model === selectedModel.model,
   );
   return (
     <Select
@@ -430,13 +471,35 @@ function ModelPicker({
       value={String(selectedIndex === -1 ? 0 : selectedIndex)}
       onChange={(value) => {
         const idx = value === null ? 0 : Number(value);
-        if (!Number.isNaN(idx) && AGENT_MODEL_OPTIONS[idx]) {
-          setSelectedModel(AGENT_MODEL_OPTIONS[idx]);
+        if (!Number.isNaN(idx) && options[idx]) {
+          setSelectedModel(options[idx]);
         }
       }}
       data-testid="agent-chat-model-picker"
       allowDeselect={false}
     />
+  );
+}
+
+/** The picker when there is nothing to pick — see {@link ModelPicker}. */
+function StaticModelLabel({
+  text,
+  tooltip,
+}: {
+  text: string;
+  tooltip?: string;
+}) {
+  const label = (
+    <Text size="xs" c="dimmed" mt={6} data-testid="agent-chat-model-picker">
+      {text}
+    </Text>
+  );
+  return tooltip === undefined ? (
+    label
+  ) : (
+    <Tooltip label={tooltip} multiline w={260}>
+      {label}
+    </Tooltip>
   );
 }
 
@@ -770,7 +833,7 @@ function Composer({
 }: {
   workflowId: string | null;
   activeGroupId: string | null;
-  selectedModel: AgentModelOption;
+  selectedModel: AgentModelOption | null;
   setSelectedModel: (option: AgentModelOption) => void;
   onAbort: () => void | Promise<void>;
 }) {

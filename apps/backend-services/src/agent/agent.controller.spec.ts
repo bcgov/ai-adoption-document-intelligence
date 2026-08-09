@@ -4,12 +4,26 @@ import { plainToInstance } from "class-transformer";
 import type { Request, Response } from "express";
 import type { AbortFlagMap } from "./abort-flag-map";
 import { AgentController } from "./agent.controller";
+import { AgentEnv } from "./agent.env";
 import type { AgentService } from "./agent.service";
 import { AgentChatRequestDto } from "./dto/agent-chat-request.dto";
 
 // Controller behaviour: auth scoping + delegation, with the service mocked.
 // (Request-body validation is covered in dto/agent-chat-request.dto.spec.ts.)
 describe("AgentController", () => {
+  /** Environment the controller's `AgentEnv` is built from, per test. */
+  let envValues: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    envValues = {
+      AZURE_OPENAI_API_KEY: "azure-key",
+      AZURE_OPENAI_ENDPOINT: "https://example.invalid",
+      AZURE_OPENAI_DEPLOYMENT: "gpt-5.4",
+      // Present but blank — the shape the repo-root `.env` actually has.
+      ANTHROPIC_API_KEY: "",
+    };
+  });
+
   function makeController() {
     const pipe = jest.fn();
     const agentService = {
@@ -25,10 +39,15 @@ describe("AgentController", () => {
     };
     const abortFlags = { abort: jest.fn().mockReturnValue(true) };
     const config = { get: jest.fn().mockReturnValue(undefined) };
+    const env = new AgentEnv({
+      get: <T = unknown>(key: string, defaultValue?: T): T =>
+        (envValues[key] ?? defaultValue) as T,
+    } as unknown as ConfigService);
     const controller = new AgentController(
       agentService as unknown as AgentService,
       abortFlags as unknown as AbortFlagMap,
       config as unknown as ConfigService,
+      env,
     );
     return { controller, agentService, abortFlags, pipe };
   }
@@ -108,6 +127,30 @@ describe("AgentController", () => {
       "u1",
       "g1",
     );
+  });
+
+  // ITEM 23 — the picker renders this list verbatim, so it must describe what
+  // the backend can serve and nothing else.
+  it("listModels: reports the configured Azure deployment, flagged default", () => {
+    const { controller } = makeController();
+    expect(controller.listModels()).toEqual({
+      items: [
+        {
+          provider: "azure",
+          model: "gpt-5.4",
+          label: "Azure OpenAI — gpt-5.4",
+          isDefault: true,
+        },
+      ],
+    });
+  });
+
+  it("listModels: omits a provider whose key is present but blank", () => {
+    const { controller } = makeController();
+    const providers = controller
+      .listModels()
+      .items.map((item) => item.provider);
+    expect(providers).not.toContain("anthropic");
   });
 
   it("chat: gives the stream a real error describer, not the SDK's silence", async () => {

@@ -693,22 +693,29 @@ One `source.api` and one `source.upload` max per workflow.
 
 **▶ Demo (canvas + chat replay):** [Agent — Invoice OCR pipeline](http://localhost:3000/workflows/by-slug/demo-agent-invoice-ocr-pipeline/edit?agentChat=demo-agent-ocr-pipeline) — opens for **anyone in the group**. Seeded transcripts are flagged `isDemo`, which makes them group-visible and **read-only**: they show in *Show past conversations* with a **demo replay** badge and no delete control, and sending into one returns `demo-conversation-read-only` rather than appending to shared demo data. Your own conversations stay private to you.
 
-Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At least one provider must be configured or `AgentModule` throws at startup.
+Requires `ANTHROPIC_API_KEY` and/or Azure OpenAI creds (see env table below). At least one provider must be configured or `AgentModule` throws at startup. Credentials live in the **repo-root `.env`** only — there are no per-app env files.
+
+**A variable that is present but blank counts as NOT configured** (`AgentEnv` trims, then treats empty as absent). This matters: the repo-root `.env` ships `ANTHROPIC_API_KEY=""`, so **Anthropic is supported by the code and documented here, but is not currently configured** — it is deliberately absent from the picker rather than offered and then failing mid-stream with an HTTP 401.
+
+**The picker is served, not hardcoded.** `GET /api/agent/models` returns `{ items: [{ provider, model, label, isDefault }] }` — one entry per *configured* provider, because a provider's configuration names exactly one model (`AZURE_OPENAI_DEPLOYMENT` for Azure, `AGENT_ANTHROPIC_MODEL` for Anthropic). With only Azure configured that is **one entry**, so re-pointing the agent at a different deployment is an env change with no rebuild.
 
 | Var | Purpose | Default |
 |---|---|---|
 | `AGENT_DEFAULT_PROVIDER` | `anthropic` or `azure` | first with creds |
-| `ANTHROPIC_API_KEY` | enable Anthropic | — |
+| `ANTHROPIC_API_KEY` | enable Anthropic (blank = not configured) | — |
 | `AGENT_ANTHROPIC_MODEL` | default Anthropic model | `claude-haiku-4-5-20251001` |
-| `AZURE_OPENAI_API_KEY` ☁️ | enable Azure | — |
+| `AZURE_OPENAI_API_KEY` ☁️ | enable Azure (blank = not configured) | — |
 | `AZURE_OPENAI_ENDPOINT` ☁️ | Azure/APIM base URL | — |
-| `AZURE_OPENAI_DEPLOYMENT` | deployment name | `gpt-4o` |
+| `AZURE_OPENAI_DEPLOYMENT` | deployment name — the single model the picker offers for Azure | `gpt-4o` |
 | `AGENT_MAX_STEPS` | max tool-call turns | `50` |
 | `AGENT_MAX_CONVERSATION_TOKENS` | cost ceiling per conversation | `500000` |
 | `AGENT_MAX_TOOL_RESULT_CHARS` | tool-result truncation (context + injection guard) | `20000` |
 
 - [x] **15.1 Open/close drawer.** Header chat-bubble icon → right drawer “Workflow Agent” with a **workflow bound** (violet) / **no workflow yet** (gray) badge. Close via X; state persists across routes. **Pass:** opens on every route.
-- [x] **15.2 Model picker.** `agent-chat-model-picker` defaults to **Azure GPT-5.4** (recommended) and lists GPT-5.2 / GPT-4o / Claude Haiku 4.5 / Sonnet 4.6 / Opus 4.7. Pick a model → send a prompt. **Pass:** the chosen provider streams a response (switching model resets the runtime). ☁️ Azure options with no Azure creds render a **red alert inside the conversation** (`agent-chat-error`) headed “That model is not configured on this server”, quoting “Provider ‘azure’ is not configured on this backend” and naming `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT`; an errored turn must NOT crash the backend, and the alert must clear when the next turn starts.
+- [ ] **15.2 Model picker lists only what this server can serve.** `agent-chat-model-picker` renders `GET /api/agent/models` and nothing else — no hardcoded model names. Compare the picker against that endpoint (`curl -H "x-api-key: $API_KEY" http://localhost:3002/api/agent/models`). **Pass:** every entry in the picker appears in the response and vice versa; the entry with `isDefault:true` is the one selected on open; **no Anthropic/Claude entry appears while `ANTHROPIC_API_KEY` is blank**; sending uses the shown model (check the conversation row's `model` in *Show past conversations*).
+  - **One configured model (today's default setup):** the picker is a **static label**, not a one-option dropdown — a dropdown that cannot change anything is a control that does nothing. **Two or more:** a dropdown; switching model resets the runtime and the next turn streams from the chosen provider.
+  - **List still loading:** the label reads *“Loading models…”*. **List failed to load:** the label reads *“Server default model”* and **sending still works** — the turn omits `provider`/`model` and the backend applies its own configured default. A failed list request must never block the composer.
+  - ☁️ Naming a provider with no creds (e.g. re-adding one by hand, or blanking `AZURE_OPENAI_API_KEY`) renders a **red alert inside the conversation** (`agent-chat-error`) headed “That model is not configured on this server”, quoting “Provider ‘azure’ is not configured on this backend” and naming `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT`; an errored turn must NOT crash the backend, and the alert must clear when the next turn starts.
 - [x] **15.3 Core build loop.** Open `/workflows/create` → chat → “Create a workflow named ‘invoice extract’ and add a source.upload node”. **Pass:** assistant text streams; live **tool-call cards** (running→ok/error) for each write; canvas re-renders within a tick of each tool completing; cards expand to show input/output JSON.
 - [x] **15.4 Read + write tools.** Try “list activities in this group” (read-only), “build a PDF→OCR→text pipeline” (multi-write), “run it and tell me the node statuses” (startRun + status loop). **Pass:** nodes appear on canvas; run starts; statuses reported.
 - [ ] **15.5 Dynamic-node escape hatch.** “Transform the OCR result with a custom function.” **Pass:** agent drafts TS → `publishDynamicNode` card goes **red** with structured `ParseError[]` → agent revises → second publish succeeds → swaps in `dyn.<slug>`.

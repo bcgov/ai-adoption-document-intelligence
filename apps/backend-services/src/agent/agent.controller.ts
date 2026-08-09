@@ -28,8 +28,10 @@ import type { Request, Response } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { getIdentityGroupIds } from "@/auth/identity.helpers";
 import { AbortFlagMap } from "./abort-flag-map";
+import { AgentEnv } from "./agent.env";
 import { AgentService } from "./agent.service";
 import { describeAgentStreamError } from "./agent-errors";
+import { listConfiguredModels } from "./configured-models";
 import { AgentChatRequestDto } from "./dto/agent-chat-request.dto";
 import {
   AbortConversationResponseDto,
@@ -37,6 +39,7 @@ import {
   ConversationListResponseDto,
 } from "./dto/agent-conversation.dto";
 import { AgentErrorResponseDto } from "./dto/agent-error.dto";
+import { AgentModelsResponseDto } from "./dto/agent-models.dto";
 
 @ApiTags("agent")
 @Controller("api/agent")
@@ -45,7 +48,22 @@ export class AgentController {
     private readonly agentService: AgentService,
     private readonly abortFlags: AbortFlagMap,
     private readonly config: ConfigService,
+    private readonly env: AgentEnv,
   ) {}
+
+  @Get("models")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "List the (provider, model) pairs this backend is configured to serve, one of them flagged as the default.",
+    description:
+      "The chat drawer's model picker renders exactly this list, so it can never offer a model the backend cannot serve. A provider contributes at most one entry — its configuration names one model (`AZURE_OPENAI_DEPLOYMENT` / `AGENT_ANTHROPIC_MODEL`).",
+  })
+  @ApiOkResponse({ type: AgentModelsResponseDto })
+  @ApiUnauthorizedResponse({ description: "Caller is unauthenticated." })
+  listModels(): AgentModelsResponseDto {
+    return { items: listConfiguredModels(this.env) };
+  }
 
   @Post("chat")
   @Identity({ allowApiKey: true })

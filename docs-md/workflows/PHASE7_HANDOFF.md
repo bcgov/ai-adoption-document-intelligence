@@ -104,8 +104,10 @@ Add a source.api node so this workflow can be triggered via webhook with documen
 
 ## Environment variables used
 
+All of these live in the **repo-root `.env`**. A variable that is present but blank counts as **not configured** (`AgentEnv` trims, then treats empty as absent).
+
 Required for Anthropic provider:
-- `ANTHROPIC_API_KEY` — Anthropic API key
+- `ANTHROPIC_API_KEY` — Anthropic API key. Blank in the repo-root `.env` today, so Anthropic is supported but not configured and does not appear in the picker.
 
 Optional / Azure provider:
 - `AZURE_OPENAI_ENDPOINT` — base URL of the Azure OpenAI resource or APIM proxy
@@ -121,7 +123,7 @@ Optional tuning:
 
 ## Known issues / follow-ups
 
-1. **Azure GPT-4o tool-use WORKING** as of `apim-idmrncl4iiyvo.azure-api.net` endpoint. The previous APIM at `test.aihub.gov.bc.ca/sdpr-invoice-automation` was stripping `tool_calls` from assistant messages in transit, blocking the agent loop. Switching to the new APIM subscription resolved it — full agent loop verified end-to-end (catalog read, tool-call streaming, final summarization). The null-content `fetch` middleware in `provider-resolver.ts` rewrites `content: null` → `""` on outgoing requests so any APIM that's strict about the standard OpenAI shape (where assistant messages with tool_calls can carry null content) accepts the body. Switching between Anthropic Haiku/Sonnet/Opus and Azure GPT-4o is now one dropdown click in the chat header.
+1. **Azure GPT-4o tool-use WORKING** as of `apim-idmrncl4iiyvo.azure-api.net` endpoint. The previous APIM at `test.aihub.gov.bc.ca/sdpr-invoice-automation` was stripping `tool_calls` from assistant messages in transit, blocking the agent loop. Switching to the new APIM subscription resolved it — full agent loop verified end-to-end (catalog read, tool-call streaming, final summarization). The null-content `fetch` middleware in `provider-resolver.ts` rewrites `content: null` → `""` on outgoing requests so any APIM that's strict about the standard OpenAI shape (where assistant messages with tool_calls can carry null content) accepts the body. Switching provider was one dropdown click at the time of this handoff. **Superseded 2026-08-08 (item 23):** the picker no longer carries a hardcoded model list — it renders `GET /api/agent/models`, i.e. only the providers this backend has credentials for, one entry each. With only Azure configured there is a single entry and the control is a static label rather than a dropdown. See [AI_AGENT_DESIGN.md](AI_AGENT_DESIGN.md) §12b.
 2. **Azure-walkthrough not yet automated.** Walkthrough script tests Anthropic only since Azure deployment is currently 400-ing on tool-use. Switch the model in the dropdown to verify by hand once the APIM is fixed.
 3. **assistant-ui v0.14** — using the headless primitives but not assistant-ui's auto-streaming markdown renderer (we have plain `pre-wrap` text). For richer UX, swap in `MessagePartPrimitive.Text` with markdown rendering later.
 4. **Concurrent-edit safety** is "last write wins" per the design lock L51 — the agent's tool calls do full read-modify-write on the workflow `config`, so if a human is also editing the canvas the agent's write may clobber edits. Not load-bearing for the demo but worth being aware of.

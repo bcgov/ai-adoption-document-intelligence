@@ -2,51 +2,32 @@ import { create } from "zustand";
 
 export type AgentProvider = "azure" | "anthropic";
 
+/**
+ * One model the backend reports it can serve, from `GET /api/agent/models`.
+ * There is no hardcoded list any more: a frontend array of model names could
+ * only ever be a guess about someone else's configuration, and the guess was
+ * wrong — every turn sent `gpt-5.4` (the first array element) whatever the
+ * server had deployed (Inderdeep, 2026-08-06 — item 23).
+ */
 export interface AgentModelOption {
   label: string;
   provider: AgentProvider;
   model: string;
+  /** The entry the backend uses when a turn names no provider/model. */
+  isDefault: boolean;
 }
-
-export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
-  {
-    label:
-      "Azure GPT-5.4 (recommended — strongest for tool use + dynamic nodes)",
-    provider: "azure",
-    model: "gpt-5.4",
-  },
-  {
-    label: "Azure GPT-5.2",
-    provider: "azure",
-    model: "gpt-5.2",
-  },
-  {
-    label: "Azure GPT-4o (reliable fallback)",
-    provider: "azure",
-    model: "gpt-4o",
-  },
-  {
-    label: "Claude Haiku 4.5 (cheap, for quick testing)",
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
-  },
-  {
-    label: "Claude Sonnet 4.6",
-    provider: "anthropic",
-    model: "claude-sonnet-4-6",
-  },
-  {
-    label: "Claude Opus 4.7 (1M context)",
-    provider: "anthropic",
-    model: "claude-opus-4-7",
-  },
-];
 
 interface AgentChatState {
   isOpen: boolean;
   conversationId: string | null;
   workflowId: string | null;
-  selectedModel: AgentModelOption;
+  /**
+   * `null` until the backend's model list arrives — and it stays null if the
+   * list cannot be loaded. A turn sent with no selection omits
+   * `provider`/`model` from the request, so the backend applies its own
+   * configured default rather than the frontend inventing one.
+   */
+  selectedModel: AgentModelOption | null;
   open(): void;
   close(): void;
   toggle(): void;
@@ -60,7 +41,7 @@ export const useAgentChatStore = create<AgentChatState>((set) => ({
   isOpen: false,
   conversationId: null,
   workflowId: null,
-  selectedModel: AGENT_MODEL_OPTIONS[0],
+  selectedModel: null,
   open: () => set({ isOpen: true }),
   close: () => set({ isOpen: false }),
   toggle: () => set((s) => ({ isOpen: !s.isOpen })),

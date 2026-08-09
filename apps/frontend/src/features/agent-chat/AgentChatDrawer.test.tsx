@@ -23,7 +23,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentChatDrawer } from "./AgentChatDrawer";
-import { useAgentChatStore } from "./store";
+import { type AgentModelOption, useAgentChatStore } from "./store";
 
 /** Drives the stubbed `useAuiState` selector; flipped per test. */
 const threadState = { isRunning: false };
@@ -79,6 +79,48 @@ vi.mock("./useAgentConversations", () => ({
   fetchAgentConversation: vi.fn(),
 }));
 
+/** Stands in for `GET /api/agent/models`; each test sets the shape it wants. */
+interface ModelsQueryState {
+  data: AgentModelOption[] | undefined;
+  isPending: boolean;
+  isError: boolean;
+}
+
+const modelsQuery = vi.hoisted(() => ({
+  current: {
+    data: [],
+    isPending: false,
+    isError: false,
+  } as {
+    data:
+      | Array<{
+          label: string;
+          provider: "azure" | "anthropic";
+          model: string;
+          isDefault: boolean;
+        }>
+      | undefined;
+    isPending: boolean;
+    isError: boolean;
+  },
+}));
+
+// Only the network half is stubbed: `resolveEffectiveModel` is the logic
+// under test here and stays real.
+vi.mock("./useAgentModels", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./useAgentModels")>()),
+  useAgentModels: () => modelsQuery.current,
+}));
+
+function setModels(state: Partial<ModelsQueryState>) {
+  modelsQuery.current = {
+    data: [],
+    isPending: false,
+    isError: false,
+    ...state,
+  };
+}
+
 function drawerTree() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -98,14 +140,32 @@ function renderDrawer() {
   return render(drawerTree());
 }
 
+const AZURE_ONLY: AgentModelOption[] = [
+  {
+    label: "Azure OpenAI — gpt-4o",
+    provider: "azure",
+    model: "gpt-4o",
+    isDefault: true,
+  },
+];
+
 beforeEach(() => {
   runtimeOptions.current = null;
   threadState.isRunning = false;
-  useAgentChatStore.setState({ isOpen: true, conversationId: "conv-1" });
+  setModels({ data: AZURE_ONLY });
+  useAgentChatStore.setState({
+    isOpen: true,
+    conversationId: "conv-1",
+    selectedModel: null,
+  });
 });
 
 afterEach(() => {
-  useAgentChatStore.setState({ isOpen: false, conversationId: null });
+  useAgentChatStore.setState({
+    isOpen: false,
+    conversationId: null,
+    selectedModel: null,
+  });
   vi.unstubAllGlobals();
 });
 
@@ -175,6 +235,88 @@ describe("item 30 — panel layout", () => {
     expect(
       within(group as HTMLElement).getByTestId("agent-chat-close"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("item 23 — the picker offers only what the backend can serve", () => {
+  const TWO_MODELS: AgentModelOption[] = [
+    {
+      label: "Azure OpenAI — gpt-4o",
+      provider: "azure",
+      model: "gpt-4o",
+      isDefault: false,
+    },
+    {
+      label: "Anthropic Claude — claude-haiku-4-5-20251001",
+      provider: "anthropic",
+      model: "claude-haiku-4-5-20251001",
+      isDefault: true,
+    },
+  ];
+
+  it("starts on the entry the backend flags as default, not the first one", () => {
+    setModels({ data: TWO_MODELS });
+    renderDrawer();
+
+    // The old code took AGENT_MODEL_OPTIONS[0] — which is why gpt-5.4 went
+    // out on every turn regardless of what the server had configured.
+    const picker = screen.getByTestId("agent-chat-model-picker");
+    expect(picker.tagName).toBe("INPUT");
+    expect(picker).toHaveValue("Anthropic Claude — claude-haiku-4-5-20251001");
+  });
+
+  it("shows a static label, not a one-option dropdown, for a single model", () => {
+    setModels({ data: AZURE_ONLY });
+    renderDrawer();
+
+    const picker = screen.getByTestId("agent-chat-model-picker");
+    expect(picker.tagName).not.toBe("INPUT");
+    expect(picker).toHaveTextContent("Azure OpenAI — gpt-4o");
+  });
+
+  it("never offers a model the backend did not report", () => {
+    setModels({ data: AZURE_ONLY });
+    renderDrawer();
+
+    // Anthropic is still supported in the code and still documented; it is
+    // simply not configured here, so it must not be selectable.
+    expect(screen.queryByText(/Claude/i)).toBeNull();
+    expect(screen.queryByText(/gpt-5\.4/i)).toBeNull();
+  });
+
+  it("says it is loading while the list is in flight", () => {
+    setModels({ data: undefined, isPending: true });
+    renderDrawer();
+
+    expect(screen.getByTestId("agent-chat-model-picker")).toHaveTextContent(
+      "Loading models…",
+    );
+  });
+
+  it("stays sendable when the model list fails to load", () => {
+    setModels({ data: undefined, isError: true });
+    renderDrawer();
+
+    expect(screen.getByTestId("agent-chat-model-picker")).toHaveTextContent(
+      "Server default model",
+    );
+    // The composer is untouched: with no selection the turn carries no
+    // provider/model and the backend applies its own default.
+    const composer = within(screen.getByTestId("agent-chat-composer"));
+    expect(composer.getByTestId("agent-chat-send")).toBeInTheDocument();
+    expect(composer.getByTestId("agent-chat-textarea")).not.toBeDisabled();
+  });
+
+  it("ignores a stored pick the backend has stopped offering", () => {
+    // A re-pointed deployment: the user's saved Anthropic choice is no
+    // longer in the list, so the backend's default answers instead.
+    useAgentChatStore.setState({ selectedModel: TWO_MODELS[1] });
+    setModels({ data: AZURE_ONLY });
+    renderDrawer();
+
+    expect(screen.getByTestId("agent-chat-model-picker")).toHaveTextContent(
+      "Azure OpenAI — gpt-4o",
+    );
   });
 });
 

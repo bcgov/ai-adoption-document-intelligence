@@ -4,6 +4,26 @@ import { ConfigService } from "@nestjs/config";
 export type AgentProvider = "anthropic" | "azure";
 
 /**
+ * Read one environment setting, treating a variable that is present but blank
+ * exactly like one that is absent.
+ *
+ * A plain `?? null` counted `ANTHROPIC_API_KEY=""` — which is what the
+ * repo-root `.env` actually holds — as a configured credential, so
+ * `hasProvider("anthropic")` said yes, the resolver handed the SDK an empty
+ * key, and the user got a mid-stream HTTP 401 instead of the typed
+ * provider-not-configured refusal. Applied to every setting, not just the
+ * credentials: a blank `AZURE_OPENAI_DEPLOYMENT` would otherwise become an
+ * empty deployment name, and a blank numeric bound would become `Number("")`,
+ * i.e. 0.
+ */
+function readSetting(config: ConfigService, key: string): string | null {
+  const raw = config.get<string>(key);
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
  * Resolved Phase 7 agent configuration. Read once at module init from
  * environment variables.
  *
@@ -46,38 +66,35 @@ export class AgentEnv {
   readonly maxRunsPerConversation: number;
 
   constructor(config: ConfigService) {
-    this.anthropicApiKey = config.get<string>("ANTHROPIC_API_KEY") ?? null;
-    this.anthropicDefaultModel =
-      config.get<string>("AGENT_ANTHROPIC_MODEL") ??
-      "claude-haiku-4-5-20251001";
+    const read = (key: string): string | null => readSetting(config, key);
 
-    this.azureApiKey = config.get<string>("AZURE_OPENAI_API_KEY") ?? null;
-    this.azureEndpoint = config.get<string>("AZURE_OPENAI_ENDPOINT") ?? null;
-    this.azureDefaultDeployment =
-      config.get<string>("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4o";
-    this.azureApiVersion =
-      config.get<string>("AZURE_OPENAI_API_VERSION") ?? "2024-10-21";
+    this.anthropicApiKey = read("ANTHROPIC_API_KEY");
+    this.anthropicDefaultModel =
+      read("AGENT_ANTHROPIC_MODEL") ?? "claude-haiku-4-5-20251001";
+
+    this.azureApiKey = read("AZURE_OPENAI_API_KEY");
+    this.azureEndpoint = read("AZURE_OPENAI_ENDPOINT");
+    this.azureDefaultDeployment = read("AZURE_OPENAI_DEPLOYMENT") ?? "gpt-4o";
+    this.azureApiVersion = read("AZURE_OPENAI_API_VERSION") ?? "2024-10-21";
 
     const requestedDefault = (
-      config.get<string>("AGENT_DEFAULT_PROVIDER") ?? "anthropic"
+      read("AGENT_DEFAULT_PROVIDER") ?? "anthropic"
     ).toLowerCase() as AgentProvider;
     this.defaultProvider = this.resolveDefaultProvider(requestedDefault);
 
     // The functional-by-default loop (design → describeNode per node → build →
     // connect → validate → startTestRun → poll → fix) legitimately needs more
     // than the original 30 steps; 50 gives headroom for one or two fix cycles.
-    this.maxSteps = Number(config.get<string>("AGENT_MAX_STEPS") ?? "50");
-    this.maxOutputTokens = Number(
-      config.get<string>("AGENT_MAX_OUTPUT_TOKENS") ?? "4096",
-    );
+    this.maxSteps = Number(read("AGENT_MAX_STEPS") ?? "50");
+    this.maxOutputTokens = Number(read("AGENT_MAX_OUTPUT_TOKENS") ?? "4096");
     this.maxConversationTokens = Number(
-      config.get<string>("AGENT_MAX_CONVERSATION_TOKENS") ?? "500000",
+      read("AGENT_MAX_CONVERSATION_TOKENS") ?? "500000",
     );
     this.maxToolResultChars = Number(
-      config.get<string>("AGENT_MAX_TOOL_RESULT_CHARS") ?? "20000",
+      read("AGENT_MAX_TOOL_RESULT_CHARS") ?? "20000",
     );
     this.maxRunsPerConversation = Number(
-      config.get<string>("AGENT_MAX_RUNS_PER_CONVERSATION") ?? "5",
+      read("AGENT_MAX_RUNS_PER_CONVERSATION") ?? "5",
     );
   }
 

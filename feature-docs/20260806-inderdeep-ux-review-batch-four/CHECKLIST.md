@@ -525,8 +525,33 @@ Silence is never the response.
 runtime/transport wiring, ~L207–250), and the agent module's error path in
 `apps/backend-services`.
 
-### 23. [ ] The agent must work with the LLMs BC Gov actually has
-**Decision artifact written 2026-08-08 — awaiting Alex's ruling.** See
+### 23. [x] The agent must work with the LLMs BC Gov actually has
+**Done 2026-08-08 (engineering half), to Alex's ruling of the same day: one
+credential set in the repo-root `.env`, no per-app env files, no new provider
+variables, and Anthropic kept in the code and in the docs but not offered
+while it has no key.** Four pieces. (1) **A blank variable is not a
+credential.** `AgentEnv` read every setting with `?? null`, so
+`ANTHROPIC_API_KEY=""` — exactly what the repo-root `.env` holds — counted as
+configured; `hasProvider("anthropic")` said yes, the resolver handed the SDK
+an empty key, and the user got a mid-stream HTTP 401 instead of item 22's
+typed refusal. Every setting is now trimmed and empty-means-absent, which also
+stops a blank numeric bound becoming `Number("") === 0`. (2) **`GET
+/api/agent/models`** returns `{ items: [{ provider, model, label, isDefault }] }`
+— one entry per configured provider, carrying that provider's single
+configured model, because `AZURE_OPENAI_DEPLOYMENT` names one deployment and
+no multi-deployment variable was invented. (3) **The picker renders that list
+and nothing else.** `AGENT_MODEL_OPTIONS` (six hardcoded strings, default
+`[0]` = `gpt-5.4`) is gone; the selection is the entry the backend flags
+`isDefault`. One entry renders as a static label rather than a dropdown that
+cannot change anything; while the list is loading, or if it fails to load, the
+composer stays live and the turn omits `provider`/`model` so the backend
+applies its own default. (4) Docs: `MANUAL_TEST_PLAN.md` Part 15 env table +
+15.2 (re-opened for manual verification), `AI_AGENT_DESIGN.md` §2.2 + §12b,
+`PHASE7_HANDOFF.md`. **Still Alex's to find out:** which deployments this
+project may call through the AI Services Hub's APIM — one question to Shabari
+Kunnumel, per the decision artifact. Re-pointing at the answer is now an env
+change with no rebuild.
+**Decision artifact written 2026-08-08.** See
 [DECISIONS/23-bcgov-models.md](DECISIONS/23-bcgov-models.md). The backend is
 **already APIM-aware**, so re-pointing at a BC Gov deployment is a
 three-environment-variable config change, not code. The code-shaped blocker is
