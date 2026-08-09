@@ -694,6 +694,21 @@ fixes it on his machine. If it does, the defect is that a stale or empty demo
 set fails silently with a bare 404 — the fix is that the test plan says to seed
 first, and that a by-slug miss says "this demo is not seeded — run
 `npm run seed:demos`" rather than "not found".
+**⚠ This item's own acceptance criterion was never met — noted 2026-08-08.**
+Nobody asked Inderdeep whether re-seeding fixed it, and nothing in this batch
+records a check of his machine. What *was* demonstrated is the negative: the
+link, the route and the seeder are all correct (the slug matches character for
+character after seeding), and the row was absent from the workflows list, not
+merely unreachable. "Unseeded database" is therefore the best remaining
+explanation **by elimination**, not a measured one, and the batch's own wording
+elsewhere ("turned out to be an unseeded database") states it a register more
+confidently than the evidence supports.
+The shipped fix does not depend on the diagnosis — it names both causes in the
+copy, so it is right either way. But there is a residual risk worth naming: if
+the row was *invisible* rather than *absent* — the exact failure mode item 24
+turned out to be, where a seeded demo was private to `createdBy` — the new
+message sends the reader to a command that deletes and re-creates the whole demo
+set for nothing. Ask Inderdeep when showing him this batch.
 **Key file:** `scripts/seed-feature-demos.mjs` L1713;
 `docs-md/workflows/MANUAL_TEST_PLAN.md` Part 14 demo link (L645).
 
