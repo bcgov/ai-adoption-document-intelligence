@@ -694,21 +694,82 @@ overlap again; `12-BEFORE-try-reflow-overlap.png` is kept as the before-picture
 and never re-taken. Shot 18 is new: the same card at rest, after a run, and with
 the popover open.
 
+## Wave G — item 33, the `@infra` tests · 2026-08-09
+
+Alex: *"just fix the tests."* Three were failing out of eleven. The useful part
+is that the three causes had nothing in common, and only one of them was a
+mistake in the test's own logic.
+
+**`tier3-dynamic-node-run` (both tests) — configuration, exactly as diagnosed.**
+The worker had no `PLATFORM_API_KEY`, so `dyn.run` refused in about 50ms before
+it ever reached the sandbox. Set in `~/.config/bcgov-di/temporal.env` — the
+loader's first source, ahead of the repo-root `.env`, so it survives a restart —
+and both went green. What the fix left behind is the reason it took a worker-log
+read to find: Temporal reports the activity's cause to node-statuses as a bare
+`Activity task failed`, so the assertion showed nothing. The spec's failure
+message now names the prerequisite and where to set it, because the next person
+will hit this and will not have the log open.
+
+**`tier3-dynamic-node-security` 14.11 (the grant half) — the test was timing
+DNS.** It granted `blocked.example.com` and expected the fetch to fail fast.
+Inside the runner container, a lookup for a non-existent public host takes
+**8.1 seconds** — six search domains and corporate forwarders — which overruns
+the runner's own 5s timeout, so the result came back `timedOut: true` /
+`exitCode: -1`, a failure that says nothing whatever about permissions. The
+assertion was sound; its clock was somebody else's network.
+
+Rewritten as an A/B on **one script and one host**, a closed loopback port
+(`127.0.0.1:9`): denied without `allowNet`, permitted with it, ~40ms either way,
+no resolution involved. Deno gates loopback exactly as it gates any other host,
+so the gate under test is unchanged — only the environmental dependency is gone.
+Manual step 14.11 told a human to do the same misleading thing ("add the host to
+`allowNet` → same script succeeds") and was corrected with the measurement.
+
+One detail worth keeping: the first attempt at the A/B asserted a non-zero exit
+for the denied half and failed, because the shared script *catches* its own
+error. The denial surfaces in the returned value, not the exit code. The
+preceding test covers the uncaught form, so the pair now covers both.
+
+**`tier3-try-preview` — pre-existing, and unsound as written.** It reloads the
+editor to get a deterministic post-commit cache fetch, which is right, but the
+reload costs the run and nothing paid it back: `RunStateProvider` starts every
+mount with `activeRunId = null` and restores nothing, so the result strip
+correctly reported "Not run yet" for ever. The fix is the product's own answer —
+re-open the run from **Run history**, which is what the `awaiting-cache` copy
+written in Wave F already tells authors to do. Side benefit: that surface had
+**no** e2e coverage at all, and now has some.
+
+Result: `RUN_INFRA=1 PLAYWRIGHT_SKIP_DB_RESET=1 npx playwright test
+tests/e2e/workflow-builder/ --grep "@infra"` → **11 passed**, three consecutive
+runs, no flake.
+
+### What running the default suite next turned up
+
+The `@infra` set is opt-in; the *default* one is supposed to be the hermetic
+green one. It is not: **12 tests fail** on this branch, across
+`tier2-validation`, `tier2-typed-io`, `tier2-sources`,
+`tier2-coupling-invariants` and all five of `tier3-agent-stubbed`. Proven
+pre-existing by stashing this wave's changes and re-running — the same tests
+fail without them. The shapes point at this batch's own UI work (a top-bar
+"Valid" button no longer in `topbar-zone-right`, a Validation drawer no longer
+exposing itself as a dialog named "Validation"), which means the rebuild landed
+without the default suite being re-run.
+
 ## Where the batch stands at close
 
-**31 of 33 items done.** The two open ones are not code that anybody failed to
+**32 of 33 items done.** The one open item is not code that anybody failed to
 write:
 
 - **Item 20** (the colour vocabulary) — deferred by Alex until the rest landed.
   The measurement is done and the recommendation is written; it needs a session
   of its own because it changes how every saved workflow looks.
-- **Item 33** (the cold-setup walk) — needs a named person who has never built
-  this repo. Half of it is now answered by evidence: the `@infra` suites were
-  run and two of six failed, so "they exist and pass" was too generous. Wave F
-  found a third: `tier3-try-preview`, broken before this batch touched it.
 
-Four earlier decisions — items 8, 13, 23 and the two above — were ruled on during
-the session and are recorded in their own entries above.
+Item 33's *test* half is done (above). Its remaining half is a **cold-setup walk
+of 14.1–14.6 by a person who has never built this repo** — that needs a name,
+not a commit, and the name is Alex's to give.
+
+Five earlier decisions — items 8, 9, 13, 23 and 20 — were ruled on during the
+session and are recorded in their own entries above.
 
 ## Discovered during implementation — not on Inderdeep's list
 

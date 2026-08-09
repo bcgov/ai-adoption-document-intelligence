@@ -1,5 +1,40 @@
 # Item 33 — getting a developer through the infrastructure test steps
 
+> ## Ruled: *"just fix the tests"* — and what that turned up
+>
+> **Alex, 2026-08-08.** Done 2026-08-09: all eleven `@infra` tests in
+> `tests/e2e/workflow-builder/` pass, three consecutive runs, no flake.
+>
+> **The recommendation below was too generous in one specific way.** It said the
+> `@infra` tests "exist, they pass when run, and nothing runs them
+> automatically". The first two clauses were assumptions — nobody had run them.
+> When they were run, **three of eleven failed**, and each failed for a
+> different reason:
+>
+> | Test | Cause | Where the defect was |
+> |---|---|---|
+> | `tier3-dynamic-node-run` (×2) | worker had no `PLATFORM_API_KEY`; `dyn.run` refuses in ~50ms | configuration — and an unreadable failure message, now fixed |
+> | `tier3-dynamic-node-security` 14.11 grant half | DNS for a non-existent public host takes 8.1s in the runner container, overrunning its own 5s timeout | the test's clock was somebody else's network — and **the manual step told a human to do the same thing** |
+> | `tier3-try-preview` | reloads the editor, and `RunStateProvider` restores no run | the test, pre-existing, unsound as written |
+>
+> That last column is the point. Two of the three were **not** product defects,
+> which is what the table below predicted. But the 14.11 finding travels: the
+> written manual instruction ("add the host to `allowNet` → same script
+> succeeds") fails the same way for any person on a corporate network, and no
+> amount of automation would have found that — running it did.
+>
+> **What is still open is the half this document argued was the valuable half:**
+> the cold walk of 14.1–14.6 by somebody who has not built this repo. Naming
+> that person is still Alex's, for the reason given at the end.
+>
+> One more thing surfaced by running things: the **default** e2e suite — the
+> hermetic one, not the opt-in `@infra` tier — has **12 failing tests** on this
+> branch, pre-existing, mostly pointing at this batch's own top-bar and drawer
+> rework. Recorded in WORKLOG.md "Wave G".
+
+---
+
+
 **The question:** Inderdeep could not execute the `curl`/infrastructure steps of
 Part 14 (14.1–14.6 and 14.11–14.13), so who should, and on what?
 

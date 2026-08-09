@@ -807,7 +807,7 @@ reads it as six missing steps.
 Part 14 where its number puts it.
 **Key file:** `docs-md/workflows/MANUAL_TEST_PLAN.md` — Part 14, L651–673.
 
-### 33. [x] Get a developer through the infrastructure-level test steps
+### 33. [x] Get a developer through the infrastructure-level test steps — *tests fixed; the cold walk still needs a name*
 **Alex ruled 2026-08-08: *"just fix the tests."* Done 2026-08-09 — all eleven
 `@infra` tests in the workflow-builder suite pass, three consecutive runs, no
 flake.** Three were failing; each had a different cause and only one was in the
