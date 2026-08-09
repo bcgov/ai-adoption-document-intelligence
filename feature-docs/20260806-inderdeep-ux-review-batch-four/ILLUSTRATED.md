@@ -319,8 +319,9 @@ do nothing until you leave replay."*
 **Why the top bar is not in this frame, and how placement is evidenced instead.**
 The bar's right-hand corner was being reworked while this was captured — item 8
 collapsing the separate **Try** and **Run this workflow** buttons into one
-`Run…` — so any frame containing it would have been stale the day it was taken;
-that corner gets its own shot once it settles. The banner is full width and its
+`Run…` — so any frame containing it would have been stale the day it was taken.
+That corner has since settled and has its own frame in [§16](#16--the-name-is-first-and-one-button-where-there-were-two--items-14-and-8).
+The banner is full width and its
 **Leave replay** button sits at the far right, so a crop narrow enough to dodge
 that corner would also have cut off one of the two controls this item shipped.
 The frame therefore starts at the exact pixel the top bar ends, and the capture
@@ -421,6 +422,85 @@ under).
 The picker's move down here beside the composer is item **30**, and the send
 button is item **26** — the same button becomes a stop button while a turn is
 streaming. Both are described in the written section below.
+
+---
+
+## The top bar, final — items 14 and 8
+
+The one corner of the editor that could not be photographed until now. Every
+earlier pass deliberately framed around it, because the two buttons on its
+right-hand end were mid-collapse and a frame of a control about to be replaced
+argues for a design nobody shipped. Item 8 landed as `9cf679ff`, so the bar is
+final and both items read in one image.
+
+### §16 · The name is first, and one button where there were two — items 14 and 8
+
+Two complaints, opposite ends of the same bar.
+
+*"The title, where I am, probably should be the first thing. Switch probably
+should be somewhere else. I don't think it should be a button."* His model,
+demonstrated live in Figma, is the Google Sheets pattern: the document name is
+the leftmost thing, you click it to rename, and a chevron beside it opens the
+list of other documents.
+
+And, on the other end: *"Two options pretty much doing the same thing. And even
+if I choose one, I still have the option to go to the other."*
+
+![The editor top bar at 1920 — name, pencil and chevron on the left; a single Run… on the right](screenshots/18-topbar-name-first-one-run-button.png)
+
+**Left end, item 14.** The workflow name leads, click-to-edit as before, with a
+chevron `ActionIcon` beside it that opens the switcher. The labelled **Switch**
+button is gone, which returned about 93px of bar. The node and edge counts
+follow the name rather than preceding it.
+
+**Right end, item 8.** Where there were two buttons — **Try** and **Run this
+workflow** — there is now one, `Run…`. Both used to open the *same* drawer on
+different tabs, so the bar was offering a choice that the drawer then offered
+again one click later. The choice now lives only where it belongs, on the
+drawer's tabs, and the button says only that a run is about to be configured.
+
+**Two things in this frame are machine-checked, not eyeballed**, because a shot
+that has to be trusted is weaker than one that has been measured. The capture
+refuses to save it unless the old `try-button` test id is absent from the page
+entirely, and unless `Run…` is *enabled* — a greyed-out button photographs as
+"the feature is off" rather than "there is now one of these".
+
+**Why this frame is of a real workflow rather than a seeded demo.** Every demo's
+name opens with a 🎯, and headless Chromium has no font for it, so it renders as
+an empty box — the worst possible first glyph in a frame whose argument is *"the
+name is the first thing you see"*. **Standard OCR Workflow** has a plain name,
+and it is the workflow Inderdeep was hunting for when he hit the switcher's
+truncated list.
+
+### §17 · What `Run…` opens, and the sentence that names the real difference — item 8
+
+This is the more useful of the two frames. Collapsing two buttons into one is
+tidying; the sentence at the bottom of this drawer is the item.
+
+![The run drawer — tabs "Try on canvas" and "Call from outside", and the disposability note](screenshots/19-run-drawer-tabs-disposable-note.png)
+
+**The tabs were renamed because the old ones named a difference that does not
+exist.** "Try" and "Run" imply a strength of commitment — a rehearsal versus the
+real thing. There is no such difference: both start a real Temporal execution
+against the saved version and both land in run history. The axis that *does*
+exist is where the answer appears, so the labels now say that — **Try on canvas**
+and **Call from outside**.
+
+**And here is the one real difference, stated in the product for the first
+time:** *"A try is disposable — starting another run cancels a try that is still
+going."* A try posts to `/tries`, which stamps the run `RunTrigger = "try"`, and
+every later run start cancels in-flight runs carrying that stamp. Nothing in the
+UI had ever said so, which is how you lose a long-running try to your own next
+click and have no idea why. Alex, in the call: *"at some point I asked what's the
+difference between run and try and it gave me some sensible answer, but now I
+don't remember what it was."* The answer is now in the drawer instead of in
+somebody's memory.
+
+The drawer opens on **Try on canvas** without anything being clicked — that tab
+is chosen whenever the workflow has an input path that is not a file upload —
+and the capture asserts that, plus that the sentence is present and non-empty,
+before saving. A frame of a tab rename with the sentence missing would be a
+picture of the wrong half of the item.
 
 ---
 
@@ -573,7 +653,11 @@ top of each other, and at 1280 the bar itself running off the window.**
 Item 14 was a placement request — Alex's model, demonstrated live in Figma, is
 the Google Sheets pattern where the document name is the leftmost thing, you
 click it to rename, and a chevron beside it opens the list of other documents.
-That shipped, and the standalone **Switch** button retired.
+That shipped, the standalone **Switch** button retired, and that half *does* have
+a picture now: [§16](#16--the-name-is-first-and-one-button-where-there-were-two--items-14-and-8).
+What has no picture is everything below, because a defect that only appears
+between 1024px and 1512px would need six frames to argue and the fix is the
+absence of something.
 
 The interesting part is what the before-measurement found. At seven window
 widths in Chromium, from **1512px downward**, the top bar's centre section spilled

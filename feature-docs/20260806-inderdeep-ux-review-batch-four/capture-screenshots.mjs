@@ -974,6 +974,123 @@ const SHOTS = {
     );
     await page.close();
   },
+
+  /**
+   * §16 — the top bar, carrying items 14 and 8 in one frame.
+   *
+   * Deferred out of the wave-E pass on purpose: this corner was mid-change
+   * then, and a frame of a control that is about to be replaced argues for a
+   * design nobody shipped. Item 8 landed as `9cf679ff`, so it can be shot.
+   *
+   * Two claims, and both are checked before the frame is saved rather than
+   * left to the reader's eye — a shot that has to be trusted is weaker than
+   * one that has been measured:
+   *
+   *  - the standalone `try-button` no longer exists anywhere on the page
+   *    (item 8 collapsed the pair into one `Run…`), and
+   *  - `Run…` is enabled, because a greyed-out button photographs as "the
+   *    feature is off" rather than "there is now one of these".
+   */
+  16: async (browser) => {
+    const page = await newPage(browser);
+    // "Standard OCR Workflow" rather than one of the demos, and the reason is
+    // the subject of the shot. Item 14 is a claim about the workflow NAME, and
+    // every seeded demo's name opens with a 🎯 that headless Chromium has no
+    // font for — it renders as an empty box, which in a frame arguing "the
+    // name is the first thing you see" is the worst possible first glyph. This
+    // one has a plain name, is the workflow Inderdeep was actually hunting for
+    // when he hit item 16, and is long enough that the truncation the bar now
+    // does under pressure is visible rather than hypothetical.
+    await openEditor(page, "standard-ocr");
+    if ((await page.locator('[data-testid="try-button"]').count()) > 0) {
+      throw new Error(
+        "a standalone Try button is still on the page — item 8 regressed",
+      );
+    }
+    const runButton = page.getByTestId("run-this-workflow-button");
+    if (await runButton.isDisabled()) {
+      throw new Error(
+        "Run… is disabled on this demo — the frame would argue the wrong thing",
+      );
+    }
+    // Park the cursor: `openEditor` leaves it wherever the last action put it,
+    // and a tooltip opening over the bar would cover the very controls the
+    // frame is about.
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(600);
+    // The union of the three zones IS the bar — there is no testid on the bar
+    // itself. Framing all three rather than cropping to either end is the
+    // whole point: item 14 is a claim about what is *leftmost*, and item 8 a
+    // claim about how many buttons are on the *right*. Either crop alone
+    // would show one item and hide the other.
+    await shootUnion(
+      page,
+      [
+        '[data-testid="topbar-zone-left"]',
+        '[data-testid="topbar-zone-center"]',
+        '[data-testid="topbar-zone-right"]',
+      ],
+      "18-topbar-name-first-one-run-button.png",
+      16,
+    );
+    await page.close();
+  },
+
+  /**
+   * §17 — the drawer `Run…` opens: the renamed tabs, and the sentence that
+   * states the one real difference between a try and a run.
+   *
+   * This is also the live check on `runViaTry`, which another change rewired
+   * for the new button: the first two steps of this shot are that helper's
+   * first two steps, and it asserts `try-workflow-button` is really there
+   * rather than trusting that the rewire worked.
+   */
+  17: async (browser) => {
+    const page = await newPage(browser);
+    await openEditor(page, "demo-workflow-as-api-trigger-url-schema-part-11");
+    await page.getByTestId("run-this-workflow-button").click();
+    await page.waitForSelector('[data-testid="run-drawer-try-section"]', {
+      timeout: 15000,
+    });
+    // The drawer opens on "Try on canvas" by itself here — `runDrawerOpenMode`
+    // picks that tab whenever there is an input path that is not a file
+    // upload, which a `source.api` node is. No tab is clicked, so the frame
+    // shows the tab the user actually lands on.
+    const activeTab = await page
+      .getByTestId("run-drawer-tab-try")
+      .getAttribute("aria-selected");
+    if (activeTab !== "true") {
+      throw new Error(
+        `the drawer did not open on "Try on canvas" (aria-selected=${activeTab})`,
+      );
+    }
+    if ((await page.getByTestId("try-workflow-button").count()) !== 1) {
+      throw new Error(
+        "no Try button inside the drawer — runViaTry would break",
+      );
+    }
+    // The sentence is the entire point of item 8, so refuse the frame if it
+    // is empty or missing rather than shipping a picture of a tab rename.
+    const note = (
+      await page.getByTestId("try-disposable-note").textContent()
+    )?.trim();
+    if (!note || note.length === 0) {
+      throw new Error("the disposability note is missing or empty");
+    }
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(600);
+    // The Tabs root, which contains both the labels and the panel beneath
+    // them. Cropped to it at 1:1 rather than scaled down, because the
+    // disposability sentence is `size="xs"` dimmed text and the one thing
+    // this frame must not do is make it unreadable.
+    await shootElement(
+      page,
+      '[data-testid="run-drawer-tabs"]',
+      "19-run-drawer-tabs-disposable-note.png",
+      16,
+    );
+    await page.close();
+  },
 };
 
 const requested = process.argv.slice(2);
