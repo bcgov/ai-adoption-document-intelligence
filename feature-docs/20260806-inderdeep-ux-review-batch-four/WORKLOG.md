@@ -433,6 +433,94 @@ that would have started a real billable turn.
 
 ---
 
+## Wave E — the two items Alex ruled on the same day
+
+### Item 23 — the picker offers what the backend can serve
+
+**Commit `ad14c24e`**
+
+**Alex's ruling:** one credential set in the repo-root `.env`, BC Gov values, no
+per-app split (the env-splitting option was explicitly rejected). Anthropic is
+not in use for now — out of the picker, but kept in the code and documented as
+supported. Default to the deployment the platform already has configured.
+
+The picker was six hardcoded strings with the default being `[0]`, so every turn
+asked for `gpt-5.4` — a deployment nobody but Alex could call — while the
+configured deployment was `gpt-4o`. Nothing validated the model name and nothing
+told the frontend what the backend had. A read-only endpoint now reports the
+configured provider and model, derived from the same source of truth the
+provider guard uses, and the picker renders that with the backend's default
+selected.
+
+**Honest about cardinality:** `AZURE_OPENAI_DEPLOYMENT` holds *one* name, so the
+truthful list today is one entry. It renders as a label rather than a dropdown
+whose only option is already chosen. No multi-deployment list variable was
+invented — that would be a configuration-shape decision nobody asked for.
+
+**A bug had to be fixed first, and it explains the silence.** Credentials were
+read with `?? null`, so a variable that is present but **empty** counted as
+configured. The root `.env` carries an empty Anthropic key and no default-provider
+setting, so the old code resolved the default to Anthropic and handed the SDK a
+blank credential — failing as a mid-stream 401 rather than the typed error added
+in `c83884ce`. Every setting is now trimmed, and blank reads as absent. That also
+caught a quieter one: a blank numeric bound parsed as zero, so an empty
+`AGENT_MAX_STEPS` meant the agent could make **no tool calls at all**.
+
+**Still broken, flagged not fixed:** `docker-compose.yml` gives the LLM
+credentials to `temporal-worker` and none to `backend-services`, so the agent
+would refuse to boot in a container. This change makes that stricter, not looser.
+
+### Item 13 — replay mode reads as a mode
+
+**Commit `8bcaf7eb`**
+
+Built to the ruling in [13-replay-mode.md](DECISIONS/13-replay-mode.md): a
+banner between the top bar and the canvas, not a top-bar region. Each state gets
+sentences rather than a compressed label — including the run that recorded no
+version, which says *unknown* rather than inventing a `v0`, and the unavailable
+case, which now has room to say plainly that the graph on screen may differ from
+the one that actually ran.
+
+Retiring the chip gives the top bar its width back, so item 14's overflow fix is
+strengthened rather than risked. The banner is `flexShrink: 0` in the page
+column, so its height comes out of the canvas.
+
+**Not built, deliberately:** the transient "your edit was discarded" note when a
+blocked edit is dropped. That was a follow-up question in the decision doc and
+Alex has not answered it; the three `if (isReplay) return;` guards are untouched.
+
+**Honest limit.** jsdom runs no layout, so the banner's real height, the canvas
+not jolting on entry, and the top bar still fitting from 1920 down are browser
+evidence — manual test plan 9.9d, deliberately left unticked.
+
+---
+
+## The @infra suites, actually run — 2026-08-08
+
+Item 33 recommends running the two `@infra` dynamic-node suites rather than
+walking nine `curl` steps. They were run, with the Playwright database reset
+skipped so the seeded demos survived. **Four passed, two failed, both
+reproducible.**
+
+- **14.11, the allowlist test** — with the host granted, the sandboxed script
+  fetches it and expects a clean exit; exit code was −1. The runner's own log
+  shows that `/execute` taking **5,006ms**, i.e. a timeout rather than a
+  rejection. The test assumes a fetch to a non-existent host fails fast; on this
+  machine the lookup appears to hang. Reads as environmental — and note the
+  permission gate itself was fine, since the failing assertion is the exit code,
+  not the "no permission denial" check. The companion test proving the allowlist
+  *blocks* an ungranted host passed.
+- **The dynamic-node run test** — a published node fails in 55ms with a bare
+  `Activity task failed`. Too fast to be the sandbox, which is healthy and
+  executes scripts elsewhere in the same run. **Undiagnosed**: the real error is
+  in the Temporal worker's output, and the worker does not run in Docker here, so
+  its console could not be read.
+
+The finding is itself the point of item 33: these steps are not unverified, they
+are **automated but never run**, and the first time anyone ran them, two failed.
+
+---
+
 ## Verification of the whole branch, 2026-08-08
 
 Run after every batch above had landed, with nothing else editing the tree:
