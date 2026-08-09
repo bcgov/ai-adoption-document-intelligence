@@ -112,7 +112,11 @@ async function openEditor(page, slug) {
  * something, which is the point: the shot has to be of the real thing.
  */
 async function runViaTry(page) {
-  await page.getByTestId("try-button").click();
+  // Item 8 (2026-08-08) collapsed the top bar's "Try" and "Run this
+  // workflow" into one `Run…` button; for a workflow with a non-upload
+  // input path the drawer opens on the "Try on canvas" tab already, so
+  // the wait below still resolves without a tab click.
+  await page.getByTestId("run-this-workflow-button").click();
   await page.waitForSelector('[data-testid="run-drawer-try-section"]', {
     timeout: 15000,
   });
@@ -303,6 +307,124 @@ async function openAgentChat(page) {
   await page.waitForTimeout(800);
 }
 
+/**
+ * Opens the past-conversations panel and waits for the seeded demo row.
+ *
+ * The row's id is the seeder's own literal — `demo-agent-ocr-pipeline` — not a
+ * generated cuid, which is what makes it addressable from a script at all.
+ * Waiting for that exact row rather than for "the panel appeared" matters:
+ * the panel renders "No prior conversations" perfectly happily, which is the
+ * defect item 24 is about, so a shot that only waited for the panel would
+ * photograph the bug and call it the fix.
+ */
+async function openConversationHistory(page) {
+  await page.getByTestId("agent-chat-history-toggle").click();
+  await page.waitForSelector(
+    '[data-testid="agent-chat-conversation-demo-agent-ocr-pipeline"]',
+    { timeout: 15000 },
+  );
+  await page.waitForTimeout(600);
+}
+
+/** Opens the run-history drawer from the top bar's More menu. */
+async function openRunHistory(page) {
+  await page.getByTestId("topbar-more-button").click();
+  await page.getByTestId("topbar-menu-run-history").click();
+  await page.waitForSelector('[data-testid="run-history-drawer-list"]', {
+    timeout: 25000,
+  });
+  await page.waitForTimeout(700);
+}
+
+/**
+ * Clicks the newest run-history row — the whole row is the gesture, per
+ * `RunRow`'s `onClick`, not only its Replay button — and returns the three
+ * rectangles the replay frame is cropped from.
+ *
+ * The measurement is the point, not a convenience. Item 13's ruling was that
+ * replay should announce itself *between* the top bar and the canvas rather
+ * than as a chip among the buttons it disables, and "between" is a claim about
+ * coordinates. So the shot asks the page for the top bar's lowest control, the
+ * banner and the canvas, and refuses to save a frame unless the banner really
+ * does start below every top-bar control and end exactly where the canvas
+ * begins. jsdom gives every box 0×0, so no unit test can make that check.
+ */
+async function enterReplayOnNewestRun(page) {
+  await page.locator('[data-testid^="run-row-graph-"]').first().click();
+  await page.waitForSelector('[data-testid="replay-mode-indicator"]', {
+    timeout: 20000,
+  });
+  await page.waitForTimeout(900);
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom, height: r.height };
+    };
+    return {
+      topBar: rect('[data-testid="topbar-zone-right"]'),
+      banner: rect('[data-testid="replay-mode-indicator"]'),
+      canvas: rect(".react-flow"),
+    };
+  });
+  if (!geometry.banner || !geometry.topBar || !geometry.canvas) {
+    throw new Error("replay banner, top bar or canvas not measurable");
+  }
+  if (geometry.banner.top < geometry.topBar.bottom) {
+    throw new Error(
+      `banner top ${geometry.banner.top} is above the top bar's bottom ${geometry.topBar.bottom} — item 13 regressed`,
+    );
+  }
+  if (Math.abs(geometry.canvas.top - geometry.banner.bottom) > 2) {
+    throw new Error(
+      `canvas starts at ${geometry.canvas.top}, banner ends at ${geometry.banner.bottom} — the banner is not taking its height out of the canvas`,
+    );
+  }
+  // Printed because the caption quotes it. The frame cannot show the top bar
+  // (see `shootReplayBand`), so the numbers are what carries the placement
+  // claim in the document.
+  process.stdout.write(
+    `[measured: top bar ends ${Math.round(geometry.topBar.bottom)}px · ` +
+      `banner ${Math.round(geometry.banner.top)}–${Math.round(geometry.banner.bottom)}px ` +
+      `(${Math.round(geometry.banner.height)}px tall) · ` +
+      `canvas starts ${Math.round(geometry.canvas.top)}px] `,
+  );
+  return geometry;
+}
+
+/**
+ * Crops the replay frame: full window width, starting exactly at the banner's
+ * top edge, running down through a band of canvas.
+ *
+ * Why the top bar is deliberately NOT in frame, even though the item is about
+ * placement. The bar's right-hand zone carried both a Try button and a Run
+ * button, and item 8 was collapsing the two into one `Run…` while this shot
+ * was taken — so any frame containing them was stale the day it was taken; the
+ * corner gets its own shot once it settles. The banner is
+ * full width, and its "Leave replay" button sits at the far right, so a crop
+ * narrow enough to exclude the Try/Run corner would also cut off one of the
+ * two controls the item shipped. The frame therefore begins at the pixel the
+ * top bar ends, and `enterReplayOnNewestRun` has already refused to save
+ * anything unless that pixel really is the boundary. The measured numbers go
+ * in the caption instead of the buttons.
+ */
+async function shootReplayBand(page, geometry, file, canvasBand = 460) {
+  const y = Math.round(geometry.banner.top);
+  await page.screenshot({
+    path: join(OUT, file),
+    clip: {
+      x: 0,
+      y,
+      width: VIEWPORT.width,
+      height: Math.min(
+        VIEWPORT.height - y,
+        Math.round(geometry.banner.height) + canvasBand,
+      ),
+    },
+  });
+}
+
 const SHOTS = {
   /** §1 — run-status badges: bare glyph inside the filled disc. */
   1: async (browser) => {
@@ -324,7 +446,12 @@ const SHOTS = {
     // and they overlap their neighbours — that is checklist item 9, still
     // open, and it is not what this shot is about.
     await shootElement(page, failed, "01-node-status-badge-failed.png", 26);
-    await shootElement(page, succeeded, "02-node-status-badge-succeeded.png", 26);
+    await shootElement(
+      page,
+      succeeded,
+      "02-node-status-badge-succeeded.png",
+      26,
+    );
     await page.close();
   },
 
@@ -332,12 +459,17 @@ const SHOTS = {
   2: async (browser) => {
     const page = await newPage(browser);
     await openAgentChat(page);
-    await shootAround(page, '[data-testid="agent-chat-reset"]', "03-agent-chat-header.png", {
-      left: 470,
-      right: 90,
-      up: 26,
-      down: 26,
-    });
+    await shootAround(
+      page,
+      '[data-testid="agent-chat-reset"]',
+      "03-agent-chat-header.png",
+      {
+        left: 470,
+        right: 90,
+        up: 26,
+        down: 26,
+      },
+    );
     await page.close();
   },
 
@@ -352,12 +484,17 @@ const SHOTS = {
       .getByTestId("agent-chat-textarea")
       .type("Build me a workflow that OCRs invoices", { delay: 12 });
     await page.waitForTimeout(500);
-    await shootAround(page, '[data-testid="agent-chat-send"]', "04-agent-chat-composer.png", {
-      left: 560,
-      right: 30,
-      up: 34,
-      down: 30,
-    });
+    await shootAround(
+      page,
+      '[data-testid="agent-chat-send"]',
+      "04-agent-chat-composer.png",
+      {
+        left: 560,
+        right: 30,
+        up: 34,
+        down: 30,
+      },
+    );
     await page.close();
   },
 
@@ -370,7 +507,12 @@ const SHOTS = {
       .getByTestId("agent-chat-textarea")
       .type("Build me a workflow that OCRs invoices", { delay: 12 });
     await page.waitForTimeout(500);
-    await shootElement(page, ".mantine-Drawer-content", "05-agent-chat-panel.png", 0);
+    await shootElement(
+      page,
+      ".mantine-Drawer-content",
+      "05-agent-chat-panel.png",
+      0,
+    );
     await page.close();
   },
 
@@ -401,7 +543,10 @@ const SHOTS = {
     // The switch/error-edges demo: its `prep` node is the only seeded node
     // with `errorPolicy.onError === "fallback"`, which is what mounts the
     // bottom `error` handle at all.
-    await openEditor(page, "demo-switch-error-edges-validatefields-editor-part-5");
+    await openEditor(
+      page,
+      "demo-switch-error-edges-validatefields-editor-part-5",
+    );
     const node = '[data-testid="canvas-node-prep"]';
     // Modest zoom, and centred high-ish: the popover opens *below* the handle
     // and is up to 500px tall, so the node has to leave room under itself.
@@ -412,9 +557,12 @@ const SHOTS = {
     await page
       .locator('[data-testid="error-handle-tooltip-prep"] .react-flow__handle')
       .hover();
-    await page.waitForSelector('[data-testid="hover-extend-error-path-banner"]', {
-      timeout: 15000,
-    });
+    await page.waitForSelector(
+      '[data-testid="hover-extend-error-path-banner"]',
+      {
+        timeout: 15000,
+      },
+    );
     await page.waitForTimeout(700);
     // Three boxes, because item 5 asked for two things and hovering produces
     // both at once: the tooltip that names the red dot, and the popover that
@@ -453,8 +601,7 @@ const SHOTS = {
     // here. The chip only exists during a live run, so this needs a real one.
     await openEditor(page, "demo-workflow-as-api-trigger-url-schema-part-11");
     await runViaTry(page);
-    const failed =
-      '.react-flow__node:has([data-testid^="node-failure-chip-"])';
+    const failed = '.react-flow__node:has([data-testid^="node-failure-chip-"])';
     // Select the card first. xyflow's `elevateNodesOnSelect` raises the
     // selected node's z-index, and it has to be raised: mid-run this graph's
     // cards overlap (item 9, unfixed), and the neighbour that lands on top of
@@ -474,7 +621,10 @@ const SHOTS = {
   /** §8 — error handling as a radio group, all three options unclipped. */
   8: async (browser) => {
     const page = await newPage(browser);
-    await openEditor(page, "demo-switch-error-edges-validatefields-editor-part-5");
+    await openEditor(
+      page,
+      "demo-switch-error-edges-validatefields-editor-part-5",
+    );
     // The settings panel is the right-hand column of the editor and it renders
     // for whatever node is selected — clicking the card is the whole gesture.
     // `prep` again, because a node with no policy shows the "Add error
@@ -514,7 +664,9 @@ const SHOTS = {
     await zoomOnto(page, '[data-testid="group-container-ocr"]', 900);
     // Click near the strip's left end so the menu opens into the frame rather
     // than off the right-hand side of the pane.
-    await page.locator(header).click({ button: "right", position: { x: 60, y: 8 } });
+    await page
+      .locator(header)
+      .click({ button: "right", position: { x: 60, y: 8 } });
     await page.waitForSelector('[data-testid="node-context-menu"]', {
       timeout: 15000,
     });
@@ -527,7 +679,10 @@ const SHOTS = {
     // leave behind.
     await shootUnion(
       page,
-      ['[data-testid="group-container-ocr"]', '[data-testid="node-context-menu"]'],
+      [
+        '[data-testid="group-container-ocr"]',
+        '[data-testid="node-context-menu"]',
+      ],
       "10-group-context-menu.png",
       24,
     );
@@ -606,11 +761,217 @@ const SHOTS = {
       }
       return best;
     });
-    if (!pair) throw new Error("no two node cards overlap — item 9 did not reproduce");
-    const overlapping = pair.ids.map((id) => `.react-flow__node[data-id="${id}"]`);
+    if (!pair)
+      throw new Error("no two node cards overlap — item 9 did not reproduce");
+    const overlapping = pair.ids.map(
+      (id) => `.react-flow__node[data-id="${id}"]`,
+    );
     await centreInCanvas(page, overlapping);
     await zoomOnto(page, overlapping, 820);
     await shootUnion(page, overlapping, "12-BEFORE-try-reflow-overlap.png", 30);
+    await page.close();
+  },
+
+  /**
+   * §12 — item 13, replay mode as a mode. Two frames: the ordinary blue
+   * state, and the orange one that says the run's own version could not be
+   * loaded.
+   */
+  12: async (browser) => {
+    const page = await newPage(browser);
+    // The workflow-as-API demo, because it is the only seeded workflow this
+    // script has ever driven to a finish, so it is the one with run history
+    // to click. Runs are what shots 1, 7 and 11 leave behind — which means
+    // this shot depends on them having been taken at least once against this
+    // database, and fails loudly rather than quietly if they have not.
+    await openEditor(page, "demo-workflow-as-api-trigger-url-schema-part-11");
+    await openRunHistory(page);
+    const geometry = await enterReplayOnNewestRun(page);
+    await shootReplayBand(page, geometry, "13-replay-mode-banner.png");
+    await page.close();
+
+    // The orange state, and it is FAULT-INJECTED — said plainly here and in
+    // the caption, because a frame that looks spontaneous and is not is worse
+    // than no frame.
+    //
+    // The banner turns orange when `useWorkflowVersion` errors, i.e. when the
+    // run's recorded version cannot be fetched. Every one of the 18 runs in
+    // this database points at a version that resolves 200 (checked by walking
+    // every run of every workflow), so the state is unreachable by clicking:
+    // it needs the backend to be down, or a version row to have been deleted
+    // out from under a run. Rather than delete real rows, the version request
+    // — and only that one request, matched to the exact endpoint — is failed
+    // at the network layer. Everything the frame shows is the app's own real
+    // rendering of a real condition; only the condition was arranged.
+    //
+    // It is worth having because it is the state that matters most: it is the
+    // one where the graph on screen is NOT the graph that ran, and the whole
+    // reason item 13 became a banner rather than a chip was that this
+    // sentence had nowhere to fit.
+    const failed = await newPage(browser);
+    await failed.route(
+      /\/api\/workflows\/[^/]+\/versions\/[^/?#]+(\?|$)/,
+      (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({
+            success: false,
+            message:
+              "Injected by capture-screenshots.mjs to photograph the version-unavailable state",
+          }),
+        }),
+    );
+    await openEditor(failed, "demo-workflow-as-api-trigger-url-schema-part-11");
+    await openRunHistory(failed);
+    await failed.locator('[data-testid^="run-row-graph-"]').first().click();
+    // Wait on the attribute rather than on the element: the banner mounts
+    // blue and only turns orange once the query has exhausted its one retry,
+    // so waiting for the banner alone would photograph the wrong state.
+    await failed.waitForSelector(
+      '[data-testid="replay-mode-indicator"][data-version-unavailable="true"]',
+      { timeout: 30000 },
+    );
+    await failed.waitForTimeout(900);
+    const failedGeometry = await failed.evaluate(() => {
+      const r = document
+        .querySelector('[data-testid="replay-mode-indicator"]')
+        .getBoundingClientRect();
+      return { banner: { top: r.top, bottom: r.bottom, height: r.height } };
+    });
+    await shootReplayBand(
+      failed,
+      failedGeometry,
+      "14-replay-mode-version-unavailable.png",
+    );
+    await failed.close();
+  },
+
+  /**
+   * §13 — item 22, the agent says why it failed.
+   *
+   * The failure is real and costs nothing. Posting a turn to a seeded demo
+   * conversation is refused by the backend before any model is called —
+   * `AgentService.startChat` throws `AgentDemoConversationReadOnlyException`
+   * (403, code `demo-conversation-read-only`) on the third statement of the
+   * method, above every provider call — so this exercises exactly the path
+   * item 22 built: a typed refusal, carried intact through Nest, parsed by
+   * `describeAgentChatError`, rendered as `agent-chat-error` at the end of
+   * the thread.
+   *
+   * It is deliberately NOT a plain send. This machine has a working Azure
+   * deployment configured, so an ordinary turn would start a real billable
+   * completion — and would succeed, which is the one thing that cannot
+   * photograph an error.
+   */
+  13: async (browser) => {
+    const page = await newPage(browser);
+    await openAgentChat(page);
+    await openConversationHistory(page);
+    await page
+      .getByTestId("agent-chat-conversation-demo-agent-ocr-pipeline")
+      .click();
+    // The thread remounts and re-seeds from the conversation's stored
+    // messages, so wait for the replayed turn before typing into it.
+    await page.waitForTimeout(2500);
+    // Close the history panel again: it is 200px of the drawer and it is not
+    // what this shot is about — item 24 has its own frame below.
+    await page.getByTestId("agent-chat-history-toggle").click();
+    await page.waitForTimeout(400);
+    await page.getByTestId("agent-chat-textarea").click();
+    await page
+      .getByTestId("agent-chat-textarea")
+      .type("Can you add a validation step to this workflow?", { delay: 10 });
+    await page.getByTestId("agent-chat-send").click();
+    await page.waitForSelector('[data-testid="agent-chat-error"]', {
+      timeout: 30000,
+    });
+    // The alert renders inside the thread's scroll viewport, last, so that a
+    // failure reads as the turn's outcome rather than as panel chrome. That
+    // placement is half of what the item shipped, and it is only visible if
+    // the viewport is actually at the bottom — auto-scroll fires on message
+    // changes and an error is not a message.
+    await page.evaluate(() => {
+      const viewport = document.querySelector(
+        '[data-testid="agent-chat-thread"] .mantine-ScrollArea-viewport',
+      );
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    });
+    await page.waitForTimeout(700);
+    // The whole drawer, not a crop of the alert. The point of the item is
+    // that the conversation now says something where it used to sit silent,
+    // and that argument needs the conversation above it and the composer
+    // below it in the same frame.
+    const alert = await page
+      .locator('[data-testid="agent-chat-error"]')
+      .boundingBox();
+    if (!alert || alert.y < 0 || alert.y + alert.height > VIEWPORT.height) {
+      throw new Error("the error alert is outside the frame after scrolling");
+    }
+    await shootElement(
+      page,
+      ".mantine-Drawer-content",
+      "15-agent-chat-error.png",
+      0,
+    );
+    await page.close();
+  },
+
+  /** §14 — item 24, the seeded demo conversation is listed for a reader who did not create it. */
+  14: async (browser) => {
+    const page = await newPage(browser);
+    await openAgentChat(page);
+    await openConversationHistory(page);
+    // Park the cursor off the drawer. Opening the panel leaves the mouse on
+    // the header button, whose "Hide past conversations" tooltip then lands
+    // across the top of the list — an explanation of a different item's
+    // control, photobombing this one.
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(700);
+    // Header plus panel, as a union. The header is in frame because the
+    // control that opens this list moved there in item 30 — a shot of the
+    // list alone would not show what was clicked — and because the panel is
+    // rendered below the header rather than inside it, so no single element
+    // wraps both.
+    await shootUnion(
+      page,
+      [
+        '[data-testid="agent-chat-history-toggle"]',
+        '[data-testid="agent-chat-conversation-switcher"]',
+      ],
+      "16-agent-chat-demo-conversation.png",
+      14,
+    );
+    await page.close();
+  },
+
+  /**
+   * §15 — item 23, the picker offers only what the backend can serve.
+   *
+   * Shot as the whole composer rather than the label alone, because the claim
+   * is about a control that is no longer a control: `GET /api/agent/models`
+   * returns one entry on this machine (`AZURE_OPENAI_DEPLOYMENT` names a
+   * single deployment), so the picker renders a static line naming the model
+   * instead of a dropdown whose only option is already chosen. A crop tight
+   * to the text would show a label with nothing to compare it against.
+   */
+  15: async (browser) => {
+    const page = await newPage(browser);
+    await openAgentChat(page);
+    // NOT hovered. The label carries a tooltip — "The only model this server
+    // is configured for." — and it was tried in frame first, on the theory
+    // that the reasoning belongs beside the evidence. Mantine centres that
+    // tooltip above its target, which puts it straight across the composer's
+    // placeholder, so the frame ended up hiding the input the label is meant
+    // to be sitting under. The tooltip's words are in the caption instead.
+    await page.mouse.move(4, VIEWPORT.height - 4);
+    await page.waitForTimeout(500);
+    await shootElement(
+      page,
+      '[data-testid="agent-chat-composer"]',
+      "17-agent-chat-model-picker.png",
+      16,
+    );
     await page.close();
   },
 };
