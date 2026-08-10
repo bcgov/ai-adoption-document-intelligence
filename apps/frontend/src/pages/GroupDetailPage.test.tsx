@@ -164,7 +164,10 @@ describe("GroupDetailPage", () => {
     mockUseRequestMembership.mockReturnValue(idleJoin);
     mockUseMyRequests.mockReturnValue({ data: [], isLoading: false });
     mockUseAllGroups.mockReturnValue({ data: [], isLoading: false });
-    mockUseGroup.mockReturnValue({ availableGroups });
+    mockUseGroup.mockReturnValue({
+      availableGroups,
+      hasPermissionForGroup: vi.fn().mockReturnValue(true),
+    });
     mockUseUpdateGroup.mockReturnValue({
       mutate: mockUpdateMutate,
       isPending: false,
@@ -198,7 +201,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "u-99" },
         isSystemAdmin: false,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -282,7 +288,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "admin-1" },
         isSystemAdmin: true,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -310,7 +319,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "u-99", groups: [] },
         isSystemAdmin: false,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -410,6 +422,10 @@ describe("GroupDetailPage", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "u-1", groups: [{ id: GROUP_ID, name: "Alpha Team" }] },
         isSystemAdmin: false,
+      });
+      mockUseGroup.mockReturnValue({
+        availableGroups,
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
       });
       mockUseMyGroups.mockReturnValue({
         data: myGroupsMember,
@@ -673,7 +689,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "admin-1" },
         isSystemAdmin: true,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -813,6 +832,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "u-1" },
         isSystemAdmin: false,
       });
+      mockUseGroup.mockReturnValue({
+        availableGroups,
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: myGroupsMember,
         isLoading: false,
@@ -854,7 +877,10 @@ describe("GroupDetailPage", () => {
 
     it("shows the Membership Requests tab for a system admin", () => {
       sysAdminSetup();
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       renderPage();
 
       expect(
@@ -1006,6 +1032,10 @@ describe("GroupDetailPage", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "u-1" },
         isSystemAdmin: false,
+      });
+      mockUseGroup.mockReturnValue({
+        availableGroups,
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
       });
       mockUseMyGroups.mockReturnValue({
         data: myGroupsMember,
@@ -1236,7 +1266,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "admin-1" },
         isSystemAdmin: true,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -1262,6 +1295,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "u-1" },
         isSystemAdmin: false,
       });
+      mockUseGroup.mockReturnValue({
+        availableGroups,
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: myGroupsMember,
         isLoading: false,
@@ -1281,7 +1318,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "u-99" },
         isSystemAdmin: false,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -1461,7 +1501,10 @@ describe("GroupDetailPage", () => {
         user: { sub: "admin-1" },
         isSystemAdmin: true,
       });
-      mockUseGroup.mockReturnValue({ availableGroups: [] });
+      mockUseGroup.mockReturnValue({
+        availableGroups: [],
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
+      });
       mockUseMyGroups.mockReturnValue({
         data: [],
         isLoading: false,
@@ -1486,6 +1529,10 @@ describe("GroupDetailPage", () => {
       mockUseAuth.mockReturnValue({
         user: { sub: "u-1" },
         isSystemAdmin: false,
+      });
+      mockUseGroup.mockReturnValue({
+        availableGroups,
+        hasPermissionForGroup: vi.fn().mockReturnValue(false),
       });
       mockUseMyGroups.mockReturnValue({
         data: myGroupsMember,

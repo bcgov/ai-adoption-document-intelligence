@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
+import { useGroup } from "@/auth/GroupContext";
+import { Permission } from "@/auth/NoGroupGuard";
 import { DeleteClassifierConfirmationModal } from "@/components/classification/ClassifierModals";
 import { useClassifier } from "@/data/hooks/useClassifier";
-import { useMyGroups } from "@/data/hooks/useGroups";
 import { ClassifierModel } from "@/shared/types/classifier";
 import {
   Button,
@@ -39,13 +40,13 @@ const ClassifierDetails = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
-  const { user, isSystemAdmin } = useAuth();
-  const { data: myGroups } = useMyGroups(user?.sub ?? "");
-  const isGroupAdmin =
-    myGroups?.some(
-      (g) => g.id === classifierModel.group_id && g.role === "ADMIN",
-    ) ?? false;
-  const canDelete = isSystemAdmin || isGroupAdmin;
+  const { isSystemAdmin } = useAuth();
+  const { hasPermissionForGroup } = useGroup();
+  const canDelete =
+    isSystemAdmin ||
+    hasPermissionForGroup(classifierModel.group_id, [
+      Permission.CLASSIFIER_DELETE,
+    ]);
 
   const onSave = (values: typeof form.values) => {
     setShowSuccess(false);

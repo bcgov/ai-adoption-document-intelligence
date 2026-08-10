@@ -20,8 +20,9 @@ interface GroupContextType {
   activeGroup: Group | null;
   /** Updates the active group and persists the selection to localStorage. */
   setActiveGroup: (group: Group) => void;
-  userHasRequiredPermissions: (
-    activeGroup: Group,
+  /** Checks whether a group (by ID) has all of the required permissions. */
+  hasPermissionForGroup: (
+    groupId: string,
     requiredPermissions: Permission[],
   ) => boolean;
 }
@@ -79,20 +80,20 @@ export const GroupProvider: React.FC<GroupProviderProps> = ({ children }) => {
     setActiveGroupState(group);
   };
 
-  const userHasRequiredPermissions = (
-    activeGroup: Group,
+  const hasPermissionForGroup = (
+    groupId: string,
     requiredPermissions: Permission[],
-  ) => {
-    return requiredPermissions.every((p) =>
-      activeGroup.permissions?.includes(p),
-    );
+  ): boolean => {
+    const group = availableGroups.find((g) => g.id === groupId);
+    if (!group) return false;
+    return requiredPermissions.every((p) => group.permissions?.includes(p));
   };
 
   const value: GroupContextType = {
     availableGroups,
     activeGroup,
     setActiveGroup,
-    userHasRequiredPermissions,
+    hasPermissionForGroup,
   };
 
   return (
