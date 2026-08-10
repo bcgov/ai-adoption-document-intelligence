@@ -64,6 +64,48 @@ function readTemplateModelIdFromMetadata(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Per-field review/skip plan produced by the `hitl.applyReviewCriteria`
+ * Temporal activity and persisted via `document.persistReviewPlan` onto
+ * `Document.review_plan`. Mirrors `ReviewPlanEntry` in
+ * `apps/temporal/src/activities/hitl-apply-review-criteria.ts` (the two apps
+ * do not share a types package, so the shape is duplicated intentionally).
+ */
+export interface ReviewPlanEntry {
+  field: string;
+  decision: "review" | "skip";
+  reason: string;
+  ruleName: string;
+  confidence: number | null;
+}
+
+function isReviewPlanEntry(value: unknown): value is ReviewPlanEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.field === "string" &&
+    (entry.decision === "review" || entry.decision === "skip") &&
+    typeof entry.reason === "string" &&
+    typeof entry.ruleName === "string" &&
+    (entry.confidence === null || typeof entry.confidence === "number")
+  );
+}
+
+/**
+ * Safely reads `Document.review_plan` (a `Json?` column) as a typed
+ * `ReviewPlanEntry[]`. Returns `undefined` when the column is null or does
+ * not contain a well-formed review plan (e.g. documents predating this
+ * feature, or a future incompatible payload shape).
+ */
+function readReviewPlanFromDocument(
+  reviewPlan: unknown,
+): ReviewPlanEntry[] | undefined {
+  if (!Array.isArray(reviewPlan)) return undefined;
+  return reviewPlan.every(isReviewPlanEntry)
+    ? (reviewPlan as ReviewPlanEntry[])
+    : undefined;
+}
+
 @Injectable()
 export class HitlService {
   constructor(
@@ -341,6 +383,10 @@ export class HitlService {
           })
         : [];
 
+    const reviewPlan = readReviewPlanFromDocument(
+      (session.document as { review_plan?: unknown }).review_plan,
+    );
+
     return {
       id: session.id,
       documentId: session.document_id,
@@ -359,6 +405,7 @@ export class HitlService {
       },
       corrections: session.corrections,
       fieldDefinitions,
+      reviewPlan,
     };
   }
 

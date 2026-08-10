@@ -21,6 +21,7 @@ const KNOWN_PARAM_KEYS = new Set([
   "xmlEnvelope",
   "requestId",
   "groupId",
+  "documentId",
 ]);
 
 /**
@@ -48,6 +49,13 @@ export interface ExecuteTransformNodeParams {
   requestId?: string;
   /** Tenant scope (injected by the workflow runner; not a port-binding input). */
   groupId?: string | number;
+  /**
+   * The document identifier (injected by the workflow runner for every
+   * activity node whose workflow has `ctx.documentId` set; not a
+   * port-binding input). Excluded from binding-context parsing so a raw
+   * document ID string is never treated as a JSON/XML/CSV port value.
+   */
+  documentId?: string;
   /** Port-binding inputs from the workflow context (any additional keys). */
   [key: string]: unknown;
 }

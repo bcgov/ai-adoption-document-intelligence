@@ -46,6 +46,11 @@ A definition can override:
 
 `applyWorkflowConfigOverrides` (in `@ai-di/graph-workflow`) rejects unsafe dot-path segments: blocklisted names (`__proto__`, `constructor`, `prototype`), empty segments, and segments that are not plain identifiers (`^[a-zA-Z][a-zA-Z0-9_-]*$`). The config copy uses null-prototype objects so nested assignment cannot reach `Object.prototype`. Benchmark APIs additionally whitelist paths against each workflow's `exposedParams`.
 
+## Known Limitations
+
+- **No array-index path segments.** Purely numeric segments (`rules.0` / `rules[0]`) are rejected. Expose overridable values via flat/object-nested paths instead (hyphenated keys are allowed). Example: `hitl.applyReviewCriteria` uses `parameters.ruleConfidenceOverrides.<rule-name>`.
+- **No binding/ctx-default indirection for ordinary activity `parameters`.** Only `data.transform`'s `fieldMapping` resolves `{{...}}` bindings.
+
 ## Key Implementation Files
 
 - `packages/graph-workflow/src/workflow-config-overrides.ts` — deep-apply helper `applyWorkflowConfigOverrides` + `isSafeOverridePathSegment` (shared with Temporal)

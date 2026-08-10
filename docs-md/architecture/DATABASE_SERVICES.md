@@ -183,10 +183,14 @@ Db-services `audit-db.service.ts` and `audit-log-db.service.ts` already accept o
 | Index | Definition | Purpose |
 | --- | --- | --- |
 | `documents_group_id_created_at_idx` | btree `(group_id, created_at DESC)` | Serves the default filter + sort from the index so Postgres does not sort the group's whole row set. Managed in `schema.prisma`. |
-| `documents_title_trgm_idx` | GIN `(title gin_trgm_ops)` | Indexes the leading-wildcard `ILIKE '%term%'` search (a B-tree cannot). |
-| `documents_original_filename_trgm_idx` | GIN `(original_filename gin_trgm_ops)` | Same, for the filename branch of the search `OR`. |
+| `documents_title_trgm_idx` | GIN `(title gin_trgm_ops)` | Indexes the leading-wildcard `ILIKE '%term%'` search (a B-tree cannot). Declared in `schema.prisma`. |
+| `documents_original_filename_trgm_idx` | GIN `(original_filename gin_trgm_ops)` | Same, for the filename branch of the search `OR`. Declared in `schema.prisma`. |
 
-The two trigram indexes require the `pg_trgm` extension and cannot be expressed in `schema.prisma`, so they (and the extension) are managed by the raw SQL migration `20260626000000_add_documents_list_indexes`. As with the partial purge index, do not let `migrate dev` drop them.
+The two trigram indexes are declared in `schema.prisma` using Prisma's native GIN support — `@@index([title(ops: raw("gin_trgm_ops"))], type: Gin, name: "…")` — so `prisma migrate dev` recognises them and leaves them alone. They were first created by the raw SQL migration `20260626000000_add_documents_list_indexes`, which also creates the `pg_trgm` extension they depend on. The extension remains migration-managed: the datasource does not declare it, because that needs the `postgresqlExtensions` preview feature and the migration already runs `CREATE EXTENSION IF NOT EXISTS pg_trgm`.
+
+> Until July 2026 the indexes were not declared in `schema.prisma`, so every `migrate dev` run generated a migration dropping them. That is fixed; the DDL Prisma derives is identical to the SQL the migration applied, so no index is rebuilt. Do not "correct" the now-stale header comment inside `20260626000000_add_documents_list_indexes/migration.sql` — Prisma checksums applied migrations, and editing the file (even a comment) makes `migrate status` and `migrate deploy` fail.
+
+Unlike these, the partial purge index genuinely cannot be expressed in `schema.prisma`, so it stays migration-managed and `migrate dev` must not be allowed to drop it.
 
 Residual scaling notes: `count()` runs per request for the total, and deep `OFFSET` pagination scans-and-discards skipped rows — both acceptable for typical browsing but worth revisiting (approximate counts / cursor pagination) if a single group grows very large.
 
