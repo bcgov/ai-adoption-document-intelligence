@@ -1,5 +1,6 @@
 import { GroupRole } from "@generated/client";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Permission } from "../role-permissions";
 
 /**
  * A concise summary of a group, included in the `/me` response so the
@@ -17,6 +18,13 @@ export class GroupSummaryDto {
     enum: GroupRole,
   })
   role!: GroupRole;
+
+  @ApiProperty({
+    description: "An array of permissions associated with this group role.",
+    enum: Permission,
+    isArray: true,
+  })
+  permissions!: Permission[];
 }
 
 /**

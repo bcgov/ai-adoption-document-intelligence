@@ -75,6 +75,7 @@ describe("IdentityGuard", () => {
       userId: "jwt-user-id",
       isSystemAdmin: false,
       groupRoles: {},
+      resolvedGroups: [],
       actorId: "actor-id",
     });
   });
@@ -115,6 +116,7 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-abc": GroupRole.EDITOR },
+      resolvedGroups: [],
       actorId: "api-actor-id",
     });
   });
@@ -159,6 +161,7 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-id": GroupRole.EDITOR },
+      resolvedGroups: [],
       actorId: "api-actor-id",
     });
   });
@@ -924,6 +927,7 @@ describe("IdentityGuard", () => {
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
       groupRoles: { "group-abc": GroupRole.EDITOR },
+      resolvedGroups: [],
       actorId: "api-actor-id",
     });
   });

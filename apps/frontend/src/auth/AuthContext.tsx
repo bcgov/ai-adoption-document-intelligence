@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { apiService } from "../data/services/api.service";
 import { API_BASE_URL } from "../shared/constants";
+import { Permission } from "./NoGroupGuard";
 
 /**
  * Represents a group the user belongs to.
@@ -17,7 +18,8 @@ import { API_BASE_URL } from "../shared/constants";
 export interface Group {
   id: string;
   name: string;
-  role?: "ADMIN" | "MEMBER";
+  role?: string;
+  permissions?: Permission[];
 }
 
 /**
