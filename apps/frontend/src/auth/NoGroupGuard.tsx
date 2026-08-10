@@ -73,7 +73,7 @@ export function GroupPermissionGuard({
   requiredPermissions,
 }: GroupPermissionGuardProps): ReactNode {
   const { isLoading, isSystemAdmin } = useAuth();
-  const { activeGroup, userHasRequiredPermissions } = useGroup();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
 
   if (isLoading) {
     return null;
@@ -84,7 +84,7 @@ export function GroupPermissionGuard({
   if (isSystemAdmin || requiredPermissions.length === 0) return children;
   if (
     activeGroup == null ||
-    !userHasRequiredPermissions(activeGroup, requiredPermissions)
+    !hasPermissionForGroup(activeGroup.id, requiredPermissions)
   ) {
     return <Navigate to="/" replace />;
   }
