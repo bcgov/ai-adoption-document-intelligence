@@ -1,38 +1,16 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { MembershipPageGuard, NoGroupGuard } from "./auth/NoGroupGuard";
+import {
+  GroupPermissionGuard,
+  MembershipPageGuard,
+  NoGroupGuard,
+} from "./auth/NoGroupGuard";
 import { useAuth } from "./auth/useAuth";
 import { Stack, Text, Title } from "./ui";
 import "./App.css";
 import { Login, RouterErrorPage } from "./components";
-import { ReviewQueuePage } from "./features/annotation/hitl/pages/ReviewQueuePage";
-import { ReviewWorkspacePage } from "./features/annotation/hitl/pages/ReviewWorkspacePage";
-import { LabelingWorkspacePage } from "./features/annotation/template-models/pages/LabelingWorkspacePage";
-import { ModelDetailPage } from "./features/annotation/template-models/pages/ModelDetailPage";
-import { ModelListPage } from "./features/annotation/template-models/pages/ModelListPage";
-import {
-  ProjectDetailPage as BenchmarkProjectDetailPage,
-  ProjectListPage as BenchmarkProjectListPage,
-  DatasetDetailPage,
-  DatasetListPage,
-  DatasetReviewQueuePage,
-  RegressionReportPage,
-  ResultsDrillDownPage,
-  RunComparisonPage,
-  RunDetailPage,
-} from "./features/benchmarking/pages";
-import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
-import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { RootLayout } from "./layouts/RootLayout";
-import ClassifierPage from "./pages/ClassifierPage";
-import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
-import { DocumentsPage } from "./pages/DocumentsPage";
-import { GroupDetailPage } from "./pages/GroupDetailPage";
-import { GroupsPage } from "./pages/GroupsPage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { UploadPage } from "./pages/UploadPage";
-import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
-import { WorkflowListPage } from "./pages/WorkflowListPage";
+import { appRoutes } from "./routes.config";
 
 const router = createBrowserRouter([
   {
@@ -51,82 +29,16 @@ const router = createBrowserRouter([
       </NoGroupGuard>
     ),
     errorElement: <RouterErrorPage />,
-    children: [
-      { index: true, element: <UploadPage /> },
-      { path: "documents", element: <DocumentsPage /> },
-      { path: "classify", element: <ClassifierPage /> },
-      { path: "settings", element: <SettingsPage /> },
-
-      // Workflows with nested routes
-      { path: "workflows", element: <WorkflowListPage /> },
-      {
-        path: "workflows/create",
-        element: <WorkflowEditorPage mode="create" />,
-      },
-      {
-        path: "workflows/:workflowId/edit",
-        element: <WorkflowEditorPage mode="edit" />,
-      },
-
-      // Tables
-      { path: "tables", element: <TablesListPage /> },
-      { path: "tables/:tableId", element: <TableDetailPage /> },
-
-      // Template models with nested routes
-      { path: "template-models", element: <ModelListPage /> },
-      { path: "template-models/:modelId", element: <ModelDetailPage /> },
-      {
-        path: "template-models/:modelId/document/:documentId",
-        element: <LabelingWorkspacePage />,
-      },
-
-      // Review with nested routes
-      { path: "review", element: <ReviewQueuePage /> },
-      { path: "review/:sessionId", element: <ReviewWorkspacePage /> },
-
-      // Groups
-      { path: "groups", element: <GroupsPage /> },
-      { path: "groups/:groupId", element: <GroupDetailPage /> },
-
-      // Confusion profiles
-      { path: "confusion-profiles", element: <ConfusionProfilesPage /> },
-
-      // Benchmarking routes
-      { path: "benchmarking/datasets", element: <DatasetListPage /> },
-      { path: "benchmarking/datasets/:id", element: <DatasetDetailPage /> },
-      {
-        path: "benchmarking/datasets/:id/versions/:versionId/review",
-        element: <DatasetReviewQueuePage />,
-      },
-      {
-        path: "benchmarking/datasets/:id/versions/:versionId/review/:sessionId",
-        element: <ReviewWorkspacePage />,
-      },
-      {
-        path: "benchmarking/projects",
-        element: <BenchmarkProjectListPage />,
-      },
-      {
-        path: "benchmarking/projects/:id",
-        element: <BenchmarkProjectDetailPage />,
-      },
-      {
-        path: "benchmarking/projects/:id/runs/:runId",
-        element: <RunDetailPage />,
-      },
-      {
-        path: "benchmarking/projects/:id/runs/:runId/regression",
-        element: <RegressionReportPage />,
-      },
-      {
-        path: "benchmarking/projects/:projectId/runs/:runId/drill-down",
-        element: <ResultsDrillDownPage />,
-      },
-      {
-        path: "benchmarking/projects/:id/compare",
-        element: <RunComparisonPage />,
-      },
-    ],
+    children: appRoutes.map(({ nav: _nav, permissions, ...r }) => ({
+      ...r,
+      element: permissions?.length ? (
+        <GroupPermissionGuard requiredPermissions={permissions}>
+          {r.element}
+        </GroupPermissionGuard>
+      ) : (
+        r.element
+      ),
+    })),
   },
 ]);
 
