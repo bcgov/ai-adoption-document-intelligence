@@ -8,7 +8,7 @@ Classifiers can be deleted by group admins (for their own group) or system admin
 
 ### `DELETE /api/azure/classifiers/:groupId/:classifierName`
 
-**Authorization**: Group Admin or System Admin (enforced via `@Identity({ minimumRole: GroupRole.ADMIN, groupIdFrom: { param: 'groupId' } })`)
+**Authorization**: Group Admin or System Admin (enforced via `@Identity({ groupPermissions: { groupIdFrom: { param: 'groupId' }, requiredPermissions: [Permission.CLASSIFIER_DELETE] } })`)
 
 **Responses**:
 - `200 OK` — Classifier successfully deleted.

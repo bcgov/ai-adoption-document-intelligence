@@ -24,7 +24,7 @@ No additional network calls are made.
 interface Group {
   id: string;
   name: string;
-  role?: "ADMIN" | "MEMBER";
+  role?: "ADMIN" | "EDITOR" | "REVIEWER";
 }
 ```
 
