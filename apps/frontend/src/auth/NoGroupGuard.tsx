@@ -194,5 +194,4 @@ export enum Permission {
   WORKFLOW_CREATE,
   WORKFLOW_UPDATE,
   WORKFLOW_DELETE,
-  NO_EXIST_TEST,
 }

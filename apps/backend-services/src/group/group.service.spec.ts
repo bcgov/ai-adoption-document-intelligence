@@ -228,6 +228,7 @@ describe("getUserGroups", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       },
       "user1",
     );
@@ -259,6 +260,7 @@ describe("getUserGroups", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       },
       "user1",
     );
@@ -287,6 +289,7 @@ describe("getUserGroups", () => {
         isSystemAdmin: true,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       },
       "user1",
     );
@@ -321,6 +324,7 @@ describe("getUserGroups", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       },
       "user1",
     );
@@ -345,6 +349,7 @@ describe("getUserGroups", () => {
           isSystemAdmin: false,
           groupRoles: {},
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "user1",
       ),
@@ -405,6 +410,7 @@ describe("requestMembership", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       }),
     ).rejects.toThrow("Group not found");
   });
@@ -430,6 +436,7 @@ describe("requestMembership", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       }),
     ).rejects.toThrow("User is already a member of this group");
     expect(createMembershipRequest).not.toHaveBeenCalled();
@@ -457,6 +464,7 @@ describe("requestMembership", () => {
         isSystemAdmin: false,
         groupRoles: {},
         actorId: "actor-1",
+        resolvedGroups: [],
       }),
     ).rejects.toThrow(
       "A pending membership request already exists for this group",
@@ -673,6 +681,7 @@ describe("cancelMembershipRequest", () => {
   const identity: ResolvedIdentity = {
     userId,
     actorId: "1",
+    resolvedGroups: [],
     isSystemAdmin: false,
     groupRoles: {},
   };
@@ -809,6 +818,7 @@ describe("approveMembershipRequest", () => {
     isSystemAdmin: false,
     groupRoles: { [pendingRequest.group_id]: GroupRole.ADMIN },
     actorId: "actor-1",
+    resolvedGroups: [],
   };
 
   const systemAdminIdentity: ResolvedIdentity = {
@@ -816,6 +826,7 @@ describe("approveMembershipRequest", () => {
     isSystemAdmin: true,
     groupRoles: {},
     actorId: "actor-1",
+    resolvedGroups: [],
   };
 
   it("should call approveRequestTransaction with correct args", async () => {
@@ -952,6 +963,7 @@ describe("approveMembershipRequest", () => {
       isSystemAdmin: false,
       groupRoles: { [pendingRequest.group_id]: GroupRole.EDITOR },
       actorId: "actor-1",
+      resolvedGroups: [],
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -973,6 +985,7 @@ describe("approveMembershipRequest", () => {
       isSystemAdmin: false,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -1146,6 +1159,7 @@ describe("denyMembershipRequest", () => {
       isSystemAdmin: false,
       groupRoles: { [pendingRequest.group_id]: GroupRole.EDITOR },
       actorId: "actor-1",
+      resolvedGroups: [],
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),
@@ -1167,6 +1181,7 @@ describe("denyMembershipRequest", () => {
       isSystemAdmin: false,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     };
     const groupDb = makeGroupDb({
       findMembershipRequest: jest.fn().mockResolvedValue(pendingRequest),

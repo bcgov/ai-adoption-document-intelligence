@@ -129,30 +129,45 @@ export const appRoutes: AppRouteConfig[] = [
   {
     path: "template-models",
     element: <ModelListPage />,
+    permissions: [Permission.TEMPLATE_MODEL_RETRIEVE],
     nav: {
       label: "Template models",
       description: "Manage template models",
       icon: IconTags,
     },
   },
-  { path: "template-models/:modelId", element: <ModelDetailPage /> },
+  {
+    path: "template-models/:modelId",
+    permissions: [Permission.TEMPLATE_MODEL_RETRIEVE],
+    element: <ModelDetailPage />,
+  },
   {
     path: "template-models/:modelId/document/:documentId",
+    permissions: [
+      Permission.TEMPLATE_MODEL_DOCUMENT_RETRIEVE,
+      Permission.TEMPLATE_MODEL_LABEL_RETRIEVE,
+    ],
     element: <LabelingWorkspacePage />,
   },
   {
     path: "tables",
     element: <TablesListPage />,
+    permissions: [Permission.TABLE_RETRIEVE],
     nav: {
       label: "Tables",
       description: "Manage reference data tables",
       icon: IconTable,
     },
   },
-  { path: "tables/:tableId", element: <TableDetailPage /> },
+  {
+    path: "tables/:tableId",
+    permissions: [Permission.TABLE_RETRIEVE, Permission.TABLE_ROW_RETRIEVE],
+    element: <TableDetailPage />,
+  },
   {
     path: "review",
     element: <ReviewQueuePage />,
+    permissions: [Permission.HITL_QUEUE_RETRIEVE],
     homePriority: 2,
     nav: {
       label: "HITL review",
@@ -160,29 +175,38 @@ export const appRoutes: AppRouteConfig[] = [
       icon: IconClipboardCheck,
     },
   },
-  { path: "review/:sessionId", element: <ReviewWorkspacePage /> },
+  {
+    path: "review/:sessionId",
+    permissions: [
+      Permission.HITL_SESSION_RETRIEVE,
+      Permission.HITL_CORRECTION_RETRIEVE,
+    ],
+    element: <ReviewWorkspacePage />,
+  },
   {
     path: "workflows",
     element: <WorkflowListPage />,
+    permissions: [Permission.WORKFLOW_RETRIEVE],
     nav: {
       label: "Workflows",
       description: "Manage workflows",
       icon: IconFlask,
     },
   },
-  { path: "workflows/create", element: <WorkflowEditorPage mode="create" /> },
+  {
+    path: "workflows/create",
+    permissions: [Permission.WORKFLOW_CREATE],
+    element: <WorkflowEditorPage mode="create" />,
+  },
   {
     path: "workflows/:workflowId/edit",
+    permissions: [Permission.WORKFLOW_RETRIEVE, Permission.WORKFLOW_UPDATE],
     element: <WorkflowEditorPage mode="edit" />,
   },
   {
     path: "classify",
     element: <ClassifierPage />,
-    permissions: [
-      Permission.CLASSIFIER_RETRIEVE,
-      Permission.CLASSIFIER_CREATE,
-      Permission.CLASSIFIER_USE,
-    ],
+    permissions: [Permission.CLASSIFIER_RETRIEVE],
     nav: {
       label: "Classify",
       description: "Build & use classifiers",
@@ -192,12 +216,18 @@ export const appRoutes: AppRouteConfig[] = [
   {
     path: "groups",
     element: <GroupsPage />,
+    permissions: [Permission.GROUP_RETRIEVE],
     nav: { label: "Groups", description: "Manage groups", icon: IconUsers },
   },
-  { path: "groups/:groupId", element: <GroupDetailPage /> },
+  {
+    path: "groups/:groupId",
+    permissions: [Permission.GROUP_RETRIEVE],
+    element: <GroupDetailPage />,
+  },
   {
     path: "confusion-profiles",
     element: <ConfusionProfilesPage />,
+    permissions: [Permission.CONFUSION_RETRIEVE],
     nav: {
       label: "Confusion profiles",
       description: "Manage OCR confusion profiles",
@@ -209,6 +239,7 @@ export const appRoutes: AppRouteConfig[] = [
   {
     path: "benchmarking/datasets",
     element: <DatasetListPage />,
+    permissions: [Permission.BENCHMARK_RETRIEVE],
     nav: {
       label: "Datasets",
       description: "Manage benchmark datasets",
@@ -216,18 +247,31 @@ export const appRoutes: AppRouteConfig[] = [
       navSection: "benchmarking",
     },
   },
-  { path: "benchmarking/datasets/:id", element: <DatasetDetailPage /> },
+  {
+    path: "benchmarking/datasets/:id",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
+    element: <DatasetDetailPage />,
+  },
   {
     path: "benchmarking/datasets/:id/versions/:versionId/review",
+    permissions: [
+      Permission.BENCHMARK_RETRIEVE,
+      Permission.HITL_QUEUE_RETRIEVE,
+    ],
     element: <DatasetReviewQueuePage />,
   },
   {
     path: "benchmarking/datasets/:id/versions/:versionId/review/:sessionId",
+    permissions: [
+      Permission.HITL_SESSION_RETRIEVE,
+      Permission.HITL_CORRECTION_RETRIEVE,
+    ],
     element: <ReviewWorkspacePage />,
   },
   {
     path: "benchmarking/projects",
     element: <BenchmarkProjectListPage />,
+    permissions: [Permission.BENCHMARK_RETRIEVE],
     nav: {
       label: "Projects",
       description: "Benchmark projects",
@@ -237,23 +281,35 @@ export const appRoutes: AppRouteConfig[] = [
   },
   {
     path: "benchmarking/projects/:id",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
     element: <BenchmarkProjectDetailPage />,
   },
-  { path: "benchmarking/projects/:id/runs/:runId", element: <RunDetailPage /> },
+  {
+    path: "benchmarking/projects/:id/runs/:runId",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
+    element: <RunDetailPage />,
+  },
   {
     path: "benchmarking/projects/:id/runs/:runId/regression",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
     element: <RegressionReportPage />,
   },
   {
     path: "benchmarking/projects/:projectId/runs/:runId/drill-down",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
     element: <ResultsDrillDownPage />,
   },
-  { path: "benchmarking/projects/:id/compare", element: <RunComparisonPage /> },
+  {
+    path: "benchmarking/projects/:id/compare",
+    permissions: [Permission.BENCHMARK_RETRIEVE],
+    element: <RunComparisonPage />,
+  },
 
   // ── Bottom nav item ──────────────────────────────────────────────────────────
   {
     path: "settings",
     element: <SettingsPage />,
+    permissions: [Permission.API_KEY_RETRIEVE],
     nav: {
       label: "Settings",
       description: "API key management",
