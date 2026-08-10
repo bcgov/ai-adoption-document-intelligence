@@ -81,7 +81,7 @@ export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user, isSystemAdmin } = useAuth();
-  const { activeGroup, userHasRequiredPermissions } = useGroup();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const displayName = user?.profile?.name ?? "Authenticated user";
   const displayIdir = user?.profile?.email?.split("@")[0] ?? "Logged in";
@@ -97,7 +97,7 @@ export function RootLayout() {
     if (!route.permissions || route.permissions.length === 0) return true;
     if (isSystemAdmin) return true;
     if (!activeGroup) return false;
-    return userHasRequiredPermissions(activeGroup, route.permissions);
+    return hasPermissionForGroup(activeGroup.id, route.permissions);
   };
 
   const mainNavItems = useMemo(
