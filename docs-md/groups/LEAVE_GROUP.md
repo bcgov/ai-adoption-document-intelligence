@@ -37,5 +37,5 @@ See `apps/backend-services/src/group/group.controller.ts` (`leaveGroup`) and `ap
 
 ## Authorization
 
-- Only roster members of the group can leave. The `@Identity({ groupIdFrom: { param: "groupId" }, minimumRole: MEMBER })` guard rejects non-members with `403 Forbidden`.
+- Only roster members of the group can leave. The `@Identity({ groupPermissions: { groupIdFrom: { param: "groupId" }, requiredPermissions: [Permission.GROUP_LEAVE] } })` guard rejects non-members with `403 Forbidden`.
 - System admins bypass the guard's membership check, but if they are not roster members the delete of the `UserGroup` record fails, so the call still returns an error.
