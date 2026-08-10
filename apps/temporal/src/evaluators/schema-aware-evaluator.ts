@@ -14,8 +14,9 @@ import {
   EvaluationInput,
   EvaluationResult,
 } from "../benchmark-types";
-import { canonicalize } from "../field-format-engine";
+import { canonicalize, FormatSpec } from "../field-format-engine";
 import { parseToCalendarParts } from "../form-field-normalization";
+import { normalizeSelectionMarksDeep } from "../selection-mark";
 import { levenshteinDistance } from "./levenshtein";
 
 /**
@@ -112,6 +113,22 @@ export interface FieldMatchingRule {
   fuzzyThreshold?: number;
 
   /**
+   * Absolute edit-distance ceiling for fuzzy matching. When set, a fuzzy
+   * comparison also matches if the Levenshtein distance is <= maxEdits AND
+   * the shorter of the two compared strings is at least `minLength` long
+   * (guards against short strings like "Al"/"Ed" matching on 2 edits).
+   * This is a second, independent path alongside the ratio-based
+   * `fuzzyThreshold` check — either one matching is sufficient.
+   */
+  maxEdits?: number;
+
+  /**
+   * Minimum string length required for the `maxEdits` path to apply.
+   * Defaults to 3 when `maxEdits` is set.
+   */
+  minLength?: number;
+
+  /**
    * Absolute tolerance for numeric matching
    */
   numericAbsoluteTolerance?: number;
@@ -125,6 +142,14 @@ export interface FieldMatchingRule {
    * Accepted date formats for date matching
    */
   dateFormats?: string[];
+
+  /**
+   * Format canonicalization applied symmetrically to predicted and to every
+   * GT alternate before the rule matcher runs (e.g. strip a SIN to digits so
+   * "999-888-777" and "999888777" compare equal under `exact`). Reuses
+   * `FormatSpec` / `canonicalize` from `../field-format-engine`.
+   */
+  canonicalize?: FormatSpec;
 }
 
 /**
@@ -201,9 +226,15 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       };
     }
 
-    // Load prediction and ground truth
+    // Load prediction and ground truth. Ground truth may still carry Azure's
+    // tagged `:selected:` / `:unselected:` selection-mark syntax if it was
+    // derived from the labelling export (see `../selection-mark`); normalize
+    // it to the plain canonical form predictions already use so checkbox
+    // fields don't spuriously mismatch on punctuation.
     const prediction = await this.loadJson(predictionPath);
-    const groundTruth = await this.loadJson(groundTruthPath);
+    const groundTruth = normalizeSelectionMarksDeep(
+      await this.loadJson(groundTruthPath),
+    );
 
     const confidenceMap: Record<string, number | null> =
       input.predictionConfidences ?? {};
@@ -332,7 +363,36 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
       return { field, matched, predicted, expected };
     }
 
-    // Apply matching rule
+    // Format canonicalization: applied symmetrically to predicted and to
+    // every GT alternate BEFORE the rule matcher runs, so e.g. a SIN's
+    // punctuation or a currency symbol never causes a false mismatch under
+    // `exact`. One-of array shape on `expected` is preserved.
+    if (rule.canonicalize) {
+      const spec = rule.canonicalize;
+      const canonPredicted = canonicalize(String(predicted), spec);
+      const canonExpected = Array.isArray(expected)
+        ? expected.map((alt) => canonicalize(String(alt), spec))
+        : canonicalize(String(expected), spec);
+      const result = this.applyRule(field, rule, canonPredicted, canonExpected);
+      // Diagnostics report the original (uncanonicalized) values so mismatch
+      // reports remain human-readable.
+      return { ...result, predicted, expected };
+    }
+
+    return this.applyRule(field, rule, predicted, expected);
+  }
+
+  /**
+   * Dispatch to the configured matcher. Shared by the plain comparison path
+   * and the canonicalized comparison path (which pre-transforms predicted/
+   * expected before calling this).
+   */
+  private applyRule(
+    field: string,
+    rule: FieldMatchingRule,
+    predicted: unknown,
+    expected: unknown,
+  ): FieldComparisonResult {
     switch (rule.rule) {
       case "exact":
         return this.exactMatch(field, predicted, expected);
@@ -342,6 +402,8 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
           predicted,
           expected,
           rule.fuzzyThreshold ?? 0.8,
+          rule.maxEdits,
+          rule.minLength,
         );
       case "numeric":
         return this.numericMatch(
@@ -452,22 +514,46 @@ export class SchemaAwareEvaluator implements BenchmarkEvaluator {
    * Fuzzy match comparison using Levenshtein similarity. When `expected` is
    * an array of one-of alternates, the result carries the BEST similarity
    * across the alternates and matches if any alternate clears the threshold.
+   *
+   * When `maxEdits` is provided, a second independent path also matches: the
+   * Levenshtein *distance* (not ratio) to an alternate is <= `maxEdits` AND
+   * the shorter of the two compared strings is at least `minLength` long
+   * (default 3). This catches short-string typos like "Lee"/"Lei" (1 edit)
+   * that the ratio-based threshold would reject (2/3 = 0.667 < 0.8), while
+   * the length floor stops very short strings (e.g. "Al"/"Ed", 2 edits)
+   * from matching purely because they're short.
    */
   private fuzzyMatch(
     field: string,
     predicted: unknown,
     expected: unknown,
     threshold: number,
+    maxEdits?: number,
+    minLength?: number,
   ): FieldComparisonResult {
     const predictedStr = String(predicted);
+    const effectiveMinLength = minLength ?? 3;
     let bestSimilarity = 0;
+    let matched = false;
     for (const alt of alternativesOf(expected)) {
-      const s = this.levenshteinSimilarity(predictedStr, String(alt));
-      if (s > bestSimilarity) bestSimilarity = s;
+      const altStr = String(alt);
+      const similarity = this.levenshteinSimilarity(predictedStr, altStr);
+      if (similarity > bestSimilarity) bestSimilarity = similarity;
+      if (similarity >= threshold) {
+        matched = true;
+        continue;
+      }
+      if (maxEdits !== undefined) {
+        const distance = levenshteinDistance(predictedStr, altStr);
+        const minLen = Math.min(predictedStr.length, altStr.length);
+        if (distance <= maxEdits && minLen >= effectiveMinLength) {
+          matched = true;
+        }
+      }
     }
     return {
       field,
-      matched: bestSimilarity >= threshold,
+      matched,
       predicted,
       expected,
       similarity: bestSimilarity,

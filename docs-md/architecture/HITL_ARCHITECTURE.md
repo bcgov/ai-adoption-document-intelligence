@@ -691,6 +691,32 @@ Validation is non-blocking. Reviewers see Mantine error indicators on fields wit
 - `apps/frontend/src/features/annotation/hitl/utils/format-validation.ts` - validation utility
 - `apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx` - wired into Textarea error prop
 
+## Review Plan Persistence and Field Filtering
+
+The per-field `reviewPlan` produced by the `hitl.applyReviewCriteria` activity (see [HITL_REVIEW_CRITERIA.md](./HITL_REVIEW_CRITERIA.md)) can be persisted onto the document and used to pre-filter the review workspace to just the fields that need a human look.
+
+### Persistence
+
+- `Document.review_plan` (`Json?` on the `documents` table) stores the `ReviewPlanEntry[]` array (`{ field, decision, reason, ruleName, confidence }` per field) produced by `hitl.applyReviewCriteria`.
+- The `document.persistReviewPlan` Temporal activity (`apps/temporal/src/activities/persist-review-plan.ts`) writes this column. A workflow graph wires it downstream of `hitl.applyReviewCriteria`, passing its `reviewPlan` output straight through. It is a no-op for benchmark documents that don't exist in the DB (same short-circuit as `ocr.storeResults`).
+- Each successful write also records a best-effort `audit_events` row (`event_type: "document_review_plan_updated"`, `resource_type: "document"`, payload `{ field_count, review_field_count }`); an audit failure never fails the main update. See [AUDIT.md](./AUDIT.md).
+- `standard-ocr-workflow-sdpr.json` wires `document.persistReviewPlan` immediately after `hitl.applyReviewCriteria` (node `persistReviewPlan`, between `reviewCriteria` and `reviewSwitch`), passing `reviewPlan` straight through.
+
+### Review UI behavior
+
+- `HitlService.getSession()` reads `session.document.review_plan`, validates its shape, and returns it as `reviewPlan` on the session response (`ReviewSessionResponseDto.reviewPlan`, typed via `ReviewPlanEntryDto[]`). Malformed or absent data (e.g. documents predating this feature) yields `reviewPlan: undefined`.
+- `ReviewWorkspacePage` defaults to showing **only** fields with `decision: "review"` whenever the session has a review plan with at least one flagged field; each flagged field's card shows its `reason` beneath the field key. Sessions without a review plan (or where no field was flagged) show every field, same as before this feature.
+- A "Show all fields" / "Show flagged only" toggle next to the field list lets the reviewer switch between the filtered and full field sets at any time; the flagged-only filter composes with the existing field-name search filter.
+
+### Files
+
+- `apps/shared/prisma/schema.prisma` / `apps/shared/prisma/migrations/20260729140000_add_document_review_plan/` - `Document.review_plan` column
+- `apps/temporal/src/activities/persist-review-plan.ts` (+ `.test.ts`) - persistence activity, registered as `document.persistReviewPlan`
+- `apps/backend-services/src/hitl/hitl.service.ts` - `getSession` returns `reviewPlan`
+- `apps/backend-services/src/hitl/dto/hitl-responses.dto.ts` - `ReviewPlanEntryDto`, `ReviewSessionResponseDto.reviewPlan`
+- `apps/frontend/src/features/annotation/hitl/hooks/useReviewSession.ts` - `ReviewPlanEntry` / `ReviewSession.reviewPlan` types
+- `apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx` - flagged-only default filter, toggle, reason display
+
 ## Future Enhancements
 
 Potential areas for expansion:

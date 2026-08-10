@@ -35,6 +35,14 @@ interface FieldDefinition {
   format_spec?: string | null;
 }
 
+export interface ReviewPlanEntry {
+  field: string;
+  decision: "review" | "skip";
+  reason: string;
+  ruleName: string;
+  confidence: number | null;
+}
+
 interface ReviewSession {
   id: string;
   documentId: string;
@@ -53,6 +61,8 @@ interface ReviewSession {
   };
   corrections?: Correction[];
   fieldDefinitions?: FieldDefinition[];
+  /** Per-field review/skip plan from hitl.applyReviewCriteria, when present. */
+  reviewPlan?: ReviewPlanEntry[];
 }
 
 interface CorrectionDto {

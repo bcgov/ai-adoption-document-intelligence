@@ -827,6 +827,9 @@ export class WorkflowController {
       // a document-library concern and this record exists only so the graph
       // engine has a `documentId` to run against.
       content_hash: null,
+      // No review plan at upload time: it is written later by
+      // `hitl.applyReviewCriteria` if the graph runs that activity.
+      review_plan: null,
       metadata: {},
       source: "workflow-upload",
       status: DocumentStatus.pre_ocr,
