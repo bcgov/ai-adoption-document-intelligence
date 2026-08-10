@@ -203,8 +203,8 @@ All endpoints are under `/api/tables`. Every endpoint requires authentication vi
 
 | Method | Path | Min Role | Body | Success Response |
 |---|---|---|---|---|
-| `GET` | `/api/tables?group_id=` | MEMBER | — | `TableSummary[]` (200) |
-| `GET` | `/api/tables/:tableId?group_id=` | MEMBER | — | `TableDetail` (200); 404 if not found |
+| `GET` | `/api/tables?group_id=` | EDITOR | — | `TableSummary[]` (200) |
+| `GET` | `/api/tables/:tableId?group_id=` | EDITOR | — | `TableDetail` (200); 404 if not found |
 | `POST` | `/api/tables` | ADMIN | `CreateTableDto` | `TableDetail` (201) |
 | `PATCH` | `/api/tables/:tableId?group_id=` | ADMIN | `UpdateTableMetadataDto` | `TableDetail` (200) |
 | `DELETE` | `/api/tables/:tableId?group_id=` | ADMIN | — | 204 |
@@ -229,11 +229,11 @@ All endpoints are under `/api/tables`. Every endpoint requires authentication vi
 
 | Method | Path | Min Role | Body | Success Response |
 |---|---|---|---|---|
-| `GET` | `/api/tables/:tableId/rows?group_id=&offset=&limit=` | MEMBER | — | `{ rows: RowDto[], total: number }` (200) |
-| `GET` | `/api/tables/:tableId/rows/:rowId?group_id=` | MEMBER | — | `RowDto` (200); 404 if not found |
-| `POST` | `/api/tables/:tableId/rows?group_id=` | MEMBER | `CreateRowDto` | `RowDto` (201) |
-| `PATCH` | `/api/tables/:tableId/rows/:rowId?group_id=` | MEMBER | `UpdateRowDto` | `RowDto` (200); 409 on stale `expected_updated_at` |
-| `DELETE` | `/api/tables/:tableId/rows/:rowId?group_id=` | MEMBER | — | 204 |
+| `GET` | `/api/tables/:tableId/rows?group_id=&offset=&limit=` | EDITOR | — | `{ rows: RowDto[], total: number }` (200) |
+| `GET` | `/api/tables/:tableId/rows/:rowId?group_id=` | EDITOR | — | `RowDto` (200); 404 if not found |
+| `POST` | `/api/tables/:tableId/rows?group_id=` | EDITOR | `CreateRowDto` | `RowDto` (201) |
+| `PATCH` | `/api/tables/:tableId/rows/:rowId?group_id=` | EDITOR | `UpdateRowDto` | `RowDto` (200); 409 on stale `expected_updated_at` |
+| `DELETE` | `/api/tables/:tableId/rows/:rowId?group_id=` | EDITOR | — | 204 |
 
 Row update uses optimistic locking: the `UpdateRowDto` must include `expected_updated_at`. If the row was modified by another writer since that timestamp, the API returns 409 Conflict.
 
@@ -241,7 +241,7 @@ Row update uses optimistic locking: the `UpdateRowDto` must include `expected_up
 
 ## Authorization
 
-MEMBER role is required for read operations and row mutations (data operations). ADMIN role is required for table, column, and lookup mutations (schema operations). All mutations record an audit event via `AuditService.recordEvent` with the shape:
+EDITOR role is required for read operations and row mutations (data operations). ADMIN role is required for table, column, and lookup mutations (schema operations). All mutations record an audit event via `AuditService.recordEvent` with the shape:
 
 ```typescript
 {

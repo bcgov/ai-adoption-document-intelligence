@@ -147,7 +147,7 @@ The implementation uses the **OAuth 2.0 Authorization Code Flow with PKCE (Proof
 │  │  │  - Reads @Identity() decorator options                      │   │    │
 │  │  │  - JWT: enriches with isSystemAdmin + groupRoles (1 DB query)│  │    │
 │  │  │  - API key: sets isSystemAdmin=false, groupRoles from key   │   │    │
-│  │  │  - Enforces requireSystemAdmin, groupIdFrom, minimumRole    │   │    │
+│  │  │  - Enforces requireSystemAdmin, groupIdFrom, requiredPermissions │   │    │
 │  │  │  - Rejects API keys unless allowApiKey: true                │   │    │
 │  │  └────────────────────────────────────────────────────────────┘   │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
@@ -239,7 +239,7 @@ apps/backend-services/src/auth/
 ├── identity.decorator.ts       # @Identity() — declares auth/authz requirements + Swagger metadata
 ├── identity.guard.ts           # Identity resolution + authorization guard — enriches resolvedIdentity, enforces @Identity() options
 ├── identity.helpers.ts         # Authorization helpers — requireUserId(), getIdentityGroupIds(), identityCanAccessGroup()
-├── role-order.ts               # Numeric GroupRole ordering used for minimum-role comparisons
+├── role-permissions.ts         # Permission enum, RoleClaimsMap — maps each GroupRole to its allowed Permission set
 ├── public.decorator.ts         # @Public() metadata
 ├── types.ts                    # User, ResolvedIdentity, ValidatedApiKey interfaces, Express Request augmentation
 └── dto/
@@ -606,7 +606,7 @@ export class KeycloakJwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 The strategy does not extract or normalize Keycloak roles. All authorization is handled by the `IdentityGuard` using **database-backed roles**:
 
 - **`is_system_admin`** — boolean on the `User` table, checked via `@Identity({ requireSystemAdmin: true })` or `resolvedIdentity.isSystemAdmin`
-- **`GroupRole`** (`ADMIN` | `MEMBER`) — stored per-group in the `UserGroup` table, checked via `@Identity({ minimumRole: GroupRole.ADMIN })` or `resolvedIdentity.groupRoles`
+- **`GroupRole`** (`ADMIN` | `EDITOR` | `REVIEWER`) — stored per-group in the `UserGroup` table, checked via `@Identity({ groupPermissions: { groupIdFrom, requiredPermissions } })` or `resolvedIdentity.groupRoles`. `ADMIN` has all permissions; `EDITOR` has all non-admin-only permissions; `REVIEWER` has HITL-specific permissions only.
 
 The vestigial `roles` field on the `User` type remains only as an optional pass-through of the raw JWT claim and is not used for authorization.
 
@@ -681,7 +681,7 @@ export class AuthModule {}
 1. `ThrottlerGuard` → Enforces per-IP rate limits (global default or per-route override)
 2. `JwtAuthGuard` → Extracts JWT from cookie/header → Validates via Passport → Sets `request.user`
 3. `ApiKeyAuthGuard` → Only acts on routes with `@Identity({ allowApiKey: true })` → Checks per-IP failed-attempt limit (configurable, default 20/min) → Validates API key → Sets `request.apiKey` (`{ groupId, keyPrefix, actorId }`)
-4. `IdentityGuard` → Reads `@Identity()` decorator options → Enriches `request.resolvedIdentity` with `userId`, `isSystemAdmin`, `groupRoles`, and `actorId` (single DB query — `findUserWithGroups` — for JWT; no queries for API key) → Enforces `requireSystemAdmin`, `groupIdFrom` membership, and `minimumRole` checks → Rejects API key requests unless `allowApiKey: true` → Throws `403`/`401` on authorization failures
+4. `IdentityGuard` → Reads `@Identity()` decorator options → Enriches `request.resolvedIdentity` with `userId`, `isSystemAdmin`, `groupRoles`, `resolvedGroups`, and `actorId` (single DB query — `findUserWithGroups` — for JWT; no queries for API key) → Enforces `requireSystemAdmin`, `groupIdFrom` membership, and `requiredPermissions` checks → Rejects API key requests unless `allowApiKey: true` → Throws `403`/`401` on authorization failures
 5. `CsrfGuard` → Validates CSRF double-submit cookie on state-changing requests
 
 ### Security Mechanisms
@@ -1342,10 +1342,10 @@ export class DocumentController {
     // Only accessible to system admins. API keys always fail this check.
   }
 
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: GroupRole.ADMIN })
+  @Identity({ groupPermissions: { groupIdFrom: { param: "groupId" }, requiredPermissions: [Permission.GROUP_UPDATE] } })
   @Put(":groupId/settings")
   async updateSettings() {
-    // Requires group membership with at least ADMIN role. System admins bypass.
+    // Requires group membership with GROUP_UPDATE permission (ADMIN only). System admins bypass.
   }
 
   @Identity({ allowApiKey: true })
@@ -1361,8 +1361,7 @@ export class DocumentController {
 | Option | Type | Default | Effect |
 |--------|------|---------|--------|
 | `requireSystemAdmin` | `boolean` | `false` | Guard throws `403` if `isSystemAdmin` is not `true`. API keys always fail. |
-| `groupIdFrom` | `{ param?, query?, body? }` | unset | Extracts group ID from request location, verifies membership via `groupRoles`. System admins bypass. |
-| `minimumRole` | `GroupRole` | unset | Requires the identity's role within the resolved group to meet the minimum (`MEMBER` < `ADMIN`). |
+| `groupPermissions` | `{ groupIdFrom, requiredPermissions }` | unset | Extracts group ID from request location, verifies membership via `groupRoles`, and checks that the identity's role grants all listed `requiredPermissions` (see `RoleClaimsMap` in `role-permissions.ts`). System admins bypass. |
 | `allowApiKey` | `boolean` | `false` | When `true`, API-key-authenticated requests are permitted. Without this, API key requests receive `403`. |
 
 #### Service-Level Authorization Helpers
@@ -1374,13 +1373,13 @@ For cases where the endpoint doesn't know the group ID from the incoming request
 - **System admin (`isSystemAdmin: true`)** → `undefined` (no group filter — sees all records)
 - **Regular user / API key** → keys of `identity.groupRoles`
 
-**`identityCanAccessGroup(identity, groupId, minimumRole?)`** — Asserts that the identity can access a specific group. Throws HTTP exceptions on failure. Used by single-resource endpoints after fetching the resource's `group_id`.
+**`identityCanAccessGroup(identity, groupId, requiredPermissions)`** — Asserts that the identity can access a specific group and holds all required permissions. Throws HTTP exceptions on failure. Used by single-resource endpoints after fetching the resource's `group_id`.
 
 - `groupId === null` → `404 Not Found` (orphaned record)
 - No identity → `403 Forbidden`
 - System admin (`isSystemAdmin: true`) → always allowed
 - Group not in `groupRoles` → `403 Forbidden`
-- Role below `minimumRole` → `403 Forbidden`
+- Role's permission set does not cover all `requiredPermissions` → `403 Forbidden`
 
 ### Group-Scoped Authorization
 
@@ -1392,8 +1391,8 @@ The `IdentityGuard` (global guard, position 4) runs after authentication and enr
 
 | Auth Method | Identity Fields | How Resolved |
 |------------|----------------|-------------|
-| JWT (Keycloak SSO) | `{ userId, isSystemAdmin, groupRoles, actorId }` | Single DB query — `UserService.findUserWithGroups(userId)` — returning `is_system_admin` and per-group roles together. No additional queries needed downstream. |
-| API Key | `{ isSystemAdmin: false, groupRoles: { [groupId]: MEMBER }, actorId }` | Populated directly from `request.apiKey` (set by `ApiKeyAuthGuard`). No database queries required. |
+| JWT (Keycloak SSO) | `{ userId, isSystemAdmin, groupRoles, resolvedGroups, actorId }` | Single DB query — `UserService.findUserWithGroups(userId)` — returning `is_system_admin`, per-group roles, and group names together. No additional queries needed downstream. |
+| API Key | `{ isSystemAdmin: false, groupRoles: { [groupId]: EDITOR }, resolvedGroups: [], actorId }` | Populated directly from `request.apiKey` (set by `ApiKeyAuthGuard`). No database queries required. API keys are always granted `GroupRole.EDITOR` within their scoped group. |
 
 See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the full controller-by-controller coverage.
 
@@ -1408,10 +1407,10 @@ The guard chain runs globally in this order: `JwtAuthGuard` → `ApiKeyAuthGuard
 | Decorator | Purpose | Runtime effect |
 |-----------|---------|----------------|
 | `@Public()` | Marks a route as unauthenticated | `JwtAuthGuard` returns `true` immediately — all downstream guards become no-ops |
-| `@Identity()` | Identity resolution + authorization | `IdentityGuard` enriches `request.resolvedIdentity` with `isSystemAdmin` and `groupRoles` (one `findUserWithGroups` DB query for JWT, no queries for API key). Enforces options. Also adds Swagger `@ApiBearerAuth` metadata. |
+| `@Identity()` | Identity resolution + authorization | `IdentityGuard` enriches `request.resolvedIdentity` with `isSystemAdmin`, `groupRoles`, `resolvedGroups`, and `actorId` (one `findUserWithGroups` DB query for JWT, no queries for API key). Enforces options. Also adds Swagger `@ApiBearerAuth` metadata. |
 | `@Identity({ allowApiKey: true })` | Allow API key authentication | Tells `IdentityGuard` to accept API-key-authenticated requests. Also adds Swagger `@ApiSecurity("api-key")` metadata. Without this flag, API key requests receive `403`. |
 | `@Identity({ requireSystemAdmin: true })` | System admin only | `IdentityGuard` throws `403` if the resolved identity is not a system admin. API keys always fail (isSystemAdmin is always false). |
-| `@Identity({ groupIdFrom: {...}, minimumRole?: ... })` | Group-scoped with optional role check | Extracts group ID from request, verifies membership via `groupRoles`, optionally checks minimum role. System admins bypass. |
+| `@Identity({ groupPermissions: { groupIdFrom: {...}, requiredPermissions: [...] } })` | Group-scoped with permission check | Extracts group ID from request, verifies membership via `groupRoles`, checks that the identity's role grants all required permissions (see `RoleClaimsMap` in `role-permissions.ts`). System admins bypass. |
 
 ### Valid Decorator Combinations
 
@@ -1451,18 +1450,20 @@ deleteUser() {}
 - API keys always fail this check (`isSystemAdmin` is always `false` for API keys)
 - Non-admins get `403 Forbidden`
 
-#### 4. Group-scoped with minimum role
+#### 4. Group-scoped with permission check
 
 ```typescript
 @Identity({
-  groupIdFrom: { param: "groupId" },
-  minimumRole: GroupRole.ADMIN,
+  groupPermissions: {
+    groupIdFrom: { param: "groupId" },
+    requiredPermissions: [Permission.GROUP_UPDATE],
+  },
 })
 @Put(":groupId/settings")
 updateGroupSettings() {}
 ```
 
-- Extracts `groupId` from the route param, verifies membership, and requires at least `ADMIN` role within that group
+- Extracts `groupId` from the route param, verifies membership, and checks that the identity's role includes all listed permissions (per `RoleClaimsMap` in `role-permissions.ts`)
 - System admins bypass these checks
 
 #### 5. Public endpoint
@@ -1496,8 +1497,8 @@ Does this endpoint require system-admin access?
   └─ Yes → @Identity({ requireSystemAdmin: true })
 
 Does this endpoint need group-scoped authorization?
-  └─ Yes → @Identity({ groupIdFrom: { param: "groupId" } })
-  └─ Also needs a minimum role? → add minimumRole: GroupRole.ADMIN
+  └─ Yes → @Identity({ groupPermissions: { groupIdFrom: { param: "groupId" }, requiredPermissions: [Permission.X] } })
+  └─ Choose permissions from the Permission enum in role-permissions.ts to match the required access level
 
 Standard authenticated endpoint?
   └─ @Identity()
@@ -1531,7 +1532,7 @@ export class WebhookController {
 3. Validates the API key against the database (prefix lookup + bcrypt comparison)
 4. Sets `request.apiKey` to the validated key info (`{ groupId, keyPrefix, actorId }`)
 5. `IdentityGuard` reads the `@Identity()` decorator — if `allowApiKey` is not `true`, rejects with `403 Forbidden`
-6. If allowed, sets `request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [request.apiKey.groupId]: GroupRole.MEMBER }, actorId }` — no database queries required
+6. If allowed, sets `request.resolvedIdentity = { isSystemAdmin: false, groupRoles: { [request.apiKey.groupId]: GroupRole.EDITOR }, resolvedGroups: [], actorId }` — no database queries required
 
 **Usage Example:**
 
@@ -1613,7 +1614,7 @@ model ApiKey {
 The original schema stored a snapshot of the generating user's Keycloak JWT roles (along with `user_id` and `user_email`) at key-generation time. This was discarded when API keys were re-scoped from *users* to *groups*:
 
 - Each API key is now owned by a **group**, not a user. Because a key represents a group identity (not a multi-group user identity), there is no meaningful multi-role set to capture.
-- All API key requests are granted exactly `GroupRole.MEMBER` within the key's owning group — this is enforced by `IdentityGuard` at request time and requires no stored role data.
+- All API key requests are granted exactly `GroupRole.EDITOR` within the key's owning group — this is enforced by `IdentityGuard` at request time and requires no stored role data.
 - The generating user's identity is still recorded via `generating_user_id` for audit purposes, but it has no effect on the key's permissions.
 
 ### Key Lifecycle
@@ -1621,7 +1622,7 @@ The original schema stored a snapshot of the generating user's Keycloak JWT role
 - **One key per group** — each group can have one active API key. Generating a new key when one exists requires deletion or regeneration
 - **Regeneration** deletes the old key and creates a new one, recording the requesting user as `generating_user_id` for audit purposes
 - **Full key shown once** — after generation, only the `key_prefix` is visible for identification
-- **Group-scoped** — API key requests can only access resources belonging to the key's group. The `IdentityGuard` assigns `GroupRole.MEMBER` to all API keys within their scoped group
+- **Group-scoped** — API key requests can only access resources belonging to the key's group. The `IdentityGuard` assigns `GroupRole.EDITOR` to all API keys within their scoped group
 
 ---
 
@@ -1868,7 +1869,7 @@ async createUser(@Body() body: CreateUserDto) {
 
 #### ~~No Resource-Level Authorization (IDOR)~~ — RESOLVED
 
-**Resolved via group-scoped authorization.** Every primary resource carries a `group_id`, and access is enforced at the HTTP boundary — declaratively via `@Identity({ groupIdFrom, minimumRole })` or imperatively via `identityCanAccessGroup` after fetching the resource. Cross-group access by ID returns `403`; orphaned records return `404`. Resources are intentionally shared **within** a group (group tenancy), not per-user. See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the controller-by-controller coverage.
+**Resolved via group-scoped authorization.** Every primary resource carries a `group_id`, and access is enforced at the HTTP boundary — declaratively via `@Identity({ groupPermissions: { groupIdFrom, requiredPermissions } })` or imperatively via `identityCanAccessGroup` after fetching the resource. Cross-group access by ID returns `403`; orphaned records return `404`. Resources are intentionally shared **within** a group (group tenancy), not per-user. See [GROUP_RESOURCE_AUTHORIZATION.md](./GROUP_RESOURCE_AUTHORIZATION.md) for the controller-by-controller coverage.
 
 #### ~~No Rate Limiting on API Key Validation Path~~ — RESOLVED
 

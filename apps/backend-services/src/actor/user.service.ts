@@ -1,4 +1,4 @@
-import { User, UserGroup } from "@generated/client";
+import { User } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { UserDbService } from "./user-db.service";
 
@@ -26,13 +26,11 @@ export class UserService {
   }
 
   /**
-   * Finds a user and includes their groups.
+   * Finds a user and includes their non-deleted group memberships with group names.
    * @param userId - The user's id
-   * @returns Promise<User & { userGroups: UserGroup[] } | null> The user with groups, or null if not found
+   * @returns The user with fully joined group data (names included), or null if not found
    */
-  async findUserWithGroups(
-    userId: string,
-  ): Promise<(User & { userGroups: UserGroup[] }) | null> {
-    return await this.userDb.findUser(userId, true);
+  async findUserWithGroups(userId: string) {
+    return this.userDb.findUserWithGroupNames(userId);
   }
 }

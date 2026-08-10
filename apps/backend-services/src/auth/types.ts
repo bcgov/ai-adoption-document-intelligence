@@ -29,6 +29,8 @@ export interface ResolvedIdentity {
   isSystemAdmin: boolean;
   groupRoles: Record<string, GroupRole>;
   actorId: string;
+  /** Group memberships with names, populated by IdentityGuard on the JWT path. */
+  resolvedGroups: Array<{ id: string; name: string; role: GroupRole }>;
 }
 
 /**

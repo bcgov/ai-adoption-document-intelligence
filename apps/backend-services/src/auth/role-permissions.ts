@@ -104,7 +104,10 @@ export enum Permission {
 
 const { ADMIN, EDITOR, REVIEWER } = GroupRole;
 
-const allPermissions = Object.values(Permission) as Permission[];
+// Numeric enums include reverse-mapping string keys in Object.values(); filter to numbers only.
+const allPermissions = Object.values(Permission).filter(
+  (v): v is Permission => typeof v === "number",
+);
 
 // Reminder that this is group admins only, not system-admins.
 const groupAdminOnlyPermissions = [
