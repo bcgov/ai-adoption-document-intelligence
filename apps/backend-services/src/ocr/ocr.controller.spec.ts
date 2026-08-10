@@ -16,7 +16,7 @@ function buildReq(groupId = "group-1"): Request {
   return {
     resolvedIdentity: {
       isSystemAdmin: false,
-      groupRoles: { [groupId]: GroupRole.MEMBER },
+      groupRoles: { [groupId]: GroupRole.EDITOR },
       actorId: "actor-1",
     },
   } as unknown as Request;

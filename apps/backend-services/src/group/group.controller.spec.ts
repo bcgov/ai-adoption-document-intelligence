@@ -49,7 +49,7 @@ describe("GroupController", () => {
       const callerId = "caller-id";
       const userId = "user1";
       const mockGroups: UserGroupDto[] = [
-        { id: "g1", name: "Group 1", role: "MEMBER" },
+        { id: "g1", name: "Group 1", role: "EDITOR" },
       ];
       jest.spyOn(service, "getUserGroups").mockResolvedValueOnce(mockGroups);
       const req = { resolvedIdentity: { userId: callerId } } as any;

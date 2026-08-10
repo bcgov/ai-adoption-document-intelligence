@@ -191,6 +191,7 @@ describe("HitlService", () => {
   describe("getQueue", () => {
     it("should return filtered documents with low confidence fields", async () => {
       const filters: QueueFilterDto = {
+        group_id: "group-1",
         maxConfidence: 0.9,
         limit: 50,
         offset: 0,
@@ -231,7 +232,7 @@ describe("HitlService", () => {
         docWithoutOcr as any,
       ]);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents).toHaveLength(0);
       expect(result.total).toBe(0);
@@ -253,7 +254,10 @@ describe("HitlService", () => {
         docWithHighConfidence as any,
       ]);
 
-      const result = await service.getQueue({ maxConfidence: 0.9 });
+      const result = await service.getQueue({
+        group_id: "group-1",
+        maxConfidence: 0.9,
+      });
 
       expect(result.documents).toHaveLength(0);
       expect(result.total).toBe(0);
@@ -277,7 +281,7 @@ describe("HitlService", () => {
         docWithSession as any,
       ]);
 
-      const result = await service.getQueue({});
+      const result = await service.getQueue({ group_id: "group-1" });
 
       expect(result.documents[0].lastSession).toEqual({
         id: "session-1",
@@ -293,7 +297,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ status: DocumentStatusFilter.ALL });
+      await service.getQueue({
+        group_id: "group-1",
+        status: DocumentStatusFilter.ALL,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -307,7 +314,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -319,7 +329,7 @@ describe("HitlService", () => {
     it("should use default values for optional filters", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({});
+      await service.getQueue({ group_id: "group-1" });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
@@ -1054,6 +1064,7 @@ describe("HitlService", () => {
       mockAnalyticsService.getAnalytics.mockResolvedValueOnce(mockAnalytics);
 
       const filters = {
+        group_id: "group-1",
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-12-31"),
       };

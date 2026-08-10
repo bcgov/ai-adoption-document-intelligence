@@ -9,6 +9,7 @@ import {
 import { Request } from "express";
 import type { AuditService } from "@/audit/audit.service";
 import { IDENTITY_KEY, type IdentityOptions } from "@/auth/identity.decorator";
+import { Permission } from "@/auth/role-permissions";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { AzureController } from "./azure.controller";
 import {
@@ -27,7 +28,7 @@ describe("AzureController", () => {
       resolvedIdentity: {
         userId: sub,
         groupRoles: Object.fromEntries(
-          groups.map((g) => [g, GroupRole.MEMBER]),
+          groups.map((g) => [g, GroupRole.EDITOR]),
         ) as Record<string, GroupRole>,
         actorId: "actor-1",
         isSystemAdmin: false,
@@ -79,8 +80,12 @@ describe("AzureController", () => {
           handler,
         ) as IdentityOptions;
         expect(metadata.allowApiKey).toBe(true);
-        expect(metadata.minimumRole).toBe(GroupRole.MEMBER);
-        expect(metadata.groupIdFrom).toEqual({ query: "group_id" });
+        expect(metadata.groupPermissions?.requiredPermissions).toContain(
+          Permission.CLASSIFIER_FILES,
+        );
+        expect(metadata.groupPermissions?.groupIdFrom).toEqual({
+          query: "group_id",
+        });
       }
     });
 
@@ -96,26 +101,29 @@ describe("AzureController", () => {
         AzureController.prototype.createClassifier,
       ) as IdentityOptions;
       expect(createMeta.allowApiKey).toBe(true);
-      expect(createMeta.minimumRole).toBe(GroupRole.MEMBER);
-      expect(createMeta.groupIdFrom).toEqual({ body: "group_id" });
+      expect(createMeta.groupPermissions?.requiredPermissions).toContain(
+        Permission.CLASSIFIER_CREATE,
+      );
+      expect(createMeta.groupPermissions?.groupIdFrom).toEqual({
+        body: "group_id",
+      });
     });
   });
 
   describe("getClassifiers", () => {
-    it("should return classifiers for all user groups when group_id is not provided", async () => {
+    it("should return classifiers for the specified group", async () => {
       const mockClassifiers = [
         { id: "c1", group_id: "g1" },
-        { id: "c2", group_id: "g2" },
+        { id: "c2", group_id: "g1" },
       ];
       classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
-      const req = createMockReq("user1", ["g1", "g2"]);
-      const result = await controller.getClassifiers(req, undefined);
+      const result = await controller.getClassifiers("g1");
       expect(result).toEqual(mockClassifiers);
       expect(
         classifierService.findAllClassifierModelsForGroups,
-      ).toHaveBeenCalledWith(["g1", "g2"]);
+      ).toHaveBeenCalledWith(["g1"]);
     });
 
     it("should return classifiers for the specified group when group_id is provided and user is a member", async () => {
@@ -123,19 +131,11 @@ describe("AzureController", () => {
       classifierService.findAllClassifierModelsForGroups = jest
         .fn()
         .mockResolvedValue(mockClassifiers);
-      const req = createMockReq("user1", ["g1"]);
-      const result = await controller.getClassifiers(req, "g1");
+      const result = await controller.getClassifiers("g1");
       expect(result).toEqual(mockClassifiers);
       expect(
         classifierService.findAllClassifierModelsForGroups,
       ).toHaveBeenCalledWith(["g1"]);
-    });
-
-    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
-      const req = createMockReq();
-      await expect(controller.getClassifiers(req, "g1")).rejects.toThrow(
-        ForbiddenException,
-      );
     });
   });
   describe("createClassifier", () => {

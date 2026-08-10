@@ -26,12 +26,12 @@ describe("DocumentController", () => {
     resolvedIdentity: {
       userId,
       isSystemAdmin: false,
-      groupRoles: { [mockGroupId]: GroupRole.MEMBER },
+      groupRoles: { [mockGroupId]: GroupRole.EDITOR },
       actorId: "actor-1",
     },
   });
   const createMockApiKeyReq = (groupId = mockGroupId) => ({
-    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.MEMBER } },
+    resolvedIdentity: { groupRoles: { [groupId]: GroupRole.EDITOR } },
   });
 
   beforeEach(async () => {
@@ -78,6 +78,7 @@ describe("DocumentController", () => {
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
+        mockGroupId,
       );
       expect(result).toEqual({
         documents: [{ id: "1" }],
@@ -105,7 +106,10 @@ describe("DocumentController", () => {
       documentService.findAllDocuments.mockResolvedValue(
         paginatedResult([{ id: "1" }]) as any,
       );
-      const result = await controller.getAllDocuments(apiKeyReq as any);
+      const result = await controller.getAllDocuments(
+        apiKeyReq as any,
+        mockGroupId,
+      );
       expect(result).toEqual({
         documents: [{ id: "1" }],
         total: 1,
@@ -127,34 +131,10 @@ describe("DocumentController", () => {
       );
     });
 
-    it("should return empty result when there is no identity", async () => {
-      const noIdentityReq = { resolvedIdentity: undefined };
-      documentService.findAllDocuments.mockResolvedValue(
-        paginatedResult([]) as any,
-      );
-      const result = await controller.getAllDocuments(noIdentityReq as any);
-      expect(result).toEqual({
-        documents: [],
-        total: 0,
-        limit: 50,
-        offset: 0,
-      });
-      expect(documentService.findAllDocuments).toHaveBeenCalledWith([], {
-        limit: 50,
-        offset: 0,
-        search: undefined,
-        status: "all",
-        sortBy: "created_at",
-        sortDir: "desc",
-        source: undefined,
-        contentHash: undefined,
-      });
-    });
-
     it("should throw NotFoundException on error", async () => {
       documentService.findAllDocuments.mockRejectedValue(new Error("fail"));
       await expect(
-        controller.getAllDocuments(mockReqWithIdentity as any),
+        controller.getAllDocuments(mockReqWithIdentity as any, mockGroupId),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -164,7 +144,7 @@ describe("DocumentController", () => {
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         "10",
         "20",
       );
@@ -195,7 +175,7 @@ describe("DocumentController", () => {
       );
       await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         "500",
       );
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
@@ -237,27 +217,13 @@ describe("DocumentController", () => {
       );
     });
 
-    it("should throw ForbiddenException when group_id is provided and user is not a member", async () => {
-      const notMemberReq = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      };
-      await expect(
-        controller.getAllDocuments(notMemberReq as any, mockGroupId),
-      ).rejects.toThrow(ForbiddenException);
-      expect(documentService.findAllDocuments).not.toHaveBeenCalled();
-    });
-
     it("should return all group documents when group_id is omitted", async () => {
       documentService.findAllDocuments.mockResolvedValue(
         paginatedResult([{ id: "1" }, { id: "2" }]) as any,
       );
       const result = await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
       );
       expect(result.documents).toEqual([{ id: "1" }, { id: "2" }]);
       expect(documentService.findAllDocuments).toHaveBeenCalledWith(
@@ -284,7 +250,7 @@ describe("DocumentController", () => {
 
       await controller.getAllDocuments(
         mockReqWithIdentity as any,
-        undefined,
+        mockGroupId,
         undefined,
         undefined,
         undefined,
@@ -914,8 +880,6 @@ describe("DocumentController", () => {
   });
 
   describe("getBulkThumbnails", () => {
-    const mockReq = createMockReq();
-
     it("returns base64 data URLs for available thumbnails", async () => {
       const buf = Buffer.from("webp");
       blobStorage.read.mockResolvedValue(buf);
@@ -923,7 +887,6 @@ describe("DocumentController", () => {
       const result = await controller.getBulkThumbnails(
         mockGroupId,
         "doc-1,doc-2",
-        mockReq as any,
       );
 
       const expected = `data:image/webp;base64,${buf.toString("base64")}`;
@@ -936,11 +899,7 @@ describe("DocumentController", () => {
     it("returns null for documents without a thumbnail", async () => {
       blobStorage.read.mockRejectedValue(new Error("not found"));
 
-      const result = await controller.getBulkThumbnails(
-        mockGroupId,
-        "doc-1",
-        mockReq as any,
-      );
+      const result = await controller.getBulkThumbnails(mockGroupId, "doc-1");
 
       expect(result).toEqual([{ documentId: "doc-1", thumbnailData: null }]);
     });
@@ -954,7 +913,6 @@ describe("DocumentController", () => {
       const result = await controller.getBulkThumbnails(
         mockGroupId,
         "doc-1,doc-2",
-        mockReq as any,
       );
 
       expect(result).toEqual([
@@ -966,44 +924,17 @@ describe("DocumentController", () => {
       ]);
     });
 
-    it("throws BadRequestException when ids is an empty string", async () => {
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, "", mockReq as any),
-      ).rejects.toThrow(BadRequestException);
+    it("returns empty array when ids is an empty string", async () => {
+      const result = await controller.getBulkThumbnails(mockGroupId, "");
+      expect(result).toEqual([]);
       expect(blobStorage.read).not.toHaveBeenCalled();
-    });
-
-    it("throws BadRequestException when group_id is missing", async () => {
-      await expect(
-        controller.getBulkThumbnails(undefined, "doc-1", mockReq as any),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it("throws BadRequestException when ids param is missing", async () => {
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, undefined, mockReq as any),
-      ).rejects.toThrow(BadRequestException);
     });
 
     it("throws BadRequestException when more than 200 IDs are requested", async () => {
       const ids = Array.from({ length: 201 }, (_, i) => `doc-${i}`).join(",");
       await expect(
-        controller.getBulkThumbnails(mockGroupId, ids, mockReq as any),
+        controller.getBulkThumbnails(mockGroupId, ids),
       ).rejects.toThrow(BadRequestException);
-      expect(blobStorage.read).not.toHaveBeenCalled();
-    });
-
-    it("throws ForbiddenException when user is not a group member", async () => {
-      const notMemberReq = {
-        resolvedIdentity: {
-          userId: "user-1",
-          isSystemAdmin: false,
-          groupRoles: {},
-        },
-      };
-      await expect(
-        controller.getBulkThumbnails(mockGroupId, "doc-1", notMemberReq as any),
-      ).rejects.toThrow(ForbiddenException);
       expect(blobStorage.read).not.toHaveBeenCalled();
     });
   });

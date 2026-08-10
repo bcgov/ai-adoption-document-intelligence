@@ -1,10 +1,10 @@
 import {
   ForbiddenException,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { GroupRole } from "@/generated";
-import { ROLE_ORDER } from "./role-order";
+import { Permission, RoleClaimsMap } from "./role-permissions";
 import { ResolvedIdentity } from "./types";
 
 /**
@@ -76,7 +76,7 @@ export function getIdentityGroupIds(
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
  * @param minimumRole - The minimum required role within the group (default
- *   `GroupRole.MEMBER`). Same floor as `IdentityGuard` when `minimumRole` was set on `@Identity`.
+ *   `GroupRole.EDITOR`). Same floor as `IdentityGuard` when `minimumRole` was set on `@Identity`.
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.
@@ -84,7 +84,7 @@ export function getIdentityGroupIds(
 export function identityCanAccessGroup(
   identity: ResolvedIdentity | undefined,
   groupId: string | null,
-  minimumRole: GroupRole = GroupRole.MEMBER,
+  requiredPermissions: Permission[],
 ): void {
   if (groupId === null) {
     throw new NotFoundException("Resource not found.");
@@ -92,6 +92,12 @@ export function identityCanAccessGroup(
 
   if (!identity) {
     throw new ForbiddenException("User does not belong to requested group.");
+  }
+
+  if (requiredPermissions.length === 0) {
+    throw new InternalServerErrorException(
+      "Permissions check missing requiredPermissions.",
+    );
   }
 
   // Fast path: isSystemAdmin was pre-populated by IdentityGuard (via @Identity decorator).
@@ -107,11 +113,13 @@ export function identityCanAccessGroup(
     if (!Object.hasOwn(identity.groupRoles, groupId)) {
       throw new ForbiddenException("User does not belong to requested group.");
     }
-    // Is their role for the group sufficient?
-    const role = identity.groupRoles[groupId];
-    if (ROLE_ORDER[role] < ROLE_ORDER[minimumRole]) {
+    // Does their group role have the required permissions?
+    const usersGroupRole = identity.groupRoles[groupId];
+    const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
+    if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
       throw new ForbiddenException("Insufficient role within the group");
     }
+    // All checks passed. Return and continue.
     return;
   }
 

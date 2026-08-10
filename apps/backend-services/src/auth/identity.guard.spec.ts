@@ -8,6 +8,7 @@ import { Reflector } from "@nestjs/core";
 import { UserService } from "@/actor/user.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
 import { IdentityGuard } from "./identity.guard";
+import { Permission } from "./role-permissions";
 
 describe("IdentityGuard", () => {
   let guard: IdentityGuard;
@@ -113,7 +114,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -157,7 +158,7 @@ describe("IdentityGuard", () => {
 
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-id": GroupRole.MEMBER },
+      groupRoles: { "group-id": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -204,7 +205,7 @@ describe("IdentityGuard", () => {
     expect(
       (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
         .groupRoles,
-    ).toEqual({ "group-123": GroupRole.MEMBER });
+    ).toEqual({ "group-123": GroupRole.EDITOR });
   });
 
   it("should throw ForbiddenException when @Identity is absent and request uses an API key", async () => {
@@ -329,7 +330,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "g1",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
         {
@@ -354,7 +355,7 @@ describe("IdentityGuard", () => {
     expect(
       (request.resolvedIdentity as { groupRoles?: Record<string, GroupRole> })
         .groupRoles,
-    ).toEqual({ g1: GroupRole.MEMBER, g2: GroupRole.ADMIN });
+    ).toEqual({ g1: GroupRole.EDITOR, g2: GroupRole.ADMIN });
   });
 
   it("should set groupRoles to an empty record when @Identity is present and user has no groups", async () => {
@@ -505,7 +506,10 @@ describe("IdentityGuard", () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         requireSystemAdmin: true,
-        groupIdFrom: { param: "groupId" },
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
       }),
       userService as unknown as UserService,
     );
@@ -531,14 +535,19 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -559,14 +568,19 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-xyz",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { query: "group_id" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { query: "group_id" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -587,14 +601,19 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-def",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { body: "group_id" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { body: "group_id" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -615,7 +634,12 @@ describe("IdentityGuard", () => {
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -636,14 +660,19 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "other-group",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -664,7 +693,12 @@ describe("IdentityGuard", () => {
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: { param: "groupId" } }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
@@ -677,7 +711,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
   });
 
-  it("should skip the membership check when groupIdFrom has no param, query, or body set", async () => {
+  it("should throw BadRequestException when groupPermissions has no location set", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
@@ -685,23 +719,28 @@ describe("IdentityGuard", () => {
     } as never);
 
     const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ groupIdFrom: {} }),
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: {},
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
+      }),
       userService as unknown as UserService,
     );
     const request: Record<string, unknown> = {
       user: { sub: "user-1" },
     };
 
-    const result = await identityGuard.canActivate(createContext(request));
-
-    expect(result).toBe(true);
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(BadRequestException);
   });
 
   // ---------------------------------------------------------------------------
-  // US-007: minimumRole enforcement within a group
+  // US-007: requiredPermissions enforcement within a group
   // ---------------------------------------------------------------------------
 
-  it("should pass when the caller holds exactly the minimum required role (ADMIN with ADMIN requirement)", async () => {
+  it("should pass when the caller holds a role with the required permission (ADMIN with admin-only permission)", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
@@ -717,8 +756,10 @@ describe("IdentityGuard", () => {
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
-        groupIdFrom: { param: "groupId" },
-        minimumRole: GroupRole.ADMIN,
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.GROUP_UPDATE],
+        },
       }),
       userService as unknown as UserService,
     );
@@ -732,7 +773,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
   });
 
-  it("should pass when the caller holds a higher role than the minimum (ADMIN satisfies MEMBER minimum)", async () => {
+  it("should pass when the caller holds a role with all required permissions (MEMBER with member permissions)", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
@@ -740,7 +781,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.ADMIN,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -748,8 +789,10 @@ describe("IdentityGuard", () => {
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
-        groupIdFrom: { param: "groupId" },
-        minimumRole: GroupRole.MEMBER,
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
       }),
       userService as unknown as UserService,
     );
@@ -763,7 +806,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
   });
 
-  it("should throw ForbiddenException when caller's role is below the minimum required role (MEMBER with ADMIN requirement)", async () => {
+  it("should throw ForbiddenException when caller's role lacks required permission (MEMBER requiring admin-only permission)", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: false,
       actor_id: "actor-id",
@@ -771,7 +814,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -779,8 +822,10 @@ describe("IdentityGuard", () => {
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
-        groupIdFrom: { param: "groupId" },
-        minimumRole: GroupRole.ADMIN,
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.GROUP_UPDATE],
+        },
       }),
       userService as unknown as UserService,
     );
@@ -794,27 +839,7 @@ describe("IdentityGuard", () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it("should skip the minimumRole check when groupIdFrom is absent", async () => {
-    userService.findUserWithGroups.mockResolvedValue({
-      is_system_admin: false,
-      actor_id: "actor-id",
-      userGroups: [],
-    } as never);
-
-    const identityGuard = new IdentityGuard(
-      createReflectorWithIdentity({ minimumRole: GroupRole.ADMIN }),
-      userService as unknown as UserService,
-    );
-    const request: Record<string, unknown> = {
-      user: { sub: "user-1" },
-    };
-
-    const result = await identityGuard.canActivate(createContext(request));
-
-    expect(result).toBe(true);
-  });
-
-  it("should pass for a system admin regardless of minimumRole when groupIdFrom is specified", async () => {
+  it("should pass for a system admin regardless of required permissions when groupPermissions is specified", async () => {
     userService.findUserWithGroups.mockResolvedValue({
       is_system_admin: true,
       actor_id: "actor-id",
@@ -823,8 +848,10 @@ describe("IdentityGuard", () => {
 
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
-        groupIdFrom: { param: "groupId" },
-        minimumRole: GroupRole.ADMIN,
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.GROUP_UPDATE],
+        },
       }),
       userService as unknown as UserService,
     );
@@ -896,7 +923,7 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(request.resolvedIdentity).toEqual({
       isSystemAdmin: false,
-      groupRoles: { "group-abc": GroupRole.MEMBER },
+      groupRoles: { "group-abc": GroupRole.EDITOR },
       actorId: "api-actor-id",
     });
   });
@@ -929,7 +956,7 @@ describe("IdentityGuard", () => {
         {
           user_id: "user-1",
           group_id: "group-abc",
-          role: GroupRole.MEMBER,
+          role: GroupRole.EDITOR,
           created_at: new Date(),
         },
       ],
@@ -938,7 +965,10 @@ describe("IdentityGuard", () => {
     const identityGuard = new IdentityGuard(
       createReflectorWithIdentity({
         allowApiKey: false,
-        groupIdFrom: { param: "groupId" },
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [Permission.DOCUMENT_RETRIEVE],
+        },
       }),
       userService as unknown as UserService,
     );
