@@ -81,7 +81,7 @@ export interface AppRouteConfig {
 /** Redirects `/` to the first accessible route ordered by `homePriority`. */
 function HomeRedirect() {
   const { isSystemAdmin } = useAuth();
-  const { activeGroup, userHasRequiredPermissions } = useGroup();
+  const { activeGroup, hasPermissionForGroup } = useGroup();
 
   const target = appRoutes
     .filter(
@@ -93,7 +93,7 @@ function HomeRedirect() {
       if (!r.permissions || r.permissions.length === 0) return true;
       if (isSystemAdmin) return true;
       if (!activeGroup) return false;
-      return userHasRequiredPermissions(activeGroup, r.permissions);
+      return hasPermissionForGroup(activeGroup.id, r.permissions);
     });
 
   // No accessible home candidate — let the group selector / guards handle it.
