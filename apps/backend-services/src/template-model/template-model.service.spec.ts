@@ -936,6 +936,7 @@ describe("TemplateModelService", () => {
         isSystemAdmin: true,
         groupRoles: {},
         actorId: "test-actor",
+        resolvedGroups: [],
       };
       const result = await service.generateDocumentSuggestions(
         "tm-1",
@@ -956,6 +957,7 @@ describe("TemplateModelService", () => {
         isSystemAdmin: true,
         groupRoles: {},
         actorId: "test-actor",
+        resolvedGroups: [],
       };
       await expect(
         service.generateDocumentSuggestions(
@@ -982,6 +984,7 @@ describe("TemplateModelService", () => {
         isSystemAdmin: true,
         groupRoles: {},
         actorId: "test-actor",
+        resolvedGroups: [],
       };
       await expect(
         service.generateDocumentSuggestions(

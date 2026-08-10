@@ -18,6 +18,7 @@ describe("getIdentityGroupIds", () => {
       groupRoles: { "group-abc": GroupRole.EDITOR },
       isSystemAdmin: false,
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual(["group-abc"]);
   });
@@ -28,6 +29,7 @@ describe("getIdentityGroupIds", () => {
       isSystemAdmin: true,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toBeUndefined();
   });
@@ -41,6 +43,7 @@ describe("getIdentityGroupIds", () => {
         "group-2": GroupRole.ADMIN,
       },
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual(expect.arrayContaining(["group-1", "group-2"]));
     expect(result).toHaveLength(2);
@@ -52,6 +55,7 @@ describe("getIdentityGroupIds", () => {
       isSystemAdmin: false,
       groupRoles: {},
       actorId: "actor-1",
+      resolvedGroups: [],
     });
     expect(result).toEqual([]);
   });
@@ -72,6 +76,7 @@ describe("identityCanAccessGroup", () => {
             isSystemAdmin: false,
             groupRoles: {},
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           null,
           [Permission.DOCUMENT_RETRIEVE],
@@ -86,6 +91,7 @@ describe("identityCanAccessGroup", () => {
             groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           null,
           [Permission.DOCUMENT_RETRIEVE],
@@ -129,6 +135,7 @@ describe("identityCanAccessGroup", () => {
             isSystemAdmin: true,
             groupRoles: {},
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           "group-1",
           [Permission.DOCUMENT_RETRIEVE],
@@ -145,6 +152,7 @@ describe("identityCanAccessGroup", () => {
             groupRoles: { "group-1": GroupRole.EDITOR },
             isSystemAdmin: false,
             actorId: "actor-1",
+            resolvedGroups: [],
           },
           "group-1",
           [Permission.DOCUMENT_RETRIEVE],
@@ -160,6 +168,7 @@ describe("identityCanAccessGroup", () => {
           groupRoles: { "group-2": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
         [Permission.DOCUMENT_RETRIEVE],
@@ -174,6 +183,7 @@ describe("identityCanAccessGroup", () => {
           groupRoles: { "group-1": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
         [Permission.GROUP_UPDATE],
@@ -188,6 +198,7 @@ describe("identityCanAccessGroup", () => {
           groupRoles: { "group-1": GroupRole.ADMIN },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
         [Permission.GROUP_UPDATE],
@@ -209,6 +220,7 @@ describe("prototype property bypass prevention", () => {
           groupRoles: { "real-group": GroupRole.EDITOR },
           isSystemAdmin: false,
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         groupId,
         [Permission.DOCUMENT_RETRIEVE],
@@ -226,6 +238,7 @@ describe("userId-only path (no groupRoles on identity)", () => {
           isSystemAdmin: false,
           groupRoles: {},
           actorId: "actor-1",
+          resolvedGroups: [],
         },
         "group-1",
         [Permission.DOCUMENT_RETRIEVE],
