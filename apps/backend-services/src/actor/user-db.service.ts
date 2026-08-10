@@ -87,4 +87,23 @@ export class UserDbService {
       include: { userGroups: includeGroups },
     });
   }
+
+  /**
+   * Finds a user and includes their non-deleted group memberships with group names.
+   * @param userId - The user's id.
+   * @param tx - Optional Prisma transaction client.
+   * @returns The user with fully joined group data, or null if not found.
+   */
+  async findUserWithGroupNames(userId: string, tx?: Prisma.TransactionClient) {
+    const client = tx ?? this.prisma;
+    return client.user.findUnique({
+      where: { id: userId },
+      include: {
+        userGroups: {
+          where: { group: { deleted_at: null } },
+          include: { group: true },
+        },
+      },
+    });
+  }
 }

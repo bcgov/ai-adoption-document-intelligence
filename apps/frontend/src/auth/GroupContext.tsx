@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { type Group, useAuth } from "./AuthContext";
+import { Permission } from "./NoGroupGuard";
 
 const ACTIVE_GROUP_ID_KEY = "activeGroupId";
 
@@ -19,6 +20,10 @@ interface GroupContextType {
   activeGroup: Group | null;
   /** Updates the active group and persists the selection to localStorage. */
   setActiveGroup: (group: Group) => void;
+  userHasRequiredPermissions: (
+    activeGroup: Group,
+    requiredPermissions: Permission[],
+  ) => boolean;
 }
 
 const GroupContext = createContext<GroupContextType | undefined>(undefined);
@@ -74,10 +79,20 @@ export const GroupProvider: React.FC<GroupProviderProps> = ({ children }) => {
     setActiveGroupState(group);
   };
 
+  const userHasRequiredPermissions = (
+    activeGroup: Group,
+    requiredPermissions: Permission[],
+  ) => {
+    return requiredPermissions.every((p) =>
+      activeGroup.permissions?.includes(p),
+    );
+  };
+
   const value: GroupContextType = {
     availableGroups,
     activeGroup,
     setActiveGroup,
+    userHasRequiredPermissions,
   };
 
   return (
