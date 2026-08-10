@@ -20,7 +20,10 @@ import {
   useElementSize,
 } from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
@@ -332,7 +335,13 @@ export const ReviewWorkspacePage: FC = () => {
     if (ocrPage?.width) {
       return pdfPageSize.width / ocrPage.width;
     }
-    return 144; // 72 pts/inch * RENDER_SCALE(2)
+    // Azure OCR polygons are in inches; the PDF page is rendered at
+    // RENDER_SCALE × 72 DPI. When the OCR page width is unavailable (the
+    // session payload omits analyzeResult.pages), this ratio is the exact
+    // fallback: pdfPageSize.width / ocrPage.width always reduces to
+    // RENDER_SCALE × 72 regardless of page size. Must track RENDER_SCALE —
+    // a hardcoded constant silently misplaces every box when it changes.
+    return RENDER_SCALE * 72;
   }, [
     isNormalizedPdf,
     pdfPageSize,
