@@ -67,11 +67,16 @@ model Document {
   // cannot express partial indexes, so it is managed via the raw SQL migration
   // 20260624000000_add_documents_purge_index. Do not let `migrate dev` drop it.
   //
-  // Trigram GIN indexes `documents_title_trgm_idx` /
-  // `documents_original_filename_trgm_idx` back the list endpoint's ILIKE
-  // search. Prisma cannot express GIN/trigram indexes, so they are managed via
-  // the raw SQL migration 20260626000000_add_documents_list_indexes. Do not let
-  // `migrate dev` drop them.
+  // The trigram GIN indexes below back the list endpoint's ILIKE search. They
+  // are declared here natively (`type: Gin` + `ops: raw(...)`), so `migrate dev`
+  // recognises them instead of proposing to drop them. They were first created
+  // by the raw SQL migration 20260626000000_add_documents_list_indexes, which
+  // also creates the required `pg_trgm` extension. That migration's own header
+  // comment predates this declaration and is now out of date; leave it alone.
+  // Prisma checksums applied migrations, so editing the file — even a comment —
+  // breaks `migrate status` and `migrate deploy`.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, name: "documents_title_trgm_idx")
+  @@index([original_filename(ops: raw("gin_trgm_ops"))], type: Gin, name: "documents_original_filename_trgm_idx")
   @@map("documents")
 }
 
