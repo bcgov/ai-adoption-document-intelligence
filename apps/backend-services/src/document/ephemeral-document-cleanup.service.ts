@@ -140,9 +140,10 @@ export class EphemeralDocumentCleanupService {
     }
 
     if (temporalRecord && doc.workflow_execution_id) {
-      await this.temporalClient.deleteWorkflowExecution(
-        doc.workflow_execution_id,
-      );
+      // workflow_execution_id being non-null indicates OCR was started at least
+      // once. The Temporal workflowId is always graph-${doc.id}; we do NOT use
+      // workflow_execution_id directly since it now stores the billing runId.
+      await this.temporalClient.deleteWorkflowExecution(`graph-${doc.id}`);
     }
 
     await this.documentDb.markDocumentPurged(doc.id);

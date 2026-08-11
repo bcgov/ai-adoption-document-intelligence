@@ -13,6 +13,7 @@ This wiki is a compact map of the Document Intelligence Platform. Use it to find
 - [HITL](hitl.md): review sessions, locking, queue behavior, and correction tracking.
 - [Auth and groups](auth-and-groups.md): Keycloak/API key auth, group scoping, and authorization docs.
 - [Deployment and ops](deployment-and-ops.md): local/dev/OpenShift deployment, monitoring, load testing, and operational runbooks.
+- [Billing](billing.md): usage metering, cost accrual, and group spending caps.
 
 ## Maintenance Pages
 

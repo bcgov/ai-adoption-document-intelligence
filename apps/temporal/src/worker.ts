@@ -9,9 +9,18 @@
 import "./env-loader";
 
 import * as http from "node:http";
+import { Connection, ScheduleClient } from "@temporalio/client";
+import type { ActivityInterceptorsFactory } from "@temporalio/worker";
 import { NativeConnection, Worker } from "@temporalio/worker";
 import { getPrismaClient } from "./activities/database-client";
 import { getActivityRegistry } from "./activity-registry";
+import { ActivityBillingInterceptor } from "./billing/activity-billing-interceptor";
+import {
+  runMonthEndArchival,
+  runNightlyStorageCharge,
+} from "./billing/nightly-storage-charge.activity";
+import { UsageEventWriter } from "./billing/usage-event-writer";
+import { initStorageLedger } from "./blob-storage/blob-storage-client";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
 import { temporalDataConverter } from "./temporal-data-converter";
@@ -91,6 +100,71 @@ async function checkWorkerHealth(): Promise<{
     timestamp: new Date().toISOString(),
     ...(errors.length > 0 && { errors }),
   };
+}
+
+const NIGHTLY_STORAGE_SCHEDULE_ID = "nightly-storage-charge";
+
+/**
+ * Ensures the nightly storage charge Temporal Schedule exists.
+ * Idempotent — creates the schedule only if it does not already exist.
+ * Runs at 00:05 UTC every day to process the previous calendar day.
+ */
+async function ensureNightlyStorageChargeSchedule(opts: {
+  address: string;
+  namespace: string;
+  billingTaskQueue: string;
+}): Promise<void> {
+  const connection = await Connection.connect({ address: opts.address });
+  try {
+    const scheduleClient = new ScheduleClient({
+      connection,
+      namespace: opts.namespace,
+    });
+
+    try {
+      await scheduleClient.create({
+        scheduleId: NIGHTLY_STORAGE_SCHEDULE_ID,
+        spec: {
+          // Run at 00:05 UTC daily so the previous day's data is fully written
+          cronExpressions: ["5 0 * * *"],
+        },
+        policies: {
+          // If the billing worker is down and misses a scheduled run, catch up
+          // for up to 25 hours so at most one day of charges can be lost.
+          // The workflow uses Temporal deterministic time, so catch-up runs
+          // correctly charge for their originally scheduled day, not "today".
+          catchupWindow: "25 hours",
+        },
+        action: {
+          type: "startWorkflow",
+          workflowType: "nightlyStorageChargeWorkflow",
+          taskQueue: opts.billingTaskQueue,
+        },
+      });
+
+      workerLogger.info("Created nightly storage charge schedule", {
+        event: "schedule_created",
+        scheduleId: NIGHTLY_STORAGE_SCHEDULE_ID,
+      });
+    } catch (err: unknown) {
+      // ALREADY_EXISTS is expected after first startup — treat as success
+      const isAlreadyExists =
+        err instanceof Error &&
+        (err.message.includes("already exists") ||
+          err.message.includes("ALREADY_EXISTS"));
+      if (!isAlreadyExists) {
+        workerLogger.warn(
+          `Failed to create nightly storage charge schedule: ${err instanceof Error ? err.message : String(err)}`,
+          {
+            event: "schedule_create_failed",
+            scheduleId: NIGHTLY_STORAGE_SCHEDULE_ID,
+          },
+        );
+      }
+    }
+  } finally {
+    await connection.close();
+  }
 }
 
 async function run() {
@@ -202,6 +276,19 @@ async function run() {
     activitiesMap[activityType] = entry.activityFn;
   }
 
+  // Load billing rate version context for the activity interceptor (US-007/008)
+  const prisma = getPrismaClient();
+  const billingWriter = new UsageEventWriter(prisma);
+
+  // Initialize storage ledger instrumentation
+  initStorageLedger(prisma);
+
+  const billingInterceptorFactory: ActivityInterceptorsFactory = (_ctx) => {
+    return {
+      inbound: new ActivityBillingInterceptor(billingWriter),
+    };
+  };
+
   // Create workers array to track all running workers
   const workers: Worker[] = [];
 
@@ -217,6 +304,9 @@ async function run() {
     // Concurrency limits for horizontal scaling (Group 5: HA)
     maxConcurrentActivityTaskExecutions,
     maxConcurrentWorkflowTaskExecutions,
+    interceptors: {
+      activity: [billingInterceptorFactory],
+    },
   });
   workers.push(ocrWorker);
 
@@ -235,6 +325,9 @@ async function run() {
       // Concurrency limits for horizontal scaling (Group 5: HA)
       maxConcurrentActivityTaskExecutions,
       maxConcurrentWorkflowTaskExecutions,
+      interceptors: {
+        activity: [billingInterceptorFactory],
+      },
     });
     workers.push(benchmarkWorker);
 
@@ -243,6 +336,35 @@ async function run() {
       taskQueue: benchmarkTaskQueue,
     });
   }
+
+  // Create billing worker for nightly storage charge and archival workflows
+  const billingTaskQueue =
+    process.env.BILLING_TASK_QUEUE || "billing-maintenance";
+  const billingWorker = await Worker.create({
+    connection,
+    namespace,
+    workflowsPath: require.resolve("./billing-workflows"),
+    activities: {
+      runNightlyStorageCharge,
+      runMonthEndArchival,
+    },
+    taskQueue: billingTaskQueue,
+    dataConverter: temporalDataConverter,
+    shutdownGraceTime: "55s",
+  });
+  workers.push(billingWorker);
+
+  workerLogger.info("Billing worker ready", {
+    event: "billing_worker_ready",
+    taskQueue: billingTaskQueue,
+  });
+
+  // Register the nightly storage charge schedule (idempotent — skips if already exists)
+  await ensureNightlyStorageChargeSchedule({
+    address,
+    namespace,
+    billingTaskQueue,
+  });
 
   // The Temporal SDK automatically handles SIGTERM by calling worker.shutdown()
   // and worker.run() resolves once all in-flight activities have drained.

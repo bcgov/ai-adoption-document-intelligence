@@ -55,6 +55,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "blob.read",
   "document.extractToBase64",
   "document.normalizeOrientation",
+  "billing.recordWorkflowLifecycle",
 ];
 
 describe("activity-registry", () => {

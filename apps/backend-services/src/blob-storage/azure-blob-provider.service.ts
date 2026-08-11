@@ -14,6 +14,7 @@ import {
   AzureBlobStorageConfig,
   BlobStorageInterface,
 } from "./blob-storage.interface";
+import { StorageLedgerService } from "./storage-ledger.service";
 
 /**
  * Creates a configured ContainerClient for Azure Blob Storage.
@@ -40,6 +41,7 @@ export class AzureBlobProviderService
   constructor(
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
+    private readonly storageLedger: StorageLedgerService,
   ) {
     const connectionString = this.configService.get<string>(
       "AZURE_STORAGE_CONNECTION_STRING",
@@ -107,6 +109,8 @@ export class AzureBlobProviderService
       });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
+
+    await this.storageLedger.recordWrite(key, data.byteLength);
   }
 
   /**
@@ -129,6 +133,9 @@ export class AzureBlobProviderService
       this.logger.debug(`Read blob: ${key} (${data.length} bytes)`, {
         alertType: "blob_storage_read",
       });
+
+      await this.storageLedger.recordRead(key);
+
       return data;
     } catch (error: unknown) {
       const err = error as Error & { statusCode?: number };
@@ -185,6 +192,8 @@ export class AzureBlobProviderService
       });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
+
+    await this.storageLedger.recordDelete(key);
   }
 
   /**
@@ -231,5 +240,7 @@ export class AzureBlobProviderService
     this.logger.debug(`Deleted ${deleted} blobs with prefix "${prefix}"`, {
       alertType: "blob_storage_delete_by_prefix",
     });
+
+    await this.storageLedger.recordDeleteByPrefix(prefix);
   }
 }

@@ -8,6 +8,11 @@ Use this page for contradictions, drift candidates, and ownership gaps that shou
 - ~~Which docs from `docs-md/` should eventually be published through the generated `docs/` site, and which should remain repo-only?~~ Partially resolved: selected guides (benchmarking, authentication, integrations) are published via `docs/_pages/`; implementation docs and the repo wiki remain in `docs-md/` (wiki HTML is generated at deploy, not committed). Revisit when adding new public pages.
 - ~~Should the wiki validator become a CI check after the team has used it for a few PRs?~~ Resolved: `.github/workflows/wiki-check.yml` runs `npm run docs:wiki:check` on PRs to `main` and `develop`.
 
+## Billing (AI-1580, in review)
+
+- **Cap semantics contradict the spec.** `feature-docs/20260629185435-usage-metering-billing/REQUIREMENTS.md` describes the spending cap as "atomic" (no two concurrent starts can both pass), but the shipped `preflight-cap-check.service.ts` is a read-only soft check with no budget reservation. `docs-md/architecture/USAGE_METERING_AND_BILLING.md` documents the soft-cap behavior; the REQUIREMENTS wording should be reconciled (or the reservation implemented).
+- **`.env.sample` blob-flag name drift.** `.env.sample` lists `CHARGE_FOR_BLOB_TRANSACTION`, but the temporal code reads `CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`. Setting the sample name has no effect; align the sample to the code name.
+
 ## Documentation Ownership
 
 - **Root `README.md`**: local setup, prerequisites, development commands, project tree.

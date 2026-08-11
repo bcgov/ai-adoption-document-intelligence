@@ -36,6 +36,9 @@ RUN mkdir -p /packages/monitoring/node_modules/@ai-di && \
     ln -s /packages/logging /packages/monitoring/node_modules/@ai-di/shared-logging && \
     cd /packages/monitoring && npm install --ignore-scripts && npm run build
 
+COPY packages/billing /packages/billing
+RUN cd /packages/billing && npm install --ignore-scripts && npm run build
+
 # Install dependencies (no lockfile — monorepo file: paths don't match Docker layout)
 RUN npm install --ignore-scripts
 
@@ -83,6 +86,7 @@ COPY --from=builder /packages/blob-storage-paths /packages/blob-storage-paths
 COPY --from=builder /packages/graph-workflow /packages/graph-workflow
 COPY --from=builder /packages/temporal-payload-codec /packages/temporal-payload-codec
 COPY --from=builder /packages/monitoring /packages/monitoring
+COPY --from=builder /packages/billing /packages/billing
 
 # Package files and production deps
 COPY apps/temporal/package.json ./
