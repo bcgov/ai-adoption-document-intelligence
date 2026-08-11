@@ -886,15 +886,19 @@ export const ReviewWorkspacePage: FC = () => {
             >
               Back
             </Button>
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconRotate size={16} />}
-              onClick={handleReopen}
-              loading={isReopening}
-            >
-              Reopen for editing
-            </Button>
+            {session.completedAt &&
+              Date.now() - new Date(session.completedAt).getTime() <=
+                5 * 60 * 1000 && (
+                <Button
+                  variant="light"
+                  color="blue"
+                  leftSection={<IconRotate size={16} />}
+                  onClick={handleReopen}
+                  loading={isReopening}
+                >
+                  Reopen for editing
+                </Button>
+              )}
           </Group>
         ) : (
           <ReviewToolbar

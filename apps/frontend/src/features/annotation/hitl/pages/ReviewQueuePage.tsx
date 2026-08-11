@@ -52,6 +52,12 @@ export const ReviewQueuePage: FC = () => {
     null,
   );
 
+  const REOPEN_WINDOW_MS = 5 * 60 * 1000;
+  const canReopenSession = (completedAt?: string | null) => {
+    if (!completedAt) return false;
+    return Date.now() - new Date(completedAt).getTime() <= REOPEN_WINDOW_MS;
+  };
+
   if (activeQueue.isLoading) {
     return (
       <Center h="70vh">
@@ -95,7 +101,11 @@ export const ReviewQueuePage: FC = () => {
   const handleReopenSession = async (sessionId: string) => {
     setReopeningSessionId(sessionId);
     try {
-      await apiService.post(`/hitl/sessions/${sessionId}/reopen`, {});
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/reopen`,
+        {},
+      );
+      if (!response.success) throw new Error(response.message);
       notifications.show({
         title: "Session reopened",
         message: "Document returned to review queue",
@@ -359,22 +369,23 @@ export const ReviewQueuePage: FC = () => {
                           >
                             View
                           </Button>
-                          {doc.lastSession?.id && (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="orange"
-                              leftSection={<IconRotate size={14} />}
-                              onClick={() =>
-                                handleReopenSession(doc.lastSession!.id)
-                              }
-                              loading={
-                                reopeningSessionId === doc.lastSession.id
-                              }
-                            >
-                              Reopen
-                            </Button>
-                          )}
+                          {doc.lastSession?.id &&
+                            canReopenSession(doc.lastSession.completed_at) && (
+                              <Button
+                                size="xs"
+                                variant="light"
+                                color="orange"
+                                leftSection={<IconRotate size={14} />}
+                                onClick={() =>
+                                  handleReopenSession(doc.lastSession!.id)
+                                }
+                                loading={
+                                  reopeningSessionId === doc.lastSession.id
+                                }
+                              >
+                                Reopen
+                              </Button>
+                            )}
                         </Group>
                       </DataTable.Td>
                     </DataTable.Tr>

@@ -159,6 +159,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${targetSessionId}/reopen`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
