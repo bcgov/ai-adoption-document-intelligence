@@ -891,6 +891,109 @@ describe("normalizeOcrFields", () => {
         ).toBe(false);
       });
     });
+
+    it("clears valueNumber when coercing a single-digit string so benchmark display is 0", async () => {
+      // extractAzureFieldDisplayValue prefers valueNumber over content —
+      // leaving valueNumber=5 after coercing content to "0" keeps the wrong digit.
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: {
+              content: "5",
+              valueNumber: 5,
+            },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      const field = ocrFromRef(result.ocrResult).documents![0].fields
+        .applicant_net_employment_income;
+      expect(field.content).toBe("0");
+      expect(field.valueNumber).toBe(0);
+      expect(
+        buildFlatPredictionMapFromCtx({
+          ocrResult: ocrFromRef(result.ocrResult),
+        }).applicant_net_employment_income,
+      ).toBe(0);
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(true);
+    });
+
+    it("coerces valueNumber-only single digits (no content/valueString) to 0", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_canada_pension_plan_cpp: {
+              valueNumber: 8,
+            },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      const field = ocrFromRef(result.ocrResult).documents![0].fields
+        .applicant_canada_pension_plan_cpp;
+      expect(field.valueNumber).toBe(0);
+      expect(field.content).toBe("0");
+      expect(
+        buildFlatPredictionMapFromCtx({
+          ocrResult: ocrFromRef(result.ocrResult),
+        }).applicant_canada_pension_plan_cpp,
+      ).toBe(0);
+      expect(
+        result.changes.some(
+          (c) =>
+            c.fieldKey === "applicant_canada_pension_plan_cpp" &&
+            c.reason === "Income single-character coerced to 0" &&
+            c.originalValue === "8",
+        ),
+      ).toBe(true);
+    });
+
+    it("does not coerce multi-digit valueNumber-only fields", async () => {
+      const ocrResult = makeOcrResult([]);
+      ocrResult.documents = [
+        {
+          docType: "custom",
+          fields: {
+            applicant_net_employment_income: {
+              valueNumber: 75,
+            },
+          },
+        },
+      ];
+
+      const result = await normalize({
+        ocrResult,
+        singleCharacterToZero: true,
+      });
+
+      expect(
+        ocrFromRef(result.ocrResult).documents![0].fields
+          .applicant_net_employment_income.valueNumber,
+      ).toBe(75);
+      expect(
+        result.changes.some(
+          (c) => c.reason === "Income single-character coerced to 0",
+        ),
+      ).toBe(false);
+    });
   });
 
   describe("field format engine integration", () => {
