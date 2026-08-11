@@ -1,7 +1,7 @@
 # 23 — The agent must work with the LLMs BC Gov actually has
 
 **The question:** which language model should the workflow agent chat call by
-default, so that somebody other than Alex — Inderdeep, or any teammate — can use
+default, so that somebody other than Alex — the reviewer, or any teammate — can use
 it, given that today it defaults to Azure GPT-5.4 on Alex's personal account?
 
 **The recommendation:** make the model list come from backend configuration
@@ -155,6 +155,6 @@ Not duplicates, and the order matters. **Item 22 makes the failure visible** —
 the error string already exists in `provider-resolver.ts`; item 22 is the work
 of getting it onto the screen. **Item 23 makes the failure stop happening for a
 second person.** Do 22 first: if 23 ships first and the BC Gov deployment name
-turns out to be wrong, we are back to Inderdeep's exact experience — "I ran the
+turns out to be wrong, we are back to the reviewer's exact experience — "I ran the
 prompt. Nothing." — with no way to tell why. Item 22 is also what confirms 23
 worked, because a misconfigured deployment will then say so out loud.

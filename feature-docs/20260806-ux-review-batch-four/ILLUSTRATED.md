@@ -21,7 +21,7 @@ is a mock-up. Re-run the script after a batch and diff the images:
 ```bash
 npm run dev          # frontend :3000, backend :3002, temporal worker
 npm run seed:demos   # the demo workflows the shots open
-node feature-docs/20260806-inderdeep-ux-review-batch-four/capture-screenshots.mjs
+node feature-docs/20260806-ux-review-batch-four/capture-screenshots.mjs
 ```
 
 ---
@@ -35,7 +35,7 @@ cause: a meaningful glyph drawn inside a container that wins the pixel budget.
 
 The badge used to draw two concentric circles: the filled `ThemeIcon` disc, and
 inside it `IconCircleCheck` / `IconCircleX`, which carry rings of their own. At
-16px the rings won. Inderdeep: *"to notice the cross within the circle is very
+16px the rings won. The reviewer: *"to notice the cross within the circle is very
 hard … the more I zoom out, all I see is the circle, which is not the intent."*
 
 Now the disc is the only circle. The glyph is a bare `IconCheck` / `IconX`,
@@ -44,7 +44,7 @@ raised from 12px to 15px inside a disc raised from 16px to 20px, and stroked at
 
 ![Both badges in one frame — a bare check in a green disc, a bare cross in a red disc](screenshots/01-node-status-badges.png)
 
-A real run of the **workflow-as-API** demo — the same demo Inderdeep had open
+A real run of the **workflow-as-API** demo — the same demo the reviewer had open
 when he reported this. The badges only exist while a run is active
 (`NodeStatusBadgeOverlay` renders nothing without an `activeRunId`, so that a
 design-time canvas isn't littered with gray dots), so there is no way to
@@ -82,7 +82,7 @@ changed here, and it travels with the button when the button moves.
 
 ![Composer — white glyph on the theme blue, blue focus ring](screenshots/04-agent-chat-composer.png)
 
-**Inderdeep was right and the cause was bigger than the chat.** He reported the
+**The reviewer was right and the cause was bigger than the chat.** He reported the
 send icon as *"black on purple, not very accessible"*. Measured in the browser
 on 2026-08-07, the enabled send button really did render a near-black glyph on
 its coloured fill — `color: rgb(45,45,45)` on `background: rgb(85,149,217)`.
@@ -118,12 +118,12 @@ floor WCAG 1.4.11 sets for non-text UI components, but not by much — and it is
 *lower* than the near-black glyph scored on the same blue (4.37:1). The reason
 the change is still right is the colour it replaced: on the violet that was
 actually there, near-black scored **2.47:1** and failed, while white scores
-5.55:1. So Inderdeep's call was correct for the button in front of him.
+5.55:1. So the reviewer's call was correct for the button in front of him.
 
 The residue is a design-system question, not a chat question: **the app's
 default filled blue is a marginal background for white glyphs everywhere it is
 used.** Darkening the filled shade to `blue.7` (`#3470B1`) would take white to
-5.12:1. That is Inderdeep's call to make across the system rather than mine to
+5.12:1. That is the reviewer's call to make across the system rather than mine to
 make on one button, so the button stays consistent with every other filled
 action in the app and the question is recorded here.
 
@@ -145,7 +145,7 @@ crushed into a toolbar that hides a decision.
 ### §4 · The "+" on an unconnected port — item 3
 
 Hovering a port is the main way a graph gets built, and an empty circle does not
-invite anything. Inderdeep: *"maybe consider adding a small plus sign here …
+invite anything. The reviewer: *"maybe consider adding a small plus sign here …
 they might not be able to discover it by themselves that there is something here
 if they hover."*
 
@@ -471,7 +471,7 @@ entirely, and unless `Run…` is *enabled* — a greyed-out button photographs a
 name opens with a 🎯, and headless Chromium has no font for it, so it renders as
 an empty box — the worst possible first glyph in a frame whose argument is *"the
 name is the first thing you see"*. **Standard OCR Workflow** has a plain name,
-and it is the workflow Inderdeep was hunting for when he hit the switcher's
+and it is the workflow the reviewer was hunting for when he hit the switcher's
 truncated list.
 
 ### §17 · What `Run…` opens, and the sentence that names the real difference — item 8
@@ -734,7 +734,7 @@ own text undo should win. Radio buttons and checkboxes are `<input>` elements
 too, and they have no text to undo — so after clicking any of them, Ctrl+Z did
 nothing at all.**
 
-Inderdeep set **Error handling → Follow the error path** in the settings drawer,
+The reviewer set **Error handling → Follow the error path** in the settings drawer,
 pressed Cmd+Z to back it out, and nothing happened, while the top-bar Undo button
 worked fine. Alex's guess in the call was that the shortcut was scoped to the
 canvas; it is not, the listener is on the window.
@@ -817,7 +817,7 @@ are fixed, and the reason the third one was broken is not the reason the
 checklist gave.**
 
 The cap showed *"+13 more — refine the search"* with no filter to refine with,
-so Inderdeep could not find the workflow he had been working in minutes earlier.
+so the reviewer could not find the workflow he had been working in minutes earlier.
 The cap and the dead line are gone and the list scrolls. The current row used to
 be `disabled` and dimmed with the literal text `(current)` while every other row
 was bold — *"its hierarchy is lower than the inactive ones, which should be the
@@ -851,7 +851,7 @@ elimination, not a measured one. Nobody has asked him.**
 *"This link was not working for me … not found."* The checklist's hypothesis was
 that the seeder's generated URL slug and the test plan's link had drifted apart.
 That was checked and disproved before any code was written: after running the
-seeder they match character for character. What Inderdeep hit was a
+seeder they match character for character. What the reviewer hit was a
 seeding-state problem on his own machine — the seeder opens by deleting the
 previous demo set, so an interrupted run leaves none at all.
 
@@ -865,7 +865,7 @@ would confidently tell someone whose own workflow had vanished to run a command
 that *deletes and recreates the demo set*.
 
 **The part to be honest about.** The item's own acceptance line was *"confirm
-with Inderdeep whether re-running the seeder fixes it on his machine."* That was
+with the reviewer whether re-running the seeder fixes it on his machine."* That was
 never done, and nothing in this batch records a check of his machine. What was
 demonstrated is the negative — the link, the route and the seeder are correct,
 and the workflow was absent from his list rather than merely unreachable. The
@@ -884,7 +884,7 @@ to a destructive command for nothing. Ask him when showing him this batch.
 reproduce it, it does not appear to exist in the flow described, and no close
 button was added on spec.**
 
-From Inderdeep's written notes: run history → open a run → *"no way to cancel
+From the reviewer's written notes: run history → open a run → *"no way to cancel
 the error message."* He could not reproduce it live in the call either, and Alex
 agreed to shelve it: *"we'll shelve it and see if it could be reproduced."*
 
@@ -951,7 +951,7 @@ links, because 630 lines is further than any reader carries an instruction.
 
 ## Thirty-two colours became ten — item 20
 
-**TL;DR — Inderdeep counted the legend and got "12 to 13". He was exactly right
+**TL;DR — the reviewer counted the legend and got "12 to 13". He was exactly right
 about the number on screen and understating the problem: the canvas painted 32
 distinct colour values carrying about 24 separate meanings. The port dots are
 now five families, each with a SHAPE as well as a colour, and the card borders

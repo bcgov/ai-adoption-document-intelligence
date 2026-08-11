@@ -11,7 +11,7 @@
  *
  *   node …/capture-screenshots.mjs 6 13
  *
- * Modelled on `feature-docs/20260806-inderdeep-ux-review-batch-four/
+ * Modelled on `feature-docs/20260806-ux-review-batch-four/
  * capture-screenshots.mjs` — same viewport, same auth interception, same
  * pan/zoom/crop helpers, same rule that **every shot asserts before it
  * saves**. The assertions here are mostly about run state (a badge's

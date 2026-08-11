@@ -225,7 +225,7 @@ manual test plan is fully walked, AI-1174 is closed.
 
 | Step | What | When |
 |---|---|---|
-| B.0 | **Write the design.** There isn't one. Needs: the target category set and what each category means to a user; the naming rules; the composite-node list; the migration story for saved workflows; what stays visible vs demoted to advanced. **With Inderdeep** — he has done two walkthroughs and this is his domain. Start from `WORKFLOW_SIMPLIFIED_VIEW_GUIDE.md` and `ACTIVITY_PARAMETERS_AUDIT.md`. | **Sep 15–26** |
+| B.0 | **Write the design.** There isn't one. Needs: the target category set and what each category means to a user; the naming rules; the composite-node list; the migration story for saved workflows; what stays visible vs demoted to advanced. **With the reviewer** — he has done two walkthroughs and this is his domain. Start from `WORKFLOW_SIMPLIFIED_VIEW_GUIDE.md` and `ACTIVITY_PARAMETERS_AUDIT.md`. | **Sep 15–26** |
 | B.1 | **Names and descriptions.** Every label reads as a task a user performs. Kill "Poll", "Submit", "Blob", "Generic", "Flatten". Stop printing internal ids in the palette, the type-swap modal and the hover-extend popover. Purge activity ids from user-visible help text. | Sep 29 – Oct 10 |
 | B.2 | **Rebuild the categories.** Retire the dead `Flow Control` entry, collapse the four OCR categories into something a user recognises, decide where sources and control flow sit relative to the rest. Single source of truth for category order (currently hand-duplicated in two files). | Oct 6–17 |
 | B.3 | **Composite nodes + migration.** One "Extract text (Azure)" replacing submit → poll → extract; one "Classify document (Azure)" replacing submit → poll. Granular steps demoted to advanced, not deleted. Migration for saved workflows and a version bump. | Oct 13–31 |
@@ -311,7 +311,7 @@ one item on this roadmap that only you can unblock.
 If B.0 slips past end of September, B.3's migration lands in November, and D has to
 build sample workflows against a taxonomy that is still moving. **Mitigation:** B.0 is
 scheduled to overlap A's tail deliberately — it is design work, it doesn't need the
-branch merged, and Inderdeep is available now.
+branch merged, and the reviewer is available now.
 
 ### Risk 3 — E.1 has an external dependency and no owner
 
@@ -364,8 +364,8 @@ to poll.
 | **AI-1174** "Implement new workflow designer" (Story, In progress, yours) | **Orphan — no parent epic** | → re-parent under Epic **A** |
 | AI-1138 "Outbound Webhook Node for ICM Submission" | Orphan story | → Epic **C**, closed by C.1 |
 | AI-1211 "Add template alignment activity" | Orphan story | → Epic **C** backlog |
-| AI-1194 "Create better designs for the workflow editor" (Blocked, Inderdeep) | Orphan | → Epic **B**, unblocked by B.0 |
-| AI-1920 "Workflow designer manual test pass" (In progress, Inderdeep) | Orphan | → Epic **A**, covers A.4 |
+| AI-1194 "Create better designs for the workflow editor" (Blocked, the reviewer) | Orphan | → Epic **B**, unblocked by B.0 |
+| AI-1920 "Workflow designer manual test pass" (In progress, the reviewer) | Orphan | → Epic **A**, covers A.4 |
 | AI-1669 "Review new workflow branch features" | Orphan | → Epic **A**, covers A.1 |
 | **AI-1963** "SDPR project handover" (Epic, empty) | No description, no assignee, no children | → **becomes Epic E**, fill it in |
 | AI-1859 API key rotation | (per work store, Sandeep's) | → Epic **E** |
@@ -375,7 +375,7 @@ to poll.
 **Epic A — Workflow designer: complete, verify and merge**
 - Decide and execute PR #230 (land as one vs split) — *A.1, closes AI-1669*
 - Add a Playwright job to `.github/workflows/` and triage the failing specs — *A.2*
-- Inderdeep UX review batch four: 28 remaining items — *A.3* (split into 4 stories by
+- UX review batch four: 28 remaining items — *A.3* (split into 4 stories by
   theme: canvas and ports · error handling · Try/Run and preview · top bar and switcher)
 - Rule on batch-four item 20: port/wire colour vocabulary and the non-colour carrier — *A.3, yours*
 - Walk the remaining 29 manual-test checks and 3 Layer-0 checks — *A.4, closes AI-1920*
@@ -385,7 +385,7 @@ to poll.
 - *(re-parented: AI-1174, AI-1669, AI-1920)*
 
 **Epic B — Workflow nodes: restructure for usability**
-- Write the node-restructure design with Inderdeep — *B.0, unblocks AI-1194*
+- Write the node-restructure design with the reviewer — *B.0, unblocks AI-1194*
 - Plain-language labels and descriptions across all 37 palette nodes — *B.1*
 - Stop exposing internal ids in the palette, type-swap modal and hover-extend — *B.1*
 - Rebuild the category set and retire the dead `Flow Control` entry — *B.2, closes AI-1285*

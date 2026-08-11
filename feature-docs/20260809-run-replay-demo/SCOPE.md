@@ -4,7 +4,7 @@
 the batch-four close-out conversation.
 
 > *"do we have a demo that shows a workflow that has a previous run, so you can
-> see the replay state? … In my conversation with inderdeep i was saying how the
+> see the replay state? … In my conversation with the reviewer i was saying how the
 > 'run' feature isn't tested through well. Would be nice if you could run a
 > workflow, have it part of the demos and also reflect on the usability of that
 > feature."*
@@ -17,8 +17,8 @@ Three constraints he set:
 2. **Reflective — cover a good number of cases.** One green run proves almost
    nothing; the states that matter are the ones nobody has looked at.
 3. **Screenshots after running**, into
-   [ILLUSTRATED.md](../20260806-inderdeep-ux-review-batch-four/ILLUSTRATED.md),
-   then fold the findings in with Inderdeep's feedback.
+   [ILLUSTRATED.md](../20260806-ux-review-batch-four/ILLUSTRATED.md),
+   then fold the findings in with the reviewer's feedback.
 
 ---
 
@@ -83,7 +83,7 @@ Ordered by how much is currently unseen, not by ease.
 | 8 | **Replay against an older version** | Run at v1, then `PUT` a v2 | The version pin, and the replay banner saying something true | none |
 
 Five workflows, roughly seven executions. Nothing here needs Azure, an LLM, or a
-credential — which is the point: the barrier that stopped Inderdeep testing Run
+credential — which is the point: the barrier that stopped the reviewer testing Run
 was the worker and the deno-runner, and a seeded run removes it for everyone
 downstream.
 
@@ -166,7 +166,7 @@ Two consequences:
 ### B · Screenshots
 
 New entries in
-`feature-docs/20260806-inderdeep-ux-review-batch-four/capture-screenshots.mjs`
+`feature-docs/20260806-ux-review-batch-four/capture-screenshots.mjs`
 (shot ids continue from 28), each **asserting before it saves** — the rule the
 batch-four shots already follow, so a frame can't contradict its caption. Roughly
 ten: the green canvas, the failed node and its message, the taken error path, the
@@ -191,7 +191,7 @@ worth looking at hard, from reading the code:
 - **`skipped` reads as "didn't happen"** but means "served from cache".
 - **Am I in the past?** Replay has five exits and a version pin; whether the
   canvas makes "this is a recording" obvious is exactly the kind of thing
-  Inderdeep catches and tests don't.
+  the reviewer catches and tests don't.
 
 ### D · Docs
 

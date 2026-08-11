@@ -24,7 +24,7 @@
  * The cost, stated plainly: during a run you see *that* each node produced
  * something and roughly what, rather than every node's whole payload at once.
  * That was the accepted trade — see
- * `feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/09-try-reflow.md`.
+ * `feature-docs/20260806-ux-review-batch-four/DECISIONS/09-try-reflow.md`.
  *
  * **Control-flow nodes get no strip at all.** They pass `producesOutput=false`
  * and have nothing to preview; a row of identical "doesn't produce output"

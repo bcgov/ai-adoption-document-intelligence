@@ -483,4 +483,4 @@ Not photographed, and why:
   Producing all four on one lineage would need a fifth seeded workflow.
 - **The orange "version could not be loaded" banner.** Already photographed,
   fault-injected, in
-  [`../20260806-inderdeep-ux-review-batch-four/screenshots/14-replay-mode-version-unavailable.png`](../20260806-inderdeep-ux-review-batch-four/screenshots/14-replay-mode-version-unavailable.png).
+  [`../20260806-ux-review-batch-four/screenshots/14-replay-mode-version-unavailable.png`](../20260806-ux-review-batch-four/screenshots/14-replay-mode-version-unavailable.png).

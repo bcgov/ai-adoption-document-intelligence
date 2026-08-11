@@ -24,7 +24,7 @@ The value only picks a default tab: [RunWorkflowDrawer.tsx:198](apps/frontend/sr
 — `<Tabs defaultValue={openMode}>`, tabs `try` and `run` at
 [:204](apps/frontend/src/features/workflow-builder/run/RunWorkflowDrawer.tsx#L204)
 and [:211](apps/frontend/src/features/workflow-builder/run/RunWorkflowDrawer.tsx#L211).
-**Inderdeep's "even if I choose one, I still have the option to go to the other"
+**The reviewer's "even if I choose one, I still have the option to go to the other"
 is literally true** — the other button's destination is a tab one click away
 inside the surface the first button opened. That is the whole complaint, and the
 code confirms it.
@@ -92,7 +92,7 @@ for the first.
 | Option | What changes | Cost | Risk |
 |---|---|---|---|
 | **A — One button, two named tabs** (Alex's proposal) | Delete the `Run this workflow` button; keep `Run…`. Rename tabs to **"Try on canvas"** / **"Call from outside"**, each with a one-line subtitle. Default the tab from `tryButtonVisible`'s existing input analysis instead of from which button was pressed. | 2 source files (`WorkflowEditorV2Page.tsx`, `RunWorkflowDrawer.tsx`) + 4 test/page-object files that assert on `try-button` / `run-this-workflow-button`: `WorkflowEditorV2Page.test.tsx`, `RunWorkflowDrawer.test.tsx`, `tests/e2e/workflow-builder/pages/WorkflowEditorPage.ts`, `tests/e2e/.../tier2-run-drawer.spec.ts`. | Try becomes two clicks instead of one — and Try is the *frequent* action during authoring. `openMode` stops being driven by a button, so its prop and the `data-open-mode` attribute need re-basing rather than deleting. |
-| **B — Keep both buttons, each states its difference** | Replace the two tooltips (currently *"Run this graph now"* and *"Open the run-trigger panel for this workflow"* — which do not distinguish anything) with ones that name the real difference. Remove the *other* mode's tab from each entry so the drawer opens on one thing only. | 2 source files, small edits. Tests mostly unaffected. | Does not fix what Inderdeep actually objected to — two buttons still sit side by side and still look like alternatives. Removing the tabs *loses* the ability to switch, which some users will want. Two top-bar buttons for the same underlying action stays a standing "what's the difference?" question. |
+| **B — Keep both buttons, each states its difference** | Replace the two tooltips (currently *"Run this graph now"* and *"Open the run-trigger panel for this workflow"* — which do not distinguish anything) with ones that name the real difference. Remove the *other* mode's tab from each entry so the drawer opens on one thing only. | 2 source files, small edits. Tests mostly unaffected. | Does not fix what the reviewer actually objected to — two buttons still sit side by side and still look like alternatives. Removing the tabs *loses* the ability to switch, which some users will want. Two top-bar buttons for the same underlying action stays a standing "what's the difference?" question. |
 | **C — Split by purpose, not by run mode** | `Try` stays a one-click top-bar button (no drawer for the common case: reuse last ctx, or the stub). `Run this workflow` becomes a `More →` menu item named **"Call from outside…"**, opening the URL/schema/curl/auth reference. | 2 source files + the same 4 test files; the tabs come out entirely. | Biggest behaviour change of the three. Loses the ability to edit ctx before a Try unless a secondary path is kept, which reintroduces a surface. The "Test run" box inside the outside-calling panel then has no obvious home. |
 
 ## Recommendation — Option A
@@ -108,7 +108,7 @@ Take Alex's proposal. Three reasons, in order:
    executions on the saved version, both land in run history. The axis that does
    exist is *where the answer appears*: on your canvas, or through a URL someone
    else calls. Tab labels naming that axis ("Try on canvas" / "Call from
-   outside") answer Inderdeep's question in the label itself, with no tooltip.
+   outside") answer the reviewer's question in the label itself, with no tooltip.
 3. **It removes the "I can still go to the other one" trap by construction.**
    With one entry point, switching tabs is switching *modes inside one task*,
    which is what a tab is for — not two doors into the same room.

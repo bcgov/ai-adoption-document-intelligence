@@ -60,10 +60,10 @@ colours plus grey**, chosen for colour-vision separation (blue `#5595D9`,
 violet `#7950F2`, yellow `#FAB005`, dark teal `#099268`, grey `#9F9D9C` — worst
 pair stays ≥13.8 ΔE under both red-blind and green-blind simulation), and add
 **one non-chromatic carrier on the port dot itself** so colour is never the only
-signal. Do not adopt Inderdeep's inputs/outputs/processing/decision axis — see
+signal. Do not adopt the reviewer's inputs/outputs/processing/decision axis — see
 Option A, it encodes something the canvas geometry already says.
 
-**The premise verdict:** the legend renders **exactly 13 rows**, so Inderdeep's
+**The premise verdict:** the legend renders **exactly 13 rows**, so the reviewer's
 "12 to 13" is precisely what he counted — but they are not 13 colours, and the
 full canvas vocabulary is **far larger than 13**: **32 distinct rendered colour
 values carrying ~24 separate meanings**, plus 37 icon glyphs. He was right about
@@ -151,7 +151,7 @@ indistinguishable. And `map` green, the activity "green" category, and the
 map-body group outline are all the *same* hex `#22C55E` meaning three different
 things.
 
-**Conclusion:** Inderdeep's accessibility objection is correct and the evidence
+**Conclusion:** The reviewer's accessibility objection is correct and the evidence
 is stronger than his phrasing. Three port-family pairs and two node-accent pairs
 collapse, with no lightness difference to rescue them.
 
@@ -161,7 +161,7 @@ collapse, with no lightness difference to rescue them.
 
 | | What it changes | Files | What it breaks | Migration |
 |---|---|---|---|---|
-| **A. Inderdeep's functional grouping** — recolour by inputs / outputs / processing / decision | Replaces the `color:` axis on all 32 kinds with a role axis | `artifact-registry.ts`, `CanvasLegend.tsx`, ~6 tests | **The connectivity signal.** A port dot today answers "will these two plug together?" Role does not: `Document` is not "an input" — it appears on both sides of nodes. And "which side is this" is already carried by handle geometry (left/right). This trades a signal we have for one we already have twice. | none (colour is presentation-only, never persisted) |
+| **A. The reviewer's functional grouping** — recolour by inputs / outputs / processing / decision | Replaces the `color:` axis on all 32 kinds with a role axis | `artifact-registry.ts`, `CanvasLegend.tsx`, ~6 tests | **The connectivity signal.** A port dot today answers "will these two plug together?" Role does not: `Document` is not "an input" — it appears on both sides of nodes. And "which side is this" is already carried by handle geometry (left/right). This trades a signal we have for one we already have twice. | none (colour is presentation-only, never persisted) |
 | **B. Keep 7 colours, add a non-chromatic carrier** — handle **shape** per family | `handle-style.ts` gains `shape`; `WorkflowEditorCanvas` `NodeHandles`, `PortRows`, `CanvasLegend.Swatch` render it | 4 source + 4 test files | Nothing structural; `data-port-color` assertions gain a sibling `data-port-shape`. **But**: at a 10px handle only ~4 shapes (circle / square / diamond / triangle) are reliably told apart, so 7 families cannot each get one. This option silently forces the reduction anyway. | none |
 | **C. Shrink the legend only** — 13 rows → ~6, families behind a disclosure | `CanvasLegend.tsx` + its test | nothing | Fixes the number he *reacted to* and none of the problem underneath. The canvas still paints 7 colliding colours. | none |
 | **D. Recommended — 4 typed colours + grey, plus a shape carrier** | `color:` on all 32 kinds remapped to 5 values; `handle-style.ts` emits `shape`; renderers + legend follow | `artifact-registry.ts`, `handle-style.ts`, `WorkflowEditorCanvas.tsx`, `PortRows.tsx`, `CanvasLegend.tsx` + ~6 test files | Tests asserting `data-port-color="cyan"`/`"teal"`/`"green"`; the legend snapshot. No runtime, API or persisted-graph impact. | none — colour is derived at render time from the live registry |
@@ -188,7 +188,7 @@ alone, meaning the fifth slot is free. Every alternative fifth (stock `teal-6`,
 `cyan-6`, `green-6`, `orange-6`, `indigo-6`) drops the worst pair to between 2.4
 and 8.6, i.e. straight back into collision.
 
-**Why this beats Inderdeep's axis while honouring his intent.** He asked for
+**Why this beats the reviewer's axis while honouring his intent.** He asked for
 about four buckets, and four is exactly what the colour maths permits. What he
 got wrong is only the *axis*: bucket by what the data **is**, not by what the
 step **does**, because the dot's job is to predict connections.
@@ -217,7 +217,7 @@ without replacing them. Legend rows drop from 13 to 9 as a consequence (4 wires 
    maximally dull, and it makes the "can these connect" read slower. I do not
    recommend it, but it is your call whether colour earns its place here.
 2. **Is the non-chromatic carrier a shape or an outline pattern?** I recommend
-   shape (four are legible at 10px; outline patterns are not). Inderdeep offered
+   shape (four are legible at 10px; outline patterns are not). The reviewer offered
    both.
 3. **Node accents are a second, larger problem** — 12 hexes across 10 activity
    categories and 6 control-flow types, with a red/green collapse at ΔE 5.4 and a

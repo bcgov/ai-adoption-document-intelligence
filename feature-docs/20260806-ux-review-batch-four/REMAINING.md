@@ -1,4 +1,4 @@
-# What is left — batch four and the rest of Inderdeep's work
+# What is left — batch four and the rest of the reviewer's work
 
 **As at 2026-08-09.** All **33 of 33** checklist items are done and committed on
 `feature/visual-workflow-builder` (item 33 keeps one open half — a cold setup
@@ -153,21 +153,21 @@ credential fix makes this stricter, not looser. Flagged, not fixed.
 
 ## Needs Alex, not code
 
-- **Per-node removal from a group.** Inderdeep questioned whether the
+- **Per-node removal from a group.** The reviewer questioned whether the
   right-click-a-member gesture should exist at all: *"I don't know if we need
   that option … if that is the requirement, then this might make sense."* A
   requirements question, and it tangles with a still-open question from the
   2026-07-29 walkthrough about whether deleting one node deletes its group.
 - **Canvas accessibility generally** — raised in the call as a constraint, with no
   specific item beyond 20, so none was invented.
-- **Item 31 — one question to Inderdeep**: did re-seeding actually fix his 404?
+- **Item 31 — one question to the reviewer**: did re-seeding actually fix his 404?
   The item's own acceptance criterion was never met and it was ticked anyway. If
   the workflow was *invisible* rather than *absent* — item 24's exact failure mode
   — the new message sends him to a command that wipes and rebuilds the demo set
   for nothing.
-- **Show Inderdeep the July fixes** — an open task in the work store from the
+- **Show the reviewer the July fixes** — an open task in the work store from the
   2026-07-29 walkthrough, separate from this batch.
-- **A PDF of ILLUSTRATED.md**, if he wants to send this batch to Inderdeep the way
+- **A PDF of ILLUSTRATED.md**, if he wants to send this batch to the reviewer the way
   the previous one was sent. Offered, not built.
 
 ---

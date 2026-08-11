@@ -3,7 +3,7 @@
 **Branch `feature/visual-workflow-builder` · started 2026-08-07**
 
 What was actually done, in the order it was done, for the 33 items in
-[CHECKLIST.md](CHECKLIST.md) from Inderdeep Singh's 2026-08-06 UX walkthrough.
+[CHECKLIST.md](CHECKLIST.md) from the reviewer's 2026-08-06 UX walkthrough.
 
 Three documents, three jobs:
 
@@ -76,7 +76,7 @@ in `bcds-mantine-fallbacks.css` set the BC Design System icon colour on every
 order and stamping near-black over **every filled icon button in the app**. It
 is now qualified to leave filled variants alone, so the fix is app-wide.
 
-A residual went to Inderdeep rather than being decided here: white on the
+A residual went to the reviewer rather than being decided here: white on the
 theme's filled blue `#5595D9` measures **3.14:1**, which clears WCAG 1.4.11's
 3:1 floor for non-text UI but is marginal. Darkening to `blue.7` (`#3470B1`)
 takes it to 5.12:1 — and repaints every filled action in the app, so it is a
@@ -156,7 +156,7 @@ fix.
 **The checklist's diagnosis was wrong and was disproved before code was
 written.** The hypothesis was that the seeder's slug and the test plan's link
 had diverged. After `npm run seed:demos` they match character for character.
-What Inderdeep hit was a seeding-state problem on his machine — the seeder opens
+What the reviewer hit was a seeding-state problem on his machine — the seeder opens
 by deleting the previous demo set, so an interrupted run leaves none. The real
 defect is that a miss dead-ends on a bare "not found".
 
@@ -498,7 +498,7 @@ evidence — manual test plan 9.9d, deliberately left unticked.
 **Commit `9cf679ff`**
 
 **Alex approved the recommendation.** Two buttons opened the same drawer and
-differed only in which existing tab was pre-selected, so Inderdeep's *"even if I
+differed only in which existing tab was pre-selected, so the reviewer's *"even if I
 choose one, I still have the option to go to the other"* was literally true.
 
 The trace behind that ruling is worth keeping, because it is stronger than the
@@ -810,7 +810,7 @@ not a commit, and the name is Alex's to give.
 Five earlier decisions — items 8, 9, 13, 23 and 20 — were ruled on during the
 session and are recorded in their own entries above.
 
-## Discovered during implementation — not on Inderdeep's list
+## Discovered during implementation — not on the reviewer's list
 
 Two real defects surfaced that nobody reported. Neither was fixed, because
 neither is in scope for the item that found it, and inventing work is how a
@@ -888,7 +888,7 @@ It should be built *after* batch 11 merges — same file, same region.
 
 Both top-bar buttons call `setRunDrawerMode` and open the **identical**
 `RunWorkflowDrawer`, differing only in which of its two existing tabs is
-pre-selected. Inderdeep's *"even if I choose one, I still have the option to go
+pre-selected. The reviewer's *"even if I choose one, I still have the option to go
 to the other"* is literally accurate — the other button's destination is one
 tab-click inside the surface the first button opened.
 
@@ -948,7 +948,7 @@ it needs one question to one named person.
 
 [33-infra-test-steps.md](DECISIONS/33-infra-test-steps.md)
 
-The steps Inderdeep skipped are not nine unverified steps. 14.1–14.6 are covered
+The steps the reviewer skipped are not nine unverified steps. 14.1–14.6 are covered
 by the dynamic-nodes controller, service and repository specs and run on every
 CI build — including the exact criteria the plan states in prose. 14.11–14.13
 are covered by an `@infra` e2e suite that exists, passes, and is excluded from
@@ -957,7 +957,7 @@ every default run because `playwright.config.ts` drops the tag unless
 
 What automation does not cover is whether the documented commands work for a
 second person on a machine that has never built this repo — which is what bit
-Inderdeep three separate times, including the demo 404 that turned out to be an
+the reviewer three separate times, including the demo 404 that turned out to be an
 unseeded database rather than a broken link. So the recommendation inverts the
 ask: run the two suites yourself, and give a developer the cold-setup walk,
 choosing someone who has *not* set the repo up, because anyone who has will
@@ -977,7 +977,7 @@ This is what shipped.
 
 ### The port palette: seven families → five, each with a shape
 
-Inderdeep counted the legend — *"there are like 12 to 13 of them"* — and the
+The reviewer counted the legend — *"there are like 12 to 13 of them"* — and the
 legend really did render 13 rows. The canvas underneath was worse: **32 distinct
 hex values carrying about 24 meanings**.
 

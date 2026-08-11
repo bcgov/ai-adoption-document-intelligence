@@ -112,7 +112,7 @@ outputs: [
 **Per Model A's "single in / single out" rule** ([WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)), each activity node renders with exactly one input handle and one output handle on the canvas — regardless of how many typed ports the activity declares. We do not adopt ComfyUI-style per-port handles. Wires are execution order; data flows through ctx via per-port bindings configured in the settings panel.
 
 **Colour-coded handle dots + hover-tooltip with type name.** Since **2026-08-09
-(Inderdeep UX review batch four, item 20)** there are **five** port families,
+(UX review batch four, item 20)** there are **five** port families,
 each carrying a **colour AND a shape**, so colour is never the only signal:
 
 | Family — what the data IS | Kinds | Colour | Shape |

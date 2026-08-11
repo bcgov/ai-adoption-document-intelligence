@@ -7,7 +7,7 @@
  *
  *   npm run dev                  # frontend :3000, backend :3002, temporal worker
  *   npm run seed:demos           # the demo workflows the shots open
- *   node feature-docs/20260806-inderdeep-ux-review-batch-four/capture-screenshots.mjs
+ *   node feature-docs/20260806-ux-review-batch-four/capture-screenshots.mjs
  *
  * Optional: pass shot ids to re-take only those.
  *
@@ -478,7 +478,7 @@ const SHOTS = {
   /** §1 — run-status badges: bare glyph inside the filled disc. */
   1: async (browser) => {
     const page = await newPage(browser);
-    // The workflow-as-API demo, which is the one Inderdeep had open when he
+    // The workflow-as-API demo, which is the one the reviewer had open when he
     // reported the badge. It carries a `source.api` node, so the Try button is
     // visible (the try-in-place demo is upload-driven and hides Try behind
     // "Upload & Try"), and its later steps fail without Azure credentials —
@@ -1060,7 +1060,7 @@ const SHOTS = {
     // every seeded demo's name opens with a 🎯 that headless Chromium has no
     // font for — it renders as an empty box, which in a frame arguing "the
     // name is the first thing you see" is the worst possible first glyph. This
-    // one has a plain name, is the workflow Inderdeep was actually hunting for
+    // one has a plain name, is the workflow the reviewer was actually hunting for
     // when he hit item 16, and is long enough that the truncation the bar now
     // does under pressure is visible rather than hypothetical.
     await openEditor(page, "standard-ocr");

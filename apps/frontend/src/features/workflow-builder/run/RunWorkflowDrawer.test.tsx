@@ -799,7 +799,7 @@ describe("RunWorkflowDrawer", () => {
     // -------------------------------------------------------------------
     // Batch-four item 8 (2026-08-08) — the tabs say what each is FOR, and
     // the Try tab states the one thing a user can be burned by.
-    //   feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md
+    //   feature-docs/20260806-ux-review-batch-four/DECISIONS/08-try-vs-run.md
     // -------------------------------------------------------------------
 
     it("item 8: the tabs are labelled by what each is for, not by commitment", async () => {

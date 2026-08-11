@@ -1549,7 +1549,7 @@ function WorkflowEditorV2PageBody({
   // same input analysis decided whether the separate "Try" button was
   // shown at all (US-148); with one entry point it decides the DEFAULT
   // TAB instead, which is what the decision doc asked for
-  // (feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md):
+  // (feature-docs/20260806-ux-review-batch-four/DECISIONS/08-try-vs-run.md):
   // pre-select from the workflow, not from which button was pressed.
   //
   // "Try on canvas" is meaningful whenever there is an input path that is

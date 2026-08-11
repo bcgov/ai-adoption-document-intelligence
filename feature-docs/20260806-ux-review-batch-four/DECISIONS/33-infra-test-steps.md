@@ -35,14 +35,14 @@
 ---
 
 
-**The question:** Inderdeep could not execute the `curl`/infrastructure steps of
+**The question:** The reviewer could not execute the `curl`/infrastructure steps of
 Part 14 (14.1–14.6 and 14.11–14.13), so who should, and on what?
 
 **The recommendation:** don't assign nine steps to a developer. Seven of the
 nine are already machine-verified; run the two opt-in `@infra` suites yourself
 (one command), and give a developer the *narrower and more valuable* job — a
 cold walk of 14.1–14.6 on a machine that has never built this repo, because
-what Inderdeep actually hit was setup, not code.
+what the reviewer actually hit was setup, not code.
 
 **Why this changes the ask:** the nine steps are not nine unverified steps. They
 are nine steps with existing automated backstops that nobody has run, plus one
@@ -51,7 +51,7 @@ as written for a second person.
 
 ---
 
-## What Inderdeep said
+## What the reviewer said
 
 > *"This network egress blocked, I had no clue. Remote import blocked,
 > environment isolation … mostly the technical stuff, I could not."*
@@ -84,7 +84,7 @@ So they exist, they pass when run, and nothing runs them automatically.
 | 14.12 Remote import | allowlisted-host rejection at publish or runtime | same file | **no — `@infra`** |
 | 14.13 Env isolation | `Deno.env.get("PATH")` denied | same file | **no — `@infra`** |
 
-Every step Inderdeep skipped has coverage. Six of the nine run on every CI
+Every step the reviewer skipped has coverage. Six of the nine run on every CI
 build. The three security ones run only when somebody sets `RUN_INFRA=1`.
 
 ---
@@ -98,7 +98,7 @@ Three things, and they are what a human is for:
    literal `curl` lines in Part 14 against a running stack with real
    authentication. A copy-paste error in the docs is invisible to every test.
 2. **Setup on a machine that is not Alex's.** This is the one that actually bit.
-   Inderdeep's Part 14 failure and his Part 15 failure (the agent chat, item 23)
+   the reviewer's Part 14 failure and his Part 15 failure (the agent chat, item 23)
    and his 404 on the Part 14 demo link (item 31) were all the same class of
    problem: the environment was not what the document assumed. Item 31 in
    particular turned out not to be a code defect at all — the seeder and the
@@ -134,7 +134,7 @@ If those pass, 14.11–14.13 are verified and item 33 shrinks to the walk below.
 **The selection criterion is counterintuitive: pick someone who has *not* set
 this repo up.** The walk's value is not "do the endpoints work" — six CI tests
 already answer that. It is "can a second person follow this document from a cold
-machine and get to a working stack", which is the exact failure Inderdeep hit
+machine and get to a working stack", which is the exact failure the reviewer hit
 three separate times. Somebody who already has the repo running will silently
 skip the steps that break.
 
@@ -149,7 +149,7 @@ knowing.
 
 ### Not needed
 
-14.7, 14.8, 14.14 were not in Inderdeep's skipped set and already have e2e
+14.7, 14.8, 14.14 were not in the reviewer's skipped set and already have e2e
 coverage (`tier1-dynamic-node`, plus 14.14 `@infra`).
 
 ---

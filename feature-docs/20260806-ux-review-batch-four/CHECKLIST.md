@@ -1,6 +1,6 @@
-# Workflow designer — Inderdeep UX review, batch four (2026-08-06)
+# Workflow designer — UX review, batch four (2026-08-06)
 
-Every actionable item from Inderdeep Singh's second UX walkthrough of the visual
+Every actionable item from the reviewer's second UX walkthrough of the visual
 workflow builder, recorded in
 `!Justin/SDPR workshop/2026-08-06 inderdeep workflow ui feedback transcript.txt`
 (59 minutes, screen-shared, working from the manual test plan).
@@ -25,7 +25,7 @@ through to the graph undo. Also fixed unreported: a non-searchable Mantine
 `Select` is a `readOnly` text input and would still have swallowed undo, and the
 old `SELECT` branch suppressed the hotkey for a control with no text undo.
 **Area:** Frontend — workflow-builder undo/redo
-**Problem:** Inderdeep set **Error handling → Follow the error path** in the
+**Problem:** The reviewer set **Error handling → Follow the error path** in the
 settings drawer, pressed Cmd+Z to back it out, and nothing happened; the
 top-bar Undo button did work. *"I'm pressing Command Z, nothing is happening,
 but if I do this [click Undo] …"* Alex guessed Ctrl+Z was canvas-scoped. It
@@ -238,7 +238,7 @@ completed. Preview unavailable — its output isn't in the preview cache."*
 **Problem:** *"It got a little green checkbox. So it's like both green and red
 at the same time."* — a node reporting `succeeded` while its preview pane says
 *Preview unavailable — cache evicted*. Two contradictory verdicts on one card;
-Inderdeep read the whole node as broken.
+the reviewer read the whole node as broken.
 **Reproduced live 2026-08-07** while shooting the batch-1 screenshots — see the
 second image in [ILLUSTRATED.md §1](ILLUSTRATED.md), where the API Endpoint node
 carries a green check and a red *"Preview unavailable — cache evicted"* panel in
@@ -269,7 +269,7 @@ there's nothing. What do I do with this if it failed? What next?"* Alex adds the
 missing half: *"why did it fail?"*
 **Narrowed 2026-08-07 — it is `NoOutputNotice`, not `CacheEvictedAlert`.**
 Looking at both surfaces in a live run: `CacheEvictedAlert` already has the
-treatment Inderdeep is asking for — pink error background, red icon, and a
+treatment the reviewer is asking for — pink error background, red icon, and a
 **Re-run** button. The one that matches his description exactly is the grey,
 action-free *"This step failed — no output was produced to preview."*
 (`NoOutputNotice`), visible in the first image of
@@ -300,7 +300,7 @@ but it appears before a run is selected, clears itself on the next successful
 fetch, and sits inside a Drawer with its own close, so it is not the reported
 surface. No close affordance was added speculatively.
 **Area:** Frontend — workflow-builder run history
-**Problem:** From Inderdeep's written notes: run history → run → *"no way to
+**Problem:** From the reviewer's written notes: run history → run → *"no way to
 cancel the error message"*, i.e. no way to dismiss it. He could not reproduce it
 live and Alex agreed to shelve it: *"we'll shelve it and see if it could be
 reproduced."*
@@ -412,7 +412,7 @@ need that here? No."*
 scroll-area max height 260 → 320 and the list scrolls.
 **Area:** Frontend — workflow-builder switcher
 **Problem:** `MAX_RESULTS = 12`, and anything beyond that becomes the dimmed
-line *"+N more — refine the search."* Inderdeep could not find the Standard OCR
+line *"+N more — refine the search."* the reviewer could not find the Standard OCR
 workflow he had just been working in: *"it says 13 more — it feels like if I
 click it, it will show me more. That doesn't happen. And then it says refine the
 search, but there is no filter or something that I can clear and see all."*
@@ -528,7 +528,7 @@ distinct asks came out of it:
 **Expected:** A decision, then the work. Alex's ruling is needed on whether
 compatibility keeps a per-family colour at all, and what the non-chromatic
 carrier is (handle shape, outline). Deleting the legend alone was raised and
-rejected in the call — Inderdeep: *"but then, do we really need the colors
+rejected in the call — the reviewer: *"but then, do we really need the colors
 then?"*
 **Key file:** `apps/frontend/src/features/workflow-builder/canvas/CanvasLegend.tsx`
 (`FAMILY_ROWS`), `canvas/artifact-kind-colour.ts` (`colorForKind`),
@@ -661,7 +661,7 @@ empty and how to fix it.
 `docs-md/workflows/MANUAL_TEST_PLAN.md` Part 15 header.
 
 ### 25. [x] Send button: black icon on purple fails contrast and is off-palette
-**Done 2026-08-07 (batch 1).** Inderdeep's report was accurate and the cause was
+**Done 2026-08-07 (batch 1).** The reviewer's report was accurate and the cause was
 app-wide, not chat-specific. Measured in the browser: the enabled send button
 rendered `color: rgb(45,45,45)` on `background: rgb(85,149,217)`. A project rule
 in `apps/frontend/src/ui/bcds-mantine-fallbacks.css` set
@@ -670,7 +670,7 @@ beating Mantine's `var(--ai-color)` on order and stamping near-black over **ever
 filled ActionIcon in the app**. Now qualified with `:not([data-variant="filled"])`.
 The button also moved from violet to the theme's primary blue, and the
 composer's focus ring followed it off a hardcoded `#845ef7`.
-**Residual, for Inderdeep's ruling — not a defect:** white on the theme's filled
+**Residual, for the reviewer's ruling — not a defect:** white on the theme's filled
 blue `#5595D9` measures **3.14:1**, which clears WCAG 1.4.11's 3:1 floor for
 non-text UI but is marginal, and is *lower* than near-black scored on the same
 blue (4.37:1). The change is still right because on the violet that was actually
@@ -706,7 +706,7 @@ is item 26 and is untouched; the glyph travels with it.
 **Area:** Frontend — agent chat
 **Problem:** *"This does not say abort or stop … the icon is a square. I don't
 know what it represents."* Alex noted a square is used elsewhere for stop;
-Inderdeep's correction: *"but then that shape probably will be filled and not
+the reviewer's correction: *"but then that shape probably will be filled and not
 outlined."*
 **Expected:** A filled stop glyph (or a recognised pause/stop pair), not an
 outline.
@@ -771,17 +771,17 @@ somewhere."*
 `npm run seed:demos` the workflow list contains
 `demo-dynamic-custom-code-node-dyn-pill-script-editor-part-14`, character-for-
 character the slug the test plan links to. So the link and the seeder agree, and
-what Inderdeep hit was a seeding-state problem on his machine: the demos had
+what the reviewer hit was a seeding-state problem on his machine: the demos had
 never been seeded there, or had been cleared (the seeder opens by deleting the
 previous set — *"cleared 17 previous demo(s)"* — so an interrupted run leaves
 none).
-**Expected:** Confirm with Inderdeep whether re-running `npm run seed:demos`
+**Expected:** Confirm with the reviewer whether re-running `npm run seed:demos`
 fixes it on his machine. If it does, the defect is that a stale or empty demo
 set fails silently with a bare 404 — the fix is that the test plan says to seed
 first, and that a by-slug miss says "this demo is not seeded — run
 `npm run seed:demos`" rather than "not found".
 **⚠ This item's own acceptance criterion was never met — noted 2026-08-08.**
-Nobody asked Inderdeep whether re-seeding fixed it, and nothing in this batch
+Nobody asked the reviewer whether re-seeding fixed it, and nothing in this batch
 records a check of his machine. What *was* demonstrated is the negative: the
 link, the route and the seeder are all correct (the slug matches character for
 character after seeding), and the row was absent from the workflows list, not
@@ -794,7 +794,7 @@ copy, so it is right either way. But there is a residual risk worth naming: if
 the row was *invisible* rather than *absent* — the exact failure mode item 24
 turned out to be, where a seeded demo was private to `createdBy` — the new
 message sends the reader to a command that deletes and re-creates the whole demo
-set for nothing. Ask Inderdeep when showing him this batch.
+set for nothing. Ask the reviewer when showing him this batch.
 **Key file:** `scripts/seed-feature-demos.mjs` L1713;
 `docs-md/workflows/MANUAL_TEST_PLAN.md` Part 14 demo link (L645).
 
@@ -864,7 +864,7 @@ give a developer the **cold-setup walk** of 14.1–14.6 — choosing someone who
 *not* built this repo, since anyone who has will silently skip the steps that
 break.
 **Area:** Process — no code change
-**Problem:** Inderdeep completed the plan from a UX lens but could not execute
+**Problem:** The reviewer completed the plan from a UX lens but could not execute
 the `curl`/infra items: *"this network egress blocked, I had no clue. Remote
 import blocked, environment isolation … mostly the technical stuff, I could
 not."* That leaves 14.1–14.6 and 14.11–14.13 unverified by anyone but Alex.
@@ -896,7 +896,7 @@ steps of Part 14 to a developer and record the results in the plan's checkboxes.
 
 ## Raised in the call and deliberately NOT listed as work
 
-- **Per-node removal from a group.** Inderdeep questioned whether the
+- **Per-node removal from a group.** The reviewer questioned whether the
   right-click-a-member gesture should exist at all: *"I don't know if we need
   that option … if that is the requirement, then this might make sense."* That
   is a requirements question, not a defect — it needs Alex's ruling before

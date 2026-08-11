@@ -1454,7 +1454,7 @@ describe("WorkflowEditorV2Page — US-121: entryNodeId autoset on source drop", 
 //   US-148-in-canvas-try-button.md
 //
 // Superseded in part by batch-four item 8 (2026-08-08):
-//   feature-docs/20260806-inderdeep-ux-review-batch-four/DECISIONS/08-try-vs-run.md
+//   feature-docs/20260806-ux-review-batch-four/DECISIONS/08-try-vs-run.md
 // The separate "Try" button is gone — "Try" and "Run this workflow" opened
 // the SAME drawer on different tabs. One `Run…` button remains, and the
 // input analysis that used to decide whether the Try button was SHOWN now
