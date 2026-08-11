@@ -108,6 +108,11 @@ function isSingleCharacterToZeroInScope(
   return isIncomeLikeFieldKey(fieldKey);
 }
 
+/** True for whole digits 0–9 (string or numeric Azure `valueNumber` / `valueInteger`). */
+function isWholeSingleDigit(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 9;
+}
+
 /** Rule ids allowed per Prisma FieldType (intersected with activity `enabledRules` / `disabledRules`). */
 function ruleIdsForSchemaFieldType(fieldType: string): Set<string> {
   const base = new Set(["unicode", "whitespace", "dehyphenation"]);
@@ -639,6 +644,15 @@ export async function normalizeOcrFields(
           valueNumber?: number;
           valueInteger?: number;
         };
+        const schemaRow = fieldMap?.[fieldKey];
+        const inSingleCharZeroScope =
+          singleCharacterToZero &&
+          isSingleCharacterToZeroInScope(
+            fieldKey,
+            schemaRow?.type,
+            singleCharacterToZeroFieldSet,
+            Boolean(fieldMap),
+          );
         const rawContent =
           typeof fd.content === "string" ? fd.content : undefined;
         const rawValueString =
@@ -648,25 +662,61 @@ export async function normalizeOcrFields(
           rawContent !== undefined && rawContent.length > 0
             ? rawContent
             : rawValueString;
-        if (!source || typeof source !== "string") continue;
-        const out = applyNormalization(fieldKey, source);
-        if (rawContent !== undefined) {
-          fd.content = out;
-        }
-        if (rawValueString !== undefined) {
-          fd.valueString = out;
-        }
-        if (
-          isIdentifierLikeFieldKey(fieldKey) &&
-          /^\d+$/.test(out) &&
-          (fd.valueNumber !== undefined || fd.valueInteger !== undefined)
-        ) {
-          const n = parseInt(out, 10);
-          if (!Number.isNaN(n)) {
-            if (fd.valueNumber !== undefined) fd.valueNumber = n;
-            if (fd.valueInteger !== undefined) fd.valueInteger = n;
+
+        if (source && typeof source === "string") {
+          const out = applyNormalization(fieldKey, source);
+          if (rawContent !== undefined) {
+            fd.content = out;
           }
+          if (rawValueString !== undefined) {
+            fd.valueString = out;
+          }
+          // Benchmark flattening prefers valueNumber over content. After a
+          // single-character → "0" string coerce, keep numeric typed values in sync.
+          if (
+            inSingleCharZeroScope &&
+            out === "0" &&
+            source.trim().length === 1
+          ) {
+            if (fd.valueNumber !== undefined) fd.valueNumber = 0;
+            if (fd.valueInteger !== undefined) fd.valueInteger = 0;
+          } else if (
+            isIdentifierLikeFieldKey(fieldKey) &&
+            /^\d+$/.test(out) &&
+            (fd.valueNumber !== undefined || fd.valueInteger !== undefined)
+          ) {
+            const n = parseInt(out, 10);
+            if (!Number.isNaN(n)) {
+              if (fd.valueNumber !== undefined) fd.valueNumber = n;
+              if (fd.valueInteger !== undefined) fd.valueInteger = n;
+            }
+          }
+          continue;
         }
+
+        // No string payload — Azure sometimes returns only valueNumber for income digits.
+        if (!inSingleCharZeroScope) continue;
+        const numeric =
+          fd.valueNumber !== undefined
+            ? fd.valueNumber
+            : fd.valueInteger !== undefined
+              ? fd.valueInteger
+              : undefined;
+        if (numeric === undefined || !isWholeSingleDigit(Number(numeric))) {
+          continue;
+        }
+        const before = String(numeric);
+        if (fd.valueNumber !== undefined) fd.valueNumber = 0;
+        if (fd.valueInteger !== undefined) fd.valueInteger = 0;
+        fd.content = "0";
+        if (fd.valueString !== undefined) fd.valueString = "0";
+        changes.push({
+          fieldKey,
+          originalValue: before,
+          correctedValue: "0",
+          reason: "Income single-character coerced to 0",
+          source: "rule",
+        });
       }
     }
   }

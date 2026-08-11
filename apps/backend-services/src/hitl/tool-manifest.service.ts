@@ -161,7 +161,7 @@ const TOOL_MANIFEST: ToolManifestEntry[] = [
         name: "singleCharacterToZero",
         type: "boolean",
         description:
-          'After normalization, coerce field values that end up as a single trimmed character to "0" (e.g. a stray OCR mark misread into a numeric field). Scope: number-typed schema fields (via documentType) or applicant_/spouse_ income-field keys, unless singleCharacterToZeroFields is set.',
+          'After normalization, coerce in-scope field values that are a single trimmed character (or a whole digit 0–9 in Azure valueNumber/valueInteger) to "0". Syncs numeric typed fields so benchmark display (which prefers valueNumber) matches. Scope: number-typed schema fields (via documentType) or applicant_/spouse_ income-field keys, unless singleCharacterToZeroFields is set.',
         required: false,
         default: false,
       },
