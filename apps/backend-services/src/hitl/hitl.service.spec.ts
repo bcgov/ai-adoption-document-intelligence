@@ -1123,6 +1123,11 @@ describe("HitlService", () => {
         },
         expect.anything(),
       );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.awaiting_review },
+        expect.anything(),
+      );
       expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
         {
           document_id: "doc-1",

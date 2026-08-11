@@ -117,8 +117,14 @@ export class HitlService {
       currentReviewerId,
     })) as DocumentWithOcrResult[];
 
-    // Filter by confidence if OCR results exist
+    // awaiting_review docs are already flagged for review; only gate extracted docs by confidence
     const filtered = documents.filter((doc) => {
+      if (
+        doc.status === DocumentStatus.awaiting_review ||
+        doc.status === DocumentStatus.complete
+      )
+        return true;
+
       if (!doc.ocr_result) return false;
 
       const fields = doc.ocr_result
@@ -126,17 +132,12 @@ export class HitlService {
       if (!fields) return false;
       if (typeof fields !== "object") return false;
 
-      // Check if any field has confidence below threshold
-      const hasLowConfidence = Object.values(fields).some(
-        (field: DocumentField) => {
-          if (field?.confidence !== undefined) {
-            return field.confidence < maxConfidence;
-          }
-          return false;
-        },
-      );
-
-      return hasLowConfidence;
+      return Object.values(fields).some((field: DocumentField) => {
+        if (field?.confidence !== undefined) {
+          return field.confidence < maxConfidence;
+        }
+        return false;
+      });
     });
 
     return {
@@ -190,6 +191,12 @@ export class HitlService {
     })) as DocumentWithOcrResult[];
 
     const lowConfidenceDocs = allDocs.filter((doc) => {
+      if (
+        doc.status === DocumentStatus.awaiting_review ||
+        doc.status === DocumentStatus.complete
+      )
+        return true;
+
       if (!doc.ocr_result?.keyValuePairs) return false;
       const fields = doc.ocr_result.keyValuePairs as unknown as ExtractedFields;
       if (typeof fields !== "object") return false;
@@ -753,6 +760,12 @@ export class HitlService {
         tx,
       );
 
+      await this.documentService.updateDocument(
+        session.document_id,
+        { status: DocumentStatus.awaiting_review },
+        tx,
+      );
+
       await this.reviewDb.acquireDocumentLock(
         {
           document_id: session.document_id,
@@ -835,6 +848,8 @@ export class HitlService {
 
     // Filter by confidence — same logic as getQueue
     const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+      if (doc.status === DocumentStatus.awaiting_review) return true;
+
       if (!doc.ocr_result) return false;
 
       const fields = doc.ocr_result
