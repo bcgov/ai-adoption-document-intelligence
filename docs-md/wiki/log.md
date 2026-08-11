@@ -83,8 +83,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
 
-## [2026-07-24] ingest | Add OCR recover-numeric-zeros correction activity
+## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
 
-- Added canonical doc `extraction/OCR_RECOVER_NUMERIC_ZEROS.md` for the new `ocr.recoverNumericZerosFromCheckboxes` activity (blob-backed correction tool that recovers numeric zeros Azure DI misread as selection marks; three table-finder strategies). Relocated it from the `docs-md/` root into the `extraction/` topic folder and fixed its links after the develop merge renamed `graph-workflows/` → `workflows/`.
-- Wired it into `extraction.md` and noted the blob-backed correction-tool contract (`ocr-activity-ref-utils.ts`). The `extraction/` folder is already registered in `sources.md`.
-- Kept the generic `standard-ocr-workflow.json` free of the SDPR-specific config: moved the `recoverNumericZeros` node into a form-specific variant `standard-ocr-workflow-sdpr.json` (seeded as `seed-workflow-standard-ocr-sdpr`). Fixed the node's ctx wiring — it now reads/writes `ocrResultRef` in place (was reading an unpopulated `ocrResult` key, which left the recovery off the data path so `postOcrCleanup` never saw it).
+- Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
+- Added `billing.md` topic page routing to it and the `packages/billing/` + backend/temporal billing source areas; linked from `index.md` and registered in `sources.md` (routing row, stable-docs entry, code-adjacent sources).
+- Recorded the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift in `open-questions.md`.

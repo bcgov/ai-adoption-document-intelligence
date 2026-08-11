@@ -9,6 +9,9 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
@@ -62,6 +65,9 @@ describe("TrainingService", () => {
   let mockBenchmarkDefinitionDb: {
     countDefinitionsReferencingModelId: jest.Mock;
   };
+  let mockRateVersionSeeder: { getActiveTrainingCosts: jest.Mock };
+  let mockPreflightCapCheck: { checkCap: jest.Mock };
+  let mockUsageEventService: { recordUsageEvent: jest.Mock };
 
   const mockTemplateModel = {
     id: "tm-1",
@@ -186,6 +192,21 @@ describe("TrainingService", () => {
       countDefinitionsReferencingModelId: jest.fn().mockResolvedValue(0),
     };
 
+    mockRateVersionSeeder = {
+      getActiveTrainingCosts: jest.fn().mockResolvedValue({
+        rateVersionId: "rate-v1",
+        unitCostDollars: 0.001,
+        templateModelCost: 500,
+        classifierCost: 300,
+      }),
+    };
+    mockPreflightCapCheck = {
+      checkCap: jest.fn().mockResolvedValue(undefined),
+    };
+    mockUsageEventService = {
+      recordUsageEvent: jest.fn().mockResolvedValue({}),
+    };
+
     const mockBlob = {
       uploadFiles: jest.fn(),
       generateSasUrl: jest.fn(),
@@ -267,6 +288,18 @@ describe("TrainingService", () => {
           provide: ConfigService,
           useValue: mockConfig,
         },
+        {
+          provide: RateVersionSeederService,
+          useValue: mockRateVersionSeeder,
+        },
+        {
+          provide: PreflightCapCheckService,
+          useValue: mockPreflightCapCheck,
+        },
+        {
+          provide: UsageEventService,
+          useValue: mockUsageEventService,
+        },
       ],
     }).compile();
 
@@ -313,6 +346,18 @@ describe("TrainingService", () => {
             useValue: mockBenchmarkDefinitionDb,
           },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
+          {
+            provide: RateVersionSeederService,
+            useValue: mockRateVersionSeeder,
+          },
+          {
+            provide: PreflightCapCheckService,
+            useValue: mockPreflightCapCheck,
+          },
+          {
+            provide: UsageEventService,
+            useValue: mockUsageEventService,
+          },
         ],
       }).compile();
 
@@ -845,6 +890,58 @@ describe("TrainingService", () => {
       expect(mockTrainingDb.getNextVersionNumber).not.toHaveBeenCalled();
       expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
     });
+
+    it("calls preflightCapCheck.checkCap with template model training cost before starting async work", async () => {
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument),
+      );
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockTrainingDb.createTrainingJob.mockResolvedValueOnce(mockTrainingJob);
+
+      await service.startTraining("tm-1", dto, "actor-1");
+
+      expect(mockPreflightCapCheck.checkCap).toHaveBeenCalledWith(
+        "group-1",
+        500,
+        0.001,
+      );
+    });
+
+    it("throws HTTP 402 when cap check fails for template model training", async () => {
+      const { HttpException, HttpStatus } = await import("@nestjs/common");
+      const dto = { description: "Test model" };
+
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel as never,
+      );
+      mockTemplateModelService.getTemplateModelDocuments.mockResolvedValueOnce(
+        Array(5).fill(mockLabeledDocument),
+      );
+      mockTrainingDb.findTrainedModelByModelId.mockResolvedValueOnce(null);
+      mockPreflightCapCheck.checkCap.mockRejectedValueOnce(
+        new HttpException(
+          { message: "Monthly spending cap exceeded", shortfall_dollars: 0.5 },
+          HttpStatus.PAYMENT_REQUIRED,
+        ),
+      );
+
+      await expect(
+        service.startTraining("tm-1", dto, "actor-1"),
+      ).rejects.toThrow(HttpException);
+      // Job must NOT have been created when the cap check fails
+      expect(mockTrainingDb.createTrainingJob).not.toHaveBeenCalled();
+    });
   });
 
   describe("listTrainedVersions", () => {
@@ -1043,6 +1140,18 @@ describe("TrainingService", () => {
             useValue: mockBenchmarkDefinitionDb,
           },
           { provide: ConfigService, useValue: mockConfigMockDi },
+          {
+            provide: RateVersionSeederService,
+            useValue: mockRateVersionSeeder,
+          },
+          {
+            provide: PreflightCapCheckService,
+            useValue: mockPreflightCapCheck,
+          },
+          {
+            provide: UsageEventService,
+            useValue: mockUsageEventService,
+          },
         ],
       }).compile();
 
@@ -1197,6 +1306,18 @@ describe("TrainingService", () => {
             useValue: mockBenchmarkDefinitionDb,
           },
           { provide: ConfigService, useValue: mockConfigNoCredentials },
+          {
+            provide: RateVersionSeederService,
+            useValue: mockRateVersionSeeder,
+          },
+          {
+            provide: PreflightCapCheckService,
+            useValue: mockPreflightCapCheck,
+          },
+          {
+            provide: UsageEventService,
+            useValue: mockUsageEventService,
+          },
         ],
       }).compile();
 
@@ -1327,6 +1448,18 @@ describe("TrainingService", () => {
             useValue: {
               get: jest.fn(() => undefined),
             },
+          },
+          {
+            provide: RateVersionSeederService,
+            useValue: mockRateVersionSeeder,
+          },
+          {
+            provide: PreflightCapCheckService,
+            useValue: mockPreflightCapCheck,
+          },
+          {
+            provide: UsageEventService,
+            useValue: mockUsageEventService,
           },
         ],
       }).compile();

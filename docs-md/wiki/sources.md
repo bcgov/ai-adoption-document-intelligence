@@ -15,6 +15,7 @@ This registry names the places the wiki should route readers to before summarizi
 | `docs-md/architecture/HITL_ARCHITECTURE.md` | [HITL](hitl.md) |
 | `docs-md/auth/AUTHENTICATION.md`, `docs-md/auth/GROUP_RESOURCE_AUTHORIZATION.md`, `docs-md/groups/` | [Auth and groups](auth-and-groups.md) |
 | `docs-md/operations/`, load testing, monitoring, CI workflows | [Deployment and ops](deployment-and-ops.md) |
+| `docs-md/architecture/USAGE_METERING_AND_BILLING.md` | [Billing](billing.md) |
 
 Maintenance and registry pages: [Sources](sources.md), [Open questions](open-questions.md), [Log](log.md).
 
@@ -51,6 +52,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 - Load testing: `docs-md/benchmarking/LOAD_TESTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - Monitoring and alerting: `docs-md/monitoring/LOCAL_MONITORING_STACK.md`, `docs-md/monitoring/ALERTING.md` — wiki: [Deployment and ops](deployment-and-ops.md)
 - OpenShift deployment: `docs-md/operations/` — wiki: [Deployment and ops](deployment-and-ops.md)
+- Usage metering and billing: `docs-md/architecture/USAGE_METERING_AND_BILLING.md` — wiki: [Billing](billing.md)
 
 ## Code-Adjacent Sources
 
@@ -62,4 +64,7 @@ Maintenance and registry pages: [Sources](sources.md), [Open questions](open-que
 - HITL backend: `apps/backend-services/src/hitl/`
 - Group backend: `apps/backend-services/src/group/`
 - Auth backend: `apps/backend-services/src/auth/`
+- Billing backend: `apps/backend-services/src/billing/`
+- Billing Temporal (interceptor, storage charge, archival): `apps/temporal/src/billing/`
+- Shared billing package: `packages/billing/`
 - Frontend feature areas: `apps/frontend/src/features/`, `apps/frontend/src/pages/`

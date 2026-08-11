@@ -5,6 +5,7 @@ import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
 import { ClassifierOrphanCleanupService } from "@/azure/classifier-orphan-cleanup.service";
 import { ClassifierPollerService } from "@/azure/classifier-poller.service";
+import { BillingModule } from "@/billing/billing.module";
 import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
 
 @Module({
@@ -16,7 +17,7 @@ import { BlobStorageModule } from "@/blob-storage/blob-storage.module";
     ClassifierDbService,
   ],
   exports: [AzureService],
-  imports: [BlobStorageModule],
+  imports: [BillingModule, BlobStorageModule],
   controllers: [AzureController],
 })
 export class AzureModule {}

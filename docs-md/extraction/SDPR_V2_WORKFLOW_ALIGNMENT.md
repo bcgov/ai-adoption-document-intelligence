@@ -106,6 +106,29 @@ Audit CSV total flips = **356** (matches gap closed exactly).
 `missing` 225 → ~103 (~120 recovered cells). Re-run with
 `ocrCacheBaselineRunId = dfaddb26-cf91-4afa-aef8-c1ddeec42cc1`.
 
+## P8 — Alignment run (2026-08-07)
+
+**Run:** `28325600-116e-4dbf-96e9-126aaa6ff073` on prod, definition `SDPR-v2`,
+cache replay `dfaddb26-…`, single temporal worker (local `/tmp` dataset cache
+is not shared across replicas — scale/HPA workaround required for a clean run).
+
+| Metric | Report | In-app | Notes |
+|---|---:|---:|---|
+| Accuracy | 96.40% | 94.99% | −1.41 pp |
+| Errors | 267 | 372 | +105 |
+| missing | 103 | 103 | Zero recovery aligned |
+
+All 267 report errors ⊆ workflow errors (0 cells where the app is better).
+The +105 gap cells:
+
+| Bucket | Cells | Disposition |
+|---|---:|---|
+| `income-single-digit-to-zero` | 58 | **Code fix** — `singleCharacterToZero` must sync/clear Azure `valueNumber` (benchmark display prefers it over `content`). See `ocr-normalize-fields.ts` (2026-08-11). |
+| `currency-chrome` / `numeric-equality` | 22 | Still open — format scoring |
+| Unattributed (mostly `0` on blank GT) | 18 | False extras from aggressive zero-fill; HITL on inferred values recommended |
+| `date-month-day-swap` | 3 | Accepted drop |
+| Name / freeform fuzzy | 4 | Small residual / confirm prod `maxEdits` |
+
 ## P4 evaluatorConfig
 
 Implements brief §8.4: `FieldMatchingRule.maxEdits`/`minLength` and
@@ -158,5 +181,6 @@ workload (prediction-only blank filter vs report's GT-peeking filter).
 5. Per-cell reconcile with `report-errors.py`.
 6. Optional live (non-replay) run.
 
-**Status:** code path is in place; end-to-end alignment run not executed here
-because share and production were unreachable from this environment.
+**Status:** cache-replay alignment run completed 2026-08-07 (see P8 section
+above). Headline still short of 96.4% pending digit→`0` `valueNumber` fix
+deploy + remaining format/false-zero follow-ups.

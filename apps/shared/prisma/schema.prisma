@@ -67,11 +67,16 @@ model Document {
   // cannot express partial indexes, so it is managed via the raw SQL migration
   // 20260624000000_add_documents_purge_index. Do not let `migrate dev` drop it.
   //
-  // Trigram GIN indexes `documents_title_trgm_idx` /
-  // `documents_original_filename_trgm_idx` back the list endpoint's ILIKE
-  // search. Prisma cannot express GIN/trigram indexes, so they are managed via
-  // the raw SQL migration 20260626000000_add_documents_list_indexes. Do not let
-  // `migrate dev` drop them.
+  // The trigram GIN indexes below back the list endpoint's ILIKE search. They
+  // are declared here natively (`type: Gin` + `ops: raw(...)`), so `migrate dev`
+  // recognises them instead of proposing to drop them. They were first created
+  // by the raw SQL migration 20260626000000_add_documents_list_indexes, which
+  // also creates the required `pg_trgm` extension. That migration's own header
+  // comment predates this declaration and is now out of date; leave it alone.
+  // Prisma checksums applied migrations, so editing the file — even a comment —
+  // breaks `migrate status` and `migrate deploy`.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, name: "documents_title_trgm_idx")
+  @@index([original_filename(ops: raw("gin_trgm_ops"))], type: Gin, name: "documents_original_filename_trgm_idx")
   @@map("documents")
 }
 
@@ -411,6 +416,7 @@ model Group {
   benchmark_projects  BenchmarkProject[]
   confusionProfiles   ConfusionProfile[]
   reference_tables    ReferenceTable[]
+  billing_config      GroupBillingConfig?
 
   @@map("group")
 }
@@ -594,6 +600,110 @@ enum ClassifierStatus {
   FAILED
   TRAINING
   READY
+}
+
+// ========== BILLING / USAGE METERING MODELS ==========
+
+enum UsageEventType {
+  activity_completed
+  model_training
+  blob_storage
+  workflow_cost
+}
+
+enum ActivityCostType {
+  flat
+  per_page
+}
+
+model RateVersion {
+  id                          String         @id @default(cuid())
+  version                     String         @unique
+  effective_from              DateTime
+  unit_cost_dollars           Decimal        @db.Decimal(18, 8)
+  units_per_gb_per_month      Decimal        @db.Decimal(18, 8)
+  max_pages_assumption        Int
+  max_array_items_assumption  Int
+  created_at                  DateTime       @default(now())
+  activity_costs              ActivityCost[]
+  usage_events                UsageEvent[]
+
+  @@map("rate_versions")
+}
+
+model ActivityCost {
+  id              String           @id @default(cuid())
+  rate_version_id String
+  rate_version    RateVersion      @relation(fields: [rate_version_id], references: [id])
+  activity_name   String
+  cost_type       ActivityCostType
+  units           Decimal          @db.Decimal(18, 8)
+  created_at      DateTime         @default(now())
+
+  @@index([rate_version_id])
+  @@unique([rate_version_id, activity_name])
+  @@map("activity_costs")
+}
+
+model UsageEvent {
+  id                    String         @id @default(cuid())
+  event_type            UsageEventType
+  group_id              String
+  workflow_execution_id String?
+  workflow_version_id   String?
+  activity_name         String?
+  metered_quantity      Int?
+  units_consumed        Decimal        @db.Decimal(18, 8)
+  estimated_units       Decimal?       @db.Decimal(18, 8)
+  storage_gb_hours      Decimal?       @db.Decimal(18, 8)
+  resource_id           String?
+  resource_type         String?
+  rate_version_id       String
+  rate_version          RateVersion    @relation(fields: [rate_version_id], references: [id])
+  created_at            DateTime       @default(now())
+
+  @@index([group_id, created_at])
+  @@index([workflow_execution_id])
+  @@map("usage_events")
+}
+
+model UsagePeriodSummary {
+  id                   String   @id @default(cuid())
+  group_id             String
+  period_year          Int
+  period_month         Int
+  total_units_consumed Decimal  @default(0) @db.Decimal(18, 8)
+  total_dollars_spent  Decimal  @default(0) @db.Decimal(18, 8)
+  updated_at           DateTime @updatedAt
+
+  @@unique([group_id, period_year, period_month])
+  @@map("usage_period_summaries")
+}
+
+model GroupBillingConfig {
+  id                  String    @id @default(cuid())
+  group_id            String    @unique
+  group               Group     @relation(fields: [group_id], references: [id])
+  monthly_cap_dollars Decimal?  @db.Decimal(18, 8)
+  cap_configured_by   String?
+  cap_configured_at   DateTime?
+  created_at          DateTime  @default(now())
+
+  @@map("group_billing_configs")
+}
+
+model GroupStorageLedger {
+  id         String    @id @default(cuid())
+  group_id   String
+  blob_key   String    @unique
+  size_bytes BigInt
+  written_at DateTime
+  deleted_at DateTime?
+  created_at DateTime  @default(now())
+
+  @@index([group_id])
+  @@index([group_id, written_at, deleted_at])
+  @@map("group_storage_ledger")
 }
 
 enum DocumentStatus {

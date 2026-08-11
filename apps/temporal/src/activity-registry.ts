@@ -58,6 +58,7 @@ import { selectClassifiedPages } from "./activities/select-classified-pages";
 import { splitAndClassifyDocument } from "./activities/split-and-classify-document";
 import { splitDocument } from "./activities/split-document";
 import { tablesLookup } from "./activities/tables-lookup";
+import { recordWorkflowLifecycle } from "./billing/record-workflow-lifecycle.activity";
 import type { RetryPolicy } from "./graph-workflow-types";
 import { vlmDirectExtract } from "./ocr-providers/vlm-direct/vlm-direct-extract";
 import { vlmHybridExtract } from "./ocr-providers/vlm-ocr-hybrid/vlm-hybrid-extract";
@@ -576,6 +577,17 @@ register({
   defaultRetry: { maximumAttempts: 2 },
   description:
     "Detect and correct per-page orientation using mupdf rendering and Tesseract OSD",
+});
+
+register({
+  activityType: "billing.recordWorkflowLifecycle",
+  activityFn: recordWorkflowLifecycle as (
+    ...args: unknown[]
+  ) => Promise<unknown>,
+  defaultTimeout: "30s",
+  defaultRetry: { maximumAttempts: 3 },
+  description:
+    "Record a workflow terminal lifecycle billing event (completed/failed/cancelled)",
 });
 
 // ---------------------------------------------------------------------------
