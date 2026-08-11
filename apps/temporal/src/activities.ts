@@ -81,6 +81,15 @@ export { flattenClassifiedDocuments } from "./activities/flatten-classified-docu
 export { getDocumentStatus } from "./activities/get-document-status";
 export { getWorkflowGraphConfig } from "./activities/get-workflow-graph-config";
 export type {
+  ApplyReviewCriteriaParams,
+  ApplyReviewCriteriaResult,
+  ReviewCriteriaCondition,
+  ReviewCriteriaRule,
+  ReviewCriteriaRuleSelect,
+  ReviewPlanEntry,
+} from "./activities/hitl-apply-review-criteria";
+export { applyReviewCriteria } from "./activities/hitl-apply-review-criteria";
+export type {
   MistralOcrProcessParams,
   MistralOcrProcessResult,
   MistralOcrVariant,
@@ -99,8 +108,11 @@ export type {
 export { normalizeDocumentOrientation } from "./activities/normalize-document-orientation";
 export { characterConfusionCorrection } from "./activities/ocr-character-confusion";
 export { normalizeOcrFields } from "./activities/ocr-normalize-fields";
+export { recoverNumericZerosFromCheckboxes } from "./activities/ocr-recover-numeric-zeros";
 // OCR correction tools (Feature 008)
 export { spellcheckOcrResult } from "./activities/ocr-spellcheck";
+export type { PersistReviewPlanParams } from "./activities/persist-review-plan";
+export { persistReviewPlan } from "./activities/persist-review-plan";
 export { pollOCRResults } from "./activities/poll-ocr-results";
 export { postOcrCleanup } from "./activities/post-ocr-cleanup";
 export type { PrepareFileDataInput } from "./activities/prepare-file-data";
