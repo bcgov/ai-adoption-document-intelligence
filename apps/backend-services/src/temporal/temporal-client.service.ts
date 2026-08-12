@@ -259,7 +259,10 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `Graph workflow started: ${handle.workflowId} for document ${documentId} (config ${workflowConfigId}, version ${workflowConfig.version})`,
       );
-      return handle.workflowId;
+      // Return the runId (unique per execution attempt) as the billing execution
+      // ID. workflowId is always "graph-<documentId>" and is reused on reprocess;
+      // runId is unique so billing events from different runs stay isolated.
+      return handle.firstExecutionRunId;
     } catch (error) {
       throw this.handleError(error, "start graph workflow");
     }

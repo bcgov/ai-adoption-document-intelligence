@@ -21,6 +21,10 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
+  # Billing maintenance worker — nightly storage charge and month-end archival workflows
+  BILLING_TASK_QUEUE: "billing-maintenance"
+  # Retention period (days) for UsageEvent rows purged during month-end archival (default: 730)
+  USAGE_EVENT_RETENTION_DAYS: "730"
   # Azure OpenAI (enrichment)
   AZURE_OPENAI_ENDPOINT: ""
   AZURE_OPENAI_DEPLOYMENT: ""

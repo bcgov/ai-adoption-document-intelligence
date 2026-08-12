@@ -24,6 +24,32 @@ import {
   BlobServiceClient,
   type ContainerClient,
 } from "@azure/storage-blob";
+import type { PrismaClient } from "@generated/client";
+import {
+  recordLedgerDelete,
+  recordLedgerDeleteByPrefix,
+  recordLedgerRead,
+  recordLedgerWrite,
+} from "./storage-ledger";
+
+// ---------------------------------------------------------------------------
+// Ledger integration — module-level Prisma reference
+// ---------------------------------------------------------------------------
+
+/** Prisma client used for storage ledger writes, set via initStorageLedger(). */
+let _ledgerPrisma: PrismaClient | undefined;
+const CHARGE_FOR_BLOB_TRANSACTION =
+  process.env.CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY === "true";
+
+/**
+ * Configures the blob storage client module to record ledger entries using
+ * the provided Prisma client. Must be called before the first blob write/delete.
+ *
+ * @param prisma - Prisma client instance from the Temporal worker
+ */
+export function initStorageLedger(prisma: PrismaClient): void {
+  _ledgerPrisma = prisma;
+}
 
 /** Minimal blob-storage interface used by Temporal activities. */
 export interface BlobStorageClient {
@@ -78,13 +104,20 @@ function buildMinioClient(): BlobStorageClient {
       await s3.send(
         new PutObjectCommand({ Bucket: bucket, Key: key, Body: data }),
       );
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
+        await recordLedgerWrite(_ledgerPrisma, key, data.byteLength);
+      }
     },
 
     async read(key: BlobFilePath): Promise<Buffer> {
       const res = await s3.send(
         new GetObjectCommand({ Bucket: bucket, Key: key }),
       );
-      return Buffer.from(await res.Body!.transformToByteArray());
+      const data = Buffer.from(await res.Body!.transformToByteArray());
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
+        await recordLedgerRead(_ledgerPrisma, key);
+      }
+      return data;
     },
 
     async exists(key: BlobFilePath): Promise<boolean> {
@@ -98,6 +131,9 @@ function buildMinioClient(): BlobStorageClient {
 
     async delete(key: BlobFilePath): Promise<void> {
       await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      if (_ledgerPrisma) {
+        await recordLedgerDelete(_ledgerPrisma, key);
+      }
     },
 
     async list(prefix: BlobPrefixPath): Promise<string[]> {
@@ -139,6 +175,9 @@ function buildMinioClient(): BlobStorageClient {
           }),
         );
       }
+      if (_ledgerPrisma) {
+        await recordLedgerDeleteByPrefix(_ledgerPrisma, prefix);
+      }
     },
 
     async generateSasUrl(
@@ -175,11 +214,18 @@ function buildAzureClient(): BlobStorageClient {
     async write(key: BlobFilePath, data: Buffer): Promise<void> {
       const blockBlob = container.getBlockBlobClient(key);
       await blockBlob.upload(data, data.length);
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
+        await recordLedgerWrite(_ledgerPrisma, key, data.byteLength);
+      }
     },
 
     async read(key: BlobFilePath): Promise<Buffer> {
       const blobClient = container.getBlobClient(key);
-      return blobClient.downloadToBuffer();
+      const data = await blobClient.downloadToBuffer();
+      if (_ledgerPrisma && CHARGE_FOR_BLOB_TRANSACTION) {
+        await recordLedgerRead(_ledgerPrisma, key);
+      }
+      return data;
     },
 
     async exists(key: BlobFilePath): Promise<boolean> {
@@ -188,6 +234,9 @@ function buildAzureClient(): BlobStorageClient {
 
     async delete(key: BlobFilePath): Promise<void> {
       await container.getBlobClient(key).deleteIfExists();
+      if (_ledgerPrisma) {
+        await recordLedgerDelete(_ledgerPrisma, key);
+      }
     },
 
     async list(prefix: BlobPrefixPath): Promise<string[]> {
@@ -203,6 +252,9 @@ function buildAzureClient(): BlobStorageClient {
       await Promise.all(
         keys.map((k) => container.getBlobClient(k).deleteIfExists()),
       );
+      if (_ledgerPrisma) {
+        await recordLedgerDeleteByPrefix(_ledgerPrisma, prefix);
+      }
     },
 
     async generateSasUrl(

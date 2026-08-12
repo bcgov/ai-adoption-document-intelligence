@@ -9,12 +9,15 @@
 
 import {
   ApplicationFailure,
+  CancellationScope,
   defineQuery,
   defineSignal,
+  isCancellation,
   proxyActivities,
   setHandler,
   workflowInfo,
 } from "@temporalio/workflow";
+import type { RecordWorkflowLifecycleInput } from "./billing/record-workflow-lifecycle.activity";
 import { runGraphExecution } from "./graph-engine";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
 import {
@@ -48,6 +51,12 @@ type PreExecutionActivities = {
   }>;
 };
 
+type BillingActivities = {
+  "billing.recordWorkflowLifecycle": (
+    input: RecordWorkflowLifecycleInput,
+  ) => Promise<unknown>;
+};
+
 // Workflow type constant
 export const GRAPH_WORKFLOW_TYPE = "graphWorkflow";
 
@@ -75,7 +84,9 @@ function redactCtxForQuery(
         ];
       }
       const valueStr = JSON.stringify(value);
-      if (valueStr.length > 1000) {
+      // JSON.stringify(undefined) returns undefined, not a string — guard so a
+      // ctx key holding `undefined` doesn't crash the getStatus query handler.
+      if (valueStr !== undefined && valueStr.length > 1000) {
         return [key, "<redacted: large value>"];
       }
       return [key, value];
@@ -274,9 +285,54 @@ export async function graphWorkflow(
       }
     }
 
+    // Record workflow terminal lifecycle billing event
+    if (input.groupId) {
+      try {
+        const billingProxy = proxyActivities<BillingActivities>({
+          startToCloseTimeout: "30s",
+          retry: { maximumAttempts: 3 },
+        });
+        await CancellationScope.nonCancellable(() =>
+          billingProxy["billing.recordWorkflowLifecycle"]({
+            workflowExecutionId: workflowInfo().runId,
+            groupId: input.groupId,
+            status: result.status,
+          }),
+        );
+      } catch (billingError) {
+        console.warn(
+          `[GraphWorkflow] Billing lifecycle event failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
+        );
+      }
+    }
+
     return result;
   } catch (error) {
-    overallStatus = "failed";
+    overallStatus = isCancellation(error) ? "cancelled" : "failed";
+
+    // Record workflow_failed/cancelled billing event before rethrowing.
+    // Wrapped in nonCancellable so the activity fires even when Temporal delivers
+    // a CancelledFailure (e.g. workflowExecutionTimeout or client.cancel()).
+    if (input.groupId) {
+      try {
+        const billingProxy = proxyActivities<BillingActivities>({
+          startToCloseTimeout: "30s",
+          retry: { maximumAttempts: 3 },
+        });
+        await CancellationScope.nonCancellable(() =>
+          billingProxy["billing.recordWorkflowLifecycle"]({
+            workflowExecutionId: workflowInfo().runId,
+            groupId: input.groupId,
+            status: overallStatus as "completed" | "failed" | "cancelled",
+          }),
+        );
+      } catch (billingError) {
+        console.warn(
+          `[GraphWorkflow] Billing lifecycle event (failed) failed: ${billingError instanceof Error ? billingError.message : String(billingError)}`,
+        );
+      }
+    }
+
     if (error instanceof Error) {
       workflowError = error.message;
     }

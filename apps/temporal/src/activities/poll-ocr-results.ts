@@ -86,32 +86,39 @@ export async function pollOCRResults(params: {
   });
 
   if (useMock) {
-    const mockResponse: OCRResponse = {
-      status: "succeeded",
-      createdDateTime: new Date().toISOString(),
-      lastUpdatedDateTime: new Date().toISOString(),
-      analyzeResult: {
-        apiVersion: "2024-11-30",
-        modelId: modelId || "prebuilt-layout",
-        content: "Mock OCR content for testing\nLine 2\nLine 3",
-        pages: [
-          {
-            pageNumber: 1,
-            width: 8.5,
-            height: 11,
-            unit: "inch",
-            words: [],
-            lines: [],
-            spans: [{ offset: 0, length: 50 }],
+    // Test seam: when MOCK_AZURE_OCR is on, an integration harness may supply a
+    // specific analyze response via MOCK_AZURE_OCR_RESPONSE (JSON) so the real
+    // downstream extract/gate run against a chosen payload; otherwise fall back
+    // to a minimal canned response.
+    const injected = process.env.MOCK_AZURE_OCR_RESPONSE;
+    const mockResponse: OCRResponse = injected
+      ? (JSON.parse(injected) as OCRResponse)
+      : {
+          status: "succeeded",
+          createdDateTime: new Date().toISOString(),
+          lastUpdatedDateTime: new Date().toISOString(),
+          analyzeResult: {
+            apiVersion: "2024-11-30",
+            modelId: modelId || "prebuilt-layout",
+            content: "Mock OCR content for testing\nLine 2\nLine 3",
+            pages: [
+              {
+                pageNumber: 1,
+                width: 8.5,
+                height: 11,
+                unit: "inch",
+                words: [],
+                lines: [],
+                spans: [{ offset: 0, length: 50 }],
+              },
+            ],
+            paragraphs: [],
+            tables: [],
+            keyValuePairs: [],
+            sections: [],
+            figures: [],
           },
-        ],
-        paragraphs: [],
-        tables: [],
-        keyValuePairs: [],
-        sections: [],
-        figures: [],
-      },
-    };
+        };
 
     const groupId = await resolveGroupIdForOcr(documentId, params.groupId);
     const { blobPath, byteLength } = await writeOcrPayloadBlob(

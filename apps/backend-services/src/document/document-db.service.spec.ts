@@ -48,6 +48,7 @@ const makeDocument = (overrides: Partial<DocumentData> = {}): DocumentData => ({
   workflow_config_id: null,
   workflow_execution_id: null,
   group_id: "group-1",
+  review_plan: null,
   created_at: new Date("2024-01-01"),
   updated_at: new Date("2024-01-01"),
   purged_at: null,
@@ -90,6 +91,7 @@ describe("DocumentDbService", () => {
         workflow_config_id: null,
         workflow_execution_id: null,
         group_id: doc.group_id,
+        review_plan: null,
       });
 
       expect(result).toEqual(doc);

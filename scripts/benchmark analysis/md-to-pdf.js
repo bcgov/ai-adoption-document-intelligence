@@ -43,6 +43,36 @@ try {
   process.exit(1);
 }
 marked.setOptions({ gfm: true, breaks: false });
+// Disable GFM's single-tilde strikethrough. Marked's default treats ~text~ as
+// <del>...</del>, which collides with our use of ~ as the "approximately"
+// sign (~$0.046, ~37%, ~20×) and produces accidental strikethrough whenever
+// two ~'s happen to land on either side of a non-whitespace boundary
+// (e.g. "~$0.003/page (~20×" → "<del>$0.003/page (</del>20×").
+//
+// A `tokenizer.del` override that returned false didn't help — when it
+// declines, marked falls back to the default del tokenizer. Instead we
+// register an inline extension that *consumes* a lone ~ as a literal text
+// token before the strikethrough tokenizer ever gets to see it. The
+// extension intentionally skips ~~...~~, so real GFM strikethrough still
+// works.
+marked.use({
+  extensions: [
+    {
+      name: "literalTilde",
+      level: "inline",
+      start(src) {
+        const i = src.indexOf("~");
+        return i === -1 ? undefined : i;
+      },
+      tokenizer(src) {
+        const match = /^(?<!~)~(?!~)/.exec(src);
+        if (match) {
+          return { type: "text", raw: "~", text: "~" };
+        }
+      },
+    },
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Argument parsing.
@@ -150,7 +180,18 @@ const STYLE = `
   table { border-collapse: collapse; width: 100%; font-size: 10pt; }
   th, td { border: 1px solid #ccc; padding: 5px 8px; text-align: left; vertical-align: top; }
   th { background: #f5f7fa; }
-  img { max-width: 100%; height: auto; display: block; margin: 0.6em auto; }
+  /*
+   * Page content area at @page Letter with 18mm/16mm margins ≈ 184mm × 243mm.
+   * max-height keeps tall plots from exceeding a single page even when given one
+   * to themselves; combined with break-inside: avoid that means a plot is either
+   * fully on this page or pushed to the next, never split.
+   */
+  img { max-width: 100%; max-height: 230mm; width: auto; height: auto; object-fit: contain; display: block; margin: 0.6em auto; break-inside: avoid; page-break-inside: avoid; }
+  /* marked wraps images in <p>; keep that block together too so the image isn't split from its surrounding margins. */
+  p:has(> img) { break-inside: avoid; page-break-inside: avoid; }
+  /* Tables shouldn't split mid-row either; keep small tables together where possible. */
+  table { break-inside: auto; }
+  tr, td, th { break-inside: avoid; page-break-inside: avoid; }
   a { color: #1a5fb4; text-decoration: none; }
   a:hover { text-decoration: underline; }
 `;

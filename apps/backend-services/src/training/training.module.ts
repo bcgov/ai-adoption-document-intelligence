@@ -1,5 +1,6 @@
 import { forwardRef, Module } from "@nestjs/common";
 import { BenchmarkModule } from "../benchmark/benchmark.module";
+import { BillingModule } from "../billing/billing.module";
 import { BlobStorageModule } from "../blob-storage/blob-storage.module";
 import { TemplateModelModule } from "../template-model/template-model.module";
 import { TrainingController } from "./training.controller";
@@ -12,6 +13,7 @@ import { TrainingPollerService } from "./training-poller.service";
   // → OcrModule → TrainingModule (OcrModule imports TrainingModule because the
   // OCR controller depends on TrainingService for trained-model lookup).
   imports: [
+    BillingModule,
     BlobStorageModule,
     TemplateModelModule,
     forwardRef(() => BenchmarkModule),
