@@ -144,7 +144,11 @@ export class ReviewDbService {
         { review_sessions: { none: {} } },
         {
           review_sessions: {
-            every: { status: ReviewStatus.in_progress },
+            every: {
+              status: {
+                in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
+              },
+            },
           },
         },
       ];
@@ -169,6 +173,7 @@ export class ReviewDbService {
       skip: filters.offset ?? 0,
       include: {
         ocr_result: true,
+        lock: true,
         review_sessions: {
           where: {
             status: {
@@ -177,6 +182,7 @@ export class ReviewDbService {
                 ReviewStatus.approved,
                 ReviewStatus.escalated,
                 ReviewStatus.skipped,
+                ReviewStatus.abandoned,
               ],
             },
           },

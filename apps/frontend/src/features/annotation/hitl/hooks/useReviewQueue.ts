@@ -21,6 +21,11 @@ export interface QueueDocument {
   created_at: string;
   updated_at: string;
   ocr_result?: OcrResult;
+  lock?: {
+    reviewer_id: string;
+    session_id: string;
+    expires_at: string;
+  } | null;
   lastSession?: {
     id: string;
     reviewer_id: string;

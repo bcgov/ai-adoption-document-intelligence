@@ -2,6 +2,7 @@ import { getErrorMessage } from "@ai-di/shared-logging";
 import {
   CorrectionAction,
   Document,
+  DocumentLock,
   DocumentStatus,
   OcrResult,
   Prisma,
@@ -34,6 +35,7 @@ import type { ReviewSessionData } from "./review-db.types";
 
 interface DocumentWithOcrResult extends Document {
   ocr_result: OcrResult | null;
+  lock?: DocumentLock | null;
   review_sessions?: Array<{
     id: string;
     reviewer_id: string;
@@ -161,6 +163,13 @@ export class HitlService {
                 doc.review_sessions[0].corrections?.length || 0,
             }
           : undefined,
+        lock: doc.lock
+          ? {
+              reviewer_id: doc.lock.reviewer_id,
+              session_id: doc.lock.session_id,
+              expires_at: doc.lock.expires_at,
+            }
+          : null,
       })),
       total: filtered.length,
     };

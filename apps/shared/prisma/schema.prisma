@@ -565,6 +565,7 @@ enum ReviewStatus {
   approved
   escalated
   skipped
+  abandoned
 }
 
 enum CorrectionAction {

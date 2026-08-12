@@ -8,6 +8,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
 import { apiService } from "@/data/services/api.service";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 import {
@@ -32,6 +33,7 @@ import { useReviewQueue } from "../hooks/useReviewQueue";
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
@@ -213,11 +215,9 @@ export const ReviewQueuePage: FC = () => {
                 <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
                     const avgConfidence = getAverageConfidence(doc);
-                    const inProgressSession =
-                      doc.lastSession?.status === "in_progress"
-                        ? doc.lastSession
-                        : undefined;
-
+                    // A lock belonging to the current user means they already own this session.
+                    const myLock =
+                      doc.lock?.reviewer_id === user?.actorId ? doc.lock : null;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
@@ -226,7 +226,7 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {inProgressSession ? (
+                          {myLock ? (
                             <Badge variant="light" color="blue" size="sm">
                               In review
                             </Badge>
@@ -256,14 +256,14 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {inProgressSession ? (
+                          {myLock ? (
                             <Button
                               size="xs"
                               variant="light"
                               color="blue"
                               leftSection={<IconEye size={14} />}
                               onClick={() =>
-                                navigate(`/review/${inProgressSession.id}`)
+                                navigate(`/review/${myLock.session_id}`)
                               }
                             >
                               Resume
@@ -276,7 +276,7 @@ export const ReviewQueuePage: FC = () => {
                               onClick={() => handleStartSession(doc.id, false)}
                               loading={pendingQueue.isStartingSession}
                             >
-                              Review
+                              Start review
                             </Button>
                           )}
                         </DataTable.Td>
