@@ -5,6 +5,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClipboardCheck,
+  IconCurrencyDollar,
   IconDatabase,
   IconFileText,
   IconFlagQuestion,
@@ -19,6 +20,7 @@ import {
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useGroup } from "@/auth/GroupContext";
 import { useAuth } from "../auth/useAuth";
 import { GroupSelector } from "../components/group/GroupSelector";
 import {
@@ -90,7 +92,9 @@ function isWorkspaceRoute(pathname: string): boolean {
 export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
+  const { logout, user, isSystemAdmin } = useAuth();
+  const group = useGroup();
+  const isAdmin = isSystemAdmin || group.activeGroup?.role === "ADMIN";
   const [navbarOpened, { toggle: toggleNavbar }] = useDisclosure(true);
   const displayName = user?.profile?.name ?? "Authenticated user";
   const displayIdir = user?.profile?.email?.split("@")[0] ?? "Logged in";
@@ -151,6 +155,13 @@ export function RootLayout() {
         label: "Groups",
         description: "Manage groups",
         icon: IconUsers,
+      },
+      {
+        path: "/billing",
+        label: "Billing",
+        description: "Spending and rate information",
+        icon: IconCurrencyDollar,
+        hidden: !isAdmin,
       },
       {
         path: "/confusion-profiles",
@@ -260,40 +271,42 @@ export function RootLayout() {
 
         <ScrollArea flex={1} p="md">
           <Stack gap="xs">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active =
-                !isBenchmarkingRoute &&
-                (location.pathname === item.path ||
-                  (item.path !== "/" &&
-                    location.pathname.startsWith(item.path)));
+            {navItems
+              .filter((item) => !item.hidden)
+              .map((item) => {
+                const Icon = item.icon;
+                const active =
+                  !isBenchmarkingRoute &&
+                  (location.pathname === item.path ||
+                    (item.path !== "/" &&
+                      location.pathname.startsWith(item.path)));
 
-              return navbarOpened ? (
-                <NavLink
-                  key={item.path}
-                  label={item.label}
-                  description={item.description}
-                  leftSection={<Icon size={18} />}
-                  active={active}
-                  variant={active ? "light" : "subtle"}
-                  color={active ? "blue" : "gray"}
-                  onClick={() => navigate(item.path)}
-                />
-              ) : (
-                <Tooltip key={item.path} label={item.label} position="right">
-                  <ActionIcon
+                return navbarOpened ? (
+                  <NavLink
+                    key={item.path}
+                    label={item.label}
+                    description={item.description}
+                    leftSection={<Icon size={18} />}
+                    active={active}
                     variant={active ? "light" : "subtle"}
                     color={active ? "blue" : "gray"}
-                    size="lg"
-                    radius="md"
                     onClick={() => navigate(item.path)}
-                    aria-label={item.label}
-                  >
-                    <Icon size={18} />
-                  </ActionIcon>
-                </Tooltip>
-              );
-            })}
+                  />
+                ) : (
+                  <Tooltip key={item.path} label={item.label} position="right">
+                    <ActionIcon
+                      variant={active ? "light" : "subtle"}
+                      color={active ? "blue" : "gray"}
+                      size="lg"
+                      radius="md"
+                      onClick={() => navigate(item.path)}
+                      aria-label={item.label}
+                    >
+                      <Icon size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                );
+              })}
 
             {navbarOpened ? (
               <NavLink

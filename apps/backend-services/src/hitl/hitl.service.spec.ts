@@ -59,6 +59,7 @@ describe("HitlService", () => {
     workflow_config_id: null,
     workflow_execution_id: null,
     group_id: "group-1",
+    review_plan: null,
   };
 
   const mockOcrResult = {
@@ -662,6 +663,75 @@ describe("HitlService", () => {
         templateModelId: "tmpl-456",
         groupId: null,
       });
+    });
+
+    it("should return reviewPlan when document.review_plan is a well-formed array", async () => {
+      const reviewPlan = [
+        {
+          field: "total_amount",
+          decision: "review",
+          reason: "Low confidence extraction",
+          ruleName: "low-confidence",
+          confidence: 0.4,
+        },
+        {
+          field: "invoice_number",
+          decision: "skip",
+          reason: 'No rule matched; default action "skip" applied',
+          ruleName: "__default__",
+          confidence: 0.99,
+        },
+      ];
+      const sessionWithReviewPlan = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          review_plan: reviewPlan,
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithReviewPlan as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toEqual(reviewPlan);
+    });
+
+    it("should omit reviewPlan when document.review_plan is null", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toBeUndefined();
+    });
+
+    it("should omit reviewPlan when document.review_plan is malformed", async () => {
+      const sessionWithBadReviewPlan = {
+        ...mockReviewSession,
+        document: {
+          ...mockReviewSession.document,
+          review_plan: [{ field: "total_amount" }], // missing required keys
+        },
+      };
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        sessionWithBadReviewPlan as any,
+      );
+      mockReviewDbService.findFieldDefinitionsForDocument.mockResolvedValueOnce(
+        [],
+      );
+
+      const result = await service.getSession("session-1");
+
+      expect(result.reviewPlan).toBeUndefined();
     });
 
     it("should throw NotFoundException if session does not exist", async () => {

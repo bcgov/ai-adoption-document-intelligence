@@ -22,6 +22,8 @@ const EXPECTED_ACTIVITY_TYPES = [
   "document.storeRejection",
   "getWorkflowGraphConfig",
   "ocr.enrich",
+  "hitl.applyReviewCriteria",
+  "document.persistReviewPlan",
   "document.split",
   "document.classify",
   "document.splitAndClassify",
@@ -53,6 +55,7 @@ const EXPECTED_ACTIVITY_TYPES = [
   "blob.read",
   "document.extractToBase64",
   "document.normalizeOrientation",
+  "billing.recordWorkflowLifecycle",
 ];
 
 describe("activity-registry", () => {

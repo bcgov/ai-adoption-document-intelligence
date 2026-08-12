@@ -41,7 +41,10 @@ type SeedFieldDefinition = {
   fieldKey: string;
   fieldType: FieldType;
   fieldFormat?: string;
+  formatSpec?: string;
 };
+
+const NUMBER_FORMAT_SPEC = JSON.stringify({ canonicalize: "number" });
 
 const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "checkbox_need_assistance_yes", fieldType: FieldType.selectionMark },
@@ -89,76 +92,252 @@ const SDPR_MONTHLY_REPORT_FIELDS: SeedFieldDefinition[] = [
   { fieldKey: "checkbox_warrant_no", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_warrant_spouse_yes", fieldType: FieldType.selectionMark },
   { fieldKey: "checkbox_warrant_spouse_no", fieldType: FieldType.selectionMark },
-  { fieldKey: "explain_changes", fieldType: FieldType.string },
+  {
+    fieldKey: "explain_changes",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({ canonicalize: "text" }),
+  },
   { fieldKey: "signature", fieldType: FieldType.string },
   { fieldKey: "spouse_signature", fieldType: FieldType.string },
-  { fieldKey: "date", fieldType: FieldType.date, fieldFormat: "ymd" },
-  { fieldKey: "spouse_date", fieldType: FieldType.date, fieldFormat: "ymd" },
-  { fieldKey: "name", fieldType: FieldType.string },
-  { fieldKey: "spouse_name", fieldType: FieldType.string },
-  { fieldKey: "phone", fieldType: FieldType.string },
-  { fieldKey: "spouse_phone", fieldType: FieldType.string },
-  { fieldKey: "sin", fieldType: FieldType.string },
-  { fieldKey: "spouse_sin", fieldType: FieldType.string },
-  { fieldKey: "applicant_net_employment_income", fieldType: FieldType.number },
-  { fieldKey: "applicant_employment_insurance", fieldType: FieldType.number },
+  {
+    fieldKey: "case_id",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({ canonicalize: "strip-spaces|uppercase" }),
+  },
+  {
+    fieldKey: "date",
+    fieldType: FieldType.date,
+    fieldFormat: "ymd",
+    formatSpec: JSON.stringify({ canonicalize: "date:YYYY-MM-DD" }),
+  },
+  {
+    fieldKey: "spouse_date",
+    fieldType: FieldType.date,
+    fieldFormat: "ymd",
+    formatSpec: JSON.stringify({ canonicalize: "date:YYYY-MM-DD" }),
+  },
+  {
+    fieldKey: "name",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({ canonicalize: "text" }),
+  },
+  {
+    fieldKey: "spouse_name",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({ canonicalize: "text" }),
+  },
+  {
+    fieldKey: "phone",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({
+      canonicalize: "digits",
+      pattern: "^\\d{10}$",
+    }),
+  },
+  {
+    fieldKey: "spouse_phone",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({
+      canonicalize: "digits",
+      pattern: "^\\d{10}$",
+    }),
+  },
+  {
+    fieldKey: "sin",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({
+      canonicalize: "digits",
+      pattern: "^\\d{9}$",
+    }),
+  },
+  {
+    fieldKey: "spouse_sin",
+    fieldType: FieldType.string,
+    formatSpec: JSON.stringify({
+      canonicalize: "digits",
+      pattern: "^\\d{9}$",
+    }),
+  },
+  {
+    fieldKey: "applicant_net_employment_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_employment_insurance",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "applicant_spousal_support_alimony",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "applicant_child_support", fieldType: FieldType.number },
-  { fieldKey: "applicant_workbc_financial_support", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_child_support",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_workbc_financial_support",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "applicant_student_funding_loans_bursaries",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "applicant_rental_income", fieldType: FieldType.number },
-  { fieldKey: "applicant_room_board_income", fieldType: FieldType.number },
-  { fieldKey: "applicant_workers_compensation", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_rental_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_room_board_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_workers_compensation",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "applicant_private_pensions_retirement_disability",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "applicant_oas_gis", fieldType: FieldType.number },
-  { fieldKey: "applicant_trust_income", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_oas_gis",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_trust_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "applicant_canada_pension_plan_cpp",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "applicant_tax_credits_gst_credit", fieldType: FieldType.number },
-  { fieldKey: "applicant_child_tax_benefits", fieldType: FieldType.number },
-  { fieldKey: "applicant_income_tax_refund", fieldType: FieldType.number },
+  {
+    fieldKey: "applicant_tax_credits_gst_credit",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_child_tax_benefits",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "applicant_income_tax_refund",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "applicant_other_income_money_received",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
   {
     fieldKey: "applicant_income_of_dependent_children",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "spouse_net_employment_income", fieldType: FieldType.number },
-  { fieldKey: "spouse_employment_insurance", fieldType: FieldType.number },
-  { fieldKey: "spouse_spousal_support_alimony", fieldType: FieldType.number },
-  { fieldKey: "spouse_child_support", fieldType: FieldType.number },
-  { fieldKey: "spouse_workbc_financial_support", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_net_employment_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_employment_insurance",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_spousal_support_alimony",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_child_support",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_workbc_financial_support",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "spouse_student_funding_loans_bursaries",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "spouse_rental_income", fieldType: FieldType.number },
-  { fieldKey: "spouse_room_board_income", fieldType: FieldType.number },
-  { fieldKey: "spouse_workers_compensation", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_rental_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_room_board_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_workers_compensation",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
   {
     fieldKey: "spouse_private_pensions_retirement_disability",
     fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
   },
-  { fieldKey: "spouse_oas_gis", fieldType: FieldType.number },
-  { fieldKey: "spouse_trust_income", fieldType: FieldType.number },
-  { fieldKey: "spouse_canada_pension_plan_cpp", fieldType: FieldType.number },
-  { fieldKey: "spouse_tax_credits_gst_credit", fieldType: FieldType.number },
-  { fieldKey: "spouse_child_tax_benefits", fieldType: FieldType.number },
-  { fieldKey: "spouse_income_tax_refund", fieldType: FieldType.number },
-  { fieldKey: "spouse_other_income_money_received", fieldType: FieldType.number },
+  {
+    fieldKey: "spouse_oas_gis",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_trust_income",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_canada_pension_plan_cpp",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_tax_credits_gst_credit",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_child_tax_benefits",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_income_tax_refund",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_other_income_money_received",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
+  {
+    fieldKey: "spouse_income_of_dependent_children",
+    fieldType: FieldType.number,
+    formatSpec: NUMBER_FORMAT_SPEC,
+  },
 ];
 
 // ========== BENCHMARKING SEED DATA ==========
@@ -1450,6 +1629,7 @@ async function seedTemplateModelData() {
         update: {
           field_type: field.fieldType,
           field_format: field.fieldFormat ?? null,
+          format_spec: field.formatSpec ?? null,
           display_order: index,
         },
         create: {
@@ -1457,6 +1637,7 @@ async function seedTemplateModelData() {
           field_key: field.fieldKey,
           field_type: field.fieldType,
           field_format: field.fieldFormat ?? null,
+          format_spec: field.formatSpec ?? null,
           display_order: index,
         },
       }),

@@ -16,13 +16,16 @@ import { ConfigService } from "@nestjs/config";
 import { AzureBlobProviderService } from "./azure-blob-provider.service";
 import { AzureStorageService } from "./azure-storage.service";
 import { BLOB_STORAGE } from "./blob-storage.interface";
+import { MinioBlobStorageService } from "./minio-blob-storage.service";
+import { StorageLedgerService } from "./storage-ledger.service";
+import { StorageLedgerDbService } from "./storage-ledger-db.service";
 
 export const BLOB_STORAGE_CONTAINER_NAME = "BLOB_STORAGE_CONTAINER_NAME";
 
-import { MinioBlobStorageService } from "./minio-blob-storage.service";
-
 @Module({
   providers: [
+    StorageLedgerDbService,
+    StorageLedgerService,
     MinioBlobStorageService,
     AzureBlobProviderService,
     AzureStorageService,
@@ -71,6 +74,11 @@ import { MinioBlobStorageService } from "./minio-blob-storage.service";
       ],
     },
   ],
-  exports: [BLOB_STORAGE, AzureStorageService, BLOB_STORAGE_CONTAINER_NAME],
+  exports: [
+    BLOB_STORAGE,
+    AzureStorageService,
+    BLOB_STORAGE_CONTAINER_NAME,
+    StorageLedgerService,
+  ],
 })
 export class BlobStorageModule {}

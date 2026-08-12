@@ -74,6 +74,7 @@ describe("TemporalClientService", () => {
     // Setup mock workflow handle
     mockWorkflowHandle = {
       workflowId: "workflow-123",
+      firstExecutionRunId: "run-id-456",
       describe: jest.fn(),
       result: jest.fn(),
       query: jest.fn(),
@@ -260,7 +261,7 @@ describe("TemporalClientService", () => {
         "g-test",
       );
 
-      expect(result).toBe("workflow-123");
+      expect(result).toBe("run-id-456");
       expect(mockClient.workflow.start).toHaveBeenCalledWith(
         "graphWorkflow",
         expect.objectContaining({

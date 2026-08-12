@@ -20,6 +20,8 @@ export const REGISTERED_ACTIVITY_TYPES = [
   "vlmOcrHybrid.extract",
   "ocr.storeResults",
   "ocr.enrich",
+  "hitl.applyReviewCriteria",
+  "document.persistReviewPlan",
   "document.storeRejection",
   "getWorkflowGraphConfig",
   "document.split",

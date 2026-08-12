@@ -165,6 +165,21 @@ const CORRECTION_TOOL_REGISTRY: CorrectionToolManifestEntry[] = [
         required: false,
         default: "none",
       },
+      {
+        name: "singleCharacterToZero",
+        type: "boolean",
+        description:
+          'After normalization, coerce in-scope field values that are a single trimmed character (or a whole digit 0–9 in Azure valueNumber/valueInteger) to "0". Syncs numeric typed fields so benchmark display (which prefers valueNumber) matches. Scope: with documentType, number-typed schema fields only; without schema, applicant_/spouse_ income-field keys. Overridden by singleCharacterToZeroFields when set.',
+        required: false,
+        default: false,
+      },
+      {
+        name: "singleCharacterToZeroFields",
+        type: "string[]",
+        description:
+          "Explicit field key allowlist for singleCharacterToZero. When set, overrides the schema-type / no-schema key heuristic.",
+        required: false,
+      },
     ],
     tags: ["whitespace", "formatting", "normalization", "dates", "numbers"],
   },

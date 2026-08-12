@@ -53,6 +53,14 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     },
     "ocr.checkConfidence": { description: "Calculate OCR confidence" },
     "ocr.storeResults": { description: "Store OCR results in database" },
+    "hitl.applyReviewCriteria": {
+      description:
+        "Evaluate configured, document-agnostic rules against every OCR field to build a per-field review/skip plan (prediction-only; no ground truth)",
+    },
+    "document.persistReviewPlan": {
+      description:
+        "Persist the per-field HITL review plan (from hitl.applyReviewCriteria) onto the document for the review UI",
+    },
     "document.storeRejection": { description: "Store document rejection data" },
     "document.split": { description: "Split multi-page PDF into segments" },
     "document.classify": { description: "Classify document type (rule-based)" },

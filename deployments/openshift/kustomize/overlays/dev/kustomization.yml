@@ -1,16 +1,26 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: fd34fb-test
-resources:
-- ../../base
-images:
-- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
-  newTag: develop-latest
-- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
-  newTag: develop-latest
-- name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
-  newTag: develop-latest
-commonLabels:
-  env: dev
-
-
+# =============================================================================
+# PENDING / NOT WIRED IN — fixed-overlay deploy path for dev.
+#
+# Kept as a legible reference for a possible future "hybrid" deploy model:
+# fixed, committed overlays alongside the generate-overlay.sh +
+# overlays/instance-template script that is required for ephemeral branch
+# instances. Nothing in the pipeline builds this file today. Left fully
+# commented out on purpose so it stays inert until the decision is made.
+#
+#   AI-1687 — https://citz-do.atlassian.net/browse/AI-1687
+# =============================================================================
+#
+# apiVersion: kustomize.config.k8s.io/v1beta1
+# kind: Kustomization
+# namespace: fd34fb-test
+# resources:
+# - ../../base
+# images:
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/backend-services
+#   newTag: develop-latest
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/temporal
+#   newTag: develop-latest
+# - name: artifacts.developer.gov.bc.ca/kfd3-fd34fb-local/frontend
+#   newTag: develop-latest
+# commonLabels:
+#   env: dev

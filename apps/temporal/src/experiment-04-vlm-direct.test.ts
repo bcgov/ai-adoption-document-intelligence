@@ -2,7 +2,7 @@
  * Experiment 04 — VLM-direct (gpt-5.4)
  *
  * Two-layer test suite for the
- * `docs-md/graph-workflows/templates/experiment-04-vlm-direct-workflow.json`
+ * `docs-md/workflows/templates/experiment-04-vlm-direct-workflow.json`
  * template:
  *
  *   1. **Static + structural** assertions on the JSON template (cheap, no
@@ -76,7 +76,7 @@ const TEMPLATE_PATH = path.join(
   "..",
   "..",
   "docs-md",
-  "graph-workflows",
+  "workflows",
   "templates",
   "experiment-04-vlm-direct-workflow.json",
 );

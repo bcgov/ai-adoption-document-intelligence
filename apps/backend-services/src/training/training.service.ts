@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -23,6 +24,9 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { AuditService } from "@/audit/audit.service";
 import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -91,6 +95,9 @@ export class TrainingService {
     private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly rateVersionSeeder: RateVersionSeederService,
+    private readonly preflightCapCheck: PreflightCapCheckService,
+    private readonly usageEventService: UsageEventService,
   ) {
     this.diMode = resolveDocumentIntelligenceMode(
       this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
@@ -345,6 +352,19 @@ export class TrainingService {
     const maxTrainingHours =
       buildMode === BuildMode.neural ? (dto.maxTrainingHours ?? null) : null;
 
+    // Pre-flight spending cap check — run before creating the job so that a
+    // rejected submission does not leave an orphaned PENDING record.
+    const trainingCosts = await this.rateVersionSeeder.getActiveTrainingCosts(
+      new Date(),
+    );
+    if (trainingCosts) {
+      await this.preflightCapCheck.checkCap(
+        templateModel.group_id,
+        trainingCosts.templateModelCost,
+        trainingCosts.unitCostDollars,
+      );
+    }
+
     const trainingJob = await this.trainingDb.createTrainingJob({
       template_model_id: templateModelId,
       status: TrainingStatus.PENDING,
@@ -360,6 +380,7 @@ export class TrainingService {
       trainingJob.id,
       templateModelId,
       versionedModelId,
+      templateModel.group_id,
       dto,
     ).catch((error) => {
       this.logger.error(
@@ -393,6 +414,7 @@ export class TrainingService {
     jobId: string,
     templateModelId: string,
     modelId: string,
+    groupId: string,
     dto: StartTrainingDto,
   ): Promise<void> {
     try {
@@ -555,6 +577,29 @@ export class TrainingService {
         status: TrainingStatus.TRAINING,
         operation_id: operationId,
       });
+
+      // Record usage event after successful Azure submission
+      const trainingCosts = await this.rateVersionSeeder.getActiveTrainingCosts(
+        new Date(),
+      );
+      if (trainingCosts) {
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "model_training",
+            group_id: groupId,
+            resource_id: jobId,
+            resource_type: "template_model",
+            units_consumed: trainingCosts.templateModelCost,
+            rate_version_id: trainingCosts.rateVersionId,
+            unit_cost_dollars: trainingCosts.unitCostDollars,
+            activity_name: "training.template_model",
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record model_training event training.template_model: resource_id ${jobId} Group: ${groupId}. Error: ${getErrorMessage(billingError)}`,
+          );
+        }
+      }
 
       this.logger.log(
         `Training initiated for job ${jobId}, operation ID: ${operationId}`,

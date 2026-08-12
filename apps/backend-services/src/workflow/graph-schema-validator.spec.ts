@@ -1294,7 +1294,7 @@ describe("graph-schema-validator", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("validates the SDPR zero-recovery variant template", () => {
+    it("validates the SDPR operational workflow template", () => {
       const templatePath = join(
         __dirname,
         "..",

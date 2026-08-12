@@ -3,6 +3,7 @@ status: active
 updated: 2026-08-01
 canonical_sources:
   - docs-md/architecture/HITL_ARCHITECTURE.md
+  - docs-md/architecture/HITL_REVIEW_CRITERIA.md
   - docs-md/extraction/HITL_DEMO_RESET.md
   - apps/backend-services/src/hitl/
   - apps/frontend/src/pages/
@@ -22,6 +23,7 @@ HITL routes low-confidence or review-required document results to humans. It is 
 ## Source Map
 
 - Architecture and lifecycle concepts live in `docs-md/architecture/HITL_ARCHITECTURE.md`.
+- Field-level review gating (the `hitl.applyReviewCriteria` graph activity — a prediction-only rule engine deciding which fields need review) is documented in `docs-md/architecture/HITL_REVIEW_CRITERIA.md`; it produces a review plan in workflow context but does not itself touch session/queue state.
 - Backend session, queue, lock, correction, and analytics behavior lives in `apps/backend-services/src/hitl/`.
 - Persisted model truth lives in `apps/shared/prisma/schema.prisma`.
 - Frontend review entrypoints are split between page-level routes and feature components under `apps/frontend/src/`.
