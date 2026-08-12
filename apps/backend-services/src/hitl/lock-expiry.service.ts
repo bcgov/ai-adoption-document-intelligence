@@ -35,7 +35,7 @@ export class LockExpiryService {
           id: { in: sessionIds },
           status: ReviewStatus.in_progress,
         },
-        data: { status: ReviewStatus.abandoned, completed_at: now },
+        data: { status: ReviewStatus.abandoned },
       }),
       this.prisma.documentLock.deleteMany({
         where: { session_id: { in: sessionIds } },
