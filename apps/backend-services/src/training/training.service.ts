@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@ai-di/shared-logging";
 import DocumentIntelligence, {
   type DocumentIntelligenceClient,
   isUnexpected,
@@ -21,7 +22,11 @@ import {
   ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { AuditService } from "@/audit/audit.service";
 import { resolveDocumentIntelligenceMode } from "@/azure/document-intelligence-mode";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import { validateBlobFilePath } from "@/blob-storage/storage-path-builder";
 import { BenchmarkDefinitionDbService } from "../benchmark/benchmark-definition-db.service";
 import { AzureStorageService } from "../blob-storage/azure-storage.service";
@@ -87,8 +92,12 @@ export class TrainingService {
     private readonly benchmarkDefinitionDb: BenchmarkDefinitionDbService,
     private readonly configService: ConfigService,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly rateVersionSeeder: RateVersionSeederService,
+    private readonly preflightCapCheck: PreflightCapCheckService,
+    private readonly usageEventService: UsageEventService,
   ) {
     this.diMode = resolveDocumentIntelligenceMode(
       this.configService.get<string>("DOCUMENT_INTELLIGENCE_MODE"),
@@ -284,6 +293,7 @@ export class TrainingService {
   async startTraining(
     templateModelId: string,
     dto: StartTrainingDto,
+    actorId: string,
   ): Promise<TrainingJobDto> {
     if (this.diMode === "mock") {
       throw new ServiceUnavailableException(
@@ -342,6 +352,19 @@ export class TrainingService {
     const maxTrainingHours =
       buildMode === BuildMode.neural ? (dto.maxTrainingHours ?? null) : null;
 
+    // Pre-flight spending cap check — run before creating the job so that a
+    // rejected submission does not leave an orphaned PENDING record.
+    const trainingCosts = await this.rateVersionSeeder.getActiveTrainingCosts(
+      new Date(),
+    );
+    if (trainingCosts) {
+      await this.preflightCapCheck.checkCap(
+        templateModel.group_id,
+        trainingCosts.templateModelCost,
+        trainingCosts.unitCostDollars,
+      );
+    }
+
     const trainingJob = await this.trainingDb.createTrainingJob({
       template_model_id: templateModelId,
       status: TrainingStatus.PENDING,
@@ -357,12 +380,27 @@ export class TrainingService {
       trainingJob.id,
       templateModelId,
       versionedModelId,
+      templateModel.group_id,
       dto,
     ).catch((error) => {
       this.logger.error(
         `Training job ${trainingJob.id} failed: ${error.message}`,
         error.stack,
       );
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "training_job_started",
+      resource_type: "training_job",
+      resource_id: trainingJob.id,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+      payload: {
+        template_model_id: templateModelId,
+        target_model_id: versionedModelId,
+        target_version: nextVersion,
+        build_mode: buildMode,
+      },
     });
 
     return this.mapTrainingJobToDto(trainingJob);
@@ -376,6 +414,7 @@ export class TrainingService {
     jobId: string,
     templateModelId: string,
     modelId: string,
+    groupId: string,
     dto: StartTrainingDto,
   ): Promise<void> {
     try {
@@ -539,6 +578,29 @@ export class TrainingService {
         operation_id: operationId,
       });
 
+      // Record usage event after successful Azure submission
+      const trainingCosts = await this.rateVersionSeeder.getActiveTrainingCosts(
+        new Date(),
+      );
+      if (trainingCosts) {
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "model_training",
+            group_id: groupId,
+            resource_id: jobId,
+            resource_type: "template_model",
+            units_consumed: trainingCosts.templateModelCost,
+            rate_version_id: trainingCosts.rateVersionId,
+            unit_cost_dollars: trainingCosts.unitCostDollars,
+            activity_name: "training.template_model",
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record model_training event training.template_model: resource_id ${jobId} Group: ${groupId}. Error: ${getErrorMessage(billingError)}`,
+          );
+        }
+      }
+
       this.logger.log(
         `Training initiated for job ${jobId}, operation ID: ${operationId}`,
       );
@@ -598,7 +660,7 @@ export class TrainingService {
   /**
    * Cancel a training job (if still in progress)
    */
-  async cancelTrainingJob(jobId: string): Promise<void> {
+  async cancelTrainingJob(jobId: string, actorId: string): Promise<void> {
     const job = await this.trainingDb.findTrainingJob(jobId);
 
     if (!job) {
@@ -620,6 +682,18 @@ export class TrainingService {
       status: TrainingStatus.FAILED,
       error_message: "Cancelled by user",
       completed_at: new Date(),
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "training_job_cancelled",
+      resource_type: "training_job",
+      resource_id: jobId,
+      actor_id: actorId,
+      group_id: job.template_model.group_id,
+      payload: {
+        template_model_id: job.template_model_id,
+        previous_status: job.status,
+      },
     });
 
     this.logger.log(`Training job ${jobId} cancelled`);
@@ -776,6 +850,7 @@ export class TrainingService {
   async setActiveTrainedVersion(
     templateModelId: string,
     trainedModelId: string,
+    actorId: string,
   ): Promise<TrainedModelDto> {
     const target = await this.trainingDb.findTrainedModelForTemplate(
       templateModelId,
@@ -793,6 +868,20 @@ export class TrainingService {
       );
     }
     const updated = await this.trainingDb.setActiveTrainedModel(trainedModelId);
+    const templateModel =
+      await this.templateModelService.getTemplateModel(templateModelId);
+    await this.auditService.recordEvent({
+      event_type: "trained_model_activated",
+      resource_type: "trained_model",
+      resource_id: updated.id,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+      payload: {
+        template_model_id: templateModelId,
+        model_id: updated.model_id,
+        version: updated.version,
+      },
+    });
     return this.mapTrainedModelToDto(updated);
   }
 
@@ -804,6 +893,7 @@ export class TrainingService {
   async deleteTrainedVersion(
     templateModelId: string,
     trainedModelId: string,
+    actorId: string,
   ): Promise<TrainedModelDto> {
     const target = await this.trainingDb.findTrainedModelForTemplate(
       templateModelId,
@@ -845,6 +935,20 @@ export class TrainingService {
       );
     }
     const updated = await this.trainingDb.tombstoneTrainedModel(trainedModelId);
+    const templateModel =
+      await this.templateModelService.getTemplateModel(templateModelId);
+    await this.auditService.recordEvent({
+      event_type: "trained_model_deleted",
+      resource_type: "trained_model",
+      resource_id: updated.id,
+      actor_id: actorId,
+      group_id: templateModel.group_id,
+      payload: {
+        template_model_id: templateModelId,
+        model_id: updated.model_id,
+        version: updated.version,
+      },
+    });
     return this.mapTrainedModelToDto(updated);
   }
 

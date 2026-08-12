@@ -96,10 +96,23 @@ export interface Page {
   words: Word[];
   lines: Line[];
   spans: Span[];
+  selectionMarks?: SelectionMark[];
 }
 
 export interface Word {
   content: string;
+  polygon: number[];
+  /**
+   * Per-word OCR confidence (0-1). Optional: some providers (e.g. the
+   * VLM+OCR hybrid) deliberately omit it so raw OCR word confidence does
+   * not drown the evidence-based field confidence in `ocr.checkConfidence`.
+   */
+  confidence?: number;
+  span: Span;
+}
+
+export interface SelectionMark {
+  state: "selected" | "unselected";
   polygon: number[];
   confidence: number;
   span: Span;

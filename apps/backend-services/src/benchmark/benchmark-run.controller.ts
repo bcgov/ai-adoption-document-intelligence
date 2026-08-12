@@ -323,7 +323,11 @@ export class BenchmarkRunController {
       `POST /api/benchmark/projects/${projectId}/runs/${runId}/cancel`,
     );
     await this.assertProjectGroupAccess(projectId, req);
-    return this.benchmarkRunService.cancelRun(projectId, runId);
+    return this.benchmarkRunService.cancelRun(
+      projectId,
+      runId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("runs/:runId/drill-down")
@@ -581,7 +585,11 @@ export class BenchmarkRunController {
       `DELETE /api/benchmark/projects/${projectId}/runs/${runId}`,
     );
     await this.assertProjectGroupAccess(projectId, req);
-    return this.benchmarkRunService.deleteRun(projectId, runId);
+    return this.benchmarkRunService.deleteRun(
+      projectId,
+      runId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("apply-candidate-to-base")

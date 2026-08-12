@@ -1,4 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -15,6 +19,8 @@ import { ClassifierDbService } from "./classifier-db.service";
 const mockClassifierDbService = {
   findClassifierModel: jest.fn(),
   updateClassifierModel: jest.fn(),
+  createClassifierModel: jest.fn(),
+  deleteClassifierModel: jest.fn(),
 };
 const mockAzureService = {
   getClient: jest.fn().mockReturnValue({
@@ -46,6 +52,20 @@ const mockBlobStorage = {
   list: jest.fn(),
   deleteByPrefix: jest.fn(),
 };
+const mockRateVersionSeeder = {
+  getActiveTrainingCosts: jest.fn().mockResolvedValue({
+    rateVersionId: "rate-v1",
+    unitCostDollars: 0.001,
+    templateModelCost: 500,
+    classifierCost: 300,
+  }),
+};
+const mockPreflightCapCheck = {
+  checkCap: jest.fn().mockResolvedValue(undefined),
+};
+const mockUsageEventService = {
+  recordUsageEvent: jest.fn().mockResolvedValue({}),
+};
 
 describe("ClassifierService", () => {
   let service: ClassifierService;
@@ -56,6 +76,15 @@ describe("ClassifierService", () => {
   let azureStorage: AzureStorageService;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+    mockRateVersionSeeder.getActiveTrainingCosts.mockResolvedValue({
+      rateVersionId: "rate-v1",
+      unitCostDollars: 0.001,
+      templateModelCost: 500,
+      classifierCost: 300,
+    });
+    mockPreflightCapCheck.checkCap.mockResolvedValue(undefined);
+    mockUsageEventService.recordUsageEvent.mockResolvedValue({});
     blobStorage = mockBlobStorage as any;
     classifierDbService = mockClassifierDbService as any;
     azureService = mockAzureService as any;
@@ -69,6 +98,22 @@ describe("ClassifierService", () => {
         { provide: AzureStorageService, useValue: azureStorage },
         { provide: BLOB_STORAGE, useValue: blobStorage },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "document-blobs" },
+        {
+          provide: RateVersionSeederService,
+          useValue: mockRateVersionSeeder,
+        },
+        {
+          provide: PreflightCapCheckService,
+          useValue: mockPreflightCapCheck,
+        },
+        {
+          provide: UsageEventService,
+          useValue: mockUsageEventService,
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
     service = module.get<ClassifierService>(ClassifierService);
@@ -106,7 +151,9 @@ describe("ClassifierService", () => {
         path: () => ({
           post: jest.fn().mockResolvedValue({
             status: "202",
-            headers: { "operation-location": "https://mock/loc" },
+            headers: {
+              "operation-location": "https://mock/operations/op-id",
+            },
           }),
         }),
       };
@@ -128,6 +175,102 @@ describe("ClassifierService", () => {
       const result = await service.requestClassifierTraining("c", "g", "u");
       expect(mockClassifierDbService.updateClassifierModel).toHaveBeenCalled();
       expect(result.status).toBe(ClassifierStatus.TRAINING);
+    });
+
+    it("calls preflightCapCheck.checkCap with classifier training cost before submitting to Azure", async () => {
+      (service as any).client = {
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "202",
+            headers: {
+              "operation-location": "https://mock/operations/op-id",
+            },
+          }),
+        }),
+      };
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
+        description: "desc",
+      });
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
+        listBlobsByHierarchy: jest.fn().mockReturnValue([]),
+      });
+      (azureStorage.listBlobs as jest.Mock).mockResolvedValue([
+        { name: "_shared/classification/other/sample.jpg" },
+      ]);
+      (
+        classifierDbService.updateClassifierModel as jest.Mock
+      ).mockResolvedValue({ status: ClassifierStatus.TRAINING });
+
+      await service.requestClassifierTraining("c", "g", "u");
+
+      expect(mockPreflightCapCheck.checkCap).toHaveBeenCalledWith(
+        "g",
+        300,
+        0.001,
+      );
+    });
+
+    it("records a model_training_started UsageEvent after 202 Accepted", async () => {
+      (service as any).client = {
+        path: () => ({
+          post: jest.fn().mockResolvedValue({
+            status: "202",
+            headers: {
+              "operation-location": "https://mock/operations/op-id",
+            },
+          }),
+        }),
+      };
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
+        description: "desc",
+      });
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
+        listBlobsByHierarchy: jest.fn().mockReturnValue([]),
+      });
+      (azureStorage.listBlobs as jest.Mock).mockResolvedValue([
+        { name: "_shared/classification/other/sample.jpg" },
+      ]);
+      (
+        classifierDbService.updateClassifierModel as jest.Mock
+      ).mockResolvedValue({ status: ClassifierStatus.TRAINING });
+
+      await service.requestClassifierTraining("my-classifier", "group-1", "u");
+
+      expect(mockUsageEventService.recordUsageEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activity_name: "training.classifier",
+          event_type: "model_training",
+          group_id: "group-1",
+          rate_version_id: "rate-v1",
+          resource_id: "my-classifier",
+          resource_type: "classifier",
+          unit_cost_dollars: 0.001,
+          units_consumed: 300,
+        }),
+      );
+    });
+
+    it("throws HTTP 402 when cap check fails for classifier training", async () => {
+      const { HttpException, HttpStatus } = await import("@nestjs/common");
+      (classifierDbService.findClassifierModel as jest.Mock).mockResolvedValue({
+        description: "desc",
+      });
+      (azureStorage.getContainerClient as jest.Mock).mockReturnValue({
+        listBlobsByHierarchy: jest.fn().mockReturnValue([]),
+      });
+      (azureStorage.listBlobs as jest.Mock).mockResolvedValue([
+        { name: "_shared/classification/other/sample.jpg" },
+      ]);
+      mockPreflightCapCheck.checkCap.mockRejectedValueOnce(
+        new HttpException(
+          { message: "Monthly spending cap exceeded", shortfall_dollars: 0.3 },
+          HttpStatus.PAYMENT_REQUIRED,
+        ),
+      );
+
+      await expect(
+        service.requestClassifierTraining("c", "g", "u"),
+      ).rejects.toThrow(HttpException);
     });
 
     it("should throw an error if response is missing headers", async () => {

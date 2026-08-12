@@ -78,9 +78,9 @@ result=$(sanitize_instance_name "Feature/My-Thing")
 assert_eq "Feature/My-Thing -> feature-my-thing" "feature-my-thing" "${result}"
 echo ""
 
-echo "Test 1.4: Nested slashes"
+echo "Test 1.4: Nested slashes (truncated to 20 chars)"
 result=$(sanitize_instance_name "feature/us-003/my-thing")
-assert_eq "feature/us-003/my-thing -> feature-us-003-my-thing" "feature-us-003-my-thing" "${result}"
+assert_eq "feature/us-003/my-thing -> feature-us-003-my-th" "feature-us-003-my-th" "${result}"
 echo ""
 
 echo "Test 1.5: Simple branch names"
@@ -130,29 +130,29 @@ result=$(sanitize_instance_name "feature-thing/")
 assert_eq "feature-thing/ -> feature-thing" "feature-thing" "${result}"
 echo ""
 
-echo "Test 2.7: Mixed special characters"
+echo "Test 2.7: Mixed special characters (truncated to 20 chars)"
 result=$(sanitize_instance_name "feature/my_thing.v2@test")
-assert_eq "feature/my_thing.v2@test -> feature-my-thing-v2-test" "feature-my-thing-v2-test" "${result}"
+assert_eq "feature/my_thing.v2@test -> feature-my-thing-v2" "feature-my-thing-v2" "${result}"
 echo ""
 
-echo "Test 2.8: Truncation to 63 characters"
-long_name="this-is-a-very-long-branch-name-that-exceeds-the-sixty-three-character-kubernetes-limit"
+echo "Test 2.8: Truncation to 20 characters"
+long_name="this-is-a-very-long-branch-name-that-exceeds-the-twenty-character-instance-limit"
 result=$(sanitize_instance_name "${long_name}")
 length=${#result}
 TESTS_RUN=$((TESTS_RUN + 1))
-if [[ ${length} -le 63 ]]; then
-  echo "  PASS: Result length ${length} <= 63"
+if [[ ${length} -le 20 ]]; then
+  echo "  PASS: Result length ${length} <= 20"
   TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-  echo "  FAIL: Result length ${length} > 63"
+  echo "  FAIL: Result length ${length} > 20"
   TESTS_FAILED=$((TESTS_FAILED + 1))
 fi
 echo ""
 
 echo "Test 2.9: Truncation does not leave trailing hyphen"
-# Name that when truncated to 63 chars would end with a hyphen
-name_with_hyphen_at_63="abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxy-z0"
-result=$(sanitize_instance_name "${name_with_hyphen_at_63}")
+# Name whose 20th character is a hyphen, so truncation to 20 would end with one
+name_with_hyphen_at_20="abcdefghijklmnopqrs-tuvwxyz"
+result=$(sanitize_instance_name "${name_with_hyphen_at_20}")
 TESTS_RUN=$((TESTS_RUN + 1))
 if [[ "${result}" != *- ]]; then
   echo "  PASS: No trailing hyphen after truncation"

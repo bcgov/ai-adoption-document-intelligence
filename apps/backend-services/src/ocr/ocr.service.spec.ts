@@ -1,8 +1,12 @@
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { ConflictException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { PreflightCostEstimatorService } from "@/billing/preflight-cost-estimator.service";
+import { UsageEventService } from "@/billing/usage-event.service";
+import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -12,6 +16,7 @@ import {
 import { DocumentService } from "../document/document.service";
 import { DocumentData } from "../document/document-db.types";
 import { TemporalClientService } from "../temporal/temporal-client.service";
+import { WorkflowService } from "../workflow/workflow.service";
 import { OcrService } from "./ocr.service";
 
 const defaultDocument = {
@@ -31,6 +36,12 @@ const defaultDocument = {
   workflow_config_id: "workflow-config-123",
   group_id: "group-1",
 } as DocumentData;
+
+const defaultWorkflowConfig = {
+  nodes: {},
+  edges: [],
+  entryNodeId: "start",
+};
 
 describe("OcrService", () => {
   let service: OcrService;
@@ -95,6 +106,46 @@ describe("OcrService", () => {
           provide: AuditService,
           useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: WorkflowService,
+          useValue: {
+            getWorkflowVersionById: jest.fn().mockResolvedValue({
+              id: "workflow-config-123",
+              config: defaultWorkflowConfig,
+            }),
+          },
+        },
+        {
+          provide: PreflightCostEstimatorService,
+          useValue: {
+            estimateWorkflowCost: jest.fn().mockResolvedValue({
+              estimatedUnits: 100,
+              rateVersionId: "rv-1",
+              unitCostDollars: 0.001,
+            }),
+          },
+        },
+        {
+          provide: PreflightCapCheckService,
+          useValue: {
+            checkCap: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: UsageEventService,
+          useValue: {
+            recordUsageEvent: jest.fn().mockResolvedValue({ id: "evt-1" }),
+          },
+        },
+        {
+          provide: PrismaService,
+          useValue: {
+            transaction: jest.fn(
+              async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+                fn({} as Prisma.TransactionClient),
+            ),
+          },
+        },
       ],
     }).compile();
 
@@ -120,12 +171,21 @@ describe("OcrService", () => {
       expect(
         () =>
           new OcrService(
-            mockConfigService as any,
+            mockConfigService as never,
             {} as DocumentService,
             {} as TemporalClientService,
-            mockBlobStorage as any,
+            mockBlobStorage as never,
             mockAppLogger,
             { recordEvent: jest.fn() } as unknown as AuditService,
+            {} as WorkflowService,
+            {
+              estimateWorkflowCost: jest.fn(),
+            } as unknown as PreflightCostEstimatorService,
+            { checkCap: jest.fn() } as unknown as PreflightCapCheckService,
+            { recordUsageEvent: jest.fn() } as unknown as UsageEventService,
+            {
+              transaction: jest.fn(async (fn) => fn({})),
+            } as unknown as PrismaService,
           ),
       ).not.toThrow();
     });

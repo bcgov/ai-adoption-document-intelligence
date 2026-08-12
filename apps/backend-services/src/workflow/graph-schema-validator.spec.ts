@@ -1260,7 +1260,7 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs-md",
-        "graph-workflows",
+        "workflows",
         "templates",
         "standard-ocr-workflow.json",
       );
@@ -1281,9 +1281,30 @@ describe("graph-schema-validator", () => {
         "..",
         "..",
         "docs-md",
-        "graph-workflows",
+        "workflows",
         "templates",
         "multi-page-report-workflow.json",
+      );
+      const templateJson = readFileSync(templatePath, "utf8");
+      const template = JSON.parse(
+        templateJson,
+      ) as unknown as GraphWorkflowConfig;
+      const result = validateGraphConfig(template);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("validates the SDPR operational workflow template", () => {
+      const templatePath = join(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "..",
+        "docs-md",
+        "workflows",
+        "templates",
+        "standard-ocr-workflow-sdpr.json",
       );
       const templateJson = readFileSync(templatePath, "utf8");
       const template = JSON.parse(

@@ -1,0 +1,685 @@
+{
+  "model": "mistral-document-ai-2512",
+  "document": {
+    "type": "document_url",
+    "document_url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEA…[truncated, 757955 chars total]"
+  },
+  "document_annotation_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "document_annotation",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "title": "DocumentAnnotation",
+        "properties": {
+          "checkbox_need_assistance_yes": {
+            "type": "string",
+            "title": "checkbox_need_assistance_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q1 'Are you still in need of assistance?' — APPLICANT-section YES box."
+          },
+          "checkbox_need_assistance_no": {
+            "type": "string",
+            "title": "checkbox_need_assistance_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q1 'Are you still in need of assistance?' — APPLICANT-section NO box."
+          },
+          "checkbox_family_assets_yes": {
+            "type": "string",
+            "title": "checkbox_family_assets_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q2 'Has your family unit received or disposed of any assets?' — YES box."
+          },
+          "checkbox_family_assets_no": {
+            "type": "string",
+            "title": "checkbox_family_assets_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q2 'Has your family unit received or disposed of any assets?' — NO box."
+          },
+          "checkbox_shelter_yes": {
+            "type": "string",
+            "title": "checkbox_shelter_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q3 'Any changes to your shelter costs?' — YES box."
+          },
+          "checkbox_shelter_no": {
+            "type": "string",
+            "title": "checkbox_shelter_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q3 'Any changes to your shelter costs?' — NO box."
+          },
+          "checkbox_dependants_yes": {
+            "type": "string",
+            "title": "checkbox_dependants_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' — YES box."
+          },
+          "checkbox_dependants_no": {
+            "type": "string",
+            "title": "checkbox_dependants_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q4 'Any changes in Dependants or Persons living in the home?' — NO box."
+          },
+          "checkbox_employment_changes_applicant_yes": {
+            "type": "string",
+            "title": "checkbox_employment_changes_applicant_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q5 'Any employment changes?' — APPLICANT row, YES box (left column)."
+          },
+          "checkbox_employment_changes_applicant_no": {
+            "type": "string",
+            "title": "checkbox_employment_changes_applicant_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q5 'Any employment changes?' — APPLICANT row, NO box (left column)."
+          },
+          "checkbox_employment_changes_spouse_yes": {
+            "type": "string",
+            "title": "checkbox_employment_changes_spouse_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q5 'Any employment changes?' — SPOUSE row, YES box (right column)."
+          },
+          "checkbox_employment_changes_spouse_no": {
+            "type": "string",
+            "title": "checkbox_employment_changes_spouse_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q5 'Any employment changes?' — SPOUSE row, NO box (right column)."
+          },
+          "checkbox_school_applicant_yes": {
+            "type": "string",
+            "title": "checkbox_school_applicant_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q6 'Are you attending / enrolled in school or training?' — APPLICANT row, YES box."
+          },
+          "checkbox_school_applicant_no": {
+            "type": "string",
+            "title": "checkbox_school_applicant_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q6 'Are you attending / enrolled in school or training?' — APPLICANT row, NO box."
+          },
+          "checkbox_school_spouse_yes": {
+            "type": "string",
+            "title": "checkbox_school_spouse_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q6 'Are you attending / enrolled in school or training?' — SPOUSE row, YES box."
+          },
+          "checkbox_school_spouse_no": {
+            "type": "string",
+            "title": "checkbox_school_spouse_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q6 'Are you attending / enrolled in school or training?' — SPOUSE row, NO box."
+          },
+          "checkbox_work_applicant_yes": {
+            "type": "string",
+            "title": "checkbox_work_applicant_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q7 'Are you looking for work?' — APPLICANT row, YES box."
+          },
+          "checkbox_work_applicant_no": {
+            "type": "string",
+            "title": "checkbox_work_applicant_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q7 'Are you looking for work?' — APPLICANT row, NO box."
+          },
+          "checkbox_work_spouse_yes": {
+            "type": "string",
+            "title": "checkbox_work_spouse_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q7 'Are you looking for work?' — SPOUSE row, YES box."
+          },
+          "checkbox_work_spouse_no": {
+            "type": "string",
+            "title": "checkbox_work_spouse_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q7 'Are you looking for work?' — SPOUSE row, NO box."
+          },
+          "checkbox_moved_applicant_yes": {
+            "type": "string",
+            "title": "checkbox_moved_applicant_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q8 'Have you moved or entered a facility?' — APPLICANT row, YES box."
+          },
+          "checkbox_moved_applicant_no": {
+            "type": "string",
+            "title": "checkbox_moved_applicant_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q8 'Have you moved or entered a facility?' — APPLICANT row, NO box."
+          },
+          "checkbox_moved_spouse_yes": {
+            "type": "string",
+            "title": "checkbox_moved_spouse_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q8 'Have you moved or entered a facility?' — SPOUSE row, YES box."
+          },
+          "checkbox_moved_spouse_no": {
+            "type": "string",
+            "title": "checkbox_moved_spouse_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q8 'Have you moved or entered a facility?' — SPOUSE row, NO box."
+          },
+          "checkbox_warrant_applicant_yes": {
+            "type": "string",
+            "title": "checkbox_warrant_applicant_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q9 'Any outstanding warrants for your arrest?' — APPLICANT row, YES box."
+          },
+          "checkbox_warrant_applicant_no": {
+            "type": "string",
+            "title": "checkbox_warrant_applicant_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q9 'Any outstanding warrants for your arrest?' — APPLICANT row, NO box."
+          },
+          "checkbox_warrant_spouse_yes": {
+            "type": "string",
+            "title": "checkbox_warrant_spouse_yes",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q9 'Any outstanding warrants for your arrest?' — SPOUSE row, YES box."
+          },
+          "checkbox_warrant_spouse_no": {
+            "type": "string",
+            "title": "checkbox_warrant_spouse_no",
+            "enum": [
+              "selected",
+              "unselected"
+            ],
+            "description": "Section 1 Q9 'Any outstanding warrants for your arrest?' — SPOUSE row, NO box."
+          },
+          "explain_changes": {
+            "type": "string",
+            "title": "explain_changes",
+            "description": "Free-text paragraph below 'Please explain all changes including income and submit proof:'. Verbatim transcription, exact punctuation/spacing/capitalization."
+          },
+          "signature": {
+            "type": "string",
+            "title": "signature",
+            "description": "APPLICANT's signature box at the bottom — return any visible mark (cursive, initials, single character, scribble). Different field from `name` (printed). Empty string only if the box is blank."
+          },
+          "spouse_signature": {
+            "type": "string",
+            "title": "spouse_signature",
+            "description": "SPOUSE's signature box at the bottom — return any visible mark. Empty string only if blank."
+          },
+          "date": {
+            "type": "string",
+            "title": "date",
+            "description": "APPLICANT's signature date in the box labelled 'Date (yyyy-mmm-dd)'. Preserve the exact format printed/written on the form."
+          },
+          "spouse_date": {
+            "type": "string",
+            "title": "spouse_date",
+            "description": "SPOUSE's signature date. Preserve the exact format printed/written on the form."
+          },
+          "name": {
+            "type": "string",
+            "title": "name",
+            "description": "APPLICANT's printed full name in the 'Applicant Print Name' box. Verbatim, preserve case and spacing."
+          },
+          "spouse_name": {
+            "type": "string",
+            "title": "spouse_name",
+            "description": "SPOUSE's printed full name in the 'Spouse Print Name' box. Verbatim, preserve case and spacing."
+          },
+          "phone": {
+            "type": "string",
+            "title": "phone",
+            "description": "APPLICANT's telephone number in the 'Applicant Telephone' box. Preserve format exactly as written (parens, hyphens, dots, spaces)."
+          },
+          "spouse_phone": {
+            "type": "string",
+            "title": "spouse_phone",
+            "description": "SPOUSE's telephone number. Preserve format exactly as written."
+          },
+          "sin": {
+            "type": "string",
+            "title": "sin",
+            "description": "APPLICANT's Social Insurance Number. Preserve format exactly as written (hyphens, spaces, or no separators)."
+          },
+          "spouse_sin": {
+            "type": "string",
+            "title": "spouse_sin",
+            "description": "SPOUSE's Social Insurance Number. Preserve format exactly as written."
+          },
+          "applicant_net_employment_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_net_employment_income",
+            "description": "Section 2, row 'Net Employment Income', APPLICANT (left) column."
+          },
+          "applicant_employment_insurance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_employment_insurance",
+            "description": "Section 2, row 'Employment Insurance', APPLICANT column."
+          },
+          "applicant_spousal_support_alimony": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_spousal_support_alimony",
+            "description": "Section 2, row 'Spousal Support / Alimony', APPLICANT column."
+          },
+          "applicant_child_support": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_child_support",
+            "description": "Section 2, row 'Child Support', APPLICANT column."
+          },
+          "applicant_workbc_financial_support": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_workbc_financial_support",
+            "description": "Section 2, row 'WorkBC Financial Support', APPLICANT column."
+          },
+          "applicant_student_funding_loans_bursaries": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_student_funding_loans_bursaries",
+            "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', APPLICANT column."
+          },
+          "applicant_rental_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_rental_income",
+            "description": "Section 2, row 'Rental Income', APPLICANT column."
+          },
+          "applicant_room_board_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_room_board_income",
+            "description": "Section 2, row 'Room / Board Income', APPLICANT column."
+          },
+          "applicant_workers_compensation": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_workers_compensation",
+            "description": "Section 2, row 'Worker's Compensation', APPLICANT column."
+          },
+          "applicant_private_pensions_retirement_disability": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_private_pensions_retirement_disability",
+            "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', APPLICANT column."
+          },
+          "applicant_oas_gis": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_oas_gis",
+            "description": "Section 2, row 'OAS / GIS', APPLICANT column."
+          },
+          "applicant_trust_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_trust_income",
+            "description": "Section 2, row 'Trust Income', APPLICANT column."
+          },
+          "applicant_canada_pension_plan_cpp": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_canada_pension_plan_cpp",
+            "description": "Section 2, row 'Canada Pension Plan (CPP)', APPLICANT column."
+          },
+          "applicant_tax_credits_gst_credit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_tax_credits_gst_credit",
+            "description": "Section 2, row 'Tax Credits (eg: GST Credit)', APPLICANT column."
+          },
+          "applicant_child_tax_benefits": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_child_tax_benefits",
+            "description": "Section 2, row 'Child Tax Benefits', APPLICANT column."
+          },
+          "applicant_income_tax_refund": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_income_tax_refund",
+            "description": "Section 2, row 'Income Tax Refund', APPLICANT column."
+          },
+          "applicant_other_income_money_received": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_other_income_money_received",
+            "description": "Section 2, row 'All other income / money received', APPLICANT column."
+          },
+          "applicant_income_of_dependent_children": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "applicant_income_of_dependent_children",
+            "description": "Section 2, row 'Income of Dependent Children', APPLICANT column."
+          },
+          "spouse_net_employment_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_net_employment_income",
+            "description": "Section 2, row 'Net Employment Income', SPOUSE (right) column."
+          },
+          "spouse_employment_insurance": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_employment_insurance",
+            "description": "Section 2, row 'Employment Insurance', SPOUSE column."
+          },
+          "spouse_spousal_support_alimony": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_spousal_support_alimony",
+            "description": "Section 2, row 'Spousal Support / Alimony', SPOUSE column."
+          },
+          "spouse_child_support": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_child_support",
+            "description": "Section 2, row 'Child Support', SPOUSE column."
+          },
+          "spouse_workbc_financial_support": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_workbc_financial_support",
+            "description": "Section 2, row 'WorkBC Financial Support', SPOUSE column."
+          },
+          "spouse_student_funding_loans_bursaries": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_student_funding_loans_bursaries",
+            "description": "Section 2, row 'Student Funding (eg: Loans, Bursaries)', SPOUSE column."
+          },
+          "spouse_rental_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_rental_income",
+            "description": "Section 2, row 'Rental Income', SPOUSE column."
+          },
+          "spouse_room_board_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_room_board_income",
+            "description": "Section 2, row 'Room / Board Income', SPOUSE column."
+          },
+          "spouse_workers_compensation": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_workers_compensation",
+            "description": "Section 2, row 'Worker's Compensation', SPOUSE column."
+          },
+          "spouse_private_pensions_retirement_disability": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_private_pensions_retirement_disability",
+            "description": "Section 2, row 'Private Pensions (eg: Retirement, Disability)', SPOUSE column."
+          },
+          "spouse_oas_gis": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_oas_gis",
+            "description": "Section 2, row 'OAS / GIS', SPOUSE column."
+          },
+          "spouse_trust_income": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_trust_income",
+            "description": "Section 2, row 'Trust Income', SPOUSE column."
+          },
+          "spouse_canada_pension_plan_cpp": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_canada_pension_plan_cpp",
+            "description": "Section 2, row 'Canada Pension Plan (CPP)', SPOUSE column."
+          },
+          "spouse_tax_credits_gst_credit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_tax_credits_gst_credit",
+            "description": "Section 2, row 'Tax Credits (eg: GST Credit)', SPOUSE column."
+          },
+          "spouse_child_tax_benefits": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_child_tax_benefits",
+            "description": "Section 2, row 'Child Tax Benefits', SPOUSE column."
+          },
+          "spouse_income_tax_refund": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_income_tax_refund",
+            "description": "Section 2, row 'Income Tax Refund', SPOUSE column."
+          },
+          "spouse_other_income_money_received": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "spouse_other_income_money_received",
+            "description": "Section 2, row 'All other income / money received', SPOUSE column."
+          }
+        },
+        "required": [
+          "checkbox_need_assistance_yes",
+          "checkbox_need_assistance_no",
+          "checkbox_family_assets_yes",
+          "checkbox_family_assets_no",
+          "checkbox_shelter_yes",
+          "checkbox_shelter_no",
+          "checkbox_dependants_yes",
+          "checkbox_dependants_no",
+          "checkbox_employment_changes_applicant_yes",
+          "checkbox_employment_changes_applicant_no",
+          "checkbox_employment_changes_spouse_yes",
+          "checkbox_employment_changes_spouse_no",
+          "checkbox_school_applicant_yes",
+          "checkbox_school_applicant_no",
+          "checkbox_school_spouse_yes",
+          "checkbox_school_spouse_no",
+          "checkbox_work_applicant_yes",
+          "checkbox_work_applicant_no",
+          "checkbox_work_spouse_yes",
+          "checkbox_work_spouse_no",
+          "checkbox_moved_applicant_yes",
+          "checkbox_moved_applicant_no",
+          "checkbox_moved_spouse_yes",
+          "checkbox_moved_spouse_no",
+          "checkbox_warrant_applicant_yes",
+          "checkbox_warrant_applicant_no",
+          "checkbox_warrant_spouse_yes",
+          "checkbox_warrant_spouse_no",
+          "explain_changes",
+          "signature",
+          "spouse_signature",
+          "date",
+          "spouse_date",
+          "name",
+          "spouse_name",
+          "phone",
+          "spouse_phone",
+          "sin",
+          "spouse_sin",
+          "applicant_net_employment_income",
+          "applicant_employment_insurance",
+          "applicant_spousal_support_alimony",
+          "applicant_child_support",
+          "applicant_workbc_financial_support",
+          "applicant_student_funding_loans_bursaries",
+          "applicant_rental_income",
+          "applicant_room_board_income",
+          "applicant_workers_compensation",
+          "applicant_private_pensions_retirement_disability",
+          "applicant_oas_gis",
+          "applicant_trust_income",
+          "applicant_canada_pension_plan_cpp",
+          "applicant_tax_credits_gst_credit",
+          "applicant_child_tax_benefits",
+          "applicant_income_tax_refund",
+          "applicant_other_income_money_received",
+          "applicant_income_of_dependent_children",
+          "spouse_net_employment_income",
+          "spouse_employment_insurance",
+          "spouse_spousal_support_alimony",
+          "spouse_child_support",
+          "spouse_workbc_financial_support",
+          "spouse_student_funding_loans_bursaries",
+          "spouse_rental_income",
+          "spouse_room_board_income",
+          "spouse_workers_compensation",
+          "spouse_private_pensions_retirement_disability",
+          "spouse_oas_gis",
+          "spouse_trust_income",
+          "spouse_canada_pension_plan_cpp",
+          "spouse_tax_credits_gst_credit",
+          "spouse_child_tax_benefits",
+          "spouse_income_tax_refund",
+          "spouse_other_income_money_received"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "document_annotation_prompt": "You are extracting structured field values from a BC SDPR Monthly Report form.\nRead the form image carefully and return values for every field in the schema.\nTreat the printed form layout as the source of truth and prefer literal,\nverbatim transcription over normalisation.\n\n<form_layout>\nThe form has two parallel income columns in Section 2: APPLICANT (left) and\nSPOUSE (right). Each `applicant_*` field reads the LEFT column ONLY; each\n`spouse_*` field reads the RIGHT column ONLY. Never copy a value across\ncolumns. Income rows are ordered: Net Employment Income, Employment Insurance,\nSpousal Support / Alimony, Child Support, WorkBC Financial Support, Student\nFunding, Rental Income, Room/Board Income, Worker's Compensation, Private\nPensions, OAS/GIS, Trust Income, Canada Pension Plan (CPP), Tax Credits,\nChild Tax Benefits, Income Tax Refund, All Other Income, Income of Dependent\nChildren. Section 1 has Yes/No checkbox pairs for nine questions; questions\n5-9 have separate Applicant and Spouse pairs (suffix `_spouse_yes` /\n`_spouse_no`).\n</form_layout>\n\n<numeric_income_rules>\nFor every `applicant_*` and `spouse_*` numeric field in Section 2, decide\nbetween three outputs:\n\n1. The dollar amount as a plain number (no `$`, no commas, no spaces) —\n   `1,234.56` → `1234.56`. Use this when the cell clearly shows a non-zero\n   amount.\n2. The number `0` — use this ONLY when the cell VISIBLY contains one of:\n   the digit `0` (printed or handwritten), `$0`, `$ 0`, `0.00`, a written-out\n   \"zero\" / \"nil\" / \"none\", a horizontal dash `-` written in the cell, or the\n   literal text `N/A` written in the cell. The mark must be unambiguously\n   inside the cell's bounding box.\n3. `null` — for any other case, including:\n   - The cell is completely empty (no ink, no print, no mark inside the\n     cell's bounding box).\n   - The cell has stray pen marks, smudges, dots, light shadows, faint\n     printing residue, or scanner noise that you cannot confidently\n     identify as a `0` or any other digit. **When in doubt, return `null`.**\n   - The entire column appears unused (e.g. spouse column where no spouse\n     fields are filled in elsewhere on the form).\n\nHard rule: **DO NOT INFER ZEROS.** Do not return `0` just because the cell\n*looks* like it might have a zero — only return `0` when you would, looking\nat this single cell in isolation, say \"yes, there is a clear `0` here\". If\nadjacent cells in the same column all show clear zeros and this cell is\nambiguous, the ambiguous cell still returns `null`, not `0`. False-positive\n`0`s are worse than missed `0`s — they corrupt the financial data.\n\nDo NOT propagate zeros across columns: if the applicant column is filled\nwith `0`s and the spouse column has no marks at all, the spouse cells\nreturn `null`, not `0`.\n</numeric_income_rules>\n\n<checkbox_rules>\nSection 1 has nine numbered questions. The checkbox LAYOUT differs between\ntwo groups — read each group with its own rule.\n\n**Group A — Questions 1-4 (single Yes/No pair, no applicant/spouse split):**\n\nEach of these four questions has exactly ONE Yes box and ONE No box on the\nform, spanning the full width of the row. There is no separate applicant\nor spouse column for these questions.\n\nField-key mapping for Group A (NOTE: even though these field keys do not\ncontain the word \"applicant\", they belong to this single-pair group, NOT\nto the applicant column of Group B):\n\n```\nQ1 \"Are you still in need of assistance?\"   → checkbox_need_assistance_yes / _no\nQ2 \"Has your family unit received or disposed of any assets?\"  → checkbox_family_assets_yes / _no\nQ3 \"Any changes to your shelter costs?\"     → checkbox_shelter_yes / _no\nQ4 \"Any changes in Dependants or Persons living in the home?\"  → checkbox_dependants_yes / _no\n```\n\nRead the single Yes box and the single No box for these four questions.\n\n**Group B — Questions 5-9 (TWO COLUMNS: Applicant column on the left,\nSpouse column on the right):**\n\nEach of these five questions has FOUR boxes laid out as:\n\n```\n                                         APPLICANT col    SPOUSE col\n                                         [Yes] [No]       [Yes] [No]\nQ5 Any employment changes?\nQ6 Are you attending school/training?\nQ7 Are you looking for work?\nQ8 Have you moved or entered a facility?\nQ9 Any outstanding warrants for arrest?\n```\n\nField-key mapping for Group B — the `_yes` / `_no` keys WITHOUT `_spouse_`\nread the APPLICANT (left) column; the keys WITH `_spouse_` read the SPOUSE\n(right) column:\n\n```\nQ5: checkbox_employment_changes_yes / _no       → APPLICANT column boxes (left)\n    checkbox_employment_changes_spouse_yes / _no → SPOUSE column boxes (right)\nQ6: checkbox_school_yes / _no                    → APPLICANT (left)\n    checkbox_school_spouse_yes / _no             → SPOUSE (right)\nQ7: checkbox_work_yes / _no                      → APPLICANT (left)\n    checkbox_work_spouse_yes / _no               → SPOUSE (right)\nQ8: checkbox_moved_yes / _no                     → APPLICANT (left)\n    checkbox_moved_spouse_yes / _no              → SPOUSE (right)\nQ9: checkbox_warrant_yes / _no                   → APPLICANT (left)\n    checkbox_warrant_spouse_yes / _no            → SPOUSE (right)\n```\n\n**Read each box INDEPENDENTLY using these rules:**\n\nThe form's checkbox style is a small square `☐` that becomes filled (`☑`,\n`☒`, X-mark `×`, tick `✓`, scribble, blacked-out fill, clear dot inside)\nwhen selected.\n\n- If the box visibly contains ANY clear mark inside it (X, ✓, scribble,\n  fill, clear dot), return `selected` for THAT field.\n- If the box is empty/clean (no ink inside the box's borders), return\n  `unselected` for THAT field.\n\nYes and No boxes are SEPARATE fields. Do not assume \"if YES is selected,\nthen NO is unselected\" without looking at NO. Some respondents check both,\nsome leave both blank, some check neither in error. Return what you\nliterally see in each box.\n\nFor Group B, **do not swap the columns**: read the APPLICANT (left) pair\nONLY for `_yes` / `_no` keys, and the SPOUSE (right) pair ONLY for\n`_spouse_yes` / `_spouse_no` keys. If the spouse column on this form is\nentirely empty (no spouse name, no spouse signature, no marks anywhere in\nthe spouse column), every `_spouse_yes` and `_spouse_no` field returns\n`unselected`.\n\nStray marks outside the box (e.g. ink that touches the box border from\noutside, signature loops that cross over the box) are NOT selections —\nonly marks visibly INSIDE the box count.\n</checkbox_rules>\n\n<text_field_rules>\nPRESERVE FORMAT. For every text field, return the value EXACTLY as written on\nthe form, character for character including:\n\n- Spaces, including double spaces or unusual spacing.\n- Punctuation: hyphens, parentheses, slashes, commas, periods.\n- Capitalization (do not change case).\n- Original separators in numbers (do NOT strip hyphens from `123-456-789`,\n  do NOT add hyphens to `123456789`, do NOT change `2025-Nov-12` to ISO).\n\nSpecifically:\n\n- `sin` / `spouse_sin`: the Social Insurance Number AS WRITTEN — preserve\n  hyphens, spaces, or no separators based on what appears on the form.\n- `phone` / `spouse_phone`: the telephone number AS WRITTEN — preserve\n  parens, hyphens, dots, spaces, or whatever format appears.\n- `date` / `spouse_date`: the date AS WRITTEN. If the form prints\n  `2025-Nov-12`, return `2025-Nov-12`. If it prints `1985JAN4`, return\n  `1985JAN4`. If it prints `2026-03-24`, return `2026-03-24`. Do NOT\n  normalise to a different format.\n- `name` / `spouse_name`: the printed full name AS WRITTEN, preserving\n  spacing and capitalization. Distinct from `signature`.\n- `signature` / `spouse_signature`: WHATEVER MARK is visible inside the\n  signature box — cursive name, initials, single character (e.g. `X`),\n  scribble, or short text. If the box is completely empty, return `\"\"`.\n  This is a recall-sensitive field: do not skip the box. If you see ANY ink\n  inside, transcribe it.\n- `explain_changes`: the free-text paragraph AT BOTTOM of the form, character\n  for character including punctuation, spacing, capitalization, and\n  abbreviations. Do not paraphrase, do not \"clean up\". `\"\"` if blank.\n\nReturn `\"\"` (empty string) ONLY for text fields where the field on the form\nis genuinely blank (no ink inside the cell or signature box).\n</text_field_rules>\n\n<scope>\nOfficer-only / case-management fields (NEXT CHEQUE ISSUE, CASE ID, CASELOAD,\nADDRESS BLOCK, etc.) are NOT in the schema — ignore them. Only return values\nfor the field_keys provided in the schema.\n</scope>\n\nBe conservative on illegible text fields: return `\"\"` only when the cell is\ntruly empty. If you can read SOMETHING inside the box (even partially),\nreturn what you see.\n\n<form_specific_marks>\nIMPORTANT: On this form, checkbox selections may be indicated by ANY of these marks: an X inside the box, a checkmark (✓ / ✔), a filled or blacked-out box, a dot inside the box, OR a circle drawn AROUND the entire checkbox or AROUND the Yes / No label next to it. Treat ALL of these as a 'selected' marking. A circle around the checkbox is just as valid a selection as a checkmark — do not ignore circled checkboxes. If the OCR markdown shows `☐` (unmarked) for a box that the image clearly shows is circled, prefer the image: that field is 'selected'.\n</form_specific_marks>"
+}

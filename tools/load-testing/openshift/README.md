@@ -16,7 +16,7 @@ oc create secret generic load-test-k6-secrets \
 oc apply -k tools/load-testing -n "$NAMESPACE"
 ```
 
-See also [tools/load-testing/README.md](../README.md) and [docs-md/LOAD_TESTING.md](../../../docs-md/LOAD_TESTING.md).
+See also [tools/load-testing/README.md](../README.md) and [docs-md/benchmarking/LOAD_TESTING.md](../../../docs-md/benchmarking/LOAD_TESTING.md).
 
 The blob storage pressure Job uses `BASE_URL=http://backend-services:3002`, uploads generated binary multipart files through `POST /api/azure/classifier/documents`, and deletes only its generated label/folder during teardown. Configure backend-services storage env (`BLOB_STORAGE_PROVIDER`, provider credentials, and bucket/container/root) through the application deployment, not the k6 Job.
 

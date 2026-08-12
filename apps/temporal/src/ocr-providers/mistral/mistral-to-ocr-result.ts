@@ -3,7 +3,12 @@ import {
   type MistralFieldDefRow,
   mistralAnnotationToDocumentsAndKeyValuePairs,
 } from "./mistral-annotation-to-azure-fields";
-import type { MistralOcrApiResponse } from "./mistral-ocr-types";
+import type {
+  MistralOcrApiResponse,
+  MistralOcrBbox,
+  MistralOcrLineConfidenceScore,
+  MistralOcrWordConfidenceScore,
+} from "./mistral-ocr-types";
 
 export interface MistralToOcrResultContext {
   fileName: string;
@@ -15,6 +20,22 @@ export interface MistralToOcrResultContext {
 /** Optional `TemplateModel.field_schema` rows (same shape as labeling) for typed `documents[0].fields`. */
 export interface MistralOcrResultOptions {
   fieldDefs?: MistralFieldDefRow[];
+}
+
+/**
+ * Convert a Mistral axis-aligned bbox `{ top_left_x, top_left_y, bottom_right_x, bottom_right_y }`
+ * to the canonical 8-element flat polygon `[x1,y1,x2,y2,x3,y3,x4,y4]`, clockwise
+ * from the top-left corner. Same units as the source bbox (Mistral returns
+ * pixels; `OCRResult.pages[].unit` is set to `"pixel"` to match).
+ */
+function bboxToPolygon(bbox: MistralOcrBbox): number[] {
+  const { top_left_x: x1, top_left_y: y1 } = bbox;
+  const { bottom_right_x: x2, bottom_right_y: y2 } = bbox;
+  return [x1, y1, x2, y1, x2, y2, x1, y2];
+}
+
+function polygonFromBbox(bbox?: MistralOcrBbox): number[] {
+  return bbox ? bboxToPolygon(bbox) : [];
 }
 
 function wordsFromPageMarkdown(markdown: string, confidence: number): Word[] {
@@ -35,11 +56,7 @@ function wordsFromPageMarkdown(markdown: string, confidence: number): Word[] {
 function wordsFromMistralPage(page: {
   markdown: string;
   confidence_scores?: {
-    word_confidence_scores?: Array<{
-      text: string;
-      confidence: number;
-      start_index: number;
-    }>;
+    word_confidence_scores?: MistralOcrWordConfidenceScore[];
     average_page_confidence_score?: number;
   } | null;
 }): Word[] {
@@ -49,7 +66,7 @@ function wordsFromMistralPage(page: {
   if (scores && scores.length > 0) {
     return scores.map((w) => ({
       content: w.text,
-      polygon: [],
+      polygon: polygonFromBbox(w.bbox),
       confidence: w.confidence,
       span: { offset: w.start_index, length: w.text.length },
     }));
@@ -57,8 +74,21 @@ function wordsFromMistralPage(page: {
   return wordsFromPageMarkdown(page.markdown, fallbackAvg);
 }
 
-function linesFromMarkdown(markdown: string): Line[] {
-  const trimmed = markdown.trim();
+function linesFromPage(page: {
+  markdown: string;
+  confidence_scores?: {
+    line_confidence_scores?: MistralOcrLineConfidenceScore[];
+  } | null;
+}): Line[] {
+  const lineScores = page.confidence_scores?.line_confidence_scores;
+  if (lineScores && lineScores.length > 0) {
+    return lineScores.map((l) => ({
+      content: l.text,
+      polygon: polygonFromBbox(l.bbox),
+      spans: [{ offset: l.start_index, length: l.text.length }],
+    }));
+  }
+  const trimmed = (page.markdown ?? "").trim();
   if (!trimmed) {
     return [];
   }
@@ -100,7 +130,7 @@ export function mistralOcrResponseToOcrResult(
     const width = p.dimensions?.width ?? 612;
     const height = p.dimensions?.height ?? 792;
     const words = wordsFromMistralPage(p);
-    const lines = linesFromMarkdown(p.markdown ?? "");
+    const lines = linesFromPage(p);
 
     return {
       pageNumber,

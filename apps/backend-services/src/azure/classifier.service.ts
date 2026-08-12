@@ -8,6 +8,8 @@ import {
 } from "@nestjs/common";
 import "multer";
 import * as path from "node:path";
+import { getErrorMessage } from "@ai-di/shared-logging";
+import { AuditService } from "@/audit/audit.service";
 import { AzureService } from "@/azure/azure.service";
 import {
   ClassifierDbService,
@@ -20,6 +22,9 @@ import {
   ClassifierStatus,
 } from "@/azure/dto/classifier-constants.dto";
 import { buildMockClassificationOperationLocation } from "@/azure/mock-document-intelligence.constants";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { RateVersionSeederService } from "@/billing/rate-version-seeder.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import { AzureStorageService } from "@/blob-storage/azure-storage.service";
 import {
   BLOB_STORAGE,
@@ -53,8 +58,12 @@ export class ClassifierService {
     @Inject(BLOB_STORAGE)
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
+    private readonly auditService: AuditService,
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
+    private readonly rateVersionSeeder: RateVersionSeederService,
+    private readonly preflightCapCheck: PreflightCapCheckService,
+    private readonly usageEventService: UsageEventService,
   ) {
     this.client = azureService.getClient();
   }
@@ -367,6 +376,18 @@ export class ClassifierService {
       `Training config built for classifier "${classifierName}". Submitting build request to Azure DI.`,
     );
 
+    // Pre-flight spending cap check before submitting to Azure
+    const trainingCosts = await this.rateVersionSeeder.getActiveTrainingCosts(
+      new Date(),
+    );
+    if (trainingCosts) {
+      await this.preflightCapCheck.checkCap(
+        groupId,
+        trainingCosts.classifierCost,
+        trainingCosts.unitCostDollars,
+      );
+    }
+
     // Run training of classifier
     const response = await this.client.path("/documentClassifiers:build").post({
       body: trainingConfig,
@@ -397,6 +418,27 @@ export class ClassifierService {
       this.logger.debug(
         `Classifier training submitted. Operation ID: ${operationId}`,
       );
+
+      // Record usage event after successful Azure 202 acceptance
+      if (trainingCosts) {
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "model_training",
+            group_id: groupId,
+            resource_id: classifierName,
+            resource_type: "classifier",
+            units_consumed: trainingCosts.classifierCost,
+            rate_version_id: trainingCosts.rateVersionId,
+            unit_cost_dollars: trainingCosts.unitCostDollars,
+            activity_name: "training.classifier",
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record model_training event training.classifier. Name: ${classifierName}. Group: ${groupId}. Error: ${getErrorMessage(billingError)}`,
+          );
+        }
+      }
+
       return await this.classifierDb.updateClassifierModel(
         classifierName,
         groupId,
@@ -555,11 +597,23 @@ export class ClassifierService {
     properties: ClassifierEditableProperties,
     actorId: string,
   ): Promise<ClassifierModel> {
-    return this.classifierDb.createClassifierModel(
+    const created = await this.classifierDb.createClassifierModel(
       classifierName,
       properties,
       actorId,
     );
+    await this.auditService.recordEvent({
+      event_type: "classifier_created",
+      resource_type: "classifier",
+      resource_id: created.name,
+      actor_id: actorId,
+      group_id: created.group_id,
+      payload: {
+        classifier_name: created.name,
+        status: created.status,
+      },
+    });
+    return created;
   }
 
   /**
@@ -576,12 +630,28 @@ export class ClassifierService {
     properties: Partial<ClassifierEditableProperties>,
     actorId: string,
   ): Promise<ClassifierModel> {
-    return this.classifierDb.updateClassifierModel(
+    const updated = await this.classifierDb.updateClassifierModel(
       classifierName,
       groupId,
       properties,
       actorId,
     );
+    const isUserFacingUpdate =
+      properties.description !== undefined || properties.source !== undefined;
+    if (isUserFacingUpdate) {
+      await this.auditService.recordEvent({
+        event_type: "classifier_updated",
+        resource_type: "classifier",
+        resource_id: updated.name,
+        actor_id: actorId,
+        group_id: groupId,
+        payload: {
+          classifier_name: updated.name,
+          fields_updated: Object.keys(properties),
+        },
+      });
+    }
+    return updated;
   }
 
   /**
@@ -675,6 +745,18 @@ export class ClassifierService {
       groupId,
       classifierName,
       actorId,
+    });
+
+    await this.auditService.recordEvent({
+      event_type: "classifier_deleted",
+      resource_type: "classifier",
+      resource_id: classifierName,
+      actor_id: actorId,
+      group_id: groupId,
+      payload: {
+        classifier_name: classifierName,
+        previous_status: classifier.status,
+      },
     });
 
     // Cancel training if in progress

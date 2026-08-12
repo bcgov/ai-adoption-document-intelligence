@@ -11,6 +11,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { BenchmarkDefinitionService } from "./benchmark-definition.service";
 import { BenchmarkDefinitionDbService } from "./benchmark-definition-db.service";
@@ -136,6 +137,10 @@ describe("BenchmarkDefinitionService", () => {
             deleteSchedule: jest.fn(),
             getScheduleInfo: jest.fn(),
           },
+        },
+        {
+          provide: AuditService,
+          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

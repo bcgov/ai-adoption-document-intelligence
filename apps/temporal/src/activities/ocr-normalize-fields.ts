@@ -66,6 +66,51 @@ interface NormalizeFieldsParams extends CorrectionToolParams {
    * Applies to **all** fields present in the OCR result (not gated by `fieldScope`; use `fieldScope` for rules only).
    */
   emptyValueCoercion?: EmptyValueCoercionMode;
+  /**
+   * After normalization (format spec / rules / semantic shaping), coerce field values that
+   * end up as a single trimmed character to `"0"`. Handles stray OCR marks (e.g. a checkbox
+   * glyph or punctuation) misread into a numeric field as one character.
+   * Default `false` — feature is off.
+   * Scope, in priority order:
+   * 1. `singleCharacterToZeroFields` (if non-empty) — coerce only these exact field keys.
+   * 2. Otherwise, when a field schema was loaded via `documentType`: only fields whose
+   *    schema `field_type` is `number` (string/date/signature keys are never coerced).
+   * 3. Otherwise (no schema): field keys matching the `applicant_`/`spouse_` income-field
+   *    naming convention (legacy heuristic for schema-less runs).
+   */
+  singleCharacterToZero?: boolean;
+  /** Explicit field key allowlist for `singleCharacterToZero`. Overrides the type/key heuristic. */
+  singleCharacterToZeroFields?: string[];
+}
+
+/** Field keys following the SDPR income-field naming convention (`applicant_*` / `spouse_*`). */
+const INCOME_LIKE_FIELD_KEY = /^(?:applicant|spouse)_[a-z0-9_]+$/i;
+
+function isIncomeLikeFieldKey(fieldKey: string): boolean {
+  return INCOME_LIKE_FIELD_KEY.test(fieldKey);
+}
+
+/**
+ * Resolve whether a field is in scope for `singleCharacterToZero` coercion.
+ * An explicit `fieldSet` (from `singleCharacterToZeroFields`) takes priority.
+ * When a field schema was loaded, trust `field_type === "number"` only — do not fall
+ * back to the income-like key heuristic (which would also match string fields like
+ * `spouse_name` / `spouse_signature`).
+ */
+function isSingleCharacterToZeroInScope(
+  fieldKey: string,
+  schemaFieldType: string | undefined,
+  fieldSet: Set<string> | null,
+  hasFieldSchema: boolean,
+): boolean {
+  if (fieldSet) return fieldSet.has(fieldKey);
+  if (hasFieldSchema) return schemaFieldType === "number";
+  return isIncomeLikeFieldKey(fieldKey);
+}
+
+/** True for whole digits 0–9 (string or numeric Azure `valueNumber` / `valueInteger`). */
+function isWholeSingleDigit(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 0 && n <= 9;
 }
 
 /** Rule ids allowed per Prisma FieldType (intersected with activity `enabledRules` / `disabledRules`). */
@@ -464,6 +509,11 @@ export async function normalizeOcrFields(
   const normalizeFullResult = params.normalizeFullResult === true;
   const emptyValueCoercion: EmptyValueCoercionMode =
     params.emptyValueCoercion ?? "none";
+  const singleCharacterToZero = params.singleCharacterToZero === true;
+  const singleCharacterToZeroFieldSet =
+    singleCharacterToZero && params.singleCharacterToZeroFields?.length
+      ? new Set(params.singleCharacterToZeroFields)
+      : null;
 
   let fieldMap: FieldMap | null = null;
   if (documentType?.trim()) {
@@ -488,6 +538,7 @@ export async function normalizeOcrFields(
     documentType: documentType ?? null,
     schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
     emptyValueCoercion,
+    singleCharacterToZero,
   });
 
   const result = deepCopyOcrResult(ocrResult);
@@ -497,6 +548,8 @@ export async function normalizeOcrFields(
     if (!value || typeof value !== "string") return value;
     const inScope = isFieldInScope(fieldKey, fieldScope);
     const schemaRow = fieldMap?.[fieldKey];
+
+    let out: string | undefined;
 
     if (schemaRow?.format) {
       const spec = parseFormatSpec(schemaRow.format);
@@ -512,42 +565,65 @@ export async function normalizeOcrFields(
             source: "rule",
           });
         }
-        return formatted;
+        out = formatted;
       }
     }
 
-    const rulesThisField =
-      fieldMap && schemaRow
-        ? rulesForSchemaField(rules, schemaRow.type)
-        : rules;
+    if (out === undefined) {
+      const rulesThisField =
+        fieldMap && schemaRow
+          ? rulesForSchemaField(rules, schemaRow.type)
+          : rules;
 
-    let out: string;
-    if (!fieldMap) {
-      if (inScope) {
-        out = applyRules(value, fieldKey, rules, changes);
-      } else if (looksLikeNumericOrMoney(value)) {
-        out = applyRules(value, fieldKey, rules, changes, true);
+      if (!fieldMap) {
+        if (inScope) {
+          out = applyRules(value, fieldKey, rules, changes);
+        } else if (looksLikeNumericOrMoney(value)) {
+          out = applyRules(value, fieldKey, rules, changes, true);
+        } else {
+          out = value;
+        }
       } else {
-        out = value;
+        if (inScope) {
+          out = applyRules(value, fieldKey, rulesThisField, changes);
+        } else if (looksLikeNumericOrMoney(value)) {
+          out = applyRules(value, fieldKey, rules, changes, true);
+        } else {
+          out = value;
+        }
       }
-    } else {
-      if (inScope) {
-        out = applyRules(value, fieldKey, rulesThisField, changes);
-      } else if (looksLikeNumericOrMoney(value)) {
-        out = applyRules(value, fieldKey, rules, changes, true);
-      } else {
-        out = value;
+
+      const runSemantic =
+        inScope ||
+        isIdentifierLikeFieldKey(fieldKey) ||
+        isDateLikeFieldKey(fieldKey) ||
+        (fieldMap && schemaRow?.type === "date");
+      if (runSemantic) {
+        out = applySemanticFieldShape(fieldKey, out, changes, schemaRow?.type);
       }
     }
 
-    const runSemantic =
-      inScope ||
-      isIdentifierLikeFieldKey(fieldKey) ||
-      isDateLikeFieldKey(fieldKey) ||
-      (fieldMap && schemaRow?.type === "date");
-    if (runSemantic) {
-      out = applySemanticFieldShape(fieldKey, out, changes, schemaRow?.type);
+    if (
+      singleCharacterToZero &&
+      isSingleCharacterToZeroInScope(
+        fieldKey,
+        schemaRow?.type,
+        singleCharacterToZeroFieldSet,
+        Boolean(fieldMap),
+      ) &&
+      out.trim().length === 1
+    ) {
+      const before = out;
+      out = "0";
+      changes.push({
+        fieldKey,
+        originalValue: before,
+        correctedValue: "0",
+        reason: "Income single-character coerced to 0",
+        source: "rule",
+      });
     }
+
     return out;
   };
 
@@ -568,6 +644,15 @@ export async function normalizeOcrFields(
           valueNumber?: number;
           valueInteger?: number;
         };
+        const schemaRow = fieldMap?.[fieldKey];
+        const inSingleCharZeroScope =
+          singleCharacterToZero &&
+          isSingleCharacterToZeroInScope(
+            fieldKey,
+            schemaRow?.type,
+            singleCharacterToZeroFieldSet,
+            Boolean(fieldMap),
+          );
         const rawContent =
           typeof fd.content === "string" ? fd.content : undefined;
         const rawValueString =
@@ -577,25 +662,61 @@ export async function normalizeOcrFields(
           rawContent !== undefined && rawContent.length > 0
             ? rawContent
             : rawValueString;
-        if (!source || typeof source !== "string") continue;
-        const out = applyNormalization(fieldKey, source);
-        if (rawContent !== undefined) {
-          fd.content = out;
-        }
-        if (rawValueString !== undefined) {
-          fd.valueString = out;
-        }
-        if (
-          isIdentifierLikeFieldKey(fieldKey) &&
-          /^\d+$/.test(out) &&
-          (fd.valueNumber !== undefined || fd.valueInteger !== undefined)
-        ) {
-          const n = parseInt(out, 10);
-          if (!Number.isNaN(n)) {
-            if (fd.valueNumber !== undefined) fd.valueNumber = n;
-            if (fd.valueInteger !== undefined) fd.valueInteger = n;
+
+        if (source && typeof source === "string") {
+          const out = applyNormalization(fieldKey, source);
+          if (rawContent !== undefined) {
+            fd.content = out;
           }
+          if (rawValueString !== undefined) {
+            fd.valueString = out;
+          }
+          // Benchmark flattening prefers valueNumber over content. After a
+          // single-character → "0" string coerce, keep numeric typed values in sync.
+          if (
+            inSingleCharZeroScope &&
+            out === "0" &&
+            source.trim().length === 1
+          ) {
+            if (fd.valueNumber !== undefined) fd.valueNumber = 0;
+            if (fd.valueInteger !== undefined) fd.valueInteger = 0;
+          } else if (
+            isIdentifierLikeFieldKey(fieldKey) &&
+            /^\d+$/.test(out) &&
+            (fd.valueNumber !== undefined || fd.valueInteger !== undefined)
+          ) {
+            const n = parseInt(out, 10);
+            if (!Number.isNaN(n)) {
+              if (fd.valueNumber !== undefined) fd.valueNumber = n;
+              if (fd.valueInteger !== undefined) fd.valueInteger = n;
+            }
+          }
+          continue;
         }
+
+        // No string payload — Azure sometimes returns only valueNumber for income digits.
+        if (!inSingleCharZeroScope) continue;
+        const numeric =
+          fd.valueNumber !== undefined
+            ? fd.valueNumber
+            : fd.valueInteger !== undefined
+              ? fd.valueInteger
+              : undefined;
+        if (numeric === undefined || !isWholeSingleDigit(Number(numeric))) {
+          continue;
+        }
+        const before = String(numeric);
+        if (fd.valueNumber !== undefined) fd.valueNumber = 0;
+        if (fd.valueInteger !== undefined) fd.valueInteger = 0;
+        fd.content = "0";
+        if (fd.valueString !== undefined) fd.valueString = "0";
+        changes.push({
+          fieldKey,
+          originalValue: before,
+          correctedValue: "0",
+          reason: "Income single-character coerced to 0",
+          source: "rule",
+        });
       }
     }
   }
@@ -625,6 +746,7 @@ export async function normalizeOcrFields(
         documentType: documentType ?? null,
         schemaFieldCount: fieldMap ? Object.keys(fieldMap).length : 0,
         emptyValueCoercion,
+        singleCharacterToZero,
       },
     },
     documentId,

@@ -230,7 +230,7 @@ describe("RequestMembershipPage", () => {
       expect(screen.getByTestId("request-success")).toBeInTheDocument();
     });
 
-    it("shows 'Request Pending' and disables the button for the joined group", () => {
+    it("shows 'Request pending' and disables the button for the joined group", () => {
       mockUseAllGroups.mockReturnValue({
         data: groups,
         isLoading: false,
@@ -257,10 +257,10 @@ describe("RequestMembershipPage", () => {
 
       renderPage();
 
-      // group-a button is disabled and shows "Request Pending"
+      // group-a button is disabled and shows "Request pending"
       expect(screen.getByTestId("join-btn-group-a")).toBeDisabled();
       expect(screen.getByTestId("join-btn-group-a")).toHaveTextContent(
-        "Request Pending",
+        "Request pending",
       );
       // group-b button is still joinable
       expect(screen.getByTestId("join-btn-group-b")).not.toBeDisabled();

@@ -48,7 +48,6 @@ export interface GroupRequest {
   email: string;
   groupId: string;
   status: string;
-  actorId?: string;
   reason?: string;
   resolvedAt?: string;
   createdAt: string;

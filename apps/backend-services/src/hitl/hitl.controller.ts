@@ -355,7 +355,11 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.deleteCorrection(sessionId, correctionId);
+    return this.hitlService.deleteCorrection(
+      sessionId,
+      correctionId,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Post("sessions/:id/reopen")

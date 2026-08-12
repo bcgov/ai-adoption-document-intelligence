@@ -270,7 +270,7 @@ function pickPassthroughProps(
  * `stopPropagation`), `component="a"` + `href`, and legacy `variant` / `size` names
  * mapped to BC DS equivalents.
  *
- * @see docs-md/BC_DESIGN_SYSTEM_MIGRATION.md — “Migration principle: visual vs functional”
+ * @see docs-md/frontend/BC_DESIGN_SYSTEM_MIGRATION.md — “Migration principle: visual vs functional”
  * @see https://www2.gov.bc.ca/gov/content/digital/design-system/components/buttons
  */
 export function Button({

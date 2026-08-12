@@ -11,8 +11,11 @@
 .app-shell-bcds-header .bcds-header--container {
   display: flex;
   align-items: center;
-  max-width: none;
   width: 100%;
+}
+
+.app-shell-bcds-header .bcds-header .bcds-header--container {
+  max-width: none;
 }
 
 .app-shell-bcds-header .bcds-header--title {
@@ -31,27 +34,10 @@
   flex-wrap: nowrap;
 }
 
-/* Compact name + email in BC header utilities */
-.app-header-user {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  line-height: 1.15;
-}
-
-.app-header-user .bcds-react-aria-Text {
-  display: block;
-  line-height: 1.15;
-}
-
-.app-header-user .bcds-react-aria-Text + .bcds-react-aria-Text {
-  margin-top: 0.25rem;
-}
-
 /* Tight title/description pairing in standard page headers */
 .bcds-page-header__title-block .bcds-react-aria-Heading,
 .bcds-page-header__title-block .bcds-react-aria-Text {
-  margin: 0 !important;
+  margin: 0;
 }
 
 .bcds-page-header__meta {

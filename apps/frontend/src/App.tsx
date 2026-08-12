@@ -23,6 +23,7 @@ import {
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
 import { RootLayout } from "./layouts/RootLayout";
+import { BillingPage } from "./pages/BillingPage";
 import ClassifierPage from "./pages/ClassifierPage";
 import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
@@ -72,7 +73,7 @@ const router = createBrowserRouter([
       { path: "tables", element: <TablesListPage /> },
       { path: "tables/:tableId", element: <TableDetailPage /> },
 
-      // Template Models with nested routes
+      // Template models with nested routes
       { path: "template-models", element: <ModelListPage /> },
       { path: "template-models/:modelId", element: <ModelDetailPage /> },
       {
@@ -88,7 +89,11 @@ const router = createBrowserRouter([
       { path: "groups", element: <GroupsPage /> },
       { path: "groups/:groupId", element: <GroupDetailPage /> },
 
+      // Billing
+      { path: "billing", element: <BillingPage /> },
+
       // Confusion Profiles
+      // Confusion profiles
       { path: "confusion-profiles", element: <ConfusionProfilesPage /> },
 
       // Benchmarking routes

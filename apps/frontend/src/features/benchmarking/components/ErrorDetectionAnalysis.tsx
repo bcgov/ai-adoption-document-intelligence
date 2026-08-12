@@ -108,7 +108,7 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
 
   return (
     <Stack gap="md">
-      <Title order={4}>Error Detection Analysis</Title>
+      <Title order={4}>Error detection analysis</Title>
 
       {/* Roll-up summary */}
       {rollup && (
@@ -130,7 +130,7 @@ export function ErrorDetectionAnalysis({ projectId, runId }: Props) {
             <DataTable.Th>Error rate</DataTable.Th>
             <DataTable.Th>Threshold</DataTable.Th>
             <DataTable.Th>Suggested</DataTable.Th>
-            <DataTable.Th title="How many real errors the model would catch at this threshold (true positives ÷ total errors). Higher is better for finding problems.">
+            <DataTable.Th title="How many real errors the model would catch at this threshold (true positives ÷ total errors). higher is better for finding problems.">
               Errors caught
             </DataTable.Th>
             <DataTable.Th title="How many correct fields would be flagged for review when they are actually fine (false positives). Lower is better to reduce unnecessary review work.">
