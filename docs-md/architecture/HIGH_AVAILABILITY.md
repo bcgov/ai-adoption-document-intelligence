@@ -110,9 +110,18 @@ All pods have resource requests and limits defined, which are required for HPA t
 | frontend | 50m | 128Mi | 200m | 256Mi |
 
 Memory requests are sized to production steady-state observations (backend ~740Mi, worker ~560Mi)
-so that HPA memory utilization sits at ~72% and ~73% respectively — below the 80% threshold.
+so that HPA memory utilization sits at ~66% and ~65% respectively — below the 80% threshold.
 This prevents HPAs from pinning at max replicas under normal (non-peak) load.
 See [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md) for the full capacity model.
+
+**Reading those percentages correctly.** An HPA resource metric is computed per *pod*,
+not per container: it sums usage across every container in the pod and divides by the sum
+of their requests. Both of these pods carry a `logrotate` sidecar (32Mi) and a `promtail`
+sidecar (64Mi), so the denominators are **1120Mi** for backend-services and **864Mi** for
+temporal-worker — not the 1Gi and 768Mi in the table above. Hence 740/1120 = 66% and
+560/864 = 65%. Dividing by the application container's request alone overstates the
+utilization by roughly 7 points and will make a correctly-sized pod look close to its
+threshold.
 
 **Production differs in one value.** Namespaces ending in `-prod` also get the
 [prod-resources component](../../deployments/openshift/kustomize/components/prod-resources/kustomization.yml),
