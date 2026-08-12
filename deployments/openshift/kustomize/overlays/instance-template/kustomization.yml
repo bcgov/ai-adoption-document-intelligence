@@ -350,11 +350,19 @@ patches:
                   labels:
                     service: backend-services
                     __path__: /var/log/app/*.log
+              # Keep in step with base/backend-services/promtail-configmap.yml:
+              # this patch replaces the whole promtail.yaml value, so the base
+              # file's pipeline_stages never reach a deployed instance.
               pipeline_stages:
+                # Drop debug/verbose logs - high volume, low value in prod.
                 - drop:
                     expression: '"level":"(debug|verbose)"'
+                # Drop health-check hits - fired every few seconds by the router.
                 - drop:
-                    expression: '"path":"/(?:api/)?health"'
+                    expression: '"path":"/(?:api/)?health[/"]'
+                # Drop metrics checks
+                - drop:
+                    expression: '"path":"/metrics"'
   - target:
       kind: ConfigMap
       name: frontend-promtail
