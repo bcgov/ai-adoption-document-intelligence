@@ -381,7 +381,7 @@ export const ReviewWorkspacePage: FC = () => {
     ? location.pathname.replace(/\/[^/]+$/, "")
     : "/review";
 
-  useSessionHeartbeat(sessionId, queuePath);
+  useSessionHeartbeat(sessionId, queuePath, session?.status === "in_progress");
 
   const {
     pushUndo,

@@ -3,6 +3,7 @@ import {
   IconCheck,
   IconClock,
   IconEye,
+  IconFlag,
   IconRotate,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,7 +49,18 @@ export const ReviewQueuePage: FC = () => {
     reviewStatus: "reviewed",
   });
 
-  const activeQueue = activeTab === "reviewed" ? reviewedQueue : pendingQueue;
+  const flaggedQueue = useReviewQueue({
+    maxConfidence: HITL_MAX_CONFIDENCE,
+    limit: 50,
+    reviewStatus: "flagged",
+  });
+
+  const activeQueue =
+    activeTab === "reviewed"
+      ? reviewedQueue
+      : activeTab === "flagged"
+        ? flaggedQueue
+        : pendingQueue;
 
   const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
     null,
@@ -93,7 +105,8 @@ export const ReviewQueuePage: FC = () => {
       return isToday;
     }).length;
     return {
-      totalDocuments: pendingQueue.total + reviewedQueue.total,
+      totalDocuments:
+        pendingQueue.total + reviewedQueue.total + flaggedQueue.total,
       requiresReview: pendingQueue.total,
       averageConfidence,
       reviewedToday,
@@ -103,6 +116,7 @@ export const ReviewQueuePage: FC = () => {
     pendingQueue.total,
     reviewedQueue.queue,
     reviewedQueue.total,
+    flaggedQueue.total,
   ]);
 
   if (activeQueue.isLoading) {
@@ -208,6 +222,9 @@ export const ReviewQueuePage: FC = () => {
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
               Pending review ({pendingQueue.total})
             </Tabs.Tab>
+            <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
+              Flagged ({flaggedQueue.total})
+            </Tabs.Tab>
             <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
               Reviewed ({reviewedQueue.total})
             </Tabs.Tab>
@@ -310,6 +327,75 @@ export const ReviewQueuePage: FC = () => {
                               Start review
                             </Button>
                           )}
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    );
+                  })}
+                </DataTable.Tbody>
+              </DataTable>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="flagged" pt="md">
+            {flaggedQueue.queue.length === 0 ? (
+              <Center py="xl">
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No flagged documents</Text>
+                    <Text size="sm" c="dimmed">
+                      Flagged documents appear here for priority review
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            ) : (
+              <DataTable>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Filename</DataTable.Th>
+                    <DataTable.Th>Last reviewer</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
+                  {flaggedQueue.queue.map((doc) => {
+                    const avgConfidence = getAverageConfidence(doc);
+                    return (
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.lastSession?.reviewer_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge
+                            variant="light"
+                            color={getConfidenceColor(avgConfidence)}
+                            size="sm"
+                          >
+                            {Math.round(avgConfidence * 100)}%
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="orange"
+                            leftSection={<IconFlag size={14} />}
+                            onClick={() =>
+                              navigate(`/review/${doc.lastSession!.id}`)
+                            }
+                            disabled={!doc.lastSession?.id}
+                          >
+                            Review flagged
+                          </Button>
                         </DataTable.Td>
                       </DataTable.Tr>
                     );

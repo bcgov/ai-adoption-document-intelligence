@@ -46,7 +46,7 @@ interface QueueFilters {
   maxConfidence?: number;
   limit?: number;
   offset?: number;
-  reviewStatus?: "pending" | "reviewed" | "all";
+  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
   group_id?: string;
 }
 

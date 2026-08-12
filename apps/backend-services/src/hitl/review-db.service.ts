@@ -101,7 +101,7 @@ export class ReviewDbService {
       maxConfidence?: number;
       limit?: number;
       offset?: number;
-      reviewStatus?: "pending" | "reviewed" | "all";
+      reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
       groupIds?: string[];
       currentReviewerId?: string;
     },
@@ -146,16 +146,19 @@ export class ReviewDbService {
           review_sessions: {
             every: {
               status: {
-                in: [
-                  ReviewStatus.in_progress,
-                  ReviewStatus.abandoned,
-                  ReviewStatus.flagged,
-                ],
+                in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
               },
             },
           },
         },
       ];
+    } else if (filters.reviewStatus === "flagged") {
+      where.review_sessions = {
+        some: { status: ReviewStatus.flagged },
+        none: {
+          status: { in: [ReviewStatus.approved, ReviewStatus.escalated] },
+        },
+      };
     } else if (filters.reviewStatus === "reviewed") {
       where.review_sessions = {
         some: {
@@ -176,9 +179,9 @@ export class ReviewDbService {
         lock: true,
         review_sessions: {
           where: {
+            // Exclude in_progress — lock record determines "In review" display; these are noise
             status: {
               in: [
-                ReviewStatus.in_progress,
                 ReviewStatus.approved,
                 ReviewStatus.escalated,
                 ReviewStatus.flagged,

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
@@ -34,7 +34,6 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
   const location = useLocation();
   const { activeGroup } = useGroup();
   const queryClient = useQueryClient();
-  const currentDocumentIdRef = useRef<string | undefined>(undefined);
 
   const benchmarkMatch = useMemo(
     () =>
@@ -52,7 +51,9 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
   }, [benchmarkMatch]);
 
   const nextSessionMutation = useMutation({
-    mutationFn: async (): Promise<NextSessionResponse | null> => {
+    mutationFn: async (
+      excludeDocumentId?: string,
+    ): Promise<NextSessionResponse | null> => {
       if (benchmarkMatch) {
         // Dataset labeling mode: fetch next pending document from dataset queue
         const datasetId = benchmarkMatch[1];
@@ -79,6 +80,8 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
       if (activeGroup?.id) params.append("group_id", activeGroup.id);
+      if (excludeDocumentId)
+        params.append("excludeDocumentId", excludeDocumentId);
       const query = params.toString();
       const response = await apiService.post<NextSessionResponse>(
         `/hitl/sessions/next${query ? `?${query}` : ""}`,
@@ -87,7 +90,7 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
       return response.data;
     },
     onSuccess: (data) => {
-      if (data && data.documentId !== currentDocumentIdRef.current) {
+      if (data) {
         navigate(`${getBasePath()}/${data.id}`);
         queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
         queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
@@ -114,8 +117,7 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
 
   const advance = useCallback(
     (currentDocumentId?: string) => {
-      currentDocumentIdRef.current = currentDocumentId;
-      nextSessionMutation.mutate();
+      nextSessionMutation.mutate(currentDocumentId);
     },
     [nextSessionMutation],
   );

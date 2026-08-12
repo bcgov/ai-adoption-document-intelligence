@@ -94,7 +94,9 @@ export class HitlService {
         ? "all"
         : filters.reviewStatus === ReviewStatusFilter.REVIEWED
           ? "reviewed"
-          : "pending";
+          : filters.reviewStatus === ReviewStatusFilter.FLAGGED
+            ? "flagged"
+            : "pending";
 
     const statuses: DocumentStatus[] =
       filters.status === DocumentStatusFilter.EXTRACTED
@@ -185,7 +187,9 @@ export class HitlService {
         ? "all"
         : reviewStatus === ReviewStatusFilter.REVIEWED
           ? "reviewed"
-          : "pending";
+          : reviewStatus === ReviewStatusFilter.FLAGGED
+            ? "flagged"
+            : "pending";
 
     // Approved documents move to `complete`; include it for the Reviewed
     // filter so the stat count matches the Reviewed queue (see getQueue).
@@ -869,6 +873,7 @@ export class HitlService {
       maxConfidence?: number;
       reviewStatus?: ReviewStatusFilter;
       group_id?: string;
+      excludeDocumentId?: string;
     },
     reviewerId: string,
     groupIds: string[],
@@ -894,6 +899,10 @@ export class HitlService {
 
     // Filter by confidence — same logic as getQueue
     const eligible = documents.filter((doc: DocumentWithOcrResult) => {
+      if (filters.excludeDocumentId && doc.id === filters.excludeDocumentId) {
+        return false;
+      }
+
       if (doc.status === DocumentStatus.awaiting_review) return true;
 
       if (!doc.ocr_result) return false;
