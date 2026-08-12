@@ -14,11 +14,13 @@ kind: Component
 # manifests — so anything set here wins over base. Keep that in mind when
 # changing resource values: editing base alone does not change production.
 #
-# Keep this file as small as the difference actually is. temporal-worker used to
-# be patched here and no longer is, because base now carries the same 768Mi/1Gi
-# that prod needs; a patch that restates base is a no-op that only creates drift
-# later. Memory requests are deliberately left to base, because the request is
-# the denominator of the HPA's memory utilization ratio — only the limit differs.
+# Keep this file as small as the difference actually is. A patch that restates
+# base is not harmless: it silently overrides the next change to base, which is
+# how prod ended up ignoring a memory increase made in base. So temporal-worker
+# is no longer patched here at all (base carries the 768Mi/1Gi prod needs), and
+# the backend-services patch sets the memory LIMIT only. Memory requests belong
+# to base in every environment, because the request is the denominator of the
+# HPA's memory utilization ratio.
 patches:
   - path: backend-services-memory.yml
   # Production-only source-IP allowlist on the public Routes (see each file).
