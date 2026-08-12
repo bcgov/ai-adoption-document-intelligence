@@ -4,7 +4,15 @@ import {
   IconEyeOff,
   IconRotate,
 } from "@tabler/icons-react";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FC,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Accordion,
@@ -145,6 +153,141 @@ const EnrichmentSummaryPanel: FC<{
   </Accordion>
 );
 
+interface FieldListItemProps {
+  field: ReviewField;
+  displayValue: string;
+  isCorrected: boolean;
+  isActive: boolean;
+  readOnly: boolean;
+  confidenceBorder: string;
+  validator?: (value: string) => string | null | undefined;
+  onChange: (field: ReviewField, value: string) => void;
+  onSelect: (fieldKey: string) => void;
+  onFocusField: (fieldKey: string) => void;
+}
+
+const FieldListItem = memo<FieldListItemProps>(
+  ({
+    field,
+    displayValue,
+    isCorrected,
+    isActive,
+    readOnly,
+    confidenceBorder,
+    validator,
+    onChange,
+    onSelect,
+    onFocusField,
+  }) => {
+    const isSelectionMark =
+      displayValue === ":selected:" || displayValue === ":unselected:";
+    return (
+      <Paper
+        data-field-key={field.fieldKey}
+        withBorder
+        p="sm"
+        style={{
+          borderColor: isActive ? "#ff0000" : confidenceBorder,
+          borderStyle: isActive ? "dashed" : "solid",
+          borderWidth: isActive ? "3px" : "2px",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          onSelect(field.fieldKey);
+          onFocusField(field.fieldKey);
+        }}
+      >
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <Text fw={600} size="sm">
+                {field.fieldKey}
+              </Text>
+              {isCorrected && (
+                <Text size="xs" c="yellow" fw={500}>
+                  ✎ Edited
+                </Text>
+              )}
+            </Group>
+            <ConfidenceIndicator confidence={field.confidence} />
+          </Group>
+          {isSelectionMark ? (
+            <Checkbox
+              data-field-key={field.fieldKey}
+              checked={displayValue === ":selected:"}
+              onChange={(event) =>
+                onChange(
+                  field,
+                  event.currentTarget.checked ? ":selected:" : ":unselected:",
+                )
+              }
+              disabled={readOnly}
+              label={displayValue === ":selected:" ? "Selected" : "Unselected"}
+            />
+          ) : (
+            <Textarea
+              data-field-key={field.fieldKey}
+              value={displayValue}
+              onChange={(event) => onChange(field, event.currentTarget.value)}
+              disabled={readOnly}
+              autosize
+              minRows={1}
+              error={
+                validator ? (validator(displayValue) ?? undefined) : undefined
+              }
+            />
+          )}
+        </Stack>
+      </Paper>
+    );
+  },
+);
+FieldListItem.displayName = "FieldListItem";
+
+interface EscalationModalProps {
+  opened: boolean;
+  onClose: () => void;
+  onEscalate: (reason: string) => Promise<void>;
+}
+
+const EscalationModal: FC<EscalationModalProps> = ({
+  opened,
+  onClose,
+  onEscalate,
+}) => {
+  const [reason, setReason] = useState("");
+
+  const handleClose = () => {
+    setReason("");
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) return;
+    await onEscalate(reason.trim());
+    setReason("");
+  };
+
+  return (
+    <Modal opened={opened} onClose={handleClose} title="Escalate review">
+      <Stack gap="md">
+        <TextInput
+          label="Escalation reason"
+          placeholder="Explain why this needs expert review"
+          value={reason}
+          onChange={(event) => setReason(event.currentTarget.value)}
+        />
+        <Group justify="flex-end">
+          <Button variant="subtle" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit}>Escalate</Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+};
+
 export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -205,7 +348,6 @@ export const ReviewWorkspacePage: FC = () => {
     >
   >({});
   const [escalationOpen, setEscalationOpen] = useState(false);
-  const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
   const [viewMode, setViewMode] = useState<"document" | "snippet">("document");
@@ -537,29 +679,36 @@ export const ReviewWorkspacePage: FC = () => {
     }
   }, [activeFieldKey]);
 
-  const handleFieldChange = (field: ReviewField, value: string) => {
-    const previousValue =
-      correctionMap[field.fieldKey]?.corrected_value ??
-      enrichmentCorrectedValues.get(field.fieldKey) ??
-      field.value;
+  // Ref so handleFieldChange stays stable while still reading current correctionMap
+  const correctionMapRef = useRef(correctionMap);
+  correctionMapRef.current = correctionMap;
 
-    pushUndo({
-      type: "field-edit",
-      fieldKey: field.fieldKey,
-      previousValue,
-    });
+  const handleFieldChange = useCallback(
+    (field: ReviewField, value: string) => {
+      const previousValue =
+        correctionMapRef.current[field.fieldKey]?.corrected_value ??
+        enrichmentCorrectedValues.get(field.fieldKey) ??
+        field.value;
 
-    setCorrectionMap((prev) => ({
-      ...prev,
-      [field.fieldKey]: {
-        field_key: field.fieldKey,
-        original_value: field.value,
-        corrected_value: value,
-        original_conf: field.confidence,
-        action: CorrectionAction.CORRECTED,
-      },
-    }));
-  };
+      pushUndo({
+        type: "field-edit",
+        fieldKey: field.fieldKey,
+        previousValue,
+      });
+
+      setCorrectionMap((prev) => ({
+        ...prev,
+        [field.fieldKey]: {
+          field_key: field.fieldKey,
+          original_value: field.value,
+          corrected_value: value,
+          original_conf: field.confidence,
+          action: CorrectionAction.CORRECTED,
+        },
+      }));
+    },
+    [enrichmentCorrectedValues, pushUndo],
+  );
 
   const handleReopen = async () => {
     if (!sessionId) return;
@@ -621,23 +770,24 @@ export const ReviewWorkspacePage: FC = () => {
     advance();
   };
 
-  const handleEscalate = async () => {
-    if (!escalationReason.trim()) return;
-    await escalateSessionAsync(escalationReason.trim());
-    setEscalationOpen(false);
-    setEscalationReason("");
+  const handleEscalate = useCallback(
+    async (reason: string) => {
+      await escalateSessionAsync(reason);
+      setEscalationOpen(false);
 
-    notifications.show({
-      title: "Document escalated",
-      message: "Moving to next document",
-      color: "yellow",
-      autoClose: 3000,
-    });
+      notifications.show({
+        title: "Document escalated",
+        message: "Moving to next document",
+        color: "yellow",
+        autoClose: 3000,
+      });
 
-    clearUndoStack();
-    setCorrectionMap({});
-    advance();
-  };
+      clearUndoStack();
+      setCorrectionMap({});
+      advance();
+    },
+    [escalateSessionAsync, clearUndoStack, advance],
+  );
 
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
@@ -1136,108 +1286,28 @@ export const ReviewWorkspacePage: FC = () => {
                 <Stack gap="md">
                   {filteredSortedFields.map((field) => {
                     const correction = correctionMap[field.fieldKey];
-                    const isCorrected =
-                      correction?.action === CorrectionAction.CORRECTED;
-                    const isActive = field.fieldKey === activeFieldKey;
-
-                    // Confidence-tier border, same policy as snippet view and
-                    // canvas overlay. Active selection still overrides red.
-                    const confidenceBorder = getConfidenceBorderColor(
-                      field.confidence,
-                    );
-
+                    const displayValue =
+                      correction?.corrected_value ??
+                      enrichmentCorrectedValues.get(field.fieldKey) ??
+                      field.value;
                     return (
-                      <Paper
+                      <FieldListItem
                         key={field.fieldKey}
-                        data-field-key={field.fieldKey}
-                        withBorder
-                        p="sm"
-                        style={{
-                          borderColor: isActive ? "#ff0000" : confidenceBorder,
-                          borderStyle: isActive ? "dashed" : "solid",
-                          borderWidth: isActive
-                            ? "3px"
-                            : isCorrected
-                              ? "2px"
-                              : "2px",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => {
-                          setActiveFieldKey(field.fieldKey);
-                          focusField(field.fieldKey);
-                        }}
-                      >
-                        <Stack gap="xs">
-                          <Group justify="space-between">
-                            <Group gap="xs">
-                              <Text fw={600} size="sm">
-                                {field.fieldKey}
-                              </Text>
-                              {isCorrected && (
-                                <Text size="xs" c="yellow" fw={500}>
-                                  ✎ Edited
-                                </Text>
-                              )}
-                            </Group>
-                            <ConfidenceIndicator
-                              confidence={field.confidence}
-                            />
-                          </Group>
-                          {(() => {
-                            const displayValue =
-                              correctionMap[field.fieldKey]?.corrected_value ??
-                              enrichmentCorrectedValues.get(field.fieldKey) ??
-                              field.value;
-                            const isSelectionMark =
-                              displayValue === ":selected:" ||
-                              displayValue === ":unselected:";
-                            if (isSelectionMark) {
-                              return (
-                                <Checkbox
-                                  data-field-key={field.fieldKey}
-                                  checked={displayValue === ":selected:"}
-                                  onChange={(event) =>
-                                    handleFieldChange(
-                                      field,
-                                      event.currentTarget.checked
-                                        ? ":selected:"
-                                        : ":unselected:",
-                                    )
-                                  }
-                                  disabled={readOnly}
-                                  label={
-                                    displayValue === ":selected:"
-                                      ? "Selected"
-                                      : "Unselected"
-                                  }
-                                />
-                              );
-                            }
-                            return (
-                              <Textarea
-                                data-field-key={field.fieldKey}
-                                value={displayValue}
-                                onChange={(event) =>
-                                  handleFieldChange(
-                                    field,
-                                    event.currentTarget.value,
-                                  )
-                                }
-                                disabled={readOnly}
-                                autosize
-                                minRows={1}
-                                error={
-                                  fieldValidators[field.fieldKey]
-                                    ? fieldValidators[field.fieldKey]!(
-                                        displayValue,
-                                      )
-                                    : undefined
-                                }
-                              />
-                            );
-                          })()}
-                        </Stack>
-                      </Paper>
+                        field={field}
+                        displayValue={displayValue}
+                        isCorrected={
+                          correction?.action === CorrectionAction.CORRECTED
+                        }
+                        isActive={field.fieldKey === activeFieldKey}
+                        readOnly={readOnly}
+                        confidenceBorder={getConfidenceBorderColor(
+                          field.confidence,
+                        )}
+                        validator={fieldValidators[field.fieldKey]}
+                        onChange={handleFieldChange}
+                        onSelect={setActiveFieldKey}
+                        onFocusField={focusField}
+                      />
                     );
                   })}
                 </Stack>
@@ -1263,28 +1333,11 @@ export const ReviewWorkspacePage: FC = () => {
           </Accordion.Item>
         </Accordion>
 
-        <Modal
+        <EscalationModal
           opened={escalationOpen}
           onClose={() => setEscalationOpen(false)}
-          title="Escalate review"
-        >
-          <Stack gap="md">
-            <TextInput
-              label="Escalation reason"
-              placeholder="Explain why this needs expert review"
-              value={escalationReason}
-              onChange={(event) =>
-                setEscalationReason(event.currentTarget.value)
-              }
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setEscalationOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEscalate}>Escalate</Button>
-            </Group>
-          </Stack>
-        </Modal>
+          onEscalate={handleEscalate}
+        />
 
         <ShortcutsOverlay
           opened={shortcutsOpen}
