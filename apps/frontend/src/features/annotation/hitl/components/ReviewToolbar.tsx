@@ -1,8 +1,8 @@
 import {
-  IconAlertTriangle,
   IconArrowLeft,
   IconArrowsSort,
   IconCheck,
+  IconFlag,
   IconLayoutGrid,
   IconPhoto,
   IconPlayerSkipForward,
@@ -16,10 +16,10 @@ type SortMode = "confidence" | "alphabetical";
 interface ReviewToolbarProps {
   onBack: () => void;
   onApprove: () => void;
-  onEscalate: () => void;
+  onFlag: () => void;
   onSkip: () => void;
   isApproving?: boolean;
-  isEscalating?: boolean;
+  isFlagging?: boolean;
   isSkipping?: boolean;
   viewMode?: ViewMode;
   onViewModeToggle?: () => void;
@@ -30,10 +30,10 @@ interface ReviewToolbarProps {
 export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   onBack,
   onApprove,
-  onEscalate,
+  onFlag,
   onSkip,
   isApproving,
-  isEscalating,
+  isFlagging,
   isSkipping,
   viewMode,
   onViewModeToggle,
@@ -60,12 +60,12 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         </Button>
         <Button
           variant="light"
-          color="yellow"
-          leftSection={<IconAlertTriangle size={16} />}
-          onClick={onEscalate}
-          loading={isEscalating}
+          color="orange"
+          leftSection={<IconFlag size={16} />}
+          onClick={onFlag}
+          loading={isFlagging}
         >
-          Escalate
+          Flag
         </Button>
       </Group>
 

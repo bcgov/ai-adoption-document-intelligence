@@ -139,6 +139,22 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
+  const flagSessionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/flag`,
+        {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+    },
+  });
+
   const deleteCorrectionMutation = useMutation({
     mutationFn: async ({ correctionId }: { correctionId: string }) => {
       const response = await apiService.delete(
@@ -203,10 +219,13 @@ export const useReviewSession = (sessionId?: string) => {
     escalateSessionAsync: escalateSessionMutation.mutateAsync,
     skipSession: skipSessionMutation.mutate,
     skipSessionAsync: skipSessionMutation.mutateAsync,
+    flagSession: flagSessionMutation.mutate,
+    flagSessionAsync: flagSessionMutation.mutateAsync,
     isSubmitting: submitCorrectionsMutation.isPending,
     isApproving: approveSessionMutation.isPending,
     isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
+    isFlagging: flagSessionMutation.isPending,
     deleteCorrection: deleteCorrectionMutation.mutate,
     deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
     reopenSession: reopenSessionMutation.mutate,

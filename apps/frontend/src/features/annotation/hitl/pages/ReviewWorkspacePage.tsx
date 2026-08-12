@@ -315,9 +315,10 @@ export const ReviewWorkspacePage: FC = () => {
     approveSessionAsync,
     escalateSessionAsync,
     skipSessionAsync,
+    flagSessionAsync,
     isApproving,
-    isEscalating,
     isSkipping,
+    isFlagging,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   const [docState, setDocState] = useState<{
@@ -770,6 +771,21 @@ export const ReviewWorkspacePage: FC = () => {
     advance();
   };
 
+  const handleFlag = useCallback(async () => {
+    await flagSessionAsync();
+
+    notifications.show({
+      title: "Document flagged",
+      message: "Flagged for priority review, returning to queue",
+      color: "orange",
+      autoClose: 3000,
+    });
+
+    clearUndoStack();
+    setCorrectionMap({});
+    advance();
+  }, [flagSessionAsync, clearUndoStack, advance]);
+
   const handleEscalate = useCallback(
     async (reason: string) => {
       await escalateSessionAsync(reason);
@@ -929,6 +945,14 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
       {
+        key: "F",
+        ctrl: true,
+        shift: true,
+        handler: handleFlag,
+        description: "Flag document for priority review",
+        alwaysActive: true,
+      },
+      {
         key: "S",
         ctrl: true,
         shift: true,
@@ -994,6 +1018,7 @@ export const ReviewWorkspacePage: FC = () => {
     [
       navigateToField,
       handleApprove,
+      handleFlag,
       handleSkip,
       handleUndo,
       handleRedo,
@@ -1054,10 +1079,10 @@ export const ReviewWorkspacePage: FC = () => {
           <ReviewToolbar
             onBack={navigateToQueue}
             onApprove={handleApprove}
-            onEscalate={() => setEscalationOpen(true)}
+            onFlag={handleFlag}
             onSkip={handleSkip}
             isApproving={isApproving}
-            isEscalating={isEscalating}
+            isFlagging={isFlagging}
             isSkipping={isSkipping}
             viewMode={viewMode}
             onViewModeToggle={() =>

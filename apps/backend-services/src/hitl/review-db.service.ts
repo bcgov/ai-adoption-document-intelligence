@@ -146,7 +146,11 @@ export class ReviewDbService {
           review_sessions: {
             every: {
               status: {
-                in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
+                in: [
+                  ReviewStatus.in_progress,
+                  ReviewStatus.abandoned,
+                  ReviewStatus.flagged,
+                ],
               },
             },
           },
@@ -156,11 +160,7 @@ export class ReviewDbService {
       where.review_sessions = {
         some: {
           status: {
-            in: [
-              ReviewStatus.approved,
-              ReviewStatus.escalated,
-              ReviewStatus.skipped,
-            ],
+            in: [ReviewStatus.approved, ReviewStatus.escalated],
           },
         },
       };
@@ -181,7 +181,7 @@ export class ReviewDbService {
                 ReviewStatus.in_progress,
                 ReviewStatus.approved,
                 ReviewStatus.escalated,
-                ReviewStatus.skipped,
+                ReviewStatus.flagged,
                 ReviewStatus.abandoned,
               ],
             },

@@ -300,10 +300,10 @@ export class HitlController {
 
   @Post("sessions/:id/skip")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Skip a review session" })
+  @ApiOperation({ summary: "Skip a review session, releasing the lock" })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
-    description: "Session skipped",
+    description: "Lock released, session returned to pending queue",
     type: SessionActionResponseDto,
   })
   @ApiNotFoundResponse({ description: "Session not found" })
@@ -315,6 +315,27 @@ export class HitlController {
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.skipSession(sessionId);
+  }
+
+  @Post("sessions/:id/flag")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary: "Flag a review session as needing priority attention",
+  })
+  @ApiParam({ name: "id", description: "Session ID" })
+  @ApiOkResponse({
+    description: "Session flagged, returned to pending queue without a lock",
+    type: SessionActionResponseDto,
+  })
+  @ApiNotFoundResponse({ description: "Session not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  async flagSession(@Param("id") sessionId: string, @Req() req: Request) {
+    const session = await this.hitlService.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
+    return this.hitlService.flagSession(sessionId);
   }
 
   @Post("sessions/:id/heartbeat")

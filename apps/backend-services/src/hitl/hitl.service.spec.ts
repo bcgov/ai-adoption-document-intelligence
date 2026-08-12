@@ -874,18 +874,9 @@ describe("HitlService", () => {
   });
 
   describe("skipSession", () => {
-    it("should skip a review session and release the lock", async () => {
-      const skippedSession = {
-        ...mockReviewSession,
-        status: ReviewStatus.skipped,
-        completed_at: new Date(),
-      };
-
+    it("should release the lock without changing session status", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
-      );
-      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
-        skippedSession as any,
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
@@ -894,23 +885,15 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        {
-          status: ReviewStatus.skipped,
-          completed_at: expect.any(Date),
-        },
-        expect.anything(),
-      );
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
         expect.anything(),
       );
-
       expect(result).toEqual({
         id: "session-1",
-        status: ReviewStatus.skipped,
-        message: "Review session skipped",
+        status: ReviewStatus.in_progress,
+        message: "Lock released, document returned to queue",
       });
     });
 
@@ -918,6 +901,50 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(service.skipSession("non-existent")).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("flagSession", () => {
+    it("should set status to flagged and release the lock", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.flagSession("session-1");
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        { status: ReviewStatus.flagged },
+        expect.anything(),
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
+        expect.anything(),
+      );
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.flagged,
+        message: "Review session flagged",
+      });
+    });
+
+    it("should throw NotFoundException if session does not exist", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(service.flagSession("non-existent")).rejects.toThrow(
         NotFoundException,
       );
 

@@ -608,13 +608,48 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
+    // Release the lock only — session stays in_progress so another reviewer can pick it up
+    await this.prismaService.transaction(async (tx) => {
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_skipped",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: { document_id: session.document_id },
+        },
+        tx,
+      );
+    });
+
+    return {
+      id: session.id,
+      status: session.status,
+      message: "Lock released, document returned to queue",
+    };
+  }
+
+  async flagSession(sessionId: string) {
+    this.logger.debug(`Flagging session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
     const updated = await this.prismaService.transaction(async (tx) => {
       const sessionUpdate = await this.reviewDb.updateReviewSession(
         sessionId,
-        {
-          status: ReviewStatus.skipped,
-          completed_at: new Date(),
-        },
+        { status: ReviewStatus.flagged },
         tx,
       );
 
@@ -626,7 +661,7 @@ export class HitlService {
 
       await this.auditService.recordEvent(
         {
-          event_type: "review_session_skipped",
+          event_type: "review_session_flagged",
           resource_type: "review_session",
           resource_id: sessionId,
           document_id: session.document_id,
@@ -643,7 +678,7 @@ export class HitlService {
     return {
       id: updated.id,
       status: updated.status,
-      message: "Review session skipped",
+      message: "Review session flagged",
     };
   }
 

@@ -347,7 +347,7 @@ describe("ReviewDbService", () => {
       mockReviewSession.update.mockRejectedValue({ code: "P2025" });
 
       const result = await service.updateReviewSession("not-found", {
-        status: ReviewStatus.skipped,
+        status: ReviewStatus.flagged,
       });
 
       expect(result).toBeNull();
