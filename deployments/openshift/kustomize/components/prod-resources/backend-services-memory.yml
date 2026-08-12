@@ -8,12 +8,13 @@ spec:
       containers:
         - name: backend-services
           resources:
-            # Raise the request to match real prod usage (~280Mi avg, spikes
-            # higher) so the HPA's memory ratio is realistic. With a 256Mi
-            # request the HPA reads ~110% and pins backend at maxReplicas,
-            # which exhausts the namespace CPU-request quota. base/test keep
-            # 256Mi.
+            # The request must track the base manifest, because the request is
+            # the HPA's memory denominator: leaving it behind at 512Mi while
+            # base moves to 1Gi keeps prod reading the high utilization ratio
+            # this component was created to fix. Only the limit is genuinely
+            # prod-specific — prod keeps 2Gi of OOM headroom for sustained
+            # document-processing batches, where base/test keep 1536Mi.
             requests:
-              memory: "512Mi"
+              memory: "1Gi"
             limits:
               memory: "2Gi"

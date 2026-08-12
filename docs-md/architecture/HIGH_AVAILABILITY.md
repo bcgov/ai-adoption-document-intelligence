@@ -114,6 +114,17 @@ so that HPA memory utilization sits at ~72% and ~73% respectively — below the 
 This prevents HPAs from pinning at max replicas under normal (non-peak) load.
 See [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md) for the full capacity model.
 
+**Production differs in one value.** Namespaces ending in `-prod` also get the
+[prod-resources component](../../deployments/openshift/kustomize/components/prod-resources/kustomization.yml),
+which `scripts/lib/generate-overlay.sh` adds to the generated overlay. Kustomize applies
+components *after* the base, so anything it sets wins — editing the base manifests alone
+does not change production. Today it raises only the backend-services memory **limit**
+from 1.5Gi to 2Gi, for OOM headroom during sustained document-processing batches; every
+other resource value in the table above reaches production unchanged. Requests are
+deliberately kept identical to base, because the request is the denominator of the HPA's
+memory utilization ratio — a prod-only request would make the percentages above wrong in
+the one environment they were measured from.
+
 ## Monitoring HPA
 
 Check HPA status:
