@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
@@ -34,6 +34,7 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
   const location = useLocation();
   const { activeGroup } = useGroup();
   const queryClient = useQueryClient();
+  const currentDocumentIdRef = useRef<string | undefined>(undefined);
 
   const benchmarkMatch = useMemo(
     () =>
@@ -86,7 +87,7 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
       return response.data;
     },
     onSuccess: (data) => {
-      if (data) {
+      if (data && data.documentId !== currentDocumentIdRef.current) {
         navigate(`${getBasePath()}/${data.id}`);
         queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
         queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
@@ -111,9 +112,13 @@ export const useAutoAdvance = (filters?: AutoAdvanceFilters) => {
     },
   });
 
-  const advance = useCallback(() => {
-    nextSessionMutation.mutate();
-  }, [nextSessionMutation]);
+  const advance = useCallback(
+    (currentDocumentId?: string) => {
+      currentDocumentIdRef.current = currentDocumentId;
+      nextSessionMutation.mutate();
+    },
+    [nextSessionMutation],
+  );
 
   return { advance, isAdvancing: nextSessionMutation.isPending };
 };

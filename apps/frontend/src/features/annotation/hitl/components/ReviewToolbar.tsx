@@ -8,7 +8,7 @@ import {
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import { Button, Group, IconActionButton } from "../../../../ui";
+import { Button, Group, IconActionButton, Switch } from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
@@ -21,6 +21,8 @@ interface ReviewToolbarProps {
   isApproving?: boolean;
   isFlagging?: boolean;
   isSkipping?: boolean;
+  autoAdvance?: boolean;
+  onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
   onViewModeToggle?: () => void;
   sortMode?: SortMode;
@@ -35,6 +37,8 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   isApproving,
   isFlagging,
   isSkipping,
+  autoAdvance,
+  onAutoAdvanceToggle,
   viewMode,
   onViewModeToggle,
   sortMode,
@@ -102,15 +106,25 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         )}
       </Group>
 
-      <Button
-        variant="subtle"
-        color="gray"
-        leftSection={<IconPlayerSkipForward size={16} />}
-        onClick={onSkip}
-        loading={isSkipping}
-      >
-        Skip
-      </Button>
+      <Group>
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconPlayerSkipForward size={16} />}
+          onClick={onSkip}
+          loading={isSkipping}
+        >
+          Skip
+        </Button>
+        {onAutoAdvanceToggle && (
+          <Switch
+            size="sm"
+            label="Auto-advance"
+            checked={autoAdvance ?? true}
+            onChange={onAutoAdvanceToggle}
+          />
+        )}
+      </Group>
     </Group>
   );
 };

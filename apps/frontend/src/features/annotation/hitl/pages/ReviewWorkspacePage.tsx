@@ -370,6 +370,9 @@ export const ReviewWorkspacePage: FC = () => {
    * keeps the document visible until they bring the overlay back.
    */
   const [overlayHiddenByKeyboard, setOverlayHiddenByKeyboard] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(
+    () => localStorage.getItem("hitl-auto-advance") !== "false",
+  );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
 
   const queuePath = location.pathname.match(
@@ -389,6 +392,22 @@ export const ReviewWorkspacePage: FC = () => {
   } = useUndoRedo(sessionId);
 
   const { advance } = useAutoAdvance();
+
+  const advanceOrReturn = useCallback(() => {
+    if (autoAdvance) {
+      advance(session?.document?.id);
+    } else {
+      navigateToQueue();
+    }
+  }, [autoAdvance, advance, session?.document?.id, navigateToQueue]);
+
+  const handleAutoAdvanceToggle = useCallback(() => {
+    setAutoAdvance((prev) => {
+      const next = !prev;
+      localStorage.setItem("hitl-auto-advance", String(next));
+      return next;
+    });
+  }, []);
 
   // Seed correctionMap from previously saved corrections so that both
   // readOnly "View" and reopened-for-editing sessions show prior edits.
@@ -746,14 +765,14 @@ export const ReviewWorkspacePage: FC = () => {
 
     notifications.show({
       title: "Document approved",
-      message: "Moving to next document",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
       color: "green",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
+    advanceOrReturn();
   };
 
   const handleSkip = async () => {
@@ -761,14 +780,14 @@ export const ReviewWorkspacePage: FC = () => {
 
     notifications.show({
       title: "Document skipped",
-      message: "Moving to next document",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
       color: "gray",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
+    advanceOrReturn();
   };
 
   const handleFlag = useCallback(async () => {
@@ -776,15 +795,15 @@ export const ReviewWorkspacePage: FC = () => {
 
     notifications.show({
       title: "Document flagged",
-      message: "Flagged for priority review, returning to queue",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
       color: "orange",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
-  }, [flagSessionAsync, clearUndoStack, advance]);
+    advanceOrReturn();
+  }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
 
   const handleEscalate = useCallback(
     async (reason: string) => {
@@ -793,16 +812,16 @@ export const ReviewWorkspacePage: FC = () => {
 
       notifications.show({
         title: "Document escalated",
-        message: "Moving to next document",
+        message: autoAdvance ? "Moving to next document" : "Returning to queue",
         color: "yellow",
         autoClose: 3000,
       });
 
       clearUndoStack();
       setCorrectionMap({});
-      advance();
+      advanceOrReturn();
     },
-    [escalateSessionAsync, clearUndoStack, advance],
+    [escalateSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance],
   );
 
   const navigateToField = useCallback(
@@ -1023,6 +1042,7 @@ export const ReviewWorkspacePage: FC = () => {
       handleUndo,
       handleRedo,
       setOverlayHiddenByKeyboard,
+      handleAutoAdvanceToggle,
     ],
   );
 
@@ -1084,6 +1104,8 @@ export const ReviewWorkspacePage: FC = () => {
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
+            autoAdvance={autoAdvance}
+            onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
             onViewModeToggle={() =>
               setViewMode((m) => (m === "document" ? "snippet" : "document"))
