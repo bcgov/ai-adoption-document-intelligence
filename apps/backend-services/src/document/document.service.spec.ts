@@ -346,6 +346,7 @@ describe("DocumentService", () => {
         workflow_execution_id: null,
         model_id: "prebuilt-layout",
         group_id: "group-1",
+        review_plan: null,
         created_at: new Date(),
         updated_at: new Date(),
       };
@@ -387,6 +388,7 @@ describe("DocumentService", () => {
         workflow_execution_id: null,
         model_id: "prebuilt-layout",
         group_id: "group-1",
+        review_plan: null,
         created_at: new Date(),
         updated_at: new Date(),
       };

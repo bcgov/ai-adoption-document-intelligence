@@ -840,9 +840,10 @@ export class DocumentController {
 
       identityCanAccessGroup(req.resolvedIdentity, document.group_id);
 
-      // Get workflow execution ID from document
-      // Use workflow_execution_id (new field) or fallback to workflow_id (legacy)
-      const workflowId = document.workflow_execution_id || document.workflow_id;
+      // Derive the Temporal workflowId from the document ID. The stored
+      // workflow_execution_id is the billing runId (unique per execution
+      // attempt) and must NOT be used as the Temporal workflowId.
+      const workflowId = `graph-${documentId}`;
       if (!workflowId) {
         throw new BadRequestException(
           `Document ${documentId} does not have an associated workflow execution ID.`,

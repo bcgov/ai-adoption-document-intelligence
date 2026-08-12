@@ -22,6 +22,7 @@ import {
   BlobStorageInterface,
   MinioBlobStorageConfig,
 } from "./blob-storage.interface";
+import { StorageLedgerService } from "./storage-ledger.service";
 
 /**
  * Creates a configured S3Client for MinIO.
@@ -49,6 +50,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
   constructor(
     private configService: ConfigService,
     private readonly logger: AppLoggerService,
+    private readonly storageLedger: StorageLedgerService,
   ) {
     const config: MinioBlobStorageConfig = {
       provider: "minio",
@@ -104,6 +106,8 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       });
       throw new Error(`Failed to write blob "${key}": ${err.message}`);
     }
+
+    await this.storageLedger.recordWrite(key, data.byteLength);
   }
 
   /**
@@ -130,6 +134,9 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       this.logger.debug(`Read blob: ${key} (${data.length} bytes)`, {
         alertType: "blob_storage_read",
       });
+
+      await this.storageLedger.recordRead(key);
+
       return data;
     } catch (error: unknown) {
       const err = error as Error & {
@@ -204,6 +211,8 @@ export class MinioBlobStorageService implements BlobStorageInterface {
       });
       throw new Error(`Failed to delete blob "${key}": ${err.message}`);
     }
+
+    await this.storageLedger.recordDelete(key);
   }
 
   /**
@@ -281,5 +290,7 @@ export class MinioBlobStorageService implements BlobStorageInterface {
     }
 
     this.logger.debug(`Deleted ${keys.length} blobs with prefix "${prefix}"`);
+
+    await this.storageLedger.recordDeleteByPrefix(prefix);
   }
 }

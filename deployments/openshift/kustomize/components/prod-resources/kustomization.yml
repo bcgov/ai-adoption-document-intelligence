@@ -3,17 +3,27 @@ kind: Component
 
 # Production-only resource overrides.
 #
+# It applies the production-only source-IP allowlist to the public Routes: the
+# base Routes are intentionally open (so test/dev/PR instances need no VPN), and
+# prod restricts ingress to the BC Gov 142.x range via the patches below. It also
+# gives backend-services more memory headroom than base, for OOM protection under
+# sustained document-processing batches.
+#
 # This component is included by scripts/lib/generate-overlay.sh automatically
 # when the target namespace is *-prod, and Kustomize applies it AFTER the base
 # manifests — so anything set here wins over base. Keep that in mind when
 # changing resource values: editing base alone does not change production.
 #
-# Keep this file as small as the difference actually is. temporal-worker used
-# to be patched here and no longer is, because base now carries the same
-# 768Mi/1Gi that prod needs; a patch that restates base is a no-op that only
-# creates drift later.
+# Keep this file as small as the difference actually is. temporal-worker used to
+# be patched here and no longer is, because base now carries the same 768Mi/1Gi
+# that prod needs; a patch that restates base is a no-op that only creates drift
+# later. Memory requests are deliberately left to base, because the request is
+# the denominator of the HPA's memory utilization ratio — only the limit differs.
 patches:
   - path: backend-services-memory.yml
+  # Production-only source-IP allowlist on the public Routes (see each file).
+  - path: route-allowlist-backend.yml
+  - path: route-allowlist-frontend.yml
   # Prod's temporal Postgres data volume was expanded in-place to 5Gi. The base
   # manifest keeps 1.5Gi for ephemeral/test instances; match the live prod size
   # here so the Crunchy operator stops trying to reconcile it down to 1.5Gi

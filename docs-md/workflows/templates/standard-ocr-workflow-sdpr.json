@@ -1,0 +1,1224 @@
+{
+  "schemaVersion": "1.0",
+  "metadata": {
+    "name": "Standard OCR Workflow (SDPR Operational)",
+    "description": "Full SDPR monthly-report operational pipeline: Azure OCR extraction, numeric-zero recovery, field normalization, cleanup, field-level review-criteria gating (supersedes whole-document confidence gating), review-plan persistence for the review UI, optional human review, a simulated ICM handoff, and result storage. Benchmark documents (documentId starting with \"benchmark-\") skip human review but still run and persist the full review-criteria plan.",
+    "tags": [
+      "ocr",
+      "azure",
+      "standard",
+      "sdpr",
+      "recovery",
+      "hitl",
+      "icm"
+    ],
+    "evaluatorConfig": {
+      "defaultRule": {
+        "rule": "exact"
+      },
+      "passThreshold": 0.8,
+      "fieldRules": {
+        "signature": {
+          "rule": "presence"
+        },
+        "spouse_signature": {
+          "rule": "presence"
+        },
+        "name": {
+          "rule": "fuzzy",
+          "fuzzyThreshold": 0.8,
+          "maxEdits": 2,
+          "minLength": 3,
+          "canonicalize": {
+            "canonicalize": "text|lowercase"
+          }
+        },
+        "spouse_name": {
+          "rule": "fuzzy",
+          "fuzzyThreshold": 0.8,
+          "maxEdits": 2,
+          "minLength": 3,
+          "canonicalize": {
+            "canonicalize": "text|lowercase"
+          }
+        },
+        "explain_changes": {
+          "rule": "fuzzy",
+          "fuzzyThreshold": 0.8,
+          "maxEdits": 4,
+          "minLength": 3,
+          "canonicalize": {
+            "canonicalize": "text|lowercase"
+          }
+        },
+        "sin": {
+          "rule": "exact",
+          "canonicalize": {
+            "canonicalize": "digits"
+          }
+        },
+        "spouse_sin": {
+          "rule": "exact",
+          "canonicalize": {
+            "canonicalize": "digits"
+          }
+        },
+        "phone": {
+          "rule": "exact",
+          "canonicalize": {
+            "canonicalize": "digits"
+          }
+        },
+        "spouse_phone": {
+          "rule": "exact",
+          "canonicalize": {
+            "canonicalize": "digits"
+          }
+        },
+        "case_id": {
+          "rule": "exact",
+          "canonicalize": {
+            "canonicalize": "strip-spaces|uppercase"
+          }
+        },
+        "date": {
+          "rule": "date"
+        },
+        "spouse_date": {
+          "rule": "date"
+        },
+        "applicant_net_employment_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_employment_insurance": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_spousal_support_alimony": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_child_support": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_workbc_financial_support": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_student_funding_loans_bursaries": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_rental_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_room_board_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_workers_compensation": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_private_pensions_retirement_disability": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_oas_gis": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_trust_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_canada_pension_plan_cpp": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_tax_credits_gst_credit": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_child_tax_benefits": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_income_tax_refund": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_other_income_money_received": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "applicant_income_of_dependent_children": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_net_employment_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_employment_insurance": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_spousal_support_alimony": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_child_support": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_workbc_financial_support": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_student_funding_loans_bursaries": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_rental_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_room_board_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_workers_compensation": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_private_pensions_retirement_disability": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_oas_gis": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_trust_income": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_canada_pension_plan_cpp": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_tax_credits_gst_credit": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_child_tax_benefits": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_income_tax_refund": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_other_income_money_received": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        },
+        "spouse_income_of_dependent_children": {
+          "rule": "numeric",
+          "canonicalize": {
+            "canonicalize": "number"
+          }
+        }
+      }
+    }
+  },
+  "entryNodeId": "prepareFileData",
+  "ctx": {
+    "documentId": {
+      "type": "string",
+      "description": "Document ID from database"
+    },
+    "blobKey": {
+      "type": "string",
+      "description": "File reference on local storage"
+    },
+    "fileName": {
+      "type": "string"
+    },
+    "fileType": {
+      "type": "string"
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "modelId": {
+      "type": "string",
+      "defaultValue": "sdpr_synth_test"
+    },
+    "preparedFileData": {
+      "type": "object"
+    },
+    "apimRequestId": {
+      "type": "string"
+    },
+    "ocrResponseRef": {
+      "type": "object"
+    },
+    "ocrResultRef": {
+      "type": "object"
+    },
+    "cleanedResultRef": {
+      "type": "object"
+    },
+    "requiresReview": {
+      "type": "boolean",
+      "defaultValue": false,
+      "description": "Written by hitl.applyReviewCriteria (per-field rule evaluation); no longer set by ocr.checkConfidence, which is not wired into this variant."
+    },
+    "reviewPlan": {
+      "type": "array",
+      "description": "Per-field review/skip plan produced by hitl.applyReviewCriteria (prediction-only rule evaluation; no ground truth)."
+    },
+    "reviewFieldCount": {
+      "type": "number",
+      "defaultValue": 0,
+      "description": "Count of fields marked \"review\" in reviewPlan."
+    },
+    "reviewCountsByRule": {
+      "type": "object",
+      "description": "Per-rule match counts from hitl.applyReviewCriteria, keyed by rule name (or \"__default__\" when no rule matched a field)."
+    },
+    "icmPayloadJson": {
+      "type": "string",
+      "description": "Simulated ICM handoff payload (JSON string) built by data.transform from the review outcome and the cleaned-result blob reference."
+    }
+  },
+  "nodes": {
+    "prepareFileData": {
+      "id": "prepareFileData",
+      "type": "activity",
+      "label": "Prepare File Data",
+      "activityType": "file.prepare",
+      "inputs": [
+        {
+          "port": "blobKey",
+          "ctxKey": "blobKey"
+        },
+        {
+          "port": "fileName",
+          "ctxKey": "fileName"
+        },
+        {
+          "port": "fileType",
+          "ctxKey": "fileType"
+        },
+        {
+          "port": "contentType",
+          "ctxKey": "contentType"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "modelId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "preparedData",
+          "ctxKey": "preparedFileData"
+        }
+      ],
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "submitOcr": {
+      "id": "submitOcr",
+      "type": "activity",
+      "label": "Submit to Azure OCR",
+      "activityType": "azureOcr.submit",
+      "inputs": [
+        {
+          "port": "fileData",
+          "ctxKey": "preparedFileData"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "updateApimRequestId": {
+      "id": "updateApimRequestId",
+      "type": "activity",
+      "label": "Update APIM Request ID",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
+        }
+      ],
+      "parameters": {
+        "status": "ongoing_ocr"
+      },
+      "timeout": {
+        "startToClose": "30s"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    },
+    "pollOcrResults": {
+      "id": "pollOcrResults",
+      "type": "pollUntil",
+      "label": "Poll OCR Results",
+      "activityType": "azureOcr.poll",
+      "inputs": [
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "modelId"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "response",
+          "ctxKey": "ocrResponseRef"
+        }
+      ],
+      "condition": {
+        "operator": "not-equals",
+        "left": {
+          "ref": "ctx.ocrResponseRef.status"
+        },
+        "right": {
+          "literal": "running"
+        }
+      },
+      "interval": "10s",
+      "initialDelay": "5s",
+      "maxAttempts": 20,
+      "timeout": "10m"
+    },
+    "extractResults": {
+      "id": "extractResults",
+      "type": "activity",
+      "label": "Extract OCR Results",
+      "activityType": "azureOcr.extract",
+      "inputs": [
+        {
+          "port": "apimRequestId",
+          "ctxKey": "apimRequestId"
+        },
+        {
+          "port": "ocrResponse",
+          "ctxKey": "ocrResponseRef"
+        },
+        {
+          "port": "fileName",
+          "ctxKey": "fileName"
+        },
+        {
+          "port": "fileType",
+          "ctxKey": "fileType"
+        },
+        {
+          "port": "modelId",
+          "ctxKey": "modelId"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        }
+      ],
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "recoverNumericZeros": {
+      "id": "recoverNumericZeros",
+      "type": "activity",
+      "label": "Recover Numeric Zeros from Checkboxes",
+      "activityType": "ocr.recoverNumericZerosFromCheckboxes",
+      "inputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        }
+      ],
+      "parameters": {
+        "tables": [
+          {
+            "find": {
+              "firstCellTextContains": "Declare all income"
+            },
+            "columns": [
+              {
+                "prefix": "applicant_",
+                "headerEquals": "Applicant"
+              },
+              {
+                "prefix": "spouse_",
+                "headerEquals": "Spouse"
+              }
+            ],
+            "rows": [
+              {
+                "suffix": "net_employment_income",
+                "labelEquals": "Net Employment Income"
+              },
+              {
+                "suffix": "employment_insurance",
+                "labelEquals": "Employment Insurance"
+              },
+              {
+                "suffix": "spousal_support_alimony",
+                "labelEquals": "Spousal Support / Alimony"
+              },
+              {
+                "suffix": "child_support",
+                "labelEquals": "Child Support"
+              },
+              {
+                "suffix": "workbc_financial_support",
+                "labelEquals": "WorkBC Financial Support"
+              },
+              {
+                "suffix": "student_funding_loans_bursaries",
+                "labelEquals": "Student Funding (eg: Loans, Bursaries)"
+              },
+              {
+                "suffix": "rental_income",
+                "labelEquals": "Rental Income"
+              },
+              {
+                "suffix": "room_board_income",
+                "labelEquals": "Room / Board Income"
+              },
+              {
+                "suffix": "workers_compensation",
+                "labelEquals": "Worker's Compensation"
+              },
+              {
+                "suffix": "private_pensions_retirement_disability",
+                "labelEquals": "Private Pensions (eg: Retirement, Disability)"
+              },
+              {
+                "suffix": "oas_gis",
+                "labelEquals": "OAS / GIS"
+              },
+              {
+                "suffix": "trust_income",
+                "labelEquals": "Trust Income"
+              },
+              {
+                "suffix": "canada_pension_plan_cpp",
+                "labelEquals": "Canada Pension Plan (CPP)"
+              },
+              {
+                "suffix": "tax_credits_gst_credit",
+                "labelEquals": "Tax Credits (eg: GST Credit)"
+              },
+              {
+                "suffix": "child_tax_benefits",
+                "labelEquals": "Child Tax Benefits"
+              },
+              {
+                "suffix": "income_tax_refund",
+                "labelEquals": "Income Tax Refund"
+              },
+              {
+                "suffix": "other_income_money_received",
+                "labelEquals": "All other income / money received"
+              },
+              {
+                "suffix": "income_of_dependent_children",
+                "labelEquals": "Income of Dependent Children"
+              }
+            ],
+            "fallbackTableFinder": {
+              "shape": {
+                "minRowCount": 18,
+                "maxRowCount": 21,
+                "minColumnCount": 2,
+                "maxColumnCount": 3
+              },
+              "labelAnchor": {
+                "minLabelMatches": 12
+              },
+              "positionalAnchor": {
+                "minVotes": 3,
+                "dominanceRatio": 2.0
+              }
+            }
+          }
+        ]
+      },
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 2
+      }
+    },
+    "normalizeFields": {
+      "id": "normalizeFields",
+      "type": "activity",
+      "label": "Normalize Fields",
+      "activityType": "ocr.normalizeFields",
+      "inputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        }
+      ],
+      "parameters": {
+        "documentType": "seed-sdpr-monthly-report-template",
+        "singleCharacterToZero": true
+      },
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "postOcrCleanup": {
+      "id": "postOcrCleanup",
+      "type": "activity",
+      "label": "Post-OCR Cleanup",
+      "activityType": "ocr.cleanup",
+      "inputs": [
+        {
+          "port": "ocrResult",
+          "ctxKey": "ocrResultRef"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "cleanedResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "reviewCriteria": {
+      "id": "reviewCriteria",
+      "type": "activity",
+      "label": "Apply Review Criteria",
+      "activityType": "hitl.applyReviewCriteria",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "reviewPlan",
+          "ctxKey": "reviewPlan"
+        },
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        },
+        {
+          "port": "reviewFieldCount",
+          "ctxKey": "reviewFieldCount"
+        },
+        {
+          "port": "countsByRule",
+          "ctxKey": "reviewCountsByRule"
+        }
+      ],
+      "parameters": {
+        "documentType": "seed-sdpr-monthly-report-template",
+        "defaultAction": "skip",
+        "rules": [
+          {
+            "name": "income-confidence-gate",
+            "select": {
+              "fieldPatterns": [
+                "applicant_*",
+                "spouse_*"
+              ],
+              "excludeFieldPatterns": [
+                "*_name",
+                "*_sin",
+                "*_phone",
+                "*_date",
+                "*_signature"
+              ],
+              "fieldTypes": [
+                "number"
+              ]
+            },
+            "when": [
+              {
+                "confidenceBelow": 0.96
+              }
+            ],
+            "skipWhen": [
+              {
+                "predictionIsBlank": true
+              },
+              {
+                "predictionLengthAtMost": 1
+              }
+            ],
+            "action": "review",
+            "reason": "low-confidence income value"
+          },
+          {
+            "name": "sin-confidence-gate",
+            "select": {
+              "fields": [
+                "sin",
+                "spouse_sin"
+              ]
+            },
+            "when": [
+              {
+                "confidenceBelow": 0.9
+              }
+            ],
+            "skipWhen": [
+              {
+                "predictionIsBlank": true
+              }
+            ],
+            "action": "review",
+            "reason": "low-confidence identifier"
+          },
+          {
+            "name": "format-validation-failure",
+            "select": {
+              "fields": [
+                "sin",
+                "spouse_sin",
+                "phone",
+                "spouse_phone"
+              ]
+            },
+            "when": [
+              {
+                "formatValidationFails": true
+              }
+            ],
+            "action": "review",
+            "reason": "value does not match the expected format"
+          }
+        ],
+        "ruleConfidenceOverrides": {
+          "income-confidence-gate": 0.96,
+          "sin-confidence-gate": 0.9
+        }
+      },
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "persistReviewPlan": {
+      "id": "persistReviewPlan",
+      "type": "activity",
+      "label": "Persist Review Plan",
+      "activityType": "document.persistReviewPlan",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "reviewPlan",
+          "ctxKey": "reviewPlan"
+        }
+      ],
+      "timeout": {
+        "startToClose": "30s"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "reviewSwitch": {
+      "id": "reviewSwitch",
+      "type": "switch",
+      "label": "Needs Review?",
+      "inputs": [
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        },
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "cases": [
+        {
+          "condition": {
+            "operator": "and",
+            "operands": [
+              {
+                "operator": "equals",
+                "left": {
+                  "ref": "ctx.requiresReview"
+                },
+                "right": {
+                  "literal": true
+                }
+              },
+              {
+                "operator": "not",
+                "operand": {
+                  "operator": "contains",
+                  "left": {
+                    "ref": "ctx.documentId"
+                  },
+                  "right": {
+                    "literal": "benchmark-"
+                  }
+                }
+              }
+            ]
+          },
+          "edgeId": "edge-switch-to-humanGate"
+        }
+      ],
+      "defaultEdge": "edge-switch-to-icmHandoff"
+    },
+    "humanReview": {
+      "id": "humanReview",
+      "type": "humanGate",
+      "label": "Human Review",
+      "signal": {
+        "name": "humanApproval",
+        "payloadSchema": {
+          "approved": "boolean",
+          "reviewer": "string",
+          "comments": "string",
+          "rejectionReason": "string",
+          "annotations": "string"
+        }
+      },
+      "timeout": "24h",
+      "onTimeout": "fail"
+    },
+    "icmHandoff": {
+      "id": "icmHandoff",
+      "type": "activity",
+      "label": "Build Simulated ICM Handoff Payload",
+      "activityType": "data.transform",
+      "inputs": [
+        {
+          "port": "requiresReview",
+          "ctxKey": "requiresReview"
+        },
+        {
+          "port": "reviewFieldCount",
+          "ctxKey": "reviewFieldCount"
+        },
+        {
+          "port": "cleanedResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "outputs": [
+        {
+          "port": "output",
+          "ctxKey": "icmPayloadJson"
+        }
+      ],
+      "parameters": {
+        "inputFormat": "json",
+        "outputFormat": "json",
+        "fieldMapping": "{\n  \"documentType\": \"seed-sdpr-monthly-report-template\",\n  \"reviewRequired\": \"{{requiresReview}}\",\n  \"reviewFieldCount\": \"{{reviewFieldCount}}\",\n  \"cleanedResultRef\": \"{{cleanedResult}}\"\n}"
+      },
+      "timeout": {
+        "startToClose": "1m"
+      },
+      "retry": {
+        "maximumAttempts": 3
+      }
+    },
+    "storeResults": {
+      "id": "storeResults",
+      "type": "activity",
+      "label": "Store Results",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    },
+    "updateFinalStatus": {
+      "id": "updateFinalStatus",
+      "type": "activity",
+      "label": "Mark Document Complete",
+      "activityType": "document.updateStatus",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        }
+      ],
+      "parameters": {
+        "status": "complete"
+      },
+      "timeout": {
+        "startToClose": "30s"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    }
+  },
+  "edges": [
+    {
+      "id": "e2",
+      "source": "prepareFileData",
+      "target": "submitOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e3",
+      "source": "submitOcr",
+      "target": "updateApimRequestId",
+      "type": "normal"
+    },
+    {
+      "id": "e4",
+      "source": "updateApimRequestId",
+      "target": "pollOcrResults",
+      "type": "normal"
+    },
+    {
+      "id": "e5",
+      "source": "pollOcrResults",
+      "target": "extractResults",
+      "type": "normal"
+    },
+    {
+      "id": "e6",
+      "source": "extractResults",
+      "target": "recoverNumericZeros",
+      "type": "normal"
+    },
+    {
+      "id": "e6a",
+      "source": "recoverNumericZeros",
+      "target": "normalizeFields",
+      "type": "normal"
+    },
+    {
+      "id": "e6b",
+      "source": "normalizeFields",
+      "target": "postOcrCleanup",
+      "type": "normal"
+    },
+    {
+      "id": "e7",
+      "source": "postOcrCleanup",
+      "target": "reviewCriteria",
+      "type": "normal"
+    },
+    {
+      "id": "e7a",
+      "source": "reviewCriteria",
+      "target": "persistReviewPlan",
+      "type": "normal"
+    },
+    {
+      "id": "e8",
+      "source": "persistReviewPlan",
+      "target": "reviewSwitch",
+      "type": "normal"
+    },
+    {
+      "id": "edge-switch-to-humanGate",
+      "source": "reviewSwitch",
+      "target": "humanReview",
+      "type": "conditional",
+      "condition": "requiresReview"
+    },
+    {
+      "id": "edge-switch-to-icmHandoff",
+      "source": "reviewSwitch",
+      "target": "icmHandoff",
+      "type": "conditional",
+      "condition": "default"
+    },
+    {
+      "id": "e11",
+      "source": "humanReview",
+      "target": "icmHandoff",
+      "type": "normal"
+    },
+    {
+      "id": "e12",
+      "source": "icmHandoff",
+      "target": "storeResults",
+      "type": "normal"
+    },
+    {
+      "id": "e13",
+      "source": "storeResults",
+      "target": "updateFinalStatus",
+      "type": "normal"
+    }
+  ],
+  "nodeGroups": {
+    "ocr-extraction": {
+      "label": "OCR Extraction",
+      "description": "Submit document to Azure Document Intelligence and retrieve results",
+      "icon": "scan",
+      "color": "#3b82f6",
+      "nodeIds": [
+        "prepareFileData",
+        "submitOcr",
+        "updateApimRequestId",
+        "pollOcrResults",
+        "extractResults"
+      ],
+      "exposedParams": [
+        {
+          "label": "OCR Model",
+          "path": "ctx.modelId.defaultValue",
+          "type": "string"
+        }
+      ]
+    },
+    "cleanup": {
+      "label": "Post-Processing",
+      "description": "Recover misread numeric values, normalize field formatting, then clean OCR results",
+      "icon": "cleanup",
+      "color": "#22c55e",
+      "nodeIds": [
+        "recoverNumericZeros",
+        "normalizeFields",
+        "postOcrCleanup"
+      ]
+    },
+    "quality-gate": {
+      "label": "Quality Gate",
+      "description": "Evaluate per-field review criteria (supersedes whole-document confidence gating), persist the review plan for the review UI, and decide whether human review is needed. Benchmark documents (documentId starting with \"benchmark-\") skip human review but still run and persist the review-criteria plan.",
+      "icon": "quality",
+      "color": "#fb923c",
+      "nodeIds": [
+        "reviewCriteria",
+        "persistReviewPlan",
+        "reviewSwitch"
+      ],
+      "exposedParams": [
+        {
+          "label": "Field Schema (Document Type)",
+          "path": "nodes.reviewCriteria.parameters.documentType",
+          "type": "string"
+        },
+        {
+          "label": "Default Review Action",
+          "path": "nodes.reviewCriteria.parameters.defaultAction",
+          "type": "select",
+          "options": [
+            "review",
+            "skip"
+          ]
+        },
+        {
+          "label": "Income confidence threshold (T)",
+          "path": "nodes.reviewCriteria.parameters.ruleConfidenceOverrides.income-confidence-gate",
+          "type": "number"
+        },
+        {
+          "label": "SIN confidence threshold (T)",
+          "path": "nodes.reviewCriteria.parameters.ruleConfidenceOverrides.sin-confidence-gate",
+          "type": "number"
+        }
+      ]
+    },
+    "human-review": {
+      "label": "Human Review",
+      "description": "Wait for human approval when confidence is low",
+      "icon": "human",
+      "color": "#ef4444",
+      "nodeIds": [
+        "humanReview"
+      ],
+      "exposedParams": [
+        {
+          "label": "Review Timeout",
+          "path": "nodes.humanReview.timeout",
+          "type": "duration"
+        }
+      ]
+    },
+    "icm-handoff": {
+      "label": "ICM Handoff (Simulated)",
+      "description": "Transform the cleaned OCR result and review outcome into a simulated ICM-shaped payload for downstream case-management handoff.",
+      "icon": "process",
+      "color": "#0ea5e9",
+      "nodeIds": [
+        "icmHandoff"
+      ]
+    },
+    "store": {
+      "label": "Store Results",
+      "description": "Save processed results to the database and mark the document complete",
+      "icon": "save",
+      "color": "#8b5cf6",
+      "nodeIds": [
+        "storeResults",
+        "updateFinalStatus"
+      ]
+    }
+  }
+}
