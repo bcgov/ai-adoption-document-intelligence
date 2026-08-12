@@ -6,7 +6,7 @@ import {
   IconRotate,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FC, useState } from "react";
+import { FC, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { apiService } from "@/data/services/api.service";
@@ -60,14 +60,6 @@ export const ReviewQueuePage: FC = () => {
     return Date.now() - new Date(completedAt).getTime() <= REOPEN_WINDOW_MS;
   };
 
-  if (activeQueue.isLoading) {
-    return (
-      <Center h="70vh">
-        <Loader size="lg" />
-      </Center>
-    );
-  }
-
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.9) return "green";
     if (confidence >= 0.7) return "yellow";
@@ -81,6 +73,45 @@ export const ReviewQueuePage: FC = () => {
     const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
     return sum / fields.length;
   };
+
+  // Compute stats from actual queue data so they don't shift when switching tabs.
+  const computedStats = useMemo(() => {
+    const allItems = [...pendingQueue.queue, ...reviewedQueue.queue];
+    const avgConfidences = allItems.map(getAverageConfidence);
+    const averageConfidence =
+      avgConfidences.length > 0
+        ? avgConfidences.reduce((acc, v) => acc + v, 0) / avgConfidences.length
+        : 0;
+    const today = new Date();
+    const reviewedToday = reviewedQueue.queue.filter((item) => {
+      if (item.lastSession == null) return false;
+      const completedAt = new Date(item.lastSession.completed_at);
+      const isToday =
+        completedAt.getFullYear() === today.getFullYear() &&
+        completedAt.getMonth() === today.getMonth() &&
+        completedAt.getDate() === today.getDate();
+      return isToday;
+    }).length;
+    return {
+      totalDocuments: pendingQueue.total + reviewedQueue.total,
+      requiresReview: pendingQueue.total,
+      averageConfidence,
+      reviewedToday,
+    };
+  }, [
+    pendingQueue.queue,
+    pendingQueue.total,
+    reviewedQueue.queue,
+    reviewedQueue.total,
+  ]);
+
+  if (activeQueue.isLoading) {
+    return (
+      <Center h="70vh">
+        <Loader size="lg" />
+      </Center>
+    );
+  }
 
   const handleStartSession = async (
     documentId: string,
@@ -152,20 +183,20 @@ export const ReviewQueuePage: FC = () => {
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
           <StatCard
             label="Total documents"
-            value={activeQueue.stats.totalDocuments}
+            value={computedStats.totalDocuments}
           />
           <StatCard
             label="Requires review"
-            value={activeQueue.stats.requiresReview}
+            value={computedStats.requiresReview}
             valueColor="orange"
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(activeQueue.stats.averageConfidence * 100)}%`}
+            value={`${Math.round(computedStats.averageConfidence * 100)}%`}
           />
           <StatCard
             label="Reviewed today"
-            value={activeQueue.stats.reviewedToday}
+            value={computedStats.reviewedToday}
             valueColor="green"
           />
         </SimpleGrid>
