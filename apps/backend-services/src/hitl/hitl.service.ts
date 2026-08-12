@@ -38,8 +38,10 @@ interface DocumentWithOcrResult extends Document {
   lock?: DocumentLock | null;
   review_sessions?: Array<{
     id: string;
-    reviewer_id: string;
+    document_id: string;
+    actor_id: string;
     status: ReviewStatus;
+    started_at: Date;
     completed_at: Date | null;
     corrections?: unknown[];
   }>;
@@ -156,7 +158,7 @@ export class HitlService {
         lastSession: doc.review_sessions?.[0]
           ? {
               id: doc.review_sessions[0].id,
-              reviewer_id: doc.review_sessions[0].reviewer_id,
+              reviewer_id: doc.review_sessions[0].actor_id,
               status: doc.review_sessions[0].status,
               completed_at: doc.review_sessions[0].completed_at,
               corrections_count:

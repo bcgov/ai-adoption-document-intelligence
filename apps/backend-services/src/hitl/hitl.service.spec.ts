@@ -264,7 +264,7 @@ describe("HitlService", () => {
         review_sessions: [
           {
             id: "session-1",
-            reviewer_id: "reviewer-1",
+            actor_id: "reviewer-1",
             status: ReviewStatus.in_progress,
             completed_at: null,
             corrections: [mockFieldCorrection],
