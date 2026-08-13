@@ -179,6 +179,13 @@ contradictions with the pre-implementation spec are tracked in
   via the Temporal API or UI (`workflow.terminate()`), the cancellation cleanup code
   cannot run and the lifecycle billing event is silently lost. This is a Temporal
   platform limitation; termination is intentionally immediate and irrecoverable.
+- **Activity with no `activity_costs` row records no event and costs nothing.** The
+  `ActivityBillingInterceptor` looks the completed activity's name up in the active rate
+  version. A miss is treated as deliberately free: the interceptor returns without writing
+  a `usage_event`. This means rate-table coverage IS the cost model. Activities that are
+  intentionally free must be listed explicitly at `units: 0`; omission and zero-cost are
+  indistinguishable at runtime but the CI guard (`rate-coverage.spec.ts`) enforces that
+  every registered non-benchmark activity has an explicit entry.
 
 ## Related
 
