@@ -354,9 +354,6 @@ patches:
               # this patch replaces the whole promtail.yaml value, so the base
               # file's pipeline_stages never reach a deployed instance.
               pipeline_stages:
-                # Drop debug/verbose logs - high volume, low value in prod.
-                - drop:
-                    expression: '"level":"(debug|verbose)"'
                 # Drop health-check hits - fired every few seconds by the router.
                 - drop:
                     expression: '"path":"/(?:api/)?health[/"]'
@@ -390,8 +387,6 @@ patches:
                     __path__: /var/log/app/*.log
               pipeline_stages:
                 - drop:
-                    expression: '"level":"(debug|verbose)"'
-                - drop:
                     expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
@@ -420,8 +415,6 @@ patches:
                     __path__: /var/log/app/*.log
               pipeline_stages:
                 - drop:
-                    expression: '"level":"(debug|verbose)"'
-                - drop:
                     expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
@@ -449,8 +442,6 @@ patches:
                     service: temporal-worker
                     __path__: /var/log/app/*.log
               pipeline_stages:
-                - drop:
-                    expression: '"level":"(debug|verbose)"'
                 - drop:
                     expression: '"path":"/(?:api/)?health"'
 

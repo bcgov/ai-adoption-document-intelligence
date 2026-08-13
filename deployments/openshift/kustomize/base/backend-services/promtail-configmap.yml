@@ -22,9 +22,6 @@ data:
               service: backend-services
               __path__: /var/log/app/*.log
         pipeline_stages:
-          # Drop debug/verbose logs - high volume, low value in prod.
-          - drop:
-              expression: '"level":"(debug|verbose)"'
           # Drop health-check hits - fired every few seconds by the router.
           - drop:
               expression: '"path":"/(?:api/)?health[/"]'
