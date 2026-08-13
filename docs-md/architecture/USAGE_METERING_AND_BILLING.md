@@ -179,6 +179,12 @@ contradictions with the pre-implementation spec are tracked in
   via the Temporal API or UI (`workflow.terminate()`), the cancellation cleanup code
   cannot run and the lifecycle billing event is silently lost. This is a Temporal
   platform limitation; termination is intentionally immediate and irrecoverable.
+- **Storage ledger starts empty at deploy.** `GroupStorageLedger` is written only when
+  a blob is created or deleted after the billing feature is deployed. Any blob that
+  existed before deploy is permanently invisible to the ledger; storage costs accrue
+  only for objects created or deleted after deploy. Consequently, storage figures for
+  the first months after an initial deployment under-count real storage consumption
+  and cannot be corrected retroactively without a manual ledger backfill.
 
 ## Related
 

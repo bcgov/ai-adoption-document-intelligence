@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-07-23
+updated: 2026-08-13
 canonical_sources:
   - docs-md/architecture/USAGE_METERING_AND_BILLING.md
   - apps/backend-services/src/billing/
