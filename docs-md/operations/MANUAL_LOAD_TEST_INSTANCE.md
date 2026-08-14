@@ -18,7 +18,7 @@ Prerequisites:
 ## 1. Choose instance name and image tag
 
 - Instance name: lowercase, hyphenated, **≤ 20 characters** (see [`scripts/lib/instance-name.sh`](../../scripts/lib/instance-name.sh)).
-- Image tag: any Docker-safe tag; default for **`oc-build-push.sh`** is the sanitized **git branch name** (same rules as GitHub `workflow_dispatch`).
+- Image tag: any Docker-safe tag; default for **`oc-build-push.sh`** is the sanitized **git branch name** (same rules as GitHub `workflow_dispatch`). That tag is the **floating** tag — the build pushes to the **staged** tag **`<tag>-<sha12>`**, and that staged tag is what you deploy (see [AUTO_DEPLOY.md § Staging model](./AUTO_DEPLOY.md#staging-model)).
 
 Pick an explicit instance name if the branch-derived name would collide with **`bcgov-di-test`**:
 
@@ -42,6 +42,8 @@ Examples:
 
 Frontend builds pick up `VITE_*` variables from `dev.env`, consistent with CI.
 
+The script pushes to **`<your-tag>-<sha12>`** and prints that staged tag as `Push tag:` — copy it, it is what step 3 deploys. Pass **`--push-floating`** if you deliberately want the old behaviour of overwriting `<your-tag>` itself.
+
 ## 3. Deploy the stack into `fd34fb-test`
 
 Log in with the test-namespace SA token (writes **`./scripts/oc-login-sa.sh`** target):
@@ -51,14 +53,16 @@ Log in with the test-namespace SA token (writes **`./scripts/oc-login-sa.sh`** t
 ./scripts/oc-deploy-instance.sh \
   --env dev \
   --namespace fd34fb-test \
-  --image-tag <your-tag> \
+  --image-tag <your-tag>-<sha12> \
   --instance <optional-short-name> \
   --document-intelligence-mode mock \
   --mock-azure-ocr true \
   --confirm
 ```
 
-Flags **`--confirm`** are mandatory (guards accidental applies).
+Flags **`--confirm`** are mandatory (guards accidental applies). The deploy exits non-zero if any rollout fails to complete, dumping pod status, `FailedScheduling` events and the namespace quotas.
+
+Promotion (**`./scripts/oc-build-push.sh --env dev --tag <your-tag> --promote`**) is optional for a disposable instance — it only repoints the floating **`<your-tag>`** at the manifest you just deployed, and nothing in this flow pulls that tag.
 
 URLs:
 
@@ -91,7 +95,7 @@ Add **`--blob-storage-provider minio`** to deploy a per-instance MinIO stack ins
 ./scripts/oc-deploy-instance.sh \
   --env dev \
   --namespace fd34fb-test \
-  --image-tag <your-tag> \
+  --image-tag <your-tag>-<sha12> \
   --instance <name> \
   --document-intelligence-mode mock \
   --mock-azure-ocr true \

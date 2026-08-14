@@ -50,7 +50,15 @@ The workflow uses a per-ref concurrency group with `cancel-in-progress: true`. I
 |---|---|---|---|---|
 | Test (`develop`) | `bcgov-di-test-<sha12>` | `bcgov-di-test` | Re-deploy a previous commit | Keep 10 most recent SHA tags per image |
 | Prod (`main`) | `bcgov-di-<sha12>` | `bcgov-di` | `oc set image .../<svc>=<registry>/<svc>:bcgov-di-<old-sha12>` | Keep 3 most recent SHA tags per image |
-| Manual (`workflow_dispatch`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | Keep 10 most recent SHA tags |
+| Manual (`workflow_dispatch`) | `<branch-tag>-<sha12>` | `<branch-tag>` | Rebuild and redeploy | **Not rotated** — see below |
+
+Rotation matches `<instance>-????????????`, and on `develop`/`main` the instance name and the floating
+tag are the same string, so those SHA tags rotate. On `workflow_dispatch` they are not: the instance
+name is capped at 20 characters and strips `.`/`_`, while the tag keeps them, so a branch such as
+`feature/visual-workflow-builder` stages `feature-visual-workflow-builder-<sha12>` against a
+`feature-visual-workf-????????????` glob that never matches, and those manifests accumulate.
+Left as-is deliberately: the manual pathway is being retired under
+[AI-1207](https://citz-do.atlassian.net/browse/AI-1207).
 
 ## Artifactory retries
 
