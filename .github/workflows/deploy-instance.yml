@@ -487,8 +487,8 @@ jobs:
             -f "$PLG_CHART_DIR/values-openshift.yaml" \
             --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD:-admin}" \
             --set "loki.retentionDays=${LOKI_RETENTION_DAYS:-30}" \
-            --set "loki.pvcSize=${LOKI_PVC_SIZE:-10Gi}" \
-            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-10Gi}" \
+            --set "loki.pvcSize=${LOKI_PVC_SIZE:-2Gi}" \
+            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-2Gi}" \
             --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
             --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
