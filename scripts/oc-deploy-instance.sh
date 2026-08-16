@@ -392,12 +392,17 @@ done
 
 BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
 echo "[INFO] Applying backend secret ${BACKEND_SECRET}..."
+# AZURE_OPENAI_API_KEY goes into BOTH secrets, from this one config value.
+# backend-services hosts the workflow chat agent, AI format suggestion and
+# benchmark recommendations; the worker hosts LLM enrichment. Same subscription
+# key, two per-deployment secrets.
 oc create secret generic "${BACKEND_SECRET}" \
   --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
   --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
   --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
   --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+  --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
   --dry-run=client -o yaml | oc apply -f - -n "${OC_NAMESPACE}"
 
 oc label secret "${BACKEND_SECRET}" \

@@ -27,6 +27,14 @@ data:
   # Benchmarking
   BENCHMARK_TASK_QUEUE: "benchmark-processing"
   ENABLE_BENCHMARK_QUEUE: "true"
+  # Azure OpenAI — the non-secret half. Consumed by the workflow chat agent
+  # (apps/backend-services/src/agent), AI format suggestion and benchmark
+  # recommendations. These are the SAME values as temporal-worker-config: one
+  # subscription, two deployments. The API key lives in backend-services-secrets.
+  # Empty endpoint = the assistant reports itself unconfigured (it does not crash).
+  AZURE_OPENAI_ENDPOINT: ""
+  AZURE_OPENAI_DEPLOYMENT: ""
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
   # Database Connection Pool (Prisma/pg via DB_POOL_MAX; default 10 — safe at HPA max scale)
   DB_POOL_MAX: "10"
   # Request body limit

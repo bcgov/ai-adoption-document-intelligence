@@ -146,6 +146,14 @@ patches:
         DOCUMENT_INTELLIGENCE_MODE: "__DOCUMENT_INTELLIGENCE_MODE__"
         MINIO_ENDPOINT: "__MINIO_ENDPOINT__"
         MINIO_DOCUMENT_BUCKET: "__MINIO_DOCUMENT_BUCKET__"
+        # Same three placeholders the temporal-worker ConfigMap patch below
+        # uses — one Azure OpenAI subscription feeds both deployments.
+        # backend-services needs them for the workflow chat agent, AI format
+        # suggestion and benchmark recommendations. generate-overlay.sh already
+        # substitutes these tokens file-wide, so no new flag is required.
+        AZURE_OPENAI_ENDPOINT: "__AZURE_OPENAI_ENDPOINT__"
+        AZURE_OPENAI_DEPLOYMENT: "__AZURE_OPENAI_DEPLOYMENT__"
+        AZURE_OPENAI_API_VERSION: "__AZURE_OPENAI_API_VERSION__"
 
   # --- Temporal worker ConfigMap: update Temporal server address ---
   - target:

@@ -178,6 +178,15 @@ services:
       SEED_USER_EMAIL: ${SEED_USER_EMAIL}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      # Azure OpenAI — shared credentials, NOT worker-only. backend-services
+      # needs them for the workflow chat agent (apps/backend-services/src/agent),
+      # AI format suggestion and benchmark recommendations. Same four values as
+      # the temporal-worker block below; keep the defaults identical so one .env
+      # drives both services. Blank = the assistant reports itself unconfigured.
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
     ports:
       - "3002:3002"
     depends_on:

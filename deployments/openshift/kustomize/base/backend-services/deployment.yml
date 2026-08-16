@@ -244,6 +244,38 @@ spec:
             secretKeyRef:
               name: backend-services-secrets
               key: AZURE_STORAGE_ACCOUNT_KEY
+        # Azure OpenAI — the workflow chat agent (src/agent) runs in THIS
+        # process, not in the worker, along with AI format suggestion and
+        # benchmark recommendations. Without these the assistant is permanently
+        # "not configured" on every deployed instance.
+        # All four are optional: a missing key disables the assistant (the app
+        # boots normally and the chat drawer says so) whereas a required ref
+        # against a secret that predates this change would leave the pod in
+        # CreateContainerConfigError.
+        - name: AZURE_OPENAI_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_ENDPOINT
+              optional: true
+        - name: AZURE_OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: backend-services-secrets
+              key: AZURE_OPENAI_API_KEY
+              optional: true
+        - name: AZURE_OPENAI_DEPLOYMENT
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_DEPLOYMENT
+              optional: true
+        - name: AZURE_OPENAI_API_VERSION
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AZURE_OPENAI_API_VERSION
+              optional: true
         - name: BODY_LIMIT
           valueFrom:
             configMapKeyRef:
