@@ -130,15 +130,34 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, and `MINIO_SECRET_KEY` are not configured through `dev.env`/`prod.env`. The deploy script renders `MINIO_ENDPOINT` from the per-instance Service name and seeds a random `<instance>-minio-credentials` Secret when `--blob-storage-provider minio` is used. See [MANUAL_LOAD_TEST_INSTANCE.md](./MANUAL_LOAD_TEST_INSTANCE.md) for the full opt-in flow.
 
-### Azure OpenAI (LLM Enrichment)
+### Azure OpenAI (shared: chat agent, enrichment, format suggestion, recommendations)
+
+One subscription, **two deployments**. These four variables are delivered to
+*both* `backend-services` and `temporal-worker`, because they have different
+consumers on each side:
+
+- **backend-services** — the workflow chat agent
+  (`apps/backend-services/src/agent`), AI format suggestion, benchmark
+  recommendations.
+- **temporal-worker** — LLM enrichment of OCR results.
+
+Repointing the endpoint moves all of those at once. Setting the four in an env
+file is enough: `scripts/oc-deploy-instance.sh` and
+`.github/workflows/deploy-instance.yml` write the key into both per-instance
+Secrets and the other three into both ConfigMaps.
 
 | Variable | Secret | Description |
 |----------|--------|-------------|
-| `AZURE_OPENAI_ENDPOINT` | No | Azure OpenAI endpoint URL |
-| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
-| `AZURE_OPENAI_DEPLOYMENT` | No | OpenAI deployment/model name |
+| `AZURE_OPENAI_ENDPOINT` | No | Azure OpenAI / APIM proxy base URL |
+| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI (APIM subscription) key |
+| `AZURE_OPENAI_DEPLOYMENT` | No | Deployment name; the chat agent uses it verbatim as the model id |
 | `AZURE_OPENAI_API_VERSION` | No | OpenAI API version (e.g., `2024-02-15-preview`) |
-| `ENRICHMENT_REDACT_PII` | No | Redact PII in LLM enrichment (`true`/`false`) |
+| `ENRICHMENT_REDACT_PII` | No | Redact PII in LLM enrichment (`true`/`false`) — worker only |
+
+Leaving `AZURE_OPENAI_ENDPOINT` or `AZURE_OPENAI_API_KEY` blank does **not**
+break the deployment: backend-services boots normally and the chat assistant
+reports itself as not configured. See
+[../workflows/AGENT_SETUP.md](../workflows/AGENT_SETUP.md).
 
 ### Temporal
 
@@ -218,8 +237,12 @@ Created by the deploy script with keys:
 - `AZURE_STORAGE_CONNECTION_STRING`
 - `AZURE_STORAGE_ACCOUNT_NAME`
 - `AZURE_STORAGE_ACCOUNT_KEY`
+- `AZURE_OPENAI_API_KEY`
 
 Referenced by the backend-services deployment via `secretKeyRef`.
+`AZURE_OPENAI_API_KEY` is referenced with `optional: true`, so an instance whose
+Secret predates this key still starts — the chat assistant simply reports itself
+as not configured.
 
 ### `<instance>-temporal-worker-secrets`
 

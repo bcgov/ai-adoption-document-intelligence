@@ -574,7 +574,7 @@ For OCR workflows, you'll also typically need:
    - Bind inputs: `apimRequestId`, `documentId`, `modelId`
    - Set condition: stop when `ocrResponseRef.status` is not `running`
    - Set interval: 10 seconds, with a 5-second initial delay
-   - Bind output: port `response` → `ocrResponseRef`
+   - Bind output: port `ocrResponse` → `ocrResponseRef`
 
 4. Add an **Extract OCR Results** activity node
    - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`

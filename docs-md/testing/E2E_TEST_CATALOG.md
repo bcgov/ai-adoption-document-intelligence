@@ -5,7 +5,8 @@ and the broader app views. Generated from the specs under
 [`tests/e2e/workflow-builder/`](../../tests/e2e/workflow-builder/) and
 [`tests/e2e/app-views/`](../../tests/e2e/app-views/).
 
-**35 tests** total: 33 run by default, 2 behind opt-in tags.
+**94 tests** total: 82 run by default, 12 behind opt-in tags (counted with
+`--list` on 2026-08-15; the prose below is a curated subset, not all 94).
 
 > **See also:** the per-suite READMEs explain the design decisions —
 > [workflow-builder/README.md](../../tests/e2e/workflow-builder/README.md) and
@@ -84,6 +85,18 @@ Guards the recent fix that auto-lays-out position-less workflows on open.
 |------|-----|------------------|
 | the list page renders with a New button | — | `/dynamic-nodes` mounts with the New button (pure UI). |
 | a published node appears in the list and opens in the editor | `@infra` | Publishing a node (Deno toolchain) lists it, and opening it shows the editor + signature preview + code pane. |
+
+### `tier1-code-pane-caret.spec.ts` — custom-step code editor: caret & buffer (D8)
+Drives **real Monaco** in Chromium at `/dynamic-nodes/new` and reads the caret's
+line out of the rendered `.cursors-layer`. The `CodePane` unit tests stub Monaco
+with a `<textarea>`, which preserves the caret — so the caret half of D8 can only
+be proved here. Nothing is published and nothing is written to the database.
+
+| Test | Tag | What it verifies |
+|------|-----|------------------|
+| select-all + delete stays deleted — the boilerplate is not re-inserted | — | Clearing the editor emits `""`, which the parent echoes back; the pane must not re-seed from `script \|\| DYNAMIC_NODE_BOILERPLATE`. Deterministic: fails on every run against the pre-fix build. |
+| pausing and resuming typing keeps every character and leaves the caret in place | — | 26 pause-and-resume cycles, pause swept 148–174 ms across the 150 ms debounce, must leave all 26 characters and the caret on the line they were typed on. Verified failing with the echo guard removed. |
+| typing two characters inside one React commit must not rewrite the model or move the caret | `fixme` | **Known open defect.** `CodePane` drives Monaco as a controlled component, so `value` trails the model by one commit when two keystrokes arrive together; @monaco-editor/react applies the stale string as a full-model `executeEdits` and the caret still jumps to the end. Not closed by the D8 echo guard. |
 
 ### `tier2-canvas-render.spec.ts` — canvas render (API-built graphs)
 | Test | What it verifies |

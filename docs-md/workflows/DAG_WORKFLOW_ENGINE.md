@@ -443,7 +443,7 @@ This is the equivalent of the current 11-step `ocrWorkflow` expressed in the new
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
         { "port": "modelId", "ctxKey": "modelId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "outputs": [{ "port": "ocrResponse", "ctxKey": "ocrResponse" }],
       "condition": {
         "operator": "not-equals",
         "left": { "ref": "ctx.ocrResponse.status" },
@@ -693,7 +693,7 @@ Large Azure OCR JSON must not flow through Temporal event history. The footprint
 
 | Legacy ctx key | Current ctx key | Activity port (unchanged) |
 |----------------|-----------------|-----------------------------|
-| `ocrResponse` | `ocrResponseRef` | `response` on poll; `ocrResponse` on extract |
+| `ocrResponse` | `ocrResponseRef` | `ocrResponse` on poll and on extract |
 | `ocrResult` | `ocrResultRef` | `ocrResult` |
 | `cleanedResult` | `cleanedResultRef` | `cleanedResult` |
 

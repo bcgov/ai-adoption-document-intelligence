@@ -39,7 +39,7 @@ The rejected alternative — moving ports onto `GraphEdge` (`sourcePort`/`target
 
 ### 4.1 Node card layout
 
-An activity node renders one **port row** per wireable port: inputs down the left edge, outputs down the right, each row = kind-colored handle + human label. Kind colors and the array double-outline reuse the existing family palette from [handle-style.ts](../../apps/frontend/src/features/workflow-builder/canvas/handle-style.ts); the "gray = multiple ports, select the node" compromise (`computeHandleStyle`'s multi-port branch) is deleted along with the single-handle model.
+An activity node renders one **port row** per wireable port: inputs down the left edge, outputs down the right, each row = kind-colored handle + human label. Kind colors and the array double-outline reuse the existing family palette from [handle-style.ts](../../apps/frontend/src/features/workflow-builder/canvas/handle-style.ts); the "gray = multiple ports, select the node" compromise (`computeHandleStyle`'s multi-port branch) **was deleted with the single-handle model on 2026-08-15**, function, types and tests together. See [TYPED_IO_DESIGN.md §4](TYPED_IO_DESIGN.md) for what replaced the rule it implemented.
 
 ### 4.2 Which ports get handles
 

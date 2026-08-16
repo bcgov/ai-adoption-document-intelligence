@@ -363,6 +363,13 @@ Runs synchronously inside `POST` / `PUT`:
 
 **Why all errors are structured.** The agent's feedback loop reads `errors: [{ stage, line, column, message }]` and revises the specific line / tag / kind that failed. Free-text errors are harder for an LLM to target.
 
+**Runner unavailable (503).** Step 3 needs the `deno-runner` sidecar. When it cannot be reached, the endpoints return 503 `{ code: "DENO_RUNNER_UNAVAILABLE", message, details }` — two fields on purpose (D3):
+
+- `message` is what a person reads and acts on. A loopback `DENO_RUNNER_URL` means a developer's own machine, so it names the start command (`docker compose -f deployments/local/docker-compose.deno.yml up -d`); any other URL is a deployed sidecar the caller cannot start, so it says retry-then-escalate. It never contains the URL.
+- `details` is the diagnostic — endpoint, URL and underlying failure, e.g. `POST http://localhost:9099/check could not be reached: fetch failed`. `DenoRunnerClient` also writes it to the server log at WARN.
+
+The previous single-string message (`Failed to reach deno-runner /check at http://localhost:9099`) named an internal service and an internal URL and told the reader nothing to do.
+
 ### 5.2 Auth + scoping
 
 All endpoints reuse the existing `x-api-key` middleware + group-scoping. Any group member can publish in 6.0. Per-role permissions deferred. The `groupId` on every `DynamicNode` is set from the calling key's group; cross-group reads return 404 (not 403, to avoid leaking existence).

@@ -145,7 +145,20 @@ against. That indirection produced three separate drifts, all fixed in the same
 change. One source of truth:
 `apps/frontend/src/features/workflow-builder/canvas/artifact-kind-colour.ts`.
 
-**Single-port-side colouring rule.** A node's single canvas handle is coloured by its port's kind **only when exactly one typed port is declared on that side**:
+> **Superseded for the NODE-LEVEL dots, 2026-08-15 (review item D28).** The
+> rule below was written when a card had one handle per side. Since per-port
+> rows shipped, a card's data ports are the row dots (`PortRows`, coloured per
+> port by `colorForKind`) and the pair at the card's edge is the **run-order
+> connector** — the anchor a `normal`/`conditional`/`error` edge attaches to,
+> carrying no data. That pair is no longer coloured by kind at all: it is
+> `SEQUENCE_STROKE` grey, at a constant `18px` from the card top on every
+> rectangular card (the switch diamond centres it on its left/right vertices,
+> which is where its geometry puts them), and its hover text names execution
+> order rather than a port kind. One definition, in
+> `canvas/flow-handle.ts`. The rule below still governs the **per-port** row
+> dots and the on-selection type pill.
+
+**Single-port-side colouring rule — SUPERSEDED 2026-08-15, kept for the reasoning.** This described one handle standing for a whole side of a node. Per-port rows replaced that model, so a dot is now coloured by the one port it belongs to and there is no multi-port case left to collapse. `computeHandleStyle`, which implemented the rule below, was deleted with its last caller — and its zero-typed-ports branch is where the tooltips "No typed inputs" / "No typed outputs" came from: sentences about DATA ports that ended up on a control-flow card's run-order connector and stopped a reviewer drawing run-order edges at all (item D10 of the 2026-08-14 review). The rule as it stood:
 
 - **One typed output** → handle coloured by that port's kind (e.g. blue for a `Document`-producing activity).
 - **Zero or multiple typed outputs** → handle stays **gray** (Artifact wildcard). Gray means "click the node to see the full typed signature" — never "this output is untyped."

@@ -29,7 +29,7 @@ names or values.
 | `AZURE_STORAGE_CONNECTION_STRING`     | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_ACCOUNT_NAME`          | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `AZURE_STORAGE_ACCOUNT_KEY`           | ✓                                     | ✓                                             | ✓                                            |                                     |
-| `AZURE_OPENAI_API_KEY`                | ✓                                     |                                               | ✓                                            |                                     |
+| `AZURE_OPENAI_API_KEY`                | ✓                                     | ✓                                             | ✓                                            |                                     |
 | `ARTIFACTORY_SA_USERNAME`             | ✓                                     |                                               |                                              | `artifacts-pull-default-*` in prod  |
 | `ARTIFACTORY_SA_PASSWORD`             | ✓                                     |                                               |                                              | `artifacts-pull-default-*` in prod  |
 | `OPENSHIFT_TOKEN`                     | ✓ (also sets `OPENSHIFT_API_TOKEN`)   |                                               |                                              | `.oc-deploy/token-fd34fb-prod`      |
@@ -116,6 +116,35 @@ Azure supports two keys per resource. Rotate key2 first, swap in the value,
 verify the app is healthy, then rotate key1. For
 `AZURE_STORAGE_CONNECTION_STRING`, Azure emits a new string when you regenerate
 the account key — put them both in the file together so they stay consistent.
+
+`AZURE_OPENAI_API_KEY` lands in **two** Secrets — `bcgov-di-backend-services-secrets`
+and `bcgov-di-temporal-worker-secrets` — from the single line in your file. Both
+deployments are restarted. The duplication is deliberate: `backend-services`
+hosts the workflow chat agent, AI format suggestion and benchmark
+recommendations, the worker hosts LLM enrichment, and the repo keeps one Secret
+per deployment (`AZURE_DOCUMENT_INTELLIGENCE_API_KEY` and the `AZURE_STORAGE_*`
+keys are duplicated the same way). There is still only **one** value to rotate.
+
+**On an instance deployed before this key was added to the backend Secret**, the
+rotation script's `oc patch --type=merge` creates it — no pre-step needed. See
+"Adding `AZURE_OPENAI_API_KEY` to an existing instance" below.
+
+### Adding `AZURE_OPENAI_API_KEY` to an existing instance
+
+An instance deployed before `AZURE_OPENAI_API_KEY` was wired into
+`backend-services` keeps running (the reference is `optional: true`), but its
+chat assistant reports itself as not configured. Two ways to fix it:
+
+1. **Redeploy** — re-run `.github/workflows/deploy-instance.yml` or
+   `./scripts/oc-deploy-instance.sh`. Both write the full key set into the
+   backend Secret and apply the updated manifests. Nothing has to be created by
+   hand first.
+2. **Credential only, no redeploy** — run
+   `./scripts/rotate-prod-secrets.sh --only AZURE_OPENAI_API_KEY` with that key
+   in `~/.config/bcgov-di/prod-secrets.env`. This adds the key to both Secrets
+   and restarts both deployments. Note the *endpoint*, *deployment* and
+   *api-version* live in `<instance>-backend-services-config`, which only a
+   redeploy updates — so use this path when the ConfigMap is already current.
 
 ### ARTIFACTORY_SA_USERNAME / ARTIFACTORY_SA_PASSWORD
 

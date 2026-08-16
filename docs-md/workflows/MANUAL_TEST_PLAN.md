@@ -68,7 +68,7 @@ cd apps/temporal && npm run dev   # Temporal worker
 | Document sources upload (Part 13) | ⚙️ minio; runs also need Temporal worker |
 | Dynamic nodes publish/edit (Part 14) | ⚙️ **deno-runner** (publish-time `deno check`) |
 | Dynamic nodes execution + security (Part 14) | ⚙️ deno-runner **+** Temporal server + worker |
-| AI agent (Part 15) | ☁️ `ANTHROPIC_API_KEY` and/or Azure OpenAI creds; a running workflow stack for the agent’s tools |
+| AI agent (Part 15) | ☁️ Azure OpenAI credentials on **backend-services** (`AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT`), or `ANTHROPIC_API_KEY`; plus a running workflow stack for the agent’s tools. **You cannot self-serve the key** — which service it uses, which variables gate it, what the drawer shows when it is unset, and who to ask are all in [AGENT_SETUP.md](AGENT_SETUP.md). Without it the app still runs: the assistant says it isn't configured and disables send, so Part 15 is the only part you have to skip. |
 
 ### 1.5 Seed templates
 
@@ -579,6 +579,7 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 
 - [x] **10.1 Save as library.** Editor **More ▸ Save as library** (disabled until ≥1 node) → SaveAsLibraryModal → name, description, declare ≥1 **Input** + ≥1 **Output** (label/path/type) → submit. **Pass:** a new `workflowKind: library` record is created (clone; editor stays on current workflow); a **“Saved as library”** success toast appears (plain message pointing to the library picker on any childWorkflow node — no link).
 - [x] **10.2 Kind filter (list page).** `/workflows` SegmentedControl `Workflows / Libraries / All`. **Pass:** switching changes the row set; libraries appear under Libraries/All only.
+- [x] **10.2a Search (list page, D33).** Type in the search box above the table. **Pass:** rows filter as you type on name, slug or description (case-insensitive, no network request per keystroke — the list is fetched whole); the caption reads `N of M workflows match "…"`; a term that matches nothing shows "No workflows match …" plus a **Clear search** button, and the box stays reachable so the term can be edited.
 - [x] **10.3 Kind filter (API).**
   ```bash
   curl -s 'http://localhost:3002/api/workflows'            -H "x-api-key: <KEY>"   # excludes libraries
@@ -617,8 +618,8 @@ Requires Temporal server + **worker** + visibility store + `activity_output_cach
 Prereq: a workflow **saved 2+ times**.
 
 - [x] **12.1 History drawer.** **More ▸ History** (disabled in create mode). **Pass:** versions newest-first with `v{n}` badge + timestamp; head row shows **head** badge; per-row **Revert** / **Compare to head** (disabled on head).
-- [x] **12.2 Revert.** Revert to an older version → confirm modal. **Pass:** `POST /:id/revert-head`; canvas reloads reverted config; that row becomes head; success toast.
-- [x] **12.3 Compare to head.** **Pass:** modal with two read-only JSON blocks side-by-side (`v{n}` vs `head`); no structural diff (by design).
+- [x] **12.2 Revert.** Revert to an older version → confirm modal. **Pass:** `POST /:id/revert-head`; the old config comes back as a **new** version at the top of the history, marked head (the version you clicked stays where it was); canvas reloads it; toast reads `Restored v{old} as v{new}`. Saving again straight afterwards must succeed — a head parked on an older row used to 500 (D11).
+- [x] **12.3 Compare to head.** **Pass:** modal opens on a **Changes** tab: a field-by-field diff (`nodes.x.parameters.y` style paths) with changed/added/removed labelled and both values shown, a summary line counting the differences, and unchanged fields collapsed behind "Show N unchanged fields". `metadata.configHash` is excluded as derived, and the footnote says so. **Both versions in full** is the second tab, with the original side-by-side JSON blocks (D31).
 - [x] **12.4 Run a specific version.** Run drawer → **Version** Select → pick an older version. **Pass:** schema + prefilled JSON refetch for that version; Run includes `workflowVersionId`; backend validates against the **selected version’s** schema.
 - [x] **12.5 Library version pinning.** LibraryPickerModal → after picking, **Version** Select → pick `v2`. **Pass:** stamps `workflowRef={…, version:2}`; ChildWorkflow settings shows a `v2`/`head` badge + Change version; persists.
 - [x] **12.6 Version APIs.**
