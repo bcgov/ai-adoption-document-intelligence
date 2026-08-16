@@ -10,7 +10,21 @@ export type AgentProvider = "azure" | "anthropic";
  * server had deployed (Inderdeep, 2026-08-06 — item 23).
  */
 export interface AgentModelOption {
+  /** Long, unambiguous form — "Azure OpenAI — gpt-4o". The accessible name. */
   label: string;
+  /**
+   * Short name for the composer's inline picker trigger — "Haiku 4.5", or an
+   * Azure deployment name verbatim. Supplied by the backend, never parsed
+   * here: the frontend has no way to know what a deployment is.
+   */
+  name: string;
+  /**
+   * "Fast" / "Balanced" / "Deep reasoning", or `null` when the backend has
+   * nothing real to say about this model — a privately-named Azure deployment
+   * has no published positioning, and a made-up tier would be worse than a
+   * missing one. The picker renders the name alone in that case.
+   */
+  tier: string | null;
   provider: AgentProvider;
   model: string;
   /** The entry the backend uses when a turn names no provider/model. */

@@ -50,6 +50,7 @@ import {
   producerCtxKey,
   resolveCtxKeyToProducer,
 } from "./condition-producer-binding";
+import { operatorSelectData } from "./operator-labels";
 import { VariablePicker } from "./VariablePicker";
 
 // ---------------------------------------------------------------------------
@@ -455,7 +456,7 @@ function ComparisonBody({
         size="xs"
         value={expr.operator}
         allowDeselect={false}
-        data={COMPARISON_OPERATORS.map((op) => ({ value: op, label: op }))}
+        data={operatorSelectData(COMPARISON_OPERATORS)}
         data-testid={`${testId}-comparison-op`}
         onChange={(v) => {
           if (!v) return;
@@ -712,7 +713,7 @@ function NullCheckBody({
         size="xs"
         value={expr.operator}
         allowDeselect={false}
-        data={NULL_CHECK_OPERATORS.map((op) => ({ value: op, label: op }))}
+        data={operatorSelectData(NULL_CHECK_OPERATORS)}
         data-testid={`${testId}-null-check-op`}
         onChange={(v) => {
           if (!v) return;
@@ -763,7 +764,7 @@ function MembershipBody({
         size="xs"
         value={expr.operator}
         allowDeselect={false}
-        data={MEMBERSHIP_OPERATORS.map((op) => ({ value: op, label: op }))}
+        data={operatorSelectData(MEMBERSHIP_OPERATORS)}
         data-testid={`${testId}-membership-op`}
         onChange={(v) => {
           if (!v) return;
@@ -915,12 +916,17 @@ function ValueRefEditor({
         <Text size="xs" fw={500}>
           {label}
         </Text>
+        {/*
+          D22 — "Ref" and "Literal" are both names for the mechanism rather
+          than for what the reader is choosing between. Spelled out, the
+          switch itself says the list underneath is other steps' output.
+        */}
         <SegmentedControl
           size="xs"
           value={mode}
           data={[
-            { value: "ref", label: "Ref" },
-            { value: "literal", label: "Literal" },
+            { value: "ref", label: "From a step" },
+            { value: "literal", label: "Typed value" },
           ]}
           data-testid={`${testId}-mode`}
           onChange={setMode}

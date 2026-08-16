@@ -24,6 +24,7 @@ import type {
   NullCheckExpression,
 } from "../../../types/workflow";
 import { ConditionExpressionEditor } from "./ConditionExpressionEditor";
+import { OPERATOR_LABELS } from "./operator-labels";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,8 +117,10 @@ describe("ConditionExpressionEditor — Scenario 1: renders each kind's body", (
       screen.getByTestId("condition-expression-editor-right"),
     ).toBeInTheDocument();
     // Operator dropdown reflects the value.
+    // D23 — the SELECT shows the human label; the stored value is unchanged
+    // (the expression above still carries `operator: "equals"`).
     expect(selectValue("condition-expression-editor-comparison-op")).toBe(
-      "equals",
+      OPERATOR_LABELS.equals,
     );
   });
 
@@ -203,7 +206,7 @@ describe("ConditionExpressionEditor — Scenario 1: renders each kind's body", (
       screen.getByTestId("condition-expression-editor-value"),
     ).toBeInTheDocument();
     expect(selectValue("condition-expression-editor-null-check-op")).toBe(
-      "is-null",
+      OPERATOR_LABELS["is-null"],
     );
   });
 
@@ -233,7 +236,9 @@ describe("ConditionExpressionEditor — Scenario 1: renders each kind's body", (
     expect(
       screen.getByTestId("condition-expression-editor-list"),
     ).toBeInTheDocument();
-    expect(selectValue("condition-expression-editor-membership-op")).toBe("in");
+    expect(selectValue("condition-expression-editor-membership-op")).toBe(
+      OPERATOR_LABELS.in,
+    );
   });
 });
 
@@ -270,7 +275,7 @@ describe("ConditionExpressionEditor — Scenario 2: ValueRef Ref/Literal toggle"
     // Toggle the LEFT ValueRef to Literal mode.
     const modeToggle = within(
       screen.getByTestId("condition-expression-editor-left-mode"),
-    ).getByText("Literal");
+    ).getByText("Typed value");
     fireEvent.click(modeToggle);
 
     // Last call should produce a left with literal-only.
@@ -291,7 +296,7 @@ describe("ConditionExpressionEditor — Scenario 2: ValueRef Ref/Literal toggle"
     // Toggle back to Ref.
     const refToggle = within(
       screen.getByTestId("condition-expression-editor-left-mode"),
-    ).getByText("Ref");
+    ).getByText("From a step");
     fireEvent.click(refToggle);
 
     const lastAfterRef = onChange.mock.lastCall?.[0] as ComparisonExpression;

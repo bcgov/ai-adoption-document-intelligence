@@ -1,9 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { builderFetch } from "../../data/services/builder-fetch";
-import type { AgentModelOption } from "./store";
+import type { AgentModelOption, AgentProvider } from "./store";
 
-interface AgentModelsResponse {
+/**
+ * One provider the backend is NOT configured for, and the environment
+ * variable NAMES that would configure it. Names only — the backend never puts
+ * a value in this response and nothing here would know what to do with one.
+ */
+export interface AgentProviderRequirement {
+  provider: AgentProvider;
+  variables: string[];
+}
+
+/** The `GET /api/agent/models` body. */
+export interface AgentModelsResult {
   items: AgentModelOption[];
+  missingConfig: AgentProviderRequirement[];
 }
 
 /**
@@ -21,17 +33,65 @@ interface AgentModelsResponse {
 export function useAgentModels() {
   return useQuery({
     queryKey: ["agent", "models"],
-    queryFn: async (): Promise<AgentModelOption[]> => {
+    queryFn: async (): Promise<AgentModelsResult> => {
       const res = await builderFetch("/api/agent/models");
       if (!res.ok) {
         throw new Error(`Failed to load agent models: ${res.status}`);
       }
-      const body = (await res.json()) as AgentModelsResponse;
-      return body.items;
+      const body = (await res.json()) as AgentModelsResult;
+      return {
+        items: body.items ?? [],
+        missingConfig: body.missingConfig ?? [],
+      };
     },
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });
+}
+
+/**
+ * What this server can do for the assistant, as four distinct answers.
+ *
+ * The fourth used to be missing. `options.length === 0` and "the list request
+ * failed" were collapsed into one branch that showed the label "Server default
+ * model" with a tooltip promising an answer and a fully live composer — so a
+ * server with **no model provider configured at all** never said so, and the
+ * user typed into a wall (Inderdeep 2026-08-14 — I1; Dylan — D4). They are
+ * opposite situations: a failed request means we do not know what the server
+ * has, and an empty list means we know exactly what it has, which is nothing.
+ */
+export type AgentAvailability =
+  | { kind: "loading" }
+  /** The list request failed — the server's configuration is unknown, so the
+   *  composer stays live and the turn goes out with no model override. */
+  | { kind: "unknown" }
+  /** The server answered, and it has no provider. The assistant cannot run. */
+  | { kind: "unconfigured"; missingConfig: AgentProviderRequirement[] }
+  | { kind: "ready"; items: AgentModelOption[] };
+
+export function resolveAgentAvailability(query: {
+  data: AgentModelsResult | undefined;
+  isPending: boolean;
+  isError: boolean;
+}): AgentAvailability {
+  if (query.isPending) return { kind: "loading" };
+  if (query.isError || query.data === undefined) return { kind: "unknown" };
+  if (query.data.items.length === 0) {
+    return { kind: "unconfigured", missingConfig: query.data.missingConfig };
+  }
+  return { kind: "ready", items: query.data.items };
+}
+
+/**
+ * The variable names an unconfigured server is missing, as one sentence.
+ * Grouped by provider, because "set A" and "set B and C" are alternatives
+ * while B and C are required together.
+ */
+export function describeMissingConfig(
+  missingConfig: AgentProviderRequirement[],
+): string | null {
+  if (missingConfig.length === 0) return null;
+  return missingConfig.map((r) => r.variables.join(" and ")).join(", or ");
 }
 
 /**

@@ -39,17 +39,36 @@ import {
   type ParseError,
   parseDynamicNodeSignature,
 } from "@ai-di/graph-workflow";
-import { Alert, Anchor, Box, Group, Loader, Stack, Text } from "@mantine/core";
+import {
+  Alert,
+  Anchor,
+  Box,
+  Group,
+  List,
+  Loader,
+  Popover,
+  Stack,
+  Text,
+} from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { IconAlertTriangle, IconCheck } from "@tabler/icons-react";
 import type { editor } from "monaco-editor";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { ensureLocalMonaco } from "./monaco-loader";
 
 export interface CodePaneProps {
-  /** Source text. Empty string in create-mode → boilerplate is shown. */
+  /**
+   * Source text to SEED the editor with. Empty string in create-mode →
+   * boilerplate is shown.
+   *
+   * Not a controlled value: while the author is typing, Monaco owns the
+   * buffer and this prop is ignored. A change here replaces the buffer only
+   * when it is a genuine external re-seed — an edit-mode hydrate, or a revert
+   * to an earlier version — and never when it is this pane's own debounced
+   * text arriving back through the parent.
+   */
   script: string;
   /** Editor change handler. Already debounced inside the component. */
   onChange: (next: string) => void;
@@ -95,6 +114,83 @@ interface ParseStripState {
   inputs?: string[];
   outputs?: string[];
   errors: ParseError[];
+}
+
+/**
+ * D26 — "Couldn't get it to turn red. What's it looking for?"
+ *
+ * The strip only ever reads the `@workflow-node` JSDoc header. Everything the
+ * reviewer was likely to break — the TypeScript body, an un-allowed hostname —
+ * is checked somewhere else, so no amount of editing the function turned the
+ * tick red and the surface never said which half it owned. These two lists are
+ * that answer, rendered next to the tick rather than left in a design doc.
+ *
+ * The wording is derived from the two client-side stages in
+ * `parseDynamicNodeSignature` (`jsdoc-parse`, then `signature-semantics`) and
+ * from the two that only exist server-side (`ts-check`, `allowlist`).
+ */
+const STRIP_LIVE_CHECKS = [
+  "The header exists and is marked @workflow-node.",
+  "@name, @description, @inputs and @outputs are all present.",
+  "@name is lower-case letters, digits and hyphens, up to 64 characters.",
+  "Every input and output names a kind the system knows about.",
+  "Each @parameters entry is a string, number, boolean or enum.",
+] as const;
+
+const STRIP_PUBLISH_CHECKS = [
+  "The TypeScript itself compiles (the editor does not type-check as you type).",
+  "Every host in @allowNet is one this server permits.",
+] as const;
+
+/**
+ * D26 — the "what is this checking?" affordance, shown in both the green and
+ * the red state so the answer does not depend on having already failed.
+ */
+function StripChecksPopover() {
+  return (
+    <Popover width={360} position="top-end" withArrow shadow="md">
+      <Popover.Target>
+        <Anchor
+          component="button"
+          type="button"
+          size="xs"
+          style={{ whiteSpace: "nowrap" }}
+          data-testid="code-pane-strip-checks-trigger"
+        >
+          What is checked?
+        </Anchor>
+      </Popover.Target>
+      <Popover.Dropdown data-testid="code-pane-strip-checks">
+        <Stack gap="xs">
+          <Stack gap={4}>
+            <Text size="xs" fw={600}>
+              Checked here, as you type
+            </Text>
+            <List size="xs" spacing={2}>
+              {STRIP_LIVE_CHECKS.map((check) => (
+                <List.Item key={check}>{check}</List.Item>
+              ))}
+            </List>
+          </Stack>
+          <Stack gap={4}>
+            <Text size="xs" fw={600}>
+              Checked when you press Publish
+            </Text>
+            <List size="xs" spacing={2}>
+              {STRIP_PUBLISH_CHECKS.map((check) => (
+                <List.Item key={check}>{check}</List.Item>
+              ))}
+            </List>
+          </Stack>
+          <Text size="xs" c="dimmed">
+            A failure here turns this strip red and lists the line and column;
+            click a line to jump to it. A failure at Publish keeps the strip
+            green and marks the code instead.
+          </Text>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
+  );
 }
 
 function formatErrorLine(err: ParseError): string {
@@ -149,21 +245,98 @@ export function CodePane({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
 
-  // Local mirror so typing feels instant; debounced propagation up.
+  /**
+   * D8 (second cause) — **Monaco owns the buffer while the author types.**
+   *
+   * This is the seed the editor is CREATED with, and it changes only on a
+   * deliberate re-seed (see {@link reseedEditor}) — never on a keystroke. It is
+   * passed as `defaultValue`, and `value` is deliberately not passed at all.
+   *
+   * `@monaco-editor/react@4.7.0` short-circuits its value effect on
+   * `value === undefined` (`src/Editor/Editor.tsx`); pass `value` and any
+   * render where it differs from the live model is applied as
+   *
+   *     editor.executeEdits('', [{ range: <full model range>,
+   *                                text: value, forceMoveMarkers: true }])
+   *
+   * with no `endCursorState`. React state is always one commit behind a
+   * keystroke, so two keystrokes inside a single commit made `value` trail the
+   * model by one character, the whole model was replaced with the older
+   * string, and the caret was thrown to the end of the document. The text
+   * recovered on the next commit; the caret did not. That is the reported
+   * "forces the cursor to the end of the last line".
+   *
+   * Monaco's own guidance says the same thing from the other side: `setValue`
+   * is documented as "replace the entire text buffer", and the preferred way
+   * to edit a model in place is `pushEditOperations`, which takes a cursor
+   * state. A per-keystroke mirror is not an edit that needs applying at all —
+   * the characters are already in the model — so the fix is to stop applying
+   * one, not to apply it more carefully.
+   */
+  const [editorSeed, setEditorSeed] = useState<string>(
+    () => script || DYNAMIC_NODE_BOILERPLATE,
+  );
+
+  /**
+   * Mirror of the editor's text, fed by `onChange` (which reports the LIVE
+   * `editor.getValue()`, not a React snapshot). Drives the parse strip and the
+   * debounced upward commit. It is downstream of the buffer now, never
+   * upstream of it.
+   */
   const [internalText, setInternalText] = useState<string>(
     () => script || DYNAMIC_NODE_BOILERPLATE,
   );
+
+  /**
+   * D8 — the last text this pane sent UP, recorded before the parent can send
+   * it back down. `script` is not an independent input: it is this pane's own
+   * debounced text echoed through the parent's state 150 ms later, so "the
+   * prop genuinely changed" (below) is true on every debounce cycle, not only
+   * on a real external change.
+   */
+  const lastEmittedRef = useRef<string>(script);
 
   // When the parent's `script` prop changes (edit-mode hydrate, revert
   // refetch), reset the editor's text. We deliberately do NOT re-seed
   // from props on every render — just when the prop genuinely changed.
   const lastHydratedScriptRef = useRef<string>(script);
-  useEffect(() => {
-    if (script !== lastHydratedScriptRef.current) {
-      lastHydratedScriptRef.current = script;
-      setInternalText(script || DYNAMIC_NODE_BOILERPLATE);
+
+  /**
+   * Replace the buffer on purpose — the only path that is allowed to.
+   *
+   * Reached by exactly the external events that mean "this is a different
+   * document now": the edit-mode hydrate and a revert to an earlier version.
+   * `setValue` is the documented call for that ("replace the entire text
+   * buffer value contained in this model") and its caret reset is correct
+   * here — there is no position in the old document worth carrying into the
+   * new one.
+   *
+   * Before the editor exists there is nothing to call, so the seed state is
+   * what carries the change: `defaultValue` is read when the editor is
+   * created, so a re-seed arriving during Monaco's bring-up is picked up by
+   * the creation itself rather than being lost.
+   */
+  const reseedEditor = useCallback((next: string) => {
+    setEditorSeed(next);
+    setInternalText(next);
+    const ed = editorRef.current;
+    if (ed && ed.getValue() !== next) {
+      ed.setValue(next);
     }
-  }, [script]);
+  }, []);
+
+  useEffect(() => {
+    if (script === lastHydratedScriptRef.current) return;
+    lastHydratedScriptRef.current = script;
+    // D8 — ignore the echo of our own edit. Re-seeding from a stale echo
+    // overwrites every character typed since the debounce fired, and
+    // `setValue` resets the caret. This guard is what keeps the round-trip
+    // through the parent from reaching the buffer at all; it is also what
+    // makes select-all + delete stick, since the echo of an emptied editor
+    // is `""` and the seed expression below would put the boilerplate back.
+    if (script === lastEmittedRef.current) return;
+    reseedEditor(script || DYNAMIC_NODE_BOILERPLATE);
+  }, [script, reseedEditor]);
 
   // ── D-13: bounded editor bring-up ─────────────────────────────────────
   // "configuring" → the local Monaco chunk is still loading, so `<Editor>`
@@ -255,6 +428,12 @@ export function CodePane({
     onChangeRef.current = onChange;
   }, [onChange]);
   useEffect(() => {
+    // Recorded BEFORE the call, so the echo always arrives strictly later and
+    // is always recognised by the guard above. This is also what makes
+    // clearing the editor stick: select-all + delete used to round-trip an
+    // empty string, hit the `script || DYNAMIC_NODE_BOILERPLATE` fallback and
+    // re-insert the whole boilerplate with the caret at its end.
+    lastEmittedRef.current = debouncedText;
     onChangeRef.current(debouncedText);
   }, [debouncedText]);
 
@@ -288,6 +467,16 @@ export function CodePane({
     ed.setPosition({ lineNumber: safeLine, column: safeColumn });
     ed.focus();
   };
+
+  /**
+   * Stable identity on purpose. `@monaco-editor/react` disposes and re-attaches
+   * its `onDidChangeModelContent` subscription whenever this prop's identity
+   * changes; an inline arrow re-subscribed on every render, which during
+   * typing is every keystroke.
+   */
+  const handleEditorChange = useCallback((next: string | undefined) => {
+    setInternalText(next ?? "");
+  }, []);
 
   const handleMount: OnMount = (mountedEditor, mountedMonaco) => {
     editorRef.current = mountedEditor;
@@ -354,12 +543,15 @@ export function CodePane({
           </Group>
         ) : (
           <Editor
-            value={internalText}
+            // `defaultValue`, never `value` — see the `editorSeed` comment.
+            // Passing `value` puts the library's full-model `executeEdits`
+            // back on the keystroke path and the caret jumps again.
+            defaultValue={editorSeed}
             language="typescript"
             theme="vs-dark"
             height={`${height ?? 480}px`}
             onMount={handleMount}
-            onChange={(v) => setInternalText(v ?? "")}
+            onChange={handleEditorChange}
             options={{
               automaticLayout: true,
               minimap: { enabled: false },
@@ -379,21 +571,30 @@ export function CodePane({
           data-testid="code-pane-strip-ok"
           p="xs"
         >
-          <Text size="sm">
-            Signature OK: <strong>{parseStrip.signatureName}</strong>
-            {parseStrip.inputs && parseStrip.outputs ? (
-              <>
-                {" — "}
-                {parseStrip.inputs.length > 0
-                  ? parseStrip.inputs.join(", ")
-                  : "(no inputs)"}
-                {" → "}
-                {parseStrip.outputs.length > 0
-                  ? parseStrip.outputs.join(", ")
-                  : "(no outputs)"}
-              </>
-            ) : null}
-          </Text>
+          <Stack gap={2}>
+            <Text size="sm">
+              Signature OK: <strong>{parseStrip.signatureName}</strong>
+              {parseStrip.inputs && parseStrip.outputs ? (
+                <>
+                  {" — "}
+                  {parseStrip.inputs.length > 0
+                    ? parseStrip.inputs.join(", ")
+                    : "(no inputs)"}
+                  {" → "}
+                  {parseStrip.outputs.length > 0
+                    ? parseStrip.outputs.join(", ")
+                    : "(no outputs)"}
+                </>
+              ) : null}
+            </Text>
+            <Group gap={6} wrap="nowrap">
+              <Text size="xs" c="dimmed">
+                The signature is the <code>@workflow-node</code> comment block —
+                this strip checks that, not the TypeScript below it.
+              </Text>
+              <StripChecksPopover />
+            </Group>
+          </Stack>
         </Alert>
       ) : parseStrip.errors.length > 0 ? (
         <Alert
@@ -402,6 +603,11 @@ export function CodePane({
           icon={<IconAlertTriangle size={16} />}
           data-testid="code-pane-strip-errors"
           p="xs"
+          title={
+            parseStrip.errors.length === 1
+              ? "Signature not valid — 1 problem in the @workflow-node comment block"
+              : `Signature not valid — ${parseStrip.errors.length} problems in the @workflow-node comment block`
+          }
         >
           <Stack gap={4}>
             {parseStrip.errors.map((err, idx) => {
@@ -431,6 +637,12 @@ export function CodePane({
                 </Group>
               );
             })}
+            <Group gap={6} wrap="nowrap">
+              <Text size="xs" c="dimmed">
+                Click a line to jump to it.
+              </Text>
+              <StripChecksPopover />
+            </Group>
           </Stack>
         </Alert>
       ) : (

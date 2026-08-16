@@ -27,6 +27,7 @@ import {
 } from "@xyflow/react";
 import { memo, useEffect, useMemo, useRef } from "react";
 import { layoutXyflowNodes } from "../../features/workflow-builder/canvas/auto-layout";
+import { COMPARISON_SYMBOLS } from "../../features/workflow-builder/graph-widgets/operator-labels";
 import { GROUP_ICONS } from "../../features/workflow-builder/group/group-icons";
 import type {
   ActivityNode,
@@ -590,12 +591,11 @@ function extractSwitchEdgeLabel(
       ? cond.right.literal
       : JSON.stringify(cond.right.literal ?? cond.right.ref ?? "?");
 
-  const op =
-    cond.operator === "equals"
-      ? "="
-      : cond.operator === "not-equals"
-        ? "!="
-        : cond.operator;
+  // D23 — this used to hand-roll `=` and `!=` and let every other operator
+  // fall through as its raw enum value, so a `gte` branch drew the chip
+  // "pages gte 5". The symbols now come from the one shared map, which is the
+  // same set the builder's dropdown and the builder's edge chips use.
+  const op = COMPARISON_SYMBOLS[cond.operator] ?? cond.operator;
 
   return `${leftPart} ${op} ${rightPart}`;
 }

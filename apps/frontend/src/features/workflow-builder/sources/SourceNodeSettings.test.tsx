@@ -8,7 +8,13 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GraphWorkflowConfig, SourceNode } from "../../../types/workflow";
@@ -220,7 +226,7 @@ describe("SourceNodeSettings — Scenario 3: form body renders the right fields"
     expect(within(panel).getByText("Ctx key")).toBeInTheDocument();
   });
 
-  it("editing a form field calls onConfigChange with the updated node.parameters", () => {
+  it("editing a form field calls onConfigChange with the updated node.parameters", async () => {
     const node = makeSourceUploadNode();
     const config = makeConfig(node);
     const onConfigChange = vi.fn();
@@ -242,7 +248,10 @@ describe("SourceNodeSettings — Scenario 3: form body renders the right fields"
     ) as HTMLInputElement;
     fireEvent.change(ctxKeyInput, { target: { value: "uploadedUrl" } });
 
-    expect(onConfigChange).toHaveBeenCalled();
+    // D7 — free-text settings fields draft locally and commit on a quiet
+    // period (or blur/unmount) instead of once per character, so the commit
+    // is asserted through `waitFor` rather than synchronously.
+    await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
     const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes["src-upload-1"] as SourceNode;
     expect(updated.type).toBe("source");

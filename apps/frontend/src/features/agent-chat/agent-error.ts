@@ -26,6 +26,10 @@ export interface AgentChatError {
 
 const TITLE_BY_CODE: Record<string, string> = {
   "provider-not-configured": "That model is not configured on this server",
+  // Distinct from the line above: not "pick another model" but "this server
+  // has none" (Inderdeep 2026-08-14 — I1). Reached only if a turn is posted
+  // anyway; the drawer normally disables send before it gets here.
+  "assistant-not-configured": "The assistant isn't configured on this server",
   "conversation-budget-exceeded": "This conversation has spent its budget",
   "demo-conversation-read-only": "This is a read-only demo replay",
 };

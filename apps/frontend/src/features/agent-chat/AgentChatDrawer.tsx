@@ -15,21 +15,23 @@ import {
   Code,
   Drawer,
   Group,
+  Menu,
   ScrollArea,
-  Select,
   Stack,
   Text,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   IconAlertTriangle,
+  IconCheck,
   IconChevronDown,
   IconChevronUp,
   IconHistory,
-  IconPaperclip,
   IconPlayerStopFilled,
   IconPlus,
   IconSend2,
+  IconSettingsExclamation,
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,7 +59,13 @@ import {
   fetchAgentConversation,
   getAgentAuthHeaders,
 } from "./useAgentConversations";
-import { resolveEffectiveModel, useAgentModels } from "./useAgentModels";
+import {
+  type AgentAvailability,
+  describeMissingConfig,
+  resolveAgentAvailability,
+  resolveEffectiveModel,
+  useAgentModels,
+} from "./useAgentModels";
 import "./agent-chat.css";
 
 const DRAWER_SIZE = 540;
@@ -149,7 +157,7 @@ export function AgentChatDrawer() {
   // still offers it, otherwise the backend's own default, and `null` until
   // the list arrives — never a frontend guess (item 23).
   const { data: models } = useAgentModels();
-  const effectiveModel = resolveEffectiveModel(models, selectedModel);
+  const effectiveModel = resolveEffectiveModel(models?.items, selectedModel);
 
   // Deep link: `?agentChat=<id>` (used by FEATURE_DEMO_GUIDE links) opens the
   // drawer and replays that conversation. Handled once per id so it doesn't
@@ -405,41 +413,48 @@ function ChatHeader({
 }
 
 /**
- * The model in use, shown where the user is actually looking — at the
- * composer (Inderdeep, 2026-08-06 — "the model selector should be at the
- * bottom, because this is where I'm generally typing").
+ * The model in use, shown where the user is actually looking — in the
+ * composer's footer strip, immediately after the attach `+` (Inderdeep,
+ * 2026-08-14 — I3, mock-up `source/inderdeep-mockup-composer.png`; and
+ * 2026-08-06, "the model selector should be at the bottom, because this is
+ * where I'm generally typing").
  *
- * It renders the backend's list and nothing else (item 23). Three shapes,
- * all carrying the same `agent-chat-model-picker` test id:
+ * The mock-up's shape: the model's short name in bold, its tier in muted
+ * text beside it, a small chevron, and an open menu that lists each model
+ * with its one-line descriptor underneath and a check against the selected
+ * one. The mock-up's *names* ("Sonnet 4.5", "Opus 4.6") are illustrative —
+ * this renders the backend's list and nothing else (item 23), and a model the
+ * backend gave no descriptor for shows its name alone rather than a guessed
+ * tier.
  *
- *  - **Two or more models** — a dropdown, as before.
- *  - **Exactly one model** — a static label. A dropdown whose only option is
- *    the one already selected is a control that cannot do anything; the fact
- *    worth showing is *which* model is answering. One Azure deployment is
- *    today's real case: `AZURE_OPENAI_DEPLOYMENT` names a single deployment.
+ * Four shapes, all carrying the same `agent-chat-model-picker` test id:
+ *
+ *  - **Two or more models** — the menu from the mock-up.
+ *  - **Exactly one model** — the same trigger treatment, static. A menu whose
+ *    only option is the one already selected is a control that cannot do
+ *    anything; the fact worth showing is *which* model is answering. One
+ *    Azure deployment is today's real case.
  *  - **Loading, or the list failed to load** — a static label saying so. The
- *    composer stays live either way: with no selection the turn carries no
- *    model override and the backend uses its own default, so a failed list
- *    request costs the user a label, not the ability to send.
+ *    composer stays live: with no selection the turn carries no model
+ *    override and the backend uses its own default, so a failed list request
+ *    costs the user a label, not the ability to send.
+ *  - **No model at all** — the server answered and has no provider. Says so;
+ *    the composer's send is disabled alongside it (see {@link
+ *    UnconfiguredNotice}).
  */
 function ModelPicker({
+  availability,
   selectedModel,
   setSelectedModel,
 }: {
+  availability: AgentAvailability;
   selectedModel: AgentModelOption | null;
   setSelectedModel: (option: AgentModelOption) => void;
 }) {
-  const { data, isPending, isError } = useAgentModels();
-  const options = useMemo(() => data ?? [], [data]);
-  const selectData = useMemo(
-    () => options.map((o, i) => ({ value: String(i), label: o.label })),
-    [options],
-  );
-
-  if (isPending) {
+  if (availability.kind === "loading") {
     return <StaticModelLabel text="Loading models…" />;
   }
-  if (isError || options.length === 0) {
+  if (availability.kind === "unknown") {
     return (
       <StaticModelLabel
         text="Server default model"
@@ -447,37 +462,96 @@ function ModelPicker({
       />
     );
   }
-  if (options.length === 1) {
+  if (availability.kind === "unconfigured") {
     return (
       <StaticModelLabel
-        text={options[0].label}
-        tooltip="The only model this server is configured for."
+        text="No model configured"
+        tooltip="This server reported that it has no model provider configured, so the assistant cannot answer."
       />
     );
   }
 
-  const selectedIndex = options.findIndex(
-    (o) =>
-      selectedModel !== null &&
-      o.provider === selectedModel.provider &&
-      o.model === selectedModel.model,
-  );
+  const options = availability.items;
+  const active =
+    options.find(
+      (o) =>
+        selectedModel !== null &&
+        o.provider === selectedModel.provider &&
+        o.model === selectedModel.model,
+    ) ??
+    options.find((o) => o.isDefault) ??
+    options[0];
+
+  if (options.length === 1) {
+    return (
+      <Tooltip label="The only model this server is configured for.">
+        <Group gap={6} data-testid="agent-chat-model-picker" wrap="nowrap">
+          <ModelSummary option={active} />
+        </Group>
+      </Tooltip>
+    );
+  }
+
   return (
-    <Select
-      size="xs"
-      mt={6}
-      aria-label="Model"
-      data={selectData}
-      value={String(selectedIndex === -1 ? 0 : selectedIndex)}
-      onChange={(value) => {
-        const idx = value === null ? 0 : Number(value);
-        if (!Number.isNaN(idx) && options[idx]) {
-          setSelectedModel(options[idx]);
-        }
-      }}
-      data-testid="agent-chat-model-picker"
-      allowDeselect={false}
-    />
+    <Menu position="top-start" withinPortal shadow="md" width={240}>
+      <Menu.Target>
+        <UnstyledButton
+          type="button"
+          aria-label={`Model: ${active.label}`}
+          data-testid="agent-chat-model-picker"
+          style={{ padding: "2px 4px", borderRadius: 4 }}
+        >
+          <Group gap={6} wrap="nowrap">
+            <ModelSummary option={active} />
+            <IconChevronDown size={13} />
+          </Group>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown data-testid="agent-chat-model-menu">
+        {options.map((option) => {
+          const isActive =
+            option.provider === active.provider &&
+            option.model === active.model;
+          return (
+            <Menu.Item
+              key={`${option.provider}:${option.model}`}
+              onClick={() => setSelectedModel(option)}
+              data-testid={`agent-chat-model-option-${option.provider}`}
+              rightSection={isActive ? <IconCheck size={14} /> : null}
+            >
+              <Text size="sm" fw={isActive ? 700 : 500}>
+                {option.name}
+              </Text>
+              {/* The descriptor line from the mock-up. Absent for a model the
+                  backend could not describe — a privately-named Azure
+                  deployment has no published positioning, and an invented one
+                  would read as fact. */}
+              {option.tier !== null && (
+                <Text size="xs" c="dimmed">
+                  {option.tier}
+                </Text>
+              )}
+            </Menu.Item>
+          );
+        })}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/** Name in bold, tier muted beside it — the mock-up's "Sonnet 4.5 Balanced". */
+function ModelSummary({ option }: { option: AgentModelOption }) {
+  return (
+    <>
+      <Text size="sm" fw={700} lh={1.2}>
+        {option.name}
+      </Text>
+      {option.tier !== null && (
+        <Text size="sm" c="dimmed" lh={1.2}>
+          {option.tier}
+        </Text>
+      )}
+    </>
   );
 }
 
@@ -490,7 +564,7 @@ function StaticModelLabel({
   tooltip?: string;
 }) {
   const label = (
-    <Text size="xs" c="dimmed" mt={6} data-testid="agent-chat-model-picker">
+    <Text size="sm" c="dimmed" data-testid="agent-chat-model-picker">
       {text}
     </Text>
   );
@@ -514,10 +588,43 @@ function StaticModelLabel({
  */
 function SendOrStopButton({
   onAbort,
+  disabledReason,
 }: {
   onAbort: () => void | Promise<void>;
+  /** Non-null makes send inert and says why — see {@link UnconfiguredNotice}. */
+  disabledReason: string | null;
 }) {
   const isRunning = useAuiState((s) => s.thread.isRunning);
+
+  if (disabledReason !== null && !isRunning) {
+    return (
+      <Tooltip label={disabledReason} multiline w={280}>
+        {/* The tooltip hangs off a focusable wrapper, not off the button. A
+            disabled Mantine ActionIcon fires no pointer or focus events, so a
+            tooltip on the button itself is unreachable by mouse AND by
+            keyboard — and jsdom cannot see the difference, which is how this
+            class of bug ships. */}
+        <Box
+          component="span"
+          tabIndex={0}
+          aria-describedby="agent-chat-send-disabled-reason"
+          style={{ display: "inline-flex" }}
+          data-testid="agent-chat-send-disabled-wrapper"
+        >
+          <ActionIcon
+            size="lg"
+            variant="filled"
+            color="blue"
+            disabled
+            aria-label="Send"
+            data-testid="agent-chat-send"
+          >
+            <IconSend2 size={18} />
+          </ActionIcon>
+        </Box>
+      </Tooltip>
+    );
+  }
 
   if (isRunning) {
     return (
@@ -852,6 +959,18 @@ function Composer({
   const workflowIdRef = useRef<string | null>(workflowId);
   workflowIdRef.current = workflowId;
 
+  // What this server can do for the assistant. Read once here and passed
+  // down, so the picker, the notice and the send button cannot disagree.
+  const availability = resolveAgentAvailability(useAgentModels());
+  const disabledReason =
+    availability.kind === "unconfigured"
+      ? `The assistant isn't configured on this server — no model provider has credentials here. ${
+          describeMissingConfig(availability.missingConfig) === null
+            ? ""
+            : `Set ${describeMissingConfig(availability.missingConfig)} and restart the backend. `
+        }See ${AGENT_SETUP_DOC}.`
+      : null;
+
   async function uploadToSource(
     file: File,
     sourceNodeId: string,
@@ -1054,39 +1173,105 @@ function Composer({
         }}
         data-testid="agent-chat-file-input"
       />
+      <UnconfiguredNotice availability={availability} />
+      {/* I3 — the mock-up's two rows: the message on its own line, and one
+          footer strip under it carrying attach `+` at the far left, the model
+          and its tier immediately after it, and send/stop hard right. Before
+          this the attach button and send sat either side of a one-line input
+          with the model name orphaned on a third row below the whole thing. */}
       <ComposerPrimitive.Root
         style={{
           display: "flex",
-          alignItems: "flex-end",
-          gap: 8,
+          flexDirection: "column",
+          gap: 6,
           width: "100%",
         }}
       >
-        <Tooltip label="Attach a file (uploads to the workflow's source.upload node)">
-          <ActionIcon
-            size="lg"
-            variant="subtle"
-            onClick={() => fileInputRef.current?.click()}
-            data-testid="agent-chat-attach"
-            type="button"
-          >
-            <IconPaperclip size={18} />
-          </ActionIcon>
-        </Tooltip>
         <ComposerPrimitive.Input
           autoFocus
-          placeholder="Ask the agent to build, edit, or run a workflow… (drop files to upload)"
-          rows={1}
+          placeholder="Describe the workflow you want to create or update… (drop files to upload)"
+          rows={2}
           data-testid="agent-chat-textarea"
           className="agent-chat-composer-input"
         />
-        <SendOrStopButton onAbort={onAbort} />
+        <Group justify="space-between" wrap="nowrap" gap="xs">
+          <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+            <Tooltip label="Attach a file (uploads to the workflow's source.upload node)">
+              <ActionIcon
+                size="md"
+                variant="subtle"
+                color="gray"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach a file"
+                data-testid="agent-chat-attach"
+                type="button"
+              >
+                {/* A plus, per the mock-up — the same "add something to this
+                    turn" affordance every other assistant uses. */}
+                <IconPlus size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <ModelPicker
+              availability={availability}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+            />
+          </Group>
+          <SendOrStopButton onAbort={onAbort} disabledReason={disabledReason} />
+        </Group>
       </ComposerPrimitive.Root>
-      <ModelPicker
-        selectedModel={selectedModel}
-        setSelectedModel={setSelectedModel}
-      />
     </Box>
+  );
+}
+
+/** Where a developer is told how to fix an unconfigured server. */
+const AGENT_SETUP_DOC = "docs-md/workflows/AGENT_SETUP.md";
+
+/**
+ * I1 / D4 — the state that was missing.
+ *
+ * `GET /api/agent/models` returning an empty list means the server told us,
+ * successfully, that it has **no model provider at all**. That used to render
+ * as the label "Server default model" with a tooltip promising an answer and
+ * a live send button, so the user typed a question into a wall and got
+ * nothing back. It now says so, by name, and send is inert beside it.
+ *
+ * The variable names come from the backend's own `REQUIRED_CONFIG` table via
+ * `missingConfig` — NAMES only, never values, and never a second copy of that
+ * table living in the frontend where it could drift.
+ */
+function UnconfiguredNotice({
+  availability,
+}: {
+  availability: AgentAvailability;
+}) {
+  if (availability.kind !== "unconfigured") return null;
+  const variables = describeMissingConfig(availability.missingConfig);
+  return (
+    <Alert
+      color="gray"
+      variant="light"
+      mb="sm"
+      icon={<IconSettingsExclamation size={18} />}
+      title="The assistant isn't configured on this server"
+      data-testid="agent-chat-unconfigured"
+    >
+      <Stack gap={4}>
+        <Text size="sm">
+          No model provider has credentials here, so the assistant can't answer
+          and sending is disabled.
+        </Text>
+        {variables !== null && (
+          <Text size="sm">
+            Whoever runs this environment needs to set <Code>{variables}</Code>,
+            then restart the backend.
+          </Text>
+        )}
+        <Text size="xs" c="dimmed">
+          Setup, and how to request access: <Code>{AGENT_SETUP_DOC}</Code>
+        </Text>
+      </Stack>
+    </Alert>
   );
 }
 

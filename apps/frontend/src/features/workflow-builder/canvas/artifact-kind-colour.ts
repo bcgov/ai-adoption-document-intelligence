@@ -124,14 +124,14 @@ const PORT_FAMILY: Record<PortFamilyToken, PortFamily> = {
     dot: "#FAB005",
     ring: "#FCD782",
     shape: "diamond",
-    label: "Judgements about a document",
+    label: "Labels and check results",
     shapeLabel: "diamond",
   },
   teal: {
     dot: "#0CA678",
     ring: "#85D2BB",
     shape: "bar",
-    label: "Pointers — IDs and lookups",
+    label: "IDs that point at something stored elsewhere",
     shapeLabel: "bar",
   },
   gray: {

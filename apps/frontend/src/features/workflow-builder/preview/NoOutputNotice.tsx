@@ -36,7 +36,7 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { IconAlertTriangle } from "@tabler/icons-react";
+import { IconAlertCircle } from "@tabler/icons-react";
 import { useNodeId } from "@xyflow/react";
 import { type ReactNode, useState } from "react";
 
@@ -56,6 +56,20 @@ export interface NoOutputNoticeProps {
  *                   button stays enabled so the user can try again.
  */
 type RerunState = "idle" | "rerunning" | "error";
+
+/**
+ * I5, second half — the reviewer could not tell from the button whether
+ * "Re-run workflow" retries the failed step or restarts everything, and the
+ * code says unambiguously that it restarts everything: `onRerun` GETs the
+ * run's original `initialCtx` and POSTs it to `POST /api/workflows/:id/tries`,
+ * which calls `startGraphWorkflow` — a brand-new Temporal execution of the
+ * whole graph from its entry node. There is no re-execute-one-step endpoint,
+ * so "Try again" would have been the untrue label. The button keeps the
+ * honest one and this line says what it costs, since a whole-workflow restart
+ * is not what a reader assumes from a per-step error card.
+ */
+const RERUN_SCOPE_NOTE =
+  "Runs the whole workflow again from the start, with the same input.";
 
 /**
  * The failure surface: red Alert, the engine's own reason, and one action.
@@ -78,7 +92,15 @@ type RerunState = "idle" | "rerunning" | "error";
  * **What Re-run does, exactly.** The same thing `CacheEvictedAlert`'s button
  * does: refetch the run's original `initialCtx` and POST a fresh Try with it.
  * There is no re-execute-one-step endpoint, so the label says "workflow" —
- * the action must not read as if it retried the failed step alone.
+ * the action must not read as if it retried the failed step alone, and
+ * `RERUN_SCOPE_NOTE` now says it in the card as well as in this comment.
+ *
+ * **The action is recoverable, so it is not painted as destructive** (I5,
+ * Inderdeep 2026-08-14: *"red button means a destructive action whereas
+ * re-run workflow isn't destructive"*). The alert keeps the B.C. Design
+ * System inline-alert danger treatment — tinted panel, 1px danger border,
+ * danger icon, bold first line — because the step really did fail; the CTA
+ * inside it is an outlined button, because re-running deletes nothing.
  */
 export function StepFailedAlert(): ReactNode {
   const nodeId = useNodeId();
@@ -124,13 +146,18 @@ export function StepFailedAlert(): ReactNode {
     <Alert
       color="red"
       variant="light"
-      icon={<IconAlertTriangle size={16} />}
+      // I5 — the B.C. Design System inline alert is a tinted panel with a
+      // 1px semantic border, not a tint alone. `--mantine-color-red-4` is
+      // the BC danger red (#CE3E39) as mapped in `appTheme`, so the border
+      // and the icon take the token rather than a pasted hex.
+      bd="1px solid var(--mantine-color-red-4)"
+      icon={<IconAlertCircle size={16} />}
       data-testid="no-output-failed"
       data-tone="error"
       data-rerun-state={state}
     >
       <Stack gap={6}>
-        <Text size="xs" fw={600}>
+        <Text size="xs" fw={700}>
           {describeNoOutput("failed").message}
         </Text>
         {nodeId !== null && (
@@ -146,37 +173,43 @@ export function StepFailedAlert(): ReactNode {
           </Text>
         )}
         {canRerun && (
-          <Group gap="xs" align="center">
-            <Button
-              size="xs"
-              variant="filled"
-              color="red"
-              onClick={onRerun}
-              disabled={state === "rerunning"}
-              leftSection={
-                state === "rerunning" ? (
-                  <Loader size="xs" color="white" />
-                ) : null
-              }
-              data-testid="step-failed-rerun"
-            >
-              Re-run workflow
-            </Button>
-            {state === "error" && (
-              <Anchor
-                component="button"
-                type="button"
+          <>
+            <Text size="xs" c="dimmed" data-testid="step-failed-rerun-scope">
+              {RERUN_SCOPE_NOTE}
+            </Text>
+            <Group gap="xs" align="center" justify="flex-end">
+              {state === "error" && (
+                <Anchor
+                  component="button"
+                  type="button"
+                  size="xs"
+                  onClick={() => {
+                    setState("idle");
+                    setRerunError(null);
+                  }}
+                  data-testid="step-failed-rerun-dismiss"
+                >
+                  Dismiss
+                </Anchor>
+              )}
+              <Button
                 size="xs"
-                onClick={() => {
-                  setState("idle");
-                  setRerunError(null);
-                }}
-                data-testid="step-failed-rerun-dismiss"
+                // I5 — recoverable, therefore NOT destructive: an outlined
+                // button on the alert's own surface, not a filled red one.
+                variant="outline"
+                color="red"
+                bg="var(--mantine-color-body)"
+                onClick={onRerun}
+                disabled={state === "rerunning"}
+                leftSection={
+                  state === "rerunning" ? <Loader size="xs" /> : null
+                }
+                data-testid="step-failed-rerun"
               >
-                Dismiss
-              </Anchor>
-            )}
-          </Group>
+                Re-run workflow
+              </Button>
+            </Group>
+          </>
         )}
       </Stack>
     </Alert>

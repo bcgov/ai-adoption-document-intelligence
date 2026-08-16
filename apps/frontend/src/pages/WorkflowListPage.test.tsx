@@ -149,6 +149,149 @@ describe("WorkflowListPage — workflow name link", () => {
 });
 
 /**
+ * D33 — "Even with this number of workflows, it can be hard to find the one
+ * you want." The list is fetched whole, so the filter is client-side; these
+ * tests pin the three things that make it usable — it matches the columns
+ * people scan, the caption says how many of how many, and a zero-result search
+ * explains itself and offers a way back.
+ */
+describe("WorkflowListPage — D33 search", () => {
+  let apiMock: ApiServiceMock;
+
+  const rows = [
+    {
+      id: "wf-1",
+      name: "Standard OCR",
+      slug: "standard-ocr",
+      description: "Runs Azure OCR over an upload",
+      version: 3,
+      config: { schemaVersion: "2.0" },
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-15T00:00:00.000Z",
+    },
+    {
+      id: "wf-2",
+      name: "Invoice extraction",
+      slug: "invoice-extraction",
+      description: "Pulls totals from invoices",
+      version: 1,
+      config: { schemaVersion: "2.0" },
+      createdAt: "2026-07-02T00:00:00.000Z",
+      updatedAt: "2026-07-16T00:00:00.000Z",
+    },
+    {
+      id: "wf-3",
+      name: "Passport HITL",
+      slug: "passport-hitl",
+      description: "Human review of passports",
+      version: 2,
+      config: { schemaVersion: "2.0" },
+      createdAt: "2026-07-03T00:00:00.000Z",
+      updatedAt: "2026-07-17T00:00:00.000Z",
+    },
+  ];
+
+  const typeSearch = (value: string) => {
+    const input = screen
+      .getByTestId("workflow-search")
+      .querySelector("input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value } });
+    return input;
+  };
+
+  beforeEach(() => {
+    apiMock = apiService as unknown as ApiServiceMock;
+    apiMock.get.mockReset();
+    apiMock.get.mockResolvedValue({
+      success: true,
+      data: { workflows: rows },
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders a search box above the table", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+    expect(screen.getAllByTestId("workflow-name-link")).toHaveLength(3);
+  });
+
+  it("filters by name, case-insensitively", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+
+    typeSearch("invoice");
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("workflow-name-link")).toHaveLength(1);
+    });
+    expect(screen.getByTestId("workflow-name-link")).toHaveTextContent(
+      "Invoice extraction",
+    );
+  });
+
+  it("filters by slug and by description, not just by name", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+
+    typeSearch("passport-hitl");
+    await waitFor(() => {
+      expect(screen.getAllByTestId("workflow-name-link")).toHaveLength(1);
+    });
+
+    typeSearch("azure");
+    await waitFor(() => {
+      expect(screen.getByTestId("workflow-name-link")).toHaveTextContent(
+        "Standard OCR",
+      );
+    });
+  });
+
+  it("says how many of how many matched in the caption", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+
+    typeSearch("o");
+
+    await waitFor(() => {
+      expect(screen.getByText(/of 3 workflows match "o"/)).toBeInTheDocument();
+    });
+  });
+
+  it("explains an empty result and offers a way out of it", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+
+    typeSearch("zzz-nothing-here");
+
+    const empty = await screen.findByTestId("workflow-search-empty");
+    expect(empty).toHaveTextContent('No workflows match "zzz-nothing-here"');
+    expect(screen.queryByTestId("workflow-name-link")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("workflow-search-clear"));
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("workflow-name-link")).toHaveLength(3);
+    });
+  });
+
+  it("filters in the browser — no refetch per keystroke", async () => {
+    renderPage();
+    await screen.findByTestId("workflow-search");
+    const callsBefore = apiMock.get.mock.calls.length;
+
+    typeSearch("invoice");
+    await waitFor(() => {
+      expect(screen.getAllByTestId("workflow-name-link")).toHaveLength(1);
+    });
+
+    expect(apiMock.get.mock.calls.length).toBe(callsBefore);
+  });
+});
+
+/**
  * P-2 (Alex review 2026-08-02) — Name was squeezed into a narrow column
  * while Description ran as one long truncated line. Name and Description
  * now carry explicit widths and the description wraps to two lines, which

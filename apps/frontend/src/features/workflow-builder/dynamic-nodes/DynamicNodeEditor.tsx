@@ -39,10 +39,14 @@ import {
 } from "@ai-di/graph-workflow";
 import {
   Alert,
+  Anchor,
   Box,
   Button,
+  Code,
+  Collapse,
   Grid,
   Group,
+  Loader,
   LoadingOverlay,
   Stack,
   Text,
@@ -50,7 +54,7 @@ import {
 } from "@mantine/core";
 import { modals } from "@mantine/modals";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DYNAMIC_NODE_BOILERPLATE } from "./boilerplate";
 import { CodePane } from "./CodePane";
 import type { DynamicNodeVersionDetail } from "./dynamic-node-api";
@@ -107,6 +111,25 @@ const PANE_SPANS: Record<DynamicNodeEditorLayout, PaneSpan> = {
 };
 
 /**
+ * D3 (residual) — a publish failure that is NOT about the script.
+ *
+ * The backend now answers an unreachable custom-node checker with a 503 whose
+ * `message` is a sentence a person can act on ("The custom-node checker is not
+ * running… start it with…") and whose `details` carries the diagnostic that
+ * used to be the headline (`POST http://…/check could not be reached: …`).
+ * This lifts `details` off the response body so the editor can show the
+ * sentence and keep the diagnostic one click away, instead of what it did
+ * before: append `" — see error markers"` to a failure that produces no
+ * markers at all.
+ */
+function extractFailureDetails(err: unknown): string | null {
+  const body = (err as { body?: unknown })?.body;
+  if (typeof body !== "object" || body === null) return null;
+  const details = (body as { details?: unknown }).details;
+  return typeof details === "string" && details.length > 0 ? details : null;
+}
+
+/**
  * Phase 6 sweep: pull structured `ParseError[]` out of a publish 400's
  * response body. The wire layer (`dynamic-node-api.ts#parseErrorResponse`)
  * stashes the JSON body on `ApiError.body`; we shape-check it here so the
@@ -155,12 +178,31 @@ export function DynamicNodeEditor({
   );
   const [currentText, setCurrentText] = useState<string>(initialScript);
 
-  // Edit-mode: when the detail fetch lands, hydrate the editor with the
-  // head version's script (only once per fetch — subsequent typing wins).
+  /**
+   * Edit-mode: hydrate the editor from the head version's script when the
+   * detail fetch lands — ONCE per lineage.
+   *
+   * D8 — the dep is a string, so the classic "new object per refetch" trap was
+   * already avoided, but there was no once-per-slug guard, and this component
+   * is mounted by three modals (the canvas node menu, the palette, the
+   * dynamic-node settings body) while `detailQuery` is still loading. Those
+   * mounts show the boilerplate, the author starts typing, the fetch lands
+   * 200–500 ms later and `headScript` changes — clobbering what was typed.
+   * Publishing does the same thing, because it invalidates the detail query.
+   * The full-page route (`DynamicNodeEditPage`) gates on `isLoading` and was
+   * always immune; the modals are not, and this makes them so.
+   *
+   * Revert deliberately does NOT come through here — it re-seeds the editor
+   * itself in `handleRevert`, because a guard keyed on the lineage cannot
+   * distinguish "the same head arriving again" from "a new head the author
+   * asked for".
+   */
+  const hydratedSlugRef = useRef<string | null>(null);
   useEffect(() => {
-    if (slug && headScript !== undefined) {
-      setCurrentText(headScript);
-    }
+    if (!slug || headScript === undefined) return;
+    if (hydratedSlugRef.current === slug) return;
+    hydratedSlugRef.current = slug;
+    setCurrentText(headScript);
   }, [slug, headScript]);
 
   // Create-mode: when the editor mounts with no slug, ensure the editor
@@ -192,6 +234,17 @@ export function DynamicNodeEditor({
     null,
   );
 
+  // D3 (residual) — the last publish failure, kept on screen. A notification
+  // is gone in four seconds; a failure whose fix is "start this service and
+  // publish again" has to survive long enough to be acted on, and its
+  // diagnostic has to be readable without the browser console.
+  const [publishFailure, setPublishFailure] = useState<{
+    message: string;
+    details: string | null;
+    markerCount: number;
+  } | null>(null);
+  const [failureDetailsOpen, setFailureDetailsOpen] = useState(false);
+
   const isEditMode = slug !== undefined;
 
   // Publish disabled until the script parses cleanly (we always send
@@ -216,6 +269,7 @@ export function DynamicNodeEditor({
         script: currentText,
       });
       setPublishErrors([]);
+      setPublishFailure(null);
       notifications.show({
         title: `Published v${result.version}`,
         message: `Saved ${result.slug}.`,
@@ -230,21 +284,31 @@ export function DynamicNodeEditor({
       // gutter squiggles + clickable strip lines, not just notification
       // text.
       const message = err instanceof Error ? err.message : String(err);
+      const serverErrors = extractServerParseErrors(err);
+      // Server didn't return structured errors (e.g. the 503 for an
+      // unreachable checker, or a network drop) — fall back to a client-side
+      // reparse so the user still sees jsdoc-parse + signature-semantics
+      // issues in the strip. That reparse legitimately yields nothing when the
+      // script is fine and the *service* is what failed, which is exactly the
+      // case the old copy mis-described.
+      const markers =
+        serverErrors.length > 0
+          ? serverErrors
+          : parseDynamicNodeSignature(currentText).errors;
+      setPublishErrors(markers);
+      setFailureDetailsOpen(false);
+      setPublishFailure({
+        message,
+        details: extractFailureDetails(err),
+        markerCount: markers.length,
+      });
       notifications.show({
         title: "Publish failed",
-        message: `${message} — see error markers`,
+        // D3 — error markers are only promised when some were produced.
+        message:
+          markers.length > 0 ? `${message} — see error markers` : message,
         color: "red",
       });
-      const serverErrors = extractServerParseErrors(err);
-      if (serverErrors.length > 0) {
-        setPublishErrors(serverErrors);
-      } else {
-        // Server didn't return structured errors (e.g. 5xx, network) —
-        // fall back to a client-side reparse so the user still sees
-        // jsdoc-parse + signature-semantics issues in the strip.
-        const reparse = parseDynamicNodeSignature(currentText);
-        setPublishErrors(reparse.errors);
-      }
     }
   };
 
@@ -289,6 +353,14 @@ export function DynamicNodeEditor({
       {
         onSuccess: (result) => {
           setPublishErrors([]);
+          setPublishFailure(null);
+          // D8 — the editor used to pick the reverted script up indirectly,
+          // via the invalidated detail query re-running the hydration effect.
+          // That effect is now once-per-lineage (it has to be, or a modal's
+          // in-flight fetch clobbers what the author typed), so revert states
+          // its own intent: this is the one place a new head should replace
+          // the buffer.
+          setCurrentText(version.script);
           notifications.show({
             title: `Reverted to v${version.versionNumber} as v${result.version}`,
             message: `Saved ${result.slug}.`,
@@ -308,6 +380,41 @@ export function DynamicNodeEditor({
   };
 
   const spans = PANE_SPANS[layout];
+
+  /**
+   * D8 — nothing may be typed into a buffer that is about to be replaced.
+   *
+   * In edit mode the script arrives with the detail fetch. Rendering the code
+   * pane before it lands showed the boilerplate, let the author start typing,
+   * and then overwrote what they typed when the fetch resolved 200–500 ms
+   * later — the reviewer's "maybe this is happening when it reloads". The
+   * full-page route (`DynamicNodeEditPage`) has always gated on `isLoading`
+   * and was immune; the three modal mount sites (canvas node menu, palette,
+   * dynamic-node settings body) mount this component directly and were not.
+   * Gating here fixes all three at once, and keeps one rule rather than four.
+   */
+  if (isEditMode && detailQuery.isLoading) {
+    return (
+      <Box
+        pos="relative"
+        data-testid="dynamic-node-editor"
+        data-layout={layout}
+      >
+        <Stack
+          align="center"
+          justify="center"
+          mih={240}
+          gap="xs"
+          data-testid="dynamic-node-editor-loading"
+        >
+          <Loader />
+          <Text size="sm" c="dimmed">
+            Loading {slug}…
+          </Text>
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
     <Box pos="relative" data-testid="dynamic-node-editor" data-layout={layout}>
@@ -360,6 +467,61 @@ export function DynamicNodeEditor({
             data-testid="dynamic-node-editor-load-error"
           >
             {detailQuery.error.message}
+          </Alert>
+        )}
+
+        {publishFailure && (
+          <Alert
+            color="red"
+            variant="light"
+            title="Publish failed"
+            withCloseButton
+            onClose={() => setPublishFailure(null)}
+            closeButtonLabel="Dismiss the publish failure"
+            data-testid="dynamic-node-editor-publish-error"
+          >
+            <Stack gap={6}>
+              <Text
+                size="sm"
+                data-testid="dynamic-node-editor-publish-error-message"
+              >
+                {publishFailure.message}
+              </Text>
+              {publishFailure.markerCount > 0 && (
+                <Text
+                  size="xs"
+                  c="dimmed"
+                  data-testid="dynamic-node-editor-publish-error-markers"
+                >
+                  {publishFailure.markerCount === 1
+                    ? "1 problem is marked in the editor below."
+                    : `${publishFailure.markerCount} problems are marked in the editor below.`}
+                </Text>
+              )}
+              {publishFailure.details !== null && (
+                <>
+                  <Anchor
+                    component="button"
+                    type="button"
+                    size="xs"
+                    onClick={() => setFailureDetailsOpen((open) => !open)}
+                    data-testid="dynamic-node-editor-publish-error-details-toggle"
+                  >
+                    {failureDetailsOpen
+                      ? "Hide technical details"
+                      : "Show technical details"}
+                  </Anchor>
+                  <Collapse in={failureDetailsOpen}>
+                    <Code
+                      block
+                      data-testid="dynamic-node-editor-publish-error-details"
+                    >
+                      {publishFailure.details}
+                    </Code>
+                  </Collapse>
+                </>
+              )}
+            </Stack>
           </Alert>
         )}
 

@@ -1,82 +1,37 @@
 /**
  * Per-handle styling helper for the visual workflow canvas.
  *
- * Given a list of declared `KindRef` values for every port on one side of a
- * node (input OR output), this helper produces the values the canvas needs
- * to colour the single xyflow `<Handle>` rendered on that side and to drive
- * its hover tooltip.
+ * The canvas paints one dot per PORT ROW — inputs down the left edge of a card,
+ * outputs down the right — and these helpers are what every surface that draws
+ * one of those dots agrees through: the port rows themselves, the wires, the
+ * legend, the source-node renderer and the standalone kind dot.
  *
- * Rule per TYPED_IO_DESIGN.md §4 ("Single-port-side colouring rule"):
+ * A dot carries its kind's family TWICE: as a colour and as a silhouette, so a
+ * reader who cannot separate two hues can still separate two ports. Cardinality
+ * (`T[]`) adds a doubled outline. Both come from `artifact-kind-colour.ts`,
+ * which is the single registry for the five families.
  *
- *   - Exactly ONE typed port declared on the side → the handle is coloured
- *     by that port's kind family (from `ARTIFACT_REGISTRY`) and the tooltip
- *     reads the kind literal verbatim (e.g. `"Segment[]"`).
- *   - ZERO typed ports OR TWO-OR-MORE typed ports on the side → the handle
- *     stays gray (Artifact wildcard) and the tooltip prompts the user to
- *     select the node to see the full typed signature. Picking a "primary"
- *     port to colour would mislead users about cardinality.
+ * Dynamically-registered kinds (Phase 6) resolve their colour through the same
+ * registry, and an unknown kind falls back to gray.
  *
- * Cardinality (`T[]`) is encoded in the kind literal itself — when present
- * the handle gets a doubled-outline visual cue (caller renders the outline;
- * this helper just sets `isArray: true`).
- *
- * `getArtifactKindMeta` is used so dynamically-registered kinds (Phase 6)
- * resolve their colour through the same code path. Unknown kinds fall back
- * to gray.
+ * WHAT USED TO LIVE HERE. `computeHandleStyle` coloured ONE handle standing for
+ * a whole side of a node, collapsing to gray whenever the side had zero or many
+ * typed ports. Per-port rows replaced that model, and PORT_WIRING_DESIGN.md §42
+ * had already recorded that this branch goes with it. It was removed on
+ * 2026-08-15 with its last caller — and it was not harmless while it sat there:
+ * its zero-typed-ports branch is where the tooltips "No typed inputs" and "No
+ * typed outputs" came from, the sentences about DATA ports that appeared on a
+ * control-flow card's run-order connector and stopped a reviewer drawing
+ * run-order edges at all (item D10).
  */
 
-import { getArtifactKindMeta, type KindRef } from "@ai-di/graph-workflow";
 import type { CSSProperties } from "react";
 
 import {
   type PortShape,
   portDotColor,
   portRingColor,
-  shapeForColor,
-  splitKindRef,
 } from "./artifact-kind-colour";
-
-export interface HandleStyle {
-  /**
-   * Family token (`"blue"`, `"violet"`, `"yellow"`, `"teal"`, `"gray"`).
-   * `"gray"` for the wildcard. Read it through `handleBackground` /
-   * `handleArrayOutline` / `shape` below — it is not a Mantine colour name.
-   */
-  color: string;
-  /**
-   * The family's non-chromatic carrier, derived from `color`. Always agrees
-   * with it — it is the SAME signal drawn a second way, so a user who cannot
-   * separate two hues can still separate two ports.
-   */
-  shape: PortShape;
-  /**
-   * True when the resolved kind is an array (`T[]`). The canvas renders a
-   * doubled outline around the handle dot to signal the cardinality.
-   */
-  isArray: boolean;
-  /**
-   * True when the side has either zero typed ports or multiple typed ports.
-   * Always co-occurs with `color === "gray"` and `isArray === false` — the
-   * canvas uses it to skip rendering kind-specific affordances (the doubled
-   * outline) and to drive the "Multiple inputs/outputs" tooltip.
-   */
-  isMultiPort: boolean;
-  /** Hover tooltip text — either the kind literal or the multi-port message. */
-  tooltipText: string;
-}
-
-export interface ComputeHandleStyleOpts {
-  /**
-   * Every declared port on this side of the node, in node-declaration order.
-   * Entries without a `kind` field on the catalog descriptor pass `undefined`
-   * here. Order is preserved so the future per-port pill can render the same
-   * ordering the catalog declares.
-   */
-  portKinds: ReadonlyArray<KindRef | undefined>;
-  direction: "input" | "output";
-}
-
-const GRAY_COLOR = "gray";
 
 /**
  * The handle dot's background, resolved from the family token.
@@ -299,63 +254,5 @@ export function plusGlyphBarStyles(
       width: PLUS_GLYPH_STROKE,
       height: arm,
     },
-  };
-}
-
-/**
- * Compute the canvas handle style for one side of a node.
- *
- * Pure: given the same `portKinds` + `direction` always returns the same
- * `HandleStyle`. Safe to call unmemoised — the canvas projection runs it
- * once per side per render.
- */
-export function computeHandleStyle(opts: ComputeHandleStyleOpts): HandleStyle {
-  const { portKinds, direction } = opts;
-  const typedKinds: KindRef[] = portKinds.filter(
-    (k): k is KindRef => k !== undefined,
-  );
-
-  if (typedKinds.length === 1) {
-    const lone = typedKinds[0];
-    const { baseKind, isArray } = splitKindRef(lone);
-    const meta = getArtifactKindMeta(baseKind);
-    // Unknown base kinds collapse to gray. They still render as
-    // single-port (not multi-port) — the tooltip honestly shows the
-    // declared kind literal even when the registry doesn't know it.
-    const color = meta?.color ?? GRAY_COLOR;
-    return {
-      color,
-      shape: shapeForColor(color),
-      isArray,
-      isMultiPort: false,
-      tooltipText: lone,
-    };
-  }
-
-  // Zero typed ports OR two-or-more typed ports collapse to a gray wildcard
-  // handle. The tooltip distinguishes the two: a node with NO typed ports
-  // (e.g. a map/join whose data flow is via ctx keys, not ports) shouldn't
-  // claim it has "multiple" — that misrepresents the cardinality.
-  if (typedKinds.length === 0) {
-    return {
-      color: GRAY_COLOR,
-      shape: shapeForColor(GRAY_COLOR),
-      isArray: false,
-      isMultiPort: true,
-      tooltipText:
-        direction === "input" ? "No typed inputs" : "No typed outputs",
-    };
-  }
-
-  const tooltipText =
-    direction === "input"
-      ? "Multiple inputs — select node to view all"
-      : "Multiple outputs — select node to view all";
-  return {
-    color: GRAY_COLOR,
-    shape: shapeForColor(GRAY_COLOR),
-    isArray: false,
-    isMultiPort: true,
-    tooltipText,
   };
 }

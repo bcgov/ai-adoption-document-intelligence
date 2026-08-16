@@ -97,8 +97,18 @@ import {
 import { layoutGraphSimplified, layoutGraphWithMapBodies } from "./auto-layout";
 import { CanvasLegend } from "./CanvasLegend";
 import { ConnectSummaryPopover } from "./ConnectSummaryPopover";
+import {
+  dataDropRefusalMessage,
+  resolveDataDropTarget,
+} from "./data-drop-target";
 import { type DataWire, type DerivedWire, deriveWires } from "./derive-wires";
 import { pickInputPortForKind, pickOutputPortForKind } from "./extend-filter";
+import {
+  FLOW_HANDLE_TOOLTIP_IN,
+  FLOW_HANDLE_TOOLTIP_OUT,
+  type FlowHandleAnchor,
+  flowHandleStyle,
+} from "./flow-handle";
 import {
   type GroupChipFlowNode,
   GroupChipNode,
@@ -123,13 +133,6 @@ import {
   readSimplifiedNodePosition,
 } from "./group-projection";
 import { HoverExtendPopover } from "./HoverExtendPopover";
-import {
-  computeHandleStyle,
-  type HandleStyle,
-  handleArrayOutline,
-  handleBackground,
-  portShapeStyle,
-} from "./handle-style";
 import {
   isSyntheticMapBodyGroupId,
   mapNodeIdFromSyntheticGroupId,
@@ -354,15 +357,6 @@ interface ControlFlowNodeData extends CommonNodeData {
   /** Same as ActivityNodeData.errorPolicy — see US-024. */
   errorPolicy?: ErrorPolicy;
   /**
-   * Pre-computed kind-aware styling for the node's single input + output
-   * handle (US-095). The projection layer derives these — the renderer
-   * just consumes them. Activity nodes render per-port rows instead
-   * (`ActivityNodeData.portRows`), so these now live on the control-flow
-   * data shape only.
-   */
-  inputHandleStyle: HandleStyle;
-  outputHandleStyle: HandleStyle;
-  /**
    * Pre-computed per-port entries used by the on-selection type pill
    * (US-096). Control-flow nodes have no typed catalog ports today, so
    * these stay `[]` and the pill renders nothing — kept until a future
@@ -513,9 +507,12 @@ interface NodeHandlesProps {
     nodeId: string,
     anchor: { x: number; y: number },
   ) => void;
-  /** Kind-aware styles for the input + output handles (US-095). */
-  inputHandleStyle: HandleStyle;
-  outputHandleStyle: HandleStyle;
+  /**
+   * Where the run-order pair sits vertically (D28). `"card-top"` for every
+   * rectangular card, `"middle"` for the switch diamond, whose left/right
+   * vertices ARE its midpoint. See `flow-handle.ts`.
+   */
+  flowAnchor: FlowHandleAnchor;
   /**
    * Per-port entries the on-selection type pill consumes (US-096). The
    * pill renders only when `selected` is `true` AND the entries declare
@@ -568,6 +565,28 @@ const ERROR_HANDLE_TOOLTIP = "Error path: runs when this step fails";
 const FAILURE_CHIP_GLYPH_SIZE = 11;
 const FAILURE_CHIP_GLYPH_STROKE = 2.6;
 
+/**
+ * I4 (Inderdeep, 2026-08-14) — *"in the error chip, the icon and the text
+ * aren't aligned."* He is right, by half a pixel, and here is where it comes
+ * from.
+ *
+ * Mantine's Badge is an `inline-grid` with `align-items: center`, so it
+ * centres the icon's BOX and the label's LINE BOX. A line box is symmetric
+ * about the font's ascent and descent; the ink of an all-caps label is not.
+ * Measured on the live chip (`ERROR`, 9px, line-height 14px): font ascent 10,
+ * font descent 3, cap height 6, no descender ink. The label's box centre lands
+ * at 8.0px from the chip's top while the caps' optical centre lands at 8.5 —
+ * the empty descender space below the caps drags the ink down relative to the
+ * box, so a box-centred icon reads high against the text.
+ *
+ * The correction is that difference, `(ascent - descent - capHeight) / 2 =
+ * (10 - 3 - 6) / 2 = 0.5px`, applied to the GLYPH rather than to the label.
+ * Nudging the label instead would fix this chip and desynchronise it from
+ * every other chip on the card (`DYN`, `Deleted`, `ENTRY`, the validation
+ * count), which are text-only and therefore correctly box-centred today.
+ */
+const FAILURE_CHIP_GLYPH_OPTICAL_NUDGE = "translateY(0.5px)";
+
 function NodeFailureChip({ nodeId }: { nodeId: string }) {
   const ctx = useOptionalRunState();
   // Same idle suppression the corner badge uses: with no run in flight there
@@ -587,6 +606,7 @@ function NodeFailureChip({ nodeId }: { nodeId: string }) {
         <IconX
           size={FAILURE_CHIP_GLYPH_SIZE}
           stroke={FAILURE_CHIP_GLYPH_STROKE}
+          style={{ transform: FAILURE_CHIP_GLYPH_OPTICAL_NUDGE }}
         />
       }
       style={entry.errorMessage ? { cursor: "help" } : undefined}
@@ -668,8 +688,7 @@ const NodeHandles = memo(function NodeHandles({
   onSourceHandleEnter,
   onSourceHandleLeave,
   onErrorHandleEnter,
-  inputHandleStyle,
-  outputHandleStyle,
+  flowAnchor,
   inputPillEntries,
   outputPillEntries,
   selected,
@@ -687,71 +706,40 @@ const NodeHandles = memo(function NodeHandles({
     onSourceHandleLeave,
   );
 
-  // Doubled-outline cue for `T[]` cardinality (US-095 Scenario 1).
-  // Applied via inline outline so it nests around the existing handle
-  // dot without requiring extra DOM. `outline` (not `border`) is used
-  // because it doesn't affect layout / handle hit-testing.
-  const inputArrayOutline = inputHandleStyle.isArray
-    ? {
-        outline: `2px solid ${handleArrayOutline(inputHandleStyle.color)}`,
-        outlineOffset: "2px",
-      }
-    : {};
-  const outputArrayOutline = outputHandleStyle.isArray
-    ? {
-        outline: `2px solid ${handleArrayOutline(outputHandleStyle.color)}`,
-        outlineOffset: "2px",
-      }
-    : {};
-
   return (
     <>
-      <Tooltip label={inputHandleStyle.tooltipText} withArrow position="left">
+      {/*
+       * The run-order pair. Identical geometry, fill and copy to the pair
+       * `ActivityNodeRenderer` mounts — see `flow-handle.ts` for the three
+       * ways these two used to differ and why a reviewer read the
+       * differences as meaning (D28). `flowAnchor` is the ONE difference
+       * left, and geometry forces it: the switch is a rotated square whose
+       * left/right vertices are at its vertical midpoint.
+       */}
+      <Tooltip label={FLOW_HANDLE_TOOLTIP_IN} withArrow position="left">
         <span
-          data-testid={`port-tooltip-input-${nodeId}`}
+          data-testid={`flow-handle-tooltip-in-${nodeId}`}
           data-port-direction="input"
-          data-port-color={inputHandleStyle.color}
-          data-port-shape={inputHandleStyle.shape}
-          data-port-array={inputHandleStyle.isArray ? "true" : "false"}
-          data-port-multi={inputHandleStyle.isMultiPort ? "true" : "false"}
-          data-port-tooltip={inputHandleStyle.tooltipText}
+          data-port-tooltip={FLOW_HANDLE_TOOLTIP_IN}
         >
           <Handle
             type="target"
             position={Position.Left}
-            style={{
-              background: handleBackground(inputHandleStyle.color),
-              ...portShapeStyle(inputHandleStyle.shape, {
-                color: inputHandleStyle.color,
-                side: "left",
-              }),
-              ...inputArrayOutline,
-            }}
+            style={flowHandleStyle(flowAnchor)}
           />
         </span>
       </Tooltip>
-      <Tooltip label={outputHandleStyle.tooltipText} withArrow position="right">
+      <Tooltip label={FLOW_HANDLE_TOOLTIP_OUT} withArrow position="right">
         <span
-          data-testid={`port-tooltip-output-${nodeId}`}
+          data-testid={`flow-handle-tooltip-out-${nodeId}`}
           data-port-direction="output"
-          data-port-color={outputHandleStyle.color}
-          data-port-shape={outputHandleStyle.shape}
-          data-port-array={outputHandleStyle.isArray ? "true" : "false"}
-          data-port-multi={outputHandleStyle.isMultiPort ? "true" : "false"}
-          data-port-tooltip={outputHandleStyle.tooltipText}
+          data-port-tooltip={FLOW_HANDLE_TOOLTIP_OUT}
         >
           <Handle
             id="out"
             type="source"
             position={Position.Right}
-            style={{
-              background: handleBackground(outputHandleStyle.color),
-              ...portShapeStyle(outputHandleStyle.shape, {
-                color: outputHandleStyle.color,
-                side: "right",
-              }),
-              ...outputArrayOutline,
-            }}
+            style={flowHandleStyle(flowAnchor)}
             onMouseEnter={handleEnter}
             onMouseLeave={handleLeave}
           />
@@ -965,23 +953,31 @@ const ActivityNodeRenderer = memo(
           </div>
         )}
         {/* Node-level handles FIRST in DOM order for their type — see the
-            default-resolution comment above `hoverHandlers`. */}
-        <Tooltip label="Flow — execution order" withArrow position="left">
-          <span>
+            default-resolution comment above `hoverHandlers`. Geometry, fill
+            and copy come from `flow-handle.ts` so this pair is identical to
+            the one every other card renders (D28). */}
+        <Tooltip label={FLOW_HANDLE_TOOLTIP_IN} withArrow position="left">
+          <span
+            data-testid={`flow-handle-tooltip-in-${id}`}
+            data-port-tooltip={FLOW_HANDLE_TOOLTIP_IN}
+          >
             <Handle
               type="target"
               position={Position.Left}
-              style={{ top: 18, background: handleBackground("gray") }}
+              style={flowHandleStyle("card-top")}
             />
           </span>
         </Tooltip>
-        <Tooltip label="Flow — execution order" withArrow position="right">
-          <span>
+        <Tooltip label={FLOW_HANDLE_TOOLTIP_OUT} withArrow position="right">
+          <span
+            data-testid={`flow-handle-tooltip-out-${id}`}
+            data-port-tooltip={FLOW_HANDLE_TOOLTIP_OUT}
+          >
             <Handle
               id="out"
               type="source"
               position={Position.Right}
-              style={{ top: 18, background: handleBackground("gray") }}
+              style={flowHandleStyle("card-top")}
               onMouseEnter={hoverHandlers.onMouseEnter}
               onMouseLeave={hoverHandlers.onMouseLeave}
             />
@@ -1176,8 +1172,7 @@ const ControlFlowRectangleRenderer = memo(
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
           onErrorHandleEnter={data.onErrorHandleEnter}
-          inputHandleStyle={data.inputHandleStyle}
-          outputHandleStyle={data.outputHandleStyle}
+          flowAnchor="card-top"
           inputPillEntries={data.inputPillEntries}
           outputPillEntries={data.outputPillEntries}
           selected={selected ?? false}
@@ -1344,8 +1339,7 @@ const PollUntilNodeRenderer = memo(
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
           onErrorHandleEnter={data.onErrorHandleEnter}
-          inputHandleStyle={data.inputHandleStyle}
-          outputHandleStyle={data.outputHandleStyle}
+          flowAnchor="card-top"
           inputPillEntries={data.inputPillEntries}
           outputPillEntries={data.outputPillEntries}
           selected={selected ?? false}
@@ -1493,8 +1487,7 @@ const SwitchNodeRenderer = memo(
           nodeId={id}
           onSourceHandleEnter={data.onSourceHandleEnter}
           onSourceHandleLeave={data.onSourceHandleLeave}
-          inputHandleStyle={data.inputHandleStyle}
-          outputHandleStyle={data.outputHandleStyle}
+          flowAnchor="middle"
           inputPillEntries={data.inputPillEntries}
           outputPillEntries={data.outputPillEntries}
           selected={selected ?? false}
@@ -1556,22 +1549,25 @@ interface ProjectionCallbacks {
 
 /**
  * Per-side projection shape consumed by the control-flow node renderers —
- * bundles the US-095 handle style with the US-096 pill entries. Activity
- * nodes render per-port rows instead (`computePortRows`), so this shape
- * only feeds `controlFlowNodeSides` today.
+ * the US-096 pill entries. Activity nodes render per-port rows instead
+ * (`computePortRows`), so this shape only feeds `controlFlowNodeSides`.
+ *
+ * It used to carry a `handleStyle` as well, for the node-level dot. That
+ * dot is the RUN-ORDER connector, not a data port, and painting it in the
+ * data palette's wildcard grey was one of the three ways the same connector
+ * came out looking different per card (D28) — it now takes its geometry and
+ * fill from `flow-handle.ts` like every other card's, so there is no
+ * per-node style left to project.
  */
 interface SideProjection {
-  handleStyle: HandleStyle;
   pillEntries: NodeTypePillEntry[];
 }
 
 /**
  * Control-flow nodes (switch / map / join / childWorkflow / pollUntil /
  * humanGate) have no `PortDescriptor.kind` declarations on the catalog
- * today. They render as wildcard / multi-port — gray handles + the
- * "Multiple inputs/outputs — select node to view all" tooltip — and no
- * pill, until a future story types their I/O explicitly (e.g.
- * childWorkflow nodes sourcing their kinds from
+ * today, so no pill renders, until a future story types their I/O
+ * explicitly (e.g. childWorkflow nodes sourcing their kinds from
  * `LibraryPortDescriptor.kind`).
  */
 function controlFlowNodeSides(): {
@@ -1579,14 +1575,8 @@ function controlFlowNodeSides(): {
   output: SideProjection;
 } {
   return {
-    input: {
-      handleStyle: computeHandleStyle({ portKinds: [], direction: "input" }),
-      pillEntries: [],
-    },
-    output: {
-      handleStyle: computeHandleStyle({ portKinds: [], direction: "output" }),
-      pillEntries: [],
-    },
+    input: { pillEntries: [] },
+    output: { pillEntries: [] },
   };
 }
 
@@ -1652,8 +1642,6 @@ function projectFlowNodes(
           onOutputHandleLeave: callbacks.onOutputHandleLeave,
           onInputHandleEnter: callbacks.onInputHandleEnter,
           onInputHandleLeave: callbacks.onInputHandleLeave,
-          inputHandleStyle: sides.input.handleStyle,
-          outputHandleStyle: sides.output.handleStyle,
           inputPillEntries: sides.input.pillEntries,
           outputPillEntries: sides.output.pillEntries,
           portRows: computePortRows(config, node.id, wires),
@@ -1679,8 +1667,6 @@ function projectFlowNodes(
           onSourceHandleEnter: callbacks.onSourceHandleEnter,
           onSourceHandleLeave: callbacks.onSourceHandleLeave,
           onErrorHandleEnter: callbacks.onErrorHandleEnter,
-          inputHandleStyle: sides.input.handleStyle,
-          outputHandleStyle: sides.output.handleStyle,
           inputPillEntries: sides.input.pillEntries,
           outputPillEntries: sides.output.pillEntries,
         },
@@ -2630,10 +2616,18 @@ function WorkflowEditorCanvasInner({
   // on existing internal nodes whenever the validation results change.
   // Kept separate from the structural projection above so that the
   // 300ms-debounced validator doesn't trigger a full re-projection.
+  //
+  // D7 — `Array.prototype.map` ALWAYS allocates, so this effect used to
+  // replace the whole xyflow node array every time `errorsByNode` changed
+  // identity, even when not one count moved. That is once per keystroke in a
+  // settings field (see the matching fix in `useGraphValidation`), and a new
+  // array defeats xyflow's `checkEquality` reuse, re-rendering every card.
+  // The hover-highlight effect immediately below already had this guard.
   useEffect(() => {
     if (!errorsByNode) return;
-    setInternalNodes((prev) =>
-      prev.map((n): FlowNode => {
+    setInternalNodes((prev) => {
+      let changed = false;
+      const next = prev.map((n): FlowNode => {
         // Group container boxes are background-only chrome — their members
         // carry their own badges, and (unlike a chip) those members are all on
         // screen, so there is nothing to roll up.
@@ -2662,6 +2656,7 @@ function WorkflowEditorCanvasInner({
         ) {
           return n;
         }
+        changed = true;
         // Preserve the discriminated-union narrowing by patching each
         // branch with its own concrete data shape — TS can't widen a
         // spread back into FlowNode through the union.
@@ -2701,8 +2696,9 @@ function WorkflowEditorCanvasInner({
           data: { ...n.data, errorCount, warningCount },
         };
         return updated;
-      }),
-    );
+      });
+      return changed ? next : prev;
+    });
   }, [errorsByNode, setInternalNodes]);
 
   // Item 6X — hover-highlight sync. Patches ONLY the `wb-node-highlight`
@@ -4003,16 +3999,42 @@ function WorkflowEditorCanvasInner({
       if (!connection.source || !connection.target) return;
       if (connection.source === connection.target) return;
       // §6.1 drag-to-bind: BOTH endpoints on per-port handles → one gesture
-      // writes data + order + pin. Mixed gestures (port→node-body or
-      // node→port) fall through to the node-level path below — an edge is
-      // created and auto-wire fills bindings as before. Port-to-port drags
-      // do NOT get the §6.4 connect-summary popover — the pinned wire
-      // itself is the feedback — so `openConnectSummary` is only called
-      // from the node-level path below.
+      // writes data + order + pin. Port-to-port drags do NOT get the §6.4
+      // connect-summary popover — the pinned wire itself is the feedback —
+      // so `openConnectSummary` is only called from the node-level path
+      // below.
       const sourcePort = portFromHandleId(connection.sourceHandle, "output");
       const targetPort = portFromHandleId(connection.targetHandle, "input");
-      if (sourcePort !== null && targetPort !== null) {
-        let next = pinPortBinding(config, connection.target, targetPort, {
+      // D9: a drag that STARTED on a data port is a data gesture wherever it
+      // is released. Dropped on the target's run-order dot it used to fall
+      // through to the node-level branch and quietly become an execution
+      // edge — the user aimed a data wire and got a dashed grey one. Resolve
+      // it against the target's real inputs instead: an unambiguous match
+      // completes as the data edge that was aimed at, anything else is
+      // refused by `isValidConnection` (which asks the SAME function) and
+      // worded by `handleConnectEnd`, so this branch never has to say no.
+      const boundTargetPort =
+        sourcePort !== null && targetPort === null
+          ? (() => {
+              const verdict = resolveDataDropTarget(
+                config,
+                connection.source,
+                sourcePort,
+                connection.target,
+              );
+              return verdict.kind === "port" ? verdict.port.name : null;
+            })()
+          : targetPort;
+      if (sourcePort !== null) {
+        if (boundTargetPort === null) {
+          // Refused (D9). `isValidConnection` already stopped xyflow from
+          // calling us for this drop; returning here means the invariant —
+          // a data-port drag NEVER becomes an execution edge — holds even
+          // if some other caller reaches `handleConnect` directly. The
+          // reason is shown by `handleConnectEnd`.
+          return;
+        }
+        let next = pinPortBinding(config, connection.target, boundTargetPort, {
           producerNodeId: connection.source,
           producerPort: sourcePort,
         });
@@ -4119,19 +4141,36 @@ function WorkflowEditorCanvasInner({
   );
 
   /**
-   * §6.2 — connect-time kind validation for port-to-port drags. Node-level
-   * gestures (either endpoint missing a per-port handle id) keep today's
-   * permissive behavior; a self-connection is always rejected outright. A
-   * wildcard (`undefined` or base `Artifact`) target kind accepts any
-   * drop — a manual drag is an explicit choice, so §6.2 doesn't second-
-   * guess it the way auto-wire's resolver does.
+   * §6.2 — connect-time kind validation. A self-connection is always
+   * rejected outright. A wildcard (`undefined` or base `Artifact`) target
+   * kind accepts any drop — a manual drag is an explicit choice, so §6.2
+   * doesn't second-guess it the way auto-wire's resolver does.
+   *
+   * Three cases, by where the drag STARTED and where it is being released:
+   *
+   *   - port → port: the kinds have to be assignable (unchanged).
+   *   - **port → node-level dot (D9)**: allowed only when it resolves to
+   *     exactly one compatible input, which `handleConnect` then binds. It
+   *     used to be permitted unconditionally and silently produced a
+   *     run-order edge instead of the data wire the user drew.
+   *   - node-level → anything: authoring run order, permissive as before.
    */
   const isValidConnection = useCallback<IsValidConnection>(
     (connection) => {
       if (connection.source === connection.target) return false;
       const sourcePort = portFromHandleId(connection.sourceHandle, "output");
       const targetPort = portFromHandleId(connection.targetHandle, "input");
-      if (sourcePort === null || targetPort === null) return true;
+      if (sourcePort === null) return true;
+      if (targetPort === null) {
+        return (
+          resolveDataDropTarget(
+            config,
+            connection.source,
+            sourcePort,
+            connection.target,
+          ).kind === "port"
+        );
+      }
       const targetKind = inputPortKind(config, connection.target, targetPort);
       if (targetKind === undefined || targetKind === "Artifact") return true;
       const sourceKind = outputPortKind(config, connection.source, sourcePort);
@@ -4214,6 +4253,45 @@ function WorkflowEditorCanvasInner({
             color: "yellow",
             message: `This input needs ${humanKindLabel(targetKind)} — ${humanKindLabel(sourceKind)} can't be used here`,
             autoClose: 5000,
+          });
+        }
+      }
+
+      // D9 — a data-port drag released on a node's RUN-ORDER dot rather
+      // than on one of its input dots. That drop used to fall through to
+      // the node-level branch and quietly create an execution edge; now it
+      // is refused, so it has to say why. Worded from the same verdict
+      // `isValidConnection` refused it by, so the two can't tell different
+      // stories.
+      //
+      // A release over the card's BODY does not reach here: xyflow only
+      // names a `toNode` when a handle is within `connectionRadius` of the
+      // release point, so a body drop arrives as `toNode == null` and is
+      // handled by the §9 branch below, which opens the extend picker.
+      // Verified in a browser, 2026-08-15.
+      if (
+        fromPort !== null &&
+        toPort === null &&
+        connectionState.fromNode &&
+        connectionState.toNode &&
+        connectionState.fromNode.id !== connectionState.toNode.id
+      ) {
+        const targetId = connectionState.toNode.id;
+        const verdict = resolveDataDropTarget(
+          config,
+          connectionState.fromNode.id,
+          fromPort,
+          targetId,
+        );
+        const message = dataDropRefusalMessage(
+          verdict,
+          config.nodes[targetId]?.label ?? targetId,
+        );
+        if (message !== null) {
+          notifications.show({
+            color: "yellow",
+            message,
+            autoClose: 7000,
           });
         }
       }

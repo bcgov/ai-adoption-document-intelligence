@@ -510,8 +510,25 @@ function PortRow({
       );
       break;
     case "locked":
+      // D21 — "Pinned by you" was wrong twice. It was silent about WHO, in the
+      // one place a reader asks (`is that someone the user or a developer?`),
+      // and it was factually false on every seeded demo: those workflows are
+      // authored elsewhere, the loader turns their explicit ctx bindings into
+      // locks (`normaliseLocks`), and the reader is then told they did it.
+      // There is no author identity on a lock — `metadata.lockedInputPorts` is
+      // a list of port names and nothing else — so the honest statement is
+      // about the ACT, not the actor: somebody editing this workflow chose it
+      // by hand, and it is undoable from this row.
       badge = (
-        <Tooltip label="Pinned by you">
+        <Tooltip
+          multiline
+          w={280}
+          label={
+            pinnedSource?.via === "producer"
+              ? "Pinned — someone editing this workflow chose this source by hand, so automatic wiring leaves it alone. Change it or hand it back with the ⋯ menu."
+              : "Pinned — someone editing this workflow chose this source by hand, so automatic wiring leaves it alone. The value arrives in this workflow variable at run time. Change it or hand it back with the ⋯ menu."
+          }
+        >
           <Badge size="xs" color="gray" variant="light">
             Pinned
           </Badge>
@@ -678,7 +695,15 @@ function PortRow({
   // the two things you can do to a value: name it, or remove it.
   if (constantValue !== null) {
     badge = (
-      <Tooltip label="A value you typed here">
+      // D21 — same correction as the Pinned badge above: a seeded or
+      // agent-authored workflow reaches this branch too, and "you typed" is
+      // then untrue. What is always true is that the value is written into the
+      // workflow rather than produced by a step.
+      <Tooltip
+        multiline
+        w={280}
+        label="A fixed value written into this workflow, not produced by an earlier step. Edit it in the field below, or publish it as a workflow input from the ⋯ menu."
+      >
         <Badge size="xs" color="blue" variant="light">
           Value
         </Badge>

@@ -62,21 +62,103 @@ vi.mock("./monaco-loader", () => ({
   ensureLocalMonaco: ensureLocalMonacoMock,
 }));
 
-vi.mock("@monaco-editor/react", () => ({
-  default: ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange?: (next: string | undefined) => void;
-  }) => (
-    <textarea
-      data-testid="codemirror-stub"
-      value={value}
-      onChange={(e) => onChange?.(e.target.value)}
-    />
-  ),
-}));
+// D8 (second cause) — `CodePane` no longer passes `value`: the editor owns its
+// buffer and re-seeds are pushed imperatively through `setValue`. A controlled
+// `<textarea value={…}>` cannot express that contract, so the stub mirrors the
+// real one in `CodePane.spec.tsx`: uncontrolled `defaultValue`, an `onMount`
+// handle whose `setValue` writes the DOM node directly (React never learns of
+// it, exactly like Monaco), and `onChange` for typing.
+vi.mock("@monaco-editor/react", async () => {
+  const { useEffect, useRef } = await import("react");
+  return {
+    default: ({
+      defaultValue,
+      onChange,
+      onMount,
+    }: {
+      defaultValue?: string;
+      onChange?: (next: string | undefined) => void;
+      onMount?: (
+        editor: {
+          getValue: () => string;
+          setValue: (next: string) => void;
+          getModel: () => unknown;
+          focus: () => void;
+          setPosition: (position: unknown) => void;
+          revealPositionInCenter: (position: unknown) => void;
+        },
+        monaco: {
+          editor: { setModelMarkers: (...args: unknown[]) => void };
+          MarkerSeverity: { Error: number };
+          languages: {
+            typescript: {
+              typescriptDefaults: {
+                setDiagnosticsOptions: (options: unknown) => void;
+              };
+            };
+          };
+        },
+      ) => void;
+    }) => {
+      const nodeRef = useRef<HTMLTextAreaElement | null>(null);
+      const mountedRef = useRef(false);
+
+      useEffect(() => {
+        const node = nodeRef.current;
+        if (!node || mountedRef.current) return;
+        mountedRef.current = true;
+        onMount?.(
+          {
+            getValue: () => node.value,
+            setValue: (next: string) => {
+              node.value = next;
+            },
+            getModel: () => ({
+              getLineCount: () => node.value.split("\n").length,
+              getLineMaxColumn: (line: number) =>
+                (node.value.split("\n")[line - 1] ?? "").length + 1,
+            }),
+            focus: () => {
+              /* the stub has no cursor or markers to move */
+            },
+            setPosition: () => {
+              /* the stub has no cursor or markers to move */
+            },
+            revealPositionInCenter: () => {
+              /* the stub has no cursor or markers to move */
+            },
+          },
+          {
+            editor: {
+              setModelMarkers: () => {
+                /* markers are Monaco's own UI — nothing to draw in a stub */
+              },
+            },
+            MarkerSeverity: { Error: 8 },
+            languages: {
+              typescript: {
+                typescriptDefaults: {
+                  setDiagnosticsOptions: () => {
+                    /* no TypeScript service under jsdom to configure */
+                  },
+                },
+              },
+            },
+          },
+        );
+      });
+
+      return (
+        <textarea
+          data-testid="codemirror-stub"
+          ref={nodeRef}
+          defaultValue={defaultValue}
+          onChange={(e) => onChange?.(e.target.value)}
+        />
+      );
+    },
+  };
+});
 
 const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -356,6 +438,116 @@ describe("DynamicNodeEditor (US-176)", () => {
   });
 
   // -----------------------------------------------------------------------
+  // D3 (residual) — an unreachable custom-node checker is not a script error
+  // -----------------------------------------------------------------------
+  it("shows the backend's sentence, hides `details` behind a toggle, and does not promise error markers", async () => {
+    // What the backend now returns on 503: a human instruction as `message`,
+    // the endpoint diagnostic as `details`. The script itself is the valid
+    // boilerplate, so a client-side reparse produces NO markers — which is
+    // exactly the case the old "— see error markers" copy lied about.
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          code: "DENO_RUNNER_UNAVAILABLE",
+          message:
+            "The custom-node checker is not running, so this script could not be type-checked. Start it, then publish again.",
+          details:
+            "POST http://localhost:9099/check could not be reached: fetch failed",
+        },
+        { status: 503 },
+      ),
+    );
+
+    renderEditor({});
+
+    const publishBtn = screen.getByTestId(
+      "dynamic-node-editor-publish",
+    ) as HTMLButtonElement;
+    await waitFor(() => expect(publishBtn.disabled).toBe(false));
+    await act(async () => {
+      fireEvent.click(publishBtn);
+    });
+
+    const alert = await screen.findByTestId(
+      "dynamic-node-editor-publish-error",
+    );
+    expect(alert).toHaveTextContent(
+      "The custom-node checker is not running, so this script could not be type-checked.",
+    );
+    // No markers were produced, so nothing claims there are any.
+    expect(
+      screen.queryByTestId("dynamic-node-editor-publish-error-markers"),
+    ).not.toBeInTheDocument();
+    expect(mockNotificationsShow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Publish failed",
+        message:
+          "The custom-node checker is not running, so this script could not be type-checked. Start it, then publish again.",
+      }),
+    );
+
+    // `details` is reachable but not shouted. Mantine's <Collapse> keeps its
+    // child mounted at height 0, so the honest DOM-level assertion is the
+    // toggle's own state, not the child's presence — jsdom cannot see height.
+    const detailsToggle = screen.getByTestId(
+      "dynamic-node-editor-publish-error-details-toggle",
+    );
+    expect(detailsToggle).toHaveTextContent("Show technical details");
+    fireEvent.click(detailsToggle);
+    expect(detailsToggle).toHaveTextContent("Hide technical details");
+    expect(
+      await screen.findByTestId("dynamic-node-editor-publish-error-details"),
+    ).toHaveTextContent(
+      "POST http://localhost:9099/check could not be reached: fetch failed",
+    );
+  });
+
+  it("still points at the error markers when the server returned some", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          message: "Publish failed (1 error)",
+          errors: [
+            {
+              stage: "ts-check",
+              message: "Type 'number' is not assignable to type 'string'.",
+              line: 14,
+              column: 10,
+            },
+          ],
+        },
+        { status: 400 },
+      ),
+    );
+
+    renderEditor({});
+
+    const publishBtn = screen.getByTestId(
+      "dynamic-node-editor-publish",
+    ) as HTMLButtonElement;
+    await waitFor(() => expect(publishBtn.disabled).toBe(false));
+    await act(async () => {
+      fireEvent.click(publishBtn);
+    });
+
+    expect(
+      await screen.findByTestId("dynamic-node-editor-publish-error-markers"),
+    ).toHaveTextContent("1 problem is marked in the editor below.");
+    await waitFor(() => {
+      expect(mockNotificationsShow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Publish failed",
+          message: "Publish failed (1 error) — see error markers",
+        }),
+      );
+    });
+    // A 400 with no `details` field must not grow a details toggle.
+    expect(
+      screen.queryByTestId("dynamic-node-editor-publish-error-details-toggle"),
+    ).not.toBeInTheDocument();
+  });
+
+  // -----------------------------------------------------------------------
   // Scenario layout — full-page mount renders with the same panes
   // -----------------------------------------------------------------------
   it("renders both `modal` and `full-page` layouts with all three panes", () => {
@@ -411,5 +603,133 @@ describe("DynamicNodeEditor — editor unavailable (D-13)", () => {
       "title",
       expect.stringContaining("Publishing is blocked"),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D8 — the reviewer's "maybe this is happening when it reloads" hunch.
+//
+// Three modals mount this editor with `detailQuery` still loading (the canvas
+// node menu, the palette, the dynamic-node settings body). The boilerplate
+// shows, the author starts typing, and when the fetch lands 200–500 ms later
+// `headScript` changes and the hydration effect overwrites what was typed.
+// Publishing did the same thing, because it invalidates the detail query.
+// ---------------------------------------------------------------------------
+
+describe("DynamicNodeEditor — D8: a late fetch must not clobber the buffer", () => {
+  it("offers no editor to type into while the detail fetch is in flight", async () => {
+    // The clobber needed a window in which the author could type into the
+    // boilerplate before the real script arrived. There is no such window
+    // now: edit mode shows a loader until the script is in hand, exactly as
+    // the full-page route always did.
+    const detail = sampleDetail("alpha");
+    let releaseDetail: (() => void) | undefined;
+    const detailLanded = new Promise<void>((resolve) => {
+      releaseDetail = resolve;
+    });
+    fetchSpy.mockImplementation(async () => {
+      await detailLanded;
+      return jsonResponse(detail);
+    });
+
+    renderEditor({ slug: "alpha" });
+
+    expect(
+      await screen.findByTestId("dynamic-node-editor-loading"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("codemirror-stub")).not.toBeInTheDocument();
+
+    await act(async () => {
+      releaseDetail?.();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    const editor = (await screen.findByTestId(
+      "codemirror-stub",
+    )) as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toBe(detail.versions[0].script));
+    expect(
+      screen.queryByTestId("dynamic-node-editor-loading"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hydrates once per lineage — the post-Publish refetch does not re-seed the buffer", async () => {
+    // Publishing invalidates the detail query, so a fresh head lands a moment
+    // later. Before the guard that new `headScript` was written straight into
+    // the editor, discarding anything typed since the click.
+    const detail = sampleDetail("alpha");
+    const afterPublish = {
+      ...detail,
+      headVersion: { ...detail.headVersion, versionNumber: 3 },
+      versions: [
+        { ...detail.versions[0], versionNumber: 3, script: "// head v3" },
+        ...detail.versions,
+      ],
+    };
+    let getCount = 0;
+    fetchSpy.mockImplementation(async (_url, init) => {
+      if ((init as RequestInit | undefined)?.method === "PUT") {
+        return jsonResponse({
+          slug: "alpha",
+          version: 3,
+          signature: sampleSignature("alpha"),
+          errors: [],
+        });
+      }
+      getCount += 1;
+      return jsonResponse(getCount === 1 ? detail : afterPublish);
+    });
+
+    renderEditor({ slug: "alpha" });
+    const editor = (await screen.findByTestId(
+      "codemirror-stub",
+    )) as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toBe(detail.versions[0].script));
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("dynamic-node-editor-publish"));
+    });
+    // Kept typing while the publish round-trip and its refetch were in flight.
+    fireEvent.change(editor, { target: { value: "// my unsaved edit" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+
+    expect(getCount).toBeGreaterThan(1); // the refetch really happened
+    expect(editor.value).toBe("// my unsaved edit");
+  });
+
+  it("revert still pushes the reverted script into the editor", async () => {
+    // The once-per-lineage guard would otherwise block the one re-seed the
+    // author explicitly asked for, so `handleRevert` states it directly.
+    const detail = sampleDetail("alpha");
+    fetchSpy.mockImplementation(async (_url, init) => {
+      if ((init as RequestInit | undefined)?.method === "PUT") {
+        return jsonResponse({
+          slug: "alpha",
+          version: 3,
+          signature: sampleSignature("alpha"),
+          errors: [],
+        });
+      }
+      return jsonResponse(detail);
+    });
+
+    renderEditor({ slug: "alpha" });
+    const editor = (await screen.findByTestId(
+      "codemirror-stub",
+    )) as HTMLTextAreaElement;
+    await waitFor(() => expect(editor.value).toBe(detail.versions[0].script));
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("version-history-revert-1"));
+    });
+    await act(async () => {
+      fireEvent.click(
+        await screen.findByTestId("version-history-revert-confirm"),
+      );
+    });
+
+    await waitFor(() => expect(editor.value).toBe(detail.versions[1].script));
   });
 });

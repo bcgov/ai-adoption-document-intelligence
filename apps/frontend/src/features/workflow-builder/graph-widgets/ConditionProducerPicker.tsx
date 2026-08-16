@@ -76,8 +76,21 @@ export function ConditionProducerPicker({
     );
   }
 
+  // D22 — the list read as a bag of anonymous options. Naming what it is
+  // costs two lines and removes the guess: every row below is one OUTPUT of
+  // one STEP that already ran, which is the fact the row layout was leaving
+  // the reader to infer from the arrow.
   return (
     <Stack gap={4} data-testid="condition-producer-picker">
+      <Stack gap={0} data-testid="condition-producer-heading">
+        <Text size="xs" fw={600}>
+          Outputs of earlier steps
+        </Text>
+        <Text size="10px" c="dimmed">
+          Each row is one output of a step that runs before this one — step
+          name, then the output it produces.
+        </Text>
+      </Stack>
       {rows.map((r) => {
         const selected = r.ctxKey === value;
         return (

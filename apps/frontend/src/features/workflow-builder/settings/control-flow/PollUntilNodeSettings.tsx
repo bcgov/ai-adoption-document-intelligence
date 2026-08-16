@@ -29,7 +29,9 @@ import {
   getActivityParametersJsonSchema,
 } from "@ai-di/graph-workflow";
 import {
+  Anchor,
   Box,
+  Collapse,
   Divider,
   NumberInput,
   Select,
@@ -222,12 +224,44 @@ export function PollUntilNodeSettings({
     updateNode({ ...node, maxAttempts: next });
   };
 
+  // ── D30 — the three optional limits, folded by default ─────────────────
+  // Anything already set is named in the toggle's own label, so folding can
+  // never conceal a configured value; and a node that arrives with one set
+  // opens the section rather than making the reader find it.
+  const setLimits: string[] = [];
+  if (node.maxAttempts !== undefined) {
+    setLimits.push(`max ${node.maxAttempts} attempts`);
+  }
+  if (node.initialDelay !== undefined) {
+    setLimits.push(`starts after ${node.initialDelay}`);
+  }
+  if (node.timeout !== undefined) {
+    setLimits.push(`gives up after ${node.timeout}`);
+  }
+  const limitsSummary =
+    setLimits.length > 0 ? setLimits.join(", ") : "none set, engine defaults";
+  const [limitsOpen, setLimitsOpen] = useState(setLimits.length > 0);
+
   return (
     <Stack
       gap="md"
       data-testid="poll-until-node-settings"
       data-node-id={node.id}
     >
+      {/*
+        D30 — "Why does a node like Poll OCR Results have so many more fields
+        than something like Extract OCR Results?" Because it is not the same
+        shape of thing: this card is a LOOP that wraps a step, so it carries
+        the loop's own settings on top of the step's. Saying so once at the top
+        costs one line and answers the question before it is asked.
+      */}
+      <Text size="xs" c="dimmed" data-testid="poll-until-node-settings-intro">
+        This is a loop, not a single step. It runs the activity below over and
+        over until the condition is met, so the sections underneath are the
+        loop's own settings — the activity itself has only the fields it would
+        have on its own card.
+      </Text>
+
       <Box>
         <Title order={5} mb="xs">
           Activity
@@ -296,49 +330,69 @@ export function PollUntilNodeSettings({
             onChange={(event) => commitInterval(event.currentTarget.value)}
             data-testid="poll-until-node-settings-interval"
           />
-          <NumberInput
-            label="Max attempts (optional)"
-            description="Upper bound on polling iterations. Leave empty for the engine default."
-            placeholder="e.g. 10"
+          {/*
+            D30 — the three limits below all have engine defaults and are the
+            fields a reader least often sets, so they fold away. Folded, NOT
+            dropped: the panel is shorter by default and every control is one
+            click away, and the summary line names anything already set so a
+            configured limit can never hide behind a collapsed section.
+          */}
+          <Anchor
+            component="button"
+            type="button"
             size="xs"
-            min={1}
-            step={1}
-            allowDecimal={false}
-            allowNegative={false}
-            value={node.maxAttempts ?? ""}
-            onChange={setMaxAttempts}
-            data-testid="poll-until-node-settings-max-attempts"
-          />
-          <DurationTextInput
-            label="Initial delay (optional)"
-            placeholder="e.g. 5s"
-            value={node.initialDelay}
-            onCommit={(next) => {
-              if (next === undefined) {
-                const cleared: PollUntilNode = { ...node };
-                delete cleared.initialDelay;
-                updateNode(cleared);
-                return;
-              }
-              updateNode({ ...node, initialDelay: next });
-            }}
-            testId="poll-until-node-settings-initial-delay"
-          />
-          <DurationTextInput
-            label="Timeout (optional)"
-            placeholder="e.g. 10m"
-            value={node.timeout}
-            onCommit={(next) => {
-              if (next === undefined) {
-                const cleared: PollUntilNode = { ...node };
-                delete cleared.timeout;
-                updateNode(cleared);
-                return;
-              }
-              updateNode({ ...node, timeout: next });
-            }}
-            testId="poll-until-node-settings-timeout"
-          />
+            onClick={() => setLimitsOpen((open) => !open)}
+            data-testid="poll-until-node-settings-limits-toggle"
+          >
+            {limitsOpen ? "Hide limits" : `Show limits — ${limitsSummary}`}
+          </Anchor>
+          <Collapse in={limitsOpen}>
+            <Stack gap="xs" data-testid="poll-until-node-settings-limits">
+              <NumberInput
+                label="Max attempts (optional)"
+                description="Upper bound on polling iterations. Leave empty for the engine default."
+                placeholder="e.g. 10"
+                size="xs"
+                min={1}
+                step={1}
+                allowDecimal={false}
+                allowNegative={false}
+                value={node.maxAttempts ?? ""}
+                onChange={setMaxAttempts}
+                data-testid="poll-until-node-settings-max-attempts"
+              />
+              <DurationTextInput
+                label="Initial delay (optional)"
+                placeholder="e.g. 5s"
+                value={node.initialDelay}
+                onCommit={(next) => {
+                  if (next === undefined) {
+                    const cleared: PollUntilNode = { ...node };
+                    delete cleared.initialDelay;
+                    updateNode(cleared);
+                    return;
+                  }
+                  updateNode({ ...node, initialDelay: next });
+                }}
+                testId="poll-until-node-settings-initial-delay"
+              />
+              <DurationTextInput
+                label="Timeout (optional)"
+                placeholder="e.g. 10m"
+                value={node.timeout}
+                onCommit={(next) => {
+                  if (next === undefined) {
+                    const cleared: PollUntilNode = { ...node };
+                    delete cleared.timeout;
+                    updateNode(cleared);
+                    return;
+                  }
+                  updateNode({ ...node, timeout: next });
+                }}
+                testId="poll-until-node-settings-timeout"
+              />
+            </Stack>
+          </Collapse>
         </Stack>
       </Box>
     </Stack>

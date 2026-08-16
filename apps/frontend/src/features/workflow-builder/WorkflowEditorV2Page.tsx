@@ -75,6 +75,7 @@ import {
   useUpdateWorkflow,
   useWorkflow,
   useWorkflowVersion,
+  type WorkflowInfo,
   WorkflowSaveError,
   type WorkflowSaveValidation,
   WorkflowVersionConflictError,
@@ -734,6 +735,20 @@ function WorkflowEditorV2PageBody({
   useUndoRedoHotkeys({ undo, redo });
 
   /**
+   * D13 — `runAutoArrange` reads the simplified-view flag only at CALL time,
+   * but closing over the state value made the callback's identity change on
+   * every flip of the toggle. That identity is the only unstable dependency of
+   * the server-hydration effect below (via `handleArrangeOnLoad` →
+   * `scheduleArrangeOnLoad`), so toggling a *view* control re-ran a *document*
+   * hydration: the measured arrange-on-load layout was replaced by the loose
+   * pre-mount fallback, and an unsaved rename was reverted by `setName`.
+   * Holding the flag in a ref keeps the read at call time while making the
+   * callback identity stable.
+   */
+  const simplifiedViewRef = useRef(simplifiedView);
+  simplifiedViewRef.current = simplifiedView;
+
+  /**
    * The shared body of both arrange paths. `persist` is what decides whether
    * the new layout becomes an undo step — the ONLY difference between the two
    * callers, and the reason they are separate callbacks rather than one.
@@ -761,7 +776,7 @@ function WorkflowEditorV2PageBody({
       // (it also keeps each map body's container box wrapping its own members
       // instead of sprawling after arrange).
       persist(
-        simplifiedView
+        simplifiedViewRef.current
           ? layoutGraphSimplified(configRef.current, { nodeWidths })
           : layoutGraphWithMapBodies(configRef.current, { nodeWidths }),
       );
@@ -778,7 +793,7 @@ function WorkflowEditorV2PageBody({
         reactFlowRef.current?.fitView({ padding: 0.15, duration: 300 });
       }, 0);
     },
-    [simplifiedView],
+    [],
   );
 
   /**
@@ -1025,9 +1040,19 @@ function WorkflowEditorV2PageBody({
   // edit replaces `config` with a new object, so a reference compare detects
   // it cheaply. When there are no local edits it's safe to adopt the new
   // server state (e.g. the agent's write). `handleSave` re-baselines.
+  //
+  // D13 — and hydration must be driven by "the SERVER copy changed", never by
+  // the identity of anything in this component. `hydratedFromRef` states that
+  // invariant directly, so a future unstable dependency cannot quietly turn a
+  // UI change back into a document rewrite. TanStack Query's structural
+  // sharing keeps `existingWorkflow` referentially stable across refetches
+  // that return equal data, so §4.4 (adopt the agent's write) still fires.
+  const hydratedFromRef = useRef<WorkflowInfo | null>(null);
   useEffect(() => {
     if (!isEditMode || !existingWorkflow) return;
     if (hasUnsavedChanges()) return;
+    if (hydratedFromRef.current === existingWorkflow) return;
+    hydratedFromRef.current = existingWorkflow;
     const hydrated = resolveBindings(
       normaliseLocks(layoutGraphIfMissingPositions(existingWorkflow.config)),
     );
@@ -1493,9 +1518,9 @@ function WorkflowEditorV2PageBody({
         title: "Revert to this version?",
         children: (
           <Text size="sm">
-            Reverting will replace the current head with v{versionNumber},
-            created {createdLabel}. Any unsaved canvas changes will be
-            discarded. Continue?
+            v{versionNumber}, created {createdLabel}, will be copied forward as
+            a new version and become the head. Nothing in the history is
+            removed. Any unsaved canvas changes will be discarded. Continue?
           </Text>
         ),
         labels: { confirm: "Revert", cancel: "Cancel" },
@@ -1503,15 +1528,18 @@ function WorkflowEditorV2PageBody({
         cancelProps: { "data-testid": "revert-cancel-button" },
         onConfirm: async () => {
           try {
-            await revertWorkflow.mutateAsync({
+            // D11 — the response carries the NEW version this restore created.
+            // Naming it is what makes "a new version was created" visible;
+            // saying only "reverted to v1" is what read as a re-tag of head.
+            const restored = await revertWorkflow.mutateAsync({
               lineageId: workflowId,
               workflowVersionId: versionId,
             });
             setHistoryDrawerOpen(false);
             notifications.show({
               color: "green",
-              title: `Reverted to v${versionNumber}`,
-              message: "The editor now reflects the reverted version.",
+              title: `Restored v${versionNumber} as v${restored.version}`,
+              message: `The editor is on v${restored.version}, a new version holding v${versionNumber}'s steps. v${versionNumber} is still in the history.`,
             });
           } catch (err) {
             notifications.show({

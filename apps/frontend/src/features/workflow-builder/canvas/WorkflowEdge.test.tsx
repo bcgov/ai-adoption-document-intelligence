@@ -599,7 +599,7 @@ describe("WorkflowEdge — selection indicator", () => {
 describe("wireTooltip", () => {
   it("pinned wins over every other flag", () => {
     expect(wireTooltip(makeDataWire({ pinned: true, via: "name-match" }))).toBe(
-      "Pinned by you",
+      "Pinned — chosen by hand when this workflow was built, so automatic wiring leaves it alone",
     );
   });
 

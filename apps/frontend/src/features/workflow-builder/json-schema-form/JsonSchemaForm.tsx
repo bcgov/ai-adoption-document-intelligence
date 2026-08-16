@@ -45,6 +45,7 @@ import {
   ValidationRuleEditor,
 } from "../settings/rich-widgets";
 import { FieldListEditor } from "../sources/FieldListEditor";
+import { useDebouncedTextCommit } from "../use-debounced-text-commit";
 import {
   detectDiscriminatedUnion,
   isObjectSchema,
@@ -253,6 +254,17 @@ function FieldRenderer({
     defaultHint !== undefined ? String(defaultHint) : undefined;
   const widget = fieldSchema["x-widget"];
 
+  // D7 — the free-text branches below draft locally and commit on a quiet
+  // period, on blur, or on unmount. Every commit here replaces the node's
+  // `parameters` at page level, which rewrites the whole workflow config; at
+  // one write per character that re-ran the auto-wire graph walk and
+  // re-projected the canvas on every keystroke. Called unconditionally so hook
+  // order is stable across the schema branches (only the string ones read it).
+  const text = useDebouncedTextCommit(
+    typeof value === "string" ? value : "",
+    (next) => onChange(next === "" ? undefined : next),
+  );
+
   // ── string + combobox ─────────────────────────────────────────────────
   if (
     fieldSchema.type === "string" &&
@@ -265,8 +277,10 @@ function FieldRenderer({
         description={description}
         placeholder={placeholder}
         data={fieldSchema["x-options"].map(String)}
-        value={(value as string | undefined) ?? ""}
-        onChange={(v) => onChange(v === "" ? undefined : v)}
+        value={text.draft}
+        onChange={text.setDraft}
+        onOptionSubmit={text.commit}
+        onBlur={text.flush}
         withAsterisk={required}
         disabled={readOnly}
       />
@@ -297,11 +311,9 @@ function FieldRenderer({
         label={label}
         description={description}
         placeholder={placeholder}
-        value={(value as string | undefined) ?? ""}
-        onChange={(e) => {
-          const v = e.currentTarget.value;
-          onChange(v === "" ? undefined : v);
-        }}
+        value={text.draft}
+        onChange={(e) => text.setDraft(e.currentTarget.value)}
+        onBlur={text.flush}
         withAsterisk={required}
         disabled={readOnly}
       />

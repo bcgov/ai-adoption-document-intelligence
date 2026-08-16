@@ -20,6 +20,7 @@ import type {
   DynamicNodeSignature,
 } from "@ai-di/graph-workflow";
 import { Badge, Box, Group, Stack, Text, Title } from "@mantine/core";
+import { KindInfoPopover } from "../graph-widgets/KindInfoPopover";
 import { JsonSchemaForm } from "../json-schema-form";
 import type { JsonSchemaProperty } from "./signature-preview-helpers";
 import {
@@ -189,8 +190,17 @@ function PortsList({ title, ports, showRequired, testId }: PortsListProps) {
                     flexShrink: 0,
                   }}
                 />
+                {/*
+                  D27 — the kind is now the affordance. "How can a user know
+                  what the Document type contains?" was asked from this exact
+                  row, so the word itself opens its shape.
+                */}
                 <Text size="xs">
-                  <strong>{port.name}</strong> : {port.kind}
+                  <strong>{port.name}</strong> :{" "}
+                  <KindInfoPopover
+                    kind={port.kind}
+                    testId={`${testId}-kind-${port.name}`}
+                  />
                 </Text>
                 {showRequired && port.required ? (
                   <Badge

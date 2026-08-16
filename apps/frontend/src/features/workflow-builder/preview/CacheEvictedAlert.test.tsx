@@ -174,6 +174,27 @@ describe("item 10 — an evicted preview on a succeeded step is not an error", (
     });
     expect(alert.getAttribute("data-tone")).toBe("error");
   });
+
+  it("retries from an outlined button — a failed re-run is recoverable, not destructive", async () => {
+    // I5 (2026-08-14): filled red is this UI's destructive treatment. The
+    // panel stays red because the re-run failed; the button that repeats it
+    // does not, exactly as in `NoOutputNotice`'s `StepFailedAlert`.
+    fetchSpy.mockResolvedValue(
+      jsonResponse({ message: "boom" }, { status: 500 }),
+    );
+
+    renderAlert();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(`cache-evicted-rerun-${NODE_ID}`));
+    });
+
+    const button = await screen.findByTestId(`cache-evicted-rerun-${NODE_ID}`);
+    await waitFor(() => {
+      expect(button.getAttribute("data-variant")).toBe("outline");
+    });
+    expect(button.getAttribute("data-variant")).not.toBe("filled");
+  });
 });
 
 // ---------------------------------------------------------------------------

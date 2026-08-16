@@ -21,6 +21,7 @@ import {
   type MockInstance,
   vi,
 } from "vitest";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
 import { ActivityPalette } from "./ActivityPalette";
 import { CONTROL_FLOW_PALETTE_ENTRIES } from "./control-flow-palette-entries";
 import {
@@ -195,6 +196,45 @@ describe('ActivityPalette — Scenario 1: "Flow Control" section appears first (
         screen.getByTestId(`control-flow-palette-entry-${type}`),
       ).toBeInTheDocument();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D32 — "Could we use these colours in the sidebar list of nodes?"
+//
+// The palette drew every control-flow row one hard-coded violet and every
+// custom node one hard-coded purple, so the list and the canvas disagreed
+// about what a colour meant. The test that matters is not "the border is
+// #D97706" — it is "the border is whatever the canvas registry says", which
+// is what stops the two drifting apart again.
+// ---------------------------------------------------------------------------
+
+describe("ActivityPalette — D32: palette accents come from the node-accent registry", () => {
+  it("paints each control-flow row with that type's canvas accent", () => {
+    renderPalette();
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const row = screen.getByTestId(
+        `control-flow-palette-entry-${entry.type}`,
+      );
+      expect(row).toHaveStyle({
+        borderLeftColor: getControlFlowVisualHints(entry.type).color,
+      });
+    }
+  });
+
+  it("gives routing and fan rows visibly different accents", () => {
+    // The regression this guards: one violet for all six, which erased the
+    // distinction the canvas draws between "decides where to go next" and
+    // "repeats over a list".
+    renderPalette();
+    const branch = screen.getByTestId("control-flow-palette-entry-switch");
+    const forEach = screen.getByTestId("control-flow-palette-entry-map");
+    expect(branch).not.toHaveStyle({
+      borderLeftColor: getControlFlowVisualHints("map").color,
+    });
+    expect(forEach).toHaveStyle({
+      borderLeftColor: getControlFlowVisualHints("map").color,
+    });
   });
 });
 

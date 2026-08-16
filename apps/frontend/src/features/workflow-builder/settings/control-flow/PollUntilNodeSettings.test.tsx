@@ -9,7 +9,13 @@ import "@testing-library/jest-dom";
 
 import { ACTIVITY_CATALOG } from "@ai-di/graph-workflow";
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -228,7 +234,7 @@ describe("PollUntilNodeSettings — Scenario 2: JsonSchemaForm renders for param
 // ---------------------------------------------------------------------------
 
 describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressionEditor", () => {
-  it("the ConditionExpressionEditor is mounted for the condition field and edits propagate as a ConditionExpression", () => {
+  it("the ConditionExpressionEditor is mounted for the condition field and edits propagate as a ConditionExpression", async () => {
     const initial = pollUntilNode("p1", "Poll");
     const config = makeConfig([initial]);
 
@@ -270,15 +276,18 @@ describe("PollUntilNodeSettings — Scenario 3: condition uses ConditionExpressi
     ) as HTMLInputElement;
     fireEvent.change(rightLiteral, { target: { value: "completed" } });
 
-    expect(spy).toHaveBeenCalled();
-    const latest = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
-    const updated = latest.nodes.p1 as PollUntilNode;
-
-    // The committed condition matches equals(ctx.status, "completed").
-    expect(updated.condition).toEqual({
-      operator: "equals",
-      left: { ref: "ctx.status" },
-      right: { literal: "completed" },
+    // D7 — free-text settings fields draft locally and commit on a quiet
+    // period (or blur/unmount) instead of once per character, so the commit
+    // is asserted through `waitFor` rather than synchronously.
+    await waitFor(() => {
+      const latest = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+      const updated = latest?.nodes.p1 as PollUntilNode | undefined;
+      // The committed condition matches equals(ctx.status, "completed").
+      expect(updated?.condition).toEqual({
+        operator: "equals",
+        left: { ref: "ctx.status" },
+        right: { literal: "completed" },
+      });
     });
   });
 });
@@ -386,6 +395,65 @@ describe("PollUntilNodeSettings — Scenario 4: interval is validated as a Tempo
 // Scenario 5: Optional fields maxAttempts, initialDelay, timeout toggle
 // between set and undefined, with duration-format validation on the durations.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// D30 — "Why does a node like Poll OCR Results have so many more fields than
+// something like Extract OCR Results?"
+// ---------------------------------------------------------------------------
+
+describe("PollUntilNodeSettings — D30: the panel explains its own size", () => {
+  it("states that this is a loop wrapping an activity", () => {
+    const { spy: _spy } = mountWithSpy(
+      makeConfig([pollUntilNode("p1", "Poll")]),
+      "p1",
+    );
+    expect(
+      screen.getByTestId("poll-until-node-settings-intro"),
+    ).toHaveTextContent("This is a loop, not a single step.");
+  });
+
+  it("folds the three optional limits away when none are set, and says so", () => {
+    mountWithSpy(makeConfig([pollUntilNode("p1", "Poll")]), "p1");
+    expect(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    ).toHaveTextContent("Show limits — none set, engine defaults");
+    // Folded, not removed: every control is still mounted and reachable.
+    expect(
+      screen.getByTestId("poll-until-node-settings-max-attempts"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("poll-until-node-settings-timeout"),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the section and names the values when limits are already set", () => {
+    mountWithSpy(
+      makeConfig([
+        pollUntilNode("p1", "Poll", { maxAttempts: 10, timeout: "10m" }),
+      ]),
+      "p1",
+    );
+    const toggle = screen.getByTestId("poll-until-node-settings-limits-toggle");
+    // Already open, so the affordance offers to hide rather than to show —
+    // a configured limit can never be concealed by the fold.
+    expect(toggle).toHaveTextContent("Hide limits");
+  });
+
+  it("summarises set limits in the toggle when collapsed", () => {
+    mountWithSpy(
+      makeConfig([
+        pollUntilNode("p1", "Poll", { maxAttempts: 10, timeout: "10m" }),
+      ]),
+      "p1",
+    );
+    fireEvent.click(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    );
+    expect(
+      screen.getByTestId("poll-until-node-settings-limits-toggle"),
+    ).toHaveTextContent("Show limits — max 10 attempts, gives up after 10m");
+  });
+});
 
 describe("PollUntilNodeSettings — Scenario 5: optional fields toggle and validate", () => {
   it("setting and clearing each of maxAttempts / initialDelay / timeout toggles the node field on/off, with duration validation on the two duration fields", () => {

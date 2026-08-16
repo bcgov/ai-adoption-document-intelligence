@@ -2931,7 +2931,14 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
     expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
   });
 
-  it("port-source dropped on a node-level target falls through to plain edge creation", () => {
+  it("port-source dropped on a node-level target binds the input it was aimed at (D9)", () => {
+    // This used to "fall through to plain edge creation", and that fall-
+    // through is exactly what review item D9 reported: a drag begun on a
+    // data port, released on the target's run-order dot, silently became an
+    // execution edge. The gesture's ORIGIN now decides what it can become —
+    // `submit` has exactly one input a `PreparedFile` can land in, so the
+    // drop completes as the data edge that was drawn. Anything ambiguous or
+    // incompatible is refused instead (see `data-drop-target.test.ts`).
     const config = makeUnwiredPairConfig();
     const { onConfigChange } = renderCanvas(config);
 
@@ -2954,8 +2961,8 @@ describe("WorkflowEditorCanvas — drag-to-bind (§6.1)", () => {
     });
 
     const submit = next.nodes.submit as ActivityNode;
-    expect(submit.metadata?.lockedInputPorts).toBeUndefined();
-    expect(submit.inputs).toBeUndefined();
+    expect(submit.inputs?.map((b) => b.port)).toEqual(["fileData"]);
+    expect(submit.metadata?.lockedInputPorts).toEqual(["fileData"]);
   });
 
   it("node-level source dropped on a port target also falls through", () => {
@@ -3200,11 +3207,18 @@ describe("WorkflowEditorCanvas — connect-time validation (§6.2)", () => {
         fromNode: { id: "split" },
         fromHandle: { id: "out-segments" },
         toNode: { id: "ocr" },
-        // Dropped off any handle entirely.
+        // Released on the target's RUN-ORDER dot rather than an input dot
+        // (xyflow names the node with no port handle id). This used to be
+        // silence on the way to an execution edge — review item D9. It now
+        // names the reason instead.
         toHandle: null,
       });
     });
-    expect(showMock).not.toHaveBeenCalled();
+    expect(showMock).toHaveBeenCalledTimes(1);
+    expect(showMock.mock.calls[0][0]).toMatchObject({
+      message:
+        '"OCR" has no input that accepts DocumentSegment (list). Drop on an input dot that does, or drag between the two grey run-order dots to set the order only.',
+    });
   });
 
   it("keeps the notice article-free for vowel-initial target kinds", () => {
@@ -7174,6 +7188,25 @@ describe("WorkflowEditorCanvas — item 7: failure is visible at the title", () 
     // carrying the node's label.
     expect(chip.parentElement?.textContent).toContain("BOOM");
     expect(screen.queryByTestId("node-failure-chip-ok")).toBeNull();
+  });
+
+  it("nudges the chip's glyph onto the label's optical centre (I4)", () => {
+    // Mantine centres the icon's box and the label's LINE box; an all-caps
+    // label's ink sits half a pixel below its line box, so a box-centred
+    // glyph reads high. jsdom cannot see the misalignment — it can only
+    // hold the correction in place, which is what this asserts.
+    mockRunState.current = {
+      activeRunId: "run_1",
+      nodeStatuses: {
+        ok: { status: "succeeded" },
+        boom: { status: "failed" },
+      },
+    };
+    renderCanvas(twoNodeConfig());
+    const glyph = screen
+      .getByTestId("node-failure-chip-boom")
+      .querySelector("svg");
+    expect(glyph?.getAttribute("style")).toContain("translateY(0.5px)");
   });
 
   it("never marks a cache hit or a succeeded step as failed", () => {

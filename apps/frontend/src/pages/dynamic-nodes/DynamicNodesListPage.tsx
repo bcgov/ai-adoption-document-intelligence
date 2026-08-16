@@ -14,8 +14,8 @@
  *     confirm modal → `useDynamicNodeDelete` → green notification +
  *     refetch)
  *
- * Empty state: centred "No custom nodes yet" + "+ Create your first"
- * CTA linking to `/dynamic-nodes/new`.
+ * Empty state: centred "No custom nodes yet" + a plus-icon
+ * "Create your first custom node" CTA linking to `/dynamic-nodes/new`.
  * Loading: 5 Skeleton rows.
  * Error: red `<Alert>` with the message + a Retry button.
  */
@@ -182,7 +182,7 @@ export default function DynamicNodesListPage() {
               onClick={() => navigate("/dynamic-nodes/new")}
               data-testid="dynamic-nodes-list-empty-cta"
             >
-              + Create your first
+              Create your first custom node
             </Button>
           </Stack>
         </Card>

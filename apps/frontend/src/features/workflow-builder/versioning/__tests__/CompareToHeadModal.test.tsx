@@ -1,7 +1,13 @@
 /**
- * Tests for CompareToHeadModal (Phase 2 Track 3 — US-084).
+ * Tests for CompareToHeadModal (Phase 2 Track 3 — US-084; D31 diff tab).
  *
- * Covers Scenarios 1–4 from the story:
+ * The D31 block at the bottom covers the default "Changes" tab — the diff
+ * itself is unit-tested in `config-diff.test.ts`, so these assert the wiring:
+ * which tab opens first, what the headline says, and that unchanged fields
+ * start collapsed.
+ *
+ * Covers Scenarios 1–4 from the story (now on the "Both versions in full"
+ * tab, which stays mounted so these assertions still reach it):
  *   1. Modal opens with two side-by-side columns + the expected
  *      header text for both columns.
  *   2. Both JsonInputs render their config JSON and are read-only.
@@ -18,7 +24,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   useWorkflowVersion,
@@ -149,7 +155,9 @@ describe("CompareToHeadModal", () => {
 
     // Modal renders.
     expect(screen.getByTestId("compare-to-head-modal")).toBeInTheDocument();
-    expect(screen.getByText("Compare to head")).toBeInTheDocument();
+    // The title names both versions being compared — "Compare to head" alone
+    // never said which version you had clicked.
+    expect(screen.getByText("Compare v2 to head (v3)")).toBeInTheDocument();
 
     // Both columns mount.
     const leftColumn = screen.getByTestId("compare-left-column");
@@ -246,5 +254,88 @@ describe("CompareToHeadModal", () => {
 
     // Right column still renders the head's config.
     expect(screen.getByTestId("compare-right-json")).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // D31 — "Compare to Head could be clearer if it showed an actual diff, not
+  // just both versions in full."
+  // -------------------------------------------------------------------------
+  describe("D31 — diff tab", () => {
+    it("opens on the Changes tab and summarises what differs", () => {
+      mockVersionState({ data: olderVersion });
+
+      renderModal();
+
+      const diffTab = screen.getByTestId("compare-tab-diff");
+      expect(diffTab).toHaveAttribute("aria-selected", "true");
+      // olderVersion vs head differ in metadata.name, and each has one ctx key
+      // the other lacks.
+      expect(screen.getByTestId("config-diff-summary")).toHaveTextContent(
+        "1 changed, 1 added, 1 removed fields",
+      );
+    });
+
+    it("shows one row per difference, labelled by kind, and no unchanged rows", () => {
+      mockVersionState({ data: olderVersion });
+
+      renderModal();
+
+      const changes = screen.getByTestId("config-diff-changes");
+      expect(within(changes).getByText("metadata.name")).toBeInTheDocument();
+      expect(within(changes).getByText("changed")).toBeInTheDocument();
+      expect(within(changes).getByText("added in head")).toBeInTheDocument();
+      expect(within(changes).getByText("removed in head")).toBeInTheDocument();
+      // Both sides of the changed field are visible — a diff that hides the
+      // old value is not a diff.
+      expect(
+        within(changes).getByText("Test workflow older"),
+      ).toBeInTheDocument();
+      expect(
+        within(changes).getByText("Test workflow head"),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps unchanged fields out of the way behind a disclosure", () => {
+      mockVersionState({ data: olderVersion });
+
+      renderModal();
+
+      const toggle = screen.getByTestId("config-diff-toggle-unchanged");
+      expect(toggle).toHaveTextContent(/Show \d+ unchanged fields?/);
+
+      fireEvent.click(toggle);
+
+      expect(toggle).toHaveTextContent(/Hide \d+ unchanged fields?/);
+      expect(screen.getByTestId("config-diff-unchanged")).toBeInTheDocument();
+    });
+
+    it("says so plainly when two versions have identical configs", () => {
+      mockVersionState({
+        data: { ...olderVersion, config: headWorkflow.config },
+      });
+
+      renderModal();
+
+      expect(screen.getByTestId("config-diff-identical")).toBeInTheDocument();
+      expect(screen.getByTestId("config-diff-summary")).toHaveTextContent(
+        "No differences",
+      );
+    });
+
+    it("shows the load and error states on the diff tab too", () => {
+      mockVersionState({ isLoading: true });
+      const { unmount } = renderModal();
+      expect(screen.getByTestId("compare-diff-skeleton")).toBeInTheDocument();
+      expect(screen.queryByTestId("config-diff")).not.toBeInTheDocument();
+      unmount();
+
+      mockVersionState({
+        isError: true,
+        error: new Error("Version not found"),
+      });
+      renderModal();
+      const alert = screen.getByTestId("compare-diff-error");
+      expect(within(alert).getByText(/Version not found/)).toBeInTheDocument();
+    });
   });
 });

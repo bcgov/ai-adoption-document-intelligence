@@ -30,6 +30,7 @@ import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { GraphWorkflowConfig, MapNode } from "../../../types/workflow";
 import { analyzeMapBody } from "../settings/control-flow/map-body-analysis";
+import { useDebouncedTextCommit } from "../use-debounced-text-commit";
 import { resolveProducerKindFor } from "./resolve-producer-kind";
 import {
   expandVariableOptions,
@@ -205,6 +206,18 @@ export function VariablePicker({
   resolveProducerKind,
   onCreateCtxKey,
 }: VariablePickerProps) {
+  // D7 — the typed text is local. Committing it upwards rewrites the whole
+  // workflow config, which re-runs the auto-wire resolver and re-projects
+  // every card on the canvas; at one write per character that is what made
+  // typing here lag behind the keyboard. Options below still expand against
+  // the DRAFT, so field drill-down stays live while the graph work waits for
+  // the author to stop typing. Picking an option commits immediately — that is
+  // a discrete choice, not typing.
+  const { draft, setDraft, commit, flush } = useDebouncedTextCommit(
+    value,
+    onChange,
+  );
+
   const baseGroups = useMemo(
     () => buildVariableOptions(config, currentNodeId),
     [config, currentNodeId],
@@ -219,8 +232,8 @@ export function VariablePicker({
   // Field drill-down (KIND_FIELD_SCHEMAS_DESIGN.md §5): re-expands as the
   // typed value establishes deeper drillable prefixes.
   const { groups: groupedOptions, meta: pathMeta } = useMemo(
-    () => expandVariableOptions(baseGroups, config, value, currentNodeId),
-    [baseGroups, config, value, currentNodeId],
+    () => expandVariableOptions(baseGroups, config, draft, currentNodeId),
+    [baseGroups, config, draft, currentNodeId],
   );
 
   // Inline "+ Create variable" affordance — offered once the typed value is a
@@ -232,17 +245,22 @@ export function VariablePicker({
   );
   const showCreate =
     onCreateCtxKey !== undefined &&
-    NEW_CTX_KEY_RE.test(value) &&
-    !existingOptionValues.has(value);
+    NEW_CTX_KEY_RE.test(draft) &&
+    !existingOptionValues.has(draft);
   const createButton = showCreate ? (
     <Button
       variant="subtle"
       size="compact-xs"
       mt={4}
       data-testid="variable-picker-create"
-      onClick={() => onCreateCtxKey?.(value)}
+      // Declaring the key is a config write of its own, so the pending draft
+      // has to land first or the two would race off the same stale config.
+      onClick={() => {
+        flush();
+        onCreateCtxKey?.(draft);
+      }}
     >
-      + Create variable "{value}"
+      + Create variable "{draft}"
     </Button>
   ) : null;
 
@@ -296,11 +314,13 @@ export function VariablePicker({
           placeholder={placeholder}
           withAsterisk={required}
           size="xs"
-          value={value}
+          value={draft}
           data={groupedOptions}
           data-testid={testId}
           renderOption={({ option }) => renderFieldAwareOption(option.value)}
-          onChange={onChange}
+          onChange={setDraft}
+          onOptionSubmit={commit}
+          onBlur={flush}
         />
         {createButton}
       </>
@@ -377,11 +397,13 @@ export function VariablePicker({
         placeholder={placeholder}
         withAsterisk={required}
         size="xs"
-        value={value}
+        value={draft}
         data={sortedGroups}
         data-testid={testId}
         renderOption={renderOption}
-        onChange={onChange}
+        onChange={setDraft}
+        onOptionSubmit={commit}
+        onBlur={flush}
       />
       {createButton}
     </>

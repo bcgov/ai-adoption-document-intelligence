@@ -114,7 +114,7 @@ describe("ConnectSummaryPopover", () => {
     // Producer label, not the raw synthesised auto key.
     expect(row).toHaveTextContent("PrepStep");
     expect(row).not.toHaveTextContent("__auto.prep.preparedData");
-    expect(row).toHaveTextContent(/pinned by you/i);
+    expect(row).toHaveTextContent(/pinned by hand/i);
   });
 
   it("names a hand-authored ctx var as the source of a pinned NON-auto row", () => {
@@ -141,7 +141,7 @@ describe("ConnectSummaryPopover", () => {
     const row = screen.getByTestId("connect-summary-row-fileData");
     expect(row).toHaveTextContent("Prepared file data");
     expect(row).toHaveTextContent("from manualDoc");
-    expect(row).toHaveTextContent(/pinned by you/i);
+    expect(row).toHaveTextContent(/pinned by hand/i);
   });
 
   it("lists a from-variable row for ctx-bound inputs", () => {

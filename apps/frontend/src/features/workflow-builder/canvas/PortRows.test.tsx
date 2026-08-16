@@ -49,11 +49,22 @@ vi.mock("@mantine/core", async (importOriginal) => {
     Tooltip: ({
       children,
       position,
+      label,
     }: {
       children: React.ReactNode;
       position?: string;
       label?: React.ReactNode;
-    }) => <div data-tooltip-position={position}>{children}</div>,
+    }) => (
+      // The label is stamped as well as the position (D28c asserts the copy
+      // that explains the enlarged dot); every label this component passes
+      // is a plain string.
+      <div
+        data-tooltip-position={position}
+        data-tooltip-label={typeof label === "string" ? label : undefined}
+      >
+        {children}
+      </div>
+    ),
   };
 });
 
@@ -765,5 +776,79 @@ describe("PortRows — the '+' invitation on unconnected ports (Inderdeep item 3
     const handle = handleOf(container, "in-source");
     expect(handle.style.boxShadow).toContain("yellow");
     expect(plusBars(handle)).toHaveLength(2);
+  });
+});
+
+describe("PortRows — the enlarged dot explains itself (D28c)", () => {
+  /**
+   * *"Is there meaning behind the difference in the size of the Poll status
+   * connector?"* — yes, and until now nothing said so anywhere: the dot grew
+   * 4px and gained a glyph that reads as a smudge at working zoom. The row's
+   * own tooltip now carries the sentence, because the dot's hover is already
+   * spoken for by the extend picker.
+   */
+  function labelTooltip(handleId: string): string | null {
+    const row = screen.getByTestId(`port-row-node_1-${handleId}`);
+    const wrapper = row.querySelector("[data-tooltip-label]");
+    return wrapper?.getAttribute("data-tooltip-label") ?? null;
+  }
+
+  it("says nothing extra on a port that is already connected", () => {
+    renderRows([makeRow({ description: "Storage key for the PDF" })], []);
+    expect(labelTooltip("in-source")).toBe(
+      "source: MultiPageDocument — Storage key for the PDF",
+    );
+  });
+
+  it("tells an unconnected required INPUT what the bigger dot is for", () => {
+    renderRows([makeRow({ connected: false, needsSource: true })], []);
+    expect(labelTooltip("in-source")).toContain(
+      "Nothing is connected here yet — the larger dot with a + is where to drop a wire.",
+    );
+  });
+
+  it("words it the other way round for an OUTPUT — nothing READS it yet", () => {
+    renderRows(
+      [],
+      [
+        makeRow({
+          name: "status",
+          label: "Poll status",
+          kind: "Artifact",
+          direction: "output",
+          handleId: "out-status",
+          connected: false,
+        }),
+      ],
+    );
+    // Dylan's own port, from `azureOcr.poll`.
+    expect(labelTooltip("out-status")).toContain(
+      "Nothing reads this yet — the larger dot with a + is where to drag one from.",
+    );
+  });
+
+  it("does not double the full stop when the description already ends in one", () => {
+    renderRows(
+      [],
+      [
+        makeRow({
+          name: "segments",
+          label: "Segments",
+          description: "List of produced segments.",
+          kind: "Segment[]",
+          direction: "output",
+          handleId: "out-segments",
+          connected: false,
+        }),
+      ],
+    );
+    expect(labelTooltip("out-segments")).toBe(
+      "segments: Segment[] — List of produced segments. Nothing reads this yet — the larger dot with a + is where to drag one from.",
+    );
+  });
+
+  it("stays silent on an optional unconnected port, like the glyph does", () => {
+    renderRows([makeRow({ required: false, connected: false })], []);
+    expect(labelTooltip("in-source")).toBe("source: MultiPageDocument");
   });
 });

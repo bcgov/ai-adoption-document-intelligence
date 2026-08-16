@@ -20,6 +20,7 @@ import type {
   SwitchCase,
   SwitchNode,
 } from "../../../../types/workflow";
+import { OPERATOR_LABELS } from "../../graph-widgets/operator-labels";
 import { SwitchNodeSettings } from "./SwitchNodeSettings";
 
 // ---------------------------------------------------------------------------
@@ -338,7 +339,9 @@ describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChan
     ) as HTMLInputElement;
 
     fireEvent.click(opSelect);
-    fireEvent.click(screen.getByText("not-equals"));
+    // D23 — the option is labelled for a person now; the stored value is
+    // still the raw `not-equals`, which the assertion below checks.
+    fireEvent.click(screen.getByText(OPERATOR_LABELS["not-equals"]));
 
     expect(spy).toHaveBeenCalled();
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;

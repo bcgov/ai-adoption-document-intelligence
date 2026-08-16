@@ -5,7 +5,7 @@ import {
   IconTemplate,
   IconTrash,
 } from "@tabler/icons-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SlugChip } from "../components/workflow/SlugChip";
 import {
@@ -18,6 +18,7 @@ import { TemplatesPickerModal } from "../features/workflow-builder/templates/Tem
 import {
   Anchor,
   Badge,
+  Box,
   Button,
   ConfirmActionModal,
   DataTable,
@@ -26,6 +27,7 @@ import {
   notifications,
   PageHeader,
   PanelCard,
+  SearchField,
   SegmentedControl,
   Stack,
   Switch,
@@ -41,6 +43,7 @@ export function WorkflowListPage() {
   const navigate = useNavigate();
   const [showBenchmarkCandidates, setShowBenchmarkCandidates] = useState(false);
   const [kindTab, setKindTab] = useState<KindTab>("workflow");
+  const [search, setSearch] = useState("");
   const {
     data: workflows,
     isLoading,
@@ -79,6 +82,32 @@ export function WorkflowListPage() {
   ]
     .filter(Boolean)
     .join("\n\n");
+
+  /**
+   * D33 — "Even with this number of workflows, it can be hard to find the one
+   * you want."
+   *
+   * Filtered in the browser, not on the server: `useWorkflows` already fetches
+   * the group's whole list in one request (there is no page/limit parameter on
+   * `GET /api/workflows`), so every row the filter could match is in memory
+   * already. A server round-trip per keystroke would add latency and a loading
+   * flicker to a list that is fully loaded.
+   *
+   * Matches name, slug and description — the three columns a person reads when
+   * scanning for a workflow. Follows the same shape as the Tables and Groups
+   * lists: `SearchField` from `../ui`, case-insensitive substring, filtered
+   * count in the table caption.
+   */
+  const filteredWorkflows = useMemo(() => {
+    if (!workflows) return [];
+    const query = search.trim().toLowerCase();
+    if (query.length === 0) return workflows;
+    return workflows.filter((workflow) =>
+      [workflow.name, workflow.slug, workflow.description ?? ""].some((field) =>
+        field.toLowerCase().includes(query),
+      ),
+    );
+  }, [workflows, search]);
 
   const handleTemplateSelect = (template: WorkflowTemplate) => {
     setTemplatesOpen(false);
@@ -244,7 +273,38 @@ export function WorkflowListPage() {
         />
 
         <PanelCard>
-          {/* S-2 — `table-layout: fixed`, which is what makes the column
+          <Stack gap="md">
+            <Box data-testid="workflow-search">
+              <SearchField
+                value={search}
+                onChange={setSearch}
+                placeholder="Search workflows by name, slug or description"
+              />
+            </Box>
+            {filteredWorkflows.length === 0 && (
+              <Stack gap={4} align="center" py="lg">
+                <Text fw={500} data-testid="workflow-search-empty">
+                  No workflows match "{search.trim()}"
+                </Text>
+                <Text c="dimmed" size="sm">
+                  Try a shorter term, or check the Workflows / Libraries / All
+                  filter above — a library workflow is hidden unless one of
+                  those two tabs is selected.
+                </Text>
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  mt="xs"
+                  onClick={() => setSearch("")}
+                  data-testid="workflow-search-clear"
+                >
+                  Clear search
+                </Button>
+              </Stack>
+            )}
+            {filteredWorkflows.length > 0 && (
+              <>
+                {/* S-2 — `table-layout: fixed`, which is what makes the column
               widths below MEAN anything. Under the browser default (`auto`) a
               percentage is only a hint and content wins, and the widest
               content here is the slug: `SlugChip` renders it `nowrap`, so its
@@ -254,16 +314,20 @@ export function WorkflowListPage() {
               percentages alone changed nothing. Fixed layout also means an
               unsized column takes whatever the sized ones leave — used
               deliberately below, for Name and nothing else. */}
-          <DataTable
-            striped
-            highlightOnHover
-            layout="fixed"
-            miw={930}
-            caption={`${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`}
-          >
-            <DataTable.Thead>
-              <DataTable.Tr>
-                {/* The actions column is the one column whose contents cannot
+                <DataTable
+                  striped
+                  highlightOnHover
+                  layout="fixed"
+                  miw={930}
+                  caption={
+                    search.trim().length > 0
+                      ? `${filteredWorkflows.length} of ${workflows.length} workflow${workflows.length === 1 ? "" : "s"} match "${search.trim()}"`
+                      : `${workflows.length} workflow${workflows.length === 1 ? "" : "s"}`
+                  }
+                >
+                  <DataTable.Thead>
+                    <DataTable.Tr>
+                      {/* The actions column is the one column whose contents cannot
                     shrink: two BC DS icon buttons, 52px each, a 4px gap and
                     16px of cell padding either side — 140px, measured, not
                     guessed. Expressed as a percentage it was 4% (39px at a
@@ -307,95 +371,98 @@ export function WorkflowListPage() {
                     unbreakable token that truncates on a single line (the full
                     value is in the hover title and the copy button beside it),
                     and the description is clamped to two lines below. */}
-                <DataTable.Th>Name</DataTable.Th>
-                <DataTable.Th w="12%">Slug</DataTable.Th>
-                <DataTable.Th w="13%">Description</DataTable.Th>
-                <DataTable.Th w={84}>Version</DataTable.Th>
-                <DataTable.Th w={88}>Schema</DataTable.Th>
-                <DataTable.Th w={92}>Created</DataTable.Th>
-                <DataTable.Th w={92}>Updated</DataTable.Th>
-                <DataTable.Th w={140} />
-              </DataTable.Tr>
-            </DataTable.Thead>
-            <DataTable.Tbody>
-              {workflows.map((workflow) => (
-                <DataTable.Tr key={workflow.id}>
-                  <DataTable.Td>
-                    {/* S-2 — heavier than the surrounding cells so the eye
+                      <DataTable.Th>Name</DataTable.Th>
+                      <DataTable.Th w="12%">Slug</DataTable.Th>
+                      <DataTable.Th w="13%">Description</DataTable.Th>
+                      <DataTable.Th w={84}>Version</DataTable.Th>
+                      <DataTable.Th w={88}>Schema</DataTable.Th>
+                      <DataTable.Th w={92}>Created</DataTable.Th>
+                      <DataTable.Th w={92}>Updated</DataTable.Th>
+                      <DataTable.Th w={140} />
+                    </DataTable.Tr>
+                  </DataTable.Thead>
+                  <DataTable.Tbody>
+                    {filteredWorkflows.map((workflow) => (
+                      <DataTable.Tr key={workflow.id}>
+                        <DataTable.Td>
+                          {/* S-2 — heavier than the surrounding cells so the eye
                         lands here first when scanning the table. */}
-                    <Anchor
-                      component={Link}
-                      to={`/workflows/${workflow.id}/edit`}
-                      fw={600}
-                      underline="hover"
-                      data-testid="workflow-name-link"
-                    >
-                      {workflow.name}
-                    </Anchor>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <SlugChip slug={workflow.slug} />
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Text
-                      c="dimmed"
-                      size="sm"
-                      lineClamp={2}
-                      data-testid="workflow-description"
-                    >
-                      {workflow.description || "—"}
-                    </Text>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Badge variant="light" color="blue">
-                      v{workflow.version}
-                    </Badge>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Badge variant="light" color="gray">
-                      {workflow.config.schemaVersion}
-                    </Badge>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Text size="sm" c="dimmed">
-                      {new Date(workflow.createdAt).toLocaleDateString()}
-                    </Text>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Text size="sm" c="dimmed">
-                      {new Date(workflow.updatedAt).toLocaleDateString()}
-                    </Text>
-                  </DataTable.Td>
-                  <DataTable.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      <IconActionButton
-                        tooltip="Edit workflow"
-                        variant="light"
-                        color="blue"
-                        onClick={() =>
-                          navigate(`/workflows/${workflow.id}/edit`)
-                        }
-                        icon={<IconEdit size={18} />}
-                      />
-                      <IconActionButton
-                        tooltip="Delete workflow"
-                        variant="light"
-                        color="red"
-                        onClick={() =>
-                          handleDeleteClick(workflow.id, workflow.name)
-                        }
-                        loading={
-                          deleteWorkflowMutation.isPending &&
-                          workflowToDelete?.id === workflow.id
-                        }
-                        icon={<IconTrash size={18} />}
-                      />
-                    </Group>
-                  </DataTable.Td>
-                </DataTable.Tr>
-              ))}
-            </DataTable.Tbody>
-          </DataTable>
+                          <Anchor
+                            component={Link}
+                            to={`/workflows/${workflow.id}/edit`}
+                            fw={600}
+                            underline="hover"
+                            data-testid="workflow-name-link"
+                          >
+                            {workflow.name}
+                          </Anchor>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <SlugChip slug={workflow.slug} />
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text
+                            c="dimmed"
+                            size="sm"
+                            lineClamp={2}
+                            data-testid="workflow-description"
+                          >
+                            {workflow.description || "—"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge variant="light" color="blue">
+                            v{workflow.version}
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge variant="light" color="gray">
+                            {workflow.config.schemaVersion}
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(workflow.createdAt).toLocaleDateString()}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(workflow.updatedAt).toLocaleDateString()}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Group gap="xs" wrap="nowrap">
+                            <IconActionButton
+                              tooltip="Edit workflow"
+                              variant="light"
+                              color="blue"
+                              onClick={() =>
+                                navigate(`/workflows/${workflow.id}/edit`)
+                              }
+                              icon={<IconEdit size={18} />}
+                            />
+                            <IconActionButton
+                              tooltip="Delete workflow"
+                              variant="light"
+                              color="red"
+                              onClick={() =>
+                                handleDeleteClick(workflow.id, workflow.name)
+                              }
+                              loading={
+                                deleteWorkflowMutation.isPending &&
+                                workflowToDelete?.id === workflow.id
+                              }
+                              icon={<IconTrash size={18} />}
+                            />
+                          </Group>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    ))}
+                  </DataTable.Tbody>
+                </DataTable>
+              </>
+            )}
+          </Stack>
         </PanelCard>
       </Stack>
     );

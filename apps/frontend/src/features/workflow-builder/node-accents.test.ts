@@ -44,6 +44,21 @@ describe("node accents — the roles", () => {
       expect(accent.color).toMatch(/^#[0-9A-F]{6}$/);
     }
   });
+
+  // D29 — two labels described the mechanism, not the card. "Does work" was
+  // true of all five, so it separated nothing; "Fans out or back in" is
+  // fan-out/fan-in jargon.
+  it("labels the two roles the reviewer could not read", () => {
+    const byRole = Object.fromEntries(
+      NODE_ACCENTS.map((a) => [a.role, a.label]),
+    );
+    expect(byRole.activity).toBe("Performs an action");
+    expect(byRole.fan).toBe("Repeats over a list, or gathers results");
+    // The three that already said what they were are unchanged.
+    expect(byRole.routing).toBe("Decides where to go next");
+    expect(byRole.person).toBe("Waits for a person");
+    expect(byRole.childWorkflow).toBe("Runs another workflow");
+  });
 });
 
 describe("node accents — every card that does work looks the same", () => {

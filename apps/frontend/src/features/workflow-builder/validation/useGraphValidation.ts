@@ -39,6 +39,30 @@ export interface GraphValidationResult {
 }
 
 const EMPTY_ERRORS: GraphValidationError[] = [];
+const EMPTY_NODE_IDS: string[] = [];
+
+/**
+ * One debounced validation run: the errors it produced, plus the node ids that
+ * were in the graph when it produced them.
+ *
+ * D7 — these travel together deliberately. Bucketing errors resolves each
+ * anchor against the graph's real node ids (G-096), and reading those ids from
+ * the LIVE `config` made the result memo re-run — and hand out a brand-new
+ * `errorsByNode` Map — on every keystroke, 300 ms before the validator that
+ * could have changed anything actually ran. That new Map identity drove the
+ * canvas's badge-sync effect, which replaced the whole xyflow node array and
+ * re-rendered every card. Snapshotting the ids inside the run keeps G-096's
+ * behaviour exactly while making the result stable between runs.
+ */
+interface ValidationRun {
+  errors: GraphValidationError[];
+  knownNodeIds: string[];
+}
+
+const EMPTY_RUN: ValidationRun = {
+  errors: EMPTY_ERRORS,
+  knownNodeIds: EMPTY_NODE_IDS,
+};
 
 /**
  * The registry callbacks `validateGraphConfig` needs in the editor: static
@@ -79,7 +103,7 @@ export function useGraphValidation(
   config: GraphWorkflowConfig,
   debounceMs = 300,
 ): GraphValidationResult {
-  const [errors, setErrors] = useState<GraphValidationError[]>(EMPTY_ERRORS);
+  const [run, setRun] = useState<ValidationRun>(EMPTY_RUN);
   const [isPending, setIsPending] = useState(false);
   const options = useValidatorOptions();
 
@@ -90,20 +114,29 @@ export function useGraphValidation(
       // Fold auto-wire input health (unbound / ambiguous ports) into the same
       // problems list so it feeds the ONE unified surface — top-bar count,
       // per-node badge, and drawer — instead of a separate status-dot system.
-      setErrors([
-        ...result.errors,
-        ...autoWireIssuesToValidationErrors(config),
-        ...mapBodyIssuesToValidationErrors(config),
-      ]);
+      setRun({
+        errors: [
+          ...result.errors,
+          ...autoWireIssuesToValidationErrors(config),
+          ...mapBodyIssuesToValidationErrors(config),
+        ],
+        knownNodeIds: Object.keys(config.nodes ?? {}),
+      });
       setIsPending(false);
     }, debounceMs);
     return () => clearTimeout(handle);
   }, [config, debounceMs, options]);
 
-  return useMemo(() => {
+  // Bucketed separately from the result object below, and deliberately NOT
+  // dependent on `isPending`. `errorsByNode` is the canvas's badge-sync input;
+  // folding the pending flag in here would hand out a new Map on the first
+  // keystroke of every editing burst, for no change in what it contains. The
+  // run carries its own node-id snapshot (G-096's bucketing input), so the
+  // live `config` is not a dependency either — see `ValidationRun`.
+  const buckets = useMemo(() => {
+    const { errors, knownNodeIds } = run;
     const errorsByNode = new Map<string, GraphValidationError[]>();
     const workflowLevelErrors: GraphValidationError[] = [];
-    const knownNodeIds = Object.keys(config.nodes ?? {});
     let errorCount = 0;
     let warningCount = 0;
     for (const err of errors) {
@@ -127,11 +160,10 @@ export function useGraphValidation(
       warningCount,
       errorsByNode,
       workflowLevelErrors,
-      isPending,
     };
-    // `config` joins the deps because bucketing now resolves anchors against
-    // the graph's real node ids (G-096).
-  }, [errors, isPending, config]);
+  }, [run]);
+
+  return useMemo(() => ({ ...buckets, isPending }), [buckets, isPending]);
 }
 
 /**

@@ -3108,6 +3108,142 @@ describe("WorkflowEditorV2Page — undo/redo (G-003)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// D13 — "Simplified view" is a VIEW control, and a view control must never
+// rewrite the document.
+//
+// It used to. `simplifiedView` was closed over by `runAutoArrange`, whose
+// identity flowed through `handleArrangeOnLoad` → `scheduleArrangeOnLoad` into
+// the dependency array of the server-hydration effect. So every flip of the
+// switch re-ran the hydrate on any workflow with no unsaved *config* edits —
+// exactly the state a demo opens in. The measured arrange-on-load layout was
+// thrown away for the loose pre-mount fallback, an unsaved rename was reverted
+// by `setName`, and neither left an undo step to get back from.
+// ---------------------------------------------------------------------------
+
+describe("WorkflowEditorV2Page — D13: the simplified-view toggle must not re-hydrate", () => {
+  beforeEach(() => {
+    capturedCanvasProps.current = null;
+    capturedCreateDto.current = null;
+    fitViewMock.mockClear();
+  });
+
+  function toggleSimplifiedTwice() {
+    const toggle = screen.getByTestId("simplified-view-toggle");
+    act(() => {
+      fireEvent.click(toggle);
+    });
+    act(() => {
+      fireEvent.click(toggle);
+    });
+  }
+
+  it("keeps the measured arrange-on-load layout across an ON/OFF toggle pair", async () => {
+    // The reviewer's case: a seeded workflow arrives with no authored
+    // positions, so the page re-arranges it with real measured widths after
+    // mount. Toggling used to hand back the loose pre-mount coordinates.
+    const config = buildTemplateConfig({ positions: "none" });
+    measuredNodes.current = Object.keys(config.nodes).map((id) => ({
+      id,
+      measured: { width: 200 },
+    }));
+    existingWorkflowRef.current = {
+      id: "wf-d13-layout",
+      name: "Seeded workflow",
+      description: "",
+      config,
+      workflowVersionId: "wf-d13-layout-v1",
+    };
+    renderEditPage("wf-d13-layout");
+    await waitFor(() => expect(fitViewMock).toHaveBeenCalled());
+
+    const arranged = readPositionsFromCanvas();
+    expect(arranged.a).toBeDefined();
+
+    toggleSimplifiedTwice();
+
+    expect(readPositionsFromCanvas()).toEqual(arranged);
+  });
+
+  it("keeps an unsaved rename across an ON/OFF toggle pair", async () => {
+    // The title writes `name` state only, never `config`, so the hydration
+    // effect's dirty guard (a config reference compare) never protected it —
+    // `setName(existingWorkflow.name)` simply reverted the typed name.
+    existingWorkflowRef.current = {
+      id: "wf-d13-name",
+      name: "Server workflow",
+      description: "",
+      config: buildTemplateConfig({ positions: "all" }),
+      workflowVersionId: "wf-d13-name-v1",
+    };
+    renderEditPage("wf-d13-name");
+    await waitFor(() => expect(readPositionsFromCanvas().a).toBeDefined());
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("workflow-title"));
+    });
+    const nameInput = screen.getByLabelText("Name");
+    fireEvent.change(nameInput, {
+      target: { value: "Renamed but not saved" },
+    });
+    act(() => {
+      fireEvent.keyDown(nameInput, { key: "Enter" });
+    });
+
+    toggleSimplifiedTwice();
+
+    expect(screen.getByTestId("workflow-title")).toHaveTextContent(
+      "Renamed but not saved",
+    );
+  });
+
+  it("states the invariant directly: the config handed to the canvas is reference-identical across a toggle pair", async () => {
+    // The fixture carries a lineage `description` and no
+    // `metadata.description`, so the R-2 seeding branch in the hydration
+    // effect ALLOCATES a fresh config every time it runs. That makes a
+    // reference compare a true statement about whether the effect fired —
+    // with a fixture hydration happens to pass through untouched, the compare
+    // would be vacuously true.
+    existingWorkflowRef.current = {
+      id: "wf-d13-identity",
+      name: "Server workflow",
+      description: "Lineage description, not mirrored into the config",
+      config: buildTemplateConfig({ positions: "all" }),
+      workflowVersionId: "wf-d13-identity-v1",
+    };
+    renderEditPage("wf-d13-identity");
+    await waitFor(() => expect(readPositionsFromCanvas().a).toBeDefined());
+
+    const before = capturedCanvasProps.current?.config;
+    toggleSimplifiedTwice();
+    expect(capturedCanvasProps.current?.config).toBe(before);
+  });
+
+  it("still arranges the CHIP graph when the toggle is on — the flag is read at call time, not captured", async () => {
+    // The ref must not freeze the flag: `runAutoArrange` reads
+    // `simplifiedViewRef.current`, so an arrange requested after a toggle
+    // still takes the simplified branch.
+    const cfg = buildTemplateConfig({ positions: "all" });
+    cfg.nodeGroups = { g1: { label: "Stage one", nodeIds: ["a", "b"] } };
+    renderPage(makeTemplate(cfg));
+
+    act(() => {
+      fireEvent.click(screen.getByTestId("simplified-view-toggle"));
+    });
+    const before = readPositionsFromCanvas();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("topbar-menu-auto-arrange"));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+
+    // Simplified arrange writes `metadata.simplifiedPosition`, never
+    // `metadata.position` — the expanded coordinates are untouched.
+    expect(readPositionsFromCanvas()).toEqual(before);
+    const arranged = capturedCanvasProps.current?.config as GraphWorkflowConfig;
+    expect(arranged.nodeGroups?.g1.position).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // G-027 — leaving the editor with unsaved changes asks first. The guard's own
 // mechanics live in use-unsaved-guard.test.tsx; what matters here is that the
 // page feeds it the SAME dirty signal the §4.4 hydration guard uses, and that

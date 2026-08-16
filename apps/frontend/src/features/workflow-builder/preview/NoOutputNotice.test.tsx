@@ -193,6 +193,33 @@ describe("item 11 — a failed step is drawn as an error, explained, and actiona
     });
   });
 
+  // -------------------------------------------------------------------------
+  // I5 (2026-08-14) — the CTA is recoverable, so it must not be painted as a
+  // destructive one, and it must say what it really re-runs.
+  // -------------------------------------------------------------------------
+
+  it("draws the Re-run CTA as an outlined button, not the destructive filled red", () => {
+    renderNotice("failed");
+
+    const button = screen.getByTestId("step-failed-rerun");
+    expect(button.getAttribute("data-variant")).toBe("outline");
+    expect(button.getAttribute("data-variant")).not.toBe("filled");
+  });
+
+  it("keeps the whole-workflow label and says the scope in the card", () => {
+    // `onRerun` POSTs `/tries`, which starts a fresh execution of the entire
+    // graph — there is no re-execute-one-step endpoint — so "Try again" would
+    // be a lie and the card carries the scope in words.
+    renderNotice("failed");
+
+    expect(screen.getByTestId("step-failed-rerun")).toHaveTextContent(
+      "Re-run workflow",
+    );
+    expect(screen.getByTestId("step-failed-rerun-scope")).toHaveTextContent(
+      "Runs the whole workflow again from the start, with the same input.",
+    );
+  });
+
   it("omits the per-node reason from the wire peek, where no node owns the popover", () => {
     // The wire-peek popover renders from an edge: there is no node context, so
     // the component must not guess whose error it is.

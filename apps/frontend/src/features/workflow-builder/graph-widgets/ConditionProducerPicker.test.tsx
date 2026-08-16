@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom";
 import { MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -55,6 +56,24 @@ describe("ConditionProducerPicker", () => {
     expect(
       screen.getByText("Prepare file → Prepared file data"),
     ).toBeInTheDocument();
+  });
+
+  // D22 — the reviewer could not tell the options were previous steps'
+  // outputs. The heading is the fix, so it is the thing under test.
+  it("names what the list is, above the rows", () => {
+    mount(
+      <ConditionProducerPicker
+        config={chainConfig()}
+        currentNodeId="C"
+        value=""
+        onChange={vi.fn()}
+      />,
+    );
+    const heading = screen.getByTestId("condition-producer-heading");
+    expect(heading).toHaveTextContent("Outputs of earlier steps");
+    expect(heading).toHaveTextContent(
+      "Each row is one output of a step that runs before this one",
+    );
   });
 
   it("emits { producerNodeId, producerPort } on click", () => {

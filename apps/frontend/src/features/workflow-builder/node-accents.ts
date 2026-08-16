@@ -50,13 +50,21 @@ export interface NodeAccent {
   label: string;
 }
 
+/**
+ * D29 — two of these five were named for the mechanism rather than for what a
+ * reader would see the card do. "Does work" is true of every card on the
+ * canvas, so it did not separate this role from the other four; and "Fans out
+ * or back in" is fan-out/fan-in jargon, which is exactly the kind of term the
+ * reviewer flagged. The other three already said what they were and are
+ * unchanged — renaming them would have cost the vocabulary more than it bought.
+ */
 const ACCENTS: Record<NodeAccentRole, NodeAccent> = {
   /** Does work. The default, and the overwhelming majority of cards. */
-  activity: { color: "#64748B", label: "Does work" },
+  activity: { color: "#64748B", label: "Performs an action" },
   /** Decides whether or where to go next — `switch`, `pollUntil`. */
   routing: { color: "#D97706", label: "Decides where to go next" },
   /** Changes how many items are in flight — `map`, `join`. */
-  fan: { color: "#6B21A8", label: "Fans out or back in" },
+  fan: { color: "#6B21A8", label: "Repeats over a list, or gathers results" },
   /** Waits for a human — `humanGate`. Its own accent because it is the one
    *  thing an author most needs to spot in a graph. */
   person: { color: "#B91C1C", label: "Waits for a person" },

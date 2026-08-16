@@ -228,7 +228,13 @@ async function openRevertConfirm() {
   const revertButton = await screen.findByTestId("history-row-revert-v2-id");
   fireEvent.click(revertButton);
   // Confirm-modal text proves the modal opened.
-  await screen.findByText(/Reverting will replace the current head/i);
+  // Generous timeout: the Mantine modal's mount + transition has flaked at the
+  // 1s default when the whole frontend suite runs in parallel.
+  await screen.findByText(
+    /will be copied forward as a new version/i,
+    {},
+    { timeout: 5000 },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +256,12 @@ describe("WorkflowEditorV2Page — US-083 revert-to-version flow", () => {
     // formatted timestamp — assert the load-bearing substrings rather
     // than the locale-formatted date.
     expect(
-      screen.getByText(/Reverting will replace the current head with v2,/i),
+      screen.getByText(
+        /v2, created .* will be copied forward as a new version/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Nothing in the history is removed/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Any unsaved canvas changes will be discarded/i),
@@ -262,17 +273,20 @@ describe("WorkflowEditorV2Page — US-083 revert-to-version flow", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByText(/Reverting will replace the current head/i),
+        screen.queryByText(/will be copied forward as a new version/i),
       ).not.toBeInTheDocument();
     });
     expect(revertMutateAsyncMock).not.toHaveBeenCalled();
   });
 
   it("Scenario 2: confirming calls the mutation with { lineageId, workflowVersionId }, closes the drawer, and fires a green notification", async () => {
+    // D11 — the restore APPENDS a new version, so the mutation resolves with
+    // the new head (v4 holding v2's steps), not with the version that was
+    // clicked.
     revertMutateAsyncMock.mockResolvedValueOnce({
       ...baseWorkflow,
-      workflowVersionId: "v2-id",
-      versionNumber: 2,
+      workflowVersionId: "v4-id",
+      version: 4,
     });
 
     renderEditor();
@@ -299,11 +313,14 @@ describe("WorkflowEditorV2Page — US-083 revert-to-version flow", () => {
       ).not.toBeInTheDocument();
     });
 
-    // Green notification fires with the v{n} title.
+    // Green notification names BOTH versions: the one restored and the new
+    // one it was written to — that pairing is what tells the reader a version
+    // was created rather than head merely re-tagged.
     expect(notificationsShowMock).toHaveBeenCalledWith(
       expect.objectContaining({
         color: "green",
-        title: "Reverted to v2",
+        title: "Restored v2 as v4",
+        message: expect.stringContaining("still in the history"),
       }),
     );
   });

@@ -8,7 +8,7 @@
 import "@testing-library/jest-dom";
 
 import { MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type {
@@ -279,7 +279,7 @@ describe("MapNodeSettings — Scenario 3: body pickers list nodes", () => {
 // ---------------------------------------------------------------------------
 
 describe("MapNodeSettings — Scenario 4: edits propagate a typed update", () => {
-  it("editing itemCtxKey fires onConfigChange with the full MapNode carrying the new value and other fields unchanged", () => {
+  it("editing itemCtxKey fires onConfigChange with the full MapNode carrying the new value and other fields unchanged", async () => {
     const initial = mapNode("m1", "Per-Item", {
       collectionCtxKey: "documents",
       itemCtxKey: "doc",
@@ -306,7 +306,10 @@ describe("MapNodeSettings — Scenario 4: edits propagate a typed update", () =>
     ) as HTMLInputElement;
     fireEvent.change(itemField, { target: { value: "page" } });
 
-    expect(spy).toHaveBeenCalled();
+    // D7 — free-text settings fields draft locally and commit on a quiet
+    // period (or blur/unmount) instead of once per character, so the commit
+    // is asserted through `waitFor` rather than synchronously.
+    await waitFor(() => expect(spy).toHaveBeenCalled());
     const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
     const updated = next.nodes.m1 as MapNode;
 
@@ -543,5 +546,144 @@ describe("MapNodeSettings — G-071 body-entry picker filter", () => {
     expect(
       screen.getByRole("option", { name: /Inner loop/ }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D7 — typing cost.
+//
+// The reviewer's step-7 case: "typing in the field is very laggy... updates
+// are causing a lot of the page to re-render when it really shouldn't". Every
+// keystroke used to replace the whole workflow config at page level, which
+// re-runs the auto-wire resolver (an upstream graph walk per typed input port
+// on every node), rewrites downstream bindings, changes the canvas's
+// structural fingerprint and re-projects every card.
+//
+// This counts the mechanism rather than the feel: config writes per burst, and
+// renders of a stand-in for the expensive sibling that consumes the config.
+// Wall-clock numbers from the running app are in the worklog.
+// ---------------------------------------------------------------------------
+
+describe("MapNodeSettings — D7: typing does not rewrite the config per character", () => {
+  function mountWithCanvasProbe(
+    initialConfig: GraphWorkflowConfig,
+    mapNodeId: string,
+  ) {
+    const configWrites = vi.fn<(next: GraphWorkflowConfig) => void>();
+    const probeRenders = { count: 0 };
+
+    /** Stands in for the canvas: re-renders whenever `config` changes identity. */
+    function CanvasProbe({ config }: { config: GraphWorkflowConfig }) {
+      probeRenders.count += 1;
+      return (
+        <div data-testid="canvas-probe">{Object.keys(config.nodes).length}</div>
+      );
+    }
+
+    function Wrapper() {
+      const [config, setConfig] = useState<GraphWorkflowConfig>(initialConfig);
+      const node = config.nodes[mapNodeId] as MapNode;
+      return (
+        <>
+          <MapNodeSettings
+            node={node}
+            config={config}
+            onConfigChange={(next) => {
+              configWrites(next);
+              setConfig(next);
+            }}
+          />
+          <CanvasProbe config={config} />
+        </>
+      );
+    }
+
+    const utils = renderSettings(<Wrapper />);
+    return { ...utils, configWrites, probeRenders };
+  }
+
+  it("a 10-character burst produces ONE config write and no canvas re-render until it commits", async () => {
+    const config = makeConfig(
+      [
+        mapNode("m1", "Run for each item"),
+        activity("a1", "Body Entry"),
+        activity("a2", "Body Exit"),
+      ],
+      { documents: { type: "array" } },
+    );
+    const { configWrites, probeRenders } = mountWithCanvasProbe(config, "m1");
+
+    const rendersBeforeTyping = probeRenders.count;
+    const itemField = screen.getByTestId(
+      "map-node-settings-item-ctx-key",
+    ) as HTMLInputElement;
+
+    const typed = "segmentXY"; // 9 chars + the 10th below
+    for (let i = 1; i <= typed.length; i++) {
+      fireEvent.change(itemField, { target: { value: typed.slice(0, i) } });
+    }
+    fireEvent.change(itemField, { target: { value: `${typed}!` } });
+
+    // Mid-burst: the field shows everything typed and NOTHING has reached the
+    // config. Before the fix this was 10 writes and 10 probe renders.
+    expect(itemField.value).toBe("segmentXY!");
+    expect(configWrites).not.toHaveBeenCalled();
+    expect(probeRenders.count).toBe(rendersBeforeTyping);
+
+    // ...and the burst commits exactly once when typing stops.
+    await waitFor(() => expect(configWrites).toHaveBeenCalledTimes(1));
+    expect(
+      (configWrites.mock.lastCall?.[0].nodes.m1 as MapNode).itemCtxKey,
+    ).toBe("segmentXY!");
+    expect(probeRenders.count - rendersBeforeTyping).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D24 — "Why currentSegment? Is this what the node looks for, and if it's
+// always this, why do we specify it?"
+//
+// The factual answer: the name is FREE (a fresh map node starts with an empty
+// item key and nothing defaults it), but the `segment.<field>` shorthand in
+// conditions is hard-wired to read `ctx.currentSegment`. Both halves have to
+// be in the help text, or the reader concludes the field is ceremony.
+// ---------------------------------------------------------------------------
+
+describe("MapNodeSettings — D24: the item ctx key explains itself", () => {
+  it("says the name is free AND names what currentSegment buys", () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: {},
+      entryNodeId: "m1",
+      nodes: {
+        m1: {
+          id: "m1",
+          type: "map",
+          label: "Run for each item",
+          collectionCtxKey: "documents",
+          itemCtxKey: "",
+          bodyEntryNodeId: "",
+          bodyExitNodeId: "",
+        },
+      },
+      edges: [],
+      ctx: { documents: { type: "array" } },
+    };
+    render(
+      <MantineProvider>
+        <MapNodeSettings
+          node={config.nodes.m1 as MapNode}
+          config={config}
+          onConfigChange={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+
+    const description = screen
+      .getByTestId("map-node-settings-item-ctx-key")
+      .closest(".mantine-InputWrapper-root")?.textContent;
+    expect(description).toContain("Any name works");
+    expect(description).toContain("segment.field shorthand");
+    expect(description).toContain("always reads currentSegment");
   });
 });

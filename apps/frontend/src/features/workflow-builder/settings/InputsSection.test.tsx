@@ -348,6 +348,52 @@ describe("InputsSection", () => {
     ).toBeInTheDocument();
   });
 
+  // D21 — "Inputs listed as Pinned don't have any input edges, so who is
+  // choosing this connection? … is that someone the user or a developer?"
+  // The old tooltip said "Pinned by you", which is false on every seeded demo
+  // (their explicit ctx bindings become locks at load time). The badge must
+  // describe the act without claiming an actor it cannot know.
+  it("explains a pin without asserting who made it", async () => {
+    const config: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      nodes: {
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          label: "Prepare",
+          outputs: [
+            { port: "preparedData", ctxKey: "__auto.prep.preparedData" },
+          ],
+        },
+        B: {
+          id: "B",
+          type: "activity",
+          activityType: "azureOcr.submit",
+          label: "B",
+          inputs: [{ port: "fileData", ctxKey: "__auto.prep.preparedData" }],
+          metadata: { lockedInputPorts: ["fileData"] },
+        },
+      },
+      edges: [{ id: "e", source: "prep", target: "B", type: "normal" }],
+      entryNodeId: "prep",
+      ctx: {},
+    };
+    const user = userEvent.setup();
+    mount(
+      <InputsSection config={config} nodeId="B" onConfigChange={vi.fn()} />,
+    );
+    await user.hover(screen.getByText("Pinned"));
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent(
+      "someone editing this workflow chose this source by hand",
+    );
+    expect(tip).toHaveTextContent("automatic wiring leaves it alone");
+    // The claim that has to be gone: the app cannot know the reader did it.
+    expect(document.body.textContent).not.toContain("Pinned by you");
+  });
+
   it("shows 'from <ctxKey>' (no producer arrow) for a pinned NON-auto ctx var", async () => {
     const user = userEvent.setup();
     const config: GraphWorkflowConfig = {

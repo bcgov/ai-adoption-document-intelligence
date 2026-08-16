@@ -4,7 +4,8 @@
  * Each builder returns a fully-typed `GraphNode` with the defaults
  * locked in for US-011 Scenario 3:
  *   - switch        → cases: []
- *   - map           → empty ctxKey strings + empty body refs
+ *   - map           → itemCtxKey: "currentSegment" (D24), empty collection
+ *                     ctxKey + empty body refs
  *   - join          → empty sourceMapNodeId, strategy: "all"
  *   - childWorkflow → workflowRef: { type: "library", workflowId: "" }
  *   - pollUntil     → empty activityType, interval: "30s"
@@ -72,13 +73,38 @@ function buildSwitchSkeleton(id: string): SwitchNode {
  */
 export const DEFAULT_MAP_MAX_CONCURRENCY = 5;
 
+/**
+ * Default item variable for a newly dropped map (D24).
+ *
+ * `itemCtxKey` is required and was created EMPTY, which is a hard validation
+ * error on every new loop before the author has touched it — the node arrives
+ * already red.
+ *
+ * `currentSegment` rather than any other name because the choice is not
+ * cosmetic: the `segment.<field>` shorthand in condition expressions is
+ * hard-wired to read `ctx.currentSegment`
+ * (`graph-workflow/src/validator/context-utils.ts` CTX_NAMESPACE_PREFIXES;
+ * `apps/temporal/src/expression-evaluator.ts` traversePath). Under any other
+ * name that shorthand silently resolves to `undefined` instead of erroring,
+ * which is why every shipped template already uses this one.
+ *
+ * This is a CREATION-time default only. Nothing rewrites a saved config, so
+ * existing workflows — including the seeded one that uses `currentDoc` — keep
+ * whatever they were authored with.
+ *
+ * The cost it introduces is two maps in one graph starting out sharing a key;
+ * `validateMapItemKeyCollisions` in the shared validator warns about that
+ * (a warning, not an error — sharing the key is legal).
+ */
+export const DEFAULT_MAP_ITEM_CTX_KEY = "currentSegment";
+
 function buildMapSkeleton(id: string): MapNode {
   return {
     id,
     type: "map",
     label: entryFor("map").displayName,
     collectionCtxKey: "",
-    itemCtxKey: "",
+    itemCtxKey: DEFAULT_MAP_ITEM_CTX_KEY,
     maxConcurrency: DEFAULT_MAP_MAX_CONCURRENCY,
     bodyEntryNodeId: "",
     bodyExitNodeId: "",

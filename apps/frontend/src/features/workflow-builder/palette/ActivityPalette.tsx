@@ -47,7 +47,9 @@ import {
   getActivityVisualHints,
   getCatalogByCategory,
 } from "../catalog-utils";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
 import { DynamicNodeEditor, useActivityCatalog } from "../dynamic-nodes";
+import { ACTIVITY_ACCENT } from "../node-accents";
 import { getSourceVisualHints } from "../sources/source-catalog-utils";
 import {
   CONTROL_FLOW_PALETTE_ENTRIES,
@@ -420,6 +422,10 @@ function DynamicPaletteRow({ entry, onClick }: DynamicPaletteRowProps) {
   // drop handler (when wired) keys off when constructing the new
   // `ActivityNode` with `type: "dyn.<slug>"`. The click-to-add path is
   // the primary trigger; drag is here for parity with the source rows.
+  // D32 — a custom node is an ordinary step on the canvas and takes the
+  // activity accent there; the palette's hard-coded purple claimed a role the
+  // card never has. The DYN badge still marks it as custom.
+  const accent = ACTIVITY_ACCENT;
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData(
       "application/x-workflow-palette",
@@ -453,13 +459,13 @@ function DynamicPaletteRow({ entry, onClick }: DynamicPaletteRowProps) {
           borderRadius: 6,
           borderLeftWidth: 3,
           borderLeftStyle: "solid",
-          borderLeftColor: "#9333ea",
+          borderLeftColor: accent,
           background: "var(--mantine-color-default-hover, #25262b)",
         }}
       >
         <ActionIcon
           variant="transparent"
-          color="grape"
+          color="gray"
           size="sm"
           style={{ pointerEvents: "none" }}
           aria-hidden
@@ -573,6 +579,13 @@ interface ControlFlowPaletteRowProps {
 
 function ControlFlowPaletteRow({ entry, onClick }: ControlFlowPaletteRowProps) {
   const Icon = CONTROL_FLOW_ICONS[entry.type];
+  // D32 — the palette used to paint every control-flow row one hard-coded
+  // violet, so a card that turns amber on the canvas ("Decides where to go
+  // next") was indistinguishable in the list from one that turns purple
+  // ("Repeats over a list, or gathers results"). The accent now comes from
+  // the same module the canvas reads, which is what makes the two surfaces
+  // mean the same thing rather than merely look similar.
+  const accent = getControlFlowVisualHints(entry.type).color;
   const onDragStart = (e: React.DragEvent<HTMLDivElement>) => {
     e.dataTransfer.setData(
       "application/x-workflow-palette",
@@ -602,13 +615,13 @@ function ControlFlowPaletteRow({ entry, onClick }: ControlFlowPaletteRowProps) {
           borderRadius: 6,
           borderLeftWidth: 3,
           borderLeftStyle: "solid",
-          borderLeftColor: "#8b5cf6",
+          borderLeftColor: accent,
           background: "var(--mantine-color-default-hover, #25262b)",
         }}
       >
         <ActionIcon
           variant="transparent"
-          color="violet"
+          color={accent}
           size="sm"
           style={{ pointerEvents: "none" }}
           aria-hidden

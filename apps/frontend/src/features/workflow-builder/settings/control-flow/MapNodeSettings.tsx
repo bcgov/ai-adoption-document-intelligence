@@ -163,7 +163,15 @@ export function MapNodeSettings({
             onChange={setItemCtxKey}
             onCreateCtxKey={createCtxKey}
             label="Item ctx key"
-            description="ctx key bound to the current item inside each iteration."
+            // D24 — "Why currentSegment? Is this what the node looks for, and
+            // if it's always this, why do we specify it?" It is NOT fixed: the
+            // field is free text and a fresh map node starts empty. What makes
+            // `currentSegment` look mandatory is a real coupling elsewhere —
+            // the `segment.<field>` shorthand in conditions is hard-wired to
+            // read `ctx.currentSegment` — so the name is free but choosing a
+            // different one silently costs you that shorthand. Both halves are
+            // stated here rather than left to be discovered.
+            description="Names the variable each iteration puts one item into, so steps inside the loop can read it. Any name works. Pick currentSegment to also use the segment.field shorthand in conditions — that shorthand always reads currentSegment, so under another name you write the full variable out."
             required
             data-testid="map-node-settings-item-ctx-key"
           />

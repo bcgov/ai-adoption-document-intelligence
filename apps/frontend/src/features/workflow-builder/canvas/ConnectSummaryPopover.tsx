@@ -183,7 +183,7 @@ function SummaryRow({ row, config, nodeId, onFix, onClose }: SummaryRowProps) {
       return (
         <Group gap={6} wrap="nowrap" data-testid={testId}>
           <Text size="xs">
-            ✓ {port.label} {sourceText} · pinned by you
+            ✓ {port.label} {sourceText} · pinned by hand
           </Text>
         </Group>
       );

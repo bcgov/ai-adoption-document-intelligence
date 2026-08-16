@@ -45,7 +45,11 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { IconAlertTriangle, IconDatabaseOff } from "@tabler/icons-react";
+import {
+  IconAlertCircle,
+  IconAlertTriangle,
+  IconDatabaseOff,
+} from "@tabler/icons-react";
 import { type ComponentType, type ReactNode, useState } from "react";
 
 import { builderFetch } from "../../../data/services/builder-fetch";
@@ -230,7 +234,7 @@ interface ModePresentation {
   tone: "neutral" | "warning" | "error";
   color: string;
   Icon: ComponentType<{ size?: number }>;
-  buttonVariant: "default" | "filled";
+  buttonVariant: "default" | "outline";
   buttonColor: string | undefined;
 }
 
@@ -258,9 +262,14 @@ const MODE_PRESENTATION: Record<Mode, ModePresentation> = {
   },
   error: {
     tone: "error",
+    // I5 (Inderdeep, 2026-08-14) — the panel stays red because the re-run
+    // really did fail, but the button that retries it is outlined, not
+    // filled: filled red is this UI's destructive-action treatment, and
+    // re-running destroys nothing. Same change, same reason, as the
+    // `StepFailedAlert` CTA in `NoOutputNotice`.
     color: "red",
-    Icon: IconAlertTriangle,
-    buttonVariant: "filled",
+    Icon: IconAlertCircle,
+    buttonVariant: "outline",
     buttonColor: "red",
   },
 };

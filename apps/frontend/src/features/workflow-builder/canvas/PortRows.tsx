@@ -117,9 +117,38 @@ export const NEEDS_SOURCE_RING =
 const NEEDS_SOURCE_RING_ARRAY =
   "0 0 0 7px var(--mantine-color-yellow-5, #fab005)";
 
+/**
+ * D28(c) — *"Is there meaning behind the difference in the size of the Poll
+ * status connector?"*
+ *
+ * Yes: a dot is drawn at `UNCONNECTED_HANDLE_SIZE` instead of
+ * `BASE_HANDLE_SIZE` exactly when `invitesConnection` holds — the port is
+ * required and nothing is attached to it — and it carries a "+" at that
+ * size. The meaning was real and the only thing carrying it was 4px and a
+ * glyph that reads as a smudge on a zoomed-out canvas, with no words
+ * anywhere. This is the words.
+ *
+ * It rides on the ROW LABEL's tooltip rather than on the dot itself,
+ * deliberately: hovering the dot already opens the hover-extend picker, and
+ * a second portalled layer on the same hover lands on top of it (the reason
+ * the handle sits outside the tooltip target at all — see the render
+ * below).
+ */
+const INVITATION_HINT_INPUT =
+  "Nothing is connected here yet — the larger dot with a + is where to drop a wire.";
+const INVITATION_HINT_OUTPUT =
+  "Nothing reads this yet — the larger dot with a + is where to drag one from.";
+
 function rowTooltip(row: PortRowModel): string {
   const kindText = `${row.name}: ${row.kind ?? "Artifact"}`;
-  return row.description ? `${kindText} — ${row.description}` : kindText;
+  const base = row.description ? `${kindText} — ${row.description}` : kindText;
+  if (!invitesConnection(row)) return base;
+  const hint =
+    row.direction === "input" ? INVITATION_HINT_INPUT : INVITATION_HINT_OUTPUT;
+  // Catalog descriptions are written as sentences and mostly already end in
+  // a full stop; a blind `${base}. ${hint}` gave "…and pageCount.. Nothing
+  // reads this yet…" on the very first port this was read on.
+  return base.endsWith(".") ? `${base} ${hint}` : `${base}. ${hint}`;
 }
 
 /**

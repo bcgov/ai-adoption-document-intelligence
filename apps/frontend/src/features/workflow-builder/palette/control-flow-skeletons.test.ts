@@ -16,6 +16,7 @@ import type {
 } from "../../../types/workflow";
 import {
   buildControlFlowSkeleton,
+  DEFAULT_MAP_ITEM_CTX_KEY,
   DEFAULT_MAP_MAX_CONCURRENCY,
 } from "./control-flow-skeletons";
 
@@ -29,13 +30,13 @@ describe("buildControlFlowSkeleton", () => {
     expect(node.defaultEdge).toBeUndefined();
   });
 
-  it("map → returns a MapNode with empty ctxKey strings and empty body refs", () => {
+  it("map → returns a MapNode with a default item ctx key and empty body refs", () => {
     const node = buildControlFlowSkeleton("map", "map_1") as MapNode;
     expect(node.id).toBe("map_1");
     expect(node.type).toBe("map");
     expect(node.label).toBe("Run for each item");
     expect(node.collectionCtxKey).toBe("");
-    expect(node.itemCtxKey).toBe("");
+    expect(node.itemCtxKey).toBe(DEFAULT_MAP_ITEM_CTX_KEY);
     expect(node.indexCtxKey).toBeUndefined();
     expect(node.bodyEntryNodeId).toBe("");
     expect(node.bodyExitNodeId).toBe("");
@@ -126,5 +127,42 @@ describe("map skeleton seeds a concurrency limit (G-067)", () => {
       DEFAULT_MAP_MAX_CONCURRENCY,
     );
     expect(DEFAULT_MAP_MAX_CONCURRENCY).toBeGreaterThan(0);
+  });
+});
+
+describe("map skeleton seeds an item ctx key (D24)", () => {
+  it("gives a newly dropped map a non-empty item variable", () => {
+    const skeleton = buildControlFlowSkeleton("map", "m1") as MapNode;
+    // An empty itemCtxKey is a hard validation error, so a map dropped from
+    // the palette used to arrive already red before the author touched it.
+    expect(skeleton.itemCtxKey).not.toBe("");
+    expect(skeleton.itemCtxKey.trim()).toBe(skeleton.itemCtxKey);
+  });
+
+  it("uses currentSegment, the only name the segment.field shorthand reads", () => {
+    // Not cosmetic: `segment.<field>` in condition expressions is hard-wired to
+    // ctx.currentSegment, so any other default would silently disable it.
+    expect(DEFAULT_MAP_ITEM_CTX_KEY).toBe("currentSegment");
+    expect((buildControlFlowSkeleton("map", "m1") as MapNode).itemCtxKey).toBe(
+      "currentSegment",
+    );
+  });
+
+  it("leaves the collection key empty — there is no defensible default for it", () => {
+    // The collection is workflow-specific; only the item name has one right
+    // answer. Defaulting both would hide the field the author must fill in.
+    expect(
+      (buildControlFlowSkeleton("map", "m1") as MapNode).collectionCtxKey,
+    ).toBe("");
+  });
+
+  it("is a creation-time default only — the builder never sees a saved node", () => {
+    // Guards the "existing workflows must be untouched" half of D24: this
+    // module's only export path is construction from a palette drop, so there
+    // is no code path here that could rewrite a loaded config.
+    const a = buildControlFlowSkeleton("map", "m1") as MapNode;
+    const b = buildControlFlowSkeleton("map", "m2") as MapNode;
+    expect(a).not.toBe(b);
+    expect(a.itemCtxKey).toBe(b.itemCtxKey);
   });
 });

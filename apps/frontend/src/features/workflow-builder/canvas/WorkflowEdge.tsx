@@ -84,12 +84,17 @@ export interface WorkflowEdgeData {
 
 /**
  * Plain-language provenance tooltip for a data wire (Task 3 vocabulary:
- * "Connected automatically…", "Pinned by you"). Pure so it can be unit
+ * "Connected automatically…", "Pinned…"). Pure so it can be unit
  * tested without rendering.
+ *
+ * D21 — a pin carries no author: `metadata.lockedInputPorts` holds port names
+ * and nothing else, and `normaliseLocks` mints pins from a seeded workflow's
+ * own bindings at load. So "Pinned by you" was false on every demo workflow a
+ * reader had never edited. The copy describes the act, not the actor.
  */
 export function wireTooltip(wire: DataWire): string {
   if (wire.pinned) {
-    return "Pinned by you";
+    return "Pinned — chosen by hand when this workflow was built, so automatic wiring leaves it alone";
   }
   if (wire.via === "name-match") {
     return `Connected automatically — matched by name "${wire.targetPort}"`;
