@@ -1396,54 +1396,115 @@ export class WorkflowService {
   }
 
   /**
-   * Moves lineage head to an existing version (defaults for new uploads; does not change benchmark pins).
+   * Restores an older version by **appending its config as a new version** and
+   * pointing head at that new row (does not change benchmark definition pins).
+   *
+   * D11 — this used to move `head_version_id` back onto the old row and write
+   * nothing else, which contradicted the walkthrough ("brings an old one back
+   * as a *new* version") and, more seriously, left the lineage unsaveable: the
+   * append path numbers a new version `head.version_number + 1`, so with head
+   * parked on v1 while v2 existed, the next save asked Postgres for a second
+   * `(lineage_id, version_number) = (…, 2)` and lost to
+   * `workflow_versions_lineage_id_version_number_key` on all three attempts —
+   * a 500 to the user, reproduced against the dev stack on 2026-08-14.
+   * Appending keeps head on the highest version number, which is the invariant
+   * the rest of the versioning code already assumes.
+   *
+   * The restored config is copied verbatim (re-stamped, so the persisted hash
+   * matches the bytes we store); the source version row is left untouched, so
+   * run counts stay attached to the version that actually produced them.
    */
   async revertHeadToVersion(
     lineageId: string,
     workflowVersionId: string,
     actorId: string,
   ): Promise<WorkflowInfo> {
-    const version = await this.prisma.workflowVersion.findUnique({
+    const source = await this.prisma.workflowVersion.findUnique({
       where: { id: workflowVersionId },
     });
-    if (!version || version.lineage_id !== lineageId) {
+    if (!source || source.lineage_id !== lineageId) {
       throw new BadRequestException(
         `Version ${workflowVersionId} does not belong to lineage ${lineageId}`,
       );
     }
 
-    const lineage = await this.prisma.workflowLineage.findUnique({
-      where: { id: lineageId },
-    });
-    if (!lineage) {
-      throw new NotFoundException(`Workflow not found: ${lineageId}`);
-    }
-
-    this.logger.log(
-      `revertHeadToVersion: lineage ${lineageId} -> version ${workflowVersionId} by ${actorId}`,
+    const restoredConfig = stampConfigWithPersistedHash(
+      this.asGraphConfig(source.config),
     );
 
-    const updated = await this.prisma.workflowLineage.update({
-      where: { id: lineageId },
-      data: { head_version_id: workflowVersionId },
-      include: this.lineageWithHead,
-    });
-    if (!updated.headVersion) {
-      throw new NotFoundException(`Workflow not found: ${lineageId}`);
+    // Same retry shape as the append path in `updateWorkflow`: a concurrent
+    // save can commit `head + 1` between our read and our insert, and the
+    // second pass simply numbers off the new head.
+    for (
+      let attempt = 1;
+      attempt <= WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS;
+      attempt++
+    ) {
+      try {
+        return await this.prismaService.transaction(async (tx) => {
+          const current = await tx.workflowLineage.findUnique({
+            where: { id: lineageId },
+            include: this.lineageWithHead,
+          });
+          if (!current?.headVersion) {
+            throw new NotFoundException(`Workflow not found: ${lineageId}`);
+          }
+
+          const nextNum = current.headVersion.version_number + 1;
+          this.logger.log(
+            `revertHeadToVersion: lineage ${lineageId} restoring v${source.version_number} as v${nextNum} by ${actorId}`,
+          );
+
+          const versionRow = await tx.workflowVersion.create({
+            data: {
+              lineage_id: lineageId,
+              version_number: nextNum,
+              config: restoredConfig as object,
+            },
+          });
+          const updated = await tx.workflowLineage.update({
+            where: { id: lineageId },
+            data: { head_version_id: versionRow.id },
+            include: this.lineageWithHead,
+          });
+          if (!updated.headVersion) {
+            throw new NotFoundException(`Workflow not found: ${lineageId}`);
+          }
+
+          await this.auditService.recordEvent(
+            {
+              event_type: "workflow_head_reverted",
+              resource_type: "workflow_lineage",
+              resource_id: lineageId,
+              actor_id: actorId,
+              group_id: updated.group_id,
+              payload: {
+                workflow_version_id: versionRow.id,
+                version_number: nextNum,
+                restored_from_version_id: source.id,
+                restored_from_version_number: source.version_number,
+              },
+            },
+            tx,
+          );
+
+          return this.mapLineageAndVersion(updated, updated.headVersion);
+        });
+      } catch (err) {
+        if (
+          isWorkflowVersionUniqueConflict(err) &&
+          attempt < WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS
+        ) {
+          this.logger.warn(
+            `Restore hit unique constraint (concurrent update); retrying (${attempt}/${WORKFLOW_VERSION_APPEND_MAX_ATTEMPTS})`,
+          );
+          continue;
+        }
+        throw err;
+      }
     }
-
-    await this.auditService.recordEvent({
-      event_type: "workflow_head_reverted",
-      resource_type: "workflow_lineage",
-      resource_id: lineageId,
-      actor_id: actorId,
-      group_id: lineage.group_id,
-      payload: {
-        workflow_version_id: workflowVersionId,
-        version_number: version.version_number,
-      },
-    });
-
-    return this.mapLineageAndVersion(updated, updated.headVersion);
+    throw new ConflictException(
+      `Could not restore version ${workflowVersionId}: the workflow was changed concurrently. Reopen the history and try again.`,
+    );
   }
 }

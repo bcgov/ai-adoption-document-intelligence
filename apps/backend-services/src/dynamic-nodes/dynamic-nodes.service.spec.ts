@@ -313,7 +313,10 @@ export default async function dynamicNode() {}
 
     it("propagates DenoRunnerUnavailableError when the runner is unreachable", async () => {
       denoClient.check.mockRejectedValue(
-        new DenoRunnerUnavailableError("connect ECONNREFUSED"),
+        new DenoRunnerUnavailableError({
+          baseUrl: "http://localhost:9099",
+          details: "POST http://localhost:9099/check could not be reached",
+        }),
       );
 
       let thrown: unknown = null;

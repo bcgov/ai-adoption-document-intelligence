@@ -182,6 +182,7 @@ function validateConfig(
   validateSwitchNodes(config, errors);
   validateHumanGateNodes(config, errors);
   validateMapJoinNodes(config, errors);
+  validateMapItemKeyCollisions(config, errors);
   validateJoinScope(config, errors);
   validatePortBindings(config, errors);
   validateExpressions(config, errors);
@@ -881,6 +882,75 @@ function validateMapJoinNodes(
         }
       }
     }
+  }
+}
+
+/**
+ * D24 — two map nodes writing the SAME item variable.
+ *
+ * The palette now creates a map with `itemCtxKey: "currentSegment"` already
+ * filled in, because an empty required field made every freshly dropped loop a
+ * validation error and because `currentSegment` is the only name the
+ * `segment.<field>` condition shorthand reads. The cost of that default is
+ * this: drop a second loop and it starts life sharing the first one's key.
+ *
+ * What actually goes wrong, in order of how badly:
+ *
+ *  - **Nested maps** — an inner map's branch ctx is a copy of the outer's
+ *    (`node-executors.ts` `executeMapNode`), so an inner loop reusing the key
+ *    OVERWRITES the outer item for every step in its body. That is silent data
+ *    loss at runtime.
+ *  - **Sibling maps** — no runtime clash (each iteration gets its own branch
+ *    ctx), but the key now has two writers in `collectCtxWriters`, so an
+ *    auto-wired downstream port and the Ref picker have two equally good
+ *    producers to choose between and resolve by node order.
+ *
+ * A WARNING, not an error, on purpose. Sharing the key is legal and often
+ * inconsequential — two independent sibling loops whose bodies each read their
+ * own item and nothing outside either body reads the key. Making it an error
+ * would block Save on a graph that runs correctly, and would make the new
+ * default worse than the empty field it replaced. The author needs to SEE it,
+ * not be stopped by it.
+ *
+ * Anchored on the SECOND and later map in node-record order, so the first
+ * definition keeps a clean node and the warning lands on the one the author
+ * just added.
+ */
+function validateMapItemKeyCollisions(
+  config: GraphWorkflowConfig,
+  errors: GraphValidationError[],
+): void {
+  const firstOwnerByKey = new Map<string, string>();
+
+  for (const [nodeId, node] of Object.entries(config.nodes)) {
+    if (node.type !== "map") continue;
+    const mapNode = node as MapNode;
+    const key = mapNode.itemCtxKey?.trim();
+    // An empty key is already a hard error from `validateMapJoinNodes`; two
+    // empty ones are not a collision, they are the same error twice.
+    if (!key) continue;
+
+    const name = mapNode.label || nodeId;
+    const owner = firstOwnerByKey.get(key);
+    if (owner === undefined) {
+      firstOwnerByKey.set(key, name);
+      continue;
+    }
+
+    // Naming the incumbent by label is only worth doing when the labels
+    // DIFFER. Both maps arrive from the palette called "Run for each item", so
+    // the obvious phrasing renders as `Map node "Run for each item" reuses …
+    // which "Run for each item" already writes` — which identifies nothing.
+    // The row is click-to-select in the drawer, so the author reaches the
+    // offending node from the row regardless; the label only ever adds colour.
+    const incumbent =
+      owner === name ? "another loop on this canvas" : `map node "${owner}"`;
+
+    errors.push({
+      path: `nodes.${nodeId}.itemCtxKey`,
+      message: `Map node "${name}" reuses the item variable "${key}", which ${incumbent} already writes. Steps that read "${key}" can bind to the wrong loop, and if one of these loops runs inside the other the inner item replaces the outer one. Give this loop its own item variable unless both loops really mean the same item.`,
+      severity: "warning",
+    });
   }
 }
 

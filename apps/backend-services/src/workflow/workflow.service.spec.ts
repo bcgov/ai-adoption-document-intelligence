@@ -1323,6 +1323,138 @@ describe("WorkflowService", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // D11 — restoring an older version APPENDS it as a new version. The old
+  // behaviour parked head on the old row, which broke the very next save:
+  // `updateWorkflow` numbers a new version `head.version_number + 1`, so head
+  // on v1 with a v2 present collided on `@@unique([lineage_id, version_number])`.
+  // ---------------------------------------------------------------------------
+  describe("revertHeadToVersion", () => {
+    const v1 = {
+      id: "wv-1",
+      lineage_id: "lin-1",
+      version_number: 1,
+      config: makeGraphConfig(),
+      created_at: new Date(),
+    };
+    const v2 = { ...v1, id: "wv-2", version_number: 2 };
+    const v3 = { ...v1, id: "wv-3", version_number: 3 };
+
+    beforeEach(() => {
+      // Head is v2; the user restores v1.
+      mockVersion.findUnique.mockResolvedValue(v1);
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        head_version_id: "wv-2",
+        headVersion: v2,
+      });
+      mockVersion.create.mockResolvedValue(v3);
+      mockLineage.update.mockResolvedValue({
+        ...lineageRow,
+        head_version_id: "wv-3",
+        headVersion: v3,
+      });
+    });
+
+    it("creates a new version row carrying the restored config", async () => {
+      const result = await service.revertHeadToVersion(
+        "lin-1",
+        "wv-1",
+        "actor-1",
+      );
+
+      expect(mockVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lineage_id: "lin-1",
+            version_number: 3,
+          }),
+        }),
+      );
+      const created = mockVersion.create.mock.calls[0][0] as {
+        data: { config: GraphWorkflowConfig };
+      };
+      expect(created.data.config.entryNodeId).toBe(v1.config.entryNodeId);
+      // The caller is told about the NEW version, which is what makes the
+      // outcome visible in the editor + history drawer.
+      expect(result.version).toBe(3);
+      expect(result.workflowVersionId).toBe("wv-3");
+    });
+
+    it("points head at the new version, never back at the old row", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      expect(mockLineage.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "lin-1" },
+          data: { head_version_id: "wv-3" },
+        }),
+      );
+    });
+
+    it("leaves the restored source version untouched", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      const updates = mockVersion.create.mock.calls.map(
+        (c) =>
+          (c[0] as { data: { version_number: number } }).data.version_number,
+      );
+      expect(updates).toEqual([3]);
+      expect(mockVersion.findUnique).toHaveBeenCalledWith({
+        where: { id: "wv-1" },
+      });
+    });
+
+    it("audits the restore with both the new and the source version", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_head_reverted",
+          resource_id: "lin-1",
+          payload: expect.objectContaining({
+            workflow_version_id: "wv-3",
+            version_number: 3,
+            restored_from_version_id: "wv-1",
+            restored_from_version_number: 1,
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("rejects a version from another lineage", async () => {
+      mockVersion.findUnique.mockResolvedValue({
+        ...v1,
+        lineage_id: "other-lineage",
+      });
+
+      await expect(
+        service.revertHeadToVersion("lin-1", "wv-1", "actor-1"),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockVersion.create).not.toHaveBeenCalled();
+    });
+
+    it("retries once when a concurrent save takes the next version number", async () => {
+      const conflict = new Prisma.PrismaClientKnownRequestError("dup", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      mockVersion.create
+        .mockRejectedValueOnce(conflict)
+        .mockResolvedValueOnce(v3);
+
+      const result = await service.revertHeadToVersion(
+        "lin-1",
+        "wv-1",
+        "actor-1",
+      );
+
+      expect(mockVersion.create).toHaveBeenCalledTimes(2);
+      expect(result.version).toBe(3);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // US-146 — cancelInFlightTriesForLineage helper
   // ---------------------------------------------------------------------------
 });

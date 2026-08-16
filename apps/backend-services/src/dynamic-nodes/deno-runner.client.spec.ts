@@ -2,6 +2,7 @@ import {
   DEFAULT_DENO_RUNNER_URL,
   DenoRunnerClient,
   DenoRunnerUnavailableError,
+  denoRunnerUnavailableMessage,
 } from "./deno-runner.client";
 
 /**
@@ -115,6 +116,60 @@ describe("DenoRunnerClient", () => {
       await expect(client.check("const x = 1;")).rejects.toBeInstanceOf(
         DenoRunnerUnavailableError,
       );
+    });
+  });
+
+  // D3 — the message a person reads must name the thing that is down and the
+  // action to take; the URL is evidence, not the headline.
+  describe("unavailable message (D3)", () => {
+    it("gives the local start command when the runner is on loopback", () => {
+      const msg = denoRunnerUnavailableMessage("http://localhost:9099");
+      expect(msg).toContain("custom-node checker is not running");
+      expect(msg).toContain(
+        "docker compose -f deployments/local/docker-compose.deno.yml up -d",
+      );
+      expect(msg).not.toContain("http://localhost:9099");
+      expect(msg).not.toContain("/check");
+    });
+
+    it("gives retry-then-escalate advice for a deployed sidecar", () => {
+      const msg = denoRunnerUnavailableMessage("http://deno-runner:9090");
+      expect(msg).toContain("not responding");
+      expect(msg).toContain("administrator");
+      expect(msg).not.toContain("docker compose");
+      expect(msg).not.toContain("deno-runner:9090");
+    });
+
+    it("keeps the endpoint + failure on `details` for network failures", async () => {
+      const fetchMock = jest.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+      const client = new DenoRunnerClient({
+        baseUrl: "http://localhost:9099",
+        fetchImpl: fetchMock as unknown as typeof fetch,
+      });
+      const err = await client.check("const x = 1;").then(
+        () => null,
+        (e: unknown) => e as DenoRunnerUnavailableError,
+      );
+      expect(err).toBeInstanceOf(DenoRunnerUnavailableError);
+      expect(err?.details).toContain("POST http://localhost:9099/check");
+      expect(err?.details).toContain("ECONNREFUSED");
+      expect(err?.message).toBe(
+        denoRunnerUnavailableMessage("http://localhost:9099"),
+      );
+    });
+
+    it("keeps the HTTP status on `details` for a non-2xx response", async () => {
+      const fetchMock = makeFetchMock(500, { message: "internal" });
+      const client = new DenoRunnerClient({
+        baseUrl: "http://localhost:9099",
+        fetchImpl: fetchMock as unknown as typeof fetch,
+      });
+      const err = await client.check("const x = 1;").then(
+        () => null,
+        (e: unknown) => e as DenoRunnerUnavailableError,
+      );
+      expect(err?.details).toContain("returned 500");
+      expect(err?.message).not.toContain("500");
     });
   });
 

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 
 /**
  * Default Deno runner URL used when the `DENO_RUNNER_URL` env var is not set.
@@ -41,16 +41,46 @@ export interface DenoHealthResponse {
 }
 
 /**
+ * Human-facing headline for an unreachable runner (D3).
+ *
+ * What the reviewer saw was `Failed to reach deno-runner /check at
+ * http://localhost:9099` — an internal service name and an internal URL, with
+ * no statement of what the reader should do. The URL is not the message; it is
+ * the evidence, and it now travels on `DenoRunnerUnavailableError.details`
+ * (surfaced as the response's `details` field and written to the server log).
+ *
+ * The instruction differs by deployment, so it is derived rather than fixed:
+ * a loopback `baseUrl` means a developer's own machine, where the fix is a
+ * command they can run; anything else is a deployed sidecar they cannot start
+ * themselves, where the honest advice is retry-then-escalate.
+ */
+export function denoRunnerUnavailableMessage(baseUrl: string): string {
+  const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(
+    baseUrl,
+  );
+  return isLocal
+    ? "The custom-node checker is not running, so this script could not be type-checked. Start it with `docker compose -f deployments/local/docker-compose.deno.yml up -d`, then publish again."
+    : "The custom-node checker is not responding, so this script could not be type-checked. It may be restarting — try again in a moment, and contact an administrator if it keeps failing.";
+}
+
+/**
  * Raised by `DenoRunnerClient` when the sidecar is unreachable OR returns a
  * non-success HTTP status from a `/check` call. The service maps this to a
- * 503 with `{ code: "DENO_RUNNER_UNAVAILABLE" }` per US-164 Scenario 5.
+ * 503 with `{ code: "DENO_RUNNER_UNAVAILABLE", message, details }` per US-164
+ * Scenario 5.
+ *
+ * `message` is what a person reads (see `denoRunnerUnavailableMessage`);
+ * `details` is the diagnostic — endpoint, URL and underlying failure — kept
+ * for the log and the response's secondary line.
  */
 export class DenoRunnerUnavailableError extends Error {
+  readonly details: string;
   readonly cause?: unknown;
-  constructor(message: string, cause?: unknown) {
-    super(message);
+  constructor(args: { baseUrl: string; details: string; cause?: unknown }) {
+    super(denoRunnerUnavailableMessage(args.baseUrl));
     this.name = "DenoRunnerUnavailableError";
-    this.cause = cause;
+    this.details = args.details;
+    this.cause = args.cause;
   }
 }
 
@@ -69,6 +99,7 @@ export class DenoRunnerUnavailableError extends Error {
  */
 @Injectable()
 export class DenoRunnerClient {
+  private readonly logger = new Logger(DenoRunnerClient.name);
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
 
@@ -95,28 +126,30 @@ export class DenoRunnerClient {
         body: JSON.stringify({ script }),
       });
     } catch (err) {
-      throw new DenoRunnerUnavailableError(
-        `Failed to reach deno-runner /check at ${this.baseUrl}`,
+      throw this.unavailable(
+        `POST ${this.baseUrl}/check could not be reached: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
         err,
       );
     }
     if (!res.ok) {
-      throw new DenoRunnerUnavailableError(
-        `deno-runner /check returned ${res.status} ${res.statusText}`,
+      throw this.unavailable(
+        `POST ${this.baseUrl}/check returned ${res.status} ${res.statusText}`,
       );
     }
     let body: unknown;
     try {
       body = await res.json();
     } catch (err) {
-      throw new DenoRunnerUnavailableError(
-        `deno-runner /check returned non-JSON response`,
+      throw this.unavailable(
+        `POST ${this.baseUrl}/check returned a non-JSON response`,
         err,
       );
     }
     if (!isDenoCheckResponse(body)) {
-      throw new DenoRunnerUnavailableError(
-        `deno-runner /check returned an unexpected response shape`,
+      throw this.unavailable(
+        `POST ${this.baseUrl}/check returned an unexpected response shape`,
       );
     }
     return body;
@@ -136,18 +169,37 @@ export class DenoRunnerClient {
         method: "GET",
       });
     } catch (err) {
-      throw new DenoRunnerUnavailableError(
-        `Failed to reach deno-runner /health at ${this.baseUrl}`,
+      throw this.unavailable(
+        `GET ${this.baseUrl}/health could not be reached: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
         err,
       );
     }
     if (!res.ok) {
-      throw new DenoRunnerUnavailableError(
-        `deno-runner /health returned ${res.status} ${res.statusText}`,
+      throw this.unavailable(
+        `GET ${this.baseUrl}/health returned ${res.status} ${res.statusText}`,
       );
     }
     const body = (await res.json()) as DenoHealthResponse;
     return body;
+  }
+
+  /**
+   * Builds the error AND writes the diagnostic to the server log, so the
+   * endpoint/URL/status survives even though it is no longer the headline the
+   * user reads.
+   */
+  private unavailable(
+    details: string,
+    cause?: unknown,
+  ): DenoRunnerUnavailableError {
+    this.logger.warn(`deno-runner unavailable — ${details}`);
+    return new DenoRunnerUnavailableError({
+      baseUrl: this.baseUrl,
+      details,
+      cause,
+    });
   }
 }
 

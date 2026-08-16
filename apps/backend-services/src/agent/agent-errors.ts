@@ -3,6 +3,7 @@ import {
   HttpStatus,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import type { AgentProviderRequirement } from "./required-config";
 
 /**
  * Machine-readable causes the agent chat endpoint can refuse a turn for.
@@ -11,6 +12,7 @@ import {
  */
 export type AgentErrorCode =
   | "provider-not-configured"
+  | "assistant-not-configured"
   | "conversation-budget-exceeded"
   | "demo-conversation-read-only";
 
@@ -45,6 +47,33 @@ export class AgentProviderNotConfiguredException extends ServiceUnavailableExcep
       message:
         `Provider '${provider}' is not configured on this backend. ` +
         `Set ${missingConfig.join(" and ")}, or pick a model from a provider that is configured.`,
+    } satisfies AgentErrorBody);
+  }
+}
+
+/**
+ * **No** provider is configured on this backend — not "the one you asked for
+ * is missing" but "the assistant cannot answer anybody". A separate code from
+ * `provider-not-configured` because it is a separate thing to say: the client
+ * cannot fix it by picking a different model, and the drawer disables the
+ * composer rather than inviting another attempt (Inderdeep 2026-08-14 — I1).
+ *
+ * Reached only if a client posts a turn anyway; `GET /api/agent/models`
+ * already reports the same `missingConfig` up front.
+ */
+export class AgentAssistantNotConfiguredException extends ServiceUnavailableException {
+  constructor(requirements: AgentProviderRequirement[]) {
+    super({
+      statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+      code: "assistant-not-configured",
+      // Flattened NAMES only. Grouping is preserved in the sentence below,
+      // because "set A or B and C" and "set A, B, C" are different asks.
+      missingConfig: requirements.flatMap((r) => r.variables),
+      message:
+        "The assistant is not configured on this backend: no model provider has credentials here. " +
+        `Set ${requirements
+          .map((r) => r.variables.join(" and "))
+          .join(", or ")}, then restart the backend.`,
     } satisfies AgentErrorBody);
   }
 }

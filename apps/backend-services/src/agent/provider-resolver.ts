@@ -3,16 +3,11 @@ import { createAzure } from "@ai-sdk/azure";
 import { Injectable } from "@nestjs/common";
 import type { LanguageModel } from "ai";
 import { AgentEnv, type AgentProvider } from "./agent.env";
-import { AgentProviderNotConfiguredException } from "./agent-errors";
-
-/**
- * Which environment variables have to be present for a provider to be
- * usable. NAMES only — the resolver never reads a value into a message.
- */
-const REQUIRED_CONFIG: Record<AgentProvider, string[]> = {
-  anthropic: ["ANTHROPIC_API_KEY"],
-  azure: ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
-};
+import {
+  AgentAssistantNotConfiguredException,
+  AgentProviderNotConfiguredException,
+} from "./agent-errors";
+import { providerRequirements, REQUIRED_CONFIG } from "./required-config";
 
 export interface ProviderSelection {
   provider: AgentProvider;
@@ -30,11 +25,19 @@ export class ProviderResolver {
 
   resolveDefault(): ProviderSelection {
     const provider = this.env.defaultProvider;
+    if (provider === null) {
+      throw new AgentAssistantNotConfiguredException(providerRequirements());
+    }
     return { provider, model: this.env.defaultModelFor(provider) };
   }
 
   resolve(selection: Partial<ProviderSelection>): ProviderSelection {
     const provider = selection.provider ?? this.env.defaultProvider;
+    if (provider === null) {
+      // Nothing is configured at all, so there is no alternative model to
+      // suggest — a different refusal from "that one provider is missing".
+      throw new AgentAssistantNotConfiguredException(providerRequirements());
+    }
     if (!this.env.hasProvider(provider)) {
       // A structured HTTP refusal, not a bare Error: a bare Error leaves
       // Nest with nothing to say but "Internal server error", and the chat

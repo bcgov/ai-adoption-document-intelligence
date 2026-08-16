@@ -139,8 +139,13 @@ describe("AgentController", () => {
           provider: "azure",
           model: "gpt-5.4",
           label: "Azure OpenAI — gpt-5.4",
+          name: "gpt-5.4",
+          tier: "Balanced",
           isDefault: true,
         },
+      ],
+      missingConfig: [
+        { provider: "anthropic", variables: ["ANTHROPIC_API_KEY"] },
       ],
     });
   });
@@ -151,6 +156,32 @@ describe("AgentController", () => {
       .listModels()
       .items.map((item) => item.provider);
     expect(providers).not.toContain("anthropic");
+  });
+
+  // I1 / D4, 2026-08-14. An empty `items` is a real answer — "no provider has
+  // credentials here" — and used to be indistinguishable from a failed list
+  // request, so the drawer said "Server default model" and left the composer
+  // live over a server that could not answer at all.
+  it("listModels: says WHICH variables are missing when nothing is configured", () => {
+    envValues = {};
+    const { controller } = makeController();
+    const result = controller.listModels();
+
+    expect(result.items).toEqual([]);
+    expect(result.missingConfig).toEqual([
+      { provider: "anthropic", variables: ["ANTHROPIC_API_KEY"] },
+      {
+        provider: "azure",
+        variables: ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
+      },
+    ]);
+  });
+
+  it("listModels: the controller still answers when no provider is configured", () => {
+    // The point of the change: an unconfigured environment yields a working
+    // app with a disabled assistant, not a backend that refuses to boot.
+    envValues = {};
+    expect(() => makeController()).not.toThrow();
   });
 
   it("chat: gives the stream a real error describer, not the SDK's silence", async () => {

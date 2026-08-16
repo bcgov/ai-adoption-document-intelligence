@@ -46,6 +46,7 @@ import {
   resolvePortBinding,
   writeToCtx,
 } from "./context-utils";
+import { describeNodeError } from "./describe-node-error";
 import { handleNodeError, throwPollTimeout } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySetForSubgraph } from "./graph-algorithms";
@@ -1222,8 +1223,9 @@ export async function executeBranchSubgraph(
             status: "failed",
             startedAt,
             endedAt: failedAt,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
+            // Same unwrapping as the top-level runner: a map-branch node must
+            // report the activity's message, not "Activity task failed".
+            errorMessage: describeNodeError(error),
           };
           handleNodeError(nodeId, node, error, branchState, config);
         }

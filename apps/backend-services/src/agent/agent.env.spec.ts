@@ -10,7 +10,8 @@ function makeConfig(values: Record<string, string | undefined>): ConfigService {
   } as unknown as ConfigService;
 }
 
-// At least one provider must be configured for the env to construct.
+// A configured provider, so these cases exercise something other than the
+// unconfigured path (which has its own describe block below).
 const PROVIDER = { ANTHROPIC_API_KEY: "k" } as const;
 
 describe("AgentEnv — cost-ceiling config (ITEM 26)", () => {
@@ -129,17 +130,16 @@ describe("AgentEnv — a blank variable is not a configured credential", () => {
     expect(env.hasProvider("azure")).toBe(true);
   });
 
-  it("throws when every provider's credential is blank rather than missing", () => {
-    expect(
-      () =>
-        new AgentEnv(
-          makeConfig({
-            ANTHROPIC_API_KEY: "",
-            AZURE_OPENAI_API_KEY: "  ",
-            AZURE_OPENAI_ENDPOINT: "",
-          }),
-        ),
-    ).toThrow(/at least one provider/i);
+  it("constructs, with no default provider, when every credential is blank", () => {
+    const env = new AgentEnv(
+      makeConfig({
+        ANTHROPIC_API_KEY: "",
+        AZURE_OPENAI_API_KEY: "  ",
+        AZURE_OPENAI_ENDPOINT: "",
+      }),
+    );
+    expect(env.defaultProvider).toBeNull();
+    expect(env.isConfigured).toBe(false);
   });
 
   it("falls back to the built-in defaults when a non-credential setting is blank", () => {

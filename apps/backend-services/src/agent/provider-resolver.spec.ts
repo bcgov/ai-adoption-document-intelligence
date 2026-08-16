@@ -2,6 +2,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AgentEnv } from "./agent.env";
 import {
+  AgentAssistantNotConfiguredException,
   type AgentErrorBody,
   AgentProviderNotConfiguredException,
 } from "./agent-errors";
@@ -126,18 +127,96 @@ describe("ProviderResolver", () => {
       resolver.buildModel({ provider: "azure", model: "gpt-5.4" }),
     ).toThrow(AgentProviderNotConfiguredException);
   });
+});
 
-  it("throws if no provider is configured at all", async () => {
-    await expect(
-      Test.createTestingModule({
-        providers: [
-          ProviderResolver,
-          AgentEnv,
-          { provide: ConfigService, useValue: makeConfig({}) },
-        ],
-      })
-        .compile()
-        .then((m) => m.get(ProviderResolver)),
-    ).rejects.toThrow(/at least one provider configured/);
+/**
+ * D4 / I1, 2026-08-14. `AgentEnv` used to throw from its constructor when no
+ * provider was configured. `AgentEnv` is a plain provider inside `AgentModule`
+ * and `AppModule` imports `AgentModule` unconditionally, so that throw was a
+ * DI failure at startup — a developer with no API key got an app that would
+ * not boot, and the message named the agent module, so it read as the agent
+ * having broken the build. The contract is now: the app comes up, the
+ * assistant is disabled, and anything that asks for a turn is refused with a
+ * cause it can render.
+ */
+describe("ProviderResolver — nothing configured at all", () => {
+  async function unconfiguredResolver(): Promise<ProviderResolver> {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        ProviderResolver,
+        AgentEnv,
+        { provide: ConfigService, useValue: makeConfig({}) },
+      ],
+    }).compile();
+    return moduleRef.get(ProviderResolver);
+  }
+
+  it("constructs the DI graph instead of failing at startup", async () => {
+    await expect(unconfiguredResolver()).resolves.toBeInstanceOf(
+      ProviderResolver,
+    );
+  });
+
+  it("reports the environment as unconfigured rather than guessing a default", async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
+      providers: [
+        AgentEnv,
+        { provide: ConfigService, useValue: makeConfig({}) },
+      ],
+    }).compile();
+    const env = moduleRef.get(AgentEnv);
+    expect(env.defaultProvider).toBeNull();
+    expect(env.isConfigured).toBe(false);
+  });
+
+  it("refuses a turn with a typed 503 naming every variable that would fix it", async () => {
+    const resolver = await unconfiguredResolver();
+    let thrown: unknown;
+    try {
+      resolver.resolve({});
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentAssistantNotConfiguredException);
+    const body = (
+      thrown as AgentAssistantNotConfiguredException
+    ).getResponse() as AgentErrorBody;
+    expect(body.statusCode).toBe(503);
+    // A distinct code from `provider-not-configured`: the client cannot fix
+    // this by picking a different model, so the drawer disables the composer.
+    expect(body.code).toBe("assistant-not-configured");
+    expect(body.missingConfig).toEqual([
+      "ANTHROPIC_API_KEY",
+      "AZURE_OPENAI_API_KEY",
+      "AZURE_OPENAI_ENDPOINT",
+    ]);
+    // NAMES only — no value of any kind reaches the message.
+    expect(body.message).toContain("ANTHROPIC_API_KEY");
+    expect(body.message).toContain(
+      "AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT",
+    );
+  });
+
+  it("refuses resolveDefault the same way", async () => {
+    const resolver = await unconfiguredResolver();
+    expect(() => resolver.resolveDefault()).toThrow(
+      AgentAssistantNotConfiguredException,
+    );
+  });
+
+  it("still names the one provider when the caller asks for a specific missing one", async () => {
+    const resolver = await unconfiguredResolver();
+    let thrown: unknown;
+    try {
+      resolver.resolve({ provider: "azure" });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(AgentProviderNotConfiguredException);
+    const body = (
+      thrown as AgentProviderNotConfiguredException
+    ).getResponse() as AgentErrorBody;
+    expect(body.code).toBe("provider-not-configured");
+    expect(body.provider).toBe("azure");
   });
 });

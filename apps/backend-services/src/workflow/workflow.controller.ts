@@ -909,11 +909,21 @@ export class WorkflowController {
   @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
-      "Set lineage head to an existing version (defaults for new work; does not change benchmark definition pins)",
+      "Restore an older version: appends its config as a NEW version and points head at it (does not change benchmark definition pins)",
+    description:
+      "The selected version's config is copied forward as `head.versionNumber + 1`; the source version row is left untouched, so its run history stays attached to it. The response's `workflow.version` is the NEW version number (D11).",
   })
   @ApiParam({ name: "id", description: "Workflow lineage ID" })
   @ApiBody({ type: RevertHeadDto })
-  @ApiOkResponse({ type: WorkflowResponseDto })
+  @ApiOkResponse({
+    description:
+      "The lineage with its new head version — `version` is the freshly appended version number, not the restored one.",
+    type: WorkflowResponseDto,
+  })
+  @ApiConflictResponse({
+    description:
+      "The workflow was changed concurrently and the restore could not claim a version number after retries.",
+  })
   @ApiNotFoundResponse({ description: "Workflow not found" })
   @ApiBadRequestResponse({ description: "Version not in lineage" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })

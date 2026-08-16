@@ -31,7 +31,10 @@ import { AbortFlagMap } from "./abort-flag-map";
 import { AgentEnv } from "./agent.env";
 import { AgentService } from "./agent.service";
 import { describeAgentStreamError } from "./agent-errors";
-import { listConfiguredModels } from "./configured-models";
+import {
+  listConfiguredModels,
+  listMissingProviderConfig,
+} from "./configured-models";
 import { AgentChatRequestDto } from "./dto/agent-chat-request.dto";
 import {
   AbortConversationResponseDto,
@@ -57,12 +60,15 @@ export class AgentController {
     summary:
       "List the (provider, model) pairs this backend is configured to serve, one of them flagged as the default.",
     description:
-      "The chat drawer's model picker renders exactly this list, so it can never offer a model the backend cannot serve. A provider contributes at most one entry — its configuration names one model (`AZURE_OPENAI_DEPLOYMENT` / `AGENT_ANTHROPIC_MODEL`).",
+      "The chat drawer's model picker renders exactly this list, so it can never offer a model the backend cannot serve. A provider contributes at most one entry — its configuration names one model (`AZURE_OPENAI_DEPLOYMENT` / `AGENT_ANTHROPIC_MODEL`). An empty `items` with a populated `missingConfig` is the honest report of an unconfigured backend: the drawer then states that the assistant is not configured and disables the composer, rather than accepting messages a server cannot answer.",
   })
   @ApiOkResponse({ type: AgentModelsResponseDto })
   @ApiUnauthorizedResponse({ description: "Caller is unauthenticated." })
   listModels(): AgentModelsResponseDto {
-    return { items: listConfiguredModels(this.env) };
+    return {
+      items: listConfiguredModels(this.env),
+      missingConfig: listMissingProviderConfig(this.env),
+    };
   }
 
   @Post("chat")

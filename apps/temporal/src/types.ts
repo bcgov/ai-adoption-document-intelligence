@@ -231,6 +231,15 @@ export interface SubmissionResult {
 
 export interface PollResult {
   status: "running" | "succeeded" | "failed";
-  /** Port `response` — ref only (no inline OCR JSON in history). */
-  response?: OcrPayloadRef;
+  /**
+   * Port `ocrResponse` — ref only (no inline OCR JSON in history).
+   *
+   * The name must match the `ocrResponse` output declared by the
+   * `azureOcr.poll` catalog entry: the graph runner binds a node's outputs by
+   * reading `result[port]`, so a port the activity does not return writes
+   * `undefined` into ctx without complaint. This field was called `response`
+   * while the catalog said `ocrResponse`, which is why every template that
+   * bound the catalog name silently produced an empty `ocrResponseRef`.
+   */
+  ocrResponse?: OcrPayloadRef;
 }

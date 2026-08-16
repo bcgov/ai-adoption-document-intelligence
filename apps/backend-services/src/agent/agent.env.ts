@@ -35,7 +35,21 @@ function readSetting(config: ConfigService, key: string): string | null {
  */
 @Injectable()
 export class AgentEnv {
-  readonly defaultProvider: AgentProvider;
+  /**
+   * The provider a chat turn uses when it names none — or `null` when this
+   * backend has no provider configured at all.
+   *
+   * `null` rather than a constructor throw. `AgentEnv` is a plain Nest
+   * provider inside `AgentModule`, which `AppModule` imports unconditionally,
+   * so a throw here was a DI failure at startup: a developer with no API key
+   * got a backend that would not boot, and the error named the agent module
+   * so it read as "the agent broke the build" (Dylan, 2026-08-14 — D4). An
+   * unconfigured environment must yield a working app with a disabled
+   * assistant, which is what `null` produces: `listConfiguredModels` returns
+   * `[]`, `GET /api/agent/models` reports which variables are missing, and
+   * `ProviderResolver` refuses a turn with a typed 503.
+   */
+  readonly defaultProvider: AgentProvider | null;
   readonly anthropicApiKey: string | null;
   readonly anthropicDefaultModel: string;
   readonly azureApiKey: string | null;
@@ -111,13 +125,21 @@ export class AgentEnv {
       : this.azureDefaultDeployment;
   }
 
-  private resolveDefaultProvider(requested: AgentProvider): AgentProvider {
+  /**
+   * True when at least one provider has usable credentials — i.e. when the
+   * assistant can answer at all. The one question every caller that is not
+   * about to build a model actually has.
+   */
+  get isConfigured(): boolean {
+    return this.defaultProvider !== null;
+  }
+
+  private resolveDefaultProvider(
+    requested: AgentProvider,
+  ): AgentProvider | null {
     if (this.hasProvider(requested)) return requested;
     if (this.hasProvider("anthropic")) return "anthropic";
     if (this.hasProvider("azure")) return "azure";
-    throw new Error(
-      "AgentModule requires at least one provider configured. " +
-        "Set ANTHROPIC_API_KEY or AZURE_OPENAI_API_KEY + AZURE_OPENAI_ENDPOINT.",
-    );
+    return null;
   }
 }

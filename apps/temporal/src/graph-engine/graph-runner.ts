@@ -14,6 +14,7 @@ import type {
 } from "../graph-workflow-types";
 import { buildGraphWorkflowResult } from "./build-workflow-result";
 import { initializeContext } from "./context-utils";
+import { describeNodeError } from "./describe-node-error";
 import { handleNodeError } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySet, computeTopologicalOrder } from "./graph-algorithms";
@@ -207,8 +208,10 @@ export async function runGraphExecution(
             status: "failed",
             startedAt,
             endedAt: failedAt,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
+            // Temporal's `ActivityFailure` envelope reports the constant
+            // "Activity task failed"; the activity's own message is on
+            // `.cause`. Unwrap it so the canvas shows a reason.
+            errorMessage: describeNodeError(error),
           };
           try {
             handleNodeError(nodeId, node, error, state, config);

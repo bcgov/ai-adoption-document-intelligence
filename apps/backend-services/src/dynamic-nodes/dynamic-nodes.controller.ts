@@ -35,6 +35,7 @@ import { Identity } from "@/auth/identity.decorator";
 import { getIdentityGroupIds } from "@/auth/identity.helpers";
 import { DenoRunnerUnavailableError } from "./deno-runner.client";
 import { CreateDynamicNodeRequestDto } from "./dto/create-dynamic-node-request.dto";
+import { DenoRunnerUnavailableResponseDto } from "./dto/deno-runner-unavailable-response.dto";
 import { DynamicNodeDeletedResponseDto } from "./dto/dynamic-node-deleted-response.dto";
 import { DynamicNodeDetailResponseDto } from "./dto/dynamic-node-detail-response.dto";
 import { DynamicNodeListResponseDto } from "./dto/dynamic-node-list-response.dto";
@@ -73,7 +74,8 @@ import {
  *  - `NameMismatchError`             → 409 `{ code: 'NAME_MISMATCH', pathSlug, scriptName }`
  *  - `DynamicNodeNotFoundError`      → 404
  *  - `DynamicNodeDeletedError`       → 404 (matches list / detail's "invisible" semantics)
- *  - `DenoRunnerUnavailableError`    → 503 `{ code: 'DENO_RUNNER_UNAVAILABLE', message }`
+ *  - `DenoRunnerUnavailableError`    → 503 `{ code: 'DENO_RUNNER_UNAVAILABLE', message, details }`
+ *    where `message` is the human instruction and `details` the diagnostic (D3).
  */
 @ApiTags("dynamic-nodes")
 @Controller("api/dynamic-nodes")
@@ -109,7 +111,8 @@ export class DynamicNodesController {
   @ApiUnauthorizedResponse({ description: "Authentication required" })
   @ApiServiceUnavailableResponse({
     description:
-      "The `deno-runner` sidecar is unreachable. Surface code is `DENO_RUNNER_UNAVAILABLE`.",
+      "The `deno-runner` sidecar is unreachable, so the script could not be type-checked. Surface code is `DENO_RUNNER_UNAVAILABLE`; `message` is the human instruction and `details` the diagnostic.",
+    type: DenoRunnerUnavailableResponseDto,
   })
   async create(
     @Body() dto: CreateDynamicNodeRequestDto,
@@ -171,7 +174,8 @@ export class DynamicNodesController {
   @ApiUnauthorizedResponse({ description: "Authentication required" })
   @ApiServiceUnavailableResponse({
     description:
-      "The `deno-runner` sidecar is unreachable. Surface code is `DENO_RUNNER_UNAVAILABLE`.",
+      "The `deno-runner` sidecar is unreachable, so the script could not be type-checked. Surface code is `DENO_RUNNER_UNAVAILABLE`; `message` is the human instruction and `details` the diagnostic.",
+    type: DenoRunnerUnavailableResponseDto,
   })
   async update(
     @Param("slug") slug: string,
@@ -464,10 +468,14 @@ function mapPublishError(err: unknown): Error {
     return new NotFoundException(err.message);
   }
   if (err instanceof DenoRunnerUnavailableError) {
-    return new ServiceUnavailableException({
+    // D3 — `message` is what the editor shows the user; `details` carries the
+    // endpoint/URL/status that used to be the headline.
+    const body: DenoRunnerUnavailableResponseDto = {
       code: "DENO_RUNNER_UNAVAILABLE",
       message: err.message,
-    });
+      details: err.details,
+    };
+    return new ServiceUnavailableException(body);
   }
   // Fallthrough: re-throw to surface as 500.
   return err instanceof Error

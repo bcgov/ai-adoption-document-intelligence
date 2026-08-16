@@ -134,11 +134,42 @@ describe("DynamicNodesController", () => {
 
     it("maps DenoRunnerUnavailableError to 503 ServiceUnavailableException", async () => {
       service.publish.mockRejectedValue(
-        new DenoRunnerUnavailableError("runner down"),
+        new DenoRunnerUnavailableError({
+          baseUrl: "http://localhost:9099",
+          details: "POST http://localhost:9099/check could not be reached",
+        }),
       );
       await expect(
         controller.create({ script: "/* */" }, makeReq("g-1")),
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    // D3 — the 503 body's headline must be the human instruction, with the
+    // endpoint/URL demoted to `details`.
+    it("puts the human instruction in `message` and the URL in `details`", async () => {
+      service.publish.mockRejectedValue(
+        new DenoRunnerUnavailableError({
+          baseUrl: "http://localhost:9099",
+          details: "POST http://localhost:9099/check could not be reached",
+        }),
+      );
+      const thrown = await controller
+        .create({ script: "/* */" }, makeReq("g-1"))
+        .then(
+          () => null,
+          (err: unknown) => err,
+        );
+      expect(thrown).toBeInstanceOf(ServiceUnavailableException);
+      const body = (thrown as ServiceUnavailableException).getResponse() as {
+        code: string;
+        message: string;
+        details: string;
+      };
+      expect(body.code).toBe("DENO_RUNNER_UNAVAILABLE");
+      expect(body.message).toContain("custom-node checker is not running");
+      expect(body.message).toContain("docker compose");
+      expect(body.message).not.toContain("http://localhost:9099");
+      expect(body.details).toContain("http://localhost:9099/check");
     });
 
     it("throws 401 when no identity is resolved", async () => {

@@ -974,7 +974,7 @@ describe("Graph Workflow", () => {
             label: "Poll OCR",
             activityType: "azureOcr.poll",
             inputs: [{ port: "apimRequestId", ctxKey: "apimRequestId" }],
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1030,7 +1030,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
@@ -1086,7 +1086,7 @@ describe("Graph Workflow", () => {
             type: "pollUntil",
             label: "Poll OCR",
             activityType: "azureOcr.poll",
-            outputs: [{ port: "response", ctxKey: "ocrResponse" }],
+            outputs: [{ port: "ocrResponse", ctxKey: "ocrResponse" }],
             condition: {
               operator: "not-equals",
               left: { ref: "ctx.ocrResponse.status" },
