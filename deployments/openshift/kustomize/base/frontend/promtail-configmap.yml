@@ -23,4 +23,6 @@ data:
               __path__: /var/log/app/*.log
         pipeline_stages:
           - drop:
-              expression: '"path":"/(?:api/)?health"'
+              expression: '"(GET|HEAD) /(api/)?health[ /]'
+          - drop:
+              expression: '"GET /metrics[ /]'
