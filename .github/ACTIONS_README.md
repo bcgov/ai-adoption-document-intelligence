@@ -60,8 +60,6 @@ The repository security baseline now includes:
   - CodeQL analysis for TypeScript, Python, and GitHub Actions content
 - `dependency-review.yml`
   - Pull request dependency review for supported dependency changes
-- `python-dependency-audit.yml`
-  - `uv` plus `pip-audit` coverage for `apps/image-service`
 - `hadolint.yml`
   - Dockerfile lint and security checks
 - `checkov.yml`
