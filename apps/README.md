@@ -1,6 +1,6 @@
 # Document Intelligence Platform — Applications
 
-Microservices monorepo: backend API, frontend SPA, Temporal worker, optional Python image service, shared Prisma schema.
+Microservices monorepo: backend API, frontend SPA, Temporal worker, shared Prisma schema.
 
 **Setup and commands:** [README.md](../README.md)  
 **Doc routing (agents):** [docs-md/wiki/index.md](../docs-md/wiki/index.md)
@@ -12,7 +12,6 @@ Microservices monorepo: backend API, frontend SPA, Temporal worker, optional Pyt
 | [backend-services/](./backend-services/) | NestJS REST API — documents, OCR, workflows, labeling, training, HITL, auth |
 | [frontend/](./frontend/) | React/Vite UI — upload, labeling, workflow JSON editor, review |
 | [temporal/](./temporal/) | Temporal worker — graph workflow execution |
-| [image-service/](./image-service/) | Python/OpenCV preprocessing (optional) |
 | [shared/](./shared/) | Shared Prisma schema and client generation |
 
 Local infrastructure (PostgreSQL, MinIO, Temporal, monitoring) is defined in the repo-root [`docker-compose.yml`](../docker-compose.yml) using compose profiles (`infra`, `temporal`, `monitoring`, etc.).
@@ -31,7 +30,6 @@ apps/
 │   └── integration-tests/
 ├── frontend/                  # React SPA
 ├── temporal/                  # Temporal worker (graph-engine, activities)
-├── image-service/             # Python preprocessing
 └── shared/prisma/             # schema.prisma + migrations
 ```
 
