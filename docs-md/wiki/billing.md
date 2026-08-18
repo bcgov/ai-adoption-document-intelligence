@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-08-13
+updated: 2026-08-18
 canonical_sources:
   - docs-md/architecture/USAGE_METERING_AND_BILLING.md
   - apps/backend-services/src/billing/
@@ -42,7 +42,7 @@ logic. Full behavior, configuration, and API live in the canonical doc
   `usage_period_summaries` rollup in a single UTC-keyed transaction.
 - Rate versions are immutable; a price change is a new version, seeded on backend boot.
 - The spending cap is a **soft** pre-flight check, not a budget reservation — see the
-  canonical doc's Known Limitations and [open-questions](open-questions.md).
+  canonical doc's Known Limitations.
 
 ## Related Topics
 
@@ -55,7 +55,8 @@ logic. Full behavior, configuration, and API live in the canonical doc
 
 - `rate_versions.json` values drift from documented examples; treat the JSON as
   authoritative and never restate specific units in the wiki.
-- The `feature-docs` REQUIREMENTS describe an "atomic" cap; the shipped behavior is a
-  soft cap — do not let planning docs be read as current behavior.
-- `.env.sample` names the blob-transaction flag differently from the code
-  (`CHARGE_FOR_BLOB_TRANSACTION` vs `CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`).
+- Two activity registries exist and can drift: the backend's `REGISTERED_ACTIVITY_TYPES`
+  (`apps/backend-services/src/workflow/activity-registry.ts`) and the Temporal worker's
+  (`apps/temporal/src/activity-registry.ts`). Rate coverage is enforced against the
+  backend list only, so an activity present solely in the worker's list is unpriced —
+  and an unpriced activity is silently free.
