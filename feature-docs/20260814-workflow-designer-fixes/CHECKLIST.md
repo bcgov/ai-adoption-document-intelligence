@@ -6,10 +6,10 @@ items.
 
 | Reviewer | Items | Source |
 |---|---|---|
-| **Inderdeep Singh** (senior UX designer) | I1–I5 | [`source/inderdeep-note.txt`](source/inderdeep-note.txt) + two mock-ups |
-| **Dylan** (developer) | D1–D34 | [`source/dylan-workflow-review.pdf`](source/dylan-workflow-review.pdf), text decoded to [`source/dylan-review-extracted.txt`](source/dylan-review-extracted.txt), 6 embedded screenshots extracted alongside |
+| **inderdeepsinghgill** (senior UX designer) | I1–I5 | [`source/inderdeep-note.txt`](source/inderdeep-note.txt) + two mock-ups |
+| **dbarkowsky** (developer) | D1–D34 | [`source/dylan-workflow-review.pdf`](source/dylan-workflow-review.pdf), text decoded to [`source/dylan-review-extracted.txt`](source/dylan-review-extracted.txt), 6 embedded screenshots extracted alongside |
 
-Dylan's numbering follows the numbered steps of
+dbarkowsky's numbering follows the numbered steps of
 [`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md), which is
 the walkthrough he was working from; the step number is given on each item.
 
@@ -19,7 +19,7 @@ written into the item).
 
 ---
 
-# Inderdeep — chat agent and error cards
+# inderdeepsinghgill — chat agent and error cards
 
 ### I1. [x] The agent still doesn't answer for him
 **Fixed 2026-08-14 — the drawer had collapsed "the request failed" and "the server has no model" into one branch labelled "Server default model", with the composer left live. Those are opposite facts. Now four states: loading · unknown (request failed, composer stays live) · **unconfigured** · ready. The unconfigured state names the missing variables, points at the new setup doc, and disables send with the reason on a focusable tooltip wrapper — a disabled Mantine button fires neither pointer nor focus events, which is exactly the difference jsdom cannot see. 164 backend and 65 frontend tests pass.**
@@ -78,7 +78,7 @@ recoverable action), and make the button label match its real scope.
 
 ---
 
-# Dylan — walkthrough review
+# dbarkowsky — walkthrough review
 
 ## Blockers — the walkthrough could not be finished
 

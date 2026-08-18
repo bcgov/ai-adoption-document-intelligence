@@ -4,8 +4,8 @@
 done 2026-08-14 → 15**
 
 Two reviews arrived the same day and they are kept apart on purpose.
-**[Part 1](#part-1--inderdeep) is Inderdeep's five items. [Part 2](#part-2--dylan)
-is Dylan's thirty-four.** Neither of you needs to read the other's half; nothing
+**[Part 1](#part-1--inderdeepsinghgill) is inderdeepsinghgill's five items. [Part 2](#part-2--dbarkowsky)
+is dbarkowsky's thirty-four.** Neither of you needs to read the other's half; nothing
 in Part 2 is required to understand Part 1 or the reverse.
 
 Item ids (`I1`, `D22`, …) come from
@@ -36,7 +36,7 @@ npm run seed:demos && npm run seed:demo-runs       # the 🎯 Demo — … workf
 
 The full, verified version of that is now the **Before you start** section of
 [`docs-md/workflows/GALLERY.md`](../../docs-md/workflows/GALLERY.md) — which is
-Dylan's item D5, and it did not exist when he walked the tour.
+dbarkowsky's item D5, and it did not exist when he walked the tour.
 
 ### Where the pictures came from
 
@@ -63,7 +63,7 @@ in [`screenshots/before/MANIFEST.md`](screenshots/before/MANIFEST.md) and
 
 ---
 
-# Part 1 — Inderdeep
+# Part 1 — inderdeepsinghgill
 
 Five items. The first is the one that mattered: it is why four of the five came
 from screenshots rather than from using the thing.
@@ -291,7 +291,7 @@ statuses.
 
 ---
 
-# Part 2 — Dylan
+# Part 2 — dbarkowsky
 
 Thirty-four items. Ordered by what they cost you: the five that stopped the
 walkthrough, then six real bugs, then the questions where the app was right and

@@ -10,7 +10,7 @@
 | Gate | Who | Status |
 |---|---|---|
 | 1. Product decision — persist OCR before the gate? | ~~You~~ | **Resolved 2026-08-01**: you chose persist-before-gate; shipped as [`27757f7`](https://github.com/bcgov/ai-adoption-document-intelligence/commit/27757f7c) (a `persistOcr` node in all six gated seeded templates). [→ background](#gate-1-the-decision-only-you-can-make) |
-| 2. Broken tests on develop | Dylan | Open — [PR #239](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) fixes 5 suites that fail on develop itself (not caused by #184). After it merges: re-merge develop here, Temporal QA goes green, undraft. [→ details](#ci-on-todays-tip) |
+| 2. Broken tests on develop | dbarkowsky | Open — [PR #239](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) fixes 5 suites that fail on develop itself (not caused by #184). After it merges: re-merge develop here, Temporal QA goes green, undraft. [→ details](#ci-on-todays-tip) |
 
 Also resolved: the unused deployment plumbing was **stripped** ([`1086f3e`](https://github.com/bcgov/ai-adoption-document-intelligence/commit/1086f3e3)), and docs shipped ([`a6c0110`](https://github.com/bcgov/ai-adoption-document-intelligence/commit/a6c01105)); the PR title/body were rewritten to match the real payload.
 
@@ -216,7 +216,7 @@ Third push (after the strip/fix decisions):
 
 ## Remaining work
 
-- [ ] **(Dylan)** [#239](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) merges.
+- [ ] **(dbarkowsky)** [#239](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) merges.
 - [ ] **(agent)** Merge develop into this branch again (expect `apps/temporal/package.json` to conflict — #239 touches it too); confirm Temporal QA green.
 - [ ] **(you, optional)** `npm run demo:reset` locally to eyeball the queue — ⚠ wipes the local dev DB.
 - [ ] **(you)** Undraft, request review.

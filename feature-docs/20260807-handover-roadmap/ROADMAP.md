@@ -215,7 +215,7 @@ while there is still time to act on them.
 | A.2 | **Wire the 76 existing Playwright specs into CI, triage the ~11 failures.** Highest-leverage item on the board: it is the only thing that makes A.1 safe, and every coverage item downstream is blocked behind it. | Aug 11–22 |
 | A.3 | **Batch four — 28 remaining items.** ~20 contained frontend fixes (ports as `+`, error-path affordances, Try-vs-Run distinction, run-history dismissal, top-bar and switcher rework, workflows-table overflow, group right-click). Item 20 (colour vocabulary) **needs your ruling before any code**. Item 23 is handed to E.1. Items 31–33 are docs and process. | Aug 11 – Sep 19 |
 | A.4 | **Walk the 29 unchecked manual-test checks + the 3 remaining Layer-0 checks** (7.8 library port kinds, 9.9b/9.9c replay safety). Seed demos D5 and D6, which block checks 13.2/13.6/13.7. | Sep 8–26 |
-| A.5 | **Soft-delete + the docs update, then close AI-1174.** Soft delete follows Dylan's 2026-04-29 design: deletion of classifiers and prompts, plus a cron reconciling against Azure. | Sep 15–26 |
+| A.5 | **Soft-delete + the docs update, then close AI-1174.** Soft delete follows dbarkowsky's 2026-04-29 design: deletion of classifiers and prompts, plus a cron reconciling against Azure. | Sep 15–26 |
 | A.6 | **The 57 gap-register entries become a written backlog**, not worked. Delivered as a handover artifact in E.6. | Sep 26 |
 
 **Done when:** #230 is merged, CI runs e2e on every PR, batch four is closed, the

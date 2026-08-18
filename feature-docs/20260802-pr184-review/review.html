@@ -61,7 +61,7 @@
 <div class="a-ask">
 <div class="q">Take PR #184 out of draft and merge it?</div>
 <div class="ans"><b>Not yet — one decision is yours, two chores are mine.</b></div>
-<div class="because">The code is clean and CI is green apart from a failure that is already on develop. What is blocking is a design question about seeded workflows that nobody has ruled on, plus Dylan&#x27;s #239 needing to land first.</div>
+<div class="because">The code is clean and CI is green apart from a failure that is already on develop. What is blocking is a design question about seeded workflows that nobody has ruled on, plus dbarkowsky&#x27;s #239 needing to land first.</div>
 </div>
 <h2>Background</h2>
 <div class="a-bg">This PR ships the human-in-the-loop inline editor for the SDPR pilot: the side-by-side screen where a reviewer confirms values the extractor already pulled off an HR0081 monthly report, instead of typing them out. It has been in draft since June while the E01–E08 extraction experiments landed ahead of it. GitHub shows the PR as 128 commits and +601k lines, which is why it looks unreviewable — that number is wrong. The experiment stack it was built on top of already merged into develop separately (via #221), so GitHub is comparing against a merge base from before all of that. Measured against develop as it stands today, the change is 75 files, +1,262 −393, and roughly 45 of those files are experiment notes. The code you would actually be merging is about a dozen files, listed below.</div>
@@ -76,7 +76,7 @@
 <h2>Chores</h2>
 <div class="a-chore">
 <span class="a-who ">agent</span>
-<span class="w">Merge Dylan&#x27;s #239, then re-merge develop into this branch <span class="a-dec-d" style="color:var(--a-dim)">— expect a second conflict on apps/temporal/package.json — #239 touches it too</span></span>
+<span class="w">Merge dbarkowsky&#x27;s #239, then re-merge develop into this branch <span class="a-dec-d" style="color:var(--a-dim)">— expect a second conflict on apps/temporal/package.json — #239 touches it too</span></span>
 </div>
 <div class="a-chore">
 <span class="a-who ">agent</span>
@@ -149,7 +149,7 @@ export class AzureOpenAiController {
 </div>
 <h2>Links</h2><ul class="a-links">
 <li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/184" target="_blank" rel="noopener">PR #184 — the pull request</a></li>
-<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/239" target="_blank" rel="noopener">PR #239 — Dylan&#x27;s Temporal QA fix</a> <span class="n">— merge this first</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/239" target="_blank" rel="noopener">PR #239 — dbarkowsky&#x27;s Temporal QA fix</a> <span class="n">— merge this first</span></li>
 <li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/221" target="_blank" rel="noopener">PR #221 — where the E01–E08 stack landed</a> <span class="n">— the reason the diff looks large</span></li>
 <li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/169" target="_blank" rel="noopener">PR #169 — zero-recovery, picked up in the catch-up merge</a></li>
 <li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/blob/develop/docs-md/wiki/hitl.md" target="_blank" rel="noopener">wiki/hitl.md — how HITL fits the system</a> <span class="n">— the page that still needs the editor added to it</span></li>

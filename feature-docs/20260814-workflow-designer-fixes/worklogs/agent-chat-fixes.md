@@ -40,7 +40,7 @@ Four independent checks, all agreeing:
    where it works"*. `git ls-tree origin/develop -- apps/frontend/src/features/agent-chat/`
    is **empty** — `develop` has no agent-chat directory at all — and
    `git merge-base --is-ancestor 5903a414 origin/develop` answers **NO**.
-   So anything Inderdeep tested that was not built from this exact branch
+   So anything inderdeepsinghgill tested that was not built from this exact branch
    showed him the pre-fix header button, which is what *"it seems like the
    stop icon is still at the top"* describes.
 4. **The behaviour is asserted, and still passes.**
@@ -52,7 +52,7 @@ Verified live in a browser as well (see *Verification* below): with a turn
 idle the composer shows the send arrow and no stop control exists anywhere in
 the panel.
 
-**Recommendation:** reply to Inderdeep that this shipped on 2026-08-08 and
+**Recommendation:** reply to inderdeepsinghgill that this shipped on 2026-08-08 and
 that he needs a build from `feature/visual-workflow-builder`, not `develop`.
 Nothing to fix.
 
@@ -363,7 +363,7 @@ end state.
 
 ## Recommendations
 
-1. **Reply to Inderdeep on I2**: already shipped 2026-08-08 (`5903a414`); he
+1. **Reply to inderdeepsinghgill on I2**: already shipped 2026-08-08 (`5903a414`); he
    needs a build from this branch. `develop` has no agent-chat code at all.
 2. **Decide the deployment wiring** (out of scope above). Until then every
    deployed instance shows the assistant as unconfigured.

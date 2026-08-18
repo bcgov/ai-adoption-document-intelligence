@@ -2,7 +2,7 @@ _PR review · PR #184 — SDPR HITL inline editor_
 
 # Take PR #184 out of draft and merge it?
 
-**Not yet — one decision is yours, two chores are mine.** — The code is clean and CI is green apart from a failure that is already on develop. What is blocking is a design question about seeded workflows that nobody has ruled on, plus Dylan's #239 needing to land first.
+**Not yet — one decision is yours, two chores are mine.** — The code is clean and CI is green apart from a failure that is already on develop. What is blocking is a design question about seeded workflows that nobody has ruled on, plus dbarkowsky's #239 needing to land first.
 
 ## Background
 
@@ -39,7 +39,7 @@ to be non-empty.
 
 ## Chores
 
-- [ ] (agent) Merge Dylan's #239, then re-merge develop into this branch — expect a second conflict on apps/temporal/package.json — #239 touches it too
+- [ ] (agent) Merge dbarkowsky's #239, then re-merge develop into this branch — expect a second conflict on apps/temporal/package.json — #239 touches it too
 - [ ] (agent) Retitle the PR and rewrite its body — the title still advertises a timing-experiment harness that was dropped in the June rebase, and the body's file inventory is stale
 - [ ] (agent) Write the docs-md page for the HITL canvas editor — wiki/hitl.md documents the architecture but not the editor; CLAUDE.md expects a feature doc in the same PR as the code
 - [x] (agent) Caught the branch up to develop (19 commits behind, incl. #169 and #221) — one conflict on apps/temporal/package.json — the branch side had a duplicate setupFilesAfterEnv key that was silently dropping jest.setup.ts under JSON last-key-wins. Resolved to develop's file plus the branch's one real change.
@@ -108,7 +108,7 @@ tests pass. #239 is the designated fix; do not duplicate it here.
 ## Links
 
 - [PR #184 — the pull request](https://github.com/bcgov/ai-adoption-document-intelligence/pull/184)
-- [PR #239 — Dylan's Temporal QA fix](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) — merge this first
+- [PR #239 — dbarkowsky's Temporal QA fix](https://github.com/bcgov/ai-adoption-document-intelligence/pull/239) — merge this first
 - [PR #221 — where the E01–E08 stack landed](https://github.com/bcgov/ai-adoption-document-intelligence/pull/221) — the reason the diff looks large
 - [PR #169 — zero-recovery, picked up in the catch-up merge](https://github.com/bcgov/ai-adoption-document-intelligence/pull/169)
 - [wiki/hitl.md — how HITL fits the system](https://github.com/bcgov/ai-adoption-document-intelligence/blob/develop/docs-md/wiki/hitl.md) — the page that still needs the editor added to it

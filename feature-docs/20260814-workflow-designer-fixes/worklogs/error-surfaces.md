@@ -1,7 +1,7 @@
 # Worklog — error surfaces (I4, I5)
 
 Branch `feature/visual-workflow-builder`, 2026-08-14. Both items come from
-Inderdeep's note (`source/inderdeep-note.txt`) and his mock-up
+inderdeepsinghgill's note (`source/inderdeep-note.txt`) and his mock-up
 `source/inderdeep-mockup-error-card.png`.
 
 Verified in a real browser (Playwright + the `app-browser-auth` interception,

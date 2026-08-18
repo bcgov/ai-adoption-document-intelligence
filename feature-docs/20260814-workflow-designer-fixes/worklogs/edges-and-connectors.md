@@ -1,6 +1,6 @@
 # Edges and connectors — D9, D10, D28
 
-Dylan's three questions about the connectors on the sides of the cards. They
+dbarkowsky's three questions about the connectors on the sides of the cards. They
 turned out to be one object seen from three angles: the **node-level pair of
 dots** that every card renders, which is where a `normal` edge attaches and
 which the legend calls *"Runs after — order only, no data"*.
@@ -310,7 +310,7 @@ was modified.
 
 1. **The legend should carry D28(a)'s answer** (another agent owns
    `CanvasLegend.tsx`). Its current line is *"Runs after — order only, no
-   data"*. What is missing is the corollary Dylan actually asked about: **a
+   data"*. What is missing is the corollary dbarkowsky actually asked about: **a
    run-order line is drawn only between steps that pass no data; where data
    flows, the coloured wire carries the order too.** One clause would have
    answered his first question without anyone opening the code.

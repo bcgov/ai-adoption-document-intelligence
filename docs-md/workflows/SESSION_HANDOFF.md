@@ -356,7 +356,7 @@ All fixtures live under `groupId: "seeddefaultgroup"`. The setup script that cre
 
 ## TL;DR for the next AI
 
-Alex is building a visual workflow editor on top of Dylan's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Track 2 is complete (2026-05-23). Phase 2 Track 3 (versioning UI) is complete (2026-05-23). Phase 2 is closed in full. Phase 3 (typed I/O artifacts) is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
+Alex is building a visual workflow editor on top of dbarkowsky's shared `@ai-di/graph-workflow` package. **Phase 1A is complete (2026-05-23). Phase 1B is complete (2026-05-25). Phase 2 Track 1 is complete (2026-05-26). Phase 2 Track 2 is complete (2026-05-23). Phase 2 Track 3 (versioning UI) is complete (2026-05-23). Phase 2 is closed in full. Phase 3 (typed I/O artifacts) is the next pickup.** Post-1A phases were re-sequenced on 2026-05-23 — see [IMPLEMENTATION_PLAN.md §4 Phase dependencies](IMPLEMENTATION_PLAN.md#4-phase-dependencies) for the DAG.
 
 **What shipped in Phase 2 Track 3 (this session, 2026-05-23):**
 
@@ -432,7 +432,7 @@ Critical preferences (honour these):
 2. **Stop pinging him with mid-work updates.** End-of-turn summary should be terse and only when the milestone is interactive.
 3. **Work milestone-by-milestone.** Commit between milestones.
 4. **Locked decisions are locked.** Don't re-raise typed I/O, single-in/single-out, shared package vs sibling, or Zod v4 vs Zod 3. All resolved in [IMPLEMENTATION_PLAN.md §3](IMPLEMENTATION_PLAN.md).
-5. **Don't ping Dylan about AI-1192.** Just work on top of his branch.
+5. **Don't ping dbarkowsky about AI-1192.** Just work on top of his branch.
 6. **He prefers Chrome DevTools MCP over Playwright** for browser inspection. If chrome-devtools tools are unavailable in your session, Playwright via inline `node --input-type=module -e "..."` is the working fallback — see the [`app-browser-auth`](../../.claude/skills/app-browser-auth/) skill.
 7. **Ask for the API key at session start.** The seed default in `CLAUDE.md` does NOT match Alex's dev DB.
 8. **After any `packages/graph-workflow` change, build the package and ask Alex to restart Vite.** Vite's pre-bundle of the shared package goes stale otherwise.
@@ -441,7 +441,7 @@ Critical preferences (honour these):
 
 ## Branch + git state
 
-- **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation; **not yet merged to develop**).
+- **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (dbarkowsky's shared-package consolidation; **not yet merged to develop**).
 - **53 commits ahead of `origin/AI-1192`** at Phase 2 Track 2 close (2026-05-23), including the docs commits.
 - **Pre-existing commit `b86741c7`** "deps: pin cross-platform native binaries in root optionalDependencies" — unrelated to the workflow builder; should land as its own PR against develop. Cherry-pick onto a dedicated branch before opening the workflow-builder PR. Don't bundle it.
 
@@ -481,12 +481,12 @@ If/when `origin/AI-1192` lands on `develop`, merge develop in to keep current.
 
 ## Shared package (`packages/graph-workflow`)
 
-Dylan's package now contains, on this branch:
+dbarkowsky's package now contains, on this branch:
 
-- `src/types.ts` — schema types (Dylan's, extended). Added: optional `nodeId?` on `ExposedParam` (US-044). `GraphWorkflowConfig.metadata` is the natural place to add `kind` / `inputs[]` / `outputs[]` for Phase 2 library workflows (not yet added).
+- `src/types.ts` — schema types (dbarkowsky's, extended). Added: optional `nodeId?` on `ExposedParam` (US-044). `GraphWorkflowConfig.metadata` is the natural place to add `kind` / `inputs[]` / `outputs[]` for Phase 2 library workflows (not yet added).
 - `src/validator/validator.ts` — graph schema validator. Now consumes catalog adapter; validates pollUntil parameters; validates duration fields.
 - `src/validator/duration.ts` + `duration.test.ts` — shared `isValidTemporalDuration` (US-051).
-- `src/validator/context-utils.ts` — ctx namespace utils (Dylan's, unchanged).
+- `src/validator/context-utils.ts` — ctx namespace utils (dbarkowsky's, unchanged).
 - `src/catalog/types.ts` — `ActivityCatalogEntry`, `PortDescriptor`, `CatalogCategory`.
 - `src/catalog/index.ts` — `ACTIVITY_CATALOG`, `getActivityCatalogEntry()`, `getActivityParametersJsonSchema()`, `listActivityTypes()`, `createCatalogParameterValidator()`. Re-exports `validationRuleSchema`, `ValidationRule`, `documentValidateFieldsParametersSchema`, `classificationRuleSchema`, `classificationPatternSchema`, `CLASSIFICATION_PATTERN_SCOPES`, `CLASSIFICATION_PATTERN_OPERATORS`, `ClassificationPattern`, `ClassificationRule`.
 - `src/catalog/create-parameter-validator.ts` — the shared catalog-driven validation adapter.
@@ -550,7 +550,7 @@ Active `x-widget` hints (all wired to hand-rolled editors as of 2026-05-25):
 - `/workflows/:workflowId/edit-v2` — V2 visual editor, edit mode
 - old `/workflows/create` and `/workflows/:workflowId/edit` (JSON editor) untouched and coexist
 
-Frontend `package.json` has the `@ai-di/graph-workflow` workspace dep (added by Dylan in `63f23c3a`). Vite pre-bundles the package — see commit `78e2a844`. Type-check passes (`npx tsc --noEmit` in apps/frontend). Biome formatting clean. 713 frontend tests pass.
+Frontend `package.json` has the `@ai-di/graph-workflow` workspace dep (added by dbarkowsky in `63f23c3a`). Vite pre-bundles the package — see commit `78e2a844`. Type-check passes (`npx tsc --noEmit` in apps/frontend). Biome formatting clean. 713 frontend tests pass.
 
 ---
 
@@ -740,9 +740,9 @@ ai-adoption-document-intelligence/
 │           ├── WorkflowEditPage.tsx          ← unknown status, investigate before changing
 │           └── WorkflowPage.tsx              ← unknown status, investigate before changing
 ├── packages/
-│   ├── graph-workflow/            ← Dylan's shared package
+│   ├── graph-workflow/            ← dbarkowsky's shared package
 │   │   └── src/
-│   │       ├── types.ts           ← schema types (Dylan's + ExposedParam.nodeId? added)
+│   │       ├── types.ts           ← schema types (dbarkowsky's + ExposedParam.nodeId? added)
 │   │       ├── validator/         ← validator.ts + duration.ts + context-utils
 │   │       └── catalog/           ← 41 activity entries + createCatalogParameterValidator + re-exported widget schemas
 │   ├── graph-insertion-slots/
@@ -794,7 +794,7 @@ Phase 2 Track 3 should start a new feature-doc dir, e.g.:
 
 - `project_workflow_builder_handoff.md` — **read this first** — pointers + cadence preferences
 - `project_workflow_builder_decisions.md` — locked-in decisions
-- `project_shared_graph_workflow_package.md` — Dylan's package status
+- `project_shared_graph_workflow_package.md` — dbarkowsky's package status
 - `project_workflow_templates.md` — where templates live
 - `feedback_dev_servers.md` — never start dev servers yourself
 - `feedback_secret_handling.md` — never leak secrets to chat/terminal

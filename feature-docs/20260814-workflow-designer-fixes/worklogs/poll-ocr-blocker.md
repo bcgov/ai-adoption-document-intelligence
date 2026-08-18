@@ -1,6 +1,6 @@
 # D1 / D2 — "Standard workflow is failing at Poll OCR step"
 
-**Reviewer:** Dylan · **Walkthrough steps blocked:** GALLERY 9 (reading results)
+**Reviewer:** dbarkowsky · **Walkthrough steps blocked:** GALLERY 9 (reading results)
 and 10 (run history) · **Branch:** `feature/visual-workflow-builder`
 
 ---
@@ -8,7 +8,7 @@ and 10 (run history) · **Branch:** `feature/visual-workflow-builder`
 ## Short version
 
 The Standard OCR Workflow **runs green end to end on this branch** once the
-environment is correct — nine of nine steps, verified below. Dylan's Poll OCR
+environment is correct — nine of nine steps, verified below. dbarkowsky's Poll OCR
 failure was a real failure, but nothing in the run told him *why*: every failed
 step on the canvas reported the string **`"Activity task failed"`** and nothing
 else, because that is the message Temporal puts on its `ActivityFailure`
@@ -74,7 +74,7 @@ Fix is the documented one, not a code change:
 cd apps/backend-services && npm run db:generate
 ```
 
-This is **not** what Dylan reported (it fails at the *first* cached activity
+This is **not** what dbarkowsky reported (it fails at the *first* cached activity
 node, `prepareFileData`, not at Poll OCR) but it blocks any reproduction, so it
 is recorded here — see §5.
 
@@ -96,7 +96,7 @@ This box has **real** Azure Document Intelligence credentials — the worker
 logged `useMock:false` on the poll activity, i.e. the run went to live Azure.
 
 Both credential-shaped failures land on **Submit OCR**, not Poll OCR, so
-neither can produce Dylan's symptom:
+neither can produce dbarkowsky's symptom:
 
 - **No credentials at all** — `apps/temporal/src/activities/submit-to-azure-ocr.ts:106-116`
   throws *"Azure Document Intelligence credentials not configured. Set
@@ -143,7 +143,7 @@ pollOcrResults       failed    errorMessage: "Activity task failed"
 ```
 
 Node attribution is correct — Submit's failure in §1c was painted on Submit —
-so Dylan really did fail at Poll OCR. **And the only thing the product told him
+so dbarkowsky really did fail at Poll OCR. **And the only thing the product told him
 was `"Activity task failed"`.**
 
 ---
@@ -328,7 +328,7 @@ The Poll OCR step now has a real output to preview, which is what GALLERY step 9
 asks the reader to click.
 
 **Failure path** — `workflow-id verify-poll-404`, the same model-mismatch that
-produced Dylan's symptom. `getNodeStatuses` — the exact map the canvas renders —
+produced dbarkowsky's symptom. `getNodeStatuses` — the exact map the canvas renders —
 now returns:
 
 ```

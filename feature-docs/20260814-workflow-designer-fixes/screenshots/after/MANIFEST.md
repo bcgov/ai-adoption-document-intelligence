@@ -16,7 +16,7 @@ routes, the same crops and the same canvas zooms, so a before frame and its
 after frame differ by the fix and not by the framing. Auth is the mock-user
 route interception from `.claude/skills/app-browser-auth`.
 
-Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
+Item ids are `CHECKLIST.md`'s. `I…` are inderdeepsinghgill's, `D…` are dbarkowsky's.
 
 **Three frames are not straight photographs of the seeded app, and each says so
 where it is described:** `I1` and both `D12` frames need a route intercepted to
@@ -27,7 +27,7 @@ one. Nothing else here is anything but the app.
 
 ---
 
-## Inderdeep
+## inderdeepsinghgill
 
 ### I1 — "the assistant isn't configured on this server"
 
@@ -67,7 +67,7 @@ and imply a change that was never made. Read the before pair as the after pair.
 
 | | |
 |---|---|
-| **`I3-chat-composer-footer.png`** | The composer rebuilt to Inderdeep's mock-up: the message box on its own line, then one footer strip — attach **`+`** hard left (was a paperclip), **`gpt-5.4` `Balanced`** as the model menu trigger beside it, send hard right. |
+| **`I3-chat-composer-footer.png`** | The composer rebuilt to inderdeepsinghgill's mock-up: the message box on its own line, then one footer strip — attach **`+`** hard left (was a paperclip), **`gpt-5.4` `Balanced`** as the model menu trigger beside it, send hard right. |
 
 - **Route / by hand:** unchanged from the before frame — `/workflows`, chat
   bubble, look at the bottom strip.
@@ -107,7 +107,7 @@ and imply a change that was never made. Read the before pair as the after pair.
 
 ---
 
-## Dylan
+## dbarkowsky
 
 ### D11 — the restore toast
 
@@ -337,7 +337,7 @@ re-render — so it was measured instead, by
 `multi-page-report` (22 cards on the canvas) with the `processSegments` map
 node selected. 30 characters typed with no delay between keys, three rounds,
 alternating, medians below. **Dev build** — Vite dev server and a development
-React, which is the build Dylan was typing into.
+React, which is the build dbarkowsky was typing into.
 
 | | **A — Node label**<br>writes the whole config per keystroke<br>*(not part of the D7 change)* | **B — Map item ctx key**<br>local draft, one commit per burst<br>*(the D7 path)* |
 |---|---|---|

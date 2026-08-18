@@ -41,7 +41,7 @@ tests in CI now that they are green there.
 
 | # | Question | Recommendation |
 |---|---|---|
-| D1 | Keep the experiment tests in CI, or accept the split? | **Keep them in CI.** The premise for removing them is wrong — see §4.1. Ask Dylan to revert the `package.json` script change and keep the path fix. |
+| D1 | Keep the experiment tests in CI, or accept the split? | **Keep them in CI.** The premise for removing them is wrong — see §4.1. Ask dbarkowsky to revert the `package.json` script change and keep the path fix. |
 | D2 | The 203-line SDPR seeding block in the shared test harness — accept, or ask for it generically? | **Ask for it to come out.** It hardcodes one ministry's 75 field definitions into shared infrastructure, against the repo rule that the system carries no document-specific implementation. See §4.3. |
 
 ### Chores an agent can do (no decision needed)
@@ -183,7 +183,7 @@ Three problems, in order of weight:
    arbitrary workloads."* A harness that only self-seeds for SDPR is not generic.
 3. It is a **speculative fix**. The PR says "Copilot wanted a change to the
    harness because it suspects there's expected data for these tests to run",
-   and Dylan notes he still can't run the experiment tests. Since the tests it
+   and dbarkowsky notes he still can't run the experiment tests. Since the tests it
    would serve pass without it (§4.1), this is 203 lines solving an unconfirmed
    problem.
 
@@ -239,7 +239,7 @@ are name-exact: `pretest` fires for `npm test` only, and there is no
 ```
 
 — is skipped, and `npm run test:integration` runs against whatever is (or isn't)
-in those packages' `dist/`. This is a plausible part of why Dylan "still seems to
+in those packages' `dist/`. This is a plausible part of why dbarkowsky "still seems to
 have issues running the experiment tests" on a clean tree.
 
 **Verdict: minor, but if the split survives D1, add `"pretest:integration"` with the same body.**
@@ -282,7 +282,7 @@ automatically; that consequence isn't stated either).
 
 ---
 
-## 7. Recommended reply to Dylan
+## 7. Recommended reply to dbarkowsky
 
 > The path fix is right and fixes CI on its own — I ran the five experiment
 > suites with `CI=true` (what Actions sets) after applying just that change, and

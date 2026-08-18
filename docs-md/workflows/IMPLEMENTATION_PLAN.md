@@ -21,12 +21,12 @@ Companion design docs (already in repo, treat as canonical):
 
 ## 2. Where work lives
 
-- **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (Dylan's shared-package consolidation, not yet merged to develop). Do not ping Dylan; we're working on top of his branch.
-- **Shared package:** `packages/graph-workflow` (`@ai-di/graph-workflow`) — extended with a catalog of activity entries + per-activity Zod schemas alongside Dylan's existing types + validator.
+- **Branch:** `feature/visual-workflow-builder`, cut from `origin/AI-1192` (dbarkowsky's shared-package consolidation, not yet merged to develop). Do not ping dbarkowsky; we're working on top of his branch.
+- **Shared package:** `packages/graph-workflow` (`@ai-di/graph-workflow`) — extended with a catalog of activity entries + per-activity Zod schemas alongside dbarkowsky's existing types + validator.
 - **Frontend:** `apps/frontend` — new pages, new components, new feature folder under `apps/frontend/src/features/workflow-builder/`.
 - **Old JSON editor** at `WorkflowEditorPage.tsx` stays untouched.
 
-When Dylan's `AI-1192` PR lands, we merge develop in. If conflicts, we resolve in our branch.
+When dbarkowsky's `AI-1192` PR lands, we merge develop in. If conflicts, we resolve in our branch.
 
 ---
 
@@ -337,7 +337,7 @@ User vision: an AI agent that builds these workflows on the fly, working in a fe
 - [ ] The agent loops: build → deploy → run on sample doc → diff against expected → revise
 - [ ] Type-narrowed composition: agent consumes Phase 3's `kind` metadata to reject invalid candidates before deployment
 - [ ] Windmill-script authoring as the agent's escape hatch — when no existing activity fits, the agent writes a Phase-6 dynamic node and uses it
-- [ ] Likely consumes the existing `@ai-di/graph-insertion-slots` package (Dylan's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
+- [ ] Likely consumes the existing `@ai-di/graph-insertion-slots` package (dbarkowsky's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
 
 ### Phase 8 — Sources (document intake as nodes)
 
@@ -385,7 +385,7 @@ Phase 8 makes the source a node:
 
 ## 7. Open questions
 
-- **AI-1192 merge timing.** Working assumption: we land first or after, either way we merge develop in when needed. No coordination with Dylan required.
+- **AI-1192 merge timing.** Working assumption: we land first or after, either way we merge develop in when needed. No coordination with dbarkowsky required.
 - **Cached re-execution backend** (Phase 4). Temporal replay vs sidecar K/V store. Resolve early in Phase 4.
 - **Dynamic-node sandbox** (Phase 6). Deno vs Pyodide vs Windmill-style worker. Resolve at Phase 6 kickoff.
 - **Library workflow signature DSL** (Phase 2). Probably just `ctx` declarations marked with `isInput: true` / `isOutput: true`; needs a brief design pass at Phase 2 kickoff.
@@ -401,5 +401,5 @@ Phase 8 makes the source a node:
 - [WORKFLOW_NODE_CATALOG.md](WORKFLOW_NODE_CATALOG.md) — every node and its settings-panel fields
 - [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) — why single in / single out + blackboard (Model A; the engine model that typed I/O layers on top of, doesn't replace)
 - [SESSION_HANDOFF.md](SESSION_HANDOFF.md) — current state, what just landed, what's actively being worked on
-- [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) — Dylan's convention for shared packages
+- [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) — dbarkowsky's convention for shared packages
 - [../graph-workflows/templates/README.md](../graph-workflows/templates/README.md) — template directory

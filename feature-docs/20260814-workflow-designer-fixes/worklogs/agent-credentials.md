@@ -4,8 +4,8 @@
 **Scope:** investigation only, no code changed.
 
 Covers checklist items
-[I1](../CHECKLIST.md) (Inderdeep: *"The agent is not working for me, as was the
-case earlier"*) and D4 (Dylan: *"I don't think I have the credentials for this.
+[I1](../CHECKLIST.md) (inderdeepsinghgill: *"The agent is not working for me, as was the
+case earlier"*) and D4 (dbarkowsky: *"I don't think I have the credentials for this.
 Which subscription is it meant to be using?"*).
 
 **No secret value was read, printed or copied anywhere in this investigation.**
@@ -24,7 +24,7 @@ Alex currently holds.
 
 A developer on a fresh checkout **cannot make the agent answer**. There is no
 free/local fallback provider, `.env.sample` ships no working values, and the
-variables are not even documented as belonging to the agent. Dylan's question is
+variables are not even documented as belonging to the agent. dbarkowsky's question is
 not a gap in his setup — it is a gap in the repo.
 
 ---
@@ -199,7 +199,7 @@ The refusal path is real and tested:
 
 ## 4. Is the failure silent? — the honest answer
 
-**Yes for Inderdeep, no for the code as it stands.** Three separate reasons, and
+**Yes for inderdeepsinghgill, no for the code as it stands.** Three separate reasons, and
 they are what makes I1 a real defect rather than a setup note:
 
 **(i) The fix he is waiting for is on a branch he is not testing.** Everything

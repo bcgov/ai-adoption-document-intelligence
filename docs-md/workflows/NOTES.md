@@ -88,7 +88,7 @@ The agent is a Claude Agent SDK sub-agent with a constrained tool allowlist:
 
 When the agent needs a custom node, it writes a Windmill-style script (Phase 6), which automatically becomes a palette entry. **Phase 7.**
 
-Likely consumes the existing `@ai-di/graph-insertion-slots` package (Dylan's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
+Likely consumes the existing `@ai-di/graph-insertion-slots` package (dbarkowsky's earlier work) as the contract for "where in this workflow can the agent splice nodes?"
 
 ### 1.8 Segmentation curiosity
 
@@ -245,7 +245,7 @@ What already exists in `apps/frontend/` that the new editor builds on, rather th
 
 ## 6. Shared package status
 
-`packages/graph-workflow` (`@ai-di/graph-workflow`) — Dylan's consolidation, sitting on `origin/AI-1192`, not yet merged to develop. Contents on the branch we're working from:
+`packages/graph-workflow` (`@ai-di/graph-workflow`) — dbarkowsky's consolidation, sitting on `origin/AI-1192`, not yet merged to develop. Contents on the branch we're working from:
 
 - `src/types.ts` — `GraphWorkflowConfig`, all node interfaces (the schema)
 - `src/validator/validator.ts` — save-time / execute-time schema validator
@@ -257,7 +257,7 @@ What we add (Phase 1A):
 - `src/catalog/activities/<activity>.ts` — one file per activity type, exports a catalog entry + Zod parameter schema
 - `src/catalog/index.ts` — `ACTIVITY_CATALOG`, `getActivityCatalogEntry()`, `getActivityParametersJsonSchema()`, `listActivityTypes()`
 
-See [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) for Dylan's convention.
+See [../SHARED_PACKAGES.md](../SHARED_PACKAGES.md) for dbarkowsky's convention.
 
 ---
 

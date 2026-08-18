@@ -19,11 +19,11 @@ walkthrough, so a frame from either batch can be laid beside one from this one.
 Auth is the mock-user route interception from `.claude/skills/app-browser-auth`;
 without it every route redirects to the IDIR login screen.
 
-Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
+Item ids are `CHECKLIST.md`'s. `I…` are inderdeepsinghgill's, `D…` are dbarkowsky's.
 
 ---
 
-## Inderdeep
+## inderdeepsinghgill
 
 ### I2 — send versus stop while a reply is in flight
 
@@ -38,7 +38,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
   anything, press send, and watch the bottom-right button.
 - **What the pair already shows:** the composer's primary action *does*
   transform into a stop control today (`SendOrStopButton` in
-  `AgentChatDrawer.tsx`). Inderdeep's "the stop icon is still at the top" does
+  `AgentChatDrawer.tsx`). inderdeepsinghgill's "the stop icon is still at the top" does
   not reproduce on this build — worth confirming which build his snapshots came
   from before writing code for I2.
 - **Caveat you must know to read the second frame:** the agent errors here in
@@ -97,7 +97,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
 
 ---
 
-## Dylan
+## dbarkowsky
 
 ### D13 — the Simplified-view toggle
 
@@ -125,7 +125,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
   click the **Poll OCR Results** node.
 - **By hand:** open `Standard OCR Workflow`, click **Poll OCR Results**, and
   scroll the right-hand settings panel to **Termination condition**.
-- This is the exact panel Dylan photographed in
+- This is the exact panel dbarkowsky photographed in
   [`../../source/dylan-ref-picker-operators.png`](../../source/dylan-ref-picker-operators.png) —
   same node, same section, same framing.
 
@@ -140,7 +140,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
   file validates clean, so the tick is green on arrival.
 - **Why `/new` and not an existing node:** `GET /api/dynamic-nodes` is 500ing
   in this environment (see the unreachable list below), so the list page cannot
-  offer a row to open. GALLERY step 14 — the step Dylan was on — starts on the
+  offer a row to open. GALLERY step 14 — the step dbarkowsky was on — starts on the
   blank editor anyway.
 
 ### D28 — run-order connectors
@@ -151,7 +151,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
 
 - **Route:** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`
 - **By hand:** open `Standard OCR Workflow` and pan to the Poll → Extract pair.
-- Matches Dylan's framing in
+- Matches dbarkowsky's framing in
   [`../../source/dylan-poll-ocr-connectors.png`](../../source/dylan-poll-ocr-connectors.png).
 
 ### D29 — the legend
@@ -163,7 +163,7 @@ Item ids are `CHECKLIST.md`'s. `I…` are Inderdeep's, `D…` are Dylan's.
 - **Route:** `http://localhost:3000/workflows/by-slug/standard-ocr/edit`, then
   the **Legend** button at the bottom of the canvas.
 - **By hand:** open any workflow in the editor and click **Legend**.
-- **Note on which row he meant:** Dylan quoted *"what's a 'Judgement about a
+- **Note on which row he meant:** dbarkowsky quoted *"what's a 'Judgement about a
   document'?"*, and that row is under **PORT DOTS**, not CARD BORDERS. The
   frame is the whole popover so both groups are in shot and the wording can be
   judged in context.
@@ -289,14 +289,14 @@ is seeded demo data that `demo-dynamic-custom-code-node-…-part-14` depends on
 demo custom nodes — drop the interception from the D12 shot and run
 `node …/capture-screenshots.mjs --phase before D12`; it asserts the empty state
 either way, so it fails loudly rather than photographing a populated table.
-Dylan's own capture is at
+dbarkowsky's own capture is at
 [`../../source/dylan-double-plus-button.png`](../../source/dylan-double-plus-button.png).
 
 ---
 
 ## Incidental finding — D6, the `Demo - Deleted` custom node
 
-Dylan: *"Appropriate name, because the `Demo - Deleted` custom node doesn't
+dbarkowsky: *"Appropriate name, because the `Demo - Deleted` custom node doesn't
 appear to have been seeded."*
 
 **It was seeded.** It is in the database, and it was soft-deleted deliberately
