@@ -572,7 +572,7 @@ jobs:
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
             with_retries 3 15 docker buildx imagetools create \
-              "${REGISTRY}/${svc}:${FLOATING_TAG}" \
+              --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
