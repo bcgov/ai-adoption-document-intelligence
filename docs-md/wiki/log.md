@@ -88,3 +88,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
 - Added `billing.md` topic page routing to it and the `packages/billing/` + backend/temporal billing source areas; linked from `index.md` and registered in `sources.md` (routing row, stable-docs entry, code-adjacent sources).
 - Recorded the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift in `open-questions.md`.
+
+## [2026-08-18] maintenance | Retire resolved billing drift risks
+
+- Removed the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift from `open-questions.md` and `billing.md`: `REQUIREMENTS.md` now describes the cap as a best-effort soft cap, and `.env.sample` now carries the flag name the temporal code reads (`CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`).
+- Replaced them in `billing.md` with the standing risk that the backend and Temporal activity registries can diverge, leaving an activity unpriced and therefore silently free.
+- Dropped `billing.md`'s pointer to `open-questions.md`, which no longer carries a billing section.
