@@ -260,11 +260,6 @@ jobs:
             fi
           done
 
-      - name: Set infrastructure sizing
-        run: |
-          # PLG sizing committed at deployments/openshift/config/sizing.vars (same for all environments).
-          # PostgresCluster backup PVC sizes are in components/prod-resources/kustomization.yml.
-          grep -v '^\s*#' deployments/openshift/config/sizing.vars | grep -v '^\s*$' >> "$GITHUB_ENV"
 
       - name: Generate overlay and deploy
         env:
@@ -517,14 +512,12 @@ jobs:
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
 
+          PLG_ENV="${{ needs.metadata.outputs.environment }}"
           helm upgrade --install "$PLG_RELEASE" "$PLG_CHART_DIR" \
             --namespace "$OC_NAMESPACE" \
             -f "$PLG_CHART_DIR/values-openshift.yaml" \
+            -f "$PLG_CHART_DIR/values-${PLG_ENV}.yaml" \
             --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD:-admin}" \
-            --set "loki.retentionDays=${LOKI_RETENTION_DAYS}" \
-            --set "loki.pvcSize=${LOKI_PVC_SIZE}" \
-            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE}" \
-            --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
             --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
             --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \

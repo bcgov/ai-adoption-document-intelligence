@@ -4,7 +4,7 @@
 
 Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. All settings — including secrets — live in a single file per profile. Instance-specific overrides can be layered on top.
 
-**CI deployments** (`deploy-instance.yml`) read configuration from GitHub environment secrets (`secrets.*`) for sensitive values. Non-secret infrastructure sizing values (`LOKI_PVC_SIZE`, `PROMETHEUS_PVC_SIZE`, `LOKI_RETENTION_DAYS`, `METRICS_SCRAPE_INTERVAL`) are committed in `deployments/openshift/config/sizing.vars` and sourced by the workflow's "Set infrastructure sizing" step. To change a sizing value, edit the `.vars` file — no GitHub UI configuration is needed or used for these.
+**CI deployments** (`deploy-instance.yml`) read configuration from GitHub environment secrets (`secrets.*`) for sensitive values. Non-secret PLG monitoring sizing (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) is committed in per-environment Helm values files at `deployments/openshift/helm/plg/values-<env>.yaml`. To change a sizing value, edit the matching values file — no GitHub UI configuration is needed or used for these.
 
 ## Configuration Files
 
@@ -198,15 +198,11 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 
 ### PLG Monitoring Stack
 
-These values are non-secret and are committed in `deployments/openshift/config/sizing.vars` (a single file, same for all environments), sourced by the CI workflow's "Set infrastructure sizing" step. For local deploys, set them in the env file.
+Sizing values (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) are committed in `deployments/openshift/helm/plg/values-test.yaml` and `values-prod.yaml`. Edit those files to change sizing; they are layered on top of `values-openshift.yaml` and `values.yaml` defaults by both the CI workflow and `oc-deploy-instance.sh`. `GRAFANA_ADMIN_PASSWORD` remains in the env file (it is a credential).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
-| `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
-| `LOKI_PVC_SIZE` | `2Gi` | Persistent volume size for Loki data |
-| `PROMETHEUS_PVC_SIZE` | `2Gi` | Persistent volume size for Prometheus TSDB |
-| `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 
 ## How Secrets Reach the Pods
 
