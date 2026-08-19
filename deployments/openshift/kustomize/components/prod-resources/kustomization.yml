@@ -14,6 +14,14 @@ kind: Component
 # manifests — so anything set here wins over base. Keep that in mind when
 # changing resource values: editing base alone does not change production.
 #
+# COMPONENT ORDERING TRAP: Kustomize applies component patches BEFORE the
+# parent overlay's patches (overlays/instance-template). If the same field
+# is patched by both this component and the overlay, the overlay wins and
+# this component's patch is silently discarded. Only add patches here for
+# fields that the instance-template overlay does NOT touch.
+# The backup PVC size patches below are safe: instance-template no longer
+# patches those fields, so this component's values reach prod cleanly.
+#
 # Keep this file as small as the difference actually is. A patch that restates
 # base is not harmless: it silently overrides the next change to base, which is
 # how prod ended up ignoring a memory increase made in base. So temporal-worker
@@ -42,4 +50,20 @@ patches:
       - op: replace
         path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
         value: 10Gi
+  # Prod's backup PVC sizes (expanded from base 10Gi during June/July 2026 incidents).
+  # These live here, not in instance-template, so the values are committed and visible.
+  - target:
+      kind: PostgresCluster
+      name: app-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: 20Gi
+  - target:
+      kind: PostgresCluster
+      name: temporal-pg
+    patch: |
+      - op: replace
+        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
+        value: 22Gi
 

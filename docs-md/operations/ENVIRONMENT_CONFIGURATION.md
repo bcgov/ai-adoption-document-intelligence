@@ -4,6 +4,8 @@
 
 Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. All settings — including secrets — live in a single file per profile. Instance-specific overrides can be layered on top.
 
+**CI deployments** (`deploy-instance.yml`) read configuration from GitHub environment secrets (`secrets.*`) for sensitive values. Non-secret infrastructure sizing values (`LOKI_PVC_SIZE`, `PROMETHEUS_PVC_SIZE`, `LOKI_RETENTION_DAYS`, `METRICS_SCRAPE_INTERVAL`) are committed in `deployments/openshift/config/sizing.vars` and sourced by the workflow's "Set infrastructure sizing" step. To change a sizing value, edit the `.vars` file — no GitHub UI configuration is needed or used for these.
+
 ## Configuration Files
 
 | File | Purpose |
@@ -152,9 +154,7 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 ### Database Storage
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PG_BACKUP_STORAGE_SIZE` | `10Gi` | Backup PVC size for both `app-pg` and `temporal-pg` PostgresCluster resources. Reduce for test instances to stay within namespace backup storage quotas (e.g., `2Gi`). |
+Prod backup PVC sizes are hardcoded in `deployments/openshift/kustomize/components/prod-resources/kustomization.yml`. Test instances use the base manifest values (10Gi for both). These values are not environment variables and cannot be overridden without editing the kustomize component.
 
 pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
 
@@ -197,6 +197,8 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 | `THROTTLE_AUTH_REFRESH_LIMIT` | Max refresh requests per IP (stricter in prod) |
 
 ### PLG Monitoring Stack
+
+These values are non-secret and are committed in `deployments/openshift/config/sizing.vars` (a single file, same for all environments), sourced by the CI workflow's "Set infrastructure sizing" step. For local deploys, set them in the env file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|

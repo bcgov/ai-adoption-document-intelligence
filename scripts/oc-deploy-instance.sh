@@ -207,8 +207,6 @@ AZURE_STORAGE_CONNECTION_STRING=$(require_cfg AZURE_STORAGE_CONNECTION_STRING)
 AZURE_STORAGE_ACCOUNT_NAME=$(require_cfg AZURE_STORAGE_ACCOUNT_NAME)
 AZURE_STORAGE_ACCOUNT_KEY=$(require_cfg AZURE_STORAGE_ACCOUNT_KEY)
 
-PG_BACKUP_STORAGE_SIZE=$(optional_cfg PG_BACKUP_STORAGE_SIZE 10Gi)
-
 DOCUMENT_INTELLIGENCE_MODE=$(optional_cfg DOCUMENT_INTELLIGENCE_MODE live)
 MOCK_AZURE_OCR=$(optional_cfg MOCK_AZURE_OCR false)
 
@@ -337,7 +335,6 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
   --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
   --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
-  --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE}" \
   --document-intelligence-mode "${DOCUMENT_INTELLIGENCE_MODE}" \
   --mock-azure-ocr "${MOCK_AZURE_OCR}" \
   --minio-endpoint "${MINIO_ENDPOINT_VALUE}" \
