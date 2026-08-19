@@ -21,7 +21,6 @@ All QA workflows also support `workflow_dispatch`. Local equivalents run as left
 | Checkov | `checkov.yml` | IaC misconfiguration (Kubernetes/OpenShift manifests, Dockerfiles) |
 | Hadolint | `hadolint.yml` | Dockerfile linting (PRs only) |
 | Dependency Review | `dependency-review.yml` | New dependency vulnerabilities/licenses (PRs only) |
-| Python Dependency Audit | `python-dependency-audit.yml` | `apps/image-service` Python dependencies |
 
 ## Deploy and publish
 

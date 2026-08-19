@@ -42,6 +42,3 @@ playwright-report/
 docs/
 docs-md/
 feature-docs/
-
-# Other apps not needed by any root-context build
-apps/image-service/

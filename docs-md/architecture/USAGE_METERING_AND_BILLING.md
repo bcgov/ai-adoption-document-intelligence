@@ -185,6 +185,13 @@ contradictions with the pre-implementation spec are tracked in
   only for objects created or deleted after deploy. Consequently, storage figures for
   the first months after an initial deployment under-count real storage consumption
   and cannot be corrected retroactively without a manual ledger backfill.
+- **Activity with no `activity_costs` row records no event and costs nothing.** The
+  `ActivityBillingInterceptor` looks the completed activity's name up in the active rate
+  version. A miss is treated as deliberately free: the interceptor returns without writing
+  a `usage_event`. This means rate-table coverage IS the cost model. Activities that are
+  intentionally free must be listed explicitly at `units: 0`; omission and zero-cost are
+  indistinguishable at runtime but the CI guard (`rate-coverage.spec.ts`) enforces that
+  every registered non-benchmark activity has an explicit entry.
 
 ## Related
 

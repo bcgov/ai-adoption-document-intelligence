@@ -42,19 +42,24 @@ After deployment, the script prints access URLs for the frontend, backend, and T
 
 ### oc-build-push.sh — Build and push images
 
-Builds Docker images locally (matching CI Dockerfiles) and pushes them to Artifactory at `${ARTIFACTORY_URL}/kfd3-fd34fb-local/<service>:<tag>`. Uses **`deployments/openshift/config/<env>.env`** for registry credentials and frontend `VITE_*` build args.
+Builds Docker images locally (matching CI Dockerfiles) and pushes them to Artifactory at `${ARTIFACTORY_URL}/kfd3-fd34fb-local/<service>:<staged-tag>`. Uses **`deployments/openshift/config/<env>.env`** for registry credentials and frontend `VITE_*` build args.
+
+Images are **staged**, mirroring CI: `--tag my-branch` pushes to `my-branch-<sha12>`, not to `my-branch`. The floating tag is only updated by a later `--promote`, so a half-finished build never becomes the tag running pods pull. Deploy with the staged tag the script prints.
 
 ```bash
-./scripts/oc-build-push.sh --env dev --all
-./scripts/oc-build-push.sh --env dev --all --tag my-branch-loadtest
+./scripts/oc-build-push.sh --env dev --all                        # pushes <branch>-<sha12>
+./scripts/oc-build-push.sh --env dev --all --tag my-branch-loadtest  # pushes my-branch-loadtest-<sha12>
 ./scripts/oc-build-push.sh --env dev frontend temporal --tag patch-smoke
+./scripts/oc-build-push.sh --env dev --tag my-branch-loadtest --promote  # after a good deploy
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--env dev` or `--env prod` | Required — selects config profile |
 | `--all` | Build `backend-services`, `frontend`, `temporal` |
-| `--tag`, `-t` | Tag for all pushed images (default: sanitized current git branch) |
+| `--tag`, `-t` | Floating tag (default: sanitized current git branch). Images are pushed to `<tag>-<sha12>` |
+| `--push-floating` | Push straight to `<tag>` instead of staging it (pre-staging behaviour) |
+| `--promote` | Repoint `<tag>` at the `<tag>-<sha12>` manifest. Run after the deploy succeeds; with no services listed it promotes all three |
 
 Requires Docker logged out/in handled by the script.
 
@@ -62,14 +67,14 @@ Requires Docker logged out/in handled by the script.
 
 ### oc-deploy-instance.sh — Manual OpenShift deploy
 
-Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl apply`s manifests, creates pull/registry secrets and application secrets, optionally Helm-installs PLG, then rollout-restarts workloads — aligned with `.github/workflows/deploy-instance.yml`.
+Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl apply`s manifests, creates pull/registry secrets and application secrets, optionally Helm-installs PLG, then rollout-restarts workloads and **fails if any rollout does not complete** — aligned with `.github/workflows/deploy-instance.yml`.
 
 ```bash
 ./scripts/oc-login-sa.sh --namespace fd34fb-test
 ./scripts/oc-deploy-instance.sh \
   --env dev \
   --namespace fd34fb-test \
-  --image-tag <same-tag-as-build-push> \
+  --image-tag <staged-tag-printed-by-build-push> \
   --instance loadtest-1 \
   --document-intelligence-mode mock \
   --mock-azure-ocr true \
@@ -80,7 +85,7 @@ Generates the instance overlay (`scripts/lib/generate-overlay.sh`), `kubectl app
 |--------|-------------|
 | `--env dev` or `--env prod` | Required — secrets/settings source |
 | `--namespace`, `-n` | Required OpenShift project |
-| `--image-tag`, `-t` | Required — tag pushed for all three images |
+| `--image-tag`, `-t` | Required — the **staged** tag (`<tag>-<sha12>`) that `oc-build-push.sh` pushed |
 | `--instance`, `-i` | Optional — overrides git-branch-derived name |
 | `--confirm` | Required before apply |
 | `--skip-oc-login` | Skip `./scripts/oc-login-sa.sh` when already authenticated |

@@ -26,7 +26,7 @@ deployments/openshift/helm/plg/
 | `loki.image.repository` | Loki container image | `grafana/loki` |
 | `loki.image.tag` | Loki image tag | `3.4.0` |
 | `loki.retentionDays` | Log retention period in days | `30` |
-| `loki.pvcSize` | PVC storage size | `10Gi` |
+| `loki.pvcSize` | PVC storage size | `2Gi` |
 | `loki.storageClassName` | Storage class (empty = cluster default) | `""` |
 | `loki.resources.requests.memory` | Memory request | `256Mi` (OpenShift override: `512Mi`) |
 | `loki.resources.requests.cpu` | CPU request | `500m` |
