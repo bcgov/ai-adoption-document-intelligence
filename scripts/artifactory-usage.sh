@@ -63,13 +63,14 @@ ARTIFACTORY_SA_PASSWORD=$(get_config "ARTIFACTORY_SA_PASSWORD") || { log_error "
 
 AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
 BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
+CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
 # ---------- query ----------
 
 log_info "Querying Artifactory storage for repo '${ARTIFACTORY_REPO}'..."
 echo ""
 
-AQL_RESULT=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+AQL_RESULT=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
   -H "Content-Type: text/plain" \
   -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\")" 2>&1) || {
   log_error "AQL query failed. Check credentials."
@@ -77,7 +78,7 @@ AQL_RESULT=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
 }
 
 # Also get the tag list per image
-IMAGES=$(curl -sf -u "${AUTH}" "${BASE_URL}/api/docker/${ARTIFACTORY_REPO}/v2/_catalog" | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin).get('repositories',[])))" 2>/dev/null)
+IMAGES=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" "${BASE_URL}/api/docker/${ARTIFACTORY_REPO}/v2/_catalog" | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin).get('repositories',[])))" 2>/dev/null)
 
 echo "${AQL_RESULT}" | python3 -c "
 import sys, json

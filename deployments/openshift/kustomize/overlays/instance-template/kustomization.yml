@@ -350,6 +350,16 @@ patches:
                   labels:
                     service: backend-services
                     __path__: /var/log/app/*.log
+              # Keep in step with base/backend-services/promtail-configmap.yml:
+              # this patch replaces the whole promtail.yaml value, so the base
+              # file's pipeline_stages never reach a deployed instance.
+              pipeline_stages:
+                # Drop health-check hits - fired every few seconds by the router.
+                - drop:
+                    expression: '"path":"/(?:api/)?health[/"]'
+                # Drop metrics checks
+                - drop:
+                    expression: '"path":"/metrics"'
   - target:
       kind: ConfigMap
       name: frontend-promtail
@@ -375,6 +385,9 @@ patches:
                   labels:
                     service: frontend
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
       name: temporal-server-promtail
@@ -400,6 +413,9 @@ patches:
                   labels:
                     service: temporal-server
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
   - target:
       kind: ConfigMap
       name: temporal-worker-promtail
@@ -425,6 +441,9 @@ patches:
                   labels:
                     service: temporal-worker
                     __path__: /var/log/app/*.log
+              pipeline_stages:
+                - drop:
+                    expression: '"path":"/(?:api/)?health"'
 
   # --- NetworkPolicy patches: scope ingress to instance label ---
   - target:

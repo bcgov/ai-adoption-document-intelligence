@@ -12,7 +12,7 @@
 #
 # Usage:
 #   ./scripts/oc-build-push.sh --env dev --all --tag my-loadtest-tag
-#   ./scripts/oc-deploy-instance.sh --env dev --namespace fd34fb-test --image-tag my-loadtest-tag \
+#   ./scripts/oc-deploy-instance.sh --env dev --namespace fd34fb-test --image-tag my-loadtest-tag-<sha12> \
 #       --instance loadtest-abc --confirm
 #
 
@@ -45,7 +45,7 @@ Usage: $(basename "$0") --env <dev|prod> --namespace <openshift-ns> --image-tag 
 Required:
   --env <dev|prod>          Configuration profile (deployments/openshift/config/<env>.env)
   --namespace <ns>          Target OpenShift namespace (e.g. fd34fb-test)
-  --image-tag <tag>         Tag for all three images (must exist in Artifactory)
+  --image-tag <tag>         Staged image tag to deploy (use <floating>-<sha12> from oc-build-push.sh)
 
 Options:
   --instance <name>         Instance name (default: sanitized current git branch, max 20 chars)
@@ -242,8 +242,8 @@ fi
 
 GRAFANA_ADMIN_PASSWORD=$(optional_cfg GRAFANA_ADMIN_PASSWORD admin)
 LOKI_RETENTION_DAYS=$(optional_cfg LOKI_RETENTION_DAYS 30)
-LOKI_PVC_SIZE=$(optional_cfg LOKI_PVC_SIZE 10Gi)
-PROMETHEUS_PVC_SIZE=$(optional_cfg PROMETHEUS_PVC_SIZE 10Gi)
+LOKI_PVC_SIZE=$(optional_cfg LOKI_PVC_SIZE 2Gi)
+PROMETHEUS_PVC_SIZE=$(optional_cfg PROMETHEUS_PVC_SIZE 2Gi)
 METRICS_SCRAPE_INTERVAL=$(optional_cfg METRICS_SCRAPE_INTERVAL 15s)
 
 for bin in oc; do
@@ -418,6 +418,9 @@ oc label secret "${WORKER_SECRET}" \
 if [[ "${DEPLOY_PLG_EFFECTIVE}" == true ]]; then
   PLG_CHART_DIR="${PROJECT_ROOT}/deployments/openshift/helm/plg"
   PLG_RELEASE="${INSTANCE_NAME}-plg"
+  source "${SCRIPT_DIR}/lib/plg-pre-delete.sh"
+  echo "[INFO] Deleting immutable PLG StatefulSets before upgrade (if present)..."
+  delete_plg_statefulsets_for_upgrade "${OC_NAMESPACE}" "${INSTANCE_NAME}"
   echo "[INFO] Helm upgrade --install ${PLG_RELEASE}..."
   helm upgrade --install "${PLG_RELEASE}" "${PLG_CHART_DIR}" \
     --namespace "${OC_NAMESPACE}" \
@@ -437,21 +440,11 @@ if [[ "${WITH_MINIO}" == true ]]; then
   SERVICES+=(minio)
 fi
 
-for svc in "${SERVICES[@]}"; do
-  DEPLOY="${INSTANCE_NAME}-${svc}"
-  if oc get deployment "${DEPLOY}" -n "${OC_NAMESPACE}" &>/dev/null; then
-    oc rollout restart "deployment/${DEPLOY}" -n "${OC_NAMESPACE}" || true
-  fi
-done
-
-for svc in "${SERVICES[@]}"; do
-  DEPLOY="${INSTANCE_NAME}-${svc}"
-  if oc get deployment "${DEPLOY}" -n "${OC_NAMESPACE}" &>/dev/null; then
-    echo "[INFO] Waiting for ${DEPLOY}..."
-    oc rollout status "deployment/${DEPLOY}" -n "${OC_NAMESPACE}" --timeout=300s || \
-      echo "[WARN] Rollout timed out for ${DEPLOY}"
-  fi
-done
+source "${SCRIPT_DIR}/lib/wait-for-rollouts.sh"
+if ! wait_for_rollouts "${OC_NAMESPACE}" "${INSTANCE_NAME}" "${SERVICES[@]}"; then
+  echo "[ERROR] One or more rollouts failed. See diagnostics above." >&2
+  exit 1
+fi
 
 trap - EXIT
 cleanup_generated_overlay "${OVERLAY_DIR}"

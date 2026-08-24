@@ -8,12 +8,15 @@ spec:
       containers:
         - name: backend-services
           resources:
-            # Raise the request to match real prod usage (~280Mi avg, spikes
-            # higher) so the HPA's memory ratio is realistic. With a 256Mi
-            # request the HPA reads ~110% and pins backend at maxReplicas,
-            # which exhausts the namespace CPU-request quota. base/test keep
-            # 256Mi.
-            requests:
-              memory: "512Mi"
+            # The limit is the only memory value prod needs above base: 2Gi of
+            # OOM headroom for sustained document-processing batches, where
+            # base/test keep 1536Mi.
+            #
+            # The request is deliberately absent. Strategic-merge patches merge
+            # maps, so omitting it lets base's request flow through untouched.
+            # The request is the denominator of the HPA's memory utilization
+            # ratio, so a prod-only copy of it — even one that matches base
+            # today — would silently override the next change to base and
+            # recreate the problem this patch was written to solve.
             limits:
               memory: "2Gi"

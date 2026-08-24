@@ -97,3 +97,9 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: corrected the queue-flow diagram (default queue status is `awaiting_review`, not `extracted`), documented how documents enter the queue (gated templates now run `persistOcr` before `reviewSwitch`; humanGate sets `awaiting_review`; post-gate store persists corrections), and added the inline canvas editor components (CanvasFieldOverlay, ConfidenceIndicator, useFieldFocus) to Frontend Architecture. Shipped on PR #184.
 - Relocated `hitl-demo-reset.md` from the docs-md root into `extraction/HITL_DEMO_RESET.md` (post-reorg straggler) and registered it as a canonical source on the hitl topic.
 - `hitl.md`: routing notes for the persist-before-gate ordering, the inline editor, and the demo seed.
+
+## [2026-08-18] maintenance | Retire resolved billing drift risks
+
+- Removed the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift from `open-questions.md` and `billing.md`: `REQUIREMENTS.md` now describes the cap as a best-effort soft cap, and `.env.sample` now carries the flag name the temporal code reads (`CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`).
+- Replaced them in `billing.md` with the standing risk that the backend and Temporal activity registries can diverge, leaving an activity unpriced and therefore silently free.
+- Dropped `billing.md`'s pointer to `open-questions.md`, which no longer carries a billing section.

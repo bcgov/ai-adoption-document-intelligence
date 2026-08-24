@@ -31,7 +31,7 @@ deployments/openshift/helm/plg/
 | `prometheus.image.repository` | Prometheus container image | `prom/prometheus` |
 | `prometheus.image.tag` | Prometheus image tag | `v3.2.1` |
 | `prometheus.retentionDays` | TSDB data retention period in days | `15` |
-| `prometheus.pvcSize` | PVC storage size | `10Gi` |
+| `prometheus.pvcSize` | PVC storage size | `2Gi` |
 | `prometheus.storageClassName` | Storage class (empty = cluster default) | `""` |
 | `prometheus.scrapeInterval` | Scrape interval for all targets | `15s` |
 | `prometheus.resources.requests.memory` | Memory request | `512Mi` |
