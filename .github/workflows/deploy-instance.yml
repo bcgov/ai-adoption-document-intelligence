@@ -260,7 +260,6 @@ jobs:
             fi
           done
 
-
       - name: Generate overlay and deploy
         env:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
