@@ -214,10 +214,13 @@ jobs:
           version: v3.17.0
 
       - name: Login to OpenShift
+        env:
+          OPENSHIFT_SERVER: ${{ secrets.OPENSHIFT_SERVER }}
+          OPENSHIFT_TOKEN: ${{ secrets.OPENSHIFT_TOKEN }}
         run: |
-          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
-            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
-            --insecure-skip-tls-verify=true
+          set -euo pipefail
+          source scripts/lib/openshift-login.sh
+          openshift_login "${OPENSHIFT_SERVER}" "${OPENSHIFT_TOKEN}"
 
       - name: Verify staged images in Artifactory
         env:
@@ -569,7 +572,7 @@ jobs:
           for svc in "${SERVICES[@]}"; do
             echo "Promoting ${svc}:${SHA_TAG} -> ${svc}:${FLOATING_TAG}"
             with_retries 3 15 docker buildx imagetools create \
-              "${REGISTRY}/${svc}:${FLOATING_TAG}" \
+              --tag "${REGISTRY}/${svc}:${FLOATING_TAG}" \
               "${REGISTRY}/${svc}:${SHA_TAG}"
           done
 
