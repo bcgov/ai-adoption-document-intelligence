@@ -156,7 +156,14 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 Prod backup PVC sizes are hardcoded in `deployments/openshift/kustomize/components/prod-resources/kustomization.yml`. Test instances use the base manifest values (10Gi for both). These values are not environment variables and cannot be overridden without editing the kustomize component.
 
-pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
+pgBackRest retention differs between the two PostgresClusters (set in the base manifests, not via env overlay):
+
+| Cluster | Retention | Full backup | Incremental |
+|---------|-----------|-------------|-------------|
+| `app-pg` | **2 most recent fulls** (`repo1-retention-full: '2'` / `repo1-retention-full-type: count`) | Weekly, Sunday 02:00 | Every 4 hours |
+| `temporal-pg` | **14 days** (`repo1-retention-full: '14'` / `repo1-retention-full-type: time`) | Daily 02:00 | Hourly |
+
+On `app-pg`, count-based retention bounds the repo size even if a scheduled full is missed; a time-based window would keep growing until the next full succeeded. Incrementals newer than the oldest retained full are kept, so the recoverable window is roughly two weeks. `app-pg` also compresses with zstd (`compress-type: zst`, `compress-level: '3'`) rather than the pgBackRest gz default.
 
 ### Database SSL
 
@@ -184,6 +191,10 @@ pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. Leave unset or empty to disable the janitor entirely. A positive integer is required to enable it (e.g. `90`). |
+
+Deletion is permanent and cascades: the `documents` row takes `ocr_results`, `review_sessions`, `field_corrections` and `document_locks` with it. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review` or `extracted` are never deleted at any age.
+
+The generated overlay substitutes this token to empty by default, so every environment ships with the janitor off. To set a value for production, patch the `backend-services-config` ConfigMap in the `prod-resources` component, which `generate_instance_overlay` includes automatically for `*-prod` namespaces and which applies after base.
 
 ### Database Connection Pool
 
