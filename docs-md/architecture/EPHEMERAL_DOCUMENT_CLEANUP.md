@@ -23,6 +23,11 @@ policy controls **which targets** are deleted.
 > transient — only the source/intermediate **files** and the Temporal record
 > are removed.
 
+The kept rows are removed later by
+[document retention](./DOCUMENT_RETENTION.md) if it is enabled — that janitor
+deletes the `documents` row and its `ocr_results` outright once the document
+passes the retention age.
+
 ## Consuming a purged document
 
 A purged document still appears in lists and detail responses — `purged_at` is
