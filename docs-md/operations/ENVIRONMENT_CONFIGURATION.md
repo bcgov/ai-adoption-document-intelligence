@@ -194,7 +194,9 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 
 Deletion is permanent and cascades: the `documents` row takes `ocr_results`, `review_sessions`, `field_corrections` and `document_locks` with it. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review` or `extracted` are never deleted at any age.
 
-The generated overlay substitutes this token to empty by default, so every environment ships with the janitor off. To set a value for production, patch the `backend-services-config` ConfigMap in the `prod-resources` component, which `generate_instance_overlay` includes automatically for `*-prod` namespaces and which applies after base.
+The value is supplied by the deploy workflow (`DOCUMENT_RETENTION_DAYS` repository secret) and substituted into `__DOCUMENT_RETENTION_DAYS__` by `generate_instance_overlay`. With the secret unset the token resolves to an empty string, so an environment ships with the janitor off until the secret is given a value.
+
+Setting it in the `prod-resources` component does **not** work: the instance-template's ConfigMap patch applies after components, so it overwrites whatever the component set. Anything the instance-template templates has to be supplied through the overlay flag.
 
 ### Database Connection Pool
 
