@@ -292,7 +292,6 @@ jobs:
           THROTTLE_AUTH_LIMIT: ${{ secrets.THROTTLE_AUTH_LIMIT }}
           THROTTLE_AUTH_REFRESH_TTL_MS: ${{ secrets.THROTTLE_AUTH_REFRESH_TTL_MS }}
           THROTTLE_AUTH_REFRESH_LIMIT: ${{ secrets.THROTTLE_AUTH_REFRESH_LIMIT }}
-          PG_BACKUP_STORAGE_SIZE: ${{ secrets.PG_BACKUP_STORAGE_SIZE }}
         run: |
           set -euo pipefail
 
@@ -333,8 +332,7 @@ jobs:
             --azure-openai-endpoint "${AZURE_OPENAI_ENDPOINT:-}" \
             --azure-openai-deployment "${AZURE_OPENAI_DEPLOYMENT:-}" \
             --azure-openai-api-version "${AZURE_OPENAI_API_VERSION:-2024-02-15-preview}" \
-            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}" \
-            --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE:-10Gi}")
+            --enrichment-redact-pii "${ENRICHMENT_REDACT_PII:-false}")
           echo "Overlay generated at: $OVERLAY_DIR"
           echo "::endgroup::"
 
@@ -506,10 +504,6 @@ jobs:
           INSTANCE_NAME: ${{ needs.metadata.outputs.instance-name }}
           OC_NAMESPACE: ${{ needs.metadata.outputs.namespace || secrets.OPENSHIFT_NAMESPACE }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          LOKI_RETENTION_DAYS: ${{ secrets.LOKI_RETENTION_DAYS }}
-          LOKI_PVC_SIZE: ${{ secrets.LOKI_PVC_SIZE }}
-          PROMETHEUS_PVC_SIZE: ${{ secrets.PROMETHEUS_PVC_SIZE }}
-          METRICS_SCRAPE_INTERVAL: ${{ secrets.METRICS_SCRAPE_INTERVAL }}
           ALERTMANAGER_NOTIFICATION_CHANNEL: ${{ secrets.ALERTMANAGER_NOTIFICATION_CHANNEL }}
           ALERTMANAGER_NOTIFICATIONS_ENABLED: ${{ secrets.ALERTMANAGER_NOTIFICATIONS_ENABLED }}
           ALERTMANAGER_MIN_SEVERITY: ${{ secrets.ALERTMANAGER_MIN_SEVERITY }}
@@ -520,14 +514,12 @@ jobs:
           PLG_CHART_DIR="deployments/openshift/helm/plg"
           PLG_RELEASE="${INSTANCE_NAME}-plg"
 
+          PLG_ENV="${{ needs.metadata.outputs.environment }}"
           helm upgrade --install "$PLG_RELEASE" "$PLG_CHART_DIR" \
             --namespace "$OC_NAMESPACE" \
             -f "$PLG_CHART_DIR/values-openshift.yaml" \
+            -f "$PLG_CHART_DIR/values-${PLG_ENV}.yaml" \
             --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD:-admin}" \
-            --set "loki.retentionDays=${LOKI_RETENTION_DAYS:-30}" \
-            --set "loki.pvcSize=${LOKI_PVC_SIZE:-2Gi}" \
-            --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE:-2Gi}" \
-            --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL:-15s}" \
             --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
             --set "prometheus.scrapeTargets.temporalWorker.host=${INSTANCE_NAME}-temporal" \
             --set "alertmanager.notificationChannel=${ALERTMANAGER_NOTIFICATION_CHANNEL:-ches}" \

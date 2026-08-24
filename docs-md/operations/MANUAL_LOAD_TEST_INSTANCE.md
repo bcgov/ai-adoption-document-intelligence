@@ -79,13 +79,7 @@ For OCR-heavy scenarios use **`DOCUMENT_INTELLIGENCE_MODE=mock`** on the backend
 --document-intelligence-mode mock --mock-azure-ocr true
 ```
 
-Reduce Postgres backup PVC pressure if quotas bite:
-
-```text
-PG_BACKUP_STORAGE_SIZE=2Gi
-```
-
-in `<instance>.env` merge file.
+Backup PVC sizes are fixed at the base manifest values (`10Gi` each for `app-pg` and `temporal-pg`) and are no longer tunable per instance. If the namespace storage quota bites, tear down idle instances or raise the quota with the Platform Services team — editing the base manifests changes every test instance, not just this one.
 
 ### Mock blob storage with in-cluster MinIO
 
