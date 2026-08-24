@@ -50,15 +50,18 @@ patches:
       - op: replace
         path: /spec/instances/0/dataVolumeClaimSpec/resources/requests/storage
         value: 10Gi
-  # Prod's backup PVC sizes (expanded from base 10Gi during June/July 2026 incidents).
-  # These live here, not in instance-template, so the values are committed and visible.
+  # Prod's backup PVC sizes. Both volumes were expanded by hand during the
+  # June/July 2026 incidents and these values match what is live in fd34fb-prod:
+  # a PostgresCluster requesting less than the bound PVC is rejected by the API,
+  # which stalls the operator's pgBackRest reconcile. They live here, not in
+  # instance-template, so the numbers are committed and visible.
   - target:
       kind: PostgresCluster
       name: app-pg
     patch: |
       - op: replace
         path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
-        value: 20Gi
+        value: 15Gi
   - target:
       kind: PostgresCluster
       name: temporal-pg

@@ -243,7 +243,7 @@ headroom for migrations, monitoring tools, and pgAdmin.
 The `fd34fb-test` `storage-quota` of 64Gi is 100% consumed independently of compute
 scaling. Root causes include:
 
-- CrunchyDB WAL and backup PVCs (test base: 10Gi each; prod: 20Gi `app-pg` / 22Gi `temporal-pg` via `components/prod-resources`)
+- CrunchyDB WAL and backup PVCs (test base: 10Gi each; prod: 15Gi `app-pg` / 22Gi `temporal-pg` via `components/prod-resources`)
 - MinIO document storage PVCs
 
 For short-lived test instances, the base 10Gi backup PVC values are used as-is. Storage quota exhaustion

@@ -69,7 +69,7 @@ Crunchy PostgreSQL operator creates secrets with names derived from the Postgres
 - **Temporal PostgresCluster**: `databaseInitSQL.name` patched to `<instance>-temporal-postgres-init-sql` (Kustomize doesn't auto-update this CRD field)
 
 #### PostgresCluster backup PVC sizes and retention
-- Backup PVC sizes are **not** configured via overlay tokens. Test instances use the base manifest values (`10Gi` for both `app-pg` and `temporal-pg`). Prod sizes (`20Gi` for `app-pg`, `22Gi` for `temporal-pg`) are patched by `components/prod-resources/kustomization.yml`, which applies before instance-template overlay patches — the instance-template no longer touches these fields, so the component patch reaches the deployed manifest cleanly.
+- Backup PVC sizes are **not** configured via overlay tokens. Test instances use the base manifest values (`10Gi` for both `app-pg` and `temporal-pg`). Prod sizes (`15Gi` for `app-pg`, `22Gi` for `temporal-pg`, each matching the live PVC) are patched by `components/prod-resources/kustomization.yml`, which applies before instance-template overlay patches — the instance-template no longer touches these fields, so the component patch reaches the deployed manifest cleanly.
 - Backup retention is **14 days** (time-based) with a daily full backup and hourly incrementals (set in the base PostgresCluster manifests, not via env overlay)
 
 ## Instance Isolation
