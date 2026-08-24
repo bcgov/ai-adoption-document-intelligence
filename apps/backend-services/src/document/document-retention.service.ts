@@ -1,7 +1,7 @@
 import { getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
-import { Cron, CronExpression } from "@nestjs/schedule";
+import { Cron } from "@nestjs/schedule";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -24,8 +24,10 @@ export const BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR =
 /** Env var controlling completed review_sessions retention window (days). */
 export const REVIEW_SESSION_RETENTION_ENV_VAR = "REVIEW_SESSION_RETENTION_DAYS";
 
-/** Maximum rows deleted per janitor run to avoid long-running transactions. */
-const BATCH_SIZE = 100;
+/** Max documents deleted per run — blob I/O makes per-doc cost non-trivial. */
+const DOCUMENT_BATCH_SIZE = 500;
+/** Max rows deleted per run for pure-DB jobs (no blob I/O). */
+const SIMPLE_BATCH_SIZE = 2000;
 
 /**
  * Terminal document statuses eligible for retention-based deletion.
@@ -47,12 +49,9 @@ const DELETABLE_STATUSES: DocumentStatus[] = [
  * that store is skipped — behaviour is unchanged on deploy unless the variable
  * is explicitly set.
  *
- * Jobs run in a staggered 15-minute window starting at 02:00 to avoid
- * concurrent DB pressure:
- *   02:00 — documents + blobs (CASCADE removes ocr_results)
- *   02:15 — audit_events
- *   02:30 — benchmark_audit_logs
- *   02:45 — completed review_sessions (CASCADE removes field_corrections)
+ * Jobs run in two groups to spread DB pressure:
+ *   Every 6 hours (00:00/06:00/12:00/18:00) — documents + blobs
+ *   Daily at 02:15/02:30/02:45 — audit_events, benchmark_audit_logs, review_sessions
  */
 @Injectable()
 export class DocumentRetentionService {
@@ -72,7 +71,7 @@ export class DocumentRetentionService {
    * If the variable is absent or invalid the run is skipped and a warning is
    * logged — no documents are deleted.
    */
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  @Cron("0 */6 * * *")
   async deleteExpiredDocuments(): Promise<void> {
     const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
     const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
@@ -96,7 +95,7 @@ export class DocumentRetentionService {
       documents = await this.documentDb.findExpiredDocuments(
         olderThan,
         DELETABLE_STATUSES,
-        BATCH_SIZE,
+        DOCUMENT_BATCH_SIZE,
       );
     } catch (err) {
       this.logger.error("Failed to query expired documents — aborting run", {
@@ -230,7 +229,7 @@ export class DocumentRetentionService {
 
     let deleted: number;
     try {
-      deleted = await deleteFn(olderThan, BATCH_SIZE);
+      deleted = await deleteFn(olderThan, SIMPLE_BATCH_SIZE);
     } catch (err) {
       this.logger.error(`Failed to delete expired ${label} records`, {
         stack: getErrorStack(err),

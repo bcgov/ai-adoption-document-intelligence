@@ -108,7 +108,7 @@ describe("DocumentRetentionService", () => {
         DocumentStatus.failed,
         DocumentStatus.conversion_failed,
       ]),
-      100,
+      500,
     );
     expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();
     expect(mockDocumentDb.deleteDocument).not.toHaveBeenCalled();
@@ -304,7 +304,7 @@ function describeSimpleRetentionJob(params: {
       const after = Date.now();
       expect(mockRetentionDb[params.dbMethodName]).toHaveBeenCalledWith(
         expect.any(Date),
-        100,
+        2000,
       );
       const [cutoff] = mockRetentionDb[params.dbMethodName].mock.calls[0] as [
         Date,
