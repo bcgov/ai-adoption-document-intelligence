@@ -42,8 +42,12 @@ spec:
         # well-supported in pgBackRest 2.46+ and Crunchy PGO 5.x.
         # Level 3 is the fast default; raise to 6 for ~10% better ratio at
         # the cost of higher CPU during backup windows.
-        repo1-compress-type: zst
-        repo1-compress-level: '3'
+        # Compression is not repo-indexed in pgBackRest: the option names are
+        # compress-type/compress-level with no repoN- prefix. A prefixed form is
+        # rejected as "not valid for command 'backup'", the config warning prints
+        # on every pgbackrest invocation, and compression silently stays on gz.
+        compress-type: zst
+        compress-level: '3'
       repos:
         - name: repo1
           schedules:
