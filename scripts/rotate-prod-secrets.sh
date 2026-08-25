@@ -78,7 +78,7 @@ Recognized keys (others are skipped with a warning):
   AZURE_STORAGE_CONNECTION_STRING       → GH + OpenShift backend + worker
   AZURE_STORAGE_ACCOUNT_NAME            → GH + OpenShift backend + worker
   AZURE_STORAGE_ACCOUNT_KEY             → GH + OpenShift backend + worker
-  AZURE_OPENAI_API_KEY                  → GH + OpenShift worker
+  AZURE_OPENAI_API_KEY                  → GH + OpenShift backend + worker
   ARTIFACTORY_SA_USERNAME               → GH only
   ARTIFACTORY_SA_PASSWORD               → GH only
   OPENSHIFT_TOKEN                       → GH (OPENSHIFT_TOKEN + OPENSHIFT_API_TOKEN)
@@ -134,12 +134,17 @@ fi
 # ---------- routing tables ----------
 
 # Keys that write to the backend-services secret
+# AZURE_OPENAI_API_KEY is in both routing tables on purpose: backend-services
+# hosts the workflow chat agent, AI format suggestion and benchmark
+# recommendations, the worker hosts LLM enrichment. One value in the secrets
+# file, fanned out to both per-deployment Secrets in one run.
 declare -A ROUTE_BACKEND=(
   [SSO_CLIENT_SECRET]=1
   [AZURE_DOCUMENT_INTELLIGENCE_API_KEY]=1
   [AZURE_STORAGE_CONNECTION_STRING]=1
   [AZURE_STORAGE_ACCOUNT_NAME]=1
   [AZURE_STORAGE_ACCOUNT_KEY]=1
+  [AZURE_OPENAI_API_KEY]=1
 )
 
 # Keys that write to the temporal-worker secret
