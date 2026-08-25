@@ -305,7 +305,11 @@ export async function listWorkflows(
   );
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
-  return Array.isArray(body) ? body : (body.data ?? body.items ?? []);
+  // GET /api/workflows answers `{ workflows: [...] }`; the other shapes are
+  // there so a response that is already a list still reads correctly.
+  return Array.isArray(body)
+    ? body
+    : (body.workflows ?? body.data ?? body.items ?? []);
 }
 
 /**

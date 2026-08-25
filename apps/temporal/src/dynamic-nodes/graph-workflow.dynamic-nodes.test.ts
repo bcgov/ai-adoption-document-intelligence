@@ -95,6 +95,11 @@ function makeInput(graph: GraphWorkflowConfig): TestDynInput {
 describe("graphWorkflow — dyn.* dispatch (US-171)", () => {
   let testEnv: TestWorkflowEnvironment;
 
+  // Every case here drives a real workflow through the Temporal test
+  // environment, which does not fit jest's 5s default when the machine is busy
+  // running the rest of the suite.
+  jest.setTimeout(60_000);
+
   beforeAll(async () => {
     // createLocal() downloads the Temporal server binary (~500MB) on first run;
     // a cold CI cache can take 60-90s. Allow generous time so it isn't a flaky

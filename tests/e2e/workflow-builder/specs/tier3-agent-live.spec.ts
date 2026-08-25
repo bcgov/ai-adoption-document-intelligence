@@ -44,7 +44,11 @@ test.describe("agent chat — live model @llm", () => {
         { headers: { "x-api-key": TEST_API_KEY } },
       );
       const body = await res.json();
-      const arr = Array.isArray(body) ? body : (body.data ?? body.items ?? []);
+      // GET /api/workflows answers `{ workflows: [...] }`; the other shapes are
+      // there so a response that is already a list still reads correctly.
+      const arr = Array.isArray(body)
+        ? body
+        : (body.workflows ?? body.data ?? body.items ?? []);
       return arr.find((w: { name?: string }) => w.name === "e2e-llm-demo");
     };
 
