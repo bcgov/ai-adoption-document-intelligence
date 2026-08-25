@@ -63,14 +63,7 @@ export class DocumentRetentionService {
     private readonly logger: AppLoggerService,
   ) {}
 
-  /**
-   * Runs daily at 02:00: permanently deletes expired terminal documents and
-   * their associated blobs and OCR results.
-   *
-   * Requires `DOCUMENT_RETENTION_DAYS` to be set to a positive integer.
-   * If the variable is absent or invalid the run is skipped and a warning is
-   * logged — no documents are deleted.
-   */
+  /** Runs every 6 hours: permanently deletes expired terminal documents, their blobs, and cascading OCR results. */
   @Cron("0 */6 * * *")
   async deleteExpiredDocuments(): Promise<void> {
     const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
