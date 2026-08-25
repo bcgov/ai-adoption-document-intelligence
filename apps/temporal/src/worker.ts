@@ -291,19 +291,17 @@ async function run() {
       inbound: new ActivityBillingInterceptor(billingWriter),
     };
   };
-  // Phase 4 (US-133 + US-134) — register the cache-proxy activities the
-  // worker decorator calls (`findFresh`, `upsert`) plus the hourly GC
-  // sweep (`gc`). Kept out of the graph-node registry on purpose:
-  // these are infrastructure activities the workflow runtime dispatches
-  // itself, not selectable activity types for graph authors. The
-  // dot-namespaced keys match the dispatch shape in
-  // `apps/temporal/src/graph-workflow.ts` and `cache-gc-workflow.ts`.
+  // Phase 4 (US-133) — register the cache-proxy activities the worker
+  // decorator calls (`findFresh`, `upsert`). Kept out of the graph-node
+  // registry on purpose: these are infrastructure activities the workflow
+  // runtime dispatches itself, not selectable activity types for graph
+  // authors. The dot-namespaced keys match the dispatch shape in
+  // `apps/temporal/src/graph-workflow.ts`. Expired-row cleanup is the
+  // backend's hourly cron (`apps/backend-services/src/cache`), not a
+  // worker concern.
   activitiesMap["activityOutputCache.findFresh"] =
     activityOutputCache.findFresh as (...args: unknown[]) => Promise<unknown>;
   activitiesMap["activityOutputCache.upsert"] = activityOutputCache.upsert as (
-    ...args: unknown[]
-  ) => Promise<unknown>;
-  activitiesMap["activityOutputCache.gc"] = activityOutputCache.gc as (
     ...args: unknown[]
   ) => Promise<unknown>;
 
@@ -322,15 +320,12 @@ async function run() {
   // Create workers array to track all running workers
   const workers: Worker[] = [];
 
-  // Create primary worker for production OCR processing.
-  // `./workflows` is the barrel that re-exports both `graphWorkflow` and
-  // the Phase 4 / US-134 `cacheGcWorkflow`, so the worker can dispatch
-  // both from the same task queue. The benchmark worker keeps its own
-  // dedicated `./benchmark-workflows` bundle.
+  // Create primary worker for production OCR processing. The benchmark
+  // worker keeps its own dedicated `./benchmark-workflows` bundle.
   const ocrWorker = await Worker.create({
     connection,
     namespace,
-    workflowsPath: require.resolve("./workflows"),
+    workflowsPath: require.resolve("./graph-workflow"),
     activities: activitiesMap,
     taskQueue,
     dataConverter: temporalDataConverter,

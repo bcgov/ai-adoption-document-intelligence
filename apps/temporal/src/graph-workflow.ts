@@ -258,11 +258,16 @@ export async function graphWorkflow(
 
     // Phase 4 (US-133 Scenario 2): wire the cache-activity proxy once
     // per workflow execution. The proxy lifetime is the workflow's
-    // lifetime; every per-node activity dispatch shares it. Bypassed
-    // when the caller didn't pass a `workflowLineageId` (legacy tests,
-    // pre-Phase-4 callers).
+    // lifetime; every per-node activity dispatch shares it.
+    //
+    // The cache is editor-Try-only: production-scope caching is deferred
+    // (Phase 4.x) pending a GDPR review, so only a run that both carries a
+    // `workflowLineageId` (the cache's tenancy scope) and was started with
+    // `trigger === "try"` gets cacheDeps. Everything else — production
+    // `"api"` runs, legacy tests, pre-Phase-4 callers, and inputs recorded
+    // before `trigger` existed — bypasses cache reads AND writes.
     let cacheDeps: CachedActivityDeps | undefined;
-    if (input.workflowLineageId) {
+    if (input.workflowLineageId && input.trigger === "try") {
       const cacheProxy = proxyActivities<CacheActivities>(
         ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
       );
@@ -296,6 +301,13 @@ export async function graphWorkflow(
       workflowConfigOverrides: input.workflowConfigOverrides,
       workflowLineageId: input.workflowLineageId ?? null,
       cacheDeps,
+      // Change A/A+ — thread the run trigger so both `executeChild` sites
+      // (map fan-out and library children) hand it to their children and
+      // Try-only caching survives fan-out.
+      trigger: input.trigger,
+      // Change M — current child-workflow nesting depth (0 for a run
+      // started from the API); the executors increment it per spawn.
+      childDepth: input.childDepth ?? 0,
       // Phase 6 Milestone C (US-170) — populate workflowRunId from
       // `workflowInfo()` here (it's a workflow-context-only API; the
       // runner module can't reach it directly).

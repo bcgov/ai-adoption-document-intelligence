@@ -62,11 +62,9 @@ export type {
 export { benchmarkWritePrediction } from "./activities/benchmark-write-prediction";
 // Phase 4 try-in-place cache activities (US-131). Proxy reads/writes against
 // the `ActivityOutputCache` table for the worker decorator (US-132).
-// US-134 adds `activityOutputCache.gc` for the hourly TTL sweep.
 export type {
   ActivityOutputCacheFindFreshInput,
   ActivityOutputCacheFindFreshResult,
-  ActivityOutputCacheGcResult,
   ActivityOutputCacheUpsertInput,
   CacheActivityOptions,
 } from "./activities/cache/activity-output-cache.activities";
