@@ -956,7 +956,7 @@ describe("Graph Workflow", () => {
           receivedRequestId = params.apimRequestId as string;
           const status = pollCount < 2 ? "running" : "succeeded";
           pollCount += 1;
-          return { response: { status } };
+          return { ocrResponse: { status } };
         },
       };
 
@@ -1013,7 +1013,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when maxAttempts exceeded", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 
@@ -1069,7 +1069,7 @@ describe("Graph Workflow", () => {
     it("fails with POLL_TIMEOUT when overall timeout elapses", async () => {
       const pollActivities: ActivityMap = {
         "azureOcr.poll": async () => {
-          return { response: { status: "running" } };
+          return { ocrResponse: { status: "running" } };
         },
       };
 

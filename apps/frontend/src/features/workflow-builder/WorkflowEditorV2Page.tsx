@@ -2249,6 +2249,7 @@ function ValidationButton({
       onClick={onClick}
       size="xs"
       title={isPending ? "Re-checking…" : label}
+      data-testid="validation-summary-button"
     >
       {label}
     </Button>

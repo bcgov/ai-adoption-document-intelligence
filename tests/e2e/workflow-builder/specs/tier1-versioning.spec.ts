@@ -61,8 +61,12 @@ test.describe("version history", () => {
     await expect(page.getByTestId("history-row-head-badge")).toHaveCount(1);
 
     // Compare the (older) non-head version against head. The Mantine modal
-    // root stays in the DOM hidden; assert its body content instead.
+    // root stays in the DOM hidden; assert its body content instead. The modal
+    // opens on the Changes tab, and its panels are `keepMounted`, so the
+    // side-by-side columns are in the DOM but hidden until that tab is picked.
     await page.locator('[data-testid^="history-row-compare-"]').last().click();
+    await expect(page.getByTestId("compare-diff-panel")).toBeVisible();
+    await page.getByTestId("compare-tab-full").click();
     await expect(page.getByTestId("compare-left-column")).toBeVisible();
   });
 });

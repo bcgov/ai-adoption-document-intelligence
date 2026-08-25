@@ -158,11 +158,12 @@ test.describe("map item ctx key default + collision warning (D24)", () => {
 
     // The top-bar validation button is the first place an author sees it. Both
     // maps are also missing their collection key, so there are errors too — the
-    // button renders "N errors · M warnings" once both are present.
-    const validationButton = page.getByRole("button", {
-      name: /\d+ warnings?/,
-    });
+    // button renders "N errors · M warnings" once both are present. Address it
+    // by testid: the per-node ValidationBadges carry the same counts in their
+    // aria-labels, so a role+name lookup matches every badge on the canvas too.
+    const validationButton = page.getByTestId("validation-summary-button");
     await expect(validationButton).toBeVisible({ timeout: 10_000 });
+    await expect(validationButton).toHaveText(/\d+ errors? · \d+ warnings?/);
 
     // The drawer is where the message itself lives.
     await validationButton.click();
