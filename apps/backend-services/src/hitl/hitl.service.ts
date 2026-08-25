@@ -18,6 +18,7 @@ import { ModuleRef } from "@nestjs/core";
 import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
 import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
@@ -115,6 +116,7 @@ export class HitlService {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
     private readonly prismaService: PrismaService,
+    private readonly temporalClient: TemporalClientService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -388,6 +390,13 @@ export class HitlService {
       id: session.id,
       documentId: session.document_id,
       reviewerId: session.actor_id,
+      // G-058 — who made the corrections. The trail recorded what changed and
+      // when, never who; `actor_id` alone is a cuid, which answers nobody's
+      // question. Undefined for an API-key actor with no linked user, which
+      // the UI renders as "unknown reviewer" rather than inventing a name.
+      reviewerEmail: (
+        session as { actor?: { user?: { email?: string } | null } }
+      ).actor?.user?.email,
       status: session.status,
       startedAt: session.started_at,
       completedAt: session.completed_at,
@@ -515,6 +524,11 @@ export class HitlService {
       return sessionUpdate;
     });
 
+    // G-020: the whole point of a human gate is that the run resumes when a
+    // human decides. Signalling is an external call, so it happens AFTER the
+    // commit above and can never roll the approval back.
+    await this.signalHumanApproval(session);
+
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
     // ModuleRef.get() lazily resolves GroundTruthGenerationService at runtime to avoid a circular
     // module dependency between HitlModule and BenchmarkModule. The call is one-directional
@@ -545,6 +559,65 @@ export class HitlService {
       completedAt: updated.completed_at,
       message: "Review session approved",
     };
+  }
+
+  /**
+   * Resume the Temporal run waiting on this document's human gate (G-020).
+   *
+   * Sends the same `humanApproval` signal — and the same payload shape — that
+   * `DocumentController.approveDocument` sends, so a gate sees one consistent
+   * body no matter which surface the reviewer used.
+   *
+   * Deliberately non-fatal in both failure modes:
+   *  - **No run id.** The document was never processed by a graph workflow
+   *    (a plain OCR upload, a seeded document). There is nothing to resume.
+   *  - **The run is gone.** It may have timed out, been cancelled or already
+   *    completed before the reviewer got to it. The reviewer's decision is
+   *    the record of truth; a dead workflow is a logging concern, not grounds
+   *    for rejecting the approval (which has already been committed).
+   *
+   * MUST be called after the approval transaction commits — Temporal is an
+   * external call and must never sit inside a Prisma transaction.
+   */
+  private async signalHumanApproval(session: ReviewSessionData): Promise<void> {
+    const doc = session.document;
+    // Mirrors DocumentController.approveDocument: prefer the Temporal
+    // execution id, fall back to the legacy workflow_id column.
+    const workflowId = doc.workflow_execution_id || doc.workflow_id;
+    if (!workflowId) {
+      this.logger.debug(
+        `Review session ${session.id} approved; document ${session.document_id} has no workflow execution id, nothing to resume`,
+      );
+      return;
+    }
+
+    const reviewer = session.actor_id ?? undefined;
+    try {
+      await this.temporalClient.sendHumanApproval(workflowId, {
+        approved: true,
+        reviewer,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Human approval signal to workflow ${workflowId} failed; approval for session ${session.id} stands: ${getErrorMessage(error)}`,
+      );
+      return;
+    }
+
+    await this.auditService.recordEvent({
+      event_type: "human_approval_signal_sent",
+      resource_type: "workflow_run",
+      resource_id: workflowId,
+      actor_id: reviewer,
+      document_id: session.document_id,
+      workflow_execution_id: workflowId,
+      group_id: doc.group_id ?? undefined,
+      payload: {
+        approved: true,
+        reviewer,
+        review_session_id: session.id,
+      },
+    });
   }
 
   async escalateSession(sessionId: string, dto: EscalateDto) {
