@@ -1,0 +1,453 @@
+/**
+ * `PortRows` — per-port row list rendered inside an activity node's card
+ * (PORT_WIRING_DESIGN.md, port-row rendering slice).
+ *
+ * Two-column grid: inputs on the left, outputs on the right, one row per
+ * catalog port. Each row mounts its own kind-coloured ReactFlow `<Handle>`
+ * (id from `inputHandleId`/`outputHandleId` via `PortRowModel.handleId`)
+ * absolutely positioned just outside the card edge at the row's vertical
+ * centre, so the upcoming wire→edge projection can attach edges per port.
+ *
+ * Per-port handles are connectable: a port-to-port drag pins a binding
+ * (PORT_WIRING_DESIGN.md §6.1 — see `WorkflowEditorCanvas.handleConnect`),
+ * while the node-level handles keep today's node-to-node connect gesture.
+ * Row height is locked to `PORT_ROW_HEIGHT` because `estimateNodeHeight`
+ * (auto-layout) derives card height from the row count.
+ *
+ * Vocabulary rule: rows show the plain-language `label`; the raw port
+ * `name` + kind literal live in the tooltip.
+ *
+ * Connect-time drop-target highlight (PORT_WIRING_DESIGN.md §6.2): while a
+ * port-to-port drag is in progress, the canvas publishes the drag's source
+ * kind via `PortDragContext`. Each input row self-classifies as a
+ * compatible (enlarged handle) or incompatible (dimmed row) drop target —
+ * see `PortRow`'s `dropCompatible` derivation below.
+ */
+
+import { isAssignable, type KindRef } from "@ai-di/graph-workflow";
+import { Tooltip } from "@mantine/core";
+import { Handle, Position } from "@xyflow/react";
+import {
+  type CSSProperties,
+  createContext,
+  memo,
+  type MouseEvent as ReactMouseEvent,
+  useContext,
+} from "react";
+
+import { colorForKind, shapeForColor } from "./artifact-kind-colour";
+import {
+  BASE_HANDLE_SIZE,
+  handleArrayOutline,
+  handleBackground,
+  plusGlyphBarStyles,
+  portShapeStyle,
+  UNCONNECTED_HANDLE_SIZE,
+} from "./handle-style";
+import {
+  PORT_ROW_HEIGHT,
+  PORT_ROWS_TOP_MARGIN,
+  type PortRowModel,
+} from "./port-rows";
+
+/**
+ * Published by the canvas while a per-port connection drag is in progress
+ * (§6.2): carries the drag source's output kind so every input row can
+ * self-classify as a compatible (highlight) or incompatible (dim) drop
+ * target. `null` when no port drag is active.
+ */
+export const PortDragContext = createContext<{
+  sourceKind: KindRef | undefined;
+} | null>(null);
+
+export interface PortRowsProps {
+  nodeId: string;
+  inputs: PortRowModel[];
+  outputs: PortRowModel[];
+  /**
+   * §9 — hover-to-extend from a typed OUTPUT port. Fired on an output row
+   * handle's mouseenter with the handle's right-centre anchor (same geometry
+   * the node-level `out` handle uses). The canvas debounces these into the
+   * kind-aware extend popover. Input rows never fire these.
+   */
+  onOutputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onOutputHandleLeave?: () => void;
+  /**
+   * UX walkthrough 2026-07-29 — hover-to-extend UPSTREAM from a
+   * typed INPUT port ("what produces the value this port needs?"). Fired
+   * on an input row handle's mouseenter with the handle's left-centre
+   * anchor; the canvas debounces these into the producer-filtered extend
+   * popover. Mirror of the output-side pair above.
+   */
+  onInputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onInputHandleLeave?: () => void;
+}
+
+/**
+ * Horizontal offsets that place the handle dot just outside the card
+ * border. The activity card renders `padding: 10px 14px` with a 6px left /
+ * 2px right border, and each row is `position: relative` — so the dot's
+ * containing block starts at the card's content box, not its outer edge.
+ */
+const INPUT_HANDLE_LEFT = -24; // 14px padding + 6px border + 4px clearance
+const OUTPUT_HANDLE_RIGHT = -20; // 14px padding + 2px border + 4px clearance
+
+/**
+ * Enlarged dot size for a compatible drop target during a port drag
+ * (§6.2), up from the base 12×12px stamped by `workflow-editor-canvas.css`.
+ */
+const DROP_COMPATIBLE_HANDLE_SIZE = 16;
+
+/**
+ * Amber "needs a source" ring (required input with no wire/binding). Array
+ * kinds already wear a 2px outline at 2px offset (4px past the dot edge),
+ * so their ring widens to 7px to clear the outline — otherwise the two
+ * cues stack into one muddled halo.
+ */
+export const NEEDS_SOURCE_RING =
+  "0 0 0 3px var(--mantine-color-yellow-5, #fab005)";
+const NEEDS_SOURCE_RING_ARRAY =
+  "0 0 0 7px var(--mantine-color-yellow-5, #fab005)";
+
+/**
+ * D28(c) — *"Is there meaning behind the difference in the size of the Poll
+ * status connector?"*
+ *
+ * Yes: a dot is drawn at `UNCONNECTED_HANDLE_SIZE` instead of
+ * `BASE_HANDLE_SIZE` exactly when `invitesConnection` holds — the port is
+ * required and nothing is attached to it — and it carries a "+" at that
+ * size. The meaning was real and the only thing carrying it was 4px and a
+ * glyph that reads as a smudge on a zoomed-out canvas, with no words
+ * anywhere. This is the words.
+ *
+ * It rides on the ROW LABEL's tooltip rather than on the dot itself,
+ * deliberately: hovering the dot already opens the hover-extend picker, and
+ * a second portalled layer on the same hover lands on top of it (the reason
+ * the handle sits outside the tooltip target at all — see the render
+ * below).
+ */
+const INVITATION_HINT_INPUT =
+  "Nothing is connected here yet — the larger dot with a + is where to drop a wire.";
+const INVITATION_HINT_OUTPUT =
+  "Nothing reads this yet — the larger dot with a + is where to drag one from.";
+
+function rowTooltip(row: PortRowModel): string {
+  const kindText = `${row.name}: ${row.kind ?? "Artifact"}`;
+  const base = row.description ? `${kindText} — ${row.description}` : kindText;
+  if (!invitesConnection(row)) return base;
+  const hint =
+    row.direction === "input" ? INVITATION_HINT_INPUT : INVITATION_HINT_OUTPUT;
+  // Catalog descriptions are written as sentences and mostly already end in
+  // a full stop; a blind `${base}. ${hint}` gave "…and pageCount.. Nothing
+  // reads this yet…" on the very first port this was read on.
+  return base.endsWith(".") ? `${base} ${hint}` : `${base}. ${hint}`;
+}
+
+/**
+ * Whether this port's dot should carry the "+" invitation (Inderdeep UX
+ * walkthrough 2026-08-06, item 3).
+ *
+ * Two conditions, both from the port model:
+ *   - **unconnected** — `connected` is false: nothing arrives at this input,
+ *     or nothing leaves this output. A port that already has something
+ *     attached needs no invitation.
+ *   - **non-optional** — `required` is true, i.e. the catalog descriptor
+ *     declares `required: true`. Optional ports (`document.classify`'s
+ *     `confidence`, a `validation` output nobody has to consume) keep the
+ *     plain circle: inviting a user to fill in something the workflow does
+ *     not need is the opposite of guidance.
+ *
+ * For an input this is exactly `needsSource`, and deliberately so — the two
+ * cues stack on the same dot (amber "this is missing" ring + "+" "here is
+ * how to fix it"). For an output `needsSource` is always false, so this is
+ * the only thing that can drive the glyph there.
+ */
+function invitesConnection(row: PortRowModel): boolean {
+  return row.required && !row.connected;
+}
+
+function PortRow({
+  nodeId,
+  row,
+  gridRow,
+  onOutputHandleEnter,
+  onOutputHandleLeave,
+  onInputHandleEnter,
+  onInputHandleLeave,
+}: {
+  nodeId: string;
+  row: PortRowModel;
+  gridRow: number;
+  onOutputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onOutputHandleLeave?: () => void;
+  onInputHandleEnter?: (
+    nodeId: string,
+    portName: string,
+    anchor: { x: number; y: number },
+  ) => void;
+  onInputHandleLeave?: () => void;
+}) {
+  const isInput = row.direction === "input";
+  const color = colorForKind(row.kind);
+  // The family's silhouette — the same signal the colour carries, drawn a
+  // second way so colour is never load-bearing on its own (item 20).
+  const shape = shapeForColor(color);
+  const isArray = row.kind?.endsWith("[]") === true;
+  const invites = invitesConnection(row);
+
+  const drag = useContext(PortDragContext);
+  // Input rows classify against the in-flight drag; wildcard (base
+  // Artifact) ports accept any drop (§6.2). Output rows are untouched —
+  // only input handles are ever drop targets.
+  const dropCompatible =
+    drag !== null && isInput
+      ? row.kind === undefined ||
+        row.kind === "Artifact" ||
+        isAssignable(drag.sourceKind, row.kind)
+      : null;
+
+  /*
+   * The dot grows in two states, and `portShapeStyle` derives the shape's
+   * width/height from whichever size wins here.
+   *
+   * An inviting dot grows so the "+" it carries reads as a plus rather than as
+   * a smudge inside a ring — see `handle-style.ts` for why the glyph is drawn
+   * at this size and not inside the base 12px dot. A compatible drop target
+   * grows for the same reason it always did (§6.2).
+   *
+   * Both grow via explicit width/height, never `transform: scale()`: xyflow's
+   * base `.react-flow__handle-left`/`-right` CSS classes already apply a
+   * `translate(±50%, -50%)` positioning transform, and that percentage is
+   * resolved against the handle's OWN box size at layout time — so enlarging
+   * width/height keeps the dot centred on the same anchor point for free,
+   * whereas an inline `transform` would outright replace (not compose with)
+   * the class's translate and knock the dot off-position. `portShapeStyle`
+   * composes the translate back in for the one shape that needs a transform.
+   */
+  const size =
+    dropCompatible === true
+      ? DROP_COMPATIBLE_HANDLE_SIZE
+      : invites
+        ? UNCONNECTED_HANDLE_SIZE
+        : BASE_HANDLE_SIZE;
+  const plusBars = plusGlyphBarStyles(shape, size);
+
+  const handleStyle: CSSProperties = {
+    background: handleBackground(color),
+    top: "50%",
+    ...(isInput ? { left: INPUT_HANDLE_LEFT } : { right: OUTPUT_HANDLE_RIGHT }),
+    // Sizing + silhouette. Spread AFTER `background` because the `hollow`
+    // family empties the dot and spends its border on the family colour.
+    ...portShapeStyle(shape, {
+      color,
+      size,
+      side: isInput ? "left" : "right",
+    }),
+    // Doubled outline signals `T[]` cardinality — mirrors the node-level
+    // handle cue. `outline` (not `border`) so hit-testing is unaffected, and
+    // it follows the shape's `border-radius` for free.
+    ...(isArray
+      ? {
+          outline: `2px solid ${handleArrayOutline(color)}`,
+          outlineOffset: "2px",
+        }
+      : {}),
+    ...(row.needsSource
+      ? { boxShadow: isArray ? NEEDS_SOURCE_RING_ARRAY : NEEDS_SOURCE_RING }
+      : {}),
+  };
+
+  return (
+    <div
+      data-testid={`port-row-${nodeId}-${row.handleId}`}
+      data-port-kind={row.kind ?? "Artifact"}
+      data-port-color={color}
+      data-port-shape={shape}
+      data-needs-source={row.needsSource ? "true" : "false"}
+      data-invites-connection={invites ? "true" : "false"}
+      data-from-ctx={row.fromCtx}
+      {...(dropCompatible === null
+        ? {}
+        : { "data-drop-compatible": String(dropCompatible) })}
+      style={{
+        position: "relative",
+        gridColumn: isInput ? 1 : 2,
+        gridRow,
+        height: PORT_ROW_HEIGHT,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: isInput ? "flex-start" : "flex-end",
+        gap: 4,
+        minWidth: 0,
+        fontSize: 11,
+        color: "var(--mantine-color-dimmed, #9ca3af)",
+        ...(dropCompatible === false ? { opacity: 0.35 } : {}),
+      }}
+    >
+      {/*
+       * The handle sits OUTSIDE the tooltip target on purpose. Hovering an
+       * output handle already opens the kind-aware hover-extend popover (§9);
+       * if the handle were inside the tooltip, that same hover would ALSO open
+       * the port tooltip and the two would render on top of each other (the
+       * exact overlap varies with canvas zoom, since both are portalled at
+       * fixed screen px while their anchors scale). Scoping the tooltip to the
+       * label below means the handle's hover shows only the picker, and the
+       * port description shows only when hovering the label — they never
+       * coexist, at any zoom.
+       */}
+      <Handle
+        id={row.handleId}
+        type={isInput ? "target" : "source"}
+        position={isInput ? Position.Left : Position.Right}
+        isConnectable
+        style={handleStyle}
+        {...(isInput
+          ? {
+              // UX walkthrough 2026-07-29 — the upstream mirror of
+              // the output hover below: left-centre anchor, producer-
+              // filtered popover.
+              onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
+                if (!onInputHandleEnter) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                onInputHandleEnter(nodeId, row.name, {
+                  x: rect.left,
+                  y: rect.top + rect.height / 2,
+                });
+              },
+              onMouseLeave: () => onInputHandleLeave?.(),
+            }
+          : {
+              onMouseEnter: (event: ReactMouseEvent<HTMLDivElement>) => {
+                if (!onOutputHandleEnter) return;
+                // Right-centre of the handle dot — same anchor geometry as
+                // the node-level `out` handle (§9 / makeSourceHandleHoverHandlers).
+                const rect = event.currentTarget.getBoundingClientRect();
+                onOutputHandleEnter(nodeId, row.name, {
+                  x: rect.right,
+                  y: rect.top + rect.height / 2,
+                });
+              },
+              onMouseLeave: () => onOutputHandleLeave?.(),
+            })}
+      >
+        {/*
+         * The "+" invitation. Two knockout bars drawn as real children of
+         * the handle dot (xyflow forwards `children` straight into the dot
+         * element), so the glyph scales with the dot at every canvas zoom
+         * instead of depending on a background image the browser may
+         * resample. Decorative only — the port's meaning is already in the
+         * row label and the tooltip.
+         */}
+        {invites && (
+          <>
+            <span
+              aria-hidden
+              data-port-plus="horizontal"
+              style={plusBars.horizontal}
+            />
+            <span
+              aria-hidden
+              data-port-plus="vertical"
+              style={plusBars.vertical}
+            />
+          </>
+        )}
+      </Handle>
+      <Tooltip
+        label={rowTooltip(row)}
+        withArrow
+        position={isInput ? "left" : "right"}
+      >
+        <span
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {row.label}
+          </span>
+          {row.fromCtx !== undefined && (
+            <span
+              style={{
+                fontStyle: "italic",
+                whiteSpace: "nowrap",
+                // Shrinkable + ellipsized so a long ctx key can't overflow
+                // the row into the opposite column.
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              · from {row.fromCtx}
+            </span>
+          )}
+        </span>
+      </Tooltip>
+    </div>
+  );
+}
+
+export const PortRows = memo(function PortRows({
+  nodeId,
+  inputs,
+  outputs,
+  onOutputHandleEnter,
+  onOutputHandleLeave,
+  onInputHandleEnter,
+  onInputHandleLeave,
+}: PortRowsProps) {
+  if (inputs.length === 0 && outputs.length === 0) return null;
+  return (
+    <div
+      data-testid={`port-rows-${nodeId}`}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        columnGap: 12,
+        marginTop: PORT_ROWS_TOP_MARGIN,
+      }}
+    >
+      {inputs.map((row, index) => (
+        <PortRow
+          key={row.handleId}
+          nodeId={nodeId}
+          row={row}
+          gridRow={index + 1}
+          onInputHandleEnter={onInputHandleEnter}
+          onInputHandleLeave={onInputHandleLeave}
+        />
+      ))}
+      {outputs.map((row, index) => (
+        <PortRow
+          key={row.handleId}
+          nodeId={nodeId}
+          row={row}
+          gridRow={index + 1}
+          onOutputHandleEnter={onOutputHandleEnter}
+          onOutputHandleLeave={onOutputHandleLeave}
+        />
+      ))}
+    </div>
+  );
+});
