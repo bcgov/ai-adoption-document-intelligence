@@ -52,6 +52,20 @@ export interface ExecutionState {
   workflowLineageId?: string | null;
   cacheDeps?: CachedActivityDeps;
   /**
+   * What started this run (`"try"` = editor preview, `"api"` = production).
+   * `graph-workflow.ts` only wires `cacheDeps` for `"try"` runs; the
+   * executors forward the trigger into every child workflow so that gate
+   * holds across map fan-out and library children (Change A/A+).
+   */
+  trigger?: "try" | "api";
+  /**
+   * Child-workflow nesting depth of THIS execution (0 = started from the
+   * API). Both `executeChild` sites pass `childDepth + 1` and refuse to
+   * spawn beyond `MAX_CHILD_WORKFLOW_DEPTH` — the runtime backstop for
+   * cross-workflow reference cycles (Change M).
+   */
+  childDepth?: number;
+  /**
    * Phase 6 Milestone C (US-170) — workflow-run identifier injected into
    * `dyn.run` as `AI_DI_WORKFLOW_RUN_ID`. Typically `workflowInfo().workflowId`.
    *

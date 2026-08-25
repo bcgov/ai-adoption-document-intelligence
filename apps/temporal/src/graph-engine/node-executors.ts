@@ -598,6 +598,41 @@ export function executeSwitchNode(
  */
 const MAP_CHILD_WORKFLOW_THRESHOLD = 20;
 
+/**
+ * Change M — how many child-workflow spawns deep a run may go. The shared
+ * validator only rejects INLINE self-embedding, so a library workflow that
+ * reaches itself through another (A→B→A) validates green; each spawned
+ * child is a fresh workflow with a fresh history, so no Temporal limit ever
+ * trips and the chain would run until someone terminated it. Five levels is
+ * far beyond any legitimate composition seen in the builder while still
+ * cutting a cycle off within seconds.
+ */
+export const MAX_CHILD_WORKFLOW_DEPTH = 5;
+
+/**
+ * The depth a child spawned by `nodeId` would run at, or a non-retryable
+ * failure when that exceeds `MAX_CHILD_WORKFLOW_DEPTH`. Called by BOTH
+ * `executeChild` sites (map fan-out and library children): map children are
+ * siblings rather than nesting, but each spawn still runs one level deeper
+ * than its parent, so passing depth through is what lets a child's own
+ * children count against the limit.
+ */
+function nextChildWorkflowDepth(state: ExecutionState, nodeId: string): number {
+  const next = (state.childDepth ?? 0) + 1;
+  if (next > MAX_CHILD_WORKFLOW_DEPTH) {
+    throw ApplicationFailure.create({
+      type: "CHILD_WORKFLOW_DEPTH_EXCEEDED",
+      message:
+        `Node ${nodeId} would start a child workflow ${next} levels deep, ` +
+        `over the limit of ${MAX_CHILD_WORKFLOW_DEPTH}. This usually means ` +
+        `a library workflow chain references itself (directly or through ` +
+        `another workflow).`,
+      nonRetryable: true,
+    });
+  }
+  return next;
+}
+
 async function executeMapNode(
   node: MapNode,
   config: GraphWorkflowConfig,
@@ -645,6 +680,14 @@ async function executeMapNode(
               // ≤20 items (executeBranchSubgraph, which inherits the parent's
               // lineage + cacheDeps) cached, >20 (child workflows) did not.
               workflowLineageId: state.workflowLineageId ?? null,
+              // Change A+ — the child's cache gate reads `trigger`, so a Try
+              // run's caching must survive the >20-item fan-out (the §3.7
+              // size-flip bug reborn if omitted). The cache stays
+              // editor-Try-only per the Phase 4.x production-scope deferral.
+              trigger: state.trigger,
+              // Change M — map children are siblings, not nesting, but a
+              // child's own children DO nest, so depth still passes through.
+              childDepth: nextChildWorkflowDepth(state, node.id),
               ...(state.workflowConfigOverrides &&
               Object.keys(state.workflowConfigOverrides).length > 0
                 ? { workflowConfigOverrides: state.workflowConfigOverrides }
@@ -1021,9 +1064,18 @@ async function executeChildWorkflowNode(
         // lineage. Identical activity configs across parent+child share
         // cache rows.
         workflowLineageId: state.workflowLineageId ?? null,
+        // Change A+ — the child's cache gate reads `trigger`; without it a
+        // Try run's caching would silently die inside library children. The
+        // cache stays editor-Try-only per the Phase 4.x production-scope
+        // deferral.
+        trigger: state.trigger,
+        // Change M — refuse to spawn beyond MAX_CHILD_WORKFLOW_DEPTH: the
+        // runtime backstop for cross-workflow reference cycles.
+        childDepth: nextChildWorkflowDepth(state, node.id),
         // Item 4 (security): the caller's API key is no longer part of the
         // child workflow input. Dynamic nodes nested in library child
-        // workflows source the platform API key server-side in `dyn.run`.
+        // workflows authenticate via a short-lived internal token minted
+        // per invocation in `dyn.run` (Change W).
       },
     ],
   })) as GraphWorkflowResult;
@@ -1078,6 +1130,10 @@ export async function executeBranchSubgraph(
     // also benefit from the cache layer.
     workflowLineageId: parentState.workflowLineageId,
     cacheDeps: parentState.cacheDeps,
+    // Change A+/M — keep the run trigger and nesting depth visible to any
+    // childWorkflow / map node inside the branch subgraph.
+    trigger: parentState.trigger,
+    childDepth: parentState.childDepth,
     // Phase 6 Milestone C (US-170) — propagate the dyn.run ambient context
     // so dynamic-node branches inside map subgraphs see the same workflow
     // run. (Item 4: the caller API key is no longer threaded here; `dyn.run`
