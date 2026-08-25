@@ -125,6 +125,12 @@ jobs:
           - service: ches-adapter
             context: "."
             dockerfile: apps/ches-adapter/Dockerfile
+          # Phase 6 dynamic-nodes Deno sandbox. Its Dockerfile COPYs src/ and
+          # deno.json relative to the build context, so the context is the app
+          # dir (not the repo root like the others).
+          - service: deno-runner
+            context: apps/deno-runner
+            dockerfile: apps/deno-runner/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -311,6 +317,7 @@ jobs:
             --backend-image "${IMAGE_BASE}/backend-services" \
             --frontend-image "${IMAGE_BASE}/frontend" \
             --worker-image "${IMAGE_BASE}/temporal" \
+            --deno-runner-image "${IMAGE_BASE}/deno-runner" \
             --image-tag "${IMAGE_TAG}" \
             --sso-auth-server-url "${SSO_AUTH_SERVER_URL}" \
             --sso-realm "${SSO_REALM}" \
@@ -387,12 +394,17 @@ jobs:
 
           echo "::group::Backend secrets"
           BACKEND_SECRET="${INSTANCE_NAME}-backend-services-secrets"
+          # AZURE_OPENAI_API_KEY goes into BOTH secrets, from this one source.
+          # backend-services hosts the workflow chat agent, AI format
+          # suggestion and benchmark recommendations; the worker hosts LLM
+          # enrichment. Same subscription key, two per-deployment secrets.
           oc create secret generic "$BACKEND_SECRET" \
             --from-literal="SSO_CLIENT_SECRET=${SSO_CLIENT_SECRET}" \
             --from-literal="AZURE_DOCUMENT_INTELLIGENCE_API_KEY=${AZURE_DOCUMENT_INTELLIGENCE_API_KEY}" \
             --from-literal="AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}" \
             --from-literal="AZURE_STORAGE_ACCOUNT_KEY=${AZURE_STORAGE_ACCOUNT_KEY}" \
+            --from-literal="AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}" \
             --dry-run=client -o yaml | oc apply -f - -n "$OC_NAMESPACE"
 
           oc label secret "$BACKEND_SECRET" \

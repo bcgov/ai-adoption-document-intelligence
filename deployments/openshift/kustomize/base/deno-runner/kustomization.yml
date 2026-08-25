@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yml
+  - service.yml
+  - networkpolicy.yml
+# labels (not commonLabels): the commonLabels transformer also rewrites
+# NetworkPolicy peer selectors (spec/ingress/from and spec/egress/to
+# podSelectors), which would overwrite the backend-services / temporal peers
+# in networkpolicy.yml with app: deno-runner and isolate the runner.
+# includeSelectors: false applies the label to resource metadata only; the
+# Deployment/Service selectors already carry app: deno-runner literally.
+labels:
+  - pairs:
+      app: deno-runner
+    includeSelectors: false
