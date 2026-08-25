@@ -1,0 +1,79 @@
+/*
+ * Workflow-builder canvas overrides on top of @xyflow/react/dist/style.css.
+ *
+ * Scoped under .wb-editor-canvas (set on the editor's <ReactFlow>) so the
+ * read-only GraphVisualization component keeps the xyflow defaults.
+ */
+
+/*
+ * Connection handles: xyflow's default 6×6px dot is hard to see and a tiny
+ * drag target. Enlarge to 12×12px with a body-coloured ring so the kind
+ * colour stays readable against both the node card and the canvas.
+ * The doubled array-cardinality outline (inline style) sits outside this
+ * border via outline-offset, so the two cues don't collide.
+ */
+.wb-editor-canvas .react-flow__handle {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--mantine-color-body, #fff);
+}
+
+/*
+ * Data wires are projected with `selectable: true, deletable: true` (since
+ * the §6.3 task — no longer the original render-only phase this comment
+ * used to describe). This rule predates that change: it was written to
+ * counter xyflow marking an UNselectable, click-handler-less edge as
+ * `.inactive` (base stylesheet applies `pointer-events: none` to
+ * `.inactive` edges), which would have swallowed hover and killed the
+ * provenance <title> tooltip.
+ *
+ * Verified in-browser (2026-07, Task 7 §6.2 check): now that
+ * `selectable: true`, xyflow never applies `.inactive` to a data wire, so
+ * the base stylesheet's default `.react-flow__edge { pointer-events:
+ * visibleStroke }` already lets the (transparent, wide) interaction stroke
+ * catch hover — the tooltip works even with this rule removed. Left in
+ * place anyway as a defence-in-depth pin (not removed in this task) rather
+ * than relying on that default staying true across future xyflow/rendering
+ * changes.
+ */
+.wb-editor-canvas .react-flow__edge.wb-data-wire {
+  pointer-events: all;
+}
+
+/*
+ * Item 6X — hover-highlight emphasis. Applied to the xyflow node wrapper
+ * when the user hovers the corresponding input row's real producer in the
+ * settings panel. A subtle blue ring sits OUTSIDE the card via outline +
+ * offset (like the handle array-outline cue) so it never disturbs the
+ * node's own border/layout and reads consistently across every node type.
+ */
+.wb-editor-canvas .react-flow__node.wb-node-highlight {
+  outline: 2px solid var(--mantine-color-blue-5, #4dabf7);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+/*
+ * G-1 (2026-08-03) — group membership is shown by the container box drawn
+ * around the members (`GroupContainerNode.tsx`), not by decorating each member
+ * card. The per-node dashed ring and its `--wb-group-label` hover chip that
+ * used to live here are gone with it: one concept, one rendering.
+ *
+ * What remains is the cursor on the box's header strip while it is being
+ * dragged — `grab` is set inline by the renderer; only the active state needs
+ * a rule, because there is no inline hook for it.
+ */
+.wb-editor-canvas .react-flow__node .wb-group-header:active {
+  cursor: grabbing;
+}
+
+/*
+ * The switch node draws its OWN diamond-shaped selection halo on its rotated
+ * visual layer (see SwitchNodeRenderer). Suppress any default rectangular
+ * selection outline/shadow on its wrapper so a rectangle is never painted
+ * around the diamond when it is selected.
+ */
+.wb-editor-canvas .react-flow__node.selected:has([data-node-type="switch"]) {
+  box-shadow: none;
+  outline: none;
+}
