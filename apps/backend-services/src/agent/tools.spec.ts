@@ -1,0 +1,889 @@
+import {
+  normaliseLocks,
+  resolveBindings,
+  SOURCE_CATALOG,
+  stripRedundantLocks,
+} from "@ai-di/graph-workflow";
+import type { ToolSet } from "ai";
+import type { DynamicNodesService } from "@/dynamic-nodes/dynamic-nodes.service";
+import type {
+  GraphNode,
+  GraphWorkflowConfig,
+} from "@/workflow/graph-workflow-types";
+import type { WorkflowService } from "@/workflow/workflow.service";
+import { RunBudgetMap } from "./run-budget-map";
+import {
+  type AgentToolContext,
+  createAgentTools,
+  resolveConfigForPersist,
+  wrapToolData,
+} from "./tools";
+
+// ── Test helpers ────────────────────────────────────────────────────
+
+/** Minimal AI SDK tool-call execution wrapper. */
+function exec<T>(
+  tools: ToolSet,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  const t = tools[name];
+  if (t === undefined) throw new Error(`tool ${name} not registered`);
+  const fn = t.execute as (a: unknown, o: unknown) => Promise<T>;
+  return fn(args, {
+    toolCallId: "tc1",
+    messages: [],
+  });
+}
+
+function emptyConfig(
+  overrides: Partial<GraphWorkflowConfig> = {},
+): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: { name: "wf" },
+    nodes: {},
+    edges: [],
+    entryNodeId: "",
+    ctx: {},
+    ...overrides,
+  };
+}
+
+interface FakeWorkflowState {
+  config: GraphWorkflowConfig;
+}
+
+function makeCtx(overrides: Partial<AgentToolContext> = {}): {
+  ctx: AgentToolContext;
+  state: FakeWorkflowState;
+  updateWorkflow: jest.Mock;
+  createWorkflow: jest.Mock;
+  internalFetchMock: jest.Mock;
+} {
+  const state: FakeWorkflowState = { config: emptyConfig() };
+
+  const getWorkflow = jest.fn(async () => ({
+    id: "wf-1",
+    name: "WF",
+    description: null,
+    slug: "wf",
+    version: 3,
+    // Tenancy: the agent tools assert the fetched workflow belongs to
+    // ctx.groupId. Default the mock to the same group so the happy-path
+    // tests pass; the cross-group test overrides getWorkflow to return a
+    // foreign group.
+    groupId: "group-1",
+    config: state.config,
+  }));
+  const updateWorkflow = jest.fn(
+    async (
+      _id: string,
+      _actor: string,
+      patch: { config: GraphWorkflowConfig },
+    ) => {
+      state.config = patch.config;
+      return { id: "wf-1", name: "WF" };
+    },
+  );
+
+  // Captures the config the createWorkflow tool builds so tests can assert
+  // it is valid (e.g. the seed node carries a non-empty label).
+  const createWorkflow = jest.fn(
+    async (
+      _actor: string,
+      dto: { name: string; config: GraphWorkflowConfig },
+    ) => {
+      state.config = dto.config;
+      return { id: "wf-1", name: dto.name, slug: "wf-1-slug" };
+    },
+  );
+
+  const workflowService = {
+    getWorkflow,
+    updateWorkflow,
+    createWorkflow,
+  } as unknown as WorkflowService;
+
+  const dynamicNodesService = {
+    getMergedCatalogForGroup: jest.fn(async () => []),
+  } as unknown as DynamicNodesService;
+
+  // internalFetch hits global fetch; stub it so HTTP self-call tools work.
+  const internalFetchMock = jest.fn();
+  global.fetch = internalFetchMock as unknown as typeof fetch;
+
+  const ctx: AgentToolContext = {
+    actorId: "actor-1",
+    groupId: "group-1",
+    workflowId: "wf-1",
+    internalToken: "tok-1",
+    backendBaseUrl: "http://backend",
+    workflowService,
+    dynamicNodesService,
+    ...overrides,
+  };
+
+  return { ctx, state, updateWorkflow, createWorkflow, internalFetchMock };
+}
+
+function fetchResponse(status: number, body: unknown): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+  } as unknown as Response;
+}
+
+// ── ITEM 22 — listSourceCatalog ─────────────────────────────────────
+
+describe("listSourceCatalog (ITEM 22)", () => {
+  it("is registered as a tool", () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    expect(tools.listSourceCatalog).toBeDefined();
+  });
+
+  it("returns every source-catalog entry", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const result = await exec<{
+      ok: boolean;
+      count: number;
+      sources: Array<{ sourceType: string }>;
+    }>(tools, "listSourceCatalog", {});
+    expect(result.ok).toBe(true);
+    expect(result.count).toBe(SOURCE_CATALOG.length);
+    const types = result.sources.map((s) => s.sourceType).sort();
+    expect(types).toEqual(SOURCE_CATALOG.map((e) => e.type).sort());
+    // source.upload is the seeded entry-point source — must be present.
+    expect(types).toContain("source.upload");
+  });
+});
+
+// ── Node label: the graph validator requires every node to carry a
+//    non-empty `label`. The agent tools must set it, or createWorkflow /
+//    addNode produce configs the validator rejects ("must have a
+//    non-empty label"), breaking all agent-driven workflow building.
+
+describe("agent tools set a non-empty node label", () => {
+  it("createWorkflow seeds the upload node with a non-empty label", async () => {
+    const { ctx, createWorkflow } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; workflow: { entryNodeId: string } }>(
+      tools,
+      "createWorkflow",
+      { name: "Demo WF" },
+    );
+    expect(res.ok).toBe(true);
+    const dto = createWorkflow.mock.calls[0][1] as {
+      config: GraphWorkflowConfig;
+    };
+    const seed = dto.config.nodes[res.workflow.entryNodeId] as {
+      label?: string;
+    };
+    expect(typeof seed.label).toBe("string");
+    expect(seed.label?.trim().length ?? 0).toBeGreaterThan(0);
+  });
+
+  it("addNode sets label from the provided name", async () => {
+    const { ctx, state } = makeCtx();
+    const tools = createAgentTools(ctx);
+    await exec(tools, "addNode", {
+      node: { id: "prep", type: "file.prepare", name: "Prepare File" },
+    });
+    const node = state.config.nodes.prep as { label?: string };
+    expect(node.label).toBe("Prepare File");
+  });
+
+  it("addNode falls back to the node id when no name is given", async () => {
+    const { ctx, state } = makeCtx();
+    const tools = createAgentTools(ctx);
+    await exec(tools, "addNode", {
+      node: { id: "ocr1", type: "azureOcr.submit" },
+    });
+    const node = state.config.nodes.ocr1 as { label?: string };
+    expect(node.label).toBe("ocr1");
+  });
+});
+
+// ── ITEM 1 — agent writes go through the auto-wire resolver ──────────
+
+describe("auto-wire resolution on the agent write path (ITEM 1)", () => {
+  it("resolveConfigForPersist matches the canonical editor sequence", () => {
+    const config = emptyConfig({
+      nodes: {
+        up: {
+          id: "up",
+          type: "source",
+          sourceType: "source.upload",
+          name: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          name: "Prepare",
+          parameters: {},
+          position: { x: 200, y: 0 },
+        } as unknown as GraphNode,
+      },
+      edges: [{ id: "up-prep", source: "up", target: "prep", type: "normal" }],
+      entryNodeId: "up",
+    });
+
+    const canonical = stripRedundantLocks(
+      resolveBindings(normaliseLocks(config)),
+    );
+    expect(resolveConfigForPersist(config)).toEqual(canonical);
+  });
+
+  it("persists an editor-equivalent (resolver-applied) config, not raw config", async () => {
+    const { ctx, state, updateWorkflow } = makeCtx();
+    // A config the agent would build, with a canonical hand-authored
+    // (non-__auto) input binding — the editor marks this user-locked.
+    const rawConfig = emptyConfig({
+      nodes: {
+        up: {
+          id: "up",
+          type: "source",
+          sourceType: "source.upload",
+          name: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          name: "Prepare",
+          parameters: {},
+          position: { x: 200, y: 0 },
+          inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+        } as unknown as GraphNode,
+      },
+      edges: [{ id: "up-prep", source: "up", target: "prep", type: "normal" }],
+      entryNodeId: "up",
+    });
+    state.config = rawConfig;
+
+    const tools = createAgentTools(ctx);
+    // Any write tool routes through the resolver-backed persist path.
+    await exec(tools, "addNode", {
+      node: {
+        id: "extra",
+        type: "file.prepare",
+        name: "Extra",
+      },
+    });
+
+    expect(updateWorkflow).toHaveBeenCalledTimes(1);
+    const persisted = state.config;
+
+    // (a) The persisted config equals what the editor's save pipeline
+    //     (resolveBindings → normaliseLocks → stripRedundantLocks) would
+    //     produce — i.e. the server-side resolution pass ran. It is a
+    //     resolver fixed-point.
+    expect(persisted).toEqual(resolveConfigForPersist(persisted));
+
+    // (b) The implicit lock for the hand-authored non-__auto binding was
+    //     normalised and then stripped at save time (re-derivable on
+    //     load) — exactly the editor's behaviour. The binding itself is
+    //     preserved. Previously the agent persisted RAW config and this
+    //     normalisation never happened server-side (ITEM 1).
+    const prep = persisted.nodes.prep as GraphNode & {
+      metadata?: { lockedInputPorts?: string[] };
+      inputs?: Array<{ port: string; ctxKey: string }>;
+    };
+    expect(prep.inputs).toEqual([{ port: "blobKey", ctxKey: "documentUrl" }]);
+    expect(prep.metadata?.lockedInputPorts).toBeUndefined();
+  });
+});
+
+// ── ITEM 27 / 26 — tool-result wrapping + truncation ────────────────
+
+describe("wrapToolData (ITEM 27 delimiting + ITEM 26 truncation)", () => {
+  it("wraps payloads in the DATA fence", () => {
+    const out = wrapToolData({ hello: "world" }, 1000);
+    expect(out).toContain("TOOL_RESULT_DATA");
+    expect(out).toContain('{"hello":"world"}');
+    expect(out.startsWith("<<<TOOL_RESULT_DATA")).toBe(true);
+  });
+
+  it("truncates oversized payloads with an explicit marker", () => {
+    const big = "x".repeat(500);
+    const out = wrapToolData(big, 50);
+    expect(out).toContain("[truncated");
+    expect(out).toContain("of");
+    // Truncated body is bounded near the cap (plus fence + marker).
+    expect(out.length).toBeLessThan(200);
+  });
+
+  it("getPreviewCache wraps the preview body returned to the model", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(
+      fetchResponse(200, { node1: { text: "secret OCR text" } }),
+    );
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; preview: string }>(
+      tools,
+      "getPreviewCache",
+      {},
+    );
+    expect(result.ok).toBe(true);
+    expect(typeof result.preview).toBe("string");
+    expect(result.preview).toContain("TOOL_RESULT_DATA");
+    expect(result.preview).toContain("secret OCR text");
+  });
+
+  it("getPreviewCache calls the batch (all-nodes) endpoint and forwards runId", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(
+      fetchResponse(200, { previews: {} }),
+    );
+    const tools = createAgentTools(ctx);
+    await exec(tools, "getPreviewCache", { runId: "run-9" });
+    const calledUrl = internalFetchMock.mock.calls[0][0] as string;
+    // Must hit the batch endpoint (nodeId-free, returns every node) not the
+    // per-node endpoint that 400s without a nodeId.
+    expect(calledUrl).toContain("/preview-cache-batch");
+    expect(calledUrl).toContain("runId=run-9");
+  });
+
+  it("getPreviewCache truncates a huge preview body", async () => {
+    const { ctx, internalFetchMock } = makeCtx({ maxToolResultChars: 100 });
+    internalFetchMock.mockResolvedValueOnce(
+      fetchResponse(200, { node1: { text: "y".repeat(5000) } }),
+    );
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; preview: string }>(
+      tools,
+      "getPreviewCache",
+      {},
+    );
+    expect(result.preview).toContain("[truncated");
+  });
+
+  it("getWorkflow wraps the workflow config body", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; workflow: string }>(
+      tools,
+      "getWorkflow",
+      {},
+    );
+    expect(typeof result.workflow).toBe("string");
+    expect(result.workflow).toContain("TOOL_RESULT_DATA");
+  });
+});
+
+// ── Tenancy: agent tools must not read/write cross-group workflows ───
+describe("agent tools enforce group ownership (SECURITY §2.1)", () => {
+  function makeForeignCtx() {
+    // getWorkflow resolves a workflow in a DIFFERENT group than ctx.groupId —
+    // simulating a model-supplied workflowId (reachable via prompt injection)
+    // that points at another tenant's row.
+    const foreignConfig = emptyConfig();
+    const getWorkflow = jest.fn(async () => ({
+      id: "victim-wf",
+      name: "Victim",
+      description: null,
+      slug: "victim",
+      version: 1,
+      groupId: "group-OTHER",
+      config: foreignConfig,
+    }));
+    const updateWorkflow = jest.fn(async () => ({
+      id: "victim-wf",
+      name: "Victim",
+    }));
+    const ctx = {
+      actorId: "actor-1",
+      groupId: "group-1",
+      workflowId: null,
+      internalToken: "tok-1",
+      backendBaseUrl: "http://backend",
+      workflowService: { getWorkflow, updateWorkflow } as unknown,
+      dynamicNodesService: {
+        getMergedCatalogForGroup: jest.fn(async () => []),
+      } as unknown,
+    } as unknown as AgentToolContext;
+    return { ctx, getWorkflow, updateWorkflow };
+  }
+
+  it("getWorkflow throws NotFound for a cross-group workflow id", async () => {
+    const { ctx, getWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "getWorkflow", { workflowId: "victim-wf" }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(getWorkflow).toHaveBeenCalledWith("victim-wf", "actor-1");
+  });
+
+  it("a write tool refuses a cross-group workflow and never calls updateWorkflow", async () => {
+    const { ctx, updateWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "updateWorkflowMetadata", {
+        workflowId: "victim-wf",
+        name: "hijacked",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(updateWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("addNode (read+write path) refuses a cross-group workflow", async () => {
+    const { ctx, updateWorkflow } = makeForeignCtx();
+    const tools = createAgentTools(ctx);
+    await expect(
+      exec(tools, "addNode", {
+        workflowId: "victim-wf",
+        node: { id: "n1", type: "file.prepare" },
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(updateWorkflow).not.toHaveBeenCalled();
+  });
+});
+
+// ── ITEM 25 — tools.ts write / validation / retry logic ─────────────
+
+describe("connectNodes validation (ITEM 25)", () => {
+  it("returns not-found when the source node is missing", async () => {
+    const { ctx, state } = makeCtx();
+    state.config = emptyConfig({
+      nodes: {
+        b: {
+          id: "b",
+          type: "activity",
+          activityType: "file.prepare",
+          name: "B",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+    });
+    const tools = createAgentTools(ctx);
+    const result = await exec<{
+      ok: boolean;
+      error?: { code: string };
+    }>(tools, "connectNodes", { sourceNodeId: "a", targetNodeId: "b" });
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("not-found");
+  });
+
+  it("returns not-found when the target node is missing", async () => {
+    const { ctx, state } = makeCtx();
+    state.config = emptyConfig({
+      nodes: {
+        a: {
+          id: "a",
+          type: "source",
+          sourceType: "source.upload",
+          name: "A",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+    });
+    const tools = createAgentTools(ctx);
+    const result = await exec<{
+      ok: boolean;
+      error?: { code: string };
+    }>(tools, "connectNodes", { sourceNodeId: "a", targetNodeId: "z" });
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("not-found");
+  });
+
+  // ITEM 1 follow-up: an explicit binding must land in the canonical `inputs`
+  // field (which the auto-wire resolver and the execution engine read), NOT a
+  // dead `inputBindings` field that nothing consumes.
+  it("writes an explicit binding to canonical `inputs`, not `inputBindings`", async () => {
+    const { ctx, state, updateWorkflow } = makeCtx();
+    state.config = emptyConfig({
+      nodes: {
+        up: {
+          id: "up",
+          type: "source",
+          sourceType: "source.upload",
+          name: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+        prep: {
+          id: "prep",
+          type: "activity",
+          activityType: "file.prepare",
+          name: "Prepare",
+          parameters: {},
+          position: { x: 200, y: 0 },
+        } as unknown as GraphNode,
+      },
+      ctx: { documentUrl: { type: "string", kind: "Document", isInput: true } },
+      entryNodeId: "up",
+    });
+    const tools = createAgentTools(ctx);
+
+    const result = await exec<{ ok: boolean }>(tools, "connectNodes", {
+      sourceNodeId: "up",
+      targetNodeId: "prep",
+      binding: { port: "blobKey", ctxKey: "documentUrl" },
+    });
+    expect(result.ok).toBe(true);
+
+    const prep = state.config.nodes.prep as GraphNode & {
+      inputs?: Array<{ port: string; ctxKey: string }>;
+      inputBindings?: unknown;
+    };
+    expect(prep.inputs).toContainEqual({
+      port: "blobKey",
+      ctxKey: "documentUrl",
+    });
+    // The legacy dead field must not be written.
+    expect(prep.inputBindings).toBeUndefined();
+    expect(updateWorkflow).toHaveBeenCalledTimes(1);
+  });
+
+  it("addNode writes node.inputs to the canonical `inputs` field", async () => {
+    const { ctx, state } = makeCtx();
+    state.config = emptyConfig({
+      nodes: {
+        up: {
+          id: "up",
+          type: "source",
+          sourceType: "source.upload",
+          name: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+      ctx: { documentUrl: { type: "string", kind: "Document", isInput: true } },
+      entryNodeId: "up",
+    });
+    const tools = createAgentTools(ctx);
+
+    await exec(tools, "addNode", {
+      node: {
+        id: "prep",
+        type: "file.prepare",
+        name: "Prepare",
+        inputs: [{ port: "blobKey", ctxKey: "documentUrl" }],
+      },
+    });
+
+    const prep = state.config.nodes.prep as GraphNode & {
+      inputs?: Array<{ port: string; ctxKey: string }>;
+      inputBindings?: unknown;
+    };
+    expect(prep.inputs).toContainEqual({
+      port: "blobKey",
+      ctxKey: "documentUrl",
+    });
+    expect(prep.inputBindings).toBeUndefined();
+  });
+});
+
+describe("declareCtx (ITEM 25)", () => {
+  it("writes a typed ctx key through the resolver-backed persist path", async () => {
+    const { ctx, state, updateWorkflow } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean }>(tools, "declareCtx", {
+      key: "documentUrl",
+      kind: "Document",
+      isInput: true,
+    });
+    expect(result.ok).toBe(true);
+    expect(updateWorkflow).toHaveBeenCalledTimes(1);
+    expect(state.config.ctx.documentUrl).toEqual({
+      kind: "Document",
+      isInput: true,
+    });
+  });
+});
+
+describe("publishDynamicNode 409 → PUT republish (ITEM 25)", () => {
+  it("retries as PUT to /:slug when POST returns 409", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    // POST → 409 conflict, then PUT → 200 OK.
+    internalFetchMock
+      .mockResolvedValueOnce(fetchResponse(409, { error: "slug exists" }))
+      .mockResolvedValueOnce(fetchResponse(200, { slug: "my-node" }));
+
+    const script =
+      "/**\n * @name my-node\n * @inputs []\n * @outputs []\n */\nexport default async () => ({});";
+
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; slug?: string }>(
+      tools,
+      "publishDynamicNode",
+      { script },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.slug).toBe("my-node");
+    expect(internalFetchMock).toHaveBeenCalledTimes(2);
+    // Second call must be the PUT to the slug-scoped endpoint.
+    const secondCallUrl = internalFetchMock.mock.calls[1][0] as string;
+    const secondCallInit = internalFetchMock.mock.calls[1][1] as RequestInit;
+    expect(secondCallUrl).toContain("/api/dynamic-nodes/my-node");
+    expect(secondCallInit.method).toBe("PUT");
+  });
+
+  it("surfaces the error when 409 carries no parseable @name", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(
+      fetchResponse(409, { error: "slug exists" }),
+    );
+    const script =
+      "// no jsdoc name header here at all but长 enough to pass min length";
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean }>(tools, "publishDynamicNode", {
+      script,
+    });
+    expect(result.ok).toBe(false);
+    // Only the POST was attempted — no slug to PUT to.
+    expect(internalFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("deleteDynamicNode slug bounding (SECURITY §2.3)", () => {
+  it("rejects a path-traversal slug without issuing any self-call", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "deleteDynamicNode",
+      { slug: "../workflows/victim-wf-id" },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("invalid-slug");
+    expect(internalFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("issues a DELETE to the slug-scoped endpoint for a valid slug", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(fetchResponse(200, { ok: true }));
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean }>(tools, "deleteDynamicNode", {
+      slug: "my-node",
+    });
+    expect(result.ok).toBe(true);
+    const url = internalFetchMock.mock.calls[0][0] as string;
+    const init = internalFetchMock.mock.calls[0][1] as RequestInit;
+    expect(url).toContain("/api/dynamic-nodes/my-node");
+    expect(init.method).toBe("DELETE");
+  });
+});
+
+describe("createWorkflow binds the conversation (ITEM 25)", () => {
+  it("invokes onWorkflowCreated with the new id", async () => {
+    const onWorkflowCreated = jest.fn();
+    const createWorkflow = jest.fn(async () => ({
+      id: "wf-new",
+      name: "New",
+      slug: "new",
+    }));
+    const { ctx } = makeCtx({
+      workflowId: null,
+      onWorkflowCreated,
+      workflowService: {
+        createWorkflow,
+      } as unknown as WorkflowService,
+    });
+    const tools = createAgentTools(ctx);
+    const result = await exec<{ ok: boolean; workflow: { id: string } }>(
+      tools,
+      "createWorkflow",
+      { name: "New" },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.workflow.id).toBe("wf-new");
+    expect(onWorkflowCreated).toHaveBeenCalledWith("wf-new");
+  });
+});
+
+describe("describeNode", () => {
+  it("returns the parameter JSON schema + port docs for a static activity", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      activityType: string;
+      parameters?: Record<string, unknown>;
+      inputs: Array<{ name: string; kind: string; required: boolean }>;
+      outputs: Array<{ name: string }>;
+    }>(tools, "describeNode", { activityType: "azureOcr.submit" });
+    expect(res.ok).toBe(true);
+    expect(res.activityType).toBe("azureOcr.submit");
+    expect(res.inputs.some((i) => i.name === "fileData")).toBe(true);
+    expect(res.parameters).toBeDefined();
+    expect(JSON.stringify(res.parameters)).toContain("locale");
+  });
+
+  it("returns ok:false for an unknown activity type", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "describeNode",
+      { activityType: "no.such.activity" },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("unknown-activity");
+  });
+});
+
+describe("validateWorkflow", () => {
+  it("splits validator output into errors and warnings by severity", async () => {
+    const { ctx } = makeCtx({
+      workflowService: {
+        getWorkflow: jest.fn(async () => ({
+          id: "wf-1",
+          groupId: "group-1",
+          config: emptyConfig(),
+        })),
+        validateWorkflowConfig: jest.fn(async () => ({
+          valid: false,
+          errors: [
+            {
+              path: "nodes.a.label",
+              message: "must have a label",
+              severity: "error",
+            },
+            {
+              path: "nodes.b.inputs.x",
+              message: "unsatisfied input",
+              severity: "warning",
+            },
+          ],
+        })),
+      } as unknown as WorkflowService,
+    });
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      valid: boolean;
+      errors: Array<{ message: string }>;
+      warnings: Array<{ message: string }>;
+    }>(tools, "validateWorkflow", {});
+    expect(res.ok).toBe(true);
+    expect(res.valid).toBe(false);
+    expect(res.errors).toHaveLength(1);
+    expect(res.warnings).toHaveLength(1);
+    expect(res.warnings[0].message).toContain("unsatisfied");
+  });
+});
+
+describe("listSampleDocuments", () => {
+  it("returns the bundled sample documents", async () => {
+    const { ctx } = makeCtx();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{
+      ok: boolean;
+      documents: Array<{ id: string; description: string }>;
+    }>(tools, "listSampleDocuments", {});
+    expect(res.ok).toBe(true);
+    expect(res.documents.map((d) => d.id).sort()).toEqual([
+      "multi-page-sample",
+      "sample-invoice",
+    ]);
+  });
+});
+
+describe("startTestRun + run budget", () => {
+  function ctxWithUploadNode() {
+    const config = emptyConfig({
+      nodes: {
+        upload1: {
+          id: "upload1",
+          type: "source",
+          sourceType: "source.upload",
+          label: "Upload",
+          parameters: {},
+          position: { x: 0, y: 0 },
+        } as unknown as GraphNode,
+      },
+      entryNodeId: "upload1",
+    });
+    const { ctx, internalFetchMock } = makeCtx({
+      conversationId: "conv-1",
+      runBudget: new RunBudgetMap(),
+      maxRunsPerConversation: 2,
+      workflowService: {
+        getWorkflow: jest.fn(async () => ({
+          id: "wf-1",
+          groupId: "group-1",
+          config,
+        })),
+      } as unknown as WorkflowService,
+    });
+    return { ctx, internalFetchMock };
+  }
+
+  it("errors when the sample id is unknown", async () => {
+    const { ctx } = ctxWithUploadNode();
+    const tools = createAgentTools(ctx);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "startTestRun",
+      { sampleDocumentId: "nope" },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("unknown-sample");
+  });
+
+  it("refuses once the per-conversation run budget is exhausted", async () => {
+    const { ctx } = ctxWithUploadNode();
+    const tools = createAgentTools(ctx);
+    // Budget is 2. Drain it, then the next run is refused.
+    (ctx.runBudget as RunBudgetMap).tryConsume("conv-1", 2);
+    (ctx.runBudget as RunBudgetMap).tryConsume("conv-1", 2);
+    const res = await exec<{ ok: boolean; error?: { code: string } }>(
+      tools,
+      "startRun",
+      {},
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error?.code).toBe("run-budget-exceeded");
+  });
+});
+
+// ── Change W + J: internalFetch authentication + timeout ─────────────
+
+describe("internalFetch self-call authentication (Change W)", () => {
+  it("sends the run's internal token as x-internal-token — never an api key", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    internalFetchMock.mockResolvedValueOnce(fetchResponse(200, { items: [] }));
+
+    const tools = createAgentTools(ctx);
+    await exec(tools, "listDynamicNodes", {});
+
+    expect(internalFetchMock).toHaveBeenCalledTimes(1);
+    const init = internalFetchMock.mock.calls[0][1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers["x-internal-token"]).toBe("tok-1");
+    expect(headers["x-api-key"]).toBeUndefined();
+    // J: every self-call carries an abort signal so a wedged backend
+    // cannot hang the agent step indefinitely.
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("maps a fetch timeout to the 503 unavailable contract instead of throwing", async () => {
+    const { ctx, internalFetchMock } = makeCtx();
+    const timeoutError = Object.assign(new Error("The operation timed out"), {
+      name: "TimeoutError",
+    });
+    internalFetchMock.mockRejectedValueOnce(timeoutError);
+
+    const tools = createAgentTools(ctx);
+    const result = await exec<{
+      ok: boolean;
+      error?: { error?: string; message?: string };
+    }>(tools, "listDynamicNodes", {});
+
+    // listDynamicNodes surfaces internalFetch's failure body as its error.
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).toContain("self-call-timeout");
+  });
+});
