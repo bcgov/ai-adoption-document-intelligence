@@ -215,15 +215,13 @@ export interface OCRResult {
 // Activity Results
 export type OcrOutputFormat = "text" | "markdown";
 
-export interface PreparedFileData {
-  fileName: string;
-  fileType: "pdf" | "image";
-  contentType: string;
-  blobKey: string;
-  modelId: string; // Azure Document Intelligence model ID
-  /** Azure outputContentFormat: "text" (default) or "markdown". */
-  outputFormat?: OcrOutputFormat;
-}
+/**
+ * PreparedFileData now derives from the PreparedFile kind's Zod schema in
+ * @ai-di/graph-workflow (`z.infer<typeof PreparedFileSchema>`), so the
+ * activities constructing it and the builder's field drill-down share one
+ * definition (KIND_TAXONOMY_REFINEMENT_DESIGN.md §4).
+ */
+export type { PreparedFileData } from "@ai-di/graph-workflow";
 
 export interface SubmissionResult {
   statusCode: number;
@@ -233,6 +231,15 @@ export interface SubmissionResult {
 
 export interface PollResult {
   status: "running" | "succeeded" | "failed";
-  /** Port `response` — ref only (no inline OCR JSON in history). */
-  response?: OcrPayloadRef;
+  /**
+   * Port `ocrResponse` — ref only (no inline OCR JSON in history).
+   *
+   * The name must match the `ocrResponse` output declared by the
+   * `azureOcr.poll` catalog entry: the graph runner binds a node's outputs by
+   * reading `result[port]`, so a port the activity does not return writes
+   * `undefined` into ctx without complaint. This field was called `response`
+   * while the catalog said `ocrResponse`, which is why every template that
+   * bound the catalog name silently produced an empty `ocrResponseRef`.
+   */
+  ocrResponse?: OcrPayloadRef;
 }

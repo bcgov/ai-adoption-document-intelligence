@@ -1,19 +1,15 @@
+import type { ClassifiedPageSegment } from "@ai-di/graph-workflow";
 import { ApplicationFailure } from "@temporalio/activity";
 import { createActivityLogger } from "../logger";
 import type { ClassifiedDocument } from "./azure-classify-poll";
+
+export type { ClassifiedPageSegment };
 
 export interface SelectClassifiedPagesInput {
   /** Output of azureClassify.poll — keyed by classifier label. */
   labeledDocuments: Record<string, ClassifiedDocument[]>;
   /** The classifier label to select all page ranges for. */
   targetLabel: string;
-}
-
-export interface ClassifiedPageSegment {
-  /** 1-based page range (inclusive) that this document occupies in the source file. */
-  pageRange: { start: number; end: number };
-  /** Classifier confidence score for this document. */
-  confidence: number;
 }
 
 export interface SelectClassifiedPagesOutput {
