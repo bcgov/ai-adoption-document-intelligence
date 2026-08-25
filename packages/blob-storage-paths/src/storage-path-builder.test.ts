@@ -91,6 +91,16 @@ describe("buildBlobFilePath", () => {
     expect(result).toBe(`${VALID_CUID}/classification/result.txt`);
   });
 
+  it("builds a file path under the workflow category (source.upload destination)", () => {
+    const result = buildBlobFilePath(
+      VALID_CUID,
+      OperationCategory.WORKFLOW,
+      ["workflow-uploads", "wf-1", "upload"],
+      "uuid-doc.pdf",
+    );
+    expect(result).toBe(`${VALID_CUID}/workflow/workflow-uploads/wf-1/upload/uuid-doc.pdf`);
+  });
+
   it("throws when the file name contains a dot segment", () => {
     expect(() =>
       buildBlobFilePath(VALID_CUID, OperationCategory.OCR, ["doc1"], "../output.json")
