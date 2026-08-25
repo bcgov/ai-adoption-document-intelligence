@@ -117,22 +117,6 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
-  const escalateSessionMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/escalate`,
-        { reason },
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
-    },
-  });
-
   const skipSessionMutation = useMutation({
     mutationFn: async () => {
       const response = await apiService.post(
@@ -225,15 +209,12 @@ export const useReviewSession = (sessionId?: string) => {
     submitCorrectionsAsync: submitCorrectionsMutation.mutateAsync,
     approveSession: approveSessionMutation.mutate,
     approveSessionAsync: approveSessionMutation.mutateAsync,
-    escalateSession: escalateSessionMutation.mutate,
-    escalateSessionAsync: escalateSessionMutation.mutateAsync,
     skipSession: skipSessionMutation.mutate,
     skipSessionAsync: skipSessionMutation.mutateAsync,
     flagSession: flagSessionMutation.mutate,
     flagSessionAsync: flagSessionMutation.mutateAsync,
     isSubmitting: submitCorrectionsMutation.isPending,
     isApproving: approveSessionMutation.isPending,
-    isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
     isFlagging: flagSessionMutation.isPending,
     deleteCorrection: deleteCorrectionMutation.mutate,

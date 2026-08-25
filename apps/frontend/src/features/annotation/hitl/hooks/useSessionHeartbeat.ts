@@ -84,7 +84,7 @@ export const useSessionHeartbeat = (
     return () => {
       if (idleCheckRef.current) clearInterval(idleCheckRef.current);
     };
-  }, [sessionId, idleWarning]);
+  }, [sessionId, idleWarning, enabled]);
 
   return { idleWarning, resetActivity };
 };

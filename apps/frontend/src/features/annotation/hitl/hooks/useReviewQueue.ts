@@ -75,12 +75,12 @@ export const useReviewQueue = (filters?: QueueFilters) => {
     },
   });
 
+  // Stats cover the whole queue, so they are keyed by group alone: every tab
+  // shares one cached result instead of refetching a tab-shaped answer.
   const statsQuery = useQuery({
-    queryKey: ["hitl-queue-stats", filters?.reviewStatus, activeGroupId],
+    queryKey: ["hitl-queue-stats", activeGroupId],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.reviewStatus)
-        params.append("reviewStatus", filters.reviewStatus);
       if (activeGroupId) params.append("group_id", activeGroupId);
 
       const endpoint = `/hitl/queue/stats${params.toString() ? `?${params.toString()}` : ""}`;

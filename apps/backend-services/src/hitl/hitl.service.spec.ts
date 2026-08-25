@@ -17,11 +17,7 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { AnalyticsService } from "./analytics.service";
-import {
-  CorrectionAction,
-  EscalateDto,
-  SubmitCorrectionsDto,
-} from "./dto/correction.dto";
+import { CorrectionAction, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
@@ -127,6 +123,9 @@ describe("HitlService", () => {
 
     const mockReviewDb = {
       findReviewQueue: jest.fn(),
+      countReviewQueue: jest.fn().mockResolvedValue(0),
+      findQueueFieldPayloads: jest.fn().mockResolvedValue([]),
+      countApprovedSessionsSince: jest.fn().mockResolvedValue(0),
       createReviewSession: jest.fn(),
       findReviewSession: jest.fn(),
       updateReviewSession: jest.fn(),
@@ -199,6 +198,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
         mockDocumentWithOcr as any,
       ]);
+      mockReviewDbService.countReviewQueue.mockResolvedValueOnce(137);
 
       const result = await service.getQueue(filters);
 
@@ -218,7 +218,8 @@ describe("HitlService", () => {
       expect(result.documents[0].ocr_result.fields).toEqual(
         mockOcrResult.keyValuePairs,
       );
-      expect(result.total).toBe(1);
+      // The total counts the whole queue, not the page that was returned
+      expect(result.total).toBe(137);
     });
 
     it("should filter out documents without OCR results", async () => {
@@ -361,81 +362,63 @@ describe("HitlService", () => {
   });
 
   describe("getQueueStats", () => {
-    it("should return queue statistics", async () => {
-      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
-        mockDocumentWithOcr,
-        {
-          ...mockDocument,
-          ocr_result: {
-            ...mockOcrResult,
-            keyValuePairs: {
-              field1: { type: "string", content: "value1", confidence: 0.95 },
-            },
-          },
-        } as any,
-      ] as any);
-
-      mockAnalyticsService.getAnalytics.mockResolvedValueOnce({
-        totalDocuments: 10,
-        reviewedDocuments: 5,
-        averageConfidence: 0.88,
-        correctionRate: 0.5,
-        correctionsByAction: {},
-        summary: {
-          totalSessions: 10,
-          completedSessions: 5,
-          totalCorrections: 20,
-          confirmedFields: 10,
-          correctedFields: 5,
-          flaggedFields: 3,
-          deletedFields: 2,
-        },
-      });
+    it("should count the whole queue rather than one page of it", async () => {
+      mockReviewDbService.countReviewQueue
+        .mockResolvedValueOnce(320) // total reviewable documents
+        .mockResolvedValueOnce(214); // pending documents
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([
+        { a: { confidence: 0.9 }, b: { confidence: 0.7 } },
+        { a: { confidence: 0.6 } },
+      ]);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(7);
 
       const result = await service.getQueueStats();
 
       expect(result).toEqual({
-        totalDocuments: 2,
-        requiresReview: 1,
-        averageConfidence: 0.88,
-        reviewedToday: 5,
-      });
-
-      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
-        statuses: [DocumentStatus.awaiting_review],
-        limit: 1000,
-        reviewStatus: "pending",
-        groupIds: undefined,
+        totalDocuments: 320,
+        requiresReview: 214,
+        averageConfidence: 0.7,
+        reviewedToday: 7,
       });
     });
 
-    it("should handle REVIEWED status filter", async () => {
-      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
-      mockAnalyticsService.getAnalytics.mockResolvedValueOnce({
-        totalDocuments: 0,
-        reviewedDocuments: 0,
-        averageConfidence: 0,
-        correctionRate: 0,
-        correctionsByAction: {},
-        summary: {
-          totalSessions: 0,
-          completedSessions: 0,
-          totalCorrections: 0,
-          confirmedFields: 0,
-          correctedFields: 0,
-          flaggedFields: 0,
-          deletedFields: 0,
-        },
-      });
+    it("should count reviewed-today from midnight and scope every count to the caller's groups", async () => {
+      mockReviewDbService.countReviewQueue.mockResolvedValue(0);
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([]);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
 
-      await service.getQueueStats(ReviewStatusFilter.REVIEWED);
+      await service.getQueueStats(["group-1"]);
 
-      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith({
+      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
-        limit: 1000,
-        reviewStatus: "reviewed",
-        groupIds: undefined,
+        reviewStatus: "all",
+        groupIds: ["group-1"],
       });
+      expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds: ["group-1"],
+      });
+
+      const [since, groupIds] =
+        mockReviewDbService.countApprovedSessionsSince.mock.calls[0];
+      expect(groupIds).toEqual(["group-1"]);
+      expect(since.getHours()).toBe(0);
+      expect(since.getMinutes()).toBe(0);
+      expect(since.toDateString()).toBe(new Date().toDateString());
+    });
+
+    it("should report zero average confidence when no document carries field confidence", async () => {
+      mockReviewDbService.countReviewQueue.mockResolvedValue(0);
+      mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([
+        { a: { content: "no confidence here" } },
+        null,
+      ] as any);
+      mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
+
+      const result = await service.getQueueStats();
+
+      expect(result.averageConfidence).toBe(0);
     });
   });
 
@@ -866,88 +849,15 @@ describe("HitlService", () => {
     });
   });
 
-  describe("escalateSession", () => {
-    it("should escalate a review session with reason and release the lock", async () => {
-      const dto: EscalateDto = {
-        reason: "Complex document requiring expert review",
-      };
-
-      const escalatedSession = {
-        ...mockReviewSession,
-        status: ReviewStatus.escalated,
-        completed_at: new Date(),
-      };
-
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        mockReviewSession as any,
-      );
-      mockReviewDbService.createFieldCorrection.mockResolvedValueOnce({
-        ...mockFieldCorrection,
-        field_key: "_escalation",
-        original_value: dto.reason,
-        action: DbCorrectionAction.flagged,
-      });
-      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
-        escalatedSession as any,
-      );
-      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
-
-      const result = await service.escalateSession("session-1", dto);
-
-      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
-        "session-1",
-      );
-      expect(mockReviewDbService.createFieldCorrection).toHaveBeenCalledWith(
-        "session-1",
-        {
-          field_key: "_escalation",
-          original_value: dto.reason,
-          action: DbCorrectionAction.flagged,
-        },
-        expect.anything(),
-      );
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        {
-          status: ReviewStatus.escalated,
-          completed_at: expect.any(Date),
-        },
-        expect.anything(),
-      );
-      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
-        "session-1",
-        expect.anything(),
-      );
-
-      expect(result).toEqual({
-        id: "session-1",
-        status: ReviewStatus.escalated,
-        reason: dto.reason,
-        message: "Review session escalated",
-      });
-    });
-
-    it("should throw NotFoundException if session does not exist", async () => {
-      const dto: EscalateDto = {
-        reason: "Test reason",
-      };
-
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
-
-      await expect(
-        service.escalateSession("non-existent", dto),
-      ).rejects.toThrow(NotFoundException);
-
-      expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();
-      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
-    });
-  });
-
   describe("skipSession", () => {
-    it("should release the lock without changing session status", async () => {
+    it("should abandon the session and release the lock", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,
       );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.abandoned,
+      } as any);
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
       const result = await service.skipSession("session-1");
@@ -955,14 +865,18 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
-      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        { status: ReviewStatus.abandoned },
+        expect.anything(),
+      );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
         expect.anything(),
       );
       expect(result).toEqual({
         id: "session-1",
-        status: ReviewStatus.in_progress,
+        status: ReviewStatus.abandoned,
         message: "Lock released, document returned to queue",
       });
     });

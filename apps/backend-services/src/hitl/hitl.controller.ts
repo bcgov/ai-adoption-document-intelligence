@@ -28,7 +28,7 @@ import {
   identityCanAccessGroup,
 } from "@/auth/identity.helpers";
 import { DocumentService } from "../document/document.service";
-import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
+import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import {
   AnalyticsResponseDto,
   CorrectionsListResponseDto,
@@ -43,7 +43,6 @@ import { HeartbeatResponseDto } from "./dto/lock.dto";
 import { NextSessionFilterDto } from "./dto/next-session.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
-import { ReviewStatusFilter } from "./dto/status-constants.dto";
 import { HitlService } from "./hitl.service";
 
 @ApiTags("hitl")
@@ -94,13 +93,10 @@ export class HitlController {
 
   @Get("queue/stats")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Get queue statistics" })
-  @ApiQuery({
-    name: "reviewStatus",
-    required: false,
-    enum: ReviewStatusFilter,
-    enumName: "ReviewStatusFilter",
-    description: "Filter by review status",
+  @ApiOperation({
+    summary: "Get queue statistics",
+    description:
+      "Counts cover the entire queue and are independent of the review-status tab in view.",
   })
   @ApiQuery({
     name: "group_id",
@@ -114,7 +110,6 @@ export class HitlController {
     type: QueueStatsResponseDto,
   })
   async getQueueStats(
-    @Query("reviewStatus") reviewStatus?: ReviewStatusFilter,
     @Req() req?: Request,
     @Query("group_id") group_id?: string,
   ) {
@@ -125,7 +120,7 @@ export class HitlController {
     } else {
       groupIds = getIdentityGroupIds(req?.resolvedIdentity);
     }
-    return this.hitlService.getQueueStats(reviewStatus, groupIds);
+    return this.hitlService.getQueueStats(groupIds);
   }
 
   @Post("sessions/next")
@@ -273,29 +268,6 @@ export class HitlController {
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
     return this.hitlService.approveSession(sessionId);
-  }
-
-  @Post("sessions/:id/escalate")
-  @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Escalate a document for expert review" })
-  @ApiParam({ name: "id", description: "Session ID" })
-  @ApiOkResponse({
-    description: "Session escalated for expert review",
-    type: SessionActionResponseDto,
-  })
-  @ApiNotFoundResponse({ description: "Session not found" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async escalateSession(
-    @Param("id") sessionId: string,
-    @Body() dto: EscalateDto,
-    @Req() req: Request,
-  ) {
-    const session = await this.hitlService.findReviewSession(sessionId);
-    if (!session) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
-    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.escalateSession(sessionId, dto);
   }
 
   @Post("sessions/:id/skip")

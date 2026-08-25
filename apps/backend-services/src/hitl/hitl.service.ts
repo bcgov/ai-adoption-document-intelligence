@@ -1,6 +1,5 @@
 import { getErrorMessage } from "@ai-di/shared-logging";
 import {
-  CorrectionAction,
   Document,
   DocumentLock,
   DocumentStatus,
@@ -23,7 +22,7 @@ import { GroundTruthGenerationService } from "../benchmark/ground-truth-generati
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import { AnalyticsService } from "./analytics.service";
-import { EscalateDto, SubmitCorrectionsDto } from "./dto/correction.dto";
+import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
@@ -110,6 +109,32 @@ function readReviewPlanFromDocument(
     : undefined;
 }
 
+/**
+ * Averages the per-document mean field confidence across a set of OCR field
+ * payloads. Documents whose fields carry no confidence contribute nothing, and
+ * an empty set averages to zero.
+ */
+function averageDocumentConfidence(payloads: unknown[]): number {
+  const documentAverages: number[] = [];
+
+  for (const payload of payloads) {
+    if (!payload || typeof payload !== "object") continue;
+    const confidences = Object.values(payload as ExtractedFields)
+      .map((field: DocumentField) => field?.confidence)
+      .filter((confidence): confidence is number => confidence !== undefined);
+    if (confidences.length === 0) continue;
+    documentAverages.push(
+      confidences.reduce((sum, value) => sum + value, 0) / confidences.length,
+    );
+  }
+
+  if (documentAverages.length === 0) return 0;
+  const mean =
+    documentAverages.reduce((sum, value) => sum + value, 0) /
+    documentAverages.length;
+  return Math.round(mean * 10000) / 10000;
+}
+
 @Injectable()
 export class HitlService {
   constructor(
@@ -131,7 +156,7 @@ export class HitlService {
 
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const reviewStatusFilter =
+    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
       filters.reviewStatus === ReviewStatusFilter.ALL
         ? "all"
         : filters.reviewStatus === ReviewStatusFilter.REVIEWED
@@ -147,46 +172,40 @@ export class HitlService {
           ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
           : [DocumentStatus.awaiting_review];
 
-    // Approving a document moves it to `complete`; escalate/skip leave it at
+    // Approving a document moves it to `complete`; flag/skip leave it at
     // `awaiting_review`. The Reviewed tab must therefore also include
     // `complete`, or approved documents disappear from the queue entirely.
     if (reviewStatusFilter === "reviewed") {
       statuses.push(DocumentStatus.complete);
     }
 
-    const documents = (await this.reviewDb.findReviewQueue({
+    const queueFilters = {
       statuses,
       modelId: filters.modelId,
-      maxConfidence: filters.maxConfidence ?? 0.9,
-      limit: filters.limit ?? 50,
-      offset: filters.offset ?? 0,
+      maxConfidence,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId,
+    };
+
+    const documents = (await this.reviewDb.findReviewQueue({
+      ...queueFilters,
+      limit: filters.limit ?? 50,
+      offset: filters.offset ?? 0,
     })) as DocumentWithOcrResult[];
 
-    // awaiting_review docs are already flagged for review; only gate extracted docs by confidence
-    const filtered = documents.filter((doc) => {
-      if (
-        doc.status === DocumentStatus.awaiting_review ||
-        doc.status === DocumentStatus.complete
-      )
-        return true;
+    const filtered = documents.filter((doc) =>
+      this.needsReview(doc, maxConfidence),
+    );
 
-      if (!doc.ocr_result) return false;
-
-      const fields = doc.ocr_result
-        .keyValuePairs as unknown as ExtractedFields | null;
-      if (!fields) return false;
-      if (typeof fields !== "object") return false;
-
-      return Object.values(fields).some((field: DocumentField) => {
-        if (field?.confidence !== undefined) {
-          return field.confidence < maxConfidence;
-        }
-        return false;
-      });
-    });
+    // The confidence gate above runs in JS over the current page, so it can
+    // only be counted page by page. It applies to `extracted` documents alone —
+    // for every other status the gate passes everything, and the database can
+    // count the whole queue.
+    const gateApplies = statuses.includes(DocumentStatus.extracted);
+    const total = gateApplies
+      ? filtered.length
+      : await this.reviewDb.countReviewQueue(queueFilters);
 
     return {
       documents: filtered.map((doc) => ({
@@ -217,62 +236,81 @@ export class HitlService {
             }
           : null,
       })),
-      total: filtered.length,
+      total,
     };
   }
 
-  async getQueueStats(reviewStatus?: ReviewStatusFilter, groupIds?: string[]) {
+  /**
+   * Decides whether a document belongs in the review queue. Documents already
+   * sitting at `awaiting_review` (or `complete`) were routed there by the
+   * workflow's own review criteria, so they qualify outright; `extracted`
+   * documents qualify only when at least one field falls below the confidence
+   * threshold.
+   */
+  private needsReview(
+    doc: DocumentWithOcrResult,
+    maxConfidence: number,
+  ): boolean {
+    if (
+      doc.status === DocumentStatus.awaiting_review ||
+      doc.status === DocumentStatus.complete
+    ) {
+      return true;
+    }
+
+    const fields = doc.ocr_result?.keyValuePairs as unknown as
+      | ExtractedFields
+      | null
+      | undefined;
+    if (!fields || typeof fields !== "object") return false;
+
+    return Object.values(fields).some(
+      (field: DocumentField) =>
+        field?.confidence !== undefined && field.confidence < maxConfidence,
+    );
+  }
+
+  /**
+   * Summarises the whole review queue for the header cards. Every figure is a
+   * database count over the same filter the queue itself uses, so the numbers
+   * do not depend on which tab is open or how many rows one page holds.
+   */
+  async getQueueStats(groupIds?: string[]) {
     this.logger.debug("Getting queue statistics");
 
-    const reviewStatusFilter =
-      reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : reviewStatus === ReviewStatusFilter.FLAGGED
-            ? "flagged"
-            : "pending";
+    const reviewableStatuses = [
+      DocumentStatus.awaiting_review,
+      DocumentStatus.complete,
+    ];
 
-    // Approved documents move to `complete`; include it for the Reviewed
-    // filter so the stat count matches the Reviewed queue (see getQueue).
-    const statuses: DocumentStatus[] =
-      reviewStatusFilter === "reviewed"
-        ? [DocumentStatus.awaiting_review, DocumentStatus.complete]
-        : [DocumentStatus.awaiting_review];
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-    const allDocs = (await this.reviewDb.findReviewQueue({
-      statuses,
-      limit: 1000,
-      reviewStatus: reviewStatusFilter,
-      groupIds,
-    })) as DocumentWithOcrResult[];
-
-    const lowConfidenceDocs = allDocs.filter((doc) => {
-      if (
-        doc.status === DocumentStatus.awaiting_review ||
-        doc.status === DocumentStatus.complete
-      )
-        return true;
-
-      if (!doc.ocr_result?.keyValuePairs) return false;
-      const fields = doc.ocr_result.keyValuePairs as unknown as ExtractedFields;
-      if (typeof fields !== "object") return false;
-
-      return Object.values(fields).some((field: DocumentField) => {
-        if (field?.confidence !== undefined) {
-          return field.confidence < 0.9;
-        }
-        return false;
-      });
-    });
-
-    const analytics = await this.analyticsService.getAnalytics({}, groupIds);
+    const [totalDocuments, requiresReview, fieldPayloads, reviewedToday] =
+      await Promise.all([
+        this.reviewDb.countReviewQueue({
+          statuses: reviewableStatuses,
+          reviewStatus: "all",
+          groupIds,
+        }),
+        this.reviewDb.countReviewQueue({
+          statuses: [DocumentStatus.awaiting_review],
+          reviewStatus: "pending",
+          groupIds,
+        }),
+        this.reviewDb.findQueueFieldPayloads({
+          statuses: reviewableStatuses,
+          reviewStatus: "all",
+          groupIds,
+        }),
+        this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
+      ]);
 
     return {
-      totalDocuments: allDocs.length,
-      requiresReview: lowConfidenceDocs.length,
-      averageConfidence: analytics.averageConfidence,
-      reviewedToday: analytics.reviewedDocuments,
+      totalDocuments,
+      requiresReview,
+      averageConfidence: averageDocumentConfidence(fieldPayloads),
+      reviewedToday,
     };
   }
 
@@ -583,69 +621,6 @@ export class HitlService {
     };
   }
 
-  async escalateSession(sessionId: string, dto: EscalateDto) {
-    this.logger.debug(`Escalating session: ${sessionId}`);
-
-    const session = await this.reviewDb.findReviewSession(sessionId);
-    if (!session) {
-      throw new NotFoundException(`Review session ${sessionId} not found`);
-    }
-
-    const doc = session.document as {
-      group_id?: string;
-      workflow_execution_id?: string;
-    };
-
-    const updated = await this.prismaService.transaction(async (tx) => {
-      await this.reviewDb.createFieldCorrection(
-        sessionId,
-        {
-          field_key: "_escalation",
-          original_value: dto.reason,
-          action: CorrectionAction.flagged,
-        },
-        tx,
-      );
-
-      const sessionUpdate = await this.reviewDb.updateReviewSession(
-        sessionId,
-        {
-          status: ReviewStatus.escalated,
-          completed_at: new Date(),
-        },
-        tx,
-      );
-
-      if (!sessionUpdate) {
-        throw new NotFoundException(`Review session ${sessionId} not found`);
-      }
-
-      await this.reviewDb.releaseDocumentLock(sessionId, tx);
-
-      await this.auditService.recordEvent(
-        {
-          event_type: "review_session_escalated",
-          resource_type: "review_session",
-          resource_id: sessionId,
-          document_id: session.document_id,
-          workflow_execution_id: doc.workflow_execution_id ?? undefined,
-          group_id: doc.group_id ?? undefined,
-          payload: { document_id: session.document_id, reason: dto.reason },
-        },
-        tx,
-      );
-
-      return sessionUpdate;
-    });
-
-    return {
-      id: updated.id,
-      status: updated.status,
-      reason: dto.reason,
-      message: "Review session escalated",
-    };
-  }
-
   async skipSession(sessionId: string) {
     this.logger.debug(`Skipping session: ${sessionId}`);
 
@@ -659,8 +634,20 @@ export class HitlService {
       workflow_execution_id?: string;
     };
 
-    // Release the lock only — session stays in_progress so another reviewer can pick it up
-    await this.prismaService.transaction(async (tx) => {
+    // The document goes back to the pending queue, so this session is over:
+    // `abandoned` closes it out and leaves the next reviewer a fresh session
+    // rather than an in_progress row nothing will ever finish.
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        { status: ReviewStatus.abandoned },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
       await this.reviewDb.releaseDocumentLock(sessionId, tx);
 
       await this.auditService.recordEvent(
@@ -675,11 +662,13 @@ export class HitlService {
         },
         tx,
       );
+
+      return sessionUpdate;
     });
 
     return {
-      id: session.id,
-      status: session.status,
+      id: updated.id,
+      status: updated.status,
       message: "Lock released, document returned to queue",
     };
   }
@@ -927,7 +916,7 @@ export class HitlService {
   ) {
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const reviewStatusFilter =
+    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
       filters.reviewStatus === ReviewStatusFilter.ALL
         ? "all"
         : filters.reviewStatus === ReviewStatusFilter.REVIEWED

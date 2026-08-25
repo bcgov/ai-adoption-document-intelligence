@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { ScheduleModule } from "@nestjs/schedule";
 import { DatabaseModule } from "../database/database.module";
 import { DocumentModule } from "../document/document.module";
 import { AnalyticsService } from "./analytics.service";
@@ -11,7 +10,7 @@ import { ReviewDbService } from "./review-db.service";
 import { ToolManifestService } from "./tool-manifest.service";
 
 @Module({
-  imports: [DatabaseModule, DocumentModule, ScheduleModule.forRoot()],
+  imports: [DatabaseModule, DocumentModule],
   controllers: [HitlController],
   providers: [
     HitlService,

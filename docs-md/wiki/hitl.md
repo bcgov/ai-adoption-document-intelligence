@@ -1,6 +1,6 @@
 ---
 status: active
-updated: 2026-08-01
+updated: 2026-08-25
 canonical_sources:
   - docs-md/architecture/HITL_ARCHITECTURE.md
   - docs-md/architecture/HITL_REVIEW_CRITERIA.md
@@ -18,7 +18,7 @@ do_not_duplicate:
 
 # Human-In-The-Loop
 
-HITL routes low-confidence or review-required document results to humans. It is session-oriented: a reviewer works through a bounded review session for a document, records corrections, and completes or escalates the review.
+HITL routes low-confidence or review-required document results to humans. It is session-oriented: a reviewer works through a bounded review session for a document, records corrections, and then approves it, flags it for someone else, or skips it back to the queue.
 
 ## Source Map
 
@@ -36,6 +36,9 @@ HITL routes low-confidence or review-required document results to humans. It is 
 - A demo/reset seed exists for local review-queue demos without paid OCR: `npm run demo:reset` — see `docs-md/extraction/HITL_DEMO_RESET.md`.
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
+- A session ends in one of three states: `approved`, `flagged` (handed on for attention; read-only in the Flagged tab, so it holds no lock) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
+- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry.
+- Queue statistics are database counts over the whole queue, not a summary of the page in view.
 
 ## Related Topics
 

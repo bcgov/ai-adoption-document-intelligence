@@ -21,14 +21,12 @@ import {
   Checkbox,
   Group,
   Loader,
-  Modal,
   notifications,
   Paper,
   ScrollArea,
   Stack,
   Text,
   Textarea,
-  TextInput,
   Tooltip,
   useElementSize,
 } from "../../../../ui";
@@ -245,50 +243,6 @@ const FieldListItem = memo<FieldListItemProps>(
 );
 FieldListItem.displayName = "FieldListItem";
 
-interface EscalationModalProps {
-  opened: boolean;
-  onClose: () => void;
-  onEscalate: (reason: string) => Promise<void>;
-}
-
-const EscalationModal: FC<EscalationModalProps> = ({
-  opened,
-  onClose,
-  onEscalate,
-}) => {
-  const [reason, setReason] = useState("");
-
-  const handleClose = () => {
-    setReason("");
-    onClose();
-  };
-
-  const handleSubmit = async () => {
-    if (!reason.trim()) return;
-    await onEscalate(reason.trim());
-    setReason("");
-  };
-
-  return (
-    <Modal opened={opened} onClose={handleClose} title="Escalate review">
-      <Stack gap="md">
-        <TextInput
-          label="Escalation reason"
-          placeholder="Explain why this needs expert review"
-          value={reason}
-          onChange={(event) => setReason(event.currentTarget.value)}
-        />
-        <Group justify="flex-end">
-          <Button variant="subtle" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit}>Escalate</Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
-};
-
 export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -314,7 +268,6 @@ export const ReviewWorkspacePage: FC = () => {
     isLoading,
     submitCorrectionsAsync,
     approveSessionAsync,
-    escalateSessionAsync,
     skipSessionAsync,
     flagSessionAsync,
     isApproving,
@@ -349,7 +302,6 @@ export const ReviewWorkspacePage: FC = () => {
       }
     >
   >({});
-  const [escalationOpen, setEscalationOpen] = useState(false);
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
@@ -837,25 +789,6 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
 
-  const handleEscalate = useCallback(
-    async (reason: string) => {
-      await escalateSessionAsync(reason);
-      setEscalationOpen(false);
-
-      notifications.show({
-        title: "Document escalated",
-        message: autoAdvance ? "Moving to next document" : "Returning to queue",
-        color: "yellow",
-        autoClose: 3000,
-      });
-
-      clearUndoStack();
-      setCorrectionMap({});
-      advanceOrReturn();
-    },
-    [escalateSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance],
-  );
-
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
       // Detect focus context BEFORE state change. When tabbing starts on
@@ -985,14 +918,6 @@ export const ReviewWorkspacePage: FC = () => {
         ctrl: true,
         handler: handleApprove,
         description: "Approve document",
-        alwaysActive: true,
-      },
-      {
-        key: "E",
-        ctrl: true,
-        shift: true,
-        handler: () => setEscalationOpen(true),
-        description: "Escalate document",
         alwaysActive: true,
       },
       {
@@ -1419,12 +1344,6 @@ export const ReviewWorkspacePage: FC = () => {
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>
-
-        <EscalationModal
-          opened={escalationOpen}
-          onClose={() => setEscalationOpen(false)}
-          onEscalate={handleEscalate}
-        />
 
         <ShortcutsOverlay
           opened={shortcutsOpen}

@@ -7,7 +7,7 @@ import {
   IconRotate,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FC, useMemo, useState } from "react";
+import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/useAuth";
 import { apiService } from "@/data/services/api.service";
@@ -62,6 +62,9 @@ export const ReviewQueuePage: FC = () => {
         ? flaggedQueue
         : pendingQueue;
 
+  // Queue-wide figures: the same for every tab, so read them from one queue.
+  const stats = pendingQueue.stats;
+
   const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
     null,
   );
@@ -86,39 +89,6 @@ export const ReviewQueuePage: FC = () => {
     return sum / fields.length;
   };
 
-  // Compute stats from actual queue data so they don't shift when switching tabs.
-  const computedStats = useMemo(() => {
-    const allItems = [...pendingQueue.queue, ...reviewedQueue.queue];
-    const avgConfidences = allItems.map(getAverageConfidence);
-    const averageConfidence =
-      avgConfidences.length > 0
-        ? avgConfidences.reduce((acc, v) => acc + v, 0) / avgConfidences.length
-        : 0;
-    const today = new Date();
-    const reviewedToday = reviewedQueue.queue.filter((item) => {
-      if (item.lastSession == null) return false;
-      const completedAt = new Date(item.lastSession.completed_at);
-      const isToday =
-        completedAt.getFullYear() === today.getFullYear() &&
-        completedAt.getMonth() === today.getMonth() &&
-        completedAt.getDate() === today.getDate();
-      return isToday;
-    }).length;
-    return {
-      totalDocuments:
-        pendingQueue.total + reviewedQueue.total + flaggedQueue.total,
-      requiresReview: pendingQueue.total,
-      averageConfidence,
-      reviewedToday,
-    };
-  }, [
-    pendingQueue.queue,
-    pendingQueue.total,
-    reviewedQueue.queue,
-    reviewedQueue.total,
-    flaggedQueue.total,
-  ]);
-
   if (activeQueue.isLoading) {
     return (
       <Center h="70vh">
@@ -141,7 +111,15 @@ export const ReviewQueuePage: FC = () => {
         }
       }
     } catch {
-      // Session start failed; leave state unchanged
+      // Most often the document was locked by another reviewer between this
+      // queue being loaded and the click.
+      notifications.show({
+        title: "Could not open document",
+        message:
+          "Another reviewer may have started on it. Refresh the queue and try again.",
+        color: "red",
+        autoClose: 5000,
+      });
     }
   };
 
@@ -177,9 +155,9 @@ export const ReviewQueuePage: FC = () => {
     switch (status) {
       case "approved":
         return "green";
-      case "escalated":
+      case "flagged":
         return "orange";
-      case "skipped":
+      case "abandoned":
         return "gray";
       default:
         return "blue";
@@ -193,24 +171,21 @@ export const ReviewQueuePage: FC = () => {
         description="Review and correct OCR results with low confidence scores"
       />
 
-      {activeQueue.stats && (
+      {stats && (
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-          <StatCard
-            label="Total documents"
-            value={computedStats.totalDocuments}
-          />
+          <StatCard label="Total documents" value={stats.totalDocuments} />
           <StatCard
             label="Requires review"
-            value={computedStats.requiresReview}
+            value={stats.requiresReview}
             valueColor="orange"
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(computedStats.averageConfidence * 100)}%`}
+            value={`${Math.round(stats.averageConfidence * 100)}%`}
           />
           <StatCard
             label="Reviewed today"
-            value={computedStats.reviewedToday}
+            value={stats.reviewedToday}
             valueColor="green"
           />
         </SimpleGrid>
@@ -388,13 +363,15 @@ export const ReviewQueuePage: FC = () => {
                             size="xs"
                             variant="light"
                             color="orange"
-                            leftSection={<IconFlag size={14} />}
+                            leftSection={<IconEye size={14} />}
                             onClick={() =>
-                              navigate(`/review/${doc.lastSession!.id}`)
+                              navigate(
+                                `/review/${doc.lastSession!.id}?readOnly=true`,
+                              )
                             }
                             disabled={!doc.lastSession?.id}
                           >
-                            Review flagged
+                            View flagged
                           </Button>
                         </DataTable.Td>
                       </DataTable.Tr>
