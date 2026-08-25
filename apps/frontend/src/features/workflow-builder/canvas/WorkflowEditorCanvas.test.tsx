@@ -498,8 +498,7 @@ describe("WorkflowEditorCanvas — Scenario 1: switch renders as a diamond", () 
     expect(switchEl).toHaveAttribute("data-shape", "diamond");
     expect(switchEl).toHaveAttribute("data-node-type", "switch");
     // The visual diamond layer is the rotated child; confirm it exists
-    // and is rotated 45deg — same geometry the read-only
-    // GraphVisualization.tsx renderer uses for switch nodes.
+    // and is rotated 45deg.
     const visualLayer = screen.getByTestId("switch-diamond-visual-switch_1");
     expect(visualLayer).toBeInTheDocument();
     expect(visualLayer.style.transform).toContain("rotate(45deg)");
