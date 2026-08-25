@@ -1,8 +1,8 @@
 /*
  * Workflow-builder canvas overrides on top of @xyflow/react/dist/style.css.
  *
- * Scoped under .wb-editor-canvas (set on the editor's <ReactFlow>) so the
- * read-only GraphVisualization component keeps the xyflow defaults.
+ * Scoped under .wb-editor-canvas (set on the editor's <ReactFlow>) so any
+ * other xyflow surface keeps the xyflow defaults.
  */
 
 /*

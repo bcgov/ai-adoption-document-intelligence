@@ -2,8 +2,8 @@
  * xyflow custom-node renderer for a "group chip" — the collapsed visual
  * for a `nodeGroups[<id>]` entry when simplified view is ON (US-043).
  *
- * Reuses the visual style of `GraphVisualization.tsx`'s `GroupNodeRenderer`
- * (label + icon + node-count badge) adapted for the interactive editor:
+ * Renders label + icon + node-count badge, adapted for the interactive
+ * editor:
  *   - Activity-rectangle handle layout (target on the left, source on the
  *     right) so xyflow can wire chip → external edges identically to the
  *     other node renderers.
