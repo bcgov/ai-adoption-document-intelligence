@@ -38,6 +38,7 @@ export type {
   PollUntilNode,
   PortBinding,
   RetryPolicy,
+  SourceNode,
   SwitchCase,
   SwitchNode,
   TimeoutPolicy,
@@ -59,6 +60,16 @@ export interface GraphWorkflowInput {
   groupId?: string | null;
   /** Exposed-param overrides merged at load time (benchmark / ground truth). */
   workflowConfigOverrides?: Record<string, unknown>;
+  /**
+   * Phase 4 (US-133) try-in-place cache scope. When set alongside a wired
+   * `cacheDeps`, per-node activity dispatch goes through the output cache.
+   */
+  workflowLineageId?: string | null;
+  /**
+   * Phase 6 Milestone C (US-170) — workflow-run identifier injected into
+   * `dyn.run` as `AI_DI_WORKFLOW_RUN_ID`. Populated from `workflowInfo()`.
+   */
+  workflowRunId?: string;
 }
 
 /** Graph config loaded inside graphWorkflow (not in Temporal start args). */
