@@ -1,3 +1,4 @@
+import { ApplicationFailure } from "@temporalio/activity";
 import { computeConfigHash } from "../config-hash";
 import type { GraphWorkflowConfig } from "../graph-workflow-types";
 import { getPrismaClient } from "./database-client";
@@ -27,13 +28,13 @@ const sampleConfig = (): GraphWorkflowConfig => ({
 
 describe("getWorkflowGraphConfig activity", () => {
   let prismaMock: {
-    workflowVersion: { findFirst: jest.Mock };
+    workflowVersion: { findUnique: jest.Mock; findFirst: jest.Mock };
     workflowLineage: { findFirst: jest.Mock };
   };
 
   beforeEach(() => {
     prismaMock = {
-      workflowVersion: { findFirst: jest.fn() },
+      workflowVersion: { findUnique: jest.fn(), findFirst: jest.fn() },
       workflowLineage: { findFirst: jest.fn() },
     };
     getPrismaClientMock.mockReturnValue(prismaMock);
@@ -155,5 +156,170 @@ describe("getWorkflowGraphConfig activity", () => {
     await expect(
       getWorkflowGraphConfig({ workflowId: "missing", groupId: "group-1" }),
     ).rejects.toThrow("Workflow not found by ID or name: missing");
+  });
+
+  // ---------------------------------------------------------------------------
+  // G-019 — a library child that no longer exists can never resolve, so it must
+  // fail on the first attempt instead of burning the childWorkflow node's whole
+  // retry budget.
+  // ---------------------------------------------------------------------------
+  describe("G-019 — missing library child fails fast", () => {
+    it("fails fast and non-retryably when a library child no longer exists", async () => {
+      prismaMock.workflowVersion.findFirst.mockResolvedValue(null);
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "lin-deleted",
+        groupId: "group-1",
+        parentNodeId: "call-library-1",
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      expect(failure.type).toBe("LIBRARY_WORKFLOW_NOT_FOUND");
+      // Names the missing workflow AND the parent node.
+      expect(failure.message).toContain("lin-deleted");
+      expect(failure.message).toContain("call-library-1");
+    });
+
+    it("fails fast and non-retryably when the pinned version is gone", async () => {
+      prismaMock.workflowLineage.findFirst.mockResolvedValue({ id: "lin-1" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "lin-1",
+        groupId: "group-1",
+        version: 99,
+        parentNodeId: "call-library-2",
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      expect(failure.message).toContain("has no version 99");
+      expect(failure.message).toContain("call-library-2");
+    });
+
+    it("fails fast and non-retryably when a pinned ref resolves to no lineage", async () => {
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      const error = await getWorkflowGraphConfig({
+        workflowId: "ghost",
+        groupId: "group-1",
+        version: 1,
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ApplicationFailure);
+      const failure = error as ApplicationFailure;
+      expect(failure.nonRetryable).toBe(true);
+      // No parentNodeId supplied — the message stays clean rather than
+      // interpolating "undefined".
+      expect(failure.message).toBe("Library lineage not found: ghost");
+    });
+  });
+
+  // US-080: version-pinned resolution
+  describe("with `version` param", () => {
+    it("resolves a lineage-id ref within the group then loads by (lineage_id, version_number) compound key", async () => {
+      const cfg = sampleConfig();
+      // The ref "lin-1" resolves as a lineage id.
+      prismaMock.workflowLineage.findFirst.mockResolvedValueOnce({ id: "lin-1" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue({
+        id: "wv-pinned",
+        config: cfg,
+      });
+
+      const result = await getWorkflowGraphConfig({
+        workflowId: "lin-1",
+        groupId: "group-1",
+        version: 3,
+      });
+
+      expect(result.graph).toEqual(cfg);
+      expect(result.workflowVersionId).toBe("wv-pinned");
+      expect(prismaMock.workflowLineage.findFirst).toHaveBeenCalledWith({
+        where: { id: "lin-1", group_id: "group-1" },
+        select: { id: true },
+      });
+      // Item 34: the (lineage_id, version_number) pair is `@@unique`, so the
+      // pinned lookup uses `findUnique` on the compound key — not `findFirst`.
+      expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: {
+          lineage_id_version_number: {
+            lineage_id: "lin-1",
+            version_number: 3,
+          },
+        },
+        select: { id: true, config: true },
+      });
+      expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
+      // Resolved by id, so the name fallback isn't consulted.
+      expect(prismaMock.workflowLineage.findFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it("§3.5 — resolves a NAME-referenced child within the group before pinning", async () => {
+      const cfg = sampleConfig();
+      // The ref is a lineage NAME: id lookup misses, name lookup resolves.
+      prismaMock.workflowLineage.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: "lin-x" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue({
+        id: "wv-pinned-2",
+        config: cfg,
+      });
+
+      const result = await getWorkflowGraphConfig({
+        workflowId: "standard-ocr-workflow",
+        groupId: "group-1",
+        version: 2,
+      });
+
+      expect(result.workflowVersionId).toBe("wv-pinned-2");
+      expect(prismaMock.workflowLineage.findFirst).toHaveBeenLastCalledWith({
+        where: { name: "standard-ocr-workflow", group_id: "group-1" },
+        select: { id: true },
+      });
+      // Pins against the RESOLVED lineage id, not the raw name ref.
+      expect(prismaMock.workflowVersion.findUnique).toHaveBeenCalledWith({
+        where: {
+          lineage_id_version_number: {
+            lineage_id: "lin-x",
+            version_number: 2,
+          },
+        },
+        select: { id: true, config: true },
+      });
+    });
+
+    it("throws a clear error mentioning lineage + version when the pinned version does not exist", async () => {
+      prismaMock.workflowLineage.findFirst.mockResolvedValue({ id: "lin-1" });
+      prismaMock.workflowVersion.findUnique.mockResolvedValue(null);
+
+      await expect(
+        getWorkflowGraphConfig({
+          workflowId: "lin-1",
+          groupId: "group-1",
+          version: 99,
+        }),
+      ).rejects.toThrow("Library lineage lin-1 has no version 99");
+      // Does NOT fall through to the head/name resolution paths.
+      expect(prismaMock.workflowVersion.findFirst).not.toHaveBeenCalled();
+    });
+
+    it("does not resolve a pinned ref that belongs to another group", async () => {
+      // Both group-scoped lineage lookups miss, as they do for another
+      // group's lineage id or name.
+      prismaMock.workflowLineage.findFirst.mockResolvedValue(null);
+
+      await expect(
+        getWorkflowGraphConfig({
+          workflowId: "other-groups-lineage",
+          groupId: "group-1",
+          version: 1,
+        }),
+      ).rejects.toThrow("Library lineage not found: other-groups-lineage");
+      expect(prismaMock.workflowVersion.findUnique).not.toHaveBeenCalled();
+    });
   });
 });
