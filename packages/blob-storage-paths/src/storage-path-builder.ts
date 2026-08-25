@@ -4,7 +4,8 @@ export enum OperationCategory {
   OCR = "ocr",
   TRAINING = "training",
   CLASSIFICATION = "classification",
-  BENCHMARK = "benchmark"
+  BENCHMARK = "benchmark",
+  WORKFLOW = "workflow"
 }
 
 export type BlobFilePath = string & { readonly brand: 'BlobFilePath' };
