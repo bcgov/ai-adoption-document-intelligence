@@ -17,9 +17,20 @@ import {
   setHandler,
   workflowInfo,
 } from "@temporalio/workflow";
+import {
+  ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
+  type ActivityOutputCacheFindFreshInput,
+  type ActivityOutputCacheFindFreshResult,
+  type ActivityOutputCacheUpsertInput,
+} from "./activities/cache/activity-output-cache.types";
 import type { RecordWorkflowLifecycleInput } from "./billing/record-workflow-lifecycle.activity";
+import type { CachedActivityDeps } from "./cache/cached-activity";
 import { runGraphExecution } from "./graph-engine";
 import { validateGraphConfigForExecution } from "./graph-schema-validator";
+import {
+  getNodeStatusesQuery,
+  type NodeRunStatus,
+} from "./graph-workflow-queries";
 import {
   type CancelSignal,
   GRAPH_RUNNER_VERSION,
@@ -31,6 +42,22 @@ import {
   type NodeStatus,
 } from "./graph-workflow-types";
 import { isOcrPayloadRef } from "./ocr-payload-ref-types";
+
+/**
+ * Phase 4 (US-133) — cache-activity proxy typed for the workflow.
+ * Routes the two cache operations through Temporal activities so the
+ * worker decorator can run in-replay-safe workflow code while reads/
+ * writes still go to Postgres. The dot-namespaced keys match the
+ * registry entries in `apps/temporal/src/activities.ts`.
+ */
+type CacheActivities = {
+  "activityOutputCache.findFresh": (
+    input: ActivityOutputCacheFindFreshInput,
+  ) => Promise<ActivityOutputCacheFindFreshResult | null>;
+  "activityOutputCache.upsert": (
+    input: ActivityOutputCacheUpsertInput,
+  ) => Promise<void>;
+};
 
 type PreExecutionActivities = {
   "document.updateStatus": (params: {
@@ -105,6 +132,13 @@ export async function graphWorkflow(
   const currentNodes: string[] = [];
   const completedNodeIds = new Set<string>();
   const nodeStatuses = new Map<string, NodeStatus>();
+  // Phase 4 (US-135) — per-node live run status surfaced through the
+  // `getNodeStatusesQuery` handler. Distinct from `nodeStatuses` (the
+  // legacy `getStatus` payload): the new shape carries "succeeded" /
+  // "skipped" (cache hit) / "failed" semantics + cache-row identifiers.
+  // The map's object identity is preserved across the workflow
+  // lifetime so the query handler always returns the latest state.
+  const nodeRunStatuses: Record<string, NodeRunStatus> = {};
   let overallStatus: "running" | "completed" | "failed" | "cancelled" =
     "running";
   let cancelled = false;
@@ -146,6 +180,14 @@ export async function graphWorkflow(
     };
   });
 
+  // Phase 4 (US-135) — register the per-node run-status query handler
+  // BEFORE any node runs so the canvas's very-first poll observes a
+  // (possibly empty) map rather than a "query handler not found"
+  // error. The handler returns a live snapshot — the underlying object
+  // is mutated in place by the runner.
+  setHandler(getNodeStatusesQuery, () => nodeRunStatuses);
+
+  // Set up signal handler for cancellation
   setHandler(cancelSignal, (signal: CancelSignal) => {
     cancelled = true;
     cancelMode = signal.mode;
@@ -214,6 +256,22 @@ export async function graphWorkflow(
       nodeStatuses.set(nodeId, { status: "pending" });
     }
 
+    // Phase 4 (US-133 Scenario 2): wire the cache-activity proxy once
+    // per workflow execution. The proxy lifetime is the workflow's
+    // lifetime; every per-node activity dispatch shares it. Bypassed
+    // when the caller didn't pass a `workflowLineageId` (legacy tests,
+    // pre-Phase-4 callers).
+    let cacheDeps: CachedActivityDeps | undefined;
+    if (input.workflowLineageId) {
+      const cacheProxy = proxyActivities<CacheActivities>(
+        ACTIVITY_OUTPUT_CACHE_ACTIVITY_OPTIONS,
+      );
+      cacheDeps = {
+        findFresh: (req) => cacheProxy["activityOutputCache.findFresh"](req),
+        upsert: (req) => cacheProxy["activityOutputCache.upsert"](req),
+      };
+    }
+
     const executionInput: GraphWorkflowExecutionInput = {
       ...input,
       workflowVersionId: loaded.workflowVersionId,
@@ -224,6 +282,7 @@ export async function graphWorkflow(
       currentNodes,
       completedNodeIds,
       nodeStatuses,
+      nodeRunStatuses,
       cancelled: () => cancelled,
       cancelMode: () => cancelMode,
       ctx,
@@ -235,6 +294,12 @@ export async function graphWorkflow(
       requestId: input.requestId,
       groupId: input.groupId ?? null,
       workflowConfigOverrides: input.workflowConfigOverrides,
+      workflowLineageId: input.workflowLineageId ?? null,
+      cacheDeps,
+      // Phase 6 Milestone C (US-170) — populate workflowRunId from
+      // `workflowInfo()` here (it's a workflow-context-only API; the
+      // runner module can't reach it directly).
+      workflowRunId: workflowInfo().workflowId,
       lastError,
     });
 
