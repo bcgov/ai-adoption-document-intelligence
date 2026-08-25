@@ -1,0 +1,1384 @@
+import {
+  AssistantRuntimeProvider,
+  ComposerPrimitive,
+  MessagePrimitive,
+  ThreadPrimitive,
+  useAssistantRuntime,
+  useAuiState,
+} from "@assistant-ui/react";
+import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Code,
+  Drawer,
+  Group,
+  Menu,
+  ScrollArea,
+  Stack,
+  Text,
+  Tooltip,
+  UnstyledButton,
+} from "@mantine/core";
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconHistory,
+  IconPlayerStopFilled,
+  IconPlus,
+  IconSend2,
+  IconSettingsExclamation,
+  IconX,
+} from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  type MutableRefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useGroup } from "../../auth/GroupContext";
+import { type AgentChatError, describeAgentChatError } from "./agent-error";
+import { ConversationSwitcher } from "./ConversationSwitcher";
+import {
+  parseAgentChatDeepLink,
+  storedMessagesToUIMessages,
+} from "./conversation-replay";
+import { ErrorBodyRenderer } from "./error-renderers";
+import { type AgentModelOption, useAgentChatStore } from "./store";
+import {
+  fetchAgentConversation,
+  getAgentAuthHeaders,
+} from "./useAgentConversations";
+import {
+  type AgentAvailability,
+  describeMissingConfig,
+  resolveAgentAvailability,
+  resolveEffectiveModel,
+  useAgentModels,
+} from "./useAgentModels";
+import "./agent-chat.css";
+
+const DRAWER_SIZE = 540;
+
+/**
+ * Resolve the currently-displayed workflow id from the route. Phase 7
+ * supports `/workflows/create?id=<id>` and `/workflows/:id` patterns.
+ */
+function useCurrentWorkflowId(): string | null {
+  const location = useLocation();
+  const search = new URLSearchParams(location.search);
+  const queryId = search.get("id");
+  if (queryId !== null && queryId.length > 0) return queryId;
+  const match = location.pathname.match(/\/workflows\/([^/?#]+)/);
+  if (match && match[1] !== "create" && match[1] !== "new") return match[1];
+  return null;
+}
+
+export function AgentChatDrawer() {
+  const isOpen = useAgentChatStore((s) => s.isOpen);
+  const open = useAgentChatStore((s) => s.open);
+  const close = useAgentChatStore((s) => s.close);
+  const conversationId = useAgentChatStore((s) => s.conversationId);
+  const setConversationId = useAgentChatStore((s) => s.setConversationId);
+  const selectedModel = useAgentChatStore((s) => s.selectedModel);
+  const setSelectedModel = useAgentChatStore((s) => s.setSelectedModel);
+  const resetConversation = useAgentChatStore((s) => s.resetConversation);
+  const [resetKey, bumpResetKey] = useResetKey();
+  // Messages the thread seeds from when it (re)mounts. Populated on an
+  // explicit conversation switch so a past chat visually replays.
+  const [seedMessages, setSeedMessages] = useState<UIMessage[]>([]);
+  // The past-conversations panel is opened from the header (item 30), so its
+  // open state lives here rather than inside ConversationSwitcher.
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const currentWorkflowId = useCurrentWorkflowId();
+  const { activeGroup } = useGroup();
+  const activeGroupId = activeGroup?.id ?? null;
+  const conversationIdRef = useRef<string | null>(conversationId);
+  conversationIdRef.current = conversationId;
+  const activeGroupIdRef = useRef<string | null>(activeGroupId);
+  activeGroupIdRef.current = activeGroupId;
+
+  const handleReset = useCallback(() => {
+    setSeedMessages([]);
+    resetConversation();
+    bumpResetKey();
+  }, [resetConversation, bumpResetKey]);
+
+  // Tell the backend to stop the in-flight run. Fired from the composer's stop
+  // button alongside assistant-ui's own client-side cancel.
+  const handleAbort = useCallback(async () => {
+    const cid = conversationIdRef.current;
+    if (cid === null) return;
+    await fetch(`/api/agent/conversations/${cid}/abort`, {
+      method: "POST",
+      headers: getAgentAuthHeaders(activeGroupIdRef.current),
+    }).catch(() => undefined);
+  }, []);
+
+  // Switch to a past conversation: load its history, seed it, then remount
+  // the thread (resetKey). A fresh send that only sets conversationId from
+  // the response header does NOT bump resetKey, so the live thread survives.
+  // `null` (clicking the active row to deselect) starts a fresh conversation.
+  const handleSelect = useCallback(
+    (id: string | null): void => {
+      if (id === null) {
+        handleReset();
+        return;
+      }
+      setConversationId(id);
+      void (async () => {
+        try {
+          const detail = await fetchAgentConversation(
+            id,
+            activeGroupIdRef.current,
+          );
+          setSeedMessages(storedMessagesToUIMessages(detail.messages));
+        } catch {
+          setSeedMessages([]);
+        }
+        bumpResetKey();
+      })();
+    },
+    [setConversationId, bumpResetKey, handleReset],
+  );
+
+  // The model a turn is actually sent with: the user's pick when the backend
+  // still offers it, otherwise the backend's own default, and `null` until
+  // the list arrives — never a frontend guess (item 23).
+  const { data: models } = useAgentModels();
+  const effectiveModel = resolveEffectiveModel(models?.items, selectedModel);
+
+  // Deep link: `?agentChat=<id>` (used by FEATURE_DEMO_GUIDE links) opens the
+  // drawer and replays that conversation. Handled once per id so it doesn't
+  // re-fire on unrelated location changes or re-renders.
+  const location = useLocation();
+  const handledDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    const deepLinkId = parseAgentChatDeepLink(location.search);
+    if (deepLinkId === null || handledDeepLinkRef.current === deepLinkId) {
+      return;
+    }
+    handledDeepLinkRef.current = deepLinkId;
+    open();
+    handleSelect(deepLinkId);
+  }, [location.search, open, handleSelect]);
+
+  return (
+    <Drawer
+      opened={isOpen}
+      onClose={close}
+      position="right"
+      size={DRAWER_SIZE}
+      withCloseButton={false}
+      lockScroll={false}
+      withOverlay={false}
+      transitionProps={{ duration: 180 }}
+      styles={{
+        body: { padding: 0, height: "100%" },
+        content: { height: "100vh" },
+      }}
+      data-testid="agent-chat-drawer"
+    >
+      <Stack gap={0} h="100%">
+        <ChatHeader
+          onClose={close}
+          onReset={handleReset}
+          historyOpen={historyOpen}
+          onToggleHistory={() => setHistoryOpen((o) => !o)}
+          workflowId={currentWorkflowId}
+        />
+        <ConversationSwitcher
+          open={historyOpen}
+          workflowId={currentWorkflowId}
+          activeConversationId={conversationId}
+          activeGroupId={activeGroupId}
+          onSelect={handleSelect}
+        />
+        <ChatThread
+          key={resetKey}
+          seedMessages={seedMessages}
+          selectedModel={effectiveModel}
+          setSelectedModel={setSelectedModel}
+          currentWorkflowId={currentWorkflowId}
+          activeGroupId={activeGroupId}
+          conversationIdRef={conversationIdRef}
+          activeGroupIdRef={activeGroupIdRef}
+          setConversationId={setConversationId}
+          onAbort={handleAbort}
+        />
+      </Stack>
+    </Drawer>
+  );
+}
+
+/**
+ * Owns the assistant-ui runtime + the thread-dependent surfaces (message
+ * list, composer, tool-call navigator). Keyed by `resetKey` in the parent
+ * so a "new conversation" or a conversation switch remounts it, seeding the
+ * thread from `seedMessages`.
+ */
+function ChatThread({
+  seedMessages,
+  selectedModel,
+  setSelectedModel,
+  currentWorkflowId,
+  activeGroupId,
+  conversationIdRef,
+  activeGroupIdRef,
+  setConversationId,
+  onAbort,
+}: {
+  seedMessages: UIMessage[];
+  selectedModel: AgentModelOption | null;
+  setSelectedModel: (option: AgentModelOption) => void;
+  currentWorkflowId: string | null;
+  activeGroupId: string | null;
+  conversationIdRef: MutableRefObject<string | null>;
+  activeGroupIdRef: MutableRefObject<string | null>;
+  setConversationId: (id: string | null) => void;
+  onAbort: () => void | Promise<void>;
+}) {
+  const queryClient = useQueryClient();
+  // The last turn's failure, shown inside the conversation. Before this the
+  // runtime swallowed every rejection and the drawer just sat there
+  // (Inderdeep, 2026-08-06 — item 22: "No error message, no feedback").
+  const [turnError, setTurnError] = useState<AgentChatError | null>(null);
+  const clearTurnError = useCallback(() => {
+    setTurnError((current) => (current === null ? current : null));
+  }, []);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/agent/chat",
+        // Headers must be a function so the CSRF cookie + active group
+        // are re-read on every send.
+        headers: () => getAgentAuthHeaders(activeGroupIdRef.current),
+        body: () => ({
+          conversationId: conversationIdRef.current,
+          workflowId: currentWorkflowId,
+          groupId: activeGroupIdRef.current,
+          // Undefined while the model list is loading or if it failed to
+          // load; `JSON.stringify` drops the keys, and the backend then
+          // applies its own configured provider + deployment. A user is
+          // never blocked from sending because a list request failed.
+          provider: selectedModel?.provider,
+          model: selectedModel?.model,
+        }),
+        fetch: async (input, init) => {
+          const res = await fetch(input, init);
+          const newConvId = res.headers.get("x-conversation-id");
+          if (newConvId && newConvId !== conversationIdRef.current) {
+            setConversationId(newConvId);
+          }
+          return res;
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedModel?.provider, selectedModel?.model, currentWorkflowId],
+  );
+
+  const runtime = useChatRuntime({
+    transport,
+    // Seed the thread from a selected conversation's history (empty for a
+    // fresh chat). Read once at mount; the parent remounts on switch/reset.
+    messages: seedMessages,
+    // Fires for both halves of a failure: a non-2xx `POST /api/agent/chat`
+    // (the AI SDK throws with the response body as the message) and an
+    // error chunk written into an already-streaming response.
+    onError: (error: unknown) => {
+      setTurnError(describeAgentChatError(error));
+    },
+    onFinish: () => {
+      queryClient.invalidateQueries({ queryKey: ["activity-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["dynamic-node-list"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+    },
+  });
+
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <MessageList turnError={turnError} onClearTurnError={clearTurnError} />
+      <Composer
+        workflowId={currentWorkflowId}
+        activeGroupId={activeGroupId}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
+        onAbort={onAbort}
+      />
+      <ToolCallNavigator />
+    </AssistantRuntimeProvider>
+  );
+}
+
+function useResetKey() {
+  const [counter, dispatch] = useReducer((n: number) => n + 1, 0);
+  return [counter, dispatch] as const;
+}
+
+/**
+ * Drawer header: identity, workflow binding, and the three panel-level
+ * controls — past conversations, new conversation, close. The model picker
+ * used to sit here and now lives beside the composer, and the abort button
+ * used to sit here and is now the composer's send/stop toggle (Inderdeep,
+ * 2026-08-06 — "the show past conversations should be somewhere here, next to
+ * the plus, along with the close").
+ */
+function ChatHeader({
+  onClose,
+  onReset,
+  historyOpen,
+  onToggleHistory,
+  workflowId,
+}: {
+  onClose: () => void;
+  onReset: () => void;
+  historyOpen: boolean;
+  onToggleHistory: () => void;
+  workflowId: string | null;
+}) {
+  const historyLabel = historyOpen
+    ? "Hide past conversations"
+    : "Show past conversations";
+  return (
+    <Group
+      justify="space-between"
+      p="md"
+      style={{ borderBottom: "1px solid #e9ecef" }}
+    >
+      <Group gap="xs">
+        <Text fw={700}>Workflow Agent</Text>
+        {workflowId !== null ? (
+          <Badge color="violet" variant="light" size="sm">
+            workflow bound
+          </Badge>
+        ) : (
+          <Badge color="gray" variant="light" size="sm">
+            no workflow yet
+          </Badge>
+        )}
+      </Group>
+      <Group gap={4}>
+        <Tooltip label={historyLabel}>
+          <ActionIcon
+            variant={historyOpen ? "light" : "subtle"}
+            onClick={onToggleHistory}
+            aria-label={historyLabel}
+            data-testid="agent-chat-history-toggle"
+          >
+            <IconHistory size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="New conversation">
+          <ActionIcon
+            variant="subtle"
+            onClick={onReset}
+            aria-label="New conversation"
+            data-testid="agent-chat-reset"
+          >
+            {/* A plus, not a refresh arrow: this starts a new conversation,
+                it does not reload the current one (Inderdeep, 2026-08-06 —
+                "this says new conversation, while the icon says a refresh"). */}
+            <IconPlus size={18} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Close">
+          <ActionIcon
+            variant="subtle"
+            onClick={onClose}
+            aria-label="Close"
+            data-testid="agent-chat-close"
+          >
+            {/* Bare cross. `IconCircleX` spent most of its 16px on a ring and
+                the cross inside it was unreadable — the same defect as the
+                canvas status badge, reported in the same session. */}
+            <IconX size={18} />
+          </ActionIcon>
+        </Tooltip>
+      </Group>
+    </Group>
+  );
+}
+
+/**
+ * The model in use, shown where the user is actually looking — in the
+ * composer's footer strip, immediately after the attach `+` (Inderdeep,
+ * 2026-08-14 — I3, mock-up `source/inderdeep-mockup-composer.png`; and
+ * 2026-08-06, "the model selector should be at the bottom, because this is
+ * where I'm generally typing").
+ *
+ * The mock-up's shape: the model's short name in bold, its tier in muted
+ * text beside it, a small chevron, and an open menu that lists each model
+ * with its one-line descriptor underneath and a check against the selected
+ * one. The mock-up's *names* ("Sonnet 4.5", "Opus 4.6") are illustrative —
+ * this renders the backend's list and nothing else (item 23), and a model the
+ * backend gave no descriptor for shows its name alone rather than a guessed
+ * tier.
+ *
+ * Four shapes, all carrying the same `agent-chat-model-picker` test id:
+ *
+ *  - **Two or more models** — the menu from the mock-up.
+ *  - **Exactly one model** — the same trigger treatment, static. A menu whose
+ *    only option is the one already selected is a control that cannot do
+ *    anything; the fact worth showing is *which* model is answering. One
+ *    Azure deployment is today's real case.
+ *  - **Loading, or the list failed to load** — a static label saying so. The
+ *    composer stays live: with no selection the turn carries no model
+ *    override and the backend uses its own default, so a failed list request
+ *    costs the user a label, not the ability to send.
+ *  - **No model at all** — the server answered and has no provider. Says so;
+ *    the composer's send is disabled alongside it (see {@link
+ *    UnconfiguredNotice}).
+ */
+function ModelPicker({
+  availability,
+  selectedModel,
+  setSelectedModel,
+}: {
+  availability: AgentAvailability;
+  selectedModel: AgentModelOption | null;
+  setSelectedModel: (option: AgentModelOption) => void;
+}) {
+  if (availability.kind === "loading") {
+    return <StaticModelLabel text="Loading models…" />;
+  }
+  if (availability.kind === "unknown") {
+    return (
+      <StaticModelLabel
+        text="Server default model"
+        tooltip="The model list could not be loaded — your message will be answered by whichever model this server is configured for."
+      />
+    );
+  }
+  if (availability.kind === "unconfigured") {
+    return (
+      <StaticModelLabel
+        text="No model configured"
+        tooltip="This server reported that it has no model provider configured, so the assistant cannot answer."
+      />
+    );
+  }
+
+  const options = availability.items;
+  const active =
+    options.find(
+      (o) =>
+        selectedModel !== null &&
+        o.provider === selectedModel.provider &&
+        o.model === selectedModel.model,
+    ) ??
+    options.find((o) => o.isDefault) ??
+    options[0];
+
+  if (options.length === 1) {
+    return (
+      <Tooltip label="The only model this server is configured for.">
+        <Group gap={6} data-testid="agent-chat-model-picker" wrap="nowrap">
+          <ModelSummary option={active} />
+        </Group>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Menu position="top-start" withinPortal shadow="md" width={240}>
+      <Menu.Target>
+        <UnstyledButton
+          type="button"
+          aria-label={`Model: ${active.label}`}
+          data-testid="agent-chat-model-picker"
+          style={{ padding: "2px 4px", borderRadius: 4 }}
+        >
+          <Group gap={6} wrap="nowrap">
+            <ModelSummary option={active} />
+            <IconChevronDown size={13} />
+          </Group>
+        </UnstyledButton>
+      </Menu.Target>
+      <Menu.Dropdown data-testid="agent-chat-model-menu">
+        {options.map((option) => {
+          const isActive =
+            option.provider === active.provider &&
+            option.model === active.model;
+          return (
+            <Menu.Item
+              key={`${option.provider}:${option.model}`}
+              onClick={() => setSelectedModel(option)}
+              data-testid={`agent-chat-model-option-${option.provider}`}
+              rightSection={isActive ? <IconCheck size={14} /> : null}
+            >
+              <Text size="sm" fw={isActive ? 700 : 500}>
+                {option.name}
+              </Text>
+              {/* The descriptor line from the mock-up. Absent for a model the
+                  backend could not describe — a privately-named Azure
+                  deployment has no published positioning, and an invented one
+                  would read as fact. */}
+              {option.tier !== null && (
+                <Text size="xs" c="dimmed">
+                  {option.tier}
+                </Text>
+              )}
+            </Menu.Item>
+          );
+        })}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
+/** Name in bold, tier muted beside it — the mock-up's "Sonnet 4.5 Balanced". */
+function ModelSummary({ option }: { option: AgentModelOption }) {
+  return (
+    <>
+      <Text size="sm" fw={700} lh={1.2}>
+        {option.name}
+      </Text>
+      {option.tier !== null && (
+        <Text size="sm" c="dimmed" lh={1.2}>
+          {option.tier}
+        </Text>
+      )}
+    </>
+  );
+}
+
+/** The picker when there is nothing to pick — see {@link ModelPicker}. */
+function StaticModelLabel({
+  text,
+  tooltip,
+}: {
+  text: string;
+  tooltip?: string;
+}) {
+  const label = (
+    <Text size="sm" c="dimmed" data-testid="agent-chat-model-picker">
+      {text}
+    </Text>
+  );
+  return tooltip === undefined ? (
+    label
+  ) : (
+    <Tooltip label={tooltip} multiline w={260}>
+      {label}
+    </Tooltip>
+  );
+}
+
+/**
+ * The composer's primary action. While a turn is streaming it IS the stop
+ * button and reverts to send when the turn ends, so the control that stops a
+ * response sits inside the conversation that produced it (Inderdeep,
+ * 2026-08-06 — "generally what happens with other AI agents is this send
+ * button changes to stop when it's working"). Stopping does two things: the
+ * client-side cancel (`ComposerPrimitive.Cancel`, which tears down the stream)
+ * and `onAbort`, which tells the backend to end the run.
+ */
+function SendOrStopButton({
+  onAbort,
+  disabledReason,
+}: {
+  onAbort: () => void | Promise<void>;
+  /** Non-null makes send inert and says why — see {@link UnconfiguredNotice}. */
+  disabledReason: string | null;
+}) {
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+
+  if (disabledReason !== null && !isRunning) {
+    return (
+      <Tooltip label={disabledReason} multiline w={280}>
+        {/* The tooltip hangs off a focusable wrapper, not off the button. A
+            disabled Mantine ActionIcon fires no pointer or focus events, so a
+            tooltip on the button itself is unreachable by mouse AND by
+            keyboard — and jsdom cannot see the difference, which is how this
+            class of bug ships. */}
+        <Box
+          component="span"
+          tabIndex={0}
+          aria-describedby="agent-chat-send-disabled-reason"
+          style={{ display: "inline-flex" }}
+          data-testid="agent-chat-send-disabled-wrapper"
+        >
+          <ActionIcon
+            size="lg"
+            variant="filled"
+            color="blue"
+            disabled
+            aria-label="Send"
+            data-testid="agent-chat-send"
+          >
+            <IconSend2 size={18} />
+          </ActionIcon>
+        </Box>
+      </Tooltip>
+    );
+  }
+
+  if (isRunning) {
+    return (
+      <Tooltip label="Stop this response">
+        <ComposerPrimitive.Cancel asChild>
+          {/* Same filled treatment as send, so the button does not appear to
+              change identity mid-turn — only its glyph and its job change. */}
+          <ActionIcon
+            size="lg"
+            variant="filled"
+            color="blue"
+            aria-label="Stop this response"
+            onClick={() => {
+              void onAbort();
+            }}
+            data-testid="agent-chat-stop"
+          >
+            <IconPlayerStopFilled size={18} />
+          </ActionIcon>
+        </ComposerPrimitive.Cancel>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <ComposerPrimitive.Send asChild>
+      {/* The theme's primary colour, not violet. The composer was the one
+          place in the app painting its main action off-palette (Inderdeep,
+          2026-08-06 — "I'm not sure where the purple comes from, because
+          this is not the basic colour"). `appTheme.primaryColor` is blue. */}
+      <ActionIcon
+        size="lg"
+        variant="filled"
+        color="blue"
+        type="submit"
+        aria-label="Send"
+        data-testid="agent-chat-send"
+      >
+        <IconSend2 size={18} />
+      </ActionIcon>
+    </ComposerPrimitive.Send>
+  );
+}
+
+function MessageList({
+  turnError,
+  onClearTurnError,
+}: {
+  turnError: AgentChatError | null;
+  onClearTurnError: () => void;
+}) {
+  return (
+    <ScrollArea
+      style={{ flex: 1 }}
+      type="hover"
+      offsetScrollbars
+      data-testid="agent-chat-thread"
+    >
+      <ThreadPrimitive.Viewport autoScroll>
+        <ThreadPrimitive.Empty>
+          <Box p="xl">
+            <Stack gap="xs">
+              <Text fw={700}>Welcome.</Text>
+              <Text size="sm" c="dimmed">
+                Ask the agent to build a workflow. Try:
+              </Text>
+              <Stack gap={4}>
+                <Text size="xs" c="dimmed">
+                  • "List the available activities in this group."
+                </Text>
+                <Text size="xs" c="dimmed">
+                  • "Create a new workflow named 'invoice extract' and add a
+                  source.upload node."
+                </Text>
+                <Text size="xs" c="dimmed">
+                  • "Show me what library workflows we have."
+                </Text>
+              </Stack>
+            </Stack>
+          </Box>
+        </ThreadPrimitive.Empty>
+        <ThreadPrimitive.Messages
+          components={{
+            UserMessage,
+            AssistantMessage,
+          }}
+        />
+        {/* Last in the viewport, so a failure reads as the turn's outcome
+            rather than as panel chrome. */}
+        <TurnErrorAlert error={turnError} onClear={onClearTurnError} />
+      </ThreadPrimitive.Viewport>
+    </ScrollArea>
+  );
+}
+
+/**
+ * The visible half of item 22. Renders whatever cause the backend named
+ * — an unconfigured provider, a spent budget, a provider rejection — and
+ * clears itself the moment the next turn starts.
+ */
+function TurnErrorAlert({
+  error,
+  onClear,
+}: {
+  error: AgentChatError | null;
+  onClear: () => void;
+}) {
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+  useEffect(() => {
+    if (isRunning) onClear();
+  }, [isRunning, onClear]);
+
+  if (error === null) return null;
+  return (
+    <Box px="sm" pb="sm" pt={4} data-testid="agent-chat-error">
+      <Alert
+        color="red"
+        variant="light"
+        title={error.title}
+        icon={<IconAlertTriangle size={18} />}
+      >
+        <Stack gap={4}>
+          <Text size="sm">{error.detail}</Text>
+          {error.code !== null && (
+            <Text size="xs" c="dimmed">
+              cause: <Code>{error.code}</Code>
+            </Text>
+          )}
+        </Stack>
+      </Alert>
+    </Box>
+  );
+}
+
+function UserMessage() {
+  return (
+    <Box p="sm" style={{ borderBottom: "1px solid #f1f3f5" }}>
+      <Text size="xs" c="violet" fw={700} mb={4}>
+        You
+      </Text>
+      <Box style={{ whiteSpace: "pre-wrap" }}>
+        <MessagePrimitive.Parts />
+      </Box>
+    </Box>
+  );
+}
+
+function AssistantMessage() {
+  return (
+    <Box
+      p="sm"
+      style={{ borderBottom: "1px solid #f1f3f5", background: "#fafafa" }}
+    >
+      <Text size="xs" c="dimmed" fw={700} mb={4}>
+        Agent
+      </Text>
+      <Box style={{ whiteSpace: "pre-wrap" }}>
+        <MessagePrimitive.Parts
+          components={{
+            tools: {
+              Fallback: AgentToolCallCard,
+            },
+          }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+function AgentToolCallCard(props: unknown) {
+  const [open, setOpen] = useState(false);
+  // assistant-ui's tool fallback receives flattened props. Pull what we need
+  // defensively because the assistant-ui types are complex unions.
+  const p = props as {
+    toolName?: string;
+    args?: unknown;
+    result?: unknown;
+    status?: { type?: string };
+  };
+  const toolName = p.toolName ?? "(unknown tool)";
+  const args = p.args;
+  const result = p.result;
+  const state = p.status?.type ?? "running";
+
+  const errorBlock = useMemo(() => {
+    if (
+      result &&
+      typeof result === "object" &&
+      "ok" in (result as Record<string, unknown>) &&
+      (result as { ok: boolean }).ok === false
+    ) {
+      const err = (
+        result as {
+          error?: { code?: string; message?: string; body?: unknown };
+        }
+      ).error;
+      if (err) {
+        return (
+          <ErrorBodyRenderer
+            code={err.code ?? "error"}
+            message={err.message ?? "Tool call failed"}
+            body={err.body}
+          />
+        );
+      }
+    }
+    return null;
+  }, [result]);
+
+  const ok =
+    result &&
+    typeof result === "object" &&
+    "ok" in (result as Record<string, unknown>)
+      ? (result as { ok: boolean }).ok
+      : true;
+
+  const summary = useMemo(() => {
+    if (args && typeof args === "object" && args !== null) {
+      const a = args as Record<string, unknown>;
+      if (toolName === "createWorkflow" && typeof a.name === "string")
+        return `name: ${a.name}`;
+      if (
+        toolName === "addNode" &&
+        typeof a.node === "object" &&
+        a.node !== null
+      ) {
+        const n = a.node as Record<string, unknown>;
+        return `${String(n.type)} (id: ${String(n.id)})`;
+      }
+      if (
+        toolName === "connectNodes" &&
+        typeof a.sourceNodeId === "string" &&
+        typeof a.targetNodeId === "string"
+      ) {
+        return `${a.sourceNodeId} → ${a.targetNodeId}`;
+      }
+      if (toolName === "publishDynamicNode" && typeof a.script === "string") {
+        return `script (${a.script.length} chars)`;
+      }
+      if (toolName === "startRun" && typeof a.workflowId === "string") {
+        return `workflow ${a.workflowId}`;
+      }
+    }
+    return "";
+  }, [toolName, args]);
+
+  return (
+    <Box
+      data-testid={`agent-tool-call-${toolName}`}
+      mt={6}
+      mb={6}
+      style={{
+        border: ok ? "1px solid #d0bfff" : "1px solid #fa5252",
+        borderRadius: 6,
+        padding: 8,
+        background: "#fff",
+      }}
+    >
+      <Group justify="space-between" align="center">
+        <Group gap={6}>
+          <Badge size="xs" color={ok ? "violet" : "red"} variant="light">
+            {toolName}
+          </Badge>
+          {summary && (
+            <Text size="xs" c="dimmed">
+              {summary}
+            </Text>
+          )}
+          <Badge size="xs" color={ok ? "teal" : "red"} variant="outline">
+            {state === "result" ? (ok ? "ok" : "error") : state}
+          </Badge>
+        </Group>
+        <ActionIcon
+          size="xs"
+          variant="subtle"
+          onClick={() => setOpen((o) => !o)}
+          data-testid={`agent-tool-call-${toolName}-toggle`}
+        >
+          {open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+        </ActionIcon>
+      </Group>
+      {open && (
+        <Stack gap={6} mt={6}>
+          <Box>
+            <Text size="xs" c="dimmed" fw={700}>
+              input
+            </Text>
+            <pre style={{ fontSize: 11, margin: 0, whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(args, null, 2)}
+            </pre>
+          </Box>
+          <Box>
+            <Text size="xs" c="dimmed" fw={700}>
+              output
+            </Text>
+            <pre style={{ fontSize: 11, margin: 0, whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </Box>
+        </Stack>
+      )}
+      {errorBlock !== null && <Box mt={6}>{errorBlock}</Box>}
+    </Box>
+  );
+}
+
+function Composer({
+  workflowId,
+  activeGroupId,
+  selectedModel,
+  setSelectedModel,
+  onAbort,
+}: {
+  workflowId: string | null;
+  activeGroupId: string | null;
+  selectedModel: AgentModelOption | null;
+  setSelectedModel: (option: AgentModelOption) => void;
+  onAbort: () => void | Promise<void>;
+}) {
+  const [attached, setAttached] = useState<
+    Array<{
+      filename: string;
+      status: "uploading" | "ok" | "error";
+      sourceNodeId?: string;
+      message?: string;
+    }>
+  >([]);
+  // queued holds files waiting for the agent to add a source.upload node.
+  // Read inside the drain-event handler via setQueued's callback form.
+  const [, setQueued] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const workflowIdRef = useRef<string | null>(workflowId);
+  workflowIdRef.current = workflowId;
+
+  // What this server can do for the assistant. Read once here and passed
+  // down, so the picker, the notice and the send button cannot disagree.
+  const availability = resolveAgentAvailability(useAgentModels());
+  const disabledReason =
+    availability.kind === "unconfigured"
+      ? `The assistant isn't configured on this server — no model provider has credentials here. ${
+          describeMissingConfig(availability.missingConfig) === null
+            ? ""
+            : `Set ${describeMissingConfig(availability.missingConfig)} and restart the backend. `
+        }See ${AGENT_SETUP_DOC}.`
+      : null;
+
+  async function uploadToSource(
+    file: File,
+    sourceNodeId: string,
+    currentWorkflowId: string,
+  ) {
+    const placeholder = {
+      filename: file.name,
+      status: "uploading" as const,
+    };
+    setAttached((p) => [...p, placeholder]);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(
+        `/api/workflows/${currentWorkflowId}/sources/${sourceNodeId}/upload`,
+        {
+          method: "POST",
+          headers: Object.fromEntries(
+            Object.entries(getAgentAuthHeaders(activeGroupId)).filter(
+              ([k]) => k.toLowerCase() !== "content-type",
+            ),
+          ),
+          body: form,
+        },
+      );
+      if (res.ok) {
+        setAttached((p) =>
+          p.map((it) =>
+            it === placeholder
+              ? { ...it, status: "ok" as const, sourceNodeId }
+              : it,
+          ),
+        );
+      } else {
+        const txt = await res.text().catch(() => "");
+        setAttached((p) =>
+          p.map((it) =>
+            it === placeholder
+              ? {
+                  ...it,
+                  status: "error" as const,
+                  message: txt.slice(0, 200) || `HTTP ${res.status}`,
+                }
+              : it,
+          ),
+        );
+      }
+    } catch (err) {
+      setAttached((p) =>
+        p.map((it) =>
+          it === placeholder
+            ? {
+                ...it,
+                status: "error" as const,
+                message: err instanceof Error ? err.message : String(err),
+              }
+            : it,
+        ),
+      );
+    }
+  }
+
+  // Listen for the drain event fired by ToolCallNavigator when the agent
+  // creates a source.upload node — auto-upload any queued files into it.
+  useEffect(() => {
+    function onDrain(e: Event) {
+      const detail = (e as CustomEvent<{ sourceNodeId: string }>).detail;
+      const wfId = workflowIdRef.current;
+      if (!detail?.sourceNodeId || wfId === null) return;
+      setQueued((q) => {
+        for (const f of q) {
+          void uploadToSource(f, detail.sourceNodeId, wfId);
+        }
+        return [];
+      });
+    }
+    window.addEventListener("agent-chat:drain-queue", onDrain);
+    return () => window.removeEventListener("agent-chat:drain-queue", onDrain);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    return handleFilesArr(Array.from(files));
+  }
+
+  async function handleFilesArr(files: File[]) {
+    if (files.length === 0) return;
+    // No workflow yet — queue files. The agent's first createWorkflow tool
+    // auto-seeds a source.upload entry node; the drain listener will pick
+    // them up.
+    if (workflowId === null) {
+      setQueued((q) => [...q, ...Array.from(files)]);
+      const items = Array.from(files).map((f) => ({
+        filename: f.name,
+        status: "uploading" as const,
+        message: "queued — will upload after the agent creates the workflow",
+      }));
+      setAttached((p) => [...p, ...items]);
+      return;
+    }
+    // Fetch workflow to find a source.upload node to upload into.
+    // Source nodes are `{ type: "source", sourceType: "source.upload" }`.
+    let sourceNodeId: string | null = null;
+    try {
+      const wfRes = await fetch(`/api/workflows/${workflowId}`, {
+        headers: getAgentAuthHeaders(activeGroupId),
+      });
+      if (wfRes.ok) {
+        const wf = (await wfRes.json()) as {
+          workflow?: {
+            config?: {
+              nodes?: Record<string, { type?: string; sourceType?: string }>;
+            };
+          };
+        };
+        const nodes = wf.workflow?.config?.nodes ?? {};
+        for (const [nodeId, node] of Object.entries(nodes)) {
+          if (node?.type === "source" && node.sourceType === "source.upload") {
+            sourceNodeId = nodeId;
+            break;
+          }
+        }
+      }
+    } catch {
+      // ignore — handled below
+    }
+    if (sourceNodeId === null) {
+      // Queue + wait for agent to add a source.upload node.
+      setQueued((q) => [...q, ...Array.from(files)]);
+      const items = Array.from(files).map((f) => ({
+        filename: f.name,
+        status: "uploading" as const,
+        message: "queued — ask the agent to add a source.upload node",
+      }));
+      setAttached((p) => [...p, ...items]);
+      return;
+    }
+    for (const file of Array.from(files)) {
+      await uploadToSource(file, sourceNodeId, workflowId);
+    }
+  }
+
+  return (
+    <Box
+      p="sm"
+      style={{ borderTop: "1px solid #e9ecef" }}
+      data-testid="agent-chat-composer"
+      onDragOver={(e) => {
+        e.preventDefault();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        void handleFiles(e.dataTransfer.files);
+      }}
+    >
+      {attached.length > 0 && (
+        <Stack gap={4} mb={6}>
+          {attached.map((it, idx) => (
+            <Group key={idx} gap={6}>
+              <Badge
+                size="xs"
+                color={
+                  it.status === "ok"
+                    ? "teal"
+                    : it.status === "error"
+                      ? "red"
+                      : "gray"
+                }
+                variant="light"
+                data-testid="agent-chat-attachment"
+              >
+                {it.filename}
+                {it.status === "uploading" ? " (uploading…)" : ""}
+                {it.status === "error" ? " (failed)" : ""}
+                {it.status === "ok" && it.sourceNodeId
+                  ? ` → ${it.sourceNodeId}`
+                  : ""}
+              </Badge>
+              {it.status === "error" && it.message && (
+                <Text size="xs" c="dimmed">
+                  {it.message}
+                </Text>
+              )}
+            </Group>
+          ))}
+        </Stack>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          // Capture the file list BEFORE clearing the input — FileList is
+          // a live reference that empties when input.value is reset.
+          const list = e.target.files ? Array.from(e.target.files) : [];
+          e.target.value = "";
+          void handleFilesArr(list);
+        }}
+        data-testid="agent-chat-file-input"
+      />
+      <UnconfiguredNotice availability={availability} />
+      {/* I3 — the mock-up's two rows: the message on its own line, and one
+          footer strip under it carrying attach `+` at the far left, the model
+          and its tier immediately after it, and send/stop hard right. Before
+          this the attach button and send sat either side of a one-line input
+          with the model name orphaned on a third row below the whole thing. */}
+      <ComposerPrimitive.Root
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          width: "100%",
+        }}
+      >
+        <ComposerPrimitive.Input
+          autoFocus
+          placeholder="Describe the workflow you want to create or update… (drop files to upload)"
+          rows={2}
+          data-testid="agent-chat-textarea"
+          className="agent-chat-composer-input"
+        />
+        <Group justify="space-between" wrap="nowrap" gap="xs">
+          <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+            <Tooltip label="Attach a file (uploads to the workflow's source.upload node)">
+              <ActionIcon
+                size="md"
+                variant="subtle"
+                color="gray"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach a file"
+                data-testid="agent-chat-attach"
+                type="button"
+              >
+                {/* A plus, per the mock-up — the same "add something to this
+                    turn" affordance every other assistant uses. */}
+                <IconPlus size={18} />
+              </ActionIcon>
+            </Tooltip>
+            <ModelPicker
+              availability={availability}
+              selectedModel={selectedModel}
+              setSelectedModel={setSelectedModel}
+            />
+          </Group>
+          <SendOrStopButton onAbort={onAbort} disabledReason={disabledReason} />
+        </Group>
+      </ComposerPrimitive.Root>
+    </Box>
+  );
+}
+
+/** Where a developer is told how to fix an unconfigured server. */
+const AGENT_SETUP_DOC = "docs-md/workflows/AGENT_SETUP.md";
+
+/**
+ * I1 / D4 — the state that was missing.
+ *
+ * `GET /api/agent/models` returning an empty list means the server told us,
+ * successfully, that it has **no model provider at all**. That used to render
+ * as the label "Server default model" with a tooltip promising an answer and
+ * a live send button, so the user typed a question into a wall and got
+ * nothing back. It now says so, by name, and send is inert beside it.
+ *
+ * The variable names come from the backend's own `REQUIRED_CONFIG` table via
+ * `missingConfig` — NAMES only, never values, and never a second copy of that
+ * table living in the frontend where it could drift.
+ */
+function UnconfiguredNotice({
+  availability,
+}: {
+  availability: AgentAvailability;
+}) {
+  if (availability.kind !== "unconfigured") return null;
+  const variables = describeMissingConfig(availability.missingConfig);
+  return (
+    <Alert
+      color="gray"
+      variant="light"
+      mb="sm"
+      icon={<IconSettingsExclamation size={18} />}
+      title="The assistant isn't configured on this server"
+      data-testid="agent-chat-unconfigured"
+    >
+      <Stack gap={4}>
+        <Text size="sm">
+          No model provider has credentials here, so the assistant can't answer
+          and sending is disabled.
+        </Text>
+        {variables !== null && (
+          <Text size="sm">
+            Whoever runs this environment needs to set <Code>{variables}</Code>,
+            then restart the backend.
+          </Text>
+        )}
+        <Text size="xs" c="dimmed">
+          Setup, and how to request access: <Code>{AGENT_SETUP_DOC}</Code>
+        </Text>
+      </Stack>
+    </Alert>
+  );
+}
+
+/**
+ * Side effect: watches the assistant runtime for the agent's first
+ * `createWorkflow` tool call and navigates the user to the new
+ * workflow's editor. Also watches for `addNode` tool calls that create
+ * a `source.upload` node and drains any queued files into it.
+ */
+function ToolCallNavigator() {
+  const runtime = useAssistantRuntime();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const navigatedRef = useRef<string | null>(null);
+  const drainedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!runtime) return undefined;
+    const unsub = runtime.thread.subscribe(() => {
+      const state = runtime.thread.getState();
+      const last = state.messages[state.messages.length - 1];
+      if (!last || last.role !== "assistant") return;
+      for (const part of last.content) {
+        if (part.type !== "tool-call") continue;
+        const result = (part as { result?: unknown }).result;
+        // (1) Auto-navigate on createWorkflow
+        if (
+          (part as { toolName?: string }).toolName === "createWorkflow" &&
+          result !== undefined &&
+          typeof result === "object" &&
+          result !== null &&
+          "workflow" in (result as Record<string, unknown>) &&
+          (result as { workflow?: { id?: string } }).workflow?.id
+        ) {
+          const id = (result as { workflow: { id: string } }).workflow.id;
+          if (
+            navigatedRef.current !== id &&
+            !window.location.pathname.includes(`/workflows/${id}`)
+          ) {
+            navigatedRef.current = id;
+            // §4.3: navigate to the edit route (which reads the id from the
+            // path via useParams().workflowId), NOT `/workflows/create?id=`.
+            // The create route ignores the query param, so it mounted a blank
+            // "New workflow" and a Save there created a duplicate.
+            navigate(`/workflows/${id}/edit`);
+          }
+          queryClient.invalidateQueries({ queryKey: ["workflow", id] });
+        }
+        // (2) On every write tool-call, invalidate workflow query so the
+        // canvas re-renders with the new graph state.
+        const toolName = (part as { toolName?: string }).toolName;
+        if (
+          toolName &&
+          [
+            "addNode",
+            "setNodeParameters",
+            "connectNodes",
+            "deleteNode",
+            "setEntryNode",
+            "declareCtx",
+            "setCtxKind",
+            "updateWorkflowMetadata",
+          ].includes(toolName)
+        ) {
+          queryClient.invalidateQueries({ queryKey: ["workflow"] });
+          queryClient.invalidateQueries({ queryKey: ["activity-catalog"] });
+        }
+        // (3) Drain queued files on addNode(source.upload).
+        if (
+          (part as { toolName?: string }).toolName === "addNode" &&
+          result !== undefined &&
+          typeof result === "object" &&
+          result !== null &&
+          "node" in (result as Record<string, unknown>)
+        ) {
+          const node = (
+            result as {
+              node?: { id?: string; type?: string; sourceType?: string };
+            }
+          ).node;
+          const toolCallId =
+            (part as { toolCallId?: string }).toolCallId ??
+            JSON.stringify(part);
+          if (
+            // §4.5: the backend addNode tool returns
+            // `{ type: "source", sourceType: "source.upload" }` — the old
+            // `node.type === "source.upload"` check never matched, so files
+            // queued before the node existed stayed "uploading…" forever.
+            node?.type === "source" &&
+            node.sourceType === "source.upload" &&
+            node.id &&
+            !drainedRef.current.has(toolCallId)
+          ) {
+            drainedRef.current.add(toolCallId);
+            window.dispatchEvent(
+              new CustomEvent("agent-chat:drain-queue", {
+                detail: { sourceNodeId: node.id },
+              }),
+            );
+          }
+        }
+      }
+    });
+    return () => {
+      unsub?.();
+    };
+  }, [runtime, navigate, queryClient]);
+
+  return null;
+}
