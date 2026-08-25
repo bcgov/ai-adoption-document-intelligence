@@ -38,6 +38,17 @@ vi.mock("../components/group/GroupSelector", () => ({
   GroupSelector: () => <div data-testid="group-selector" />,
 }));
 
+// RootLayout reads the active group to decide whether to show admin-only
+// navigation. No group means a non-admin user, which is what these cases
+// assert against.
+vi.mock("@/auth/GroupContext", () => ({
+  useGroup: () => ({
+    availableGroups: [],
+    activeGroup: null,
+    setActiveGroup: vi.fn(),
+  }),
+}));
+
 // The real drawer drags in the assistant-ui runtime and TanStack Query; the
 // question here is only whether the layout mounts it at all.
 vi.mock("../features/agent-chat/AgentChatDrawer", () => ({
