@@ -1,5 +1,8 @@
+import type { LabeledSegment } from "@ai-di/graph-workflow";
 import { createActivityLogger } from "../logger";
 import type { ClassifiedDocument } from "./azure-classify-poll";
+
+export type { LabeledSegment };
 
 export interface FlattenClassifiedDocumentsInput {
   /** Output of azureClassify.poll — keyed by classifier label. */
@@ -12,18 +15,9 @@ export interface FlattenClassifiedDocumentsInput {
   filterLabels?: string[];
 }
 
-export interface ClassifiedSegment {
-  /** The classifier label assigned to this segment. */
-  label: string;
-  /** 1-based page range (inclusive) that this document occupies in the source file. */
-  pageRange: { start: number; end: number };
-  /** Classifier confidence score for this segment. */
-  confidence: number;
-}
-
 export interface FlattenClassifiedDocumentsOutput {
   /** Flat, page-ordered array of detected document segments. */
-  segments: ClassifiedSegment[];
+  segments: LabeledSegment[];
 }
 
 /**
@@ -63,7 +57,7 @@ export async function flattenClassifiedDocuments(
     return { segments: [] };
   }
 
-  const segments: ClassifiedSegment[] = [];
+  const segments: LabeledSegment[] = [];
 
   for (const [label, documents] of Object.entries(labeledDocuments)) {
     if (filterLabels !== undefined && !filterLabels.includes(label)) {

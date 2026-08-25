@@ -6,16 +6,23 @@
  * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md Section 5.2
  */
 
+import { writeSourceNodeCache } from "../cache/source-node-cache";
 import type {
   GraphWorkflowExecutionInput,
   GraphWorkflowResult,
+  SourceNode,
 } from "../graph-workflow-types";
 import { buildGraphWorkflowResult } from "./build-workflow-result";
 import { initializeContext } from "./context-utils";
+import { describeNodeError } from "./describe-node-error";
 import { handleNodeError } from "./error-handling";
 import type { ExecutionState } from "./execution-state";
 import { computeReadySet, computeTopologicalOrder } from "./graph-algorithms";
-import { executeNode, executeSwitchNode } from "./node-executors";
+import {
+  executeNode,
+  executeSwitchNode,
+  type NodeExecutionResult,
+} from "./node-executors";
 
 /**
  * Main graph execution function
@@ -33,6 +40,16 @@ export async function runGraphExecution(
   state.runnerVersion = input.runnerVersion;
   state.requestId = input.requestId;
   state.groupId = input.groupId ?? null;
+  // Phase 4 (US-133): lineage scope is set on the workflow start path; the
+  // worker `cacheDeps` proxy is assigned by the workflow entry point
+  // (`graph-workflow.ts`) before `runGraphExecution` is invoked.
+  state.workflowLineageId = input.workflowLineageId ?? null;
+  // Item 4 (security): the caller's API key is no longer threaded through
+  // the workflow input. `dyn.run` sources the platform API key server-side
+  // from worker config. `workflowRunId` is still set by the workflow entry
+  // point (`graph-workflow.ts`) from `workflowInfo().workflowId` before
+  // `runGraphExecution` is invoked, because the runner cannot reach
+  // `workflowInfo()` itself (workflow-context API).
   state.workflowConfigOverrides = input.workflowConfigOverrides;
 
   // Step 1: Initialize context from defaults + initialCtx
@@ -44,6 +61,58 @@ export async function runGraphExecution(
 
   // Step 2: Validate DAG structure (cycle detection via topological sort)
   computeTopologicalOrder(config);
+
+  // Step 2.5: Phase 4 (US-133 Scenario 3) — write source-node cache rows
+  // BEFORE the main execution loop. The source's ctx-merge already
+  // happened during `initializeContext` (initialCtx carries the inbound
+  // payload), so its "output" is the merged ctx. Downstream activities
+  // pick this up automatically via the standard input-hash chain.
+  //
+  // Source nodes are marked complete unconditionally — their "execution"
+  // is the ctx-merge that already happened in `initializeContext`. The
+  // cache-write half only runs when the worker has wired the cache deps
+  // (Phase 4 try-in-place path).
+  const initialCtxSnapshot: Record<string, unknown> = { ...state.ctx };
+  for (const node of Object.values(config.nodes)) {
+    if (node.type !== "source") {
+      continue;
+    }
+    // Phase 4 (US-135) — record the source node's start timestamp BEFORE
+    // the cache write so a query mid-flight (between the upsert call and
+    // the awaited resolution) still observes the node as `"running"`.
+    const sourceStartedAt = new Date().toISOString();
+    state.nodeRunStatuses[node.id] = {
+      status: "running",
+      startedAt: sourceStartedAt,
+    };
+
+    if (state.cacheDeps && state.workflowLineageId) {
+      await writeSourceNodeCache(
+        state.cacheDeps,
+        node as SourceNode,
+        initialCtxSnapshot,
+        state.workflowLineageId,
+      );
+    }
+    // Mark the source node as completed so it doesn't get scheduled
+    // for execution by the main loop — its "execution" was the
+    // ctx-merge that already happened.
+    state.completedNodeIds.add(node.id);
+    const sourceEndedAt = new Date().toISOString();
+    state.nodeStatuses.set(node.id, {
+      status: "completed",
+      completedAt: sourceEndedAt,
+    });
+    // Phase 4 (US-135) — the source node's "execution" is the
+    // ctx-merge that already happened in `initializeContext`. It is
+    // never served from a cache lookup (the cache write is a side-
+    // effect), so the canvas surfaces it as `"succeeded"`.
+    state.nodeRunStatuses[node.id] = {
+      status: "succeeded",
+      startedAt: sourceStartedAt,
+      endedAt: sourceEndedAt,
+    };
+  }
 
   // Step 3: Main execution loop
   // Note: Not all nodes may complete (e.g., unselected switch branches)
@@ -75,29 +144,88 @@ export async function runGraphExecution(
           throw new Error(`Node not found: ${nodeId}`);
         }
 
-        // Mark node as running
+        // Mark node as running (legacy status map + Phase 4 run-status
+        // map — both maintained in lockstep).
+        const startedAt = new Date().toISOString();
         state.nodeStatuses.set(nodeId, {
           status: "running",
-          startedAt: new Date().toISOString(),
+          startedAt,
         });
+        state.nodeRunStatuses[nodeId] = {
+          status: "running",
+          startedAt,
+        };
 
         try {
+          let executionResult: NodeExecutionResult;
           // Handle switch nodes specially - they determine routing
           if (node.type === "switch") {
             const selectedEdgeId = executeSwitchNode(node, state.ctx);
             state.selectedEdges.set(nodeId, selectedEdgeId);
+            executionResult = { kind: "completed" };
           } else {
-            await executeNode(node, config, state);
+            executionResult = await executeNode(node, config, state);
           }
 
           // Mark node as completed
           state.completedNodeIds.add(nodeId);
+          const endedAt = new Date().toISOString();
           state.nodeStatuses.set(nodeId, {
             status: "completed",
-            completedAt: new Date().toISOString(),
+            completedAt: endedAt,
           });
+          // G-014 — surface the branch decision this node made (switch
+          // case / default edge, humanGate fallback) on its run status, so
+          // a finished run can still show which way it went. Absent for
+          // nodes that route implicitly down every outgoing normal edge.
+          const selectedEdgeId = state.selectedEdges.get(nodeId);
+          // Phase 4 (US-135) — flip the run-status map based on whether
+          // the activity-node cache decorator short-circuited.
+          if (executionResult.kind === "skipped") {
+            state.nodeRunStatuses[nodeId] = {
+              status: "skipped",
+              startedAt,
+              endedAt,
+              cacheHit: executionResult.cacheHit,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
+            };
+          } else {
+            state.nodeRunStatuses[nodeId] = {
+              status: "succeeded",
+              startedAt,
+              endedAt,
+              ...(selectedEdgeId ? { selectedEdgeId } : {}),
+            };
+          }
         } catch (error) {
-          handleNodeError(nodeId, node, error, state, config);
+          // Phase 4 (US-135) — record the failure status (with the
+          // error message) BEFORE handing off to `handleNodeError`,
+          // because that helper re-throws on the default "fail" policy.
+          // We use the existing `startedAt` (no other writer touches
+          // this entry between the "running" write and here).
+          const failedAt = new Date().toISOString();
+          state.nodeRunStatuses[nodeId] = {
+            status: "failed",
+            startedAt,
+            endedAt: failedAt,
+            // Temporal's `ActivityFailure` envelope reports the constant
+            // "Activity task failed"; the activity's own message is on
+            // `.cause`. Unwrap it so the canvas shows a reason.
+            errorMessage: describeNodeError(error),
+          };
+          try {
+            handleNodeError(nodeId, node, error, state, config);
+          } finally {
+            // G-014 — an `errorPolicy: "fallback"` diversion is recorded by
+            // `handleNodeError`, i.e. AFTER the failed status was written
+            // above. Copy it across either way so the canvas can draw the
+            // error edge the run actually took.
+            const fallbackEdgeId = state.selectedEdges.get(nodeId);
+            const entry = state.nodeRunStatuses[nodeId];
+            if (fallbackEdgeId && entry) {
+              entry.selectedEdgeId = fallbackEdgeId;
+            }
+          }
         }
       }),
     );
