@@ -22,17 +22,22 @@ import {
 } from "./features/benchmarking/pages";
 import { TableDetailPage } from "./features/tables/pages/TableDetailPage";
 import { TablesListPage } from "./features/tables/pages/TablesListPage";
+import { WorkflowBySlugRedirect } from "./features/workflow-builder/WorkflowBySlugRedirect";
+import { WorkflowEditorV2Page } from "./features/workflow-builder/WorkflowEditorV2Page";
 import { RootLayout } from "./layouts/RootLayout";
 import { BillingPage } from "./pages/BillingPage";
 import ClassifierPage from "./pages/ClassifierPage";
 import { ConfusionProfilesPage } from "./pages/ConfusionProfilesPage";
 import { DocumentsPage } from "./pages/DocumentsPage";
+import DynamicNodeEditPage from "./pages/dynamic-nodes/DynamicNodeEditPage";
+import DynamicNodeNewPage from "./pages/dynamic-nodes/DynamicNodeNewPage";
+import DynamicNodesListPage from "./pages/dynamic-nodes/DynamicNodesListPage";
 import { GroupDetailPage } from "./pages/GroupDetailPage";
 import { GroupsPage } from "./pages/GroupsPage";
 import { RequestMembershipPage } from "./pages/RequestMembershipPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { UploadPage } from "./pages/UploadPage";
-import { WorkflowEditorPage } from "./pages/WorkflowEditorPage";
+import { WorkflowFormPreviewPage } from "./pages/WorkflowFormPreviewPage";
 import { WorkflowListPage } from "./pages/WorkflowListPage";
 
 const router = createBrowserRouter([
@@ -58,16 +63,40 @@ const router = createBrowserRouter([
       { path: "classify", element: <ClassifierPage /> },
       { path: "settings", element: <SettingsPage /> },
 
-      // Workflows with nested routes
+      // Workflows with nested routes — the V2 visual editor is now the
+      // sole workflow editor (the legacy JSON editor was removed).
       { path: "workflows", element: <WorkflowListPage /> },
       {
         path: "workflows/create",
-        element: <WorkflowEditorPage mode="create" />,
+        element: <WorkflowEditorV2Page mode="create" />,
       },
       {
         path: "workflows/:workflowId/edit",
-        element: <WorkflowEditorPage mode="edit" />,
+        element: <WorkflowEditorV2Page mode="edit" />,
       },
+      // Stable/shareable entry link — resolves a workflow slug to its
+      // current lineage id and redirects to the canonical edit route.
+      // Survives reseeds (slug is stable; id churns).
+      {
+        path: "workflows/by-slug/:slug/edit",
+        element: <WorkflowBySlugRedirect />,
+      },
+      // Dev-only tracer for the schema-driven form renderer. §5.2: gated
+      // behind import.meta.env.DEV so it never ships to production (it
+      // exposes raw JSON-Schema/Zod internals to any authenticated user).
+      ...(import.meta.env.DEV
+        ? [
+            {
+              path: "workflows/dev-form-preview",
+              element: <WorkflowFormPreviewPage />,
+            },
+          ]
+        : []),
+
+      // Dynamic nodes (Phase 6 Milestone F — US-180 + US-181)
+      { path: "dynamic-nodes", element: <DynamicNodesListPage /> },
+      { path: "dynamic-nodes/new", element: <DynamicNodeNewPage /> },
+      { path: "dynamic-nodes/:slug", element: <DynamicNodeEditPage /> },
 
       // Tables
       { path: "tables", element: <TablesListPage /> },

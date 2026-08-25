@@ -13,7 +13,7 @@
  *
  * Per-type rendering (US-012):
  *   - activity → rectangle (existing renderer, unchanged shape).
- *   - switch   → diamond (geometry ported from `GraphVisualization.tsx`).
+ *   - switch   → diamond (rotated-square geometry).
  *   - map / join → rectangle with a fan-out / fan-in corner overlay.
  *   - pollUntil / humanGate / childWorkflow → rectangle with the type's
  *     Tabler icon in the header.
@@ -1363,8 +1363,8 @@ const PollUntilNodeRenderer = memo(
 PollUntilNodeRenderer.displayName = "PollUntilNodeRenderer";
 
 /**
- * Diamond renderer for `switch` nodes. Visual layer is a rotated square
- * (matching `GraphVisualization.tsx`); content + handles stay upright.
+ * Diamond renderer for `switch` nodes. Visual layer is a rotated square;
+ * content + handles stay upright.
  * Handles are pinned to the unrotated wrapper so they sit at the
  * diamond's left/right vertices.
  */

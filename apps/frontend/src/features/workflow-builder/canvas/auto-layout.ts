@@ -6,7 +6,6 @@
  *     (US-049 Scenario 3).
  *   - The template-load path in `WorkflowEditorV2Page.tsx`
  *     (US-050 Scenarios 1–3).
- *   - The read-only `GraphVisualization.tsx` renderer (US-049 Scenario 2).
  *
  * Wraps `dagre-esm` so callers don't have to know about graphlib. The
  * function is pure: given the same input it returns a new config with
@@ -448,83 +447,4 @@ export function layoutGraphIfMissingPositions(
     return config;
   }
   return layoutGraph(config, options);
-}
-
-// ---------------------------------------------------------------------------
-// xyflow-shaped helper — used by `GraphVisualization.tsx` (US-049 Scenario 2)
-// ---------------------------------------------------------------------------
-
-interface XyflowLayoutNode {
-  id: string;
-  width?: number;
-  height?: number;
-}
-
-interface XyflowLayoutEdge {
-  source: string;
-  target: string;
-}
-
-export interface XyflowLayoutOptions {
-  rankdir?: "LR" | "TB";
-  nodesep?: number;
-  ranksep?: number;
-}
-
-const DEFAULT_XY_RANKDIR = "TB" as const;
-const DEFAULT_XY_NODESEP = 50;
-const DEFAULT_XY_RANKSEP = 80;
-const DEFAULT_XY_NODE_WIDTH = 180;
-const DEFAULT_XY_NODE_HEIGHT = 80;
-
-/**
- * Lift of the dagre layout previously inlined in
- * `GraphVisualization.tsx`. Accepts xyflow-shaped nodes/edges and
- * returns the same nodes with `position` patched. Used by the read-only
- * renderer so all dagre interaction lives in this one module.
- *
- * Defaults match the renderer's previous behaviour (`rankdir: "TB"`,
- * `ranksep: 80`, `nodesep: 50`, fallback dimensions 180 × 80).
- */
-export function layoutXyflowNodes<
-  N extends XyflowLayoutNode & { position?: { x: number; y: number } },
-  E extends XyflowLayoutEdge,
->(
-  nodes: N[],
-  edges: E[],
-  options: XyflowLayoutOptions = {},
-): { nodes: N[]; edges: E[] } {
-  const rankdir = options.rankdir ?? DEFAULT_XY_RANKDIR;
-  const nodesep = options.nodesep ?? DEFAULT_XY_NODESEP;
-  const ranksep = options.ranksep ?? DEFAULT_XY_RANKSEP;
-
-  const graph = new dagre.graphlib.Graph();
-  graph.setDefaultEdgeLabel(() => ({}));
-  graph.setGraph({ rankdir, ranksep, nodesep });
-
-  for (const node of nodes) {
-    graph.setNode(node.id, {
-      width: node.width ?? DEFAULT_XY_NODE_WIDTH,
-      height: node.height ?? DEFAULT_XY_NODE_HEIGHT,
-    });
-  }
-  for (const edge of edges) {
-    graph.setEdge(edge.source, edge.target);
-  }
-  dagre.layout(graph);
-
-  const laidOut = nodes.map((node) => {
-    const placed = graph.node(node.id);
-    const width = node.width ?? DEFAULT_XY_NODE_WIDTH;
-    const height = node.height ?? DEFAULT_XY_NODE_HEIGHT;
-    return {
-      ...node,
-      position: {
-        x: (placed?.x ?? 0) - width / 2,
-        y: (placed?.y ?? 0) - height / 2,
-      },
-    };
-  });
-
-  return { nodes: laidOut, edges };
 }
