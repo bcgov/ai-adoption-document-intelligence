@@ -368,11 +368,18 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
             // the worker decorator key cache rows by lineage so that
             // identical configs across versions share cache.
             workflowLineageId: workflowConfig.id,
+            // G-021 / Phase 4.x: `trigger` travels in the workflow input so
+            // the worker can gate the activity-output cache to editor Try
+            // runs only (production-scope caching is deferred pending a GDPR
+            // review). The same value is stamped on the `RunTrigger` search
+            // attribute above for visibility queries.
+            trigger,
             // Item 4 (security): the caller's `x-api-key` is no longer
             // threaded into the workflow input — Temporal persists workflow
             // input in durable history, so it would leak in cleartext. The
-            // worker's `dyn.run` activity sources the platform API key
-            // server-side from its own config (`PLATFORM_API_KEY`).
+            // worker's `dyn.run` activity authenticates server-side instead
+            // (a short-lived, group-scoped internal token minted per
+            // invocation — see `InternalTokenService`).
             ...(requestId && { requestId }),
             ...(hasOverrides && { workflowConfigOverrides }),
           },
@@ -575,19 +582,50 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    *       docs-md/workflows/TRY_IN_PLACE_DESIGN.md §2.5.
    *
    * @param workflowId Temporal workflow execution id (runId in the canvas)
-   * @returns `{ startedAt, endedAt }` where `endedAt` is `null` for runs
-   *          that have not yet closed.
+   * @returns `{ startedAt, endedAt, trigger }` where `endedAt` is `null`
+   *          for runs that have not yet closed and `trigger` is the run's
+   *          decoded `RunTrigger` search attribute (`null` when absent —
+   *          see {@link getRunTrigger} for what callers must do with that).
    */
-  async getRunWindow(
-    workflowId: string,
-  ): Promise<{ startedAt: Date; endedAt: Date | null }> {
+  async getRunWindow(workflowId: string): Promise<{
+    startedAt: Date;
+    endedAt: Date | null;
+    trigger: RunTrigger | null;
+  }> {
     this.ensureClientInitialized();
     const handle = this.client!.workflow.getHandle(workflowId);
     const description = await handle.describe();
     return {
       startedAt: description.startTime,
       endedAt: description.closeTime ?? null,
+      trigger: extractRunTrigger(description.searchAttributes),
     };
+  }
+
+  /**
+   * Resolve a run's `RunTrigger` search attribute via `describe()`.
+   *
+   * Backs the per-run editor endpoints' Try-only scoping (G-021 follow-up):
+   * `GET /:id/runs/:runId/node-statuses` and `GET /:id/runs/:runId/input-ctx`
+   * must refuse production (`"api"`) runs, and the search attribute is the
+   * cheapest reliable source — it is stamped by `startGraphWorkflow` on
+   * every run since G-021, including runs that predate `trigger` travelling
+   * in the workflow input, and reading it does not fetch history.
+   *
+   * Returns `null` when the attribute is absent or carries an unknown value
+   * (a run started before G-021, or a foreign writer to the namespace).
+   * Callers MUST fail closed on `null` — an unattributable run is treated as
+   * production, the same direction `cancelInFlightTriesForLineage` takes.
+   *
+   * Errors are propagated unmodified (notably `WorkflowNotFoundError`) so
+   * the controller can map them to HTTP semantics the same way
+   * `queryNodeStatuses` does.
+   */
+  async getRunTrigger(workflowId: string): Promise<RunTrigger | null> {
+    this.ensureClientInitialized();
+    const handle = this.client!.workflow.getHandle(workflowId);
+    const description = await handle.describe();
+    return extractRunTrigger(description.searchAttributes);
   }
 
   /**
@@ -748,6 +786,11 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * `(workflowLineageId, workflowVersionId)` pair. Backs the per-version
    * run-count badge on `VersionHistoryDrawer` (US-152).
    *
+   * Editor Try runs only (`RunTrigger = "try"`), matching `listRunsForWorkflow`
+   * — the badge and the run-history drawer it opens must agree on what a
+   * "run" is. Production (`"api"`) runs are monitored in the Processing
+   * queue, not counted here.
+   *
    * Uses the raw `WorkflowService.countWorkflowExecutions` gRPC method
    * (the higher-level `client.workflow.count` helper isn't available in
    * SDK 1.10.x). The visibility-store count is approximate but is the
@@ -780,7 +823,9 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
         `Invalid workflowVersionId (contains quote): ${workflowVersionId}`,
       );
     }
-    const query = `WorkflowLineageId = "${workflowLineageId}" AND WorkflowVersionId = "${workflowVersionId}"`;
+    // `RunTrigger = "try"` is a literal (no caller input), so it needs no
+    // quote guard.
+    const query = `WorkflowLineageId = "${workflowLineageId}" AND WorkflowVersionId = "${workflowVersionId}" AND RunTrigger = "try"`;
     const response =
       await this.connection!.workflowService.countWorkflowExecutions({
         namespace: this.namespace,
@@ -802,6 +847,13 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
    * lineage, with optional filters (status, start-time range, pinned
    * version) and cursor-based pagination. Backs `GET /api/workflows/:id/runs`
    * — the run-history endpoint surfaced by `RunHistoryDrawer` (US-150).
+   *
+   * Editor Try runs only: every query carries `RunTrigger = "try"`. Run
+   * history is an editor surface — a production run's `initialCtx` carries
+   * document identifiers and filenames that must not surface in the
+   * designer's drawer. Production runs are monitored in the Processing
+   * queue instead. Runs that predate the `RunTrigger` attribute (G-021)
+   * carry no value and therefore do not match, the safe direction.
    *
    * Uses the raw `WorkflowService.listWorkflowExecutions` gRPC method
    * directly (rather than the higher-level `client.workflow.list` async
@@ -867,7 +919,12 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    const clauses: string[] = [`WorkflowLineageId = "${workflowLineageId}"`];
+    const clauses: string[] = [
+      `WorkflowLineageId = "${workflowLineageId}"`,
+      // Editor surface: Try runs only (see the method doc). A literal, so
+      // no quote guard is needed.
+      `RunTrigger = "try"`,
+    ];
     if (status) {
       clauses.push(`ExecutionStatus = "${status}"`);
     }
@@ -1251,6 +1308,26 @@ function decodeWorkflowVersionId(
   } catch {
     return null;
   }
+}
+
+/**
+ * Narrow the SDK-decoded `RunTrigger` search attribute (from
+ * `WorkflowHandle.describe()`, which — unlike the raw protobuf visibility
+ * responses — returns search attributes as plain JS values) to the
+ * {@link RunTrigger} union. Temporal keyword attributes round-trip as
+ * `string` or `string[]` depending on the server version, so both are
+ * accepted; anything else — absent, empty, or an unknown value — is `null`,
+ * which callers must treat as "not a Try run" (fail closed).
+ */
+export function extractRunTrigger(
+  searchAttributes: unknown,
+): RunTrigger | null {
+  if (typeof searchAttributes !== "object" || searchAttributes === null) {
+    return null;
+  }
+  const raw = (searchAttributes as Record<string, unknown>).RunTrigger;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value === "try" || value === "api" ? value : null;
 }
 
 /**
