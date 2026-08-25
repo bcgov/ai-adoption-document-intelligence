@@ -8,7 +8,10 @@
     "tsConfigPath": "tsconfig.build.json",
     "watchAssets": true,
     "builder": "swc",
-    "assets": ["billing/rate_versions.json"]
+    "assets": [
+      "billing/rate_versions.json",
+      { "include": "agent/sample-document-assets/**/*", "outDir": "dist" }
+    ]
   },
   "watchOptions": {
     "watchAssets": true,
