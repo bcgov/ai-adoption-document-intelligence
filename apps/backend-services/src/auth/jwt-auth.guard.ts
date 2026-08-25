@@ -42,6 +42,15 @@ export class JwtAuthGuard extends AuthGuard("jwt") {
       return true;
     }
 
+    // Same skip for internal tokens (Change W): machine-auth endpoints
+    // accepting an `x-internal-token` are validated by
+    // InternalTokenAuthGuard, not by Passport. Only fires when the new
+    // header is present, so existing JWT behaviour is unchanged.
+    const internalTokenHeader = request.headers["x-internal-token"];
+    if (identityOptions?.allowApiKey && internalTokenHeader) {
+      return true;
+    }
+
     // Delegate to Passport JWT strategy for bearer token validation
     return super.canActivate(context);
   }
