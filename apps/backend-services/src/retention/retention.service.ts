@@ -11,7 +11,7 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { DocumentDbService } from "./document-db.service";
+import { DocumentDbService } from "../document/document-db.service";
 import { RetentionDbService } from "./retention-db.service";
 
 /** Env var controlling document retention window (days). */

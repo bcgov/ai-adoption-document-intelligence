@@ -6,14 +6,14 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { DocumentDbService } from "./document-db.service";
+import { DocumentDbService } from "../document/document-db.service";
 import {
   AUDIT_EVENT_RETENTION_ENV_VAR,
   BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
   DOCUMENT_RETENTION_ENV_VAR,
   DocumentRetentionService,
   REVIEW_SESSION_RETENTION_ENV_VAR,
-} from "./document-retention.service";
+} from "./retention.service";
 import { RetentionDbService } from "./retention-db.service";
 
 const mockDocumentDb = {
@@ -29,6 +29,7 @@ const mockRetentionDb = {
   deleteAuditEventsOlderThan: jest.fn(),
   deleteBenchmarkAuditLogsOlderThan: jest.fn(),
   deleteCompletedReviewSessionsOlderThan: jest.fn(),
+  runWithDatabaseLock: jest.fn(),
 };
 
 const mockLogger = {

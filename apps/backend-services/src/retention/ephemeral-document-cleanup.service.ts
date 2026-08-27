@@ -13,10 +13,8 @@ import {
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import {
-  DocumentDbService,
-  type PurgeableEphemeralDocument,
-} from "./document-db.service";
+import { DocumentDbService, PurgeableEphemeralDocument } from "@/document/document-db.service";
+
 
 /** Maximum documents purged per run. */
 const BATCH_SIZE = 100;
