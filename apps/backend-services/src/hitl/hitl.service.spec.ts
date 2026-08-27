@@ -382,22 +382,26 @@ describe("HitlService", () => {
       });
     });
 
-    it("should count reviewed-today from midnight and scope every count to the caller's groups", async () => {
+    it("should count reviewed-today from midnight and scope every count to the caller's groups and identity", async () => {
       mockReviewDbService.countReviewQueue.mockResolvedValue(0);
       mockReviewDbService.findQueueFieldPayloads.mockResolvedValueOnce([]);
       mockReviewDbService.countApprovedSessionsSince.mockResolvedValueOnce(0);
 
-      await service.getQueueStats(["group-1"]);
+      await service.getQueueStats(["group-1"], "reviewer-1");
 
       expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review, DocumentStatus.complete],
         reviewStatus: "all",
         groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
       });
+      // The caller's own locked document still counts as theirs to review,
+      // so this must match what the Pending tab lists.
       expect(mockReviewDbService.countReviewQueue).toHaveBeenCalledWith({
         statuses: [DocumentStatus.awaiting_review],
         reviewStatus: "pending",
         groupIds: ["group-1"],
+        currentReviewerId: "reviewer-1",
       });
 
       const [since, groupIds] =

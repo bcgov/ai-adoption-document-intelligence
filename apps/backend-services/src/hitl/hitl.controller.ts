@@ -120,7 +120,10 @@ export class HitlController {
     } else {
       groupIds = getIdentityGroupIds(req?.resolvedIdentity);
     }
-    return this.hitlService.getQueueStats(groupIds);
+    return this.hitlService.getQueueStats(
+      groupIds,
+      req?.resolvedIdentity?.actorId,
+    );
   }
 
   @Post("sessions/next")

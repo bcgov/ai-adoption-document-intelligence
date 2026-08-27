@@ -171,7 +171,10 @@ describe("HitlController", () => {
       hitlService.getQueueStats.mockResolvedValue(mockResult as any);
       const result = await controller.getQueueStats(req);
       expect(result).toEqual(mockResult);
-      expect(hitlService.getQueueStats).toHaveBeenCalledWith(["group-1"]);
+      expect(hitlService.getQueueStats).toHaveBeenCalledWith(
+        ["group-1"],
+        undefined,
+      );
     });
 
     it("scopes stats to a single group when group_id is provided and user is a member", async () => {
@@ -189,7 +192,10 @@ describe("HitlController", () => {
         reviewedToday: 0,
       } as any);
       await controller.getQueueStats(req, "group-1");
-      expect(hitlService.getQueueStats).toHaveBeenCalledWith(["group-1"]);
+      expect(hitlService.getQueueStats).toHaveBeenCalledWith(
+        ["group-1"],
+        undefined,
+      );
     });
 
     it("throws ForbiddenException when group_id is provided but user is not a member", async () => {

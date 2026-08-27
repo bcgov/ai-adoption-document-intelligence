@@ -103,6 +103,10 @@ export const useReviewQueue = (filters?: QueueFilters) => {
         status: string;
         startedAt: string;
       }>("/hitl/sessions", { documentId });
+      // apiService resolves with success:false rather than rejecting, so a
+      // conflict (another reviewer holds the lock) has to be raised here for
+      // the caller to see it.
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {

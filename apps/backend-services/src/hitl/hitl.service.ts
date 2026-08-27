@@ -272,10 +272,12 @@ export class HitlService {
 
   /**
    * Summarises the whole review queue for the header cards. Every figure is a
-   * database count over the same filter the queue itself uses, so the numbers
-   * do not depend on which tab is open or how many rows one page holds.
+   * database count over the same filter the queue itself uses — including the
+   * caller's own locks, so a document open in this reviewer's workspace still
+   * counts — and so the numbers do not depend on which tab is open or how many
+   * rows one page holds.
    */
-  async getQueueStats(groupIds?: string[]) {
+  async getQueueStats(groupIds?: string[], currentReviewerId?: string) {
     this.logger.debug("Getting queue statistics");
 
     const reviewableStatuses = [
@@ -292,16 +294,19 @@ export class HitlService {
           statuses: reviewableStatuses,
           reviewStatus: "all",
           groupIds,
+          currentReviewerId,
         }),
         this.reviewDb.countReviewQueue({
           statuses: [DocumentStatus.awaiting_review],
           reviewStatus: "pending",
           groupIds,
+          currentReviewerId,
         }),
         this.reviewDb.findQueueFieldPayloads({
           statuses: reviewableStatuses,
           reviewStatus: "all",
           groupIds,
+          currentReviewerId,
         }),
         this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
       ]);
