@@ -1,5 +1,5 @@
 import { getErrorStack } from "@ai-di/shared-logging";
-import { DocumentStatus } from "@generated/client";
+import { DocumentStatus, Prisma } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import {
@@ -40,6 +40,13 @@ const DELETABLE_STATUSES: DocumentStatus[] = [
   DocumentStatus.conversion_failed,
 ];
 
+enum CronLockKeys {
+  DOCUMENTS,
+  AUDIT_EVENTS,
+  BENCHMARK_AUDIT_LOGS,
+  REVIEW_SESSIONS,
+}
+
 /**
  * Periodic janitor that enforces configurable retention windows across the
  * system's main unbounded data stores.
@@ -66,63 +73,72 @@ export class DocumentRetentionService {
   /** Runs every 6 hours: permanently deletes expired terminal documents, their blobs, and cascading OCR results. */
   @Cron("0 */6 * * *")
   async deleteExpiredDocuments(): Promise<void> {
-    const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
-    const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
+    await this.retentionDb.runWithDatabaseLock(
+      CronLockKeys.DOCUMENTS,
+      "deleteExpiredDocuments",
+      async (tx) => {
+        const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
+        const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
 
-    if (!raw || Number.isNaN(retentionDays) || retentionDays <= 0) {
-      this.logger.warn(
-        `Document retention cleanup skipped: ${DOCUMENT_RETENTION_ENV_VAR} is not set or is not a positive integer`,
-        { value: raw },
-      );
-      return;
-    }
+        if (!raw || Number.isNaN(retentionDays) || retentionDays <= 0) {
+          this.logger.warn(
+            `Document retention cleanup skipped: ${DOCUMENT_RETENTION_ENV_VAR} is not set or is not a positive integer`,
+            { value: raw },
+          );
+          return;
+        }
 
-    const olderThan = new Date(
-      Date.now() - retentionDays * 24 * 60 * 60 * 1000,
-    );
+        const olderThan = new Date(
+          Date.now() - retentionDays * 24 * 60 * 60 * 1000,
+        );
 
-    let documents: Awaited<
-      ReturnType<DocumentDbService["findExpiredDocuments"]>
-    >;
-    try {
-      documents = await this.documentDb.findExpiredDocuments(
-        olderThan,
-        DELETABLE_STATUSES,
-        DOCUMENT_BATCH_SIZE,
-      );
-    } catch (err) {
-      this.logger.error("Failed to query expired documents — aborting run", {
-        stack: getErrorStack(err),
-      });
-      return;
-    }
+        let documents: Awaited<
+          ReturnType<DocumentDbService["findExpiredDocuments"]>
+        >;
+        try {
+          documents = await this.documentDb.findExpiredDocuments(
+            olderThan,
+            DELETABLE_STATUSES,
+            DOCUMENT_BATCH_SIZE,
+          );
+        } catch (err) {
+          this.logger.error(
+            "Failed to query expired documents — aborting run",
+            {
+              stack: getErrorStack(err),
+            },
+          );
+          return;
+        }
 
-    if (documents.length === 0) {
-      return;
-    }
+        if (documents.length === 0) {
+          return;
+        }
 
-    let deleted = 0;
-    let errors = 0;
-    for (const doc of documents) {
-      try {
-        await this.deleteDocument(doc);
-        deleted++;
-      } catch (err) {
-        errors++;
-        this.logger.error(`Failed to delete expired document ${doc.id}`, {
-          documentId: doc.id,
-          groupId: doc.group_id,
-          stack: getErrorStack(err),
+        let deleted = 0;
+        let errors = 0;
+        for (const doc of documents) {
+          try {
+            await this.deleteDocument(doc, tx);
+            deleted++;
+          } catch (err) {
+            errors++;
+            this.logger.error(`Failed to delete expired document ${doc.id}`, {
+              documentId: doc.id,
+              groupId: doc.group_id,
+              stack: getErrorStack(err),
+            });
+          }
+        }
+
+        this.logger.log("Document retention cleanup run complete", {
+          olderThanDays: retentionDays,
+          candidates: documents.length,
+          deleted,
+          errors,
         });
-      }
-    }
-
-    this.logger.log("Document retention cleanup run complete", {
-      olderThanDays: retentionDays,
-      candidates: documents.length,
-      deleted,
-      errors,
-    });
+      },
+    );
   }
 
   /**
@@ -132,15 +148,18 @@ export class DocumentRetentionService {
    *
    * @param doc - Minimal document record with id and group_id.
    */
-  private async deleteDocument(doc: {
-    id: string;
-    group_id: string;
-  }): Promise<void> {
+  private async deleteDocument(
+    doc: {
+      id: string;
+      group_id: string;
+    },
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
     const prefix = buildBlobPrefixPath(doc.group_id, OperationCategory.OCR, [
       doc.id,
     ]);
     await this.blobStorage.deleteByPrefix(prefix);
-    await this.documentDb.deleteDocument(doc.id);
+    await this.documentDb.deleteDocument(doc.id, tx);
   }
 
   /**
@@ -149,11 +168,18 @@ export class DocumentRetentionService {
    */
   @Cron("15 2 * * *")
   async deleteExpiredAuditEvents(): Promise<void> {
-    await this.runSimpleRetentionJob(
-      AUDIT_EVENT_RETENTION_ENV_VAR,
-      "Audit event",
-      (olderThan, limit) =>
-        this.retentionDb.deleteAuditEventsOlderThan(olderThan, limit),
+    await this.retentionDb.runWithDatabaseLock(
+      CronLockKeys.AUDIT_EVENTS,
+      "deleteExpiredAuditEvents",
+      async (tx) => {
+        await this.runSimpleRetentionJob(
+          AUDIT_EVENT_RETENTION_ENV_VAR,
+          "Audit event",
+          (olderThan, limit, tx) =>
+            this.retentionDb.deleteAuditEventsOlderThan(olderThan, limit, tx),
+          tx,
+        );
+      },
     );
   }
 
@@ -163,11 +189,22 @@ export class DocumentRetentionService {
    */
   @Cron("30 2 * * *")
   async deleteExpiredBenchmarkAuditLogs(): Promise<void> {
-    await this.runSimpleRetentionJob(
-      BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
-      "Benchmark audit log",
-      (olderThan, limit) =>
-        this.retentionDb.deleteBenchmarkAuditLogsOlderThan(olderThan, limit),
+    await this.retentionDb.runWithDatabaseLock(
+      CronLockKeys.BENCHMARK_AUDIT_LOGS,
+      "deleteExpiredBenchmarkAuditLogs",
+      async (tx) => {
+        await this.runSimpleRetentionJob(
+          BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
+          "Benchmark audit log",
+          (olderThan, limit, tx) =>
+            this.retentionDb.deleteBenchmarkAuditLogsOlderThan(
+              olderThan,
+              limit,
+              tx,
+            ),
+          tx,
+        );
+      },
     );
   }
 
@@ -179,14 +216,22 @@ export class DocumentRetentionService {
    */
   @Cron("45 2 * * *")
   async deleteExpiredReviewSessions(): Promise<void> {
-    await this.runSimpleRetentionJob(
-      REVIEW_SESSION_RETENTION_ENV_VAR,
-      "Review session",
-      (olderThan, limit) =>
-        this.retentionDb.deleteCompletedReviewSessionsOlderThan(
-          olderThan,
-          limit,
-        ),
+    await this.retentionDb.runWithDatabaseLock(
+      CronLockKeys.REVIEW_SESSIONS,
+      "deleteExpiredReviewSessions",
+      async (tx) => {
+        await this.runSimpleRetentionJob(
+          REVIEW_SESSION_RETENTION_ENV_VAR,
+          "Review session",
+          (olderThan, limit, tx) =>
+            this.retentionDb.deleteCompletedReviewSessionsOlderThan(
+              olderThan,
+              limit,
+              tx,
+            ),
+          tx,
+        );
+      },
     );
   }
 
@@ -203,7 +248,12 @@ export class DocumentRetentionService {
   private async runSimpleRetentionJob(
     envVar: string,
     label: string,
-    deleteFn: (olderThan: Date, limit: number) => Promise<number>,
+    deleteFn: (
+      olderThan: Date,
+      limit: number,
+      tx: Prisma.TransactionClient,
+    ) => Promise<number>,
+    tx: Prisma.TransactionClient,
   ): Promise<void> {
     const raw = process.env[envVar];
     const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
@@ -222,7 +272,7 @@ export class DocumentRetentionService {
 
     let deleted: number;
     try {
-      deleted = await deleteFn(olderThan, SIMPLE_BATCH_SIZE);
+      deleted = await deleteFn(olderThan, SIMPLE_BATCH_SIZE, tx);
     } catch (err) {
       this.logger.error(`Failed to delete expired ${label} records`, {
         stack: getErrorStack(err),
