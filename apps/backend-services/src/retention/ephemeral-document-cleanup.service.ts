@@ -14,6 +14,7 @@ import {
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
 import { DocumentDbService, PurgeableEphemeralDocument } from "@/document/document-db.service";
+import { RetentionDbService } from "./retention-db.service";
 
 
 /** Maximum documents purged per run. */
@@ -71,6 +72,7 @@ export class EphemeralDocumentCleanupService {
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
+    private readonly retentionDb: RetentionDbService,
   ) {}
 
   /**
@@ -79,7 +81,8 @@ export class EphemeralDocumentCleanupService {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async purgeEphemeralDocuments(): Promise<void> {
-    let documents: Awaited<
+    await this.retentionDb.runWithDatabaseLock("purgeEphemeralDocuments", async () => {
+      let documents: Awaited<
       ReturnType<DocumentDbService["findPurgeableEphemeralDocuments"]>
     >;
     try {
@@ -119,6 +122,7 @@ export class EphemeralDocumentCleanupService {
       purged,
       errors,
     });
+    })
   }
 
   /**
