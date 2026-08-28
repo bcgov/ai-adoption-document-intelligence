@@ -94,3 +94,7 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Removed the soft-cap-vs-"atomic"-REQUIREMENTS contradiction and the `.env.sample` blob-flag name drift from `open-questions.md` and `billing.md`: `REQUIREMENTS.md` now describes the cap as a best-effort soft cap, and `.env.sample` now carries the flag name the temporal code reads (`CHARGE_FOR_TEMPORAL_BLOB_TRANSACTION_SEPARATELY`).
 - Replaced them in `billing.md` with the standing risk that the backend and Temporal activity registries can diverge, leaving an activity unpriced and therefore silently free.
 - Dropped `billing.md`'s pointer to `open-questions.md`, which no longer carries a billing section.
+
+## [2026-08-28] maintenance | Backup RPO/RTO doc + DOCUMENT_RETENTION_DAYS agreed value
+
+- Created `docs-md/operations/BACKUP_RPO_RTO.md` recording RPO (4 h) and RTO (~2 weeks) as set by PR #238 (weekly fulls, 4-hour incrementals, 2-full count retention).
