@@ -41,13 +41,6 @@ const DELETABLE_STATUSES: DocumentStatus[] = [
   DocumentStatus.conversion_failed,
 ];
 
-enum CronLockKeys {
-  DOCUMENTS,
-  AUDIT_EVENTS,
-  BENCHMARK_AUDIT_LOGS,
-  REVIEW_SESSIONS,
-}
-
 /**
  * Periodic janitor that enforces configurable retention windows across the
  * system's main unbounded data stores.
@@ -76,7 +69,6 @@ export class DocumentRetentionService {
   @Cron("0 */6 * * *")
   async deleteExpiredDocuments(): Promise<void> {
     await this.retentionDb.runWithDatabaseLock(
-      CronLockKeys.DOCUMENTS,
       "deleteExpiredDocuments",
       async (tx) => {
         const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
@@ -181,7 +173,6 @@ export class DocumentRetentionService {
   @Cron("15 2 * * *")
   async deleteExpiredAuditEvents(): Promise<void> {
     await this.retentionDb.runWithDatabaseLock(
-      CronLockKeys.AUDIT_EVENTS,
       "deleteExpiredAuditEvents",
       async (tx) => {
         await this.runSimpleRetentionJob(
@@ -211,7 +202,6 @@ export class DocumentRetentionService {
   @Cron("30 2 * * *")
   async deleteExpiredBenchmarkAuditLogs(): Promise<void> {
     await this.retentionDb.runWithDatabaseLock(
-      CronLockKeys.BENCHMARK_AUDIT_LOGS,
       "deleteExpiredBenchmarkAuditLogs",
       async (tx) => {
         await this.runSimpleRetentionJob(
@@ -247,7 +237,6 @@ export class DocumentRetentionService {
   @Cron("45 2 * * *")
   async deleteExpiredReviewSessions(): Promise<void> {
     await this.retentionDb.runWithDatabaseLock(
-      CronLockKeys.REVIEW_SESSIONS,
       "deleteExpiredReviewSessions",
       async (tx) => {
         await this.runSimpleRetentionJob(

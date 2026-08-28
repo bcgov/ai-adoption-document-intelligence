@@ -25,7 +25,6 @@ export class RetentionDbService {
   ) {}
 
   async runWithDatabaseLock(
-    lockId: number,
     label: string,
     fn: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
@@ -33,7 +32,7 @@ export class RetentionDbService {
       const [result] = await tx.$queryRaw<
         { pg_try_advisory_xact_lock: boolean }[]
       >`
-          SELECT pg_try_advisory_xact_lock(${lockId});
+          SELECT pg_try_advisory_xact_lock(hashtext(${label}));
         `;
       if (!result || !result.pg_try_advisory_xact_lock) {
         this.logger.log(
