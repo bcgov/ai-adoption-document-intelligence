@@ -16,6 +16,7 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { AuditService } from "@/audit/audit.service";
 
 /** Environment variable name that enables this cleanup job */
 const ENABLE_ENV_VAR = "ENABLE_CLASSIFIER_ORPHAN_CLEANUP";
@@ -34,6 +35,8 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
     @Inject(BLOB_STORAGE_CONTAINER_NAME)
     private readonly containerName: string,
     azureService: AzureService,
+    private readonly auditService: AuditService,
+    
   ) {
     this.client = azureService.getClient();
   }
@@ -116,6 +119,17 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
       const deleted = await this.deleteOrphan(groupId, classifierName, modelId);
       if (deleted) {
         totalDeleted++;
+        await this.auditService.recordEvent({
+              event_type: "classifier_orphan_deleted",
+              resource_type: "classifier",
+              resource_id: modelId,
+              actor_id: "system",
+              group_id: groupId,
+              payload: {
+                modelId,
+                classifierName
+              }
+            });
       } else {
         totalErrors++;
         this.logger.warn(
