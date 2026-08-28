@@ -89,6 +89,11 @@ export const ReviewQueuePage: FC = () => {
     return sum / fields.length;
   };
 
+  // A tab loads one page of documents. Say so when the queue holds more than
+  // the page shows, so the caption never contradicts the count on the tab.
+  const queueCaption = (shown: number, total: number, noun: string) =>
+    shown < total ? `Showing ${shown} of ${total} ${noun}` : `${total} ${noun}`;
+
   if (activeQueue.isLoading) {
     return (
       <Center h="70vh">
@@ -223,7 +228,11 @@ export const ReviewQueuePage: FC = () => {
               <DataTable
                 striped
                 highlightOnHover
-                caption={`${pendingQueue.queue.length} pending`}
+                caption={queueCaption(
+                  pendingQueue.queue.length,
+                  pendingQueue.total,
+                  "pending",
+                )}
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
@@ -399,7 +408,11 @@ export const ReviewQueuePage: FC = () => {
               <DataTable
                 striped
                 highlightOnHover
-                caption={`${reviewedQueue.queue.length} reviewed`}
+                caption={queueCaption(
+                  reviewedQueue.queue.length,
+                  reviewedQueue.total,
+                  "reviewed",
+                )}
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
