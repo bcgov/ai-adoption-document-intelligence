@@ -407,6 +407,17 @@ generate_instance_overlay() {
       sed -i "${sed_args[@]}" "${file}"
     done
 
+  # Fail if any __TOKEN__ placeholders survived substitution — a template token
+  # without a matching sed rule would otherwise reach the live ConfigMap as a literal string.
+  local unresolved
+  unresolved=$(grep -rn --include='*.yml' --include='*.yaml' '__[A-Z][A-Z0-9_]*__' "${generated_dir}" || true)
+  if [[ -n "${unresolved}" ]]; then
+    echo "[ERROR] generate_instance_overlay: unresolved placeholder tokens found in rendered overlay:" >&2
+    echo "${unresolved}" >&2
+    rm -rf "${tmp_root}"
+    return 1
+  fi
+
   echo "${generated_dir}"
 }
 
