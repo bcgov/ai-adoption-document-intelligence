@@ -36,7 +36,8 @@ HITL routes low-confidence or review-required document results to humans. It is 
 - A demo/reset seed exists for local review-queue demos without paid OCR: `npm run demo:reset` — see `docs-md/extraction/HITL_DEMO_RESET.md`.
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
-- A session ends in one of three states: `approved`, `flagged` (handed on for attention; read-only in the Flagged tab, so it holds no lock) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
+- A session ends in one of three states: `approved`, `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
+- Flagging is a hand-off, not an ending: the Flagged tab reads a document without a lock, and **Take** reopens the same session under the reader's own lock, corrections and all. Editing always holds a lock; only an approved session is restricted to its original reviewer and a five-minute window.
 - Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry.
 - Queue statistics are database counts over the whole queue, not a summary of the page in view.
 

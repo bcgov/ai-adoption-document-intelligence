@@ -428,9 +428,13 @@ from all of them.
 - No review sessions, OR
 - Only `in_progress` or `abandoned` sessions
 
-**Flagged**: Documents with a `flagged` session and no `approved` session. These
-open read-only — flagging hands the document on for attention, it does not hold
-a lock, so a flagged document is never edited by two reviewers at once.
+**Flagged**: Documents with a `flagged` session and no `approved` session. The
+tab offers two actions. **View** opens the document read-only, so any number of
+people can read it and the correction history at once without taking it.
+**Take** reopens the session for the reader: the status returns to
+`in_progress`, the lock moves to them, and the document rejoins the ordinary
+review flow with the previous reviewer's corrections intact. Editing therefore
+always holds a lock, and flagging hands work on rather than parking it.
 
 **Reviewed**: Documents with at least one `approved` session.
 
@@ -468,7 +472,7 @@ This allows reviewers to see:
 ### Read-Only Mode
 
 Completed sessions can be viewed in read-only mode:
-- All terminal-state sessions (`approved`, `flagged`, `abandoned`), and every session opened from the Flagged tab
+- All terminal-state sessions (`approved`, `flagged`, `abandoned`), and every session opened from the Flagged tab with **View**
 - Frontend disables editing controls
 - Displays original vs corrected values
 - Shows correction history
@@ -528,6 +532,8 @@ The system tracks metrics for:
 3. System marks the session `flagged` and releases the lock
 4. Document appears in the Flagged tab, where anyone in the group can read it
    along with the corrections already made
+5. Whoever picks it up presses **Take**, which returns the session to
+   `in_progress` under their own lock
 
 ### Analytics Use Case
 

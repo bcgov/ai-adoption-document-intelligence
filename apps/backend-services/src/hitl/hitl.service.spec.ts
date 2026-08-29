@@ -1169,6 +1169,85 @@ describe("HitlService", () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it("should let another reviewer take over a flagged session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        completed_at: null,
+        document: { ...mockDocumentWithOcr, groundTruthJob: null },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...flaggedSession,
+        status: ReviewStatus.in_progress,
+      } as any);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      const result = await service.reopenSession("session-1", "other-reviewer");
+
+      expect(result.status).toBe(ReviewStatus.in_progress);
+      // the lock moves to whoever took it, not to whoever flagged it
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        expect.objectContaining({ reviewer_id: "other-reviewer" }),
+        expect.anything(),
+      );
+    });
+
+    it("should take over a flagged session however long ago it was flagged", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        completed_at: null,
+        started_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        document: { ...mockDocumentWithOcr, groundTruthJob: null },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...flaggedSession,
+        status: ReviewStatus.in_progress,
+      } as any);
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await expect(
+        service.reopenSession("session-1", "other-reviewer"),
+      ).resolves.toMatchObject({ status: ReviewStatus.in_progress });
+    });
+
+    it("should refuse a flagged session already taken by someone else", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+        completed_at: null,
+        document: { ...mockDocumentWithOcr, groundTruthJob: null },
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce({
+        ...mockDocumentLock,
+        reviewer_id: "first-taker",
+      });
+
+      await expect(
+        service.reopenSession("session-1", "second-taker"),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockReviewDbService.acquireDocumentLock).not.toHaveBeenCalled();
+    });
+
     it("should throw ConflictException when session is already in progress", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         mockReviewSession as any,

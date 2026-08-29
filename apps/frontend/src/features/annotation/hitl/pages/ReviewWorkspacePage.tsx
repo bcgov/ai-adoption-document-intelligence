@@ -2,6 +2,7 @@ import {
   IconArrowLeft,
   IconEye,
   IconEyeOff,
+  IconFlag,
   IconRotate,
 } from "@tabler/icons-react";
 import {
@@ -275,6 +276,13 @@ export const ReviewWorkspacePage: FC = () => {
     isFlagging,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
+  // A flagged session is paused work anyone in the group may take over; an
+  // approved one only its own reviewer can reopen, and only for five minutes.
+  const canTakeOver = session?.status === "flagged";
+  const canReopen = Boolean(
+    session?.completedAt &&
+      Date.now() - new Date(session.completedAt).getTime() <= 5 * 60 * 1000,
+  );
   const [docState, setDocState] = useState<{
     url: string | null;
     isNormalizedPdf: boolean;
@@ -728,8 +736,10 @@ export const ReviewWorkspacePage: FC = () => {
       });
     } catch {
       notifications.show({
-        title: "Cannot reopen",
-        message: "The reopen window may have expired or the dataset is frozen",
+        title: canTakeOver ? "Could not take this document" : "Cannot reopen",
+        message: canTakeOver
+          ? "Another reviewer may have taken it already. Go back to the queue and refresh."
+          : "The reopen window may have expired or the dataset is frozen",
         color: "red",
         autoClose: 5000,
       });
@@ -1038,9 +1048,18 @@ export const ReviewWorkspacePage: FC = () => {
             >
               Back
             </Button>
-            {session.completedAt &&
-              Date.now() - new Date(session.completedAt).getTime() <=
-                5 * 60 * 1000 && (
+            {canTakeOver ? (
+              <Button
+                variant="light"
+                color="orange"
+                leftSection={<IconFlag size={16} />}
+                onClick={handleReopen}
+                loading={isReopening}
+              >
+                Take for editing
+              </Button>
+            ) : (
+              canReopen && (
                 <Button
                   variant="light"
                   color="blue"
@@ -1050,7 +1069,8 @@ export const ReviewWorkspacePage: FC = () => {
                 >
                   Reopen for editing
                 </Button>
-              )}
+              )
+            )}
           </Group>
         ) : (
           <ReviewToolbar

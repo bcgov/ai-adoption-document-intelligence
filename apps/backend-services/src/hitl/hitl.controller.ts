@@ -360,7 +360,11 @@ export class HitlController {
 
   @Post("sessions/:id/reopen")
   @Identity({ allowApiKey: true })
-  @ApiOperation({ summary: "Reopen a completed review session" })
+  @ApiOperation({
+    summary: "Reopen a completed review session, or take over a flagged one",
+    description:
+      "An approved session reopens only for its original reviewer, within five minutes of completion. A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them.",
+  })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
     description: "Session reopened successfully",
@@ -369,11 +373,11 @@ export class HitlController {
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({
     description:
-      "Access denied: not a group member or not the original reviewer",
+      "Access denied: not a group member, or not the original reviewer of a session that is not flagged",
   })
   @ApiConflictResponse({
     description:
-      "Session cannot be reopened (already in progress, window expired, or dataset frozen)",
+      "Session cannot be reopened (already in progress, window expired, dataset frozen, or another reviewer holds the lock)",
   })
   async reopenSession(@Param("id") sessionId: string, @Req() req: Request) {
     const session = await this.hitlService.findReviewSession(sessionId);

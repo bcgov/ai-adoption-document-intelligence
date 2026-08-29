@@ -109,3 +109,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - `architecture/HITL_ARCHITECTURE.md`: rewrote the session state machine, transition table, queue states and terminal-action flows for the three-outcome model (`approved` / `flagged` / `abandoned`); documented the lock-expiry cron, the read-only Flagged tab, and the queue-wide statistics endpoint.
 - `hitl.md`: routing notes for the three session outcomes, lock reclamation, and the counting basis of the queue stats.
 
+## [2026-08-28] ingest | Flagged review becomes a hand-off
+
+- `architecture/HITL_ARCHITECTURE.md`: split the reopen transition in two — an approved session reopens for its own reviewer within five minutes, a flagged session is taken over by any group member with no time limit — and documented the Flagged tab's View/Take actions.
+- `hitl.md`: flagging is a hand-off rather than a terminal state; editing always holds a lock.
+

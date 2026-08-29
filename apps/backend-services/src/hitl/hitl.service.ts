@@ -807,7 +807,11 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
-    if (session.actor_id !== reviewerId) {
+    // A flagged session is paused work handed to the group, not finished work:
+    // anyone with access takes it over, and there is no window to miss.
+    const isHandoff = session.status === ReviewStatus.flagged;
+
+    if (!isHandoff && session.actor_id !== reviewerId) {
       throw new ForbiddenException(
         "Only the original reviewer can reopen this session",
       );
@@ -824,7 +828,7 @@ export class HitlService {
       if (groundTruthJob.datasetVersion.frozen) {
         throw new ConflictException("Cannot reopen: dataset version is frozen");
       }
-    } else {
+    } else if (!isHandoff) {
       // Regular workflow: allow within 5 minutes of completion
       const fiveMinutesMs = 5 * 60 * 1000;
       if (
@@ -833,6 +837,17 @@ export class HitlService {
       ) {
         throw new ConflictException("Cannot reopen: reopen window has expired");
       }
+    }
+
+    // Two reviewers can be reading the same flagged document; only one of them
+    // takes it.
+    const existingLock = await this.reviewDb.findActiveLock(
+      session.document_id,
+    );
+    if (existingLock && existingLock.reviewer_id !== reviewerId) {
+      throw new ConflictException(
+        "Document is currently locked by another reviewer",
+      );
     }
 
     const lockTtlMs = 10 * 60 * 1000;

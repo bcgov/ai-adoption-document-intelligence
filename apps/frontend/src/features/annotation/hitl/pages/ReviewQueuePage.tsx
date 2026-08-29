@@ -68,6 +68,7 @@ export const ReviewQueuePage: FC = () => {
   const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
     null,
   );
+  const [takingSessionId, setTakingSessionId] = useState<string | null>(null);
 
   const REOPEN_WINDOW_MS = 5 * 60 * 1000;
   const canReopenSession = (completedAt?: string | null) => {
@@ -125,6 +126,32 @@ export const ReviewQueuePage: FC = () => {
         color: "red",
         autoClose: 5000,
       });
+    }
+  };
+
+  // Takes over a flagged document: the session goes back to in progress, the
+  // lock moves to this reviewer, and the previous reviewer's corrections stay.
+  const handleTakeSession = async (sessionId: string) => {
+    setTakingSessionId(sessionId);
+    try {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/reopen`,
+        {},
+      );
+      if (!response.success) throw new Error(response.message);
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
+      navigate(`/review/${sessionId}`);
+    } catch {
+      notifications.show({
+        title: "Could not take this document",
+        message:
+          "Another reviewer may have taken it already. Refresh the queue and try again.",
+        color: "red",
+        autoClose: 5000,
+      });
+    } finally {
+      setTakingSessionId(null);
     }
   };
 
@@ -368,20 +395,35 @@ export const ReviewQueuePage: FC = () => {
                           </Badge>
                         </DataTable.Td>
                         <DataTable.Td>
-                          <Button
-                            size="xs"
-                            variant="light"
-                            color="orange"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() =>
-                              navigate(
-                                `/review/${doc.lastSession!.id}?readOnly=true`,
-                              )
-                            }
-                            disabled={!doc.lastSession?.id}
-                          >
-                            View flagged
-                          </Button>
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="gray"
+                              leftSection={<IconEye size={14} />}
+                              onClick={() =>
+                                navigate(
+                                  `/review/${doc.lastSession!.id}?readOnly=true`,
+                                )
+                              }
+                              disabled={!doc.lastSession?.id}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="orange"
+                              leftSection={<IconFlag size={14} />}
+                              onClick={() =>
+                                handleTakeSession(doc.lastSession!.id)
+                              }
+                              loading={takingSessionId === doc.lastSession?.id}
+                              disabled={!doc.lastSession?.id}
+                            >
+                              Take
+                            </Button>
+                          </Group>
                         </DataTable.Td>
                       </DataTable.Tr>
                     );
