@@ -134,7 +134,7 @@ in_progress
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock |
+| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock. Only an in-progress session can be approved; approving twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |

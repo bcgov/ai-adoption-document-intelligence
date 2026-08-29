@@ -264,6 +264,10 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiConflictResponse({
+    description:
+      "Session is not in progress: already approved, flagged, or abandoned",
+  })
   async approveSession(@Param("id") sessionId: string, @Req() req: Request) {
     const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {

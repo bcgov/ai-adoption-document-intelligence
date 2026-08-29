@@ -1104,6 +1104,44 @@ describe("HitlService", () => {
     });
   });
 
+  describe("approveSession guards", () => {
+    it("should refuse to approve a session twice", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.approved,
+      } as any);
+
+      await expect(service.approveSession("session-1")).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockDocumentService.updateDocument).not.toHaveBeenCalled();
+    });
+
+    it("should refuse to approve a flagged session before it is taken over", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+      } as any);
+
+      await expect(service.approveSession("session-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it("should refuse to approve a session whose lock expired", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.abandoned,
+      } as any);
+
+      await expect(service.approveSession("session-1")).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
   describe("reopenSession", () => {
     it("should reopen a completed session within the 5-minute window", async () => {
       const completedSession = {

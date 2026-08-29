@@ -549,6 +549,17 @@ export class HitlService {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
 
+    // Only a session someone is actually working on can be approved. Without
+    // this, a double-click or a stale tab approves twice: two audit events, and
+    // the ground-truth hook below runs a second time on the same document.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.approved
+          ? "Review session has already been approved"
+          : `Cannot approve a session that is ${session.status}`,
+      );
+    }
+
     const doc = session.document as {
       group_id?: string;
       workflow_execution_id?: string;
