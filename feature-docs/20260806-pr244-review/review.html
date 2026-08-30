@@ -1,0 +1,193 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review</title><style>body{margin:0;padding:28px;background:#fbfbfa;color:#1d1c1a}@media(prefers-color-scheme:dark){body{background:#16181a;color:#e6e3df}.artifact{--a-line:#2c3033;--a-dim:#8f9297;--a-ink:#e6e3df;--a-panel:#1d2022;--a-accent:#6fbf8f}}
+.artifact{--a-line:var(--line,#e6e4e0);--a-dim:var(--dim,#79736c);
+  --a-ink:var(--ink,#1d1c1a);--a-panel:var(--panel,#fff);
+  --a-accent:var(--accent,#2f6f4f);--a-warn:var(--blocked,#b0413e);
+  color:var(--a-ink);font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  max-width:860px}
+.artifact h2{font-size:13px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--a-dim);font-weight:560;margin:30px 0 10px}
+.artifact p{margin:0 0 10px}
+.a-ask{border:1px solid var(--a-line);border-left:3px solid var(--a-accent);
+  border-radius:8px;padding:14px 16px;background:var(--a-panel);margin-bottom:6px}
+.a-ask .q{font-size:18px;font-weight:600;letter-spacing:-.015em;margin-bottom:4px}
+.a-ask .ans{font-size:15px}
+.a-ask .ans b{color:var(--a-accent)}
+.a-ask .because{color:var(--a-dim);font-size:13.5px;margin-top:5px}
+.a-kind{color:var(--a-dim);font-size:12px;letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:8px}
+.a-bg{color:var(--a-ink);background:var(--a-panel);border:1px solid var(--a-line);
+  border-radius:8px;padding:13px 15px;font-size:14.5px}
+.a-dec{border:1px solid var(--a-line);border-left:3px solid var(--doing,#b06f2a);
+  border-radius:8px;padding:12px 15px;margin-bottom:9px;background:var(--a-panel)}
+.a-dec .q{font-weight:580;margin-bottom:4px}
+.a-dec .d{color:var(--a-dim);font-size:14px}
+.a-dec ul{margin:8px 0 0;padding-left:20px;font-size:14px}
+.a-chore{display:flex;gap:9px;align-items:baseline;padding:5px 0;
+  border-bottom:1px dotted var(--a-line);font-size:14.5px}
+.a-chore:last-child{border-bottom:0}
+.a-who{flex:none;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--a-dim);border:1px solid var(--a-line);border-radius:4px;
+  padding:1px 6px}
+.a-who.you{color:var(--doing,#b06f2a);border-color:currentColor}
+.a-chore.done .w{text-decoration:line-through;color:var(--a-dim)}
+.a-find{border:1px solid var(--a-line);border-radius:8px;padding:13px 15px;
+  margin-bottom:11px;background:var(--a-panel)}
+.a-find .t{font-weight:580;margin-bottom:3px}
+.a-verdict{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;
+  border-radius:4px;padding:1px 7px;border:1px solid currentColor;flex:none}
+.a-find .hd{display:flex;gap:9px;align-items:baseline;margin-bottom:5px}
+.a-snip{margin:10px 0 0;border:1px solid var(--a-line);border-radius:6px;
+  overflow:hidden;background:var(--bg,#fbfbfa)}
+.a-snip .f{font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--a-dim);padding:5px 10px;border-bottom:1px solid var(--a-line)}
+.a-snip pre{margin:0;padding:10px 12px;overflow-x:auto;
+  font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+.a-snip .n{color:var(--a-dim);font-size:13.5px;padding:7px 12px;
+  border-top:1px solid var(--a-line)}
+.a-links{list-style:none;padding:0;margin:0}
+.a-links li{padding:4px 0;font-size:14.5px}
+.a-links a{color:var(--a-accent)}
+.a-links .n{color:var(--a-dim);font-size:13.5px}
+.a-checked{color:var(--a-dim);font-size:13.5px;padding-left:18px;margin:0}
+.a-fig{margin:0 0 8px;overflow-x:auto;background:var(--a-panel);
+  border:1px solid var(--a-line);border-radius:8px;padding:14px}
+.a-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}
+.a-fig figcaption{color:var(--a-dim);font-size:13px;margin-top:9px;text-align:center}
+.a-warn{color:var(--a-warn);font-size:13.5px}
+.artifact code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--hover,#f3f2f0);border-radius:4px;padding:1px 4px}
+</style></head><body><div class="artifact">
+<div class="a-ask">
+<div class="q">Can PR #244 merge?</div>
+<div class="ans"><b>Yes — merge it. Both bugs were reproduced in a running browser, the patch was applied to the same tree and both are fixed, with no regression across seven routes plus the workflow editor. One of the three changes is inert and should be cleaned up afterwards, but it is not a blocker.</b></div>
+<div class="because">The two changes that matter (the modal-body scroll fix and the comboboxProps on the Select adapter) were each verified end-to-end with measurements and screenshots, pre- and post-patch, on the same page. The third change — a CSS z-index rule — cannot ever apply, because Mantine writes the dropdown z-index as an inline style. The fix stands without it; the problem is that the PR description credits that rule with doing the work, so it reads as protection that isn&#x27;t there.</div>
+</div>
+<h2>Background</h2>
+<div class="a-bg">Since 2026-05-22 (commit 4731a47f, &#x27;Add BC DS UI components&#x27;) the frontend runs two overlay systems side by side: modals are BC Gov Design System Modal, which is React Aria underneath, while dropdowns inside them are still Mantine, because BC DS has no searchable select — the ui/Select adapter falls back to Mantine whenever a caller passes searchable/clearable/allowDeselect/nothingFoundMessage. Neither system knows the other exists. Mantine portals its dropdown to document.body at z-index 300; the BC DS ModalOverlay sits at 1000, so the dropdown painted underneath it — rendered, populated, and completely invisible. Separately, .bcds-modal-body had overflow:hidden and the non-tall modal shell had no max-height, so a long form was clipped rather than scrolled. Nothing regressed to cause this: Create benchmark definition is simply the first form long enough and searchable enough to hit both at once.</div>
+<h2>Where the dropdown lands, and what paints on top of it</h2>
+<figure class="a-fig"><svg xmlns="http://www.w3.org/2000/svg" width="1000" height="520" viewBox="0 0 1000 520" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif"><rect width="1000" height="520" fill="#ffffff"/><text x="500" y="30" text-anchor="middle" font-size="17" font-weight="700" fill="#1a1a1a">Where the dropdown lands, and what paints on top of it</text><text x="500" y="52" text-anchor="middle" font-size="12.5" fill="#5a6270">Mantine popover inside a BC DS (React Aria) modal — two overlay systems, two stacking contexts</text><rect x="24" y="72" width="452" height="424" rx="8" fill="#fdf6f5" stroke="#d9534f" stroke-width="1.4"/><text x="44" y="97" font-size="14" font-weight="700" fill="#a32e2a">BEFORE — dropdown portals to &lt;body&gt;</text><rect x="44" y="112" width="412" height="30" rx="4" fill="#eceff3" stroke="#9aa4b2"/><text x="58" y="132" font-size="12.5" font-weight="600" fill="#333">document.body</text><path d="M60 142 L60 176 L84 176" fill="none" stroke="#9aa4b2" stroke-width="1.4"/><rect x="84" y="160" width="372" height="66" rx="4" fill="#fff" stroke="#c2cad6"/><text x="98" y="180" font-size="12" fill="#333">&lt;div&gt; portal target</text><rect x="98" y="188" width="230" height="28" rx="3" fill="#e8eefb" stroke="#7f9fd6"/><text x="110" y="207" font-size="12" fill="#20406e">.mantine-Select-dropdown</text><rect x="352" y="188" width="92" height="28" rx="14" fill="#d9534f"/><text x="398" y="207" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">z-index 300</text><path d="M60 142 L60 264 L84 264" fill="none" stroke="#9aa4b2" stroke-width="1.4"/><rect x="84" y="248" width="372" height="180" rx="4" fill="#fff" stroke="#c2cad6"/><text x="98" y="268" font-size="12" fill="#333">.react-aria-ModalOverlay</text><rect x="352" y="252" width="92" height="26" rx="13" fill="#2b6cb0"/><text x="398" y="270" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">z-index 1000</text><rect x="100" y="286" width="340" height="128" rx="4" fill="#f7f9fc" stroke="#c2cad6"/><text x="114" y="305" font-size="12" fill="#333">.bcds-app-modal</text><rect x="114" y="316" width="312" height="86" rx="3" fill="#fff" stroke="#c2cad6"/><text x="128" y="335" font-size="12" fill="#333">.bcds-modal-body</text><text x="128" y="354" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" fill="#a32e2a">overflow: hidden</text><text x="128" y="373" font-size="11.5" fill="#a32e2a">scrollHeight 940 &gt; clientHeight 683</text><text x="128" y="391" font-size="11.5" font-weight="700" fill="#a32e2a">257px unreachable, no scrollbar</text><text x="250" y="455" text-anchor="middle" font-size="12.5" font-weight="600" fill="#a32e2a">1000 &gt; 300 — the overlay paints over the dropdown</text><text x="250" y="476" text-anchor="middle" font-size="11.5" fill="#7a4340">elementFromPoint(option) returned the modal's Split field</text><rect x="524" y="72" width="452" height="424" rx="8" fill="#f4faf6" stroke="#2f855a" stroke-width="1.4"/><text x="544" y="97" font-size="14" font-weight="700" fill="#226b46">AFTER — dropdown stays inside the modal</text><rect x="544" y="112" width="412" height="30" rx="4" fill="#eceff3" stroke="#9aa4b2"/><text x="558" y="132" font-size="12.5" font-weight="600" fill="#333">document.body</text><path d="M560 142 L560 176 L584 176" fill="none" stroke="#9aa4b2" stroke-width="1.4"/><rect x="584" y="160" width="372" height="268" rx="4" fill="#fff" stroke="#c2cad6"/><text x="598" y="180" font-size="12" fill="#333">.react-aria-ModalOverlay</text><rect x="852" y="164" width="92" height="26" rx="13" fill="#2b6cb0"/><text x="898" y="182" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">z-index 1000</text><rect x="600" y="198" width="340" height="214" rx="4" fill="#f7f9fc" stroke="#c2cad6"/><text x="614" y="217" font-size="12" fill="#333">.bcds-app-modal</text><text x="614" y="235" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" fill="#226b46">max-height: calc(100vh - 2 × margin)</text><rect x="614" y="245" width="312" height="152" rx="3" fill="#fff" stroke="#c2cad6"/><text x="628" y="264" font-size="12" fill="#333">.bcds-modal-body</text><text x="628" y="282" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" fill="#226b46">overflow-y: auto → the form scrolls</text><rect x="628" y="296" width="284" height="88" rx="3" fill="#e8f5ee" stroke="#2f855a"/><text x="642" y="315" font-size="12" fill="#20406e">.mantine-Select-dropdown</text><text x="642" y="333" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" fill="#333">withinPortal: false</text><text x="642" y="351" font-size="11.5" font-family="ui-monospace, Menlo, Consolas, monospace" fill="#333">floatingStrategy: "fixed"</text><rect x="642" y="360" width="140" height="18" rx="9" fill="#2f855a"/><text x="712" y="374" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">inline z-index 1100</text><text x="750" y="455" text-anchor="middle" font-size="12.5" font-weight="600" fill="#226b46">Same stacking context as the modal — nothing can cover it</text><text x="750" y="476" text-anchor="middle" font-size="11.5" fill="#3f6b53">"fixed" keeps it from being clipped by the now-scrolling body</text></svg><figcaption>Before, Mantine portals the dropdown to document.body at z-index 300, outside the modal&#x27;s stacking context, so the BC DS ModalOverlay at 1000 paints over it. After, the dropdown stays inside the modal with an inline z-index of 1100, and the fixed floating strategy keeps the now-scrolling modal body from clipping it.</figcaption></figure>
+<h2>Your call &mdash; 1 decision</h2>
+<div class="a-dec">
+<div class="q">Should the Mantine combobox defaults live in the Select adapter (where this PR put them) or in appTheme as Mantine defaultProps?</div>
+<div class="d">Recommendation: move them to appTheme. The adapter only covers Select. MultiSelect, TagsInput and Autocomplete are re-exported raw from Mantine in ui/index.tsx, and 24 files import Mantine comboboxes directly, bypassing the adapter entirely — most of the workflow builder plus DocumentsPage. None of them sits inside a BC DS modal today, so nothing is broken, but the app now has two modal systems and a fix that covers one path into one of them. A theme-level default covers every component in one place. This is a boundary question — where the app&#x27;s house style for third-party components lives — so it is yours rather than mine.</div>
+<ul><li>Move the defaults to appTheme (recommended) — covers Select, MultiSelect, TagsInput, Autocomplete and the 24 direct-import sites</li><li>Leave it adapter-only — smaller change, but the same bug returns for anyone using a non-Select combobox in a BC DS modal</li></ul>
+</div>
+<h2>Chores</h2>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Reproduce both bugs in a running browser, pre-fix, with measurements <span class="a-dec-d" style="color:var(--a-dim)">— Create benchmark definition at 1280x800: body scrollHeight 940 vs clientHeight 683 = 257px unreachable with no scrollbar; dropdown portaled outside the modal, hit-test at the first option returned the modal&#x27;s Split field.</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Apply the patch and verify the fix on the same page <span class="a-dec-d" style="color:var(--a-dim)">— overflow-y auto, buttons reachable; dropdown inside the modal at position fixed / z-index 1100; option hit-testable; click set the value to &#x27;v1 (40 documents)&#x27;.</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Check the fix does not regress the tall document-viewer modal <span class="a-dec-d" style="color:var(--a-dim)">— Unaffected — max-height still 810px (90vh) and body overflow still hidden; the new .bcds-modal--tall carve-out holds.</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Sweep 7 routes plus the workflow editor for clipped or off-screen dropdowns <span class="a-dec-d" style="color:var(--a-dim)">— Zero clipped, zero off-screen, every option hit-testable.</span></span>
+</div>
+<div class="a-chore done">
+<span class="a-who ">agent</span>
+<span class="w">Run Select.test.tsx and Modal.test.tsx <span class="a-dec-d" style="color:var(--a-dim)">— 13 passed. None of them assert the new behaviour.</span></span>
+</div>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Delete or repair the inert CSS z-index block <span class="a-dec-d" style="color:var(--a-dim)">— It cannot beat Mantine&#x27;s inline z-index. Either remove it or add !important — leaving it is worse than either, because it reads as coverage for MultiSelect/TagsInput/Autocomplete that does not exist.</span></span>
+</div>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Add a test asserting withinPortal:false on the Mantine fallback path <span class="a-dec-d" style="color:var(--a-dim)">— A future tidy-up of the adapter would reintroduce an invisible dropdown with green tests.</span></span>
+</div>
+<div class="a-chore">
+<span class="a-who ">agent</span>
+<span class="w">Let callers override comboboxProps instead of it being silently dropped <span class="a-dec-d" style="color:var(--a-dim)">— DocumentValidation.tsx already passes comboboxProps={{zIndex:10000}} and has always been ignored by pickFieldPassthrough&#x27;s allowlist.</span></span>
+</div>
+<h2>What is actually in it</h2>
+<div class="a-find"><div class="hd">
+<span class="t">The CSS z-index block is dead code — and the PR body credits it with the fix</span>
+<span class="a-verdict">Not a merge blocker; fix it after</span>
+</div>
+<p>Mantine writes the dropdown z-index as an inline style, and inline beats any stylesheet rule without !important. Proof from the running app with the patch applied: the rule IS present in document.styleSheets, and the /documents Status dropdown, which carries .mantine-Select-dropdown, still computes z-index 300. So the PR body&#x27;s change #2 — &#x27;Raise Mantine Select/Combobox dropdown stacking above BC DS ModalOverlay&#x27; — does not happen. The z-index that matters is the zIndex:1100 inside comboboxProps, which Mantine writes inline. Consequence: MultiSelect, TagsInput and Autocomplete are not covered, and the next person will find a stylesheet rule that looks like it already handles them.</p>
+<div class="a-snip">
+<div class="f">apps/frontend/src/ui/bcds-mantine-fallbacks.css:201-207</div>
+<pre>.mantine-Select-dropdown,
+.mantine-Combobox-dropdown,
+.mantine-MultiSelect-dropdown {
+  z-index: 1100;
+}</pre>
+<div class="n">Added by the PR. Never applies.</div>
+</div>
+<div class="a-snip">
+<div class="f">node_modules/@mantine/core/esm/components/Popover/PopoverDropdown/PopoverDropdown.mjs:86-94</div>
+<pre>style: [
+  { ...transitionStyles, zIndex: ctx.zIndex, top: ctx.y ?? 0, left: ctx.x ?? 0, ... },
+  ...
+]</pre>
+<div class="n">Mantine sets z-index inline on every popover dropdown — this is why the CSS rule loses.</div>
+</div>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">The fix reaches only selects that go through the ui/Select adapter</span>
+<span class="a-verdict">Latent, not broken today</span>
+</div>
+<p>24 files import Select/MultiSelect/Autocomplete/TagsInput straight from @mantine/core, bypassing the adapter — most of the workflow builder (JsonSchemaForm, NodePicker, KindSelect, WorkflowSettingsDrawer) plus DocumentsPage. None sits inside a BC DS modal right now; LibraryPickerModal notably uses Mantine&#x27;s own Modal, so both halves come from the same system and it works. Nothing is broken, but this is what decision D1 exists to settle.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">A call site already tried this workaround and is silently ignored</span>
+<span class="a-verdict">Pre-existing, but this PR makes it permanent</span>
+</div>
+<p>DocumentValidation.tsx:242 passes comboboxProps={{ zIndex: 10000 }} — someone hit this same stacking problem before and reached for the same lever. It has never worked: pickFieldPassthrough allowlists only data-*, aria-*, id, name, autoComplete, autoFocus, readOnly and placeholder, so comboboxProps is dropped before it reaches Mantine. After this PR the adapter also hardcodes zIndex:1100, so that call site&#x27;s intent still cannot be expressed.</p>
+<div class="a-snip">
+<div class="f">apps/frontend/src/ui/formFieldUtils.ts:148-160</div>
+<pre>if (
+  key.startsWith(&quot;data-&quot;) ||
+  key.startsWith(&quot;aria-&quot;) ||
+  key === &quot;id&quot; ||
+  key === &quot;name&quot; ||
+  key === &quot;autoComplete&quot; ||
+  key === &quot;autoFocus&quot; ||
+  key === &quot;readOnly&quot; ||
+  key === &quot;placeholder&quot;
+) {
+  passthrough[key] = value;
+}</pre>
+<div class="n">comboboxProps is not on the list, so it is silently discarded.</div>
+</div>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">Nothing locks the new behaviour in</span>
+<span class="a-verdict">Minor</span>
+</div>
+<p>Select.test.tsx has a &#x27;uses Mantine fallback when clearable&#x27; case but asserts nothing about withinPortal or the floating strategy. One assertion would stop a future refactor from silently reintroducing an invisible dropdown.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">overflow-x: hidden on the modal body is an undisclosed clip</span>
+<span class="a-verdict">Minor</span>
+</div>
+<p>Every modal body now clips horizontally with no scrollbar. Nothing in the app is wide enough to hit it that I found, but it is a behaviour change for every modal and it is not in the PR description.</p>
+</div>
+<div class="a-find"><div class="hd">
+<span class="t">The one place this could bite later: fallback selects inside a Mantine Drawer</span>
+<span class="a-verdict">Latent risk worth knowing</span>
+</div>
+<p>floatingStrategy &#x27;fixed&#x27; escapes clipping only while no ancestor establishes a containing block. Mantine&#x27;s Drawer does both things that break that — its content carries transform: translateX(0) while open (the &#x27;in&#x27; state of the slide-* transitions stays applied) and overflow-y: auto. A fallback select inside a drawer would be clipped at the drawer&#x27;s edge, where before it escaped via the portal. No fallback select is in a drawer today; the sweep found none. That is the failure mode to remember.</p>
+</div>
+<h2>Links</h2><ul class="a-links">
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/244" target="_blank" rel="noopener">PR #244</a> <span class="n">— kmandryk, fix/modal-select-dropdown-in-dialogs -&gt; develop, 3 files +32/-0, all 10 checks green</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/pull/244/commits/701468db852abdfbec6b88e3f47345bbae1dd710" target="_blank" rel="noopener">commit 701468d</a> <span class="n">— the single commit</span></li>
+<li><a href="https://github.com/bcgov/ai-adoption-document-intelligence/commit/4731a47fa" target="_blank" rel="noopener">commit 4731a47f</a> <span class="n">— 2026-05-22 — where BC DS modals landed and the two overlay systems began coexisting</span></li>
+<li><a href="repo:ai-adoption-document-intelligence/feature-docs/20260806-pr244-review/REVIEW.md" target="_blank" rel="noopener">REVIEW.md (full review, with screenshots)</a> <span class="n">— before/after screenshots and JSON measurements alongside it in the same folder</span></li>
+</ul>
+<h2>What I checked</h2><ul class="a-checked">
+<li>Reproduced both bugs against the running app (backend + frontend), not from the diff alone</li>
+<li>Confirmed all three touched files are byte-identical to develop on the checkout used, so the pre-fix measurements are develop&#x27;s behaviour</li>
+<li>Applied the PR patch, re-measured, then reverted it — working tree unchanged</li>
+<li>Tall document-viewer modal unaffected (max-height 810px = 90vh, body overflow still hidden)</li>
+<li>Swept /classify, /tables, /template-models, /benchmarking/datasets, /benchmarking/projects/:id, /hitl-review, /documents and /workflows/:id/edit — no clipped or off-screen dropdowns</li>
+<li>Select.test.tsx + Modal.test.tsx: 13 passed</li>
+<li>ws_refs: no existing task or artifact already holds PR #244</li>
+</ul>
+</div></body></html>

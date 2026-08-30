@@ -29,7 +29,7 @@ Azure OCR graphs store **references** in workflow context, not full JSON:
 
 | Context variable (author names this) | Typical default name | Activity port |
 |--------------------------------------|----------------------|---------------|
-| Poll response ref | `ocrResponseRef` | `response` (poll) / `ocrResponse` (extract input) |
+| Poll response ref | `ocrResponseRef` | `ocrResponse` (poll output and extract input) |
 | Structured OCR ref | `ocrResultRef` | `ocrResult` |
 | Cleaned OCR ref | `cleanedResultRef` | `cleanedResult` |
 
@@ -287,7 +287,7 @@ This is normally exposed as a preconfigured **Wait & Retry** node with the polli
   - **Request ID** *(required)* — From **Submit OCR**'s output.
   - **Document ID** *(required for blob refs)* — Usually wired from trigger/context (`documentId`).
 - **Outputs ("This step produces"):**
-  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `response`). Used by the stop condition (`ocrResponseRef.status`).
+  - **OCR poll response ref** *(required)* — Context name for the ref (convention: `ocrResponseRef`; activity port `ocrResponse`). Used by the stop condition (`ocrResponseRef.status`).
 - **Static parameters:**
   - **OCR model ID** *(required, defaults from upstream)*.
 - **Wait & Retry settings (preconfigured but editable):**
