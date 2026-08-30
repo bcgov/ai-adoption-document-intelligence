@@ -4,9 +4,7 @@ export function applyWorkflowConfigOverrides(
   config: GraphWorkflowConfig,
   overrides: Record<string, unknown>,
 ): GraphWorkflowConfig {
-  const result = deepCloneToNullPrototype(
-    config,
-  ) as GraphWorkflowConfig;
+  const result = deepCloneToNullPrototype(config) as GraphWorkflowConfig;
   for (const [path, value] of Object.entries(overrides)) {
     setNestedValue(result as unknown as Record<string, unknown>, path, value);
   }
@@ -42,9 +40,7 @@ function deepCloneToNullPrototype(value: unknown): unknown {
     return value.map(deepCloneToNullPrototype);
   }
   const clone = Object.create(null) as Record<string, unknown>;
-  for (const [key, child] of Object.entries(
-    value as Record<string, unknown>,
-  )) {
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
     clone[key] = deepCloneToNullPrototype(child);
   }
   return clone;
@@ -62,9 +58,13 @@ function setNestedValue(
 
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i];
-    const hasOwn = Object.prototype.hasOwnProperty.call(current, part);
+    const hasOwn = Object.hasOwn(current, part);
     const existing = hasOwn ? current[part] : undefined;
-    if (existing === undefined || existing === null || typeof existing !== "object") {
+    if (
+      existing === undefined ||
+      existing === null ||
+      typeof existing !== "object"
+    ) {
       current[part] = Object.create(null);
     }
     current = current[part] as Record<string, unknown>;

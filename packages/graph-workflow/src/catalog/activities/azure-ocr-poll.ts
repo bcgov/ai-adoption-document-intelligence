@@ -1,0 +1,54 @@
+import { z } from "zod/v4";
+import type { ActivityCatalogEntry } from "../types";
+
+export const azureOcrPollParametersSchema = z.object({});
+
+export const azureOcrPollCatalogEntry: ActivityCatalogEntry = {
+  activityType: "azureOcr.poll",
+  displayName: "Wait for OCR Result",
+  category: "OCR (Azure)",
+  description:
+    "Polls Azure Document Intelligence for OCR results, returning status and the raw response.",
+  iconHint: "hourglass",
+  colorHint: "teal",
+  // Benchmark runs inject the OCR replay cache so poll can short-circuit.
+  benchmarkOcrCacheRole: "passthrough",
+  // Returns { status: "running" } as a SUCCESS, so caching would poison the
+  // cache when used as a plain activity node. Polling loops are unaffected:
+  // pollUntil bypasses the decorator. See US-134 + TRY_IN_PLACE_DESIGN.md §2.6.
+  nonCacheable: true,
+  inputs: [
+    {
+      name: "apimRequestId",
+      label: "APIM request ID",
+      description: "Azure request ID returned by Submit OCR.",
+      required: true,
+      kind: "RequestId",
+    },
+    {
+      name: "modelId",
+      label: "OCR model ID",
+      description:
+        "Which Azure DI model the OCR was submitted against. Optional — the runtime defaults to `prebuilt-layout` when unbound.",
+      required: false,
+      kind: "ModelId",
+    },
+  ],
+  outputs: [
+    {
+      name: "ocrResponse",
+      label: "OCR response",
+      description: "Raw Azure Document Intelligence response object.",
+      required: true,
+      kind: "Artifact",
+    },
+    {
+      name: "status",
+      label: "Poll status",
+      description: "running | succeeded | failed.",
+      required: true,
+      kind: "Artifact",
+    },
+  ],
+  parametersSchema: azureOcrPollParametersSchema,
+};
