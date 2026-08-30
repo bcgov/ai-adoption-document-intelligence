@@ -1,0 +1,411 @@
+/**
+ * Unit tests for `SourceNodeSettings` (US-119).
+ *
+ * Each `describe` block maps to one acceptance scenario from
+ * feature-docs/20260530-workflow-builder-phase8-document-sources/user_stories/US-119-source-node-settings-panel.md.
+ */
+
+import "@testing-library/jest-dom";
+
+import { MantineProvider } from "@mantine/core";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+
+import type { GraphWorkflowConfig, SourceNode } from "../../../types/workflow";
+import { SourceNodeSettings } from "./SourceNodeSettings";
+
+// US-124 — `SourceUploadButton` calls `useSourceUpload`, which uses
+// TanStack's QueryClient under the hood. Mock the hook here so this
+// component-level test can render the button without spinning up a
+// QueryClientProvider; the hook + button each have their own
+// dedicated test files.
+vi.mock("./useSourceUpload", async () => {
+  const actual =
+    await vi.importActual<typeof import("./useSourceUpload")>(
+      "./useSourceUpload",
+    );
+  return {
+    ...actual,
+    useSourceUpload: () => ({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
+  };
+});
+
+vi.mock("@mantine/notifications", () => ({
+  notifications: { show: vi.fn() },
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeSourceApiNode(overrides: Partial<SourceNode> = {}): SourceNode {
+  return {
+    id: "src-api-1",
+    type: "source",
+    label: "API endpoint",
+    sourceType: "source.api",
+    parameters: { fields: [] },
+    ...overrides,
+  };
+}
+
+function makeSourceUploadNode(overrides: Partial<SourceNode> = {}): SourceNode {
+  return {
+    id: "src-upload-1",
+    type: "source",
+    label: "File upload",
+    sourceType: "source.upload",
+    parameters: {
+      allowedMimeTypes: ["application/pdf", "image/*"],
+      maxFileSizeMB: 50,
+      ctxKey: "documentUrl",
+    },
+    ...overrides,
+  };
+}
+
+function makeConfig(node: SourceNode): GraphWorkflowConfig {
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: node.id,
+    nodes: { [node.id]: node },
+    edges: [],
+    ctx: {},
+  };
+}
+
+function renderPanel(ui: React.ReactNode) {
+  return render(<MantineProvider>{ui}</MantineProvider>);
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 2: Header surfaces displayName + description + icon
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — Scenario 2: header content", () => {
+  it("renders the catalog displayName + description + icon for source.api", () => {
+    const node = makeSourceApiNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("source-node-settings-display-name"),
+    ).toHaveTextContent("API endpoint");
+    expect(
+      screen.getByText(
+        /Programmatic intake — callers POST JSON matching the declared field shape/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("source-node-settings-icon")).toBeInTheDocument();
+  });
+
+  it("renders the catalog displayName + description + icon for source.upload", () => {
+    const node = makeSourceUploadNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("source-node-settings-display-name"),
+    ).toHaveTextContent("File upload");
+    expect(
+      screen.getByText(
+        /Interactive intake — the canvas-side Dropzone uploads a file/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("source-node-settings-icon")).toBeInTheDocument();
+  });
+
+  it("renders a label-override subtitle when node.label differs from the catalog displayName", () => {
+    const node = makeSourceApiNode({ label: "Intake from CRM" });
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("source-node-settings-label-override"),
+    ).toHaveTextContent("Intake from CRM");
+  });
+
+  it("does NOT render a label-override subtitle when node.label matches the catalog displayName", () => {
+    const node = makeSourceApiNode({ label: "API endpoint" });
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId("source-node-settings-label-override"),
+    ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3: Body renders JsonSchemaForm against parametersSchema
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — Scenario 3: form body renders the right fields", () => {
+  it("source.api renders 2 fields (fields[] + authNotes?)", () => {
+    const node = makeSourceApiNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    const panel = screen.getByTestId("source-node-settings");
+    // Field titles (from the Zod `.meta({ title })`). The `fields` parameter
+    // dispatches to the FieldListEditor x-widget which renders its own
+    // "Fields" section heading — so "Fields" appears twice (once from
+    // JsonSchemaForm's outer label, once from the rich widget's heading).
+    expect(within(panel).getAllByText("Fields").length).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(within(panel).getByText("Auth notes")).toBeInTheDocument();
+  });
+
+  it("source.upload renders 3 fields (allowedMimeTypes + maxFileSizeMB + ctxKey)", () => {
+    const node = makeSourceUploadNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    const panel = screen.getByTestId("source-node-settings");
+    expect(within(panel).getByText("Allowed MIME types")).toBeInTheDocument();
+    expect(within(panel).getByText("Max file size (MB)")).toBeInTheDocument();
+    expect(within(panel).getByText("Ctx key")).toBeInTheDocument();
+  });
+
+  it("editing a form field calls onConfigChange with the updated node.parameters", async () => {
+    const node = makeSourceUploadNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    // Mantine's TextInput renders the label as a separate <label> sibling,
+    // not as a `<label for>` association — fall back to selecting the
+    // ctxKey input by its initial display value (the schema default
+    // "documentUrl" is what `node.parameters.ctxKey` carries).
+    const ctxKeyInput = screen.getByDisplayValue(
+      "documentUrl",
+    ) as HTMLInputElement;
+    fireEvent.change(ctxKeyInput, { target: { value: "uploadedUrl" } });
+
+    // D7 — free-text settings fields draft locally and commit on a quiet
+    // period (or blur/unmount) instead of once per character, so the commit
+    // is asserted through `waitFor` rather than synchronously.
+    await waitFor(() => expect(onConfigChange).toHaveBeenCalled());
+    const next = onConfigChange.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes["src-upload-1"] as SourceNode;
+    expect(updated.type).toBe("source");
+    expect(updated.sourceType).toBe("source.upload");
+    expect((updated.parameters as Record<string, unknown>).ctxKey).toBe(
+      "uploadedUrl",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 5 (partial): unknown sourceType shows error message
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — unknown sourceType handling", () => {
+  it("renders an error message when the sourceType is not registered in the catalog", () => {
+    const node: SourceNode = {
+      id: "bad",
+      type: "source",
+      label: "Bogus",
+      sourceType: "source.does-not-exist",
+      parameters: {},
+    };
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+      />,
+    );
+
+    expect(
+      screen.getByTestId("source-node-settings-unknown"),
+    ).toHaveTextContent("Unknown source type: source.does-not-exist");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-124 Scenario 1 — button visible only on source.upload panel
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — US-124 Scenario 1: 'Upload & Try' button visibility", () => {
+  it("renders the SourceUploadButton when the node is source.upload", () => {
+    const node = makeSourceUploadNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    expect(screen.getByTestId("source-upload-button")).toBeInTheDocument();
+    expect(screen.getByTestId("source-upload-button")).toHaveTextContent(
+      "Upload & Try",
+    );
+  });
+
+  it("does NOT render the SourceUploadButton when the node is source.api", () => {
+    const node = makeSourceApiNode();
+    const config = makeConfig(node);
+    const onConfigChange = vi.fn();
+
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    expect(screen.queryByTestId("source-upload-button")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G-040 — renaming a field carries its consumers
+// ---------------------------------------------------------------------------
+
+describe("SourceNodeSettings — G-040 field rename sweep", () => {
+  /** `src-api-1` declares `customerId`; `B` reads it on its `docId` input. */
+  function configWithConsumer(node: SourceNode): GraphWorkflowConfig {
+    return {
+      ...makeConfig(node),
+      nodes: {
+        [node.id]: node,
+        B: {
+          id: "B",
+          type: "activity",
+          label: "Fetch",
+          activityType: "file.prepare",
+          inputs: [{ port: "docId", ctxKey: "customerId" }],
+        },
+      },
+    };
+  }
+
+  it("rewrites a consumer binding when the field it read is renamed", () => {
+    const node = makeSourceApiNode({
+      parameters: {
+        fields: [{ name: "customerId", type: "string", required: false }],
+      },
+    });
+    const onConfigChange = vi.fn();
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={configWithConsumer(node)}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    const nameInput = screen.getByTestId("field-list-editor-name-0");
+    fireEvent.change(nameInput, { target: { value: "clientId" } });
+    // Nothing is written while typing — the sweep must run once, on commit.
+    expect(onConfigChange).not.toHaveBeenCalled();
+    fireEvent.blur(nameInput);
+
+    expect(onConfigChange).toHaveBeenCalledTimes(1);
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.B.inputs?.[0].ctxKey).toBe("clientId");
+    const fields = (next.nodes[node.id] as SourceNode).parameters
+      ?.fields as Array<{ name: string }>;
+    expect(fields[0].name).toBe("clientId");
+  });
+
+  it("leaves consumers alone when a field is added rather than renamed", () => {
+    const node = makeSourceApiNode({
+      parameters: {
+        fields: [{ name: "customerId", type: "string", required: false }],
+      },
+    });
+    const onConfigChange = vi.fn();
+    renderPanel(
+      <SourceNodeSettings
+        node={node}
+        config={configWithConsumer(node)}
+        onConfigChange={onConfigChange}
+        workflowId="wf-1"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("field-list-editor-add"));
+
+    const next = onConfigChange.mock.calls[0][0] as GraphWorkflowConfig;
+    expect(next.nodes.B.inputs?.[0].ctxKey).toBe("customerId");
+  });
+});
