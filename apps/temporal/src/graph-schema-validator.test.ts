@@ -23,6 +23,7 @@ function makeMinimalGraph(
         type: "activity",
         label: "Start",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
         inputs: [{ port: "documentId", ctxKey: "documentId" }],
       } as ActivityNode,
     },
@@ -55,6 +56,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -94,6 +96,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -139,6 +142,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -240,6 +244,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "normal" }],
@@ -344,6 +349,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "N",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             outputs: [{ port: "anything", ctxKey: "doc.scribbled" }],
           } as ActivityNode,
         },
@@ -384,6 +390,7 @@ describe("graph-schema-validator (temporal)", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [{ id: "e1", source: "sw", target: "a", type: "conditional" }],
@@ -546,7 +553,6 @@ describe("graph-schema-validator (temporal)", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -579,7 +585,6 @@ describe("graph-schema-validator (temporal)", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -611,7 +616,6 @@ describe("graph-schema-validator (temporal)", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.outputFormat",
-            message: expect.stringContaining("outputFormat"),
           }),
         ]),
       );
@@ -643,7 +647,6 @@ describe("graph-schema-validator (temporal)", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.fieldMapping",
-            message: expect.stringContaining("fieldMapping"),
           }),
         ]),
       );

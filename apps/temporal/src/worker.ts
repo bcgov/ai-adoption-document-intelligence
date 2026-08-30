@@ -12,6 +12,7 @@ import * as http from "node:http";
 import { Connection, ScheduleClient } from "@temporalio/client";
 import type { ActivityInterceptorsFactory } from "@temporalio/worker";
 import { NativeConnection, Worker } from "@temporalio/worker";
+import { activityOutputCache } from "./activities/cache/activity-output-cache.activities";
 import { getPrismaClient } from "./activities/database-client";
 import { getActivityRegistry } from "./activity-registry";
 import { ActivityBillingInterceptor } from "./billing/activity-billing-interceptor";
@@ -21,6 +22,8 @@ import {
 } from "./billing/nightly-storage-charge.activity";
 import { UsageEventWriter } from "./billing/usage-event-writer";
 import { initStorageLedger } from "./blob-storage/blob-storage-client";
+import { dynRun } from "./dynamic-nodes/dyn-run.activity";
+import { dynamicNodeResolveLineage } from "./dynamic-nodes/resolve-lineage.activity";
 import { workerLogger } from "./logger";
 import { getRegistry } from "./metrics";
 import { temporalDataConverter } from "./temporal-data-converter";
@@ -288,11 +291,37 @@ async function run() {
       inbound: new ActivityBillingInterceptor(billingWriter),
     };
   };
+  // Phase 4 (US-133) — register the cache-proxy activities the worker
+  // decorator calls (`findFresh`, `upsert`). Kept out of the graph-node
+  // registry on purpose: these are infrastructure activities the workflow
+  // runtime dispatches itself, not selectable activity types for graph
+  // authors. The dot-namespaced keys match the dispatch shape in
+  // `apps/temporal/src/graph-workflow.ts`. Expired-row cleanup is the
+  // backend's hourly cron (`apps/backend-services/src/cache`), not a
+  // worker concern.
+  activitiesMap["activityOutputCache.findFresh"] =
+    activityOutputCache.findFresh as (...args: unknown[]) => Promise<unknown>;
+  activitiesMap["activityOutputCache.upsert"] = activityOutputCache.upsert as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
+
+  // Phase 6 Milestone C (US-170 + US-171) — register the two dynamic-node
+  // activities. `dyn.run` is the single shared activity that wraps every
+  // `dyn.<slug>` node invocation via the `deno-runner` HTTP service.
+  // `dynamicNode.resolveLineage` is the short executor-side lookup that
+  // translates `(groupId, slug, version?)` → immutable `versionId` —
+  // registered as `nonCacheable: true` (the lineage head can change between
+  // executions; caching would defeat hot-reload).
+  activitiesMap["dyn.run"] = dynRun as (...args: unknown[]) => Promise<unknown>;
+  activitiesMap["dynamicNode.resolveLineage"] = dynamicNodeResolveLineage as (
+    ...args: unknown[]
+  ) => Promise<unknown>;
 
   // Create workers array to track all running workers
   const workers: Worker[] = [];
 
-  // Create primary worker for production OCR processing
+  // Create primary worker for production OCR processing. The benchmark
+  // worker keeps its own dedicated `./benchmark-workflows` bundle.
   const ocrWorker = await Worker.create({
     connection,
     namespace,
