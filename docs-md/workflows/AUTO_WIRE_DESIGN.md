@@ -1,0 +1,343 @@
+# Auto-Wire — Hiding Port Bindings Behind the Wire
+
+**Status:** Approved 2026-05-26. Supersedes and expands the "Phase 3.5 — auto-bind-on-wire-draw" follow-up filed in [TYPED_IO_DESIGN.md §13](TYPED_IO_DESIGN.md) and [IMPLEMENTATION_PLAN.md §5](IMPLEMENTATION_PLAN.md).
+**Why now:** Phase 3's typed-I/O foundation has landed (`KindRef`, the artifact registry, `expectedKind`, `resolveProducerKindFor`). The handle colours and the kind-aware `VariablePicker` exist — but the user still authors `port → ctxKey` rows by hand. That is the layer this design removes. We keep Model A; we keep one handle per side; we keep ctx as the runtime data hop. We simply stop making the user think about any of it.
+
+This document commits to a concrete resolver + UX for hiding port bindings. It is additive: the engine, the validator, the persisted JSON shape, and existing workflow files do not change. The user-facing surface becomes "inputs are connected sources, not ctx keys." The implementation is a frontend convenience layer over the existing `PortBinding[]` model.
+
+---
+
+## 1. Mental model
+
+There is one mental model the user holds:
+
+> Each input slot is either a constant the user sets or a source they connect from; most of the time, drawing an execution arrow between nodes is enough and the system figures out the rest.
+
+That is the user-vision framing from [NOTES.md §1.1](NOTES.md). Today the canvas honours the first clause (execution arrow) but not the second (figures out the rest). The settings panel exposes the underlying `port → ctxKey` machinery directly. After this change, the panel exposes the user model directly and treats `ctxKey` as an implementation detail.
+
+Wires remain pure execution-order arrows (Model A is unchanged, per [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)). Data flow is derived from the graph + the typed-I/O signatures, not from a parallel set of typed handles on the canvas.
+
+---
+
+## 2. The resolver
+
+A pure function in the shared package:
+
+```ts
+// packages/graph-workflow/src/auto-wire/resolver.ts
+export function resolveBindings(config: GraphWorkflowConfig): GraphWorkflowConfig;
+```
+
+Idempotent. Called on every editor mutation (debounced) and on save. Operates only on inputs that are **not locked** by the user (see §3). Produces a new `GraphWorkflowConfig` with `inputs[]` (and `outputs[]` it synthesises along the way) filled in.
+
+> **2026-07-13 fix:** the output write-back was key-order sensitive until `732945ed` — under certain jsonb key-normalization orderings, resolving one node's inputs could clobber a producer's already-written `outputs[]` binding instead of merging into it, silently dropping a downstream wire (surfaced in the port-wiring Phase 2 canvas as a missing extract→clean wire). Fixed and regression-tested in `resolver.test.ts`.
+
+### 2.1 Per-port resolution
+
+For each consumer node `C`, for each declared input port `P` with a declared `kind`, when `P` is unlocked:
+
+1. **Collect reachable producers.** Walk upstream from `C` over the graph's execution-order edges. A producer is any node `N` with an output port `Q` whose declared `kind` is assignable to `P.kind` (`isAssignable` from the existing subtype-check module, [TYPED_IO_DESIGN.md §6](TYPED_IO_DESIGN.md)). "Reachable" follows `edges[].source → edges[].target` in reverse; a producer is reachable from `C` iff there is a directed edge path from `N` to `C`.
+2. **Compute topological distance.** Each candidate `(N, Q)` gets a distance = the number of edges on the shortest path from `N` to `C`.
+3. **Resolve.**
+   - **0 candidates** → port is `unsatisfied`. No binding written.
+   - **1 candidate** → port is `auto-bound` to `(N, Q)`. Synthesise the ctx key (§2.2), stamp the consumer's `inputs[]` row and the producer's `outputs[]` row.
+   - **2+ candidates, unique minimum-distance winner** → port is `auto-bound` to the nearest producer. (The closest typed source is almost always the user's intent in linear-ish chains.)
+   - **2+ candidates tied at minimum distance** → port is `ambiguous`. No binding written. User must pick.
+
+The tie rule is deliberate. Silent guessing on ties is the failure mode that erodes trust; users will eventually find the wrong wire and not understand why it was chosen. An ambiguous chip plus a one-click picker is the right escalation.
+
+**2026-07-14 addition — `locked-unbound` (PORT_WIRING_DESIGN §6.3):** a locked port can also have *no* binding — the user deleted its data wire on the canvas ("pinned unbound"). `resolveInputPort` reports this fifth status, `locked-unbound`, whenever a port is in `lockedInputPorts` but has no `inputs[]` row (or its ctx key is empty). The resolver leaves it alone exactly like any other locked port — it does not re-derive a binding, which is the point: deleting a wire must not make it silently reappear. The UI renders `locked-unbound` as "Disconnected by you" (§12 vocabulary table) rather than "Needs a source", so the user can tell a deliberate disconnect apart from a port that was never wired.
+
+### 2.2 CtxKey synthesis
+
+When the resolver auto-binds `(P on C) ← (Q on N)`:
+
+- The synthesised ctx key is `__auto.${nodeId}.${outputPortName}`.
+- The producer's `outputs[]` gets `{ port: Q, ctxKey: <synthesised> }`, unless an output binding already exists for that port — in which case the existing key is reused (so manually-named outputs still get connected to auto-bound consumers without duplication).
+- The consumer's `inputs[]` gets `{ port: P, ctxKey: <synthesised or existing> }`.
+
+The `__auto.` prefix is reserved. Hand-written ctx keys (`config.ctx` declarations, manual output bindings in templates, library workflow ports) never start with it; the resolver never overwrites a non-`__auto.` ctx key on the producer side.
+
+The node id is stable across renames, so synthesised keys are stable. If a node is deleted, every consumer's auto-binding referencing it falls back through resolution (becomes unsatisfied or finds a different producer).
+
+### 2.3 Locked bindings
+
+A binding is *locked* when the user has chosen a source explicitly (an override in the settings panel) or when the workflow file already had a non-`__auto.` ctx key in that slot when the editor loaded it. Locked bindings are never modified by the resolver.
+
+Lock state is tracked on the node:
+
+```ts
+// extension to GraphNode metadata — frontend-only, stripped on emit if empty
+metadata?: {
+  // ... existing fields
+  lockedInputPorts?: string[];   // port names whose input binding is user-locked
+  lockedOutputPorts?: string[];  // port names whose output binding is user-locked
+};
+```
+
+`metadata` is a free-form bag in the existing schema; adding optional string-array fields requires no validator change. The on-disk shape stays compatible with templates, library workflows, and the AI agent's catalog reads.
+
+**Load normalisation.** When a workflow loads into the editor, a one-shot pass populates `lockedInputPorts` / `lockedOutputPorts` for every binding whose ctx key does not start with `__auto.`. After this pass, the resolver's single check is `if (lockedInputPorts.includes(port)) skip` — the prefix convention is only consulted once at load time, then the explicit lock list is authoritative for the editor session. Existing templates (which have no `lockedInputPorts` field) end up with every binding locked, which is the desired no-touch behaviour.
+
+### 2.3a Does this ctx key have a source? (`resolveCtxKeySource`)
+
+*Added 2026-07-25 — fixes G-002 / G-005 / G-013 in the [spec-completion gap register](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md).*
+
+A lock said "the user chose this", and every surface used to read that as "so it must be fine". It is not: the producer behind the chosen key can be deleted afterwards, leaving a binding that points at nothing. `packages/graph-workflow/src/auto-wire/ctx-source.ts` is the single arbiter all surfaces now share:
+
+> **A port binding is satisfied only if its `ctxKey` has a real source: some node writes that key as an output, or the key is declared in `config.ctx`. Otherwise every surface must report a problem.**
+
+`resolveCtxKeySource(config, ctxKey, consumerNodeId?)` returns `{ origin: "node-output", nodeId, port, kind? }`, `{ origin: "declared-ctx", kind? }`, or `null`. It is deliberately broader than the validator's own producer enumeration:
+
+- every node's `outputs[]` bindings (kind from the activity catalog);
+- `map.itemCtxKey` / `map.indexCtxKey`, `join.resultsCtxKey`, `childWorkflow.outputMappings`, the humanGate `<nodeId>Payload` key — control-flow writes that no `outputs[]` row records;
+- `source` node produced keys (`source.api` fields, `source.upload`'s configured key);
+- a live `__auto.<nodeId>.<port>` key, which names its own producer, so it resolves whether or not the producer's `outputs[]` row has been stamped yet;
+- `config.ctx` declarations. **A declaration is a legitimate source** — workflow inputs have no producing node — so declaring a key is what keeps templates and library inputs healthy.
+
+Matching mirrors the condition picker's reverse lookup: a leading `ctx.` prefix is stripped, drilled refs (`ocrResult.status`) resolve through their producing key on a dot boundary only, and `doc.` / `segment.` resolve via `getCtxRootKey`. A node never counts as its own source when `consumerNodeId` is given.
+
+Three consumers share it:
+
+1. **`resolveInputPort`** — a locked port no longer short-circuits to `{ status: "locked" }`. It gains `locked-dangling` (key has no source) and `locked-kind-mismatch` (source kind not assignable to the port kind, checked with `isAssignable` and only when both sides declare a kind). Both are problems for the node badge and the validation drawer, ungated by `required` — the author asked for this binding and it no longer works.
+2. **The validator's `walkCtxKeyBindings`** — a ctx key with consumers and zero producers used to `continue` past both the kind check *and* any existence check. The kind check still has nothing to compare, but a key that `resolveCtxKeySource` cannot source is now an `error` anchored at `nodes.<id>.inputs.<port>`.
+3. **The frontend badge pipeline** — `autoWireIssuesToValidationErrors`'s `manuallyBoundPorts` suppression and `input-row-resolution.ts`'s display-only `ctx-bound` state are both gated on the lookup instead of being unconditional. A dangling hand-bound port falls through to the honest "needs a source".
+
+**Why a declaration has to count.** Because `validatePortBindings` already requires every non-`__auto.` binding key to be declared in `config.ctx`, and a declaration counts as a source, "declared but nothing writes it" is not by itself evidence of a problem. It cannot be: across all 8 shipped templates, 3–11 declared keys per template have no producer and are exactly the workflow inputs (`documentId`, `blobKey`, `fileName`, `fileType`, `groupId`, thresholds, `classifierName`), and **`isInput` is set on none of them**. After the fact, "declared workflow input" and "declaration whose producer was deleted" are the same static state.
+
+### 2.3a-bis The mirror question: what READS this key? (`findCtxKeyReferences`)
+
+*Added 2026-07-25 — fixes G-009 in the [spec-completion gap register](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md).*
+
+§2.3a answers "where does this value come from". `ctx-references.ts` answers the mirror — "what else uses it?" — from the same graph data, and pairs the two into the blast-radius lookup an author needs **before** renaming or deleting a variable rather than after.
+
+- `collectCtxReaders(config)` — every ctx READ the graph performs: `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and every `ValueRef.ref` inside a `switch` case or a `pollUntil` condition. `outputs[]` and `childWorkflow.outputMappings` are deliberately absent — those are writes, and `collectCtxWriters` owns them. Its `switch (node.type)` is exhaustive with a `never` check, the same guard `rename-ctx-key.ts` uses, so a new reader cannot be added to the model without a compile error here.
+- `findCtxKeyReferences(config, ctxKey)` — `{ key, readers, writers, declared, total }`. Matching uses the same `writerSourcesKey` relation §2.3a uses, so a drilled read (`ocrResult.status`) counts as a read of `ocrResult` and a prefix cousin (`ocrResultBackup`) does not, on both sides.
+
+**The reference sites enumerated here are exactly the ones `rename-ctx-key.ts` rewrites.** That is the invariant: what the author is shown as the blast radius must be what a rename would actually move, or the preview lies. Surfaced on each row of the workflow-settings ctx list as a **"Used by N"** popover, whose entries select-and-reveal the named node through the page's one `selectAndRevealNode` helper.
+
+### 2.3b The one moment the two cases are distinguishable: the delete
+
+*Added 2026-07-25 — closes the residual above.*
+
+The only point at which "this key just lost its source" is knowable is the deletion itself, because a writer is observably going away. So the signal is captured there and turned into a persistent change rather than inferred later. `orphaned-ctx-keys.ts` provides:
+
+- `findOrphanedCtxKeys(config, removedNodeIds)` — the ctx keys the removed nodes are the **sole** writer of that at least one **surviving** node still reads. Producers come from `collectCtxWriters` (the same enumeration §2.3a answers from, so the two can never disagree); readers are `inputs[]` bindings, `map.collectionCtxKey`, `childWorkflow.inputMappings`, and the refs inside `switch` / `pollUntil` conditions. A key nothing reads is **not** reported — deleting a leaf whose output nobody uses is an ordinary edit and must stay silent.
+- `pruneCtxDeclarations(config, ctxKeys)` — drops those declarations. Never drops one marked `isInput`, and never drops one another node still writes.
+
+**Where each piece lives.** The prune is **unconditional and inside `removeNodesFromConfig`** ([canvas/remove-nodes.ts](../../apps/frontend/src/features/workflow-builder/canvas/remove-nodes.ts)) — the choke point every delete path funnels through, so no future path can forget it. The *reporting* stays at each entry point, all three calling one shared `showOrphanedDeleteToast` ([delete-orphan-toast.tsx](../../apps/frontend/src/features/workflow-builder/delete-orphan-toast.tsx)), whose copy comes from `describeOrphanedDelete`:
+
+| Entry point | Reporting |
+|---|---|
+| Settings-panel trash (`deleteSelected`) | delete → prune → toast with Undo |
+| Canvas context menu (`handleNodesDelete`) | same |
+| Keyboard / multi-select (`onDelete` → `handleDelete`) | same; **one** toast per gesture, whatever the selection size |
+
+The delete is described against the **pre-delete** config — "which keys lose their sole writer" is only answerable while the writers are still there — and the counts roll up across every removed node (`findOrphanedCtxKeys` takes a set for exactly this reason), so a three-node delete reports once rather than three times. The toast carries a fixed id, so a rapid second delete replaces the first rather than leaving a stale Undo link pointing at a superseded history step.
+
+`handleDelete` removes nodes first and strips edges in a later pass, so `removeNodesFromConfig` sees the un-stripped config; consumer detection reads port bindings, `map.collectionCtxKey`, childWorkflow input mappings and condition refs — **never edges** — so it is unaffected either way.
+
+The prune is what makes the consequence chain fire: declaration gone → the key has neither producer nor declaration → §2.3a returns `null` → the badge, the drawer and the settings row all report it.
+
+**The report fires for resolver-made connections too**, not just hand-authored ones — if the resolver wired a consumer to the producer's key, deleting the producer breaks it identically, so the signal must be identical. Narrowing it to "author-made only" would recreate exactly the blind spot this section exists to remove: a distinction the user cannot see, used to decide whether to tell them.
+
+#### The confirm-era design is gone
+
+*Superseded 2026-07-25 by G-003.*
+
+Between 2026-07-25 and G-003 landing, all three entry points put a blocking `window.confirm` in front of the author — `confirmOrphanedDelete`, with an early return on cancel — and the keyboard path additionally registered an **`onBeforeDelete`** veto. That veto existed for one reason: by the time xyflow fires `onDelete` it has **already** removed the elements from its internal store, and the config→canvas projection is fingerprint-gated on `config`, so a cancel that merely skipped `onConfigChange` would have left the nodes visually gone while still present in the config. `onBeforeDelete` vetoed before the store was touched, making a cancel a true no-op.
+
+That whole apparatus was explicitly a stopgap for the absence of an undo stack. With [G-003](../../feature-docs/20260724-workflow-builder-spec-completion/GAP_REGISTER.md) shipped, a delete is reversible, so:
+
+- `confirmOrphanedDelete` is deleted. Nothing blocks; the delete happens immediately.
+- `onBeforeDelete` is **removed entirely**. With no cancellation there is nothing to veto, and xyflow's default ("always allow") is correct. Leaving a veto in place would be dead weight on the one hook that can silently swallow a delete.
+- `describeOrphanedDelete`'s copy moved to the **past tense** (`Deleted "Prepare File" — 1 variable lost its source; 1 step reads it.`) because it is now reported after the fact.
+
+Undo restores the pruned `config.ctx` declarations along with the node, because the history stack snapshots whole configs rather than diffing fields — pinned by a test, since a partial restore would swap one silent-data-loss bug for another.
+
+**Remaining gap.** `deleteKey` in `WorkflowSettingsDrawer` deletes a ctx declaration *directly*, from a bare trash icon, with no usage count and no reverse lookup — while its sibling *rename* is backed by a full graph sweep. Same class of problem, different surface, different fix.
+
+### 2.4 What gets resolved vs. left alone
+
+Resolved:
+- Activity nodes' typed input ports whose `kind` is declared on the catalog entry.
+- Output bindings synthesised on the producer side as a side effect of an auto-bind.
+
+Left alone:
+- Manual / locked bindings (anywhere).
+- Activity input ports without a declared `kind` (legacy / pre-Phase-3 catalog entries; the existing `VariablePicker` already treats these as wildcards). These continue to be configured manually.
+- Static *parameters* (`node.parameters`) — thresholds, model IDs, rule lists, etc. These stay in the schema-driven `JsonSchemaForm`. They are not artifact wiring.
+- Control-flow node bindings — see §6 for the per-type rules.
+
+---
+
+## 3. Persistence
+
+No schema change to `PortBinding` or to the workflow JSON shape. The full save round-trip is:
+
+1. Editor state holds the resolved config (with `__auto.`-prefixed bindings + `lockedInput/OutputPorts` in `metadata`).
+2. On save, the existing strip-on-emit layer ([commit dd182c3f](https://github.com/.../commit/dd182c3f)) is extended to keep `__auto.` keys but drop empty `lockedInputPorts` / `lockedOutputPorts` arrays. (Non-empty lock lists are persisted so a re-opened workflow remembers user overrides.)
+3. The save-time validator (`validateGraphConfig`) walks ctx keys exactly as it does today ([TYPED_IO_DESIGN.md §5](TYPED_IO_DESIGN.md)). It sees `__auto.` keys as ordinary ctx keys; the binding-walk type check works without modification.
+4. The Temporal engine sees ordinary ctx keys at runtime. `__auto.` is a string convention, not an engine concept.
+
+Existing workflows on disk have explicit, hand-authored bindings. When loaded:
+
+- Every existing binding's ctx key is treated as **locked** (it didn't start with `__auto.`).
+- The resolver leaves them untouched.
+- The settings panel renders them as "connected to *<producer node>*" if the ctx key can be matched to an upstream producer's output, or "manual value" if it points at a `config.ctx` declaration.
+
+No migration step. Old workflows behave identically; new ones lean on auto-resolution.
+
+---
+
+## 4. Settings panel UX
+
+The current "Input bindings" / "Output bindings" footer ([NodeSettingsPanel.tsx:621-666](apps/frontend/src/features/workflow-builder/settings/NodeSettingsPanel.tsx#L621-L666)) becomes a single "Inputs" section. Outputs disappear from the default view.
+
+### 4.1 Default panel — Inputs section
+
+One row per declared input port (catalog-driven). Per-row UI by state:
+
+| State | Row contents |
+|---|---|
+| **auto-bound** | Port label · ← producer-node label · "Auto" pill (tooltip: "Connected automatically") · chevron menu (Change source · Reveal ctx key) |
+| **constant / fixed value** | Port label · current value summary · "Edit" button. Only available for ports whose declared kind is a primitive (string, number, boolean) — these can also be set as a static parameter. The value lives in `node.parameters`, not in a binding. |
+| **ambiguous** | Port label · amber "Pick a source" pill (tooltip: "Multiple possible sources") · click opens the producer picker (compatible producers only, no raw ctx keys) |
+| **unsatisfied** | Port label · red "Needs a source" pill (tooltip: "Choose where this comes from") · click opens the producer picker + a "no upstream candidate" hint with a one-click "Add a step that produces *<Kind>*" affordance (palette filtered to activities that emit a compatible kind) |
+| **user-locked override** | Port label · "← *<producer node>*" (when the locked ctx key matches an upstream output) or "Manual ctx: *<key>*" (when it points at a `config.ctx` declaration or a key with no producer) · "Pinned" badge (tooltip: "Pinned by you") · chevron menu (Edit · Revert to automatic) |
+
+Producer labels are the consumer-friendly node label (`node.label`), not the node id. Hovering a row surfaces the canonical port name + kind in a tooltip for the rare case the user needs the engineering signal.
+
+### 4.2 Constant vs. connect
+
+Ports whose `kind` is a primitive (or whose activity also accepts the same field as a static parameter) get a two-mode toggle on the row: **Set value** vs. **Connect from**. This honours the user-vision framing in [NOTES.md §1.1](NOTES.md): some types are adjustable — a primitive like an integer can be set to a fixed value or connected from an upstream source. Switching to "Set value" moves the binding into `node.parameters` and locks the port to constant mode; switching to "Connect from" returns it to the resolver.
+
+### 4.3 Change source + revert
+
+"Change source" on an auto-bound row opens the producer-only picker, filtered by `isAssignable` against `P.kind`, ranked by topological distance. Picking a producer locks the port (adds it to `metadata.lockedInputPorts`) and stamps the binding to that producer's output (creating an output binding on the producer if needed, with a non-`__auto.` ctx key the user can rename if they care).
+
+"Revert to automatic" removes the port from `metadata.lockedInputPorts`. The next resolver pass re-derives the binding.
+
+### 4.4 Advanced peek
+
+A single "Show advanced" toggle at the bottom of the panel reveals the raw `port → ctxKey` editor for both inputs and outputs — the current Phase 1A footer, unchanged. This is the escape hatch for power users, templates work, and debugging. It is **not** the default surface; it is collapsed behind a chevron.
+
+### 4.5 Outputs
+
+Outputs are not surfaced in the default view at all. They are derived from downstream consumers' resolved bindings. The advanced peek (§4.4) is where they live for users who care.
+
+A consequence: an output port with no downstream consumer has no synthesised ctx key. That is correct — nothing reads it, the runtime simply doesn't pull the value out of the activity result. (This matches today's engine behaviour: only bound output ports get plucked out of the activity's result object.) The "unused output" state is not surfaced as an error; it's a normal state for sink-shaped activities (`document.updateStatus`, `ocr.storeResults`).
+
+---
+
+## 5. Canvas affordances
+
+A small status dot renders on the left edge of each node:
+
+- **Green / hidden** — every declared input port is satisfied (auto-bound or user-locked).
+- **Amber** — at least one port is ambiguous.
+- **Red** — at least one port is unsatisfied.
+
+Clicking the dot opens the settings panel scrolled to the offending row. No new edge styles; no new handle types; no draw-time wire rejection. The dot is the only added canvas affordance.
+
+The status colour is computed from the resolved config (it folds in both unsatisfied + ambiguous states). It is purely advisory at the canvas layer — the authoritative error surface remains the existing save-time validator + the red-badge / drawer mechanism from Phase 1A.
+
+---
+
+## 6. Control-flow specifics
+
+The resolver covers activity nodes' typed ports. Control-flow nodes get analogous treatment, but each shape has its own rule:
+
+### 6.1 `map`
+
+`map.collectionCtxKey` is the input the map iterates over. Auto-bind it to the nearest upstream producer whose output `kind` is an array type (`T[]` for any `T`). Ambiguity rule is the same as §2.1.
+
+**Re-resolution (2026-07-25, G-013).** The auto-fill used to be one-shot — any map whose `collectionCtxKey` was already truthy was skipped forever — so deleting the collection's producer left the map holding a dead key, `resolveMapElementKind` returned `undefined`, and every body node silently lost its synthetic `map-item` producer while the map card showed no problem. The skip is now conditional on the key still having a source per §2.3a: a map with a dangling collection is re-resolved to the nearest upstream `T[]` producer, one with a live producer or a declared workflow input is left alone, and a **pinned** collection (`lockedInputPorts` includes `"collection"`) is still never rewritten — it is reported as `locked-dangling` instead.
+
+`collection` also now gets a row in `resolveWireableInputRows`, so the settings panel and the connect-summary popover show whether it is auto-wired, pinned, ctx-bound or dangling like any other input port. The row is status-only on that surface: the key lives in `collectionCtxKey`, not `inputs[]`, and the generic pin/revert mutations write `inputs[]` — editing stays in `MapNodeSettings`. Control-flow nodes still mount no per-port canvas handles (that needs declared output ports — a separate change).
+
+Inside the map's body, the iteration variable (today `currentSegment` for segment maps via the hardcoded `segment.*` namespace rewrite in [context-utils.ts:41-65](apps/temporal/src/graph-engine/context-utils.ts#L41-L65)) is the implicit input to the body entry node. The resolver treats the map node as a synthetic producer of element type `T` for body-scope consumers, where `T` is derived by stripping the `[]` from the collection producer's output kind (a `Segment[]` collection yields a `Segment` synthetic producer inside the body). This collapses today's hidden `segment.*` dialect into a normal resolver rule.
+
+**Port name vs. ctx key (2026-07-25, G-104).** That synthetic producer's **port** is the fixed identifier `"item"` — the same name `nodeTypeCtxWrites` records the write under (§2.3a), and the same stable-identifier shape every other control-flow producer uses (`join` `"results"`, `humanGate` `"payload"`, `childWorkflow` `mapping.port`). The author-chosen `itemCtxKey` is the ctx **key** that port writes, not the port's name; `producerCtxKeyForPort(map, "item")` is what maps the one to the other. The resolver used to report `producerPort: itemCtxKey` here, which made the two halves of the same lookup disagree: a derived wire carried a `sourcePort` its own provenance lookup could never match, so the canvas excluded `map` from its wire producer index outright and a body node correctly auto-bound to the map's item drew **no wire at all** — a binding the author could neither see nor delete. Reporting `"item"` makes the enumeration and the resolver agree, lets the wire draw with `via: "map-item"`, and preserves the symmetry `producerCtxKeyForPort` depends on for the `resolveBindings` write-back (which consequently no longer needs its `map` special case — that case returned `itemCtxKey` for *any* port, so a bind to the map's `index` port resolved to the item key). A map still materializes **no** `outputs[]` row; the port name is an in-memory convention only.
+
+⚠️ **`upstreamNodesWithDistance` does not descend into a map's body (G-106).** It is a reverse BFS over `config.edges` only, and a map reaches its body through `bodyEntryNodeId` — not an edge. Unless the author also draws a `map → bodyEntry` edge, the map is not upstream of any body node and this whole synthetic-producer pass never fires for it. Both maps shipped in the product have exactly that shape, so their item bindings are hand-authored (and therefore pinned by §2.3's `normaliseLocks`). Whether a body node should see producers *outside* the map, and at what distance, is a scoping question this spec does not yet answer — undispositioned.
+
+### 6.2 `switch`
+
+`switch.cases[].condition` is a `ConditionExpression` reading ctx. When a case condition refers to a `ValueRef`, the resolver auto-binds the ref to the nearest upstream output whose kind matches the expected primitive type.
+
+`switch` outgoing edges (one per case + default) remain user-drawn; auto-wiring does not auto-pick branches.
+
+### 6.3 `join`
+
+`join.sourceMapNodeId` already points at a partner `map` node. The resolver doesn't change that, but it does ensure `join.resultsCtxKey` is synthesised (`__auto.${joinNodeId}.results`) and consumed by downstream auto-bindings as an array of the body's exit-node output kind.
+
+### 6.4 `pollUntil`, `humanGate`
+
+Treated as activity nodes for input resolution. Their condition / signal-shape configuration stays manual (it's intrinsic to the node, not artifact wiring).
+
+### 6.5 `childWorkflow`
+
+Library workflows declare typed `LibraryPortDescriptor` ports (Phase 3). A `childWorkflow` node's input ports are the library's declared inputs; the resolver treats them like activity inputs. Output ports are the library's declared outputs; same.
+
+### 6.6 `source` (Phase 8)
+
+Source nodes have no inputs ([SourceNodeSettings](apps/frontend/src/features/workflow-builder/sources/SourceNodeSettings.tsx)) — the resolver never sees one as a consumer. Their outputs are producers like any other node.
+
+---
+
+## 7. Migration + back-compat
+
+Three classes of existing workflow JSON:
+
+1. **Hand-authored / template workflows with explicit bindings** (e.g., `multi-page-report-workflow.json`). Every binding is loaded as locked. The resolver never touches them. The settings panel renders each as "← *<producer node label>*" where the ctx key matches an upstream output, or "Constant: *<ctx declaration>*" where it points at a `config.ctx` entry. No behaviour change.
+2. **New workflows authored after this lands.** The resolver fills bindings; users see only the friendly panel. On save, the JSON contains `__auto.`-prefixed ctx keys + optional `metadata.lockedInputPorts/lockedOutputPorts` arrays. Round-trip is byte-stable.
+3. **A workflow saved by the new editor, then opened in the old / advanced view.** All `__auto.` keys are visible. The advanced view (§4.4) is the path for users who want to inspect or rename them. The Phase 1A-style footer is unchanged in the advanced view.
+
+The old JSON editor (`WorkflowEditorPage.tsx`) renders the raw JSON. It will show the `__auto.` keys verbatim. That is acceptable — the old editor is power-user / fallback; it doesn't need cosmetic ctx key beautification.
+
+---
+
+## 8. Edge cases + decisions
+
+- **Cyclic graphs.** The schema validator already forbids cycles; the resolver assumes a DAG and would loop on one. Defensive guard: cap reverse-walk depth at the node count.
+- **Disconnected consumer.** A node with no upstream edges has zero candidates for every typed input → every port is `unsatisfied` (red dot). This is the correct state for an orphan node.
+- **Re-wiring.** When an edge is added, removed, or redirected, the next resolver pass re-evaluates every unlocked port that could be affected. (Pragmatically: re-run on every config mutation. The resolver is O(nodes × ports × edges); the workflows we ship are <100 nodes, so this is fine without incrementalisation.)
+- **Multiple inputs of the same kind on one node.** E.g. a future activity with two `Document` inputs (`primary`, `reference`). The resolver picks the nearest upstream `Document` producer for each port — but both ports will tend to resolve to the same producer, which is wrong. **Fix:** when one port has auto-bound to a producer, exclude that producer from the candidate set for the other ports on the *same* node within the same kind family. If that leaves a port with no candidates → mark ambiguous (not unsatisfied — there IS a candidate, but it's already taken). This is the "two-doc" edge case the codebase has so far avoided by collapsing inputs into a single array; once we have typed multi-input activities the rule above handles them.
+- **Map body referencing parent ctx.** A body node can legitimately read from a parent-scope ctx key (e.g., a parameter declared at workflow level). The resolver checks `config.ctx` declarations as producers of last resort (kind taken from `CtxDeclaration.kind` per Phase 3). They lose ties against in-graph producers — parent ctx is the fallback, not the default.
+- **Templates that import.** A template loaded from `docs-md/workflows/templates/*.json` keeps all its hand-authored bindings (per §7 class 1). The user can choose to "Revert to automatic" any of them and the resolver takes over.
+
+---
+
+## 9. Out of scope
+
+- **Draw-time rejection of node-to-node (execution-order) edges.** Node-level edges remain execution-order and are never kind-rejected; that compatibility check happens via the binding-walk validator + the resolver's candidate filter. (Port-to-port *data* drags DO get draw-time kind rejection as of Phase 3 — see [PORT_WIRING_DESIGN §6.2](PORT_WIRING_DESIGN.md); that is a separate gesture on the per-port handles, not the node-level edge drawn here.)
+- **ComfyUI-style per-port handles.** The designer vetoed; the [I/O model decision](WORKFLOW_NODE_IO_MODEL_DECISION.md) locks single in / single out.
+- **Auto-wrap / auto-unwrap between `T` and `T[]`.** Use `map` / `join`. (Same call as [TYPED_IO_DESIGN.md §11](TYPED_IO_DESIGN.md).)
+- **Auto-pick switch branches.** Conditional routing remains user-authored.
+- **Engine type checks.** Runtime ctx stays `Record<string, unknown>`.
+- **Rewriting hand-authored ctx keys.** The resolver never modifies a non-`__auto.` ctx key. Templates' carefully-named keys stay legible.
+- **Renaming auto keys.** `__auto.${nodeId}.${port}` is fixed by convention; users who want pretty names use the advanced view + override the binding.
+
+---
+
+## 10. Reading order for implementation
+
+1. `packages/graph-workflow/src/auto-wire/resolver.ts` — pure function + unit tests covering: empty graph, linear chain, ambiguity tie, locked binding preservation, missing kind (wildcard skip), source-node producer, map iteration variable, child-workflow library ports, the two-doc edge case.
+2. Update the strip-on-emit layer ([commit dd182c3f](https://github.com/.../commit/dd182c3f)) so empty `metadata.lockedInputPorts/lockedOutputPorts` arrays are dropped on save and non-empty ones are preserved. `__auto.` ctx keys are ordinary ctx keys and need no strip-layer change.
+3. Wire the resolver into `WorkflowEditorV2Page` — debounced (~150ms) on `onConfigChange`. The output of the resolver replaces the editor's working config.
+4. Settings panel rewrite — new compact "Inputs" section (per-port row component with the five states from §4.1).
+5. Producer-only picker — variant of `VariablePicker` that filters to typed producers (not ctx variables), ranked by topological distance.
+6. Canvas status dot — purely advisory; computed from resolver output.
+7. Advanced toggle — re-export the existing footer behind a "Show advanced" chevron.
+8. Control-flow extensions per §6, in this order: `map`, `join`, `switch`, `pollUntil`/`humanGate`, `childWorkflow`.
+9. Tests against `multi-page-report-workflow.json` (locked-binding preservation) and against a fresh template authored entirely via auto-wire (round-trip stability).
+
+---
+
+## 11. Open after this lands
+
+- **Auto-pick on hover-extend.** *Implemented 2026-07-14 (PORT_WIRING_DESIGN §9).* When the user uses hover-to-extend (or releases a port-to-port drag on empty canvas) to add a new node from an existing typed output, the popover filters/ranks catalog entries to ones with a compatible input, and picking one places the node with the matching port pre-wired (pinned) via the drag-to-bind writer — the new node lands with that input already resolved instead of the panel needing a separate pass.
+- **Auto-insert helper nodes.** When a port is unsatisfied with no candidate, suggest a catalog activity whose output produces the right kind — and on click, insert + connect it. ("You need a Segment here — add a Splitter?") Bigger lift; deferred.
+- **Lineage-aware ctx key minimization.** Today's synthesis is per-port-per-producer-node. A future optimisation could merge ctx keys when the same producer's output feeds multiple consumers (it already does — the producer-side output binding is reused — but the *consumer* side's ctx key is the producer's, so this is mostly already done). Revisit if synthesised keys become noisy in advanced view.
+- **AI agent integration.** Phase 7's agent constructs workflows by composing typed activities. The resolver makes the agent's job easier: the agent picks an activity, connects its execution edge, and the resolver fills bindings — the agent doesn't need to author them. Worth re-reading the Phase 7 design once the resolver is in.
