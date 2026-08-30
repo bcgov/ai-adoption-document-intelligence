@@ -62,7 +62,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 
 | event_type             | When | resource_type  | resource_id              | Payload / notes                    |
 |------------------------|------|----------------|--------------------------|------------------------------------|
-| `workflow_run_started`  | Backend starts graph workflow for a document | workflow_run | workflow_execution_id | workflow_config_id                 |
+| `workflow_run_started`  | Backend starts graph workflow for a document (`OcrService.processDocument`, and the source upload-and-Try endpoint `POST /workflows/:id/sources/:sourceNodeId/upload`) | workflow_run | workflow_execution_id | workflow_config_id; upload-and-Try also records `source_node_id` and `trigger` |
 
 ### Workflow configuration
 
@@ -131,7 +131,7 @@ Recorded by `TablesService`. Row-level events use `resource_type: "table_row"`; 
 | `review_session_skipped`       | Session status → skipped | review_session | session.id | document_id             |
 | `review_session_reopened`      | Completed session reopened for further review | review_session | session.id | document_id             |
 | `review_correction_deleted`    | Single correction removed from a session | review_session | session.id | correction_id, document_id |
-| `human_approval_signal_sent`   | Backend sends humanApproval signal to Temporal | workflow_run | workflow_execution_id | approved, reviewer     |
+| `human_approval_signal_sent`   | Backend sends humanApproval signal to Temporal. Emitted by `POST /documents/:id/approve` and by `HitlService.approveSession` (approving in the review queue resumes the waiting run). Recorded only when the signal actually landed — a failed signal is logged, not audited as sent. | workflow_run | workflow_execution_id | approved, reviewer; from the review queue also `review_session_id` |
 
 ### Training
 

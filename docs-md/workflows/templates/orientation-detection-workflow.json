@@ -39,8 +39,7 @@
       "label": "Detect & Correct Orientation",
       "activityType": "document.normalizeOrientation",
       "inputs": [
-        { "port": "blobKey", "ctxKey": "blobKey" },
-        { "port": "confidenceThreshold", "ctxKey": "orientationConfidenceThreshold" }
+        { "port": "blobKey", "ctxKey": "blobKey" }
       ],
       "outputs": [
         { "port": "correctedBlobKey", "ctxKey": "correctedBlobKey" },
@@ -70,15 +69,7 @@
     "orientation": {
       "label": "Orientation Detection",
       "description": "Detects and corrects page rotation using Tesseract OSD",
-      "nodeIds": ["detectOrientation"],
-      "exposedParams": [
-        {
-          "label": "Confidence Threshold",
-          "path": "orientationConfidenceThreshold",
-          "type": "number",
-          "default": 2.0
-        }
-      ]
+      "nodeIds": ["detectOrientation"]
     }
   }
 }

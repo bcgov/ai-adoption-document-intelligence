@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="410" viewBox="0 0 900 410" font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+  <rect width="900" height="410" fill="#ffffff"/>
+
+  <text x="450" y="32" text-anchor="middle" font-size="18" font-weight="600" fill="#1a1a1a">What each experiment-0N.test.ts contains, and what CI actually runs</text>
+
+  <!-- Source file box -->
+  <rect x="40" y="60" width="300" height="200" rx="8" fill="#f4f6f8" stroke="#98a2b3" stroke-width="1.5"/>
+  <text x="190" y="86" text-anchor="middle" font-size="13" font-weight="600" fill="#344054">experiment-0N.test.ts  (x5)</text>
+
+  <rect x="60" y="100" width="260" height="66" rx="6" fill="#d6f0dd" stroke="#3d9a5c" stroke-width="1.5"/>
+  <text x="190" y="121" text-anchor="middle" font-size="12.5" font-weight="600" fill="#1e5b34">Layer 1 — static / structural</text>
+  <text x="190" y="139" text-anchor="middle" font-size="11.5" fill="#1e5b34">109 assertions on template JSON</text>
+  <text x="190" y="156" text-anchor="middle" font-size="11.5" fill="#1e5b34">no DB, no minio, ~4 seconds</text>
+
+  <rect x="60" y="180" width="260" height="66" rx="6" fill="#fde8d5" stroke="#c47b28" stroke-width="1.5"/>
+  <text x="190" y="201" text-anchor="middle" font-size="12.5" font-weight="600" fill="#7a4a10">Layer 2 — runtime / integration</text>
+  <text x="190" y="219" text-anchor="middle" font-size="11.5" fill="#7a4a10">11 tests, needs DB + minio</text>
+  <text x="190" y="236" text-anchor="middle" font-size="11.5" fill="#7a4a10">gated: describeRuntime (CI ? skip)</text>
+
+  <!-- Arrows -->
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 z" fill="#667085"/>
+    </marker>
+  </defs>
+  <path d="M345,133 L470,133" stroke="#667085" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+  <path d="M345,213 L470,300" stroke="#667085" stroke-width="1.8" fill="none" marker-end="url(#ar)"/>
+
+  <!-- Outcome: PR as written -->
+  <rect x="480" y="60" width="380" height="150" rx="8" fill="#fdeaea" stroke="#c0392b" stroke-width="1.5"/>
+  <text x="670" y="86" text-anchor="middle" font-size="13" font-weight="600" fill="#8f2419">PR #239 as written</text>
+  <text x="670" y="110" text-anchor="middle" font-size="12" fill="#8f2419">test = jest --testPathIgnorePatterns experiment-</text>
+  <text x="670" y="136" text-anchor="middle" font-size="12" font-weight="600" fill="#8f2419">Whole file excluded from CI</text>
+  <text x="670" y="158" text-anchor="middle" font-size="12" fill="#8f2419">Layer 1 lost: 109 passing assertions</text>
+  <text x="670" y="180" text-anchor="middle" font-size="12" fill="#8f2419">Layer 2 was already skipping anyway</text>
+  <text x="670" y="200" text-anchor="middle" font-size="11.5" fill="#8f2419">Net effect: template drift goes uncaught</text>
+
+  <!-- Outcome: path fix only -->
+  <rect x="480" y="240" width="380" height="150" rx="8" fill="#e6f2fb" stroke="#2b6cb0" stroke-width="1.5"/>
+  <text x="670" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#1c4a7a">Path fix alone (recommended)</text>
+  <text x="670" y="290" text-anchor="middle" font-size="12" fill="#1c4a7a">test = jest   (unchanged)</text>
+  <text x="670" y="316" text-anchor="middle" font-size="12" font-weight="600" fill="#1c4a7a">Layer 1 runs: 109 pass</text>
+  <text x="670" y="338" text-anchor="middle" font-size="12" fill="#1c4a7a">Layer 2 self-skips: CI=true in Actions</text>
+  <text x="670" y="360" text-anchor="middle" font-size="12" fill="#1c4a7a">Verified: 5 suites PASS, exit 0</text>
+  <text x="670" y="380" text-anchor="middle" font-size="11.5" fill="#1c4a7a">CI green without removing coverage</text>
+
+</svg>
