@@ -35,6 +35,10 @@
       "type": "object",
       "description": "Classification result: Record<label, ClassifiedDocument[]> where ClassifiedDocument = { confidence: number, pageRange: { start: number, end: number } }"
     },
+    "targetLabel": {
+      "type": "string",
+      "description": "Document-type label to extract (e.g. \"invoice\"). SELECT THIS IN THE UI via the selectClassifiedPages node form."
+    },
     "classifiedSegments": {
       "type": "array",
       "description": "All detected segments for the target label from the classifier, sorted by pageRange.start. Produced by document.selectClassifiedPages."
@@ -99,14 +103,12 @@
       "label": "Select Classified Page Segments",
       "activityType": "document.selectClassifiedPages",
       "inputs": [
-        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" }
+        { "port": "labeledDocuments", "ctxKey": "labeledDocuments" },
+        { "port": "targetLabel", "ctxKey": "targetLabel" }
       ],
       "outputs": [
         { "port": "segments", "ctxKey": "classifiedSegments" }
       ],
-      "parameters": {
-        "targetLabel": "<SELECT_IN_UI>"
-      },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 1 }
     },
