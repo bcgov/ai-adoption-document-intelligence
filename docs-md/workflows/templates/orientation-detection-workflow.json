@@ -39,8 +39,7 @@
       "label": "Detect & Correct Orientation",
       "activityType": "document.normalizeOrientation",
       "inputs": [
-        { "port": "blobKey", "ctxKey": "blobKey" },
-        { "port": "confidenceThreshold", "ctxKey": "orientationConfidenceThreshold" }
+        { "port": "blobKey", "ctxKey": "blobKey" }
       ],
       "outputs": [
         { "port": "correctedBlobKey", "ctxKey": "correctedBlobKey" },
@@ -74,7 +73,7 @@
       "exposedParams": [
         {
           "label": "Confidence Threshold",
-          "path": "ctx.orientationConfidenceThreshold.defaultValue",
+          "path": "nodes.detectOrientation.parameters.confidenceThreshold",
           "type": "number",
           "default": 2.0
         }
