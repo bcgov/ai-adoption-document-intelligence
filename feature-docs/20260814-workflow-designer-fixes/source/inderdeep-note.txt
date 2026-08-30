@@ -1,0 +1,6 @@
+Hi Alex, 
+Couple of observations for the workflow designer:
+The agent is not working for me, as was the case earlier, but from the snapshots it seems like the stop icon is still at the top. I believe we discussed the send button transitioning to stop when inflight. 
+Also, I believe the bottom part of the chat ui looks off. How about this? 
+Nitpicking but in the error chip, the icon and the text aren't aligned. 
+In the error message, the CTA button is in red. Normally, red button means a destructive action whereas re-run workflow isn't destructive. Would suggest something like this, which aligns with BC Gov Design System as well. Inline alert component | B.C. Design System (https://www2.gov.bc.ca/gov/content/digital/design-system/components/inline-alert). Also, not sure if the clicking Re-run workflow would re-run only this step or complete workflow from start. If only this step, maybe "Try again" might be better button label as Re-run workflow suggests restarting the whole workflow from start.

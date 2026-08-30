@@ -1,0 +1,683 @@
+/**
+ * Tests for SwitchNodeSettings (US-004).
+ *
+ * Each test corresponds to one acceptance scenario from
+ * feature-docs/20260522-workflow-builder-control-flow-nodes/user_stories/US-004-switch-node-settings.md.
+ */
+
+import "@testing-library/jest-dom";
+
+import { MantineProvider } from "@mantine/core";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
+import { describe, expect, it, vi } from "vitest";
+import type {
+  ActivityNode,
+  ConditionExpression,
+  GraphEdge,
+  GraphNode,
+  GraphWorkflowConfig,
+  SwitchCase,
+  SwitchNode,
+} from "../../../../types/workflow";
+import { OPERATOR_LABELS } from "../../graph-widgets/operator-labels";
+import { SwitchNodeSettings } from "./SwitchNodeSettings";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeConfig(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): GraphWorkflowConfig {
+  const nodesRecord: Record<string, GraphNode> = {};
+  for (const node of nodes) {
+    nodesRecord[node.id] = node;
+  }
+  return {
+    schemaVersion: "1.0",
+    metadata: {},
+    entryNodeId: nodes[0]?.id ?? "",
+    nodes: nodesRecord,
+    edges,
+    ctx: {},
+  };
+}
+
+const activity = (id: string, label: string): ActivityNode => ({
+  id,
+  type: "activity",
+  label,
+  activityType: "test.noop",
+});
+
+const edge = (
+  id: string,
+  source: string,
+  target: string,
+  type: GraphEdge["type"] = "normal",
+): GraphEdge => ({
+  id,
+  source,
+  target,
+  type,
+});
+
+const comparison = (
+  left: string,
+  right: string | number,
+): ConditionExpression => ({
+  operator: "equals",
+  left: { ref: left },
+  right: typeof right === "string" ? { ref: right } : { literal: right },
+});
+
+function switchNode(
+  id: string,
+  label: string,
+  cases: SwitchCase[],
+  defaultEdge?: string,
+): SwitchNode {
+  return {
+    id,
+    type: "switch",
+    label,
+    cases,
+    ...(defaultEdge !== undefined ? { defaultEdge } : {}),
+  };
+}
+
+function renderSettings(ui: React.ReactNode) {
+  return render(<MantineProvider>{ui}</MantineProvider>);
+}
+
+/**
+ * Convenience wrapper so a test can mount the form once, then poke at the
+ * latest `onConfigChange` payload via the spy.
+ */
+function mountWithSpy(
+  initialConfig: GraphWorkflowConfig,
+  switchNodeId: string,
+) {
+  const spy = vi.fn<(next: GraphWorkflowConfig) => void>();
+
+  function Wrapper() {
+    const [config, setConfig] = useState<GraphWorkflowConfig>(initialConfig);
+    const node = config.nodes[switchNodeId] as SwitchNode;
+    return (
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={(next) => {
+          spy(next);
+          setConfig(next);
+        }}
+      />
+    );
+  }
+
+  const utils = renderSettings(<Wrapper />);
+  return { ...utils, spy };
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 1: Renders existing cases as a list of editable rows
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Scenario 1: renders existing cases", () => {
+  it("renders one row per case, each containing a ConditionExpressionEditor and an EdgePicker", () => {
+    const node = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e1" },
+      { condition: comparison("ctx.b", 2), edgeId: "e2" },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Two case rows render.
+    const row0 = screen.getByTestId("switch-node-settings-case-0");
+    const row1 = screen.getByTestId("switch-node-settings-case-1");
+    expect(row0).toBeInTheDocument();
+    expect(row1).toBeInTheDocument();
+
+    // Each contains a ConditionExpressionEditor bound to its case.
+    expect(
+      within(row0).getByTestId("switch-node-settings-case-0-condition"),
+    ).toBeInTheDocument();
+    expect(
+      within(row1).getByTestId("switch-node-settings-case-1-condition"),
+    ).toBeInTheDocument();
+
+    // Each contains an EdgePicker bound to its case.
+    expect(
+      within(row0).getByTestId("switch-node-settings-case-0-edge"),
+    ).toBeInTheDocument();
+    expect(
+      within(row1).getByTestId("switch-node-settings-case-1-edge"),
+    ).toBeInTheDocument();
+
+    // The EdgePicker reflects the bound edge id for each row.
+    const edgePicker0 = within(row0).getByTestId(
+      "switch-node-settings-case-0-edge",
+    ) as HTMLInputElement;
+    const edgePicker1 = within(row1).getByTestId(
+      "switch-node-settings-case-1-edge",
+    ) as HTMLInputElement;
+    // Edge labels resolve to the target node's label.
+    expect(edgePicker0.value).toBe("Approve");
+    expect(edgePicker1.value).toBe("Reject");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 2: Add Case appends an empty case
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Scenario 2: Add Case appends an empty case", () => {
+  it("clicking Add Case fires onConfigChange with cases.length === 2 and the new case is empty", () => {
+    const initialNode = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e1" },
+    ]);
+    const config = makeConfig(
+      [initialNode, activity("n2", "Approve")],
+      [edge("e1", "sw1", "n2", "conditional")],
+    );
+
+    const { spy } = mountWithSpy(config, "sw1");
+
+    fireEvent.click(screen.getByTestId("switch-node-settings-add-case"));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes.sw1 as SwitchNode;
+    expect(updated.cases).toHaveLength(2);
+    // First case preserved.
+    expect(updated.cases[0]).toEqual({
+      condition: comparison("ctx.a", 1),
+      edgeId: "e1",
+    });
+    // Second case is fresh + empty.
+    const fresh = updated.cases[1];
+    expect(fresh.edgeId).toBe("");
+    expect(fresh.condition.operator).toBe("equals");
+    // Both sides of the comparison default to empty ref operands.
+    if (
+      fresh.condition.operator === "equals" ||
+      fresh.condition.operator === "not-equals" ||
+      fresh.condition.operator === "gt" ||
+      fresh.condition.operator === "gte" ||
+      fresh.condition.operator === "lt" ||
+      fresh.condition.operator === "lte" ||
+      fresh.condition.operator === "contains"
+    ) {
+      expect(fresh.condition.left).toEqual({ ref: "" });
+      expect(fresh.condition.right).toEqual({ ref: "" });
+    } else {
+      throw new Error("Expected a comparison expression as the fresh seed");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3: Remove Case removes the targeted case
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Scenario 3: Remove Case removes the targeted case", () => {
+  it("clicking Remove on row index 1 fires onConfigChange with cases.length === 2 and the original index-0 and index-2 cases remain in order", () => {
+    const initialNode = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e1" },
+      { condition: comparison("ctx.b", 2), edgeId: "e2" },
+      { condition: comparison("ctx.c", 3), edgeId: "e3" },
+    ]);
+    const config = makeConfig(
+      [
+        initialNode,
+        activity("n2", "A"),
+        activity("n3", "B"),
+        activity("n4", "C"),
+      ],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+        edge("e3", "sw1", "n4", "conditional"),
+      ],
+    );
+
+    const { spy } = mountWithSpy(config, "sw1");
+
+    fireEvent.click(screen.getByTestId("switch-node-settings-case-1-remove"));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes.sw1 as SwitchNode;
+
+    expect(updated.cases).toHaveLength(2);
+    expect(updated.cases[0]).toEqual({
+      condition: comparison("ctx.a", 1),
+      edgeId: "e1",
+    });
+    expect(updated.cases[1]).toEqual({
+      condition: comparison("ctx.c", 3),
+      edgeId: "e3",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 4: Editing a row's condition or edgeId propagates to onConfigChange
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Scenario 4: row edits propagate to onConfigChange", () => {
+  it("editing a case's edgeId fires onConfigChange with the updated SwitchNode", () => {
+    const initialNode = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e1" },
+    ]);
+    const config = makeConfig(
+      [initialNode, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+      ],
+    );
+
+    const { spy } = mountWithSpy(config, "sw1");
+
+    // Open the EdgePicker dropdown for case 0 and pick the edge whose id
+    // is "e2". Note: the default-edge picker is also rendered and its
+    // option list also contains "Reject" as a target label, so we cannot
+    // disambiguate by target label alone — query by the edge id text
+    // ("e2") which only appears in the case-0 picker's dropdown row that
+    // matches our intended choice (each option renders both target label
+    // and edge id).
+    const picker = screen.getByTestId("switch-node-settings-case-0-edge");
+    fireEvent.click(picker);
+    // Both pickers list e2 as an option, so pick the first occurrence
+    // inside the case-0 picker's combobox panel. Mantine uses
+    // role="option" with a value attribute equal to the option's value.
+    const e2Options = screen.getAllByRole("option", { name: /e2/ });
+    expect(e2Options.length).toBeGreaterThan(0);
+    fireEvent.click(e2Options[0]);
+
+    expect(spy).toHaveBeenCalled();
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes.sw1 as SwitchNode;
+    expect(updated.cases).toHaveLength(1);
+    expect(updated.cases[0].edgeId).toBe("e2");
+    // Other case fields are preserved.
+    expect(updated.cases[0].condition).toEqual(comparison("ctx.a", 1));
+  });
+
+  it("editing a case's condition fires onConfigChange with the updated SwitchNode", () => {
+    const initialNode = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e1" },
+    ]);
+    const config = makeConfig(
+      [initialNode, activity("n2", "Approve")],
+      [edge("e1", "sw1", "n2", "conditional")],
+    );
+
+    const { spy } = mountWithSpy(config, "sw1");
+
+    // Find the comparison operator dropdown inside the nested
+    // ConditionExpressionEditor for case 0 and switch from "equals" to
+    // "not-equals".
+    const opSelect = screen.getByTestId(
+      "switch-node-settings-case-0-condition-comparison-op",
+    ) as HTMLInputElement;
+
+    fireEvent.click(opSelect);
+    // D23 — the option is labelled for a person now; the stored value is
+    // still the raw `not-equals`, which the assertion below checks.
+    fireEvent.click(screen.getByText(OPERATOR_LABELS["not-equals"]));
+
+    expect(spy).toHaveBeenCalled();
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes.sw1 as SwitchNode;
+    const cond = updated.cases[0].condition;
+    expect(cond.operator).toBe("not-equals");
+    // edgeId remains.
+    expect(updated.cases[0].edgeId).toBe("e1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 5: defaultEdge is editable via an EdgePicker scoped to outgoing
+// edges from this node
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 1: per-case EdgePicker filters to conditional edges
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 1: per-case picker conditional-only filter", () => {
+  it("only conditional edges sourced at the switch appear in the per-case picker dropdown", () => {
+    const node = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "e-cond" },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the per-case picker for case 0.
+    const picker = screen.getByTestId("switch-node-settings-case-0-edge");
+    fireEvent.click(picker);
+
+    // Both the per-case picker and the default-edge picker render the same
+    // conditional edge as an option (each picker's combobox has its own
+    // dropdown DOM), so "e-cond" appears twice. "e-norm" must not appear at
+    // all because both pickers filter to conditional.
+    expect(screen.getAllByText("e-cond")).toHaveLength(2);
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 2: default-edge EdgePicker filters to conditional edges
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 2: default-edge picker conditional-only filter", () => {
+  it("only conditional edges sourced at the switch appear in the default-edge picker dropdown", () => {
+    const node = switchNode("sw1", "Branch", []);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the default-edge picker.
+    const picker = screen.getByTestId("switch-node-settings-default-edge");
+    fireEvent.click(picker);
+
+    expect(screen.getByText("e-cond")).toBeInTheDocument();
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 3: loading the segmentRouter from multi-page-report
+// populates all four pickers with bound values
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 3: segmentRouter template populates all four pickers", () => {
+  it("each case row's EdgePicker shows the bound edge value and the default picker shows edge-to-unknown", () => {
+    // Mirror the segmentRouter switch + outgoing edges from
+    // docs-md/workflows/templates/multi-page-report-workflow.json.
+    const segmentRouter = switchNode(
+      "segmentRouter",
+      "Route by Document Type",
+      [
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "monthly-report" },
+          },
+          edgeId: "edge-to-monthly-report",
+        },
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "pay-stub" },
+          },
+          edgeId: "edge-to-pay-stub",
+        },
+        {
+          condition: {
+            operator: "equals",
+            left: { ref: "ctx.currentSegment.segmentType" },
+            right: { literal: "bank-record" },
+          },
+          edgeId: "edge-to-bank-record",
+        },
+      ],
+      "edge-to-unknown",
+    );
+    const config = makeConfig(
+      [
+        segmentRouter,
+        activity("monthlyReportOcr", "Monthly Report OCR"),
+        activity("payStubOcr", "Pay Stub OCR"),
+        activity("bankRecordOcr", "Bank Record OCR"),
+        activity("unknownDocOcr", "Unknown Doc OCR"),
+      ],
+      [
+        edge(
+          "edge-to-monthly-report",
+          "segmentRouter",
+          "monthlyReportOcr",
+          "conditional",
+        ),
+        edge("edge-to-pay-stub", "segmentRouter", "payStubOcr", "conditional"),
+        edge(
+          "edge-to-bank-record",
+          "segmentRouter",
+          "bankRecordOcr",
+          "conditional",
+        ),
+        edge(
+          "edge-to-unknown",
+          "segmentRouter",
+          "unknownDocOcr",
+          "conditional",
+        ),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={segmentRouter}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Per-case picker values resolve to the target node's label.
+    const case0Picker = screen.getByTestId(
+      "switch-node-settings-case-0-edge",
+    ) as HTMLInputElement;
+    const case1Picker = screen.getByTestId(
+      "switch-node-settings-case-1-edge",
+    ) as HTMLInputElement;
+    const case2Picker = screen.getByTestId(
+      "switch-node-settings-case-2-edge",
+    ) as HTMLInputElement;
+    const defaultPicker = screen.getByTestId(
+      "switch-node-settings-default-edge",
+    ) as HTMLInputElement;
+
+    expect(case0Picker.value).toBe("Monthly Report OCR");
+    expect(case1Picker.value).toBe("Pay Stub OCR");
+    expect(case2Picker.value).toBe("Bank Record OCR");
+    expect(defaultPicker.value).toBe("Unknown Doc OCR");
+
+    // None of the bound values should surface a stale-reference warning.
+    expect(
+      screen.queryByTestId("edge-picker-stale-warning"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-026 Scenario 4: a switch with one conditional + one normal edge — only
+// the conditional appears in the case row dropdown
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — US-026 Scenario 4: normal edge from switch excluded", () => {
+  it("only the conditional edge appears in the per-case dropdown when one conditional + one normal edge are sourced at the switch", () => {
+    const node = switchNode("sw1", "Branch", [
+      { condition: comparison("ctx.a", 1), edgeId: "" },
+    ]);
+    const config = makeConfig(
+      [node, activity("n2", "Approve"), activity("n3", "Reject")],
+      [
+        edge("e-cond", "sw1", "n2", "conditional"),
+        edge("e-norm", "sw1", "n3", "normal"),
+      ],
+    );
+
+    renderSettings(
+      <SwitchNodeSettings
+        node={node}
+        config={config}
+        onConfigChange={() => undefined}
+      />,
+    );
+
+    // Open the per-case picker for case 0.
+    fireEvent.click(screen.getByTestId("switch-node-settings-case-0-edge"));
+
+    // Only the conditional edge appears as an option in any picker. Each
+    // picker (per-case + default-edge) renders its own combobox dropdown
+    // DOM, so the conditional edge's target label "Approve" + edge id
+    // "e-cond" appear once per picker = twice. The normal edge "Reject" /
+    // "e-norm" must not appear in either dropdown.
+    expect(screen.getAllByText("Approve")).toHaveLength(2);
+    expect(screen.queryByText("Reject")).not.toBeInTheDocument();
+    expect(screen.getAllByText("e-cond")).toHaveLength(2);
+    expect(screen.queryByText("e-norm")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5: picking a step in a case condition materialises the producer's
+// output binding via onConfigChange.
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Phase 5: condition step-picker materialises producer bindings", () => {
+  it("clicking an upstream step's port row binds that producer's output on the config", () => {
+    // Upstream `file.prepare` activity feeding the switch; it emits the
+    // `preparedData` output port labelled "Prepared file data".
+    const prepare: ActivityNode = {
+      id: "A",
+      type: "activity",
+      label: "Prepare file",
+      activityType: "file.prepare",
+    };
+    // The switch case starts with an empty-ref left operand so the Ref
+    // field defaults to the step-picker once `onEnsureProducerBinding` is
+    // wired through.
+    const node = switchNode("SW", "Branch", [
+      {
+        condition: {
+          operator: "equals",
+          left: { ref: "" },
+          right: { literal: "x" },
+        },
+        edgeId: "",
+      },
+    ]);
+    const config = makeConfig(
+      [node, prepare],
+      [edge("A-SW", "A", "SW", "normal")],
+    );
+
+    const { spy } = mountWithSpy(config, "SW");
+
+    fireEvent.click(screen.getByText("Prepare file → Prepared file data"));
+
+    // Picking a step now fires ONE onConfigChange: the ref update is committed
+    // and the settings form reconciles the producer's output binding in that
+    // SAME config. The final committed config therefore carries BOTH the case
+    // condition's ref AND A's materialised `outputs[]` binding.
+    const next = spy.mock.calls[spy.mock.calls.length - 1]?.[0] as
+      | GraphWorkflowConfig
+      | undefined;
+    if (!next) throw new Error("Expected at least one onConfigChange call");
+    const updated = next.nodes.SW as SwitchNode;
+    const cond = updated.cases[0].condition;
+    if (cond.operator !== "equals") {
+      throw new Error("Expected an equals comparison as the case condition");
+    }
+    expect(cond.left).toEqual({ ref: "__auto.A.preparedData" });
+    expect(next.nodes.A.outputs).toContainEqual({
+      port: "preparedData",
+      ctxKey: "__auto.A.preparedData",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 5: defaultEdge is editable via an EdgePicker scoped to outgoing
+// edges from this node
+// ---------------------------------------------------------------------------
+
+describe("SwitchNodeSettings — Scenario 5: defaultEdge EdgePicker is scoped to outgoing edges", () => {
+  it("only edges with source === switchNode.id appear; selecting one updates defaultEdge via onConfigChange", () => {
+    const initialNode = switchNode("sw1", "Branch", []);
+    // Canvas has multiple edges: e1 + e2 originate from sw1, e3 + e4 don't.
+    const config = makeConfig(
+      [
+        initialNode,
+        activity("n2", "Approve"),
+        activity("n3", "Reject"),
+        activity("nx", "Other source"),
+        activity("ny", "Other target"),
+      ],
+      [
+        edge("e1", "sw1", "n2", "conditional"),
+        edge("e2", "sw1", "n3", "conditional"),
+        edge("e3", "nx", "n2", "conditional"),
+        edge("e4", "nx", "ny", "conditional"),
+      ],
+    );
+
+    const { spy } = mountWithSpy(config, "sw1");
+
+    const defaultPicker = screen.getByTestId(
+      "switch-node-settings-default-edge",
+    );
+
+    fireEvent.click(defaultPicker);
+
+    // Only edges from sw1 are present in the dropdown.
+    expect(screen.getByText("e1")).toBeInTheDocument();
+    expect(screen.getByText("e2")).toBeInTheDocument();
+    expect(screen.queryByText("e3")).not.toBeInTheDocument();
+    expect(screen.queryByText("e4")).not.toBeInTheDocument();
+
+    // Pick the "Approve" target (edge e1) — verifies selection writes
+    // through to defaultEdge.
+    fireEvent.click(screen.getByText("Approve"));
+
+    expect(spy).toHaveBeenCalled();
+    const next = spy.mock.lastCall?.[0] as GraphWorkflowConfig;
+    const updated = next.nodes.sw1 as SwitchNode;
+    expect(updated.defaultEdge).toBe("e1");
+  });
+});

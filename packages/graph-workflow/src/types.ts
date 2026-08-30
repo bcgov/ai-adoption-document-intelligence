@@ -6,6 +6,8 @@
  * See docs-md/workflows/DAG_WORKFLOW_ENGINE.md for the full specification.
  */
 
+import type { KindRef } from "./types/artifacts";
+
 // ---------------------------------------------------------------------------
 // Top-Level Config
 // ---------------------------------------------------------------------------
@@ -44,16 +46,69 @@ export interface GraphMetadata {
   description?: string;
   version?: string;
   tags?: string[];
+  /**
+   * Discriminator: `"workflow"` (or absent) marks a standalone, runnable
+   * workflow; `"library"` marks a saved building-block whose top-level
+   * `inputs[]` / `outputs[]` define its public signature for use as a
+   * `childWorkflow` target. Set by the V2 editor's "Save as library"
+   * action; absent on legacy configs (interpreted as `"workflow"`).
+   *
+   * The DB column `WorkflowLineage.workflow_kind` is authoritative for
+   * listing/filtering; this metadata field is the in-flight encoding
+   * carried inside the serialized `GraphWorkflowConfig`.
+   */
+  kind?: "workflow" | "library";
+  /**
+   * Declared library inputs. Only meaningful when `kind === "library"`.
+   * Each entry describes a port the library exposes to its callers.
+   */
+  inputs?: LibraryPortDescriptor[];
+  /**
+   * Declared library outputs. Only meaningful when `kind === "library"`.
+   */
+  outputs?: LibraryPortDescriptor[];
   /** Ephemeral-cleanup policy for documents processed by this workflow. */
   ephemeral?: EphemeralConfig;
   /** SHA-256 of normalized config; set on save, excluded from hash input. */
   configHash?: string;
 }
 
+/**
+ * Signature row for a library workflow's declared input or output port.
+ * The visual builder's "Save as library" modal writes these into
+ * `GraphMetadata.inputs[]` / `outputs[]`. They become the typed port
+ * descriptors of `childWorkflow` nodes that reference the library in
+ * Phase 3 (typed I/O on cross-workflow edges).
+ */
+export interface LibraryPortDescriptor {
+  label: string;
+  path: string;
+  type: "string" | "number" | "boolean" | "object" | "array";
+  /**
+   * Artifact-layer annotation. Coexists with `type` — `type` is runtime-shape;
+   * `kind` is the typed-I/O kind. Omitted = `Artifact` wildcard.
+   */
+  kind?: KindRef;
+}
+
 export interface CtxDeclaration {
   type: "string" | "number" | "boolean" | "object" | "array";
   description?: string;
   defaultValue?: unknown;
+  /**
+   * Marks this ctx entry as a caller-supplied input. Ctx declarations
+   * flagged `isInput: true` are surfaced in the workflow's derived
+   * run-spec input schema (the JSON Schema returned by
+   * `GET /api/workflows/:id/run-spec` and rendered in the Run drawer).
+   * Library workflows ignore this flag and source their inputs from
+   * `GraphMetadata.inputs[]` instead.
+   */
+  isInput?: boolean;
+  /**
+   * Artifact-layer annotation. Coexists with `type` — `type` is runtime-shape;
+   * `kind` is the typed-I/O kind. Omitted = `Artifact` wildcard.
+   */
+  kind?: KindRef;
 }
 
 export interface NodeGroup {
@@ -63,10 +118,34 @@ export interface NodeGroup {
   color?: string;
   nodeIds: string[];
   exposedParams?: ExposedParam[];
+  /**
+   * Where this group's CHIP sits in the builder's simplified view, which keeps
+   * an arrangement of its own (batch three, W-1).
+   *
+   * The two views are laid out independently on purpose. A chip stands in for
+   * a whole group, so it is far smaller than the members it hides; giving the
+   * simplified layout a slot the size of the real group would make that view
+   * sprawl exactly as much as the expanded one and remove the reason to use
+   * it. The consequence is that a simplified arrangement cannot be expressed
+   * as member positions, so it is stored separately: chips here, ungrouped
+   * nodes under `metadata.simplifiedPosition`.
+   *
+   * Unset means "never arranged in this view" — the projection then falls back
+   * to the centroid of the members' expanded positions, which is what every
+   * workflow authored before this field showed.
+   */
+  position?: { x: number; y: number };
 }
 
 export interface ExposedParam {
   label: string;
+  /**
+   * Optional id of the node within the owning group whose parameter this
+   * exposes. The visual builder's group panel (US-044) uses it to scope
+   * the `path` selector to a single member node and to prune entries when
+   * the referenced node is removed from the group.
+   */
+  nodeId?: string;
   path: string;
   type: "string" | "number" | "boolean" | "select" | "duration";
   options?: string[];
@@ -77,6 +156,16 @@ export interface ExposedParam {
 // Node Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Discriminator union for every node variant in the graph.
+ *
+ * The `"source"` variant is Phase 8's intake-as-node abstraction — see
+ * `docs-md/workflow-builder/DOCUMENT_SOURCES_DESIGN.md` §1 ("The source
+ * node TYPE") for the locked schema and rationale. Source nodes have no
+ * input handle, declare a `sourceType` resolved against the source
+ * catalog, and carry static `parameters` validated against the subtype's
+ * `parametersSchema`.
+ */
 export type NodeType =
   | "activity"
   | "switch"
@@ -84,7 +173,8 @@ export type NodeType =
   | "join"
   | "childWorkflow"
   | "pollUntil"
-  | "humanGate";
+  | "humanGate"
+  | "source";
 
 export interface GraphNodeBase {
   id: string;
@@ -116,6 +206,15 @@ export interface ActivityNode extends GraphNodeBase {
   parameters?: Record<string, unknown>;
   retry?: RetryPolicy;
   timeout?: TimeoutPolicy;
+  /**
+   * Phase 6 dynamic-node version pin. Only meaningful when `activityType`
+   * starts with `dyn.` — pins the workflow to a specific
+   * `DynamicNodeVersion.versionNumber` for the underlying lineage. When
+   * omitted, the executor resolves the lineage's head version (which moves
+   * automatically as the script is republished). See REQUIREMENTS.md L34
+   * + DYNAMIC_NODES_DESIGN.md §6 for the resolution flow.
+   */
+  dynamicNodeVersion?: number;
 }
 
 export interface RetryPolicy {
@@ -160,7 +259,14 @@ export interface MapNode extends GraphNodeBase {
 export interface JoinNode extends GraphNodeBase {
   type: "join";
   sourceMapNodeId: string;
-  strategy: "all" | "any";
+  /**
+   * Fan-in strategy. Only `"all"` is supported: the source map eagerly
+   * collects every branch result before the join runs, so there is nothing
+   * to "race" — a `"any"` (first-to-complete) semantic would require the map
+   * NOT to await all branches, a separate feature. (§5.1: the previously
+   * declared-but-unimplemented `"any"` option was removed.)
+   */
+  strategy: "all";
   resultsCtxKey: string;
 }
 
@@ -169,7 +275,12 @@ export interface JoinNode extends GraphNodeBase {
 export interface ChildWorkflowNode extends GraphNodeBase {
   type: "childWorkflow";
   workflowRef:
-    | { type: "library"; workflowId: string }
+    | {
+        type: "library";
+        workflowId: string;
+        /** Optional. When set, pins the child execution to this specific `WorkflowVersion.versionNumber`. When omitted, the runtime resolves to the library's head. */
+        version?: number;
+      }
     | { type: "inline"; graph: GraphWorkflowConfig };
   inputMappings?: PortBinding[];
   outputMappings?: PortBinding[];
@@ -201,6 +312,25 @@ export interface HumanGateNode extends GraphNodeBase {
   fallbackEdgeId?: string;
 }
 
+// -- Source Node ------------------------------------------------------------
+
+/**
+ * Phase 8 source node — the workflow's edge to the outside world.
+ *
+ * Source nodes have no upstream (`inputs` MUST be empty/absent — enforced
+ * by the validator, NOT the type, so the discriminated union stays
+ * ergonomic for incremental graph-edit operations). Their `sourceType`
+ * resolves against the source catalog (SOURCE_CATALOG) at validation
+ * time. Their `parameters` are validated against the subtype's
+ * `parametersSchema`. See DOCUMENT_SOURCES_DESIGN.md §1.
+ */
+export interface SourceNode extends GraphNodeBase {
+  type: "source";
+  /** Subtype id resolved against the source catalog (SOURCE_CATALOG); e.g. "source.api" or "source.upload" */
+  sourceType: string;
+  parameters?: Record<string, unknown>;
+}
+
 // -- Discriminated Union ----------------------------------------------------
 
 export type GraphNode =
@@ -210,7 +340,8 @@ export type GraphNode =
   | JoinNode
   | ChildWorkflowNode
   | PollUntilNode
-  | HumanGateNode;
+  | HumanGateNode
+  | SourceNode;
 
 // ---------------------------------------------------------------------------
 // Edges
@@ -282,6 +413,27 @@ export interface GraphWorkflowInput {
   requestId?: string;
   /** The group_id of the document/workflow owner; auto-injected into activity inputs as `groupId`. */
   groupId?: string | null;
+  /**
+   * Per-org workflow lineage id (`WorkflowLineage.id`). Used by the Phase 4
+   * activity-output cache as the tenancy / sharing scope for cached
+   * activity outputs — see `apps/temporal/src/cache/cached-activity.ts`
+   * and `feature-docs/20260531-workflow-builder-phase4-try-in-place/REQUIREMENTS.md` L14.
+   * When omitted, the per-node cache decorator is bypassed (activities
+   * still execute, just without cache reads/writes).
+   */
+  workflowLineageId?: string | null;
+  /**
+   * What started this run (G-021): `"try"` for an editor preview from the
+   * canvas, `"api"` for a production run (the `/runs` API or a document
+   * processed by `OcrService`). The worker uses it to gate the per-node
+   * activity-output cache to editor Try runs only — production-scope
+   * caching is deferred (Phase 4.x) pending a GDPR review, so a run
+   * without `trigger === "try"` must bypass cache reads AND writes.
+   * Optional because runs started before the field shipped carry no
+   * value; absence is treated as production (cache bypassed), the safe
+   * direction.
+   */
+  trigger?: "try" | "api";
 }
 
 export interface GraphWorkflowResult {

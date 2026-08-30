@@ -2106,7 +2106,7 @@ async function seedLocalDatasets() {
 
 /**
  * Auto-discover experiment workflows. Scans
- * `docs-md/graph-workflows/templates/experiment-*-workflow.json` and for each
+ * `docs-md/workflows/templates/experiment-*-workflow.json` and for each
  * file derives a slug from the filename, then idempotently seeds:
  *
  *   - WorkflowLineage `seed-experiment-{slug}-workflow`
@@ -2117,7 +2117,7 @@ async function seedLocalDatasets() {
  *     via `metadata.targetLocalDataset = "{folder}-{visibility}"`.
  *
  * This means each experiment branch only needs to drop a workflow JSON at
- * `docs-md/graph-workflows/templates/experiment-{slug}-workflow.json` — no
+ * `docs-md/workflows/templates/experiment-{slug}-workflow.json` — no
  * edits to seed.ts needed per experiment.
  *
  * Runs after `seedLocalDatasets()` so the dataset version row exists when we
@@ -2128,7 +2128,7 @@ async function seedExperimentWorkflows() {
   const templatesDir = path.join(
     repoRoot,
     "docs-md",
-    "graph-workflows",
+    "workflows",
     "templates",
   );
 
@@ -2143,7 +2143,7 @@ async function seedExperimentWorkflows() {
 
   if (experimentFiles.length === 0) {
     console.log(
-      "🧪 No experiment workflow templates at docs-md/graph-workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
+      "🧪 No experiment workflow templates at docs-md/workflows/templates/experiment-*-workflow.json (skipping experiment workflow seed).",
     );
     return;
   }
@@ -2192,13 +2192,23 @@ async function seedExperimentWorkflows() {
     const workflowName = config.metadata?.name ?? `Experiment ${slug}`;
     const workflowDescription = config.metadata?.description ?? null;
 
+    // `slug` is required on WorkflowLineage and is what `/workflows/by-slug/…`
+    // resolves against. Omitting it aborts the whole seed run (P2012) partway
+    // through, after `migrate reset` has already emptied the database.
+    const lineageSlug = `experiment-${slug}-workflow`;
+
     await prisma.workflowLineage.upsert({
       where: { id: lineageId },
-      update: { name: workflowName, description: workflowDescription },
+      update: {
+        name: workflowName,
+        description: workflowDescription,
+        slug: lineageSlug,
+      },
       create: {
         id: lineageId,
         name: workflowName,
         description: workflowDescription,
+        slug: lineageSlug,
         actor_id: TEST_ACTOR_ID,
         group_id: SEED_GROUP_ID,
       },

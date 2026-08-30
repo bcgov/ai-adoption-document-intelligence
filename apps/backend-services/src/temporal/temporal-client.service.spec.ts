@@ -1,6 +1,10 @@
 import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { Client, Connection } from "@temporalio/client";
+import {
+  Client,
+  Connection,
+  defaultPayloadConverter,
+} from "@temporalio/client";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import {
@@ -9,7 +13,10 @@ import {
 } from "../workflow/config-hash";
 import type { GraphWorkflowConfig } from "../workflow/graph-workflow-types";
 import { WorkflowService } from "../workflow/workflow.service";
-import { TemporalClientService } from "./temporal-client.service";
+import {
+  extractRunTrigger,
+  TemporalClientService,
+} from "./temporal-client.service";
 import { temporalDataConverter } from "./temporal-data-converter";
 
 const graphConfig: GraphWorkflowConfig = {
@@ -28,14 +35,18 @@ const graphConfig: GraphWorkflowConfig = {
   edges: [],
 };
 
-// Mock Temporal client
+// Mock Temporal client. Spread the real module so value exports the service
+// depends on — notably `defaultPayloadConverter` — stay real; only the
+// network-touching surfaces (Connection/Client) and the error class are stubbed.
 jest.mock("@temporalio/client", () => {
+  const actual = jest.requireActual("@temporalio/client");
   const mockWorkflowHandle = {
     workflowId: "workflow-123",
     describe: jest.fn(),
     result: jest.fn(),
     query: jest.fn(),
     signal: jest.fn(),
+    fetchHistory: jest.fn(),
   };
 
   const mockClient = {
@@ -50,6 +61,7 @@ jest.mock("@temporalio/client", () => {
   };
 
   return {
+    ...actual,
     Connection: {
       connect: jest.fn(() => Promise.resolve(mockConnection)),
     },
@@ -79,6 +91,7 @@ describe("TemporalClientService", () => {
       result: jest.fn(),
       query: jest.fn(),
       signal: jest.fn(),
+      fetchHistory: jest.fn(),
     };
 
     // Setup mock client
@@ -259,6 +272,7 @@ describe("TemporalClientService", () => {
         "workflow-123",
         { documentId: "doc-123", fileName: "test.pdf", fileType: "pdf" },
         "g-test",
+        "api",
       );
 
       expect(result).toBe("run-id-456");
@@ -276,12 +290,76 @@ describe("TemporalClientService", () => {
               configHash: computeConfigHash(graphConfig),
               runnerVersion: "1.0.0",
               groupId: "g-test",
+              // Phase 4 (US-133): lineage id is `workflowConfig.id` from
+              // `WorkflowService.getWorkflowVersionById`, which the test
+              // fixture maps to the requested `workflowConfigId`.
+              workflowLineageId: "workflow-123",
+              // Change A: the trigger travels IN the workflow input too, so
+              // the worker can gate the activity-output cache to Try runs.
+              trigger: "api",
             },
           ],
           taskQueue: "ocr-processing",
           workflowId: "graph-doc-123",
         }),
       );
+      // Doc-seeded search attributes are present, plus the Phase 4
+      // visibility-query attributes (WorkflowLineageId / WorkflowVersionId)
+      // that drive the cancel-in-flight + run-history + version-run-count
+      // endpoints.
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      expect(callArg.searchAttributes).toEqual({
+        DocumentId: ["doc-123"],
+        FileName: ["test.pdf"],
+        FileType: ["pdf"],
+        Status: ["ongoing_ocr"],
+        WorkflowLineageId: ["workflow-123"],
+        WorkflowVersionId: ["workflow-123"],
+        // G-021: every start records what triggered it.
+        RunTrigger: ["api"],
+      });
+      expect(callArg.memo.documentId).toBe("doc-123");
+    });
+
+    it("should start an ad-hoc graph workflow without a documentId", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      const result = await service.startGraphWorkflow(
+        undefined,
+        "workflow-123",
+        { customerId: "cust-001" },
+        null,
+        "try",
+      );
+
+      // The billing execution id is the runId (unique per attempt), for
+      // ad-hoc starts exactly as for doc-mode starts.
+      expect(result).toBe("run-id-456");
+
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      // Ad-hoc workflow id prefix
+      expect(callArg.workflowId).toMatch(/^graph-adhoc-/);
+      // Only the caller's initialCtx is passed through; no doc seed keys
+      expect(callArg.args[0].initialCtx).toEqual({ customerId: "cust-001" });
+      expect(callArg.args[0].initialCtx).not.toHaveProperty("documentId");
+      expect(callArg.args[0].initialCtx).not.toHaveProperty("blobKey");
+      // Search attributes are minimal (no doc-seeded keys), but the
+      // Phase 4 lineage + version attributes are always present so the
+      // cancel-in-flight + run-history + version-run-count endpoints
+      // can query visibility.
+      expect(callArg.searchAttributes).toEqual({
+        Status: ["ongoing_adhoc"],
+        WorkflowLineageId: ["workflow-123"],
+        WorkflowVersionId: ["workflow-123"],
+        // G-021: every start records what triggered it.
+        RunTrigger: ["try"],
+      });
+      // Memo omits the documentId key entirely
+      expect(callArg.memo).not.toHaveProperty("documentId");
+      expect(callArg.memo).toMatchObject({
+        workflowConfigId: "workflow-123",
+        runnerVersion: "1.0.0",
+      });
     });
 
     it("includes workflowConfigOverrides and merged configHash when provided", async () => {
@@ -316,6 +394,7 @@ describe("TemporalClientService", () => {
         "workflow-123",
         { documentId: "doc-123" },
         "g-test",
+        "api",
         overrides,
       );
 
@@ -343,7 +422,13 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        newService.startGraphWorkflow("doc-123", "workflow-123", {}, null),
+        newService.startGraphWorkflow(
+          "doc-123",
+          "workflow-123",
+          {},
+          null,
+          "api",
+        ),
       ).rejects.toThrow("Temporal client not initialized");
     });
 
@@ -353,7 +438,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null, "api"),
       ).rejects.toThrow("Failed to start graph workflow");
     });
   });
@@ -502,6 +587,58 @@ describe("TemporalClientService", () => {
     });
   });
 
+  describe("getRunInput (gzip payload decode — node-statuses 500 regression)", () => {
+    // Encode a start-args object exactly as the client does on the wire:
+    // PayloadConverter → GzipPayloadCodec. This is the shape `fetchHistory()`
+    // returns, and the shape that previously broke `fromPayload` with
+    // `ValueError: Unknown encoding: binary/gzip`.
+    async function gzipStartHistory(startArgs: Record<string, unknown>) {
+      const raw = defaultPayloadConverter.toPayload(startArgs);
+      const [gzipped] = await temporalDataConverter.payloadCodecs[0].encode([
+        raw,
+      ]);
+      return {
+        events: [
+          {
+            workflowExecutionStartedEventAttributes: {
+              input: { payloads: [gzipped] },
+            },
+          },
+        ],
+      };
+    }
+
+    it("decodes a gzip-encoded start payload into initialCtx + lineage id", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue(
+        await gzipStartHistory({
+          workflowVersionId: "wv-1",
+          initialCtx: { documentId: "doc-1" },
+          workflowLineageId: "lin-1",
+        }),
+      );
+
+      const result = await service.getRunInput("graph-adhoc-1");
+
+      expect(result).toEqual({
+        initialCtx: { documentId: "doc-1" },
+        workflowLineageId: "lin-1",
+      });
+    });
+
+    it("returns null when the decoded start payload carries no initialCtx", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue(
+        await gzipStartHistory({ workflowLineageId: "lin-1" }),
+      );
+
+      expect(await service.getRunInput("graph-adhoc-1")).toBeNull();
+    });
+
+    it("returns null when the run has no history events", async () => {
+      mockWorkflowHandle.fetchHistory.mockResolvedValue({ events: [] });
+      expect(await service.getRunInput("graph-adhoc-1")).toBeNull();
+    });
+  });
+
   describe("cancelWorkflow", () => {
     it("should cancel workflow gracefully by default", async () => {
       mockWorkflowHandle.signal.mockResolvedValue(undefined);
@@ -588,7 +725,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null, "api"),
       ).rejects.toThrow("Cannot connect to Temporal server");
     });
 
@@ -598,7 +735,7 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null, "api"),
       ).rejects.toThrow("Connection to Temporal server timed out");
     });
 
@@ -608,8 +745,306 @@ describe("TemporalClientService", () => {
       );
 
       await expect(
-        service.startGraphWorkflow("doc-123", "workflow-123", {}, null),
+        service.startGraphWorkflow("doc-123", "workflow-123", {}, null, "api"),
       ).rejects.toThrow("The Temporal worker may not be running");
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-146 — listRunningInLineage + cancelRun helpers
+  // ---------------------------------------------------------------------------
+  describe("listRunningInLineage (US-146)", () => {
+    function setListResults(executions: Array<{ workflowId: string }>): void {
+      mockClient.workflow.list = jest.fn().mockImplementation(() => {
+        // @temporalio/client returns an AsyncIterable — we mirror the
+        // shape with a generator so the production `for await` loop
+        // works unmodified.
+        return {
+          // eslint-disable-next-line @typescript-eslint/require-await
+          [Symbol.asyncIterator]: async function* () {
+            for (const item of executions) {
+              yield item;
+            }
+          },
+        };
+      });
+    }
+
+    it("issues the WorkflowLineageId + ExecutionStatus visibility query and collects workflow ids", async () => {
+      setListResults([
+        { workflowId: "graph-adhoc-run-1" },
+        { workflowId: "graph-adhoc-run-2" },
+      ]);
+
+      const result = await service.listRunningInLineage("lineage-abc");
+
+      expect(mockClient.workflow.list).toHaveBeenCalledWith({
+        query:
+          'WorkflowLineageId = "lineage-abc" AND ExecutionStatus = "Running"',
+      });
+      expect(result).toEqual(["graph-adhoc-run-1", "graph-adhoc-run-2"]);
+    });
+
+    it("returns an empty array when visibility reports no running runs", async () => {
+      setListResults([]);
+
+      const result = await service.listRunningInLineage("empty-lin");
+
+      expect(result).toEqual([]);
+    });
+
+    it("rejects lineage ids containing quote characters (query-injection guard)", async () => {
+      await expect(service.listRunningInLineage('weird"id')).rejects.toThrow(
+        /Invalid workflowLineageId/,
+      );
+    });
+  });
+
+  describe("cancelRun (US-146)", () => {
+    it("calls .cancel() on the workflow handle", async () => {
+      mockWorkflowHandle.cancel = jest.fn().mockResolvedValue(undefined);
+
+      await service.cancelRun("graph-adhoc-run-x");
+
+      expect(mockClient.workflow.getHandle).toHaveBeenCalledWith(
+        "graph-adhoc-run-x",
+      );
+      expect(mockWorkflowHandle.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("swallows already-completed errors as a race-tolerant no-op", async () => {
+      mockWorkflowHandle.cancel = jest
+        .fn()
+        .mockRejectedValue(new Error("workflow execution already completed"));
+
+      await expect(
+        service.cancelRun("graph-adhoc-already-done"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("propagates non-completion errors (e.g. network) unmodified", async () => {
+      mockWorkflowHandle.cancel = jest
+        .fn()
+        .mockRejectedValue(new Error("gRPC: connection reset"));
+
+      await expect(service.cancelRun("graph-adhoc-net-err")).rejects.toThrow(
+        /connection reset/,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // G-021 — cancel-on-new-Try must only cancel Tries, never production runs
+  // ---------------------------------------------------------------------------
+  describe("RunTrigger (G-021)", () => {
+    /**
+     * Stands in for the Temporal visibility store: holds executions tagged
+     * with their `RunTrigger` and answers `workflow.list({ query })` by
+     * honouring the `RunTrigger = "<x>"` clause of the query the production
+     * code builds. Filtering here (rather than hard-coding the result set) is
+     * what makes "a production run is not in the cancel set" a real
+     * assertion — the query string is the thing under test.
+     */
+    function seedVisibility(
+      executions: Array<{ workflowId: string; runTrigger?: string }>,
+    ): void {
+      mockClient.workflow.list = jest
+        .fn()
+        .mockImplementation(({ query }: { query: string }) => {
+          const triggerClause = /RunTrigger = "([^"]+)"/.exec(query);
+          const matching = triggerClause
+            ? executions.filter((e) => e.runTrigger === triggerClause[1])
+            : executions;
+          return {
+            // eslint-disable-next-line @typescript-eslint/require-await
+            [Symbol.asyncIterator]: async function* () {
+              for (const item of matching) {
+                yield { workflowId: item.workflowId };
+              }
+            },
+          };
+        });
+    }
+
+    it("registers RunTrigger as a search attribute on startup", () => {
+      expect(
+        mockConnection.operatorService.addSearchAttributes,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          searchAttributes: { RunTrigger: 2 },
+        }),
+      );
+    });
+
+    it("stamps RunTrigger on the search attributes at start (doc mode)", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      await service.startGraphWorkflow(
+        "doc-123",
+        "workflow-123",
+        { documentId: "doc-123" },
+        "g-test",
+        "api",
+      );
+
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      expect(callArg.searchAttributes.RunTrigger).toEqual(["api"]);
+    });
+
+    it("stamps RunTrigger on the search attributes at start (ad-hoc mode)", async () => {
+      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+
+      await service.startGraphWorkflow(
+        undefined,
+        "workflow-123",
+        {},
+        null,
+        "try",
+      );
+
+      const callArg = mockClient.workflow.start.mock.calls[0][1];
+      expect(callArg.searchAttributes.RunTrigger).toEqual(["try"]);
+    });
+
+    it("only cancels runs explicitly marked as tries", async () => {
+      seedVisibility([
+        { workflowId: "graph-adhoc-try-1", runTrigger: "try" },
+        { workflowId: "graph-adhoc-api-1", runTrigger: "api" },
+        { workflowId: "graph-adhoc-try-2", runTrigger: "try" },
+      ]);
+      mockWorkflowHandle.cancel = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.cancelInFlightTriesForLineage("lineage-abc");
+
+      expect(mockClient.workflow.list).toHaveBeenCalledWith({
+        query:
+          'WorkflowLineageId = "lineage-abc" AND ExecutionStatus = "Running" AND RunTrigger = "try"',
+      });
+      expect(result.cancelledCount).toBe(2);
+      const cancelledIds = (
+        mockClient.workflow.getHandle as jest.Mock
+      ).mock.calls.map((call: unknown[]) => call[0]);
+      expect(cancelledIds).toEqual(["graph-adhoc-try-1", "graph-adhoc-try-2"]);
+    });
+
+    it("does not cancel a production run started via the API", async () => {
+      seedVisibility([
+        { workflowId: "graph-adhoc-api-1", runTrigger: "api" },
+        { workflowId: "graph-adhoc-api-2", runTrigger: "api" },
+      ]);
+      mockWorkflowHandle.cancel = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.cancelInFlightTriesForLineage("lineage-abc");
+
+      expect(result.cancelledCount).toBe(0);
+      expect(mockWorkflowHandle.cancel).not.toHaveBeenCalled();
+    });
+
+    it("leaves pre-migration runs that carry no RunTrigger alone", async () => {
+      seedVisibility([{ workflowId: "graph-adhoc-legacy" }]);
+      mockWorkflowHandle.cancel = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.cancelInFlightTriesForLineage("lineage-abc");
+
+      expect(result.cancelledCount).toBe(0);
+      expect(mockWorkflowHandle.cancel).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Changes B/B+ — run history and the version run-count are editor surfaces:
+  // every visibility query is scoped to RunTrigger = "try" so production runs
+  // (and their document-bearing initialCtx) never reach the designer.
+  // ---------------------------------------------------------------------------
+  describe("Try-only visibility scoping (Changes B/B+)", () => {
+    it("listRunsForWorkflow always includes the RunTrigger try clause", async () => {
+      mockConnection.workflowService.listWorkflowExecutions = jest
+        .fn()
+        .mockResolvedValue({ executions: [], nextPageToken: new Uint8Array() });
+
+      await service.listRunsForWorkflow({
+        workflowLineageId: "lineage-abc",
+        status: "Completed",
+        pageSize: 20,
+      });
+
+      const { query } =
+        mockConnection.workflowService.listWorkflowExecutions.mock.calls[0][0];
+      expect(query).toContain('WorkflowLineageId = "lineage-abc"');
+      expect(query).toContain('RunTrigger = "try"');
+      expect(query).toContain('ExecutionStatus = "Completed"');
+    });
+
+    it("countRunsForVersion counts Try runs only, matching the drawer it badges", async () => {
+      mockConnection.workflowService.countWorkflowExecutions = jest
+        .fn()
+        .mockResolvedValue({ count: 4 });
+
+      const count = await service.countRunsForVersion("lineage-abc", "wv-1");
+
+      expect(count).toBe(4);
+      const { query } =
+        mockConnection.workflowService.countWorkflowExecutions.mock.calls[0][0];
+      expect(query).toContain('RunTrigger = "try"');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Change C support — RunTrigger resolution off describe() for the per-run
+  // editor endpoints' fail-closed Try gate.
+  // ---------------------------------------------------------------------------
+  describe("getRunTrigger + getRunWindow trigger (Change C)", () => {
+    it("getRunTrigger reads the RunTrigger search attribute from describe()", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        closeTime: null,
+        searchAttributes: { RunTrigger: ["try"] },
+      });
+      await expect(service.getRunTrigger("run-1")).resolves.toBe("try");
+    });
+
+    it("getRunTrigger returns null when the attribute is absent (fail-closed input)", async () => {
+      mockWorkflowHandle.describe.mockResolvedValue({
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        closeTime: null,
+        searchAttributes: {},
+      });
+      await expect(service.getRunTrigger("run-legacy")).resolves.toBeNull();
+    });
+
+    it("getRunWindow carries the trigger alongside the execution window", async () => {
+      const startTime = new Date("2026-08-01T00:00:00Z");
+      const closeTime = new Date("2026-08-01T00:05:00Z");
+      mockWorkflowHandle.describe.mockResolvedValue({
+        startTime,
+        closeTime,
+        searchAttributes: { RunTrigger: ["api"] },
+      });
+      await expect(service.getRunWindow("run-2")).resolves.toEqual({
+        startedAt: startTime,
+        endedAt: closeTime,
+        trigger: "api",
+      });
+    });
+  });
+});
+
+describe("extractRunTrigger", () => {
+  it("accepts the array form Temporal's describe() returns", () => {
+    expect(extractRunTrigger({ RunTrigger: ["try"] })).toBe("try");
+    expect(extractRunTrigger({ RunTrigger: ["api"] })).toBe("api");
+  });
+
+  it("accepts the scalar form some server versions return", () => {
+    expect(extractRunTrigger({ RunTrigger: "try" })).toBe("try");
+  });
+
+  it("returns null for absent, empty, unknown or malformed values", () => {
+    expect(extractRunTrigger(undefined)).toBeNull();
+    expect(extractRunTrigger(null)).toBeNull();
+    expect(extractRunTrigger({})).toBeNull();
+    expect(extractRunTrigger({ RunTrigger: [] })).toBeNull();
+    expect(extractRunTrigger({ RunTrigger: ["something-else"] })).toBeNull();
+    expect(extractRunTrigger({ RunTrigger: 7 })).toBeNull();
   });
 });

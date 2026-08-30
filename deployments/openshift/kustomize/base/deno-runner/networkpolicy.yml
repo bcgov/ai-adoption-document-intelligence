@@ -1,0 +1,71 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deno-runner-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: deno-runner
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow ingress on port 9090 ONLY from the backend-services pod
+    # (publish-time `deno check` calls) and the temporal worker pods
+    # (runtime `dyn.run` calls). Everything else is denied.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend-services
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: temporal
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deno-runner-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: deno-runner
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution — needed to resolve the platform API host and any future
+    # allowlisted hosts. Restricted to the OpenShift cluster DNS namespace so
+    # :53 cannot be used as an exfil channel to arbitrary destinations.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Platform API callback ONLY. Dynamic-node scripts receive AI_DI_API_BASE_URL
+    # (the backend-services Service) plus a group-scoped key; with
+    # DYNAMIC_NODE_ALLOW_NET empty they can reach nothing else. If external hosts
+    # are later allowlisted, add matching egress rules here as well.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend-services
+      ports:
+        - protocol: TCP
+          port: 3002
+# DNS scoping rationale (verified by reasoning; confirm once per new cluster):
+#   - Kubernetes auto-applies `kubernetes.io/metadata.name=<ns>` to every
+#     namespace (NamespaceDefaultLabelName, GA since k8s 1.21 / OpenShift 4.8+),
+#     so the `openshift-dns` namespace is guaranteed to carry the label the
+#     selector matches — no manual labelling step is required.
+#   - Standard OpenShift 4.x runs the CoreDNS pods in the `openshift-dns`
+#     namespace, which is the deployment target (BC Gov Silver/Gold).
+# One-time operator check on any NON-standard cluster (custom DNS topology):
+#     oc get pods -n openshift-dns -l dns.operator.openshift.io/daemonset-dns
+#     oc get ns openshift-dns -o jsonpath='{.metadata.labels}'
+# If CoreDNS lives elsewhere, point the namespaceSelector at that namespace.
+# The backend-services pod label + port 3002 must also match the deployed Service.

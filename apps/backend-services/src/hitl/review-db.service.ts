@@ -83,6 +83,10 @@ export class ReviewDbService {
           },
         },
         corrections: true,
+        // G-058 — the correction trail records what changed and when, but not
+        // WHO. `actor_id` alone is a cuid, which answers nobody's question;
+        // the reviewer's email is what "who corrected this" actually means.
+        actor: { include: { user: { select: { email: true } } } },
       },
     });
     return session as ReviewSessionData | null;

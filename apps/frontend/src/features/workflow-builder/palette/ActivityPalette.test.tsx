@@ -1,0 +1,587 @@
+/**
+ * Tests for `ActivityPalette` (US-011).
+ *
+ * Each test maps to one acceptance scenario from
+ * feature-docs/20260522-workflow-builder-control-flow-nodes/user_stories/US-011-palette-flow-control-section.md.
+ */
+
+import "@testing-library/jest-dom";
+
+import { MantineProvider } from "@mantine/core";
+import { ModalsProvider } from "@mantine/modals";
+import { Notifications } from "@mantine/notifications";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
+import { getControlFlowVisualHints } from "../control-flow-visual-hints";
+import { ActivityPalette } from "./ActivityPalette";
+import { CONTROL_FLOW_PALETTE_ENTRIES } from "./control-flow-palette-entries";
+import {
+  buildControlFlowSkeleton,
+  type ControlFlowNodeType,
+} from "./control-flow-skeletons";
+
+// `useActivityCatalog` (and other dynamic-node hooks) call `useGroup()` so
+// they can scope catalog fetches by active group. The palette tests don't
+// wrap in a `GroupProvider`, so stub `useGroup` with a minimal active group
+// — this keeps the real `useActivityCatalog` query going through fetchSpy
+// (US-182 scenarios assert dynamic entries flow through the network mock).
+vi.mock("../../../auth/GroupContext", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../../auth/GroupContext")>();
+  return {
+    ...actual,
+    useGroup: () => ({
+      availableGroups: [],
+      activeGroup: { id: "test-group", name: "Test Group" },
+      setActiveGroup: () => {
+        // No-op for tests — the palette never invokes setActiveGroup.
+      },
+    }),
+  };
+});
+
+// Stub CodeMirror (the editor mounted inside the "+ New custom node"
+// modal relies on browser primitives jsdom doesn't implement).
+// D-13 — `CodePane` bundles Monaco locally and awaits the chunk before
+// rendering `<Editor>`. Stub the loader so the 70 MB `monaco-editor` import
+// never runs under jsdom.
+vi.mock("@/features/workflow-builder/dynamic-nodes/monaco-loader", () => ({
+  ensureLocalMonaco: () => Promise.resolve(),
+}));
+
+vi.mock("@uiw/react-codemirror", () => ({
+  default: ({
+    value,
+    onChange,
+  }: {
+    value: string;
+    onChange?: (next: string) => void;
+  }) => (
+    <textarea
+      data-testid="codemirror-stub"
+      value={value}
+      onChange={(e) => onChange?.(e.target.value)}
+    />
+  ),
+}));
+
+function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+  });
+}
+
+let fetchSpy: MockInstance<typeof globalThis.fetch>;
+
+beforeEach(() => {
+  fetchSpy = vi.spyOn(globalThis, "fetch");
+  // Default: catalog returns no entries (no dyn entries).
+  fetchSpy.mockResolvedValue(jsonResponse({ entries: [] }));
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.restoreAllMocks();
+});
+
+function renderPalette(
+  overrides: Partial<React.ComponentProps<typeof ActivityPalette>> = {},
+) {
+  const onAddActivity = overrides.onAddActivity ?? vi.fn();
+  const onAddControlFlowNode = overrides.onAddControlFlowNode ?? vi.fn();
+  const onAddSource = overrides.onAddSource ?? vi.fn();
+  const onAddDynamicNode = overrides.onAddDynamicNode ?? vi.fn();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  const utils = render(
+    <QueryClientProvider client={queryClient}>
+      <MantineProvider>
+        <ModalsProvider>
+          <Notifications />
+          <ActivityPalette
+            onAddActivity={onAddActivity}
+            onAddControlFlowNode={onAddControlFlowNode}
+            onAddSource={onAddSource}
+            onAddDynamicNode={onAddDynamicNode}
+          />
+        </ModalsProvider>
+      </MantineProvider>
+    </QueryClientProvider>,
+  );
+  return {
+    ...utils,
+    onAddActivity,
+    onAddControlFlowNode,
+    onAddSource,
+    onAddDynamicNode,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 1: "Flow Control" section appears first
+// ---------------------------------------------------------------------------
+
+describe('ActivityPalette — Scenario 1: "Flow Control" section appears first (above activities)', () => {
+  it("renders Flow Control before any activity-category header", () => {
+    renderPalette();
+
+    const headers = screen.getAllByText(
+      (_, el) =>
+        el?.tagName.toLowerCase() === "p" &&
+        (el.textContent ?? "").trim().length > 0 &&
+        // Mantine renders the uppercased category names via CSS, but the
+        // text content remains the original casing. We match on the
+        // exact string.
+        true,
+    );
+
+    // Find the rendered category labels by their actual rendered text.
+    const flowControlHeader = screen.getByText("Flow Control");
+    expect(flowControlHeader).toBeInTheDocument();
+
+    // The Flow Control header must appear textually before any of the
+    // activity-category headers in the rendered DOM. (US-118 adds a
+    // "Sources" section ABOVE Flow Control — Flow Control still comes
+    // before every activity category, so the original guarantee holds.)
+    const headerTexts = headers.map((h) => h.textContent?.trim() ?? "");
+    const firstFlowControlIdx = headerTexts.indexOf("Flow Control");
+    expect(firstFlowControlIdx).toBeGreaterThanOrEqual(0);
+
+    const knownActivityCategories = [
+      "File Handling",
+      "OCR (Azure)",
+      "OCR (Mistral)",
+      "OCR Cleanup & Correction",
+      "OCR Quality",
+      "Document Handling",
+      "Validation",
+      "Storage",
+      "Data Transformation",
+      "Reference Data",
+    ];
+    for (const cat of knownActivityCategories) {
+      const idx = headerTexts.indexOf(cat);
+      if (idx === -1) continue;
+      expect(idx).toBeGreaterThan(firstFlowControlIdx);
+    }
+  });
+
+  it("lists all six control-flow node types under the Flow Control section", () => {
+    renderPalette();
+
+    const expected = [
+      "switch",
+      "map",
+      "join",
+      "childWorkflow",
+      "pollUntil",
+      "humanGate",
+    ] as const;
+    for (const type of expected) {
+      expect(
+        screen.getByTestId(`control-flow-palette-entry-${type}`),
+      ).toBeInTheDocument();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D32 — "Could we use these colours in the sidebar list of nodes?"
+//
+// The palette drew every control-flow row one hard-coded violet and every
+// custom node one hard-coded purple, so the list and the canvas disagreed
+// about what a colour meant. The test that matters is not "the border is
+// #D97706" — it is "the border is whatever the canvas registry says", which
+// is what stops the two drifting apart again.
+// ---------------------------------------------------------------------------
+
+describe("ActivityPalette — D32: palette accents come from the node-accent registry", () => {
+  it("paints each control-flow row with that type's canvas accent", () => {
+    renderPalette();
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const row = screen.getByTestId(
+        `control-flow-palette-entry-${entry.type}`,
+      );
+      expect(row).toHaveStyle({
+        borderLeftColor: getControlFlowVisualHints(entry.type).color,
+      });
+    }
+  });
+
+  it("gives routing and fan rows visibly different accents", () => {
+    // The regression this guards: one violet for all six, which erased the
+    // distinction the canvas draws between "decides where to go next" and
+    // "repeats over a list".
+    renderPalette();
+    const branch = screen.getByTestId("control-flow-palette-entry-switch");
+    const forEach = screen.getByTestId("control-flow-palette-entry-map");
+    expect(branch).not.toHaveStyle({
+      borderLeftColor: getControlFlowVisualHints("map").color,
+    });
+    expect(forEach).toHaveStyle({
+      borderLeftColor: getControlFlowVisualHints("map").color,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 2: each entry has an icon, display name, and short description
+// ---------------------------------------------------------------------------
+
+describe("ActivityPalette — Scenario 2: each entry has icon + display name + description", () => {
+  it("renders the expected display name for each control-flow entry", () => {
+    renderPalette();
+    const expectedDisplayNames: Record<ControlFlowNodeType, string> = {
+      switch: "Branch by condition",
+      map: "Run for each item",
+      join: "Collect results",
+      childWorkflow: "Sub-workflow",
+      pollUntil: "Wait until condition",
+      humanGate: "Wait for approval",
+    };
+    for (const [type, displayName] of Object.entries(expectedDisplayNames) as [
+      ControlFlowNodeType,
+      string,
+    ][]) {
+      const row = screen.getByTestId(`control-flow-palette-entry-${type}`);
+      expect(row).toHaveTextContent(displayName);
+    }
+  });
+
+  it("renders a Tabler SVG icon inside each control-flow entry", () => {
+    renderPalette();
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const row = screen.getByTestId(
+        `control-flow-palette-entry-${entry.type}`,
+      );
+      // Tabler icons render as <svg class="tabler-icon ..." />
+      const svg = row.querySelector("svg");
+      expect(svg).not.toBeNull();
+      expect(svg?.getAttribute("class") ?? "").toMatch(/tabler-icon/);
+    }
+  });
+
+  it("exposes the entry description via the tooltip wrapper", () => {
+    // Mantine Tooltip lazily renders the label into a portal on hover.
+    // We instead assert that every entry has a description string
+    // configured — verifying tooltip portal behaviour belongs to
+    // Mantine's own tests.
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 3: clicking an entry adds a skeleton with correct defaults
+// ---------------------------------------------------------------------------
+
+describe("ActivityPalette — Scenario 3: clicking an entry triggers onAddControlFlowNode", () => {
+  it.each([
+    ["switch"],
+    ["map"],
+    ["join"],
+    ["childWorkflow"],
+    ["pollUntil"],
+    ["humanGate"],
+  ] as const)("clicking %s calls onAddControlFlowNode with that exact type", (type) => {
+    const onAddControlFlowNode = vi.fn<(t: ControlFlowNodeType) => void>();
+    renderPalette({ onAddControlFlowNode });
+    const row = screen.getByTestId(`control-flow-palette-entry-${type}`);
+    row.click();
+    expect(onAddControlFlowNode).toHaveBeenCalledTimes(1);
+    expect(onAddControlFlowNode).toHaveBeenCalledWith(type);
+  });
+
+  it("the skeleton produced by buildControlFlowSkeleton matches the click-handler's contract", () => {
+    // The palette's responsibility is to emit the type — the host
+    // builds the skeleton via `buildControlFlowSkeleton`. This test
+    // double-checks the wiring is consistent for all six types by
+    // calling the builder with the type the palette would emit.
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const skeleton = buildControlFlowSkeleton(entry.type, `${entry.type}_1`);
+      expect(skeleton.type).toBe(entry.type);
+      expect(skeleton.id).toBe(`${entry.type}_1`);
+      expect(skeleton.label).toBe(entry.displayName);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario 4: skeleton position reuses the existing add-position logic
+// ---------------------------------------------------------------------------
+//
+// Position-stagger is computed by the host (`WorkflowEditorV2Page`), not by
+// the palette itself. The palette's contract under US-011 is to emit the
+// node type so the host can build + position the skeleton via the same
+// `x = 80 + i*240, y = 100 + (i%3)*140` logic the activity-add path uses.
+// We re-implement that logic here and assert it on the host's behalf to
+// pin the formula independently of the orchestrator.
+
+describe("ActivityPalette — Scenario 4: position-stagger formula", () => {
+  // Reimplements the host's add-position logic (must stay in sync with
+  // WorkflowEditorV2Page.addActivity / addControlFlowNode). If the
+  // shared formula ever changes, update both at once.
+  const positionFor = (i: number) => ({
+    x: 80 + i * 240,
+    y: 100 + (i % 3) * 140,
+  });
+
+  it("matches the activity-add path stagger formula", () => {
+    expect(positionFor(0)).toEqual({ x: 80, y: 100 });
+    expect(positionFor(1)).toEqual({ x: 320, y: 240 });
+    expect(positionFor(2)).toEqual({ x: 560, y: 380 });
+    expect(positionFor(3)).toEqual({ x: 800, y: 100 });
+    expect(positionFor(4)).toEqual({ x: 1040, y: 240 });
+  });
+
+  it("applying the formula to a freshly-built control-flow skeleton produces the expected metadata.position", () => {
+    for (const entry of CONTROL_FLOW_PALETTE_ENTRIES) {
+      const skeleton = buildControlFlowSkeleton(entry.type, `${entry.type}_1`);
+      // Host injects position via metadata after the skeleton is built.
+      const i = 2;
+      skeleton.metadata = {
+        ...(skeleton.metadata ?? {}),
+        position: positionFor(i),
+      };
+      expect(skeleton.metadata.position).toEqual({ x: 560, y: 380 });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-118: "Sources" palette section
+// ---------------------------------------------------------------------------
+
+describe('ActivityPalette — US-118: "Sources" section', () => {
+  it("renders a Sources section ABOVE the Flow Control section", () => {
+    renderPalette();
+    const sourcesHeader = screen.getByText("Sources");
+    const flowControlHeader = screen.getByText("Flow Control");
+    expect(sourcesHeader).toBeInTheDocument();
+    expect(flowControlHeader).toBeInTheDocument();
+    // Compare positions in document order.
+    const pos = sourcesHeader.compareDocumentPosition(flowControlHeader);
+    // `DOCUMENT_POSITION_FOLLOWING` (4) means the second arg comes
+    // AFTER the first in document order.
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("lists the two 8.0 source entries (source.api + source.upload)", () => {
+    renderPalette();
+    expect(
+      screen.getByTestId("source-palette-entry-source.api"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("source-palette-entry-source.upload"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the catalog displayName for each source row", () => {
+    renderPalette();
+    const apiRow = screen.getByTestId("source-palette-entry-source.api");
+    expect(apiRow).toHaveTextContent("API endpoint");
+    expect(apiRow).toHaveTextContent("source.api");
+    const uploadRow = screen.getByTestId("source-palette-entry-source.upload");
+    expect(uploadRow).toHaveTextContent("File upload");
+    expect(uploadRow).toHaveTextContent("source.upload");
+  });
+
+  it("clicking a source row calls onAddSource with that exact subtype", () => {
+    const onAddSource = vi.fn<(t: string) => void>();
+    renderPalette({ onAddSource });
+    screen.getByTestId("source-palette-entry-source.api").click();
+    expect(onAddSource).toHaveBeenCalledTimes(1);
+    expect(onAddSource).toHaveBeenCalledWith("source.api");
+    screen.getByTestId("source-palette-entry-source.upload").click();
+    expect(onAddSource).toHaveBeenCalledTimes(2);
+    expect(onAddSource).toHaveBeenLastCalledWith("source.upload");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-182: Custom palette section + "+ New custom node" button
+// ---------------------------------------------------------------------------
+
+describe('ActivityPalette — US-182: Custom section + "+ New custom node"', () => {
+  it("Scenario 3: renders the Custom section + + New custom node button even when the group has zero dynamic entries", async () => {
+    renderPalette();
+    await waitFor(() => {
+      expect(screen.getByText("Custom")).toBeInTheDocument();
+    });
+    const newBtn = screen.getByTestId("palette-custom-new-btn");
+    expect(newBtn).toBeInTheDocument();
+    // The button carries an IconPlus leftSection, so the label text must NOT
+    // also start with a literal "+" (that produced a doubled "+ +" glyph).
+    expect(newBtn).toHaveTextContent("New custom node");
+    expect(newBtn.textContent?.trimStart().startsWith("+")).toBe(false);
+    expect(screen.getByTestId("custom-empty-placeholder")).toBeInTheDocument();
+  });
+
+  it("Scenario 1 + 2: lists dynamic entries with DYN pill", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        entries: [
+          {
+            activityType: "dyn.my-node",
+            displayName: "my-node",
+            category: "Custom",
+            description: "A test custom node",
+            iconHint: "sparkles",
+            colorHint: "violet",
+            inputs: [],
+            outputs: [],
+            paramsSchema: { type: "object", properties: {} },
+            dynamicNodeSlug: "my-node",
+            dynamicNodeVersion: 1,
+            allowNet: [],
+          },
+        ],
+      }),
+    );
+    renderPalette();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("dynamic-palette-entry-my-node"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("dynamic-palette-entry-pill-my-node"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("dynamic-palette-entry-pill-my-node"),
+    ).toHaveTextContent("DYN");
+  });
+
+  it("Scenario 5: clicking an existing entry calls onAddDynamicNode with the slug", async () => {
+    fetchSpy.mockResolvedValue(
+      jsonResponse({
+        entries: [
+          {
+            activityType: "dyn.alpha",
+            displayName: "alpha",
+            category: "Custom",
+            description: "alpha description",
+            iconHint: "sparkles",
+            colorHint: "violet",
+            inputs: [],
+            outputs: [],
+            paramsSchema: { type: "object", properties: {} },
+            dynamicNodeSlug: "alpha",
+            dynamicNodeVersion: 1,
+            allowNet: [],
+          },
+        ],
+      }),
+    );
+    const onAddDynamicNode = vi.fn<(slug: string) => void>();
+    renderPalette({ onAddDynamicNode });
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("dynamic-palette-entry-alpha"),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("dynamic-palette-entry-alpha"));
+    expect(onAddDynamicNode).toHaveBeenCalledTimes(1);
+    expect(onAddDynamicNode).toHaveBeenCalledWith("alpha");
+  });
+
+  it("Scenario 3: clicking + New custom node opens the editor modal", async () => {
+    renderPalette();
+    await waitFor(() => {
+      expect(screen.getByTestId("palette-custom-new-btn")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByTestId("palette-custom-new-btn"));
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("palette-custom-new-modal"),
+      ).toBeInTheDocument();
+    });
+    // Mantine's Modal portals its body asynchronously after the root mounts,
+    // so wait for the editor to land in the portal before asserting.
+    expect(
+      await screen.findByTestId("dynamic-node-editor"),
+    ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 5: drag-from-palette payloads on activity + control-flow rows
+// ---------------------------------------------------------------------------
+
+/**
+ * jsdom does not implement `DragEvent` or `DataTransfer`. Provide minimal
+ * stand-ins that record the data the palette's `onDragStart` handler
+ * writes so the test can assert the payload roundtrips through the
+ * `application/x-workflow-palette` mime type.
+ */
+class MockDataTransfer {
+  private store = new Map<string, string>();
+  public effectAllowed = "";
+  public dropEffect = "";
+  setData(type: string, value: string) {
+    this.store.set(type, value);
+  }
+  getData(type: string) {
+    return this.store.get(type) ?? "";
+  }
+}
+
+function dispatchDragStart(target: HTMLElement): MockDataTransfer {
+  const dataTransfer = new MockDataTransfer();
+  const event = new Event("dragstart", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+  target.dispatchEvent(event);
+  return dataTransfer;
+}
+
+describe("ActivityPalette — drag-from-palette payloads (Task 5)", () => {
+  it("activity rows expose a JSON drag payload with kind 'activity'", () => {
+    renderPalette();
+    // Pick the first activity row by its data-testid — every activity row
+    // emitted by the entries.map(...) loop is tagged with the activityType.
+    const row = document.querySelector(
+      '[data-testid^="activity-palette-entry-"]',
+    ) as HTMLElement | null;
+    expect(row).not.toBeNull();
+    expect(row!.getAttribute("draggable")).toBe("true");
+    const activityType = row!
+      .getAttribute("data-testid")!
+      .replace(/^activity-palette-entry-/, "");
+
+    const dataTransfer = dispatchDragStart(row!);
+    const raw = dataTransfer.getData("application/x-workflow-palette");
+    expect(raw).not.toBe("");
+    const payload = JSON.parse(raw) as { kind: string; activityType: string };
+    expect(payload.kind).toBe("activity");
+    expect(payload.activityType).toBe(activityType);
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+
+  it("control-flow rows expose a JSON drag payload with kind 'controlFlow'", () => {
+    renderPalette();
+    const row = screen.getByTestId("control-flow-palette-entry-switch");
+    expect(row.getAttribute("draggable")).toBe("true");
+
+    const dataTransfer = dispatchDragStart(row);
+    const raw = dataTransfer.getData("application/x-workflow-palette");
+    expect(raw).not.toBe("");
+    const payload = JSON.parse(raw);
+    expect(payload).toEqual({ kind: "controlFlow", type: "switch" });
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+});

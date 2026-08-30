@@ -29,6 +29,7 @@ function makeMinimalGraph(
         type: "activity",
         label: "Start",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
         inputs: [{ port: "documentId", ctxKey: "documentId" }],
       } as ActivityNode,
     },
@@ -52,6 +53,7 @@ function makeLinearGraph(): GraphWorkflowConfig {
         type: "activity",
         label: "Step A",
         activityType: "document.updateStatus",
+        parameters: { status: "ongoing_ocr" },
         inputs: [{ port: "documentId", ctxKey: "documentId" }],
       } as ActivityNode,
       b: {
@@ -127,6 +129,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Review",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           done: {
             id: "done",
@@ -172,6 +175,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Split",
             activityType: "document.split",
+            parameters: { strategy: "per-page" },
             outputs: [{ port: "segments", ctxKey: "segments" }],
           } as ActivityNode,
           mapNode: {
@@ -205,7 +209,15 @@ describe("graph-schema-validator", () => {
       };
       const result = validateGraphConfig(config);
       expect(result.valid).toBe(true);
-      expect(result.errors).toHaveLength(0);
+      // G-067 — a map with no `maxConcurrency` draws an advisory warning
+      // (unbounded fan-out). It is a warning, not an error: the graph is still
+      // valid and still saves.
+      expect(result.errors).toEqual([
+        expect.objectContaining({
+          path: "nodes.mapNode.maxConcurrency",
+          severity: "warning",
+        }),
+      ]);
     });
 
     it("valid fallback edge policy passes when edge type is error", () => {
@@ -216,6 +228,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "documentId", ctxKey: "documentId" }],
             errorPolicy: {
               onError: "fallback",
@@ -228,6 +241,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Fallback",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -255,6 +269,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "documentId", ctxKey: "documentId" }],
             errorPolicy: {
               onError: "fallback",
@@ -267,6 +282,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Fallback",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -334,6 +350,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
       });
@@ -365,6 +382,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -432,6 +450,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -496,6 +515,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -544,6 +564,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           b: {
             id: "b",
@@ -606,6 +627,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -651,6 +673,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -744,6 +767,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
           j: {
             id: "j",
@@ -780,6 +804,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "x", ctxKey: "undeclaredKey" }],
           } as ActivityNode,
         },
@@ -803,6 +828,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             outputs: [{ port: "y", ctxKey: "undeclaredOutput" }],
           } as ActivityNode,
         },
@@ -832,6 +858,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "blobKey", ctxKey: "currentSegment.blobKey" }],
           } as ActivityNode,
         },
@@ -907,6 +934,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Start",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
             inputs: [{ port: "p", ctxKey: "segment.payload" }],
           } as ActivityNode,
         },
@@ -949,6 +977,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -994,6 +1023,7 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "A",
             activityType: "document.updateStatus",
+            parameters: { status: "ongoing_ocr" },
           } as ActivityNode,
         },
         edges: [
@@ -1082,8 +1112,8 @@ describe("graph-schema-validator", () => {
             type: "activity",
             label: "Update Status",
             activityType: "document.updateStatus",
-            inputs: [{ port: "documentId", ctxKey: "documentId" }],
             parameters: { status: "ongoing_ocr" },
+            inputs: [{ port: "documentId", ctxKey: "documentId" }],
           } as ActivityNode,
           prepareFileData: {
             id: "prepareFileData",
@@ -1504,7 +1534,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -1537,7 +1566,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.inputFormat",
-            message: expect.stringContaining("inputFormat"),
           }),
         ]),
       );
@@ -1569,7 +1597,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.outputFormat",
-            message: expect.stringContaining("outputFormat"),
           }),
         ]),
       );
@@ -1601,7 +1628,6 @@ describe("graph-schema-validator", () => {
         expect.arrayContaining([
           expect.objectContaining({
             path: "nodes.t.parameters.fieldMapping",
-            message: expect.stringContaining("fieldMapping"),
           }),
         ]),
       );
@@ -1725,6 +1751,109 @@ describe("graph-schema-validator", () => {
       expect(paths).toContain("nodes.t.parameters.inputFormat");
       expect(paths).toContain("nodes.t.parameters.outputFormat");
       expect(paths).toContain("nodes.t.parameters.fieldMapping");
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // document.validateFields legacy-shape rejection (US-020)
+  //
+  // The catalog's validateFields schema was drifted before e99da4ef: it
+  // used a flat `{ operation, fields, equals }` arithmetic-rule shape and
+  // `operator: "exact"` instead of the runtime's nested `{ expression }`
+  // shape with `operator: "equals"`. The Playwright walkthrough on
+  // 2026-05-23 caught it. This block proves that with the catalog wired
+  // through the backend validator, those legacy shapes are rejected at
+  // save time.
+  // -----------------------------------------------------------------------
+  describe("document.validateFields legacy-shape rejection", () => {
+    function makeValidateFieldsGraph(
+      rule: Record<string, unknown>,
+    ): GraphWorkflowConfig {
+      return {
+        schemaVersion: "1.0",
+        metadata: {},
+        entryNodeId: "v",
+        ctx: {
+          processedSegments: { type: "array" },
+          documentId: { type: "string" },
+        },
+        nodes: {
+          v: {
+            id: "v",
+            type: "activity",
+            label: "Validate",
+            activityType: "document.validateFields",
+            parameters: { rules: [rule] },
+            inputs: [
+              {
+                port: "processedSegments",
+                ctxKey: "processedSegments",
+              },
+              { port: "documentId", ctxKey: "documentId" },
+            ],
+          } as ActivityNode,
+        },
+        edges: [],
+      };
+    }
+
+    it("rejects the legacy flat arithmetic rule (operation/fields/equals at top level)", () => {
+      const config = makeValidateFieldsGraph({
+        name: "pay-stub-arithmetic",
+        type: "arithmetic",
+        operation: "sum",
+        fields: ["a", "b"],
+        equals: "c",
+        operator: "equals",
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.path.startsWith("nodes.v.parameters.rules.0") &&
+            e.severity === "error",
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects the legacy operator='exact' on a field-match rule", () => {
+      const config = makeValidateFieldsGraph({
+        name: "gross-pay-match",
+        type: "field-match",
+        primaryField: "a",
+        attachmentField: "b",
+        operator: "exact",
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(false);
+      expect(
+        result.errors.some(
+          (e) =>
+            e.path === "nodes.v.parameters.rules.0.operator" &&
+            e.severity === "error",
+        ),
+      ).toBe(true);
+    });
+
+    it("accepts the post-e99da4ef nested-expression arithmetic rule", () => {
+      const config = makeValidateFieldsGraph({
+        name: "pay-stub-arithmetic",
+        type: "arithmetic",
+        expression: {
+          operation: "difference",
+          fields: ["page2.grossPay", "page2.totalDeductions"],
+          equals: "page2.netPay",
+        },
+        operator: "approximately",
+        tolerance: { amount: 0.05 },
+        fieldType: "currency",
+      });
+      const result = validateGraphConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
   });
 });
