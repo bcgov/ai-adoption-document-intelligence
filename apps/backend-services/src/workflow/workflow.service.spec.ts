@@ -7,7 +7,9 @@ import {
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
 import { PrismaService } from "@/database/prisma.service";
+import { DynamicNodeRepository } from "@/dynamic-nodes/dynamic-node.repository";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { TemporalClientService } from "@/temporal/temporal-client.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import type { GraphWorkflowConfig } from "./graph-workflow-types";
 import { WorkflowService } from "./workflow.service";
@@ -23,6 +25,7 @@ const makeGraphConfig = (): GraphWorkflowConfig => ({
       type: "activity",
       label: "Start",
       activityType: "document.updateStatus",
+      parameters: { status: "ongoing_ocr" },
       inputs: [{ port: "documentId", ctxKey: "documentId" }],
     },
   },
@@ -64,25 +67,45 @@ const mockVersion = {
   findFirst: jest.fn(),
   findMany: jest.fn(),
   create: jest.fn(),
+  count: jest.fn(),
 };
+
+/** G-050 — `describeDeleteImpact` counts documents pinned to the lineage. */
+const mockDocument = {
+  count: jest.fn(),
+};
+
+const mockQueryRaw = jest.fn();
+
+const mockTransaction = jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
+  fn({
+    workflowLineage: mockLineage,
+    workflowVersion: mockVersion,
+  }),
+);
 
 const mockPrismaService = {
   prisma: {
     workflowLineage: mockLineage,
     workflowVersion: mockVersion,
-    $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        workflowLineage: mockLineage,
-        workflowVersion: mockVersion,
-      }),
-    ),
+    document: mockDocument,
+    $queryRaw: mockQueryRaw,
+    $transaction: mockTransaction,
   },
-  transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) =>
-    fn({
-      workflowLineage: mockLineage,
-      workflowVersion: mockVersion,
-    }),
-  ),
+  // The real `PrismaService.transaction` is a thin wrapper over
+  // `prisma.$transaction`, so the mock delegates to the same jest.fn. Tests
+  // that override the transaction behaviour (the slug-race retry cases) take
+  // effect through either seam.
+  transaction: mockTransaction,
+};
+
+const mockAuditService = {
+  recordEvent: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockTemporalClient = {
+  listRunningInLineage: jest.fn(),
+  cancelRun: jest.fn(),
 };
 
 describe("WorkflowService", () => {
@@ -96,6 +119,8 @@ describe("WorkflowService", () => {
     mockVersion.findUnique.mockResolvedValue(null);
     mockVersion.findFirst.mockResolvedValue(null);
     mockVersion.findMany.mockResolvedValue([]);
+    mockVersion.count.mockResolvedValue(0);
+    mockDocument.count.mockResolvedValue(0);
     mockLineage.create.mockImplementation(
       async (args: { data: { id?: string } }) => ({
         ...args.data,
@@ -107,6 +132,16 @@ describe("WorkflowService", () => {
     mockVersion.create.mockResolvedValue(headVersion);
     mockLineage.update.mockResolvedValue({ ...lineageRow, headVersion });
     mockLineage.delete.mockResolvedValue(undefined);
+    // G-019 — the referencing-workflow scan finds nothing unless a test says so.
+    mockQueryRaw.mockResolvedValue([]);
+    mockTemporalClient.listRunningInLineage.mockResolvedValue([]);
+    mockTemporalClient.cancelRun.mockResolvedValue(undefined);
+    // Restore the pass-through $transaction — individual tests may override it
+    // (e.g. to simulate a slug race), and clearAllMocks does not reset impls.
+    mockPrismaService.prisma.$transaction.mockImplementation(
+      (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({ workflowLineage: mockLineage, workflowVersion: mockVersion }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -116,9 +151,17 @@ describe("WorkflowService", () => {
           useValue: mockPrismaService,
         },
         { provide: AppLoggerService, useValue: mockAppLogger },
+        { provide: TemporalClientService, useValue: mockTemporalClient },
+        {
+          provide: DynamicNodeRepository,
+          useValue: {
+            listForGroup: jest.fn().mockResolvedValue([]),
+            findVersionByNumber: jest.fn().mockResolvedValue(null),
+          },
+        },
         {
           provide: AuditService,
-          useValue: { recordEvent: jest.fn().mockResolvedValue(undefined) },
+          useValue: mockAuditService,
         },
       ],
     }).compile();
@@ -140,11 +183,16 @@ describe("WorkflowService", () => {
       });
     });
 
-    it("includes benchmark candidates when flag is set", async () => {
+    it("includes benchmark candidates when flag is set (still excludes library)", async () => {
       mockLineage.findMany.mockResolvedValue([lineageRow]);
-      await service.getUserWorkflows("actor-1", true);
+      await service.getUserWorkflows("actor-1", {
+        includeBenchmarkCandidates: true,
+      });
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { actor_id: "actor-1" },
+        where: {
+          actor_id: "actor-1",
+          workflow_kind: { not: "library" },
+        },
         include: { headVersion: true },
         orderBy: { created_at: "desc" },
       });
@@ -165,14 +213,176 @@ describe("WorkflowService", () => {
       });
     });
 
-    it("includes benchmark candidates when flag is set", async () => {
+    it("includes benchmark candidates when flag is set (still excludes library)", async () => {
       mockLineage.findMany.mockResolvedValue([lineageRow]);
-      await service.getGroupWorkflows(["group-1"], true);
+      await service.getGroupWorkflows(["group-1"], {
+        includeBenchmarkCandidates: true,
+      });
       expect(mockLineage.findMany).toHaveBeenCalledWith({
-        where: { group_id: { in: ["group-1"] } },
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: { not: "library" },
+        },
         include: { headVersion: true },
         orderBy: { created_at: "desc" },
       });
+    });
+
+    it("kind=library filters strictly to library workflows", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], { kind: "library" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "library",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=workflow filters strictly to primary workflows", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], { kind: "workflow" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "primary",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind takes precedence over includeBenchmarkCandidates", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], {
+        kind: "library",
+        includeBenchmarkCandidates: true,
+      });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: "library",
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=all returns everything except benchmark candidates by default", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], { kind: "all" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: { not: "benchmark_candidate" },
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=all + includeBenchmarkCandidates returns every lineage with no kind filter", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], {
+        kind: "all",
+        includeBenchmarkCandidates: true,
+      });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=workflow + includeBenchmarkCandidates returns primary + benchmark candidates (no library)", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getGroupWorkflows(["group-1"], {
+        kind: "workflow",
+        includeBenchmarkCandidates: true,
+      });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: {
+          group_id: { in: ["group-1"] },
+          workflow_kind: { not: "library" },
+        },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+  });
+
+  describe("getAllWorkflowLineages", () => {
+    it("excludes library workflows in the default unfiltered listing", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getAllWorkflowLineages();
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: { workflow_kind: "primary" },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+
+    it("kind=library returns only library lineages", async () => {
+      mockLineage.findMany.mockResolvedValue([lineageRow]);
+      await service.getAllWorkflowLineages({ kind: "library" });
+      expect(mockLineage.findMany).toHaveBeenCalledWith({
+        where: { workflow_kind: "library" },
+        include: { headVersion: true },
+        orderBy: { created_at: "desc" },
+      });
+    });
+  });
+
+  describe("createWorkflow with kind: library", () => {
+    it("persists workflow_kind = library on the lineage row", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+
+      await service.createWorkflow("actor-1", {
+        name: "My Library",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+        kind: "library",
+      });
+
+      expect(mockLineage.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          workflow_kind: "library",
+          actor_id: "actor-1",
+          group_id: "group-1",
+          name: "My Library",
+        }),
+      });
+    });
+
+    it("defaults to primary kind when kind is omitted", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+
+      await service.createWorkflow("actor-1", {
+        name: "Regular",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+      });
+
+      const createCall = mockLineage.create.mock.calls[0][0];
+      expect(createCall.data.workflow_kind).toBeUndefined();
     });
   });
 
@@ -193,6 +403,51 @@ describe("WorkflowService", () => {
       await expect(service.getWorkflow("lin-1", "actor-1")).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe("getWorkflowBySlug", () => {
+    it("resolves a lineage by (group, slug) and returns its head", async () => {
+      mockLineage.findFirst.mockResolvedValue(lineageRow);
+      const result = await service.getWorkflowBySlug(
+        "test",
+        ["group-1"],
+        "actor-1",
+      );
+      expect(result.id).toBe("lin-1");
+      expect(result.slug).toBe("test");
+      expect(mockLineage.findFirst).toHaveBeenCalledWith({
+        where: { slug: "test", group_id: { in: ["group-1"] } },
+        include: { headVersion: true },
+        orderBy: { created_at: "asc" },
+      });
+    });
+
+    it("omits the group filter for an unrestricted (undefined groupIds) caller", async () => {
+      mockLineage.findFirst.mockResolvedValue(lineageRow);
+      await service.getWorkflowBySlug("test", undefined, "actor-1");
+      expect(mockLineage.findFirst).toHaveBeenCalledWith({
+        where: { slug: "test" },
+        include: { headVersion: true },
+        orderBy: { created_at: "asc" },
+      });
+    });
+
+    it("throws NotFoundException when no lineage matches the slug", async () => {
+      mockLineage.findFirst.mockResolvedValue(null);
+      await expect(
+        service.getWorkflowBySlug("nope", ["group-1"], "actor-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws NotFoundException when the lineage has no published head", async () => {
+      mockLineage.findFirst.mockResolvedValue({
+        ...lineageRow,
+        headVersion: null,
+      });
+      await expect(
+        service.getWorkflowBySlug("test", ["group-1"], "actor-1"),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -303,7 +558,9 @@ describe("WorkflowService", () => {
   });
 
   describe("createWorkflow", () => {
-    it("throws BadRequestException for invalid config", async () => {
+    // Draft-save (2026-08-02): the only save-time refusal left is structural
+    // storability — no `nodes` map means hashing/mapping cannot run at all.
+    it("throws BadRequestException for a config the store cannot hold (no nodes map)", async () => {
       await expect(
         service.createWorkflow("actor-1", {
           name: "New",
@@ -311,6 +568,39 @@ describe("WorkflowService", () => {
           config: { schemaVersion: "2.0" } as unknown as GraphWorkflowConfig,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // Draft-save: semantic invalidity (unregistered activity type here) no
+    // longer blocks saving — the run-start gate (`assertConfigRunnable`)
+    // owns that refusal now.
+    it("persists a semantically-invalid config (draft-save)", async () => {
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) return null;
+          return { ...lineageRow, headVersion };
+        },
+      );
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+
+      const result = await service.createWorkflow("actor-1", {
+        name: "Draft",
+        groupId: "group-1",
+        config: invalid,
+      });
+
+      expect(result).toBeDefined();
+      expect(mockVersion.create).toHaveBeenCalled();
     });
 
     it("throws ConflictException when unique slug allocation is exhausted", async () => {
@@ -332,6 +622,80 @@ describe("WorkflowService", () => {
       ).rejects.toThrow(ConflictException);
 
       expect(mockLineage.create).not.toHaveBeenCalled();
+    });
+
+    it("retries and succeeds when a concurrent create wins the slug race", async () => {
+      const slugRace = new Prisma.PrismaClientKnownRequestError("unique", {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["group_id", "slug"] },
+      });
+      mockLineage.findUnique.mockImplementation(
+        async (args: { where: { id?: string; group_id_slug?: unknown } }) => {
+          if (args.where.group_id_slug) {
+            return null;
+          }
+          return { ...lineageRow, headVersion };
+        },
+      );
+      // First transaction loses the slug race; the retry re-derives a free slug
+      // and commits.
+      mockPrismaService.prisma.$transaction.mockImplementationOnce(async () => {
+        throw slugRace;
+      });
+
+      const result = await service.createWorkflow("actor-1", {
+        name: "My Workflow",
+        groupId: "group-1",
+        config: makeGraphConfig(),
+      });
+
+      expect(result).toBeDefined();
+      expect(mockPrismaService.transaction).toHaveBeenCalledTimes(2);
+    });
+
+    it("propagates the slug violation once retries are exhausted", async () => {
+      const slugRace = new Prisma.PrismaClientKnownRequestError("unique", {
+        code: "P2002",
+        clientVersion: "test",
+        meta: { target: ["group_id", "slug"] },
+      });
+      mockPrismaService.prisma.$transaction.mockImplementation(async () => {
+        throw slugRace;
+      });
+
+      await expect(
+        service.createWorkflow("actor-1", {
+          name: "My Workflow",
+          groupId: "group-1",
+          config: makeGraphConfig(),
+        }),
+      ).rejects.toBe(slugRace);
+      // Initial attempt + WORKFLOW_SLUG_CREATE_MAX_RETRIES (5) retries.
+      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(6);
+    });
+
+    it("does not retry a unique violation unrelated to the slug", async () => {
+      const otherViolation = new Prisma.PrismaClientKnownRequestError(
+        "unique",
+        {
+          code: "P2002",
+          clientVersion: "test",
+          meta: { target: ["head_version_id"] },
+        },
+      );
+      mockPrismaService.prisma.$transaction.mockImplementation(async () => {
+        throw otherViolation;
+      });
+
+      await expect(
+        service.createWorkflow("actor-1", {
+          name: "My Workflow",
+          groupId: "group-1",
+          config: makeGraphConfig(),
+        }),
+      ).rejects.toBe(otherViolation);
+      expect(mockPrismaService.prisma.$transaction).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -466,7 +830,10 @@ describe("WorkflowService", () => {
     it("throws NotFoundException when lineage not found", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
       await expect(
-        service.updateWorkflow("lin-1", "actor-1", { name: "Updated" }),
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          name: "Updated",
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -478,13 +845,186 @@ describe("WorkflowService", () => {
         headVersion,
       });
       const result = await service.updateWorkflow("lin-1", "actor-1", {
+        expectedVersion: 1,
         name: "Updated",
       });
       expect(result.name).toBe("Updated");
     });
+
+    // G-063 — a write based on a version that is no longer the head is a
+    // second editor about to overwrite the first, silently. It is refused.
+    it("refuses a write whose expectedVersion is behind the head", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow); // head is v1
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 0,
+          name: "Stale",
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("names both versions in the conflict so the caller can explain it", async () => {
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        headVersion: { ...headVersion, version_number: 4 },
+      });
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 3,
+          name: "Stale",
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          error: "workflow_version_conflict",
+          expectedVersion: 3,
+          currentVersion: 4,
+        },
+      });
+    });
+
+    it("never writes when the base is stale", async () => {
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        headVersion: { ...headVersion, version_number: 9 },
+      });
+      mockLineage.update.mockClear();
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          name: "Stale",
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockLineage.update).not.toHaveBeenCalled();
+    });
+
+    // Draft-save (2026-08-02): a semantically-invalid config appends a
+    // version like any other save; only a structurally-unstorable one is
+    // refused.
+    it("appends a version for a semantically-invalid config (draft-save)", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+
+      const result = await service.updateWorkflow("lin-1", "actor-1", {
+        expectedVersion: 1,
+        config: invalid,
+      });
+
+      expect(result).toBeDefined();
+      expect(mockVersion.create).toHaveBeenCalled();
+    });
+
+    it("still refuses a config the store cannot hold (no nodes map)", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      await expect(
+        service.updateWorkflow("lin-1", "actor-1", {
+          expectedVersion: 1,
+          config: { schemaVersion: "2.0" } as unknown as GraphWorkflowConfig,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockVersion.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // Draft-save (2026-08-02): the semantic gate that used to sit on save
+  // lives here now — run starts call this and refuse invalid configs.
+  describe("assertConfigRunnable", () => {
+    it("passes a valid config", async () => {
+      await expect(
+        service.assertConfigRunnable(makeGraphConfig(), "group-1"),
+      ).resolves.toBeUndefined();
+    });
+
+    it("throws BadRequestException carrying the validator's findings", async () => {
+      const invalid: GraphWorkflowConfig = {
+        ...makeGraphConfig(),
+        nodes: {
+          bad: {
+            id: "bad",
+            type: "activity",
+            label: "Bad",
+            activityType: "not.a.real.activity",
+          },
+        },
+        entryNodeId: "bad",
+      };
+      await expect(
+        service.assertConfigRunnable(invalid, "group-1"),
+      ).rejects.toMatchObject({
+        response: {
+          message: expect.stringContaining("cannot run"),
+          errors: expect.arrayContaining([
+            expect.objectContaining({ severity: "error" }),
+          ]),
+        },
+      });
+    });
+  });
+
+  // G-050 — the lineage cascade nulls every pinned document's config link.
+  // Documents are NOT deleted; the record of which graph produced them is.
+  describe("describeDeleteImpact", () => {
+    it("throws NotFoundException when the lineage does not exist", async () => {
+      mockLineage.findUnique.mockResolvedValue(null);
+      await expect(service.describeDeleteImpact("lin-1")).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it("counts the versions and the documents pinned to them", async () => {
+      mockLineage.findUnique.mockResolvedValue({ id: "lin-1" });
+      mockVersion.count.mockResolvedValue(4);
+      mockDocument.count.mockResolvedValue(233);
+      await expect(service.describeDeleteImpact("lin-1")).resolves.toEqual({
+        versionCount: 4,
+        documentCount: 233,
+      });
+      expect(mockDocument.count).toHaveBeenCalledWith({
+        where: { workflowVersion: { lineage_id: "lin-1" } },
+      });
+    });
+
+    it("reports zero documents rather than omitting the count", async () => {
+      mockLineage.findUnique.mockResolvedValue({ id: "lin-1" });
+      mockVersion.count.mockResolvedValue(1);
+      mockDocument.count.mockResolvedValue(0);
+      await expect(service.describeDeleteImpact("lin-1")).resolves.toEqual({
+        versionCount: 1,
+        documentCount: 0,
+      });
+    });
   });
 
   describe("deleteWorkflow", () => {
+    // G-050 — the counts are the only record of what the delete detached; the
+    // versions and the documents' links are both gone by the time it returns.
+    it("records what the delete detached in the audit payload", async () => {
+      mockLineage.findUnique.mockResolvedValue(lineageRow);
+      mockLineage.delete.mockResolvedValue(lineageRow);
+      mockVersion.count.mockResolvedValue(3);
+      mockDocument.count.mockResolvedValue(12);
+      await service.deleteWorkflow("lin-1", "actor-1");
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_deleted",
+          payload: expect.objectContaining({
+            version_count: 3,
+            detached_document_count: 12,
+          }),
+        }),
+      );
+    });
+
     it("throws NotFoundException when lineage not found", async () => {
       mockLineage.findUnique.mockResolvedValue(null);
       await expect(service.deleteWorkflow("lin-1", "actor-1")).rejects.toThrow(
@@ -511,5 +1051,410 @@ describe("WorkflowService", () => {
         ConflictException,
       );
     });
+
+    // -----------------------------------------------------------------------
+    // G-019 — a library workflow must not vanish under the workflows that
+    // call it. `workflowRef.workflowId` lives inside `WorkflowVersion.config`
+    // JSON, so there is no foreign key and the pre-existing `P2003` catch
+    // above can never fire for it.
+    // -----------------------------------------------------------------------
+    describe("G-019 — library reference guard", () => {
+      const callerConfig = (workflowId: string) => ({
+        schemaVersion: "1.0",
+        entryNodeId: "child",
+        ctx: {},
+        nodes: {
+          child: {
+            id: "child",
+            type: "childWorkflow",
+            label: "Run library",
+            workflowRef: { type: "library", workflowId },
+          },
+        },
+        edges: [],
+      });
+
+      it("refuses to delete a workflow that other workflows call as a library", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            group_id: "group-1",
+            version_number: 4,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(/Caller workflow/);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("blocks on a reference that names the lineage rather than its id", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            group_id: "group-1",
+            version_number: 1,
+            // `getWorkflowGraphConfig` resolves a ref by WorkflowVersion.id,
+            // lineage id OR lineage NAME — all three are live references.
+            config: callerConfig(lineageRow.name),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("blocks on a reference that pins one of the lineage's version ids", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([
+          { id: "wv-1" },
+          { id: "wv-2" },
+        ]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            group_id: "group-1",
+            version_number: 1,
+            config: callerConfig("wv-2"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("RULING: a reference from a NON-HEAD version still blocks the delete", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Caller workflow",
+            group_id: "group-1",
+            // Version 2 of a caller whose head is version 7 — superseded, but
+            // still reachable through `workflowRef.version` pinning, through
+            // `Document.workflow_version_id`, and through benchmark
+            // definitions. So it counts.
+            version_number: 2,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        await expect(
+          service.deleteWorkflow("lin-1", "actor-1"),
+        ).rejects.toThrow(ConflictException);
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("deletes a workflow nothing references", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        expect(mockLineage.delete).toHaveBeenCalledWith({
+          where: { id: "lin-1" },
+        });
+      });
+
+      it("does not block on a LIKE-only match that is not a real library reference", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        // The prefilter `LIKE` matched because the id appears somewhere in the
+        // config text, but no childWorkflow node actually calls it.
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-unrelated",
+            lineage_name: "Unrelated workflow",
+            group_id: "group-1",
+            version_number: 1,
+            config: {
+              schemaVersion: "1.0",
+              entryNodeId: "a",
+              ctx: {},
+              metadata: { note: "forked from lin-1 by hand" },
+              nodes: {
+                a: {
+                  id: "a",
+                  type: "activity",
+                  label: "Extract",
+                  activityType: "azureOcr.extract",
+                  parameters: { sourceWorkflow: "lin-1" },
+                },
+              },
+              edges: [],
+            },
+          },
+        ]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        expect(mockLineage.delete).toHaveBeenCalledWith({
+          where: { id: "lin-1" },
+        });
+      });
+
+      // Tenancy: the SCAN is intentionally unscoped by group (a cross-group
+      // reference is a real reference), but the MESSAGE must not disclose
+      // another tenant's workflow names.
+      it("names same-group referrers", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-caller",
+            lineage_name: "Payroll intake",
+            group_id: "group-1",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        expect((error as ConflictException).message).toContain(
+          "Payroll intake",
+        );
+        expect((error as ConflictException).message).toContain(
+          "1 other workflow still calls it",
+        );
+      });
+
+      it("counts but does NOT name referrers from another group", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-other-a",
+            lineage_name: "Secret tenant workflow A",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+          {
+            lineage_id: "lin-other-b",
+            lineage_name: "Secret tenant workflow B",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        expect(error).toBeInstanceOf(ConflictException);
+        const message = (error as ConflictException).message;
+        // Still refuses, still says why.
+        expect(message).toContain("2 workflows in other groups");
+        // Leaks nothing.
+        expect(message).not.toContain("Secret tenant workflow A");
+        expect(message).not.toContain("Secret tenant workflow B");
+        expect(message).not.toContain("lin-other-a");
+        expect(mockLineage.delete).not.toHaveBeenCalled();
+      });
+
+      it("mixes named same-group referrers with a count of out-of-group ones", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        mockQueryRaw.mockResolvedValue([
+          {
+            lineage_id: "lin-mine",
+            lineage_name: "My caller",
+            group_id: "group-1",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+          {
+            lineage_id: "lin-theirs",
+            lineage_name: "Their caller",
+            group_id: "group-999",
+            version_number: 1,
+            config: callerConfig("lin-1"),
+          },
+        ]);
+
+        const error = await service
+          .deleteWorkflow("lin-1", "actor-1")
+          .catch((e: unknown) => e as ConflictException);
+
+        const message = (error as ConflictException).message;
+        expect(message).toContain("2 other workflows still call it");
+        expect(message).toContain("My caller");
+        expect(message).toContain("1 workflow in other groups");
+        expect(message).not.toContain("Their caller");
+      });
+
+      it("ignores self-references from the lineage being deleted", async () => {
+        mockLineage.findUnique.mockResolvedValue(lineageRow);
+        mockVersion.findMany.mockResolvedValue([{ id: "wv-1" }]);
+        // The scan excludes the target lineage's own versions in SQL; assert
+        // the exclusion is expressed rather than relying on the mock.
+        mockQueryRaw.mockResolvedValue([]);
+
+        await service.deleteWorkflow("lin-1", "actor-1");
+
+        const sql = mockQueryRaw.mock.calls[0][0] as { values: unknown[] };
+        expect(sql.values).toContain("lin-1");
+        expect(mockLineage.delete).toHaveBeenCalled();
+      });
+    });
   });
+
+  // ---------------------------------------------------------------------------
+  // D11 — restoring an older version APPENDS it as a new version. The old
+  // behaviour parked head on the old row, which broke the very next save:
+  // `updateWorkflow` numbers a new version `head.version_number + 1`, so head
+  // on v1 with a v2 present collided on `@@unique([lineage_id, version_number])`.
+  // ---------------------------------------------------------------------------
+  describe("revertHeadToVersion", () => {
+    const v1 = {
+      id: "wv-1",
+      lineage_id: "lin-1",
+      version_number: 1,
+      config: makeGraphConfig(),
+      created_at: new Date(),
+    };
+    const v2 = { ...v1, id: "wv-2", version_number: 2 };
+    const v3 = { ...v1, id: "wv-3", version_number: 3 };
+
+    beforeEach(() => {
+      // Head is v2; the user restores v1.
+      mockVersion.findUnique.mockResolvedValue(v1);
+      mockLineage.findUnique.mockResolvedValue({
+        ...lineageRow,
+        head_version_id: "wv-2",
+        headVersion: v2,
+      });
+      mockVersion.create.mockResolvedValue(v3);
+      mockLineage.update.mockResolvedValue({
+        ...lineageRow,
+        head_version_id: "wv-3",
+        headVersion: v3,
+      });
+    });
+
+    it("creates a new version row carrying the restored config", async () => {
+      const result = await service.revertHeadToVersion(
+        "lin-1",
+        "wv-1",
+        "actor-1",
+      );
+
+      expect(mockVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            lineage_id: "lin-1",
+            version_number: 3,
+          }),
+        }),
+      );
+      const created = mockVersion.create.mock.calls[0][0] as {
+        data: { config: GraphWorkflowConfig };
+      };
+      expect(created.data.config.entryNodeId).toBe(v1.config.entryNodeId);
+      // The caller is told about the NEW version, which is what makes the
+      // outcome visible in the editor + history drawer.
+      expect(result.version).toBe(3);
+      expect(result.workflowVersionId).toBe("wv-3");
+    });
+
+    it("points head at the new version, never back at the old row", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      expect(mockLineage.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "lin-1" },
+          data: { head_version_id: "wv-3" },
+        }),
+      );
+    });
+
+    it("leaves the restored source version untouched", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      const updates = mockVersion.create.mock.calls.map(
+        (c) =>
+          (c[0] as { data: { version_number: number } }).data.version_number,
+      );
+      expect(updates).toEqual([3]);
+      expect(mockVersion.findUnique).toHaveBeenCalledWith({
+        where: { id: "wv-1" },
+      });
+    });
+
+    it("audits the restore with both the new and the source version", async () => {
+      await service.revertHeadToVersion("lin-1", "wv-1", "actor-1");
+
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "workflow_head_reverted",
+          resource_id: "lin-1",
+          payload: expect.objectContaining({
+            workflow_version_id: "wv-3",
+            version_number: 3,
+            restored_from_version_id: "wv-1",
+            restored_from_version_number: 1,
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("rejects a version from another lineage", async () => {
+      mockVersion.findUnique.mockResolvedValue({
+        ...v1,
+        lineage_id: "other-lineage",
+      });
+
+      await expect(
+        service.revertHeadToVersion("lin-1", "wv-1", "actor-1"),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockVersion.create).not.toHaveBeenCalled();
+    });
+
+    it("retries once when a concurrent save takes the next version number", async () => {
+      const conflict = new Prisma.PrismaClientKnownRequestError("dup", {
+        code: "P2002",
+        clientVersion: "test",
+      });
+      mockVersion.create
+        .mockRejectedValueOnce(conflict)
+        .mockResolvedValueOnce(v3);
+
+      const result = await service.revertHeadToVersion(
+        "lin-1",
+        "wv-1",
+        "actor-1",
+      );
+
+      expect(mockVersion.create).toHaveBeenCalledTimes(2);
+      expect(result.version).toBe(3);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // US-146 — cancelInFlightTriesForLineage helper
+  // ---------------------------------------------------------------------------
 });

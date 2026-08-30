@@ -422,6 +422,18 @@ export interface GraphWorkflowInput {
    * still execute, just without cache reads/writes).
    */
   workflowLineageId?: string | null;
+  /**
+   * What started this run (G-021): `"try"` for an editor preview from the
+   * canvas, `"api"` for a production run (the `/runs` API or a document
+   * processed by `OcrService`). The worker uses it to gate the per-node
+   * activity-output cache to editor Try runs only — production-scope
+   * caching is deferred (Phase 4.x) pending a GDPR review, so a run
+   * without `trigger === "try"` must bypass cache reads AND writes.
+   * Optional because runs started before the field shipped carry no
+   * value; absence is treated as production (cache bypassed), the safe
+   * direction.
+   */
+  trigger?: "try" | "api";
 }
 
 export interface GraphWorkflowResult {

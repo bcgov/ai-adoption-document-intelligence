@@ -1,0 +1,16 @@
+[
+  {
+    "id": "sample-invoice",
+    "name": "Sample invoice (1 page)",
+    "description": "A single-page invoice with vendor, line items, and totals. Good for OCR + field-extraction workflows.",
+    "file": "sample-invoice.pdf",
+    "mimeType": "application/pdf"
+  },
+  {
+    "id": "multi-page-sample",
+    "name": "Multi-document PDF (several pages)",
+    "description": "A multi-page PDF containing more than one document type. Good for classify + split workflows.",
+    "file": "multi-page-sample.pdf",
+    "mimeType": "application/pdf"
+  }
+]

@@ -1,4 +1,5 @@
 import { GroupRole } from "@generated/client";
+import type { ValidatedInternalToken } from "./internal-token.service";
 
 /**
  * User interface representing the validated JWT payload.
@@ -47,6 +48,12 @@ declare module "express" {
     user?: User;
     /** Set by ApiKeyAuthGuard when a valid API key is used. */
     apiKey?: ValidatedApiKey;
+    /**
+     * Set by InternalTokenAuthGuard when a valid `x-internal-token` is
+     * used (Change W — server-minted, group-scoped short-lived tokens).
+     * The type lives with the service that mints it.
+     */
+    internalToken?: ValidatedInternalToken;
     /**
      * Set by IdentityGuard after authentication succeeds.
      * Contains the normalised requestor identity for downstream authorization.

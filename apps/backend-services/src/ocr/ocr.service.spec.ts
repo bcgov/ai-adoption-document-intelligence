@@ -201,6 +201,8 @@ describe("OcrService", () => {
         expect.any(String),
         expect.any(Object),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
     });
@@ -232,6 +234,8 @@ describe("OcrService", () => {
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-from-meta" }),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
     });
@@ -247,6 +251,8 @@ describe("OcrService", () => {
         "workflow-config-123",
         expect.objectContaining({ templateModelId: "tm-b" }),
         defaultDocument.group_id,
+        // G-021: document processing is a production run, never an editor Try.
+        "api",
         undefined,
       );
     });
