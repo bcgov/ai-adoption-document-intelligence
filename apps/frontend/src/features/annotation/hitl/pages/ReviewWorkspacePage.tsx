@@ -1,26 +1,41 @@
-import { IconArrowLeft, IconRotate } from "@tabler/icons-react";
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  IconArrowLeft,
+  IconEye,
+  IconEyeOff,
+  IconFlag,
+  IconRotate,
+} from "@tabler/icons-react";
+import {
+  FC,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { colorForFieldKeyWithBorder } from "@/shared/utils";
 import {
   Accordion,
+  ActionIcon,
   Button,
   Checkbox,
   Group,
   Loader,
-  Modal,
   notifications,
   Paper,
   ScrollArea,
   Stack,
   Text,
   Textarea,
-  TextInput,
-  Title,
+  Tooltip,
   useElementSize,
 } from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
-import { usePdfPageImage } from "../../core/canvas/hooks/usePdfPageImage";
+import {
+  RENDER_SCALE,
+  usePdfPageImage,
+} from "../../core/canvas/hooks/usePdfPageImage";
 import { FieldFilterInput } from "../../core/field-panel/FieldFilterInput";
 import { FieldListScrollArea } from "../../core/field-panel/FieldListScrollArea";
 import { KeyboardManager } from "../../core/keyboard/KeyboardManager";
@@ -28,7 +43,12 @@ import type { ShortcutDefinition } from "../../core/keyboard/useKeyboardShortcut
 import { CorrectionAction } from "../../core/types/annotation";
 import type { BoundingBox } from "../../core/types/canvas";
 import { CanvasTool } from "../../core/types/canvas";
-import { ConfidenceIndicator } from "../components/ConfidenceIndicator";
+import { CanvasFieldOverlay } from "../components/CanvasFieldOverlay";
+import {
+  ConfidenceIndicator,
+  getConfidenceBorderColor,
+  getConfidenceCanvasColor,
+} from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
@@ -133,6 +153,97 @@ const EnrichmentSummaryPanel: FC<{
   </Accordion>
 );
 
+interface FieldListItemProps {
+  field: ReviewField;
+  displayValue: string;
+  isCorrected: boolean;
+  isActive: boolean;
+  readOnly: boolean;
+  confidenceBorder: string;
+  validator?: (value: string) => string | null | undefined;
+  onChange: (field: ReviewField, value: string) => void;
+  onSelect: (fieldKey: string) => void;
+  onFocusField: (fieldKey: string) => void;
+}
+
+const FieldListItem = memo<FieldListItemProps>(
+  ({
+    field,
+    displayValue,
+    isCorrected,
+    isActive,
+    readOnly,
+    confidenceBorder,
+    validator,
+    onChange,
+    onSelect,
+    onFocusField,
+  }) => {
+    const isSelectionMark =
+      displayValue === ":selected:" || displayValue === ":unselected:";
+    return (
+      <Paper
+        data-field-key={field.fieldKey}
+        withBorder
+        p="sm"
+        style={{
+          borderColor: isActive ? "#ff0000" : confidenceBorder,
+          borderStyle: isActive ? "dashed" : "solid",
+          borderWidth: isActive ? "3px" : "2px",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          onSelect(field.fieldKey);
+          onFocusField(field.fieldKey);
+        }}
+      >
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <Text fw={600} size="sm">
+                {field.fieldKey}
+              </Text>
+              {isCorrected && (
+                <Text size="xs" c="yellow" fw={500}>
+                  ✎ Edited
+                </Text>
+              )}
+            </Group>
+            <ConfidenceIndicator confidence={field.confidence} />
+          </Group>
+          {isSelectionMark ? (
+            <Checkbox
+              data-field-key={field.fieldKey}
+              checked={displayValue === ":selected:"}
+              onChange={(event) =>
+                onChange(
+                  field,
+                  event.currentTarget.checked ? ":selected:" : ":unselected:",
+                )
+              }
+              disabled={readOnly}
+              label={displayValue === ":selected:" ? "Selected" : "Unselected"}
+            />
+          ) : (
+            <Textarea
+              data-field-key={field.fieldKey}
+              value={displayValue}
+              onChange={(event) => onChange(field, event.currentTarget.value)}
+              disabled={readOnly}
+              autosize
+              minRows={1}
+              error={
+                validator ? (validator(displayValue) ?? undefined) : undefined
+              }
+            />
+          )}
+        </Stack>
+      </Paper>
+    );
+  },
+);
+FieldListItem.displayName = "FieldListItem";
+
 export const ReviewWorkspacePage: FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
@@ -158,13 +269,20 @@ export const ReviewWorkspacePage: FC = () => {
     isLoading,
     submitCorrectionsAsync,
     approveSessionAsync,
-    escalateSessionAsync,
     skipSessionAsync,
+    flagSessionAsync,
     isApproving,
-    isEscalating,
     isSkipping,
+    isFlagging,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
+  // A flagged session is paused work anyone in the group may take over; an
+  // approved one only its own reviewer can reopen, and only for five minutes.
+  const canTakeOver = session?.status === "flagged";
+  const canReopen = Boolean(
+    session?.completedAt &&
+      Date.now() - new Date(session.completedAt).getTime() <= 5 * 60 * 1000,
+  );
   const [docState, setDocState] = useState<{
     url: string | null;
     isNormalizedPdf: boolean;
@@ -192,8 +310,6 @@ export const ReviewWorkspacePage: FC = () => {
       }
     >
   >({});
-  const [escalationOpen, setEscalationOpen] = useState(false);
-  const [escalationReason, setEscalationReason] = useState("");
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState("");
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
@@ -203,6 +319,22 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  /**
+   * When true, the document view suppresses bounding boxes, labels, and
+   * other drawn overlays. The active-field inline edit overlay still
+   * renders so the reviewer can tab through fields without canvas chrome.
+   */
+  const [hideOverlayElements, setHideOverlayElements] = useState(false);
+  /**
+   * Keyboard toggle (F2) that fades the canvas overlay textbox + label so
+   * the reviewer can peek at the underlying form region without using the
+   * mouse. Persists across field navigation so a hide-once-then-tab pattern
+   * keeps the document visible until they bring the overlay back.
+   */
+  const [overlayHiddenByKeyboard, setOverlayHiddenByKeyboard] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(
+    () => localStorage.getItem("hitl-auto-advance") !== "false",
+  );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
 
   const queuePath = location.pathname.match(
@@ -211,7 +343,7 @@ export const ReviewWorkspacePage: FC = () => {
     ? location.pathname.replace(/\/[^/]+$/, "")
     : "/review";
 
-  useSessionHeartbeat(sessionId, queuePath);
+  useSessionHeartbeat(sessionId, queuePath, session?.status === "in_progress");
 
   const {
     pushUndo,
@@ -222,6 +354,22 @@ export const ReviewWorkspacePage: FC = () => {
   } = useUndoRedo(sessionId);
 
   const { advance } = useAutoAdvance();
+
+  const advanceOrReturn = useCallback(() => {
+    if (autoAdvance) {
+      advance(session?.document?.id);
+    } else {
+      navigateToQueue();
+    }
+  }, [autoAdvance, advance, session?.document?.id, navigateToQueue]);
+
+  const handleAutoAdvanceToggle = useCallback(() => {
+    setAutoAdvance((prev) => {
+      const next = !prev;
+      localStorage.setItem("hitl-auto-advance", String(next));
+      return next;
+    });
+  }, []);
 
   // Seed correctionMap from previously saved corrections so that both
   // readOnly "View" and reopened-for-editing sessions show prior edits.
@@ -332,7 +480,13 @@ export const ReviewWorkspacePage: FC = () => {
     if (ocrPage?.width) {
       return pdfPageSize.width / ocrPage.width;
     }
-    return 144; // 72 pts/inch * RENDER_SCALE(2)
+    // Azure OCR polygons are in inches; the PDF page is rendered at
+    // RENDER_SCALE × 72 DPI. When the OCR page width is unavailable (the
+    // session payload omits analyzeResult.pages), this ratio is the exact
+    // fallback: pdfPageSize.width / ocrPage.width always reduces to
+    // RENDER_SCALE × 72 regardless of page size. Must track RENDER_SCALE —
+    // a hardcoded constant silently misplaces every box when it changes.
+    return RENDER_SCALE * 72;
   }, [
     isNormalizedPdf,
     pdfPageSize,
@@ -467,7 +621,9 @@ export const ReviewWorkspacePage: FC = () => {
     );
 
     return fieldsOnPage.map((field) => {
-      const { borderCss } = colorForFieldKeyWithBorder(field.fieldKey);
+      // Document-view bounding boxes carry only confidence semantics — no
+      // field-key-based coloring (same policy as the snippet view).
+      const confidenceColor = getConfidenceCanvasColor(field.confidence);
       const isActive = field.fieldKey === activeFieldKey;
       return {
         id: field.fieldKey,
@@ -478,7 +634,7 @@ export const ReviewWorkspacePage: FC = () => {
           })),
         },
         label: field.fieldKey,
-        color: borderCss,
+        color: confidenceColor,
         confidence: field.confidence,
         isActive,
       };
@@ -535,29 +691,36 @@ export const ReviewWorkspacePage: FC = () => {
     }
   }, [activeFieldKey]);
 
-  const handleFieldChange = (field: ReviewField, value: string) => {
-    const previousValue =
-      correctionMap[field.fieldKey]?.corrected_value ??
-      enrichmentCorrectedValues.get(field.fieldKey) ??
-      field.value;
+  // Ref so handleFieldChange stays stable while still reading current correctionMap
+  const correctionMapRef = useRef(correctionMap);
+  correctionMapRef.current = correctionMap;
 
-    pushUndo({
-      type: "field-edit",
-      fieldKey: field.fieldKey,
-      previousValue,
-    });
+  const handleFieldChange = useCallback(
+    (field: ReviewField, value: string) => {
+      const previousValue =
+        correctionMapRef.current[field.fieldKey]?.corrected_value ??
+        enrichmentCorrectedValues.get(field.fieldKey) ??
+        field.value;
 
-    setCorrectionMap((prev) => ({
-      ...prev,
-      [field.fieldKey]: {
-        field_key: field.fieldKey,
-        original_value: field.value,
-        corrected_value: value,
-        original_conf: field.confidence,
-        action: CorrectionAction.CORRECTED,
-      },
-    }));
-  };
+      pushUndo({
+        type: "field-edit",
+        fieldKey: field.fieldKey,
+        previousValue,
+      });
+
+      setCorrectionMap((prev) => ({
+        ...prev,
+        [field.fieldKey]: {
+          field_key: field.fieldKey,
+          original_value: field.value,
+          corrected_value: value,
+          original_conf: field.confidence,
+          action: CorrectionAction.CORRECTED,
+        },
+      }));
+    },
+    [enrichmentCorrectedValues, pushUndo],
+  );
 
   const handleReopen = async () => {
     if (!sessionId) return;
@@ -573,8 +736,10 @@ export const ReviewWorkspacePage: FC = () => {
       });
     } catch {
       notifications.show({
-        title: "Cannot reopen",
-        message: "The reopen window may have expired or the dataset is frozen",
+        title: canTakeOver ? "Could not take this document" : "Cannot reopen",
+        message: canTakeOver
+          ? "Another reviewer may have taken it already. Go back to the queue and refresh."
+          : "The reopen window may have expired or the dataset is frozen",
         color: "red",
         autoClose: 5000,
       });
@@ -594,14 +759,14 @@ export const ReviewWorkspacePage: FC = () => {
 
     notifications.show({
       title: "Document approved",
-      message: "Moving to next document",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
       color: "green",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
+    advanceOrReturn();
   };
 
   const handleSkip = async () => {
@@ -609,52 +774,76 @@ export const ReviewWorkspacePage: FC = () => {
 
     notifications.show({
       title: "Document skipped",
-      message: "Moving to next document",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
       color: "gray",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
+    advanceOrReturn();
   };
 
-  const handleEscalate = async () => {
-    if (!escalationReason.trim()) return;
-    await escalateSessionAsync(escalationReason.trim());
-    setEscalationOpen(false);
-    setEscalationReason("");
+  const handleFlag = useCallback(async () => {
+    await flagSessionAsync();
 
     notifications.show({
-      title: "Document escalated",
-      message: "Moving to next document",
-      color: "yellow",
+      title: "Document flagged",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
+      color: "orange",
       autoClose: 3000,
     });
 
     clearUndoStack();
     setCorrectionMap({});
-    advance();
-  };
+    advanceOrReturn();
+  }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
 
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
+      // Detect focus context BEFORE state change. When tabbing starts on
+      // the inline canvas overlay (data-overlay-field-key), we let the
+      // next overlay's autoFocus carry focus forward instead of stealing
+      // it back to the sidebar. Tabbing started in the sidebar keeps the
+      // existing behavior (focus the matching sidebar input).
+      const active = document.activeElement as HTMLElement | null;
+      const fromOverlay = !!active?.dataset?.overlayFieldKey;
+
       const currentIndex = filteredSortedFields.findIndex(
         (f) => f.fieldKey === activeFieldKey,
       );
-      let nextIndex: number;
-      if (direction === "next") {
-        nextIndex =
-          currentIndex < filteredSortedFields.length - 1 ? currentIndex + 1 : 0;
-      } else {
-        nextIndex =
-          currentIndex > 0 ? currentIndex - 1 : filteredSortedFields.length - 1;
+      const step = direction === "next" ? 1 : -1;
+      const wrap = (i: number) =>
+        (i + filteredSortedFields.length) % filteredSortedFields.length;
+      let nextIndex = wrap(currentIndex + step);
+      let nextField = filteredSortedFields[nextIndex];
+      if (fromOverlay) {
+        // Stay in the canvas-overlay stack: a field without a bounding box
+        // on the current page mounts no overlay (see the `boxes` memo), so
+        // the old overlay would unmount with nothing to autoFocus and focus
+        // would fall to <body>. Skip such fields; they remain reachable
+        // through the sidebar stack.
+        const overlayCapable = (f: (typeof filteredSortedFields)[number]) =>
+          f.pageNumber === currentPage &&
+          !!f.boundingBox &&
+          f.boundingBox.polygon.length >= 2;
+        let guard = filteredSortedFields.length;
+        while (nextField && !overlayCapable(nextField) && guard-- > 0) {
+          nextIndex = wrap(nextIndex + step);
+          nextField = filteredSortedFields[nextIndex];
+        }
+        if (!nextField || !overlayCapable(nextField)) return;
       }
-      const nextField = filteredSortedFields[nextIndex];
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
           focusField(nextField.fieldKey);
+        }
+        if (fromOverlay) {
+          // The new overlay renders with autoFocus on its textarea; nothing
+          // more to do here. Skipping the sidebar focus prevents the cursor
+          // from jumping out of the canvas.
+          return;
         }
         // Focus the input/textarea/checkbox after React re-renders
         requestAnimationFrame(() => {
@@ -671,7 +860,7 @@ export const ReviewWorkspacePage: FC = () => {
         });
       }
     },
-    [filteredSortedFields, activeFieldKey, viewMode, focusField],
+    [filteredSortedFields, activeFieldKey, viewMode, focusField, currentPage],
   );
 
   const handleUndo = useCallback(() => {
@@ -742,11 +931,11 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
       {
-        key: "E",
+        key: "F",
         ctrl: true,
         shift: true,
-        handler: () => setEscalationOpen(true),
-        description: "Escalate document",
+        handler: handleFlag,
+        description: "Flag document for priority review",
         alwaysActive: true,
       },
       {
@@ -770,6 +959,12 @@ export const ReviewWorkspacePage: FC = () => {
         shift: true,
         handler: handleRedo,
         description: "Redo",
+        alwaysActive: true,
+      },
+      {
+        key: "F2",
+        handler: () => setOverlayHiddenByKeyboard((v) => !v),
+        description: "Hide/show inline edit overlay (peek behind)",
         alwaysActive: true,
       },
       {
@@ -806,7 +1001,16 @@ export const ReviewWorkspacePage: FC = () => {
         alwaysActive: true,
       },
     ],
-    [navigateToField, handleApprove, handleSkip, handleUndo, handleRedo],
+    [
+      navigateToField,
+      handleApprove,
+      handleFlag,
+      handleSkip,
+      handleUndo,
+      handleRedo,
+      setOverlayHiddenByKeyboard,
+      handleAutoAdvanceToggle,
+    ],
   );
 
   if (isLoading) {
@@ -834,45 +1038,51 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
-        <Group justify="space-between">
-          <Group>
+        {readOnly ? (
+          <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
               variant="subtle"
+              color="gray"
               leftSection={<IconArrowLeft size={16} />}
               onClick={navigateToQueue}
             >
               Back
             </Button>
-            <Stack gap={2}>
-              <Title order={2}>
-                {readOnly ? "view session" : "review session"}
-              </Title>
-              <Text size="sm" c="dimmed">
-                {session?.document?.original_filename || "Document review"}
-              </Text>
-            </Stack>
+            {canTakeOver ? (
+              <Button
+                variant="light"
+                color="orange"
+                leftSection={<IconFlag size={16} />}
+                onClick={handleReopen}
+                loading={isReopening}
+              >
+                Take for editing
+              </Button>
+            ) : (
+              canReopen && (
+                <Button
+                  variant="light"
+                  color="blue"
+                  leftSection={<IconRotate size={16} />}
+                  onClick={handleReopen}
+                  loading={isReopening}
+                >
+                  Reopen for editing
+                </Button>
+              )
+            )}
           </Group>
-          {readOnly && (
-            <Button
-              variant="light"
-              color="blue"
-              leftSection={<IconRotate size={16} />}
-              onClick={handleReopen}
-              loading={isReopening}
-            >
-              Reopen for editing
-            </Button>
-          )}
-        </Group>
-
-        {!readOnly && (
+        ) : (
           <ReviewToolbar
+            onBack={navigateToQueue}
             onApprove={handleApprove}
-            onEscalate={() => setEscalationOpen(true)}
+            onFlag={handleFlag}
             onSkip={handleSkip}
             isApproving={isApproving}
-            isEscalating={isEscalating}
+            isFlagging={isFlagging}
             isSkipping={isSkipping}
+            autoAdvance={autoAdvance}
+            onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
             onViewModeToggle={() =>
               setViewMode((m) => (m === "document" ? "snippet" : "document"))
@@ -952,22 +1162,93 @@ export const ReviewWorkspacePage: FC = () => {
                 ) : (
                   canvasWidth > 0 &&
                   canvasHeight > 0 && (
-                    <AnnotationCanvas
-                      ref={fieldFocusCanvasRef}
-                      imageUrl={canvasImageUrl}
-                      width={canvasWidth}
-                      height={canvasHeight}
-                      boxes={boxes}
-                      activeTool={CanvasTool.SELECT}
-                      verticalAlign="top"
-                      fitPadding={1}
-                      onBoxSelect={(boxId) => {
-                        setActiveFieldKey(boxId);
-                        if (boxId) {
-                          focusField(boxId);
+                    <>
+                      <Tooltip
+                        label={
+                          hideOverlayElements
+                            ? "Show bounding boxes & labels"
+                            : "Hide bounding boxes & labels"
                         }
-                      }}
-                    />
+                        position="left"
+                      >
+                        <ActionIcon
+                          variant="default"
+                          onClick={() => setHideOverlayElements((v) => !v)}
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            right: 8,
+                            zIndex: 30,
+                            background: "rgba(255,255,255,0.92)",
+                            color: "#000",
+                          }}
+                          aria-label={
+                            hideOverlayElements
+                              ? "Show overlay elements"
+                              : "Hide overlay elements"
+                          }
+                        >
+                          {hideOverlayElements ? (
+                            <IconEye size={18} color="#000" />
+                          ) : (
+                            <IconEyeOff size={18} color="#000" />
+                          )}
+                        </ActionIcon>
+                      </Tooltip>
+                      <AnnotationCanvas
+                        ref={fieldFocusCanvasRef}
+                        imageUrl={canvasImageUrl}
+                        width={canvasWidth}
+                        height={canvasHeight}
+                        boxes={boxes}
+                        activeTool={CanvasTool.SELECT}
+                        verticalAlign="top"
+                        fitPadding={1}
+                        onBoxSelect={(boxId) => {
+                          setActiveFieldKey(boxId);
+                          if (boxId) {
+                            focusField(boxId);
+                          }
+                        }}
+                        activeBoxId={activeFieldKey}
+                        hideBoxes={hideOverlayElements}
+                        renderActiveBoxOverlay={({ boxId, screenRect }) => {
+                          const field = filteredSortedFields.find(
+                            (f) => f.fieldKey === boxId,
+                          );
+                          if (!field) return null;
+                          const displayValue =
+                            correctionMap[field.fieldKey]?.corrected_value ??
+                            enrichmentCorrectedValues.get(field.fieldKey) ??
+                            field.value;
+                          const isSelectionMark =
+                            displayValue === ":selected:" ||
+                            displayValue === ":unselected:";
+                          return (
+                            <div style={{ marginTop: 4 }}>
+                              <CanvasFieldOverlay
+                                // Per-field key forces a remount when the
+                                // active field changes, so the input's
+                                // mount-only autoFocus re-fires (keyboard Tab
+                                // navigation keeps focus) and isHovering resets.
+                                key={field.fieldKey}
+                                fieldKey={field.fieldKey}
+                                value={displayValue}
+                                confidence={field.confidence}
+                                isSelectionMark={isSelectionMark}
+                                width={screenRect.width}
+                                height={screenRect.height}
+                                readOnly={readOnly}
+                                hiddenByKeyboard={overlayHiddenByKeyboard}
+                                onChange={(next) =>
+                                  handleFieldChange(field, next)
+                                }
+                              />
+                            </div>
+                          );
+                        }}
+                      />
+                    </>
                   )
                 )}
               </div>
@@ -980,8 +1261,8 @@ export const ReviewWorkspacePage: FC = () => {
               style={{
                 width: 360,
                 flexShrink: 0,
+                alignSelf: "stretch",
                 minHeight: 0,
-                maxHeight: "100%",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
@@ -994,13 +1275,15 @@ export const ReviewWorkspacePage: FC = () => {
               }}
             >
               {session?.document?.ocr_result?.enrichment_summary != null && (
-                <EnrichmentSummaryPanel
-                  summary={
-                    session.document.ocr_result
-                      .enrichment_summary as EnrichmentSummary
-                  }
-                  mb="sm"
-                />
+                <div style={{ flexShrink: 0 }}>
+                  <EnrichmentSummaryPanel
+                    summary={
+                      session.document.ocr_result
+                        .enrichment_summary as EnrichmentSummary
+                    }
+                    mb="sm"
+                  />
+                </div>
               )}
               <Group justify="space-between" mb="sm">
                 <Text
@@ -1035,113 +1318,28 @@ export const ReviewWorkspacePage: FC = () => {
                 <Stack gap="md">
                   {filteredSortedFields.map((field) => {
                     const correction = correctionMap[field.fieldKey];
-                    const isCorrected =
-                      correction?.action === CorrectionAction.CORRECTED;
-                    const isActive = field.fieldKey === activeFieldKey;
-
-                    // Generate deterministic color based on field key
-                    const { borderCss } = colorForFieldKeyWithBorder(
-                      field.fieldKey,
-                    );
-
+                    const displayValue =
+                      correction?.corrected_value ??
+                      enrichmentCorrectedValues.get(field.fieldKey) ??
+                      field.value;
                     return (
-                      <Paper
+                      <FieldListItem
                         key={field.fieldKey}
-                        data-field-key={field.fieldKey}
-                        withBorder
-                        p="sm"
-                        style={{
-                          borderColor: isActive ? "#ff0000" : borderCss,
-                          borderStyle: isActive ? "dashed" : "solid",
-                          borderWidth: isActive
-                            ? "3px"
-                            : isCorrected
-                              ? "2px"
-                              : "2px",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => {
-                          setActiveFieldKey(field.fieldKey);
-                          focusField(field.fieldKey);
-                        }}
-                      >
-                        <Stack gap="xs">
-                          <Group justify="space-between">
-                            <Group gap="xs">
-                              <Text fw={600} size="sm">
-                                {field.fieldKey}
-                              </Text>
-                              {isCorrected && (
-                                <Text size="xs" c="yellow" fw={500}>
-                                  ✎ Edited
-                                </Text>
-                              )}
-                            </Group>
-                            <ConfidenceIndicator
-                              confidence={field.confidence}
-                            />
-                          </Group>
-                          {reviewPlanByField.get(field.fieldKey)?.decision ===
-                            "review" && (
-                            <Text size="xs" c="orange" fs="italic">
-                              🚩 {reviewPlanByField.get(field.fieldKey)?.reason}
-                            </Text>
-                          )}
-                          {(() => {
-                            const displayValue =
-                              correctionMap[field.fieldKey]?.corrected_value ??
-                              enrichmentCorrectedValues.get(field.fieldKey) ??
-                              field.value;
-                            const isSelectionMark =
-                              displayValue === ":selected:" ||
-                              displayValue === ":unselected:";
-                            if (isSelectionMark) {
-                              return (
-                                <Checkbox
-                                  data-field-key={field.fieldKey}
-                                  checked={displayValue === ":selected:"}
-                                  onChange={(event) =>
-                                    handleFieldChange(
-                                      field,
-                                      event.currentTarget.checked
-                                        ? ":selected:"
-                                        : ":unselected:",
-                                    )
-                                  }
-                                  disabled={readOnly}
-                                  label={
-                                    displayValue === ":selected:"
-                                      ? "Selected"
-                                      : "Unselected"
-                                  }
-                                />
-                              );
-                            }
-                            return (
-                              <Textarea
-                                data-field-key={field.fieldKey}
-                                value={displayValue}
-                                onChange={(event) =>
-                                  handleFieldChange(
-                                    field,
-                                    event.currentTarget.value,
-                                  )
-                                }
-                                disabled={readOnly}
-                                autosize
-                                minRows={1}
-                                error={
-                                  fieldValidators[field.fieldKey]
-                                    ? fieldValidators[field.fieldKey]!(
-                                        displayValue,
-                                      )
-                                    : undefined
-                                }
-                              />
-                            );
-                          })()}
-                        </Stack>
-                      </Paper>
+                        field={field}
+                        displayValue={displayValue}
+                        isCorrected={
+                          correction?.action === CorrectionAction.CORRECTED
+                        }
+                        isActive={field.fieldKey === activeFieldKey}
+                        readOnly={readOnly}
+                        confidenceBorder={getConfidenceBorderColor(
+                          field.confidence,
+                        )}
+                        validator={fieldValidators[field.fieldKey]}
+                        onChange={handleFieldChange}
+                        onSelect={setActiveFieldKey}
+                        onFocusField={focusField}
+                      />
                     );
                   })}
                 </Stack>
@@ -1166,29 +1364,6 @@ export const ReviewWorkspacePage: FC = () => {
             </Accordion.Panel>
           </Accordion.Item>
         </Accordion>
-
-        <Modal
-          opened={escalationOpen}
-          onClose={() => setEscalationOpen(false)}
-          title="Escalate review"
-        >
-          <Stack gap="md">
-            <TextInput
-              label="Escalation reason"
-              placeholder="Explain why this needs expert review"
-              value={escalationReason}
-              onChange={(event) =>
-                setEscalationReason(event.currentTarget.value)
-              }
-            />
-            <Group justify="flex-end">
-              <Button variant="subtle" onClick={() => setEscalationOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleEscalate}>Escalate</Button>
-            </Group>
-          </Stack>
-        </Modal>
 
         <ShortcutsOverlay
           opened={shortcutsOpen}

@@ -1,9 +1,10 @@
 ---
 status: active
-updated: 2026-07-29
+updated: 2026-08-25
 canonical_sources:
   - docs-md/architecture/HITL_ARCHITECTURE.md
   - docs-md/architecture/HITL_REVIEW_CRITERIA.md
+  - docs-md/extraction/HITL_DEMO_RESET.md
   - apps/backend-services/src/hitl/
   - apps/frontend/src/pages/
   - apps/frontend/src/features/
@@ -17,7 +18,7 @@ do_not_duplicate:
 
 # Human-In-The-Loop
 
-HITL routes low-confidence or review-required document results to humans. It is session-oriented: a reviewer works through a bounded review session for a document, records corrections, and completes or escalates the review.
+HITL routes low-confidence or review-required document results to humans. It is session-oriented: a reviewer works through a bounded review session for a document, records corrections, and then approves it, flags it for someone else, or skips it back to the queue.
 
 ## Source Map
 
@@ -30,8 +31,15 @@ HITL routes low-confidence or review-required document results to humans. It is 
 ## Design Notes
 
 - HITL is per-document-instance state, not group-level reusable configuration.
+- The queue reads persisted `ocr_results` only — gated workflow templates persist OCR *before* the human gate (`persistOcr` node, since 2026-08-01); the post-gate store persists reviewer corrections. See the queue-entry note in `HITL_ARCHITECTURE.md`.
+- Reviewers edit inline on the document canvas (`CanvasFieldOverlay` under `apps/frontend/src/features/annotation/hitl/`), not only in the side panel.
+- A demo/reset seed exists for local review-queue demos without paid OCR: `npm run demo:reset` — see `docs-md/extraction/HITL_DEMO_RESET.md`.
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
+- A session ends in one of three states: `approved`, `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
+- Flagging is a hand-off, not an ending: the Flagged tab reads a document without a lock, and **Take** reopens the same session under the reader's own lock, corrections and all. Editing always holds a lock; only an approved session is restricted to its original reviewer and a five-minute window.
+- Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry.
+- Queue statistics are database counts over the whole queue, not a summary of the page in view.
 
 ## Related Topics
 

@@ -405,7 +405,7 @@ describe("HitlDatasetService", () => {
           review_sessions: [
             {
               ...mockApprovedSession,
-              status: ReviewStatus.escalated,
+              status: ReviewStatus.flagged,
             },
           ],
         },

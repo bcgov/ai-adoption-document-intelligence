@@ -80,9 +80,9 @@ export const DatasetReviewQueuePage: FC = () => {
     switch (status) {
       case "approved":
         return "green";
-      case "escalated":
+      case "flagged":
         return "orange";
-      case "skipped":
+      case "abandoned":
         return "gray";
       default:
         return "blue";

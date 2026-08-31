@@ -117,11 +117,11 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
-  const escalateSessionMutation = useMutation({
-    mutationFn: async (reason: string) => {
+  const skipSessionMutation = useMutation({
+    mutationFn: async () => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/escalate`,
-        { reason },
+        `/hitl/sessions/${sessionId}/skip`,
+        {},
       );
       return response.data;
     },
@@ -133,10 +133,10 @@ export const useReviewSession = (sessionId?: string) => {
     },
   });
 
-  const skipSessionMutation = useMutation({
+  const flagSessionMutation = useMutation({
     mutationFn: async () => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/skip`,
+        `/hitl/sessions/${sessionId}/flag`,
         {},
       );
       return response.data;
@@ -169,6 +169,7 @@ export const useReviewSession = (sessionId?: string) => {
         `/hitl/sessions/${targetSessionId}/reopen`,
         {},
       );
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {
@@ -208,14 +209,14 @@ export const useReviewSession = (sessionId?: string) => {
     submitCorrectionsAsync: submitCorrectionsMutation.mutateAsync,
     approveSession: approveSessionMutation.mutate,
     approveSessionAsync: approveSessionMutation.mutateAsync,
-    escalateSession: escalateSessionMutation.mutate,
-    escalateSessionAsync: escalateSessionMutation.mutateAsync,
     skipSession: skipSessionMutation.mutate,
     skipSessionAsync: skipSessionMutation.mutateAsync,
+    flagSession: flagSessionMutation.mutate,
+    flagSessionAsync: flagSessionMutation.mutateAsync,
     isSubmitting: submitCorrectionsMutation.isPending,
     isApproving: approveSessionMutation.isPending,
-    isEscalating: escalateSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
+    isFlagging: flagSessionMutation.isPending,
     deleteCorrection: deleteCorrectionMutation.mutate,
     deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
     reopenSession: reopenSessionMutation.mutate,

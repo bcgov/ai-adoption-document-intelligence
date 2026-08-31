@@ -15,13 +15,13 @@ A **review session** represents a single, complete review interaction with these
 - **Trackable**: Records timestamps, actions taken, and corrections made
 - **Atomic unit of work**: Contains all corrections and decisions for that review instance
 
-The term "session" emphasizes this is a **temporary, interactive state** rather than a permanent relationship. Once a session reaches a terminal state (approved/escalated/skipped), that review is complete.
+The term "session" emphasizes this is a **temporary, interactive state** rather than a permanent relationship. Once a session reaches a terminal state (approved/flagged/abandoned), that review is complete.
 
 ### Session vs Document
 
 - **Document**: Permanent record of the uploaded file and its OCR results
 - **Session**: Temporary review context - multiple sessions can exist for the same document
-- A document can have multiple sessions over time (e.g., initial review, re-review after escalation)
+- A document can have multiple sessions over time (e.g., initial review, re-review after a flag)
 - Each session is independent and creates its own audit trail
 
 ## Data Model
@@ -61,14 +61,14 @@ model FieldCorrection {
 enum ReviewStatus {
   in_progress
   approved
-  escalated
-  skipped
+  flagged
+  abandoned
 }
 
 enum CorrectionAction {
   confirmed   // Field was reviewed and is correct
   corrected   // Field value was changed/fixed
-  flagged     // Field was flagged for issues (used for escalation)
+  flagged     // Field was flagged for issues
   deleted     // Field should be ignored/deleted
 }
 ```
@@ -95,8 +95,8 @@ model DocumentLock {
 Document locks prevent concurrent editing:
 - A lock is acquired when a session starts (10-minute TTL)
 - The frontend sends heartbeat requests to extend the lock
-- Locks are released when a session completes (approve/escalate/skip)
-- Expired locks are automatically treated as released
+- Locks are released when a session completes (approve/flag/skip)
+- Expired locks are automatically treated as released: `findActiveLock` ignores them, and `LockExpiryService` (a cron running every minute) deletes the row, marks any still-`in_progress` session `abandoned`, and records a `review_session_expired` audit event
 - If the same reviewer starts a session on an already-locked document, the existing session is returned
 - If a different reviewer tries, a `ConflictException` is thrown
 
@@ -117,15 +117,15 @@ Document locks prevent concurrent editing:
       ↓
   in_progress (initial state)
       ↓
-   ┌──┴──────────────┐
-   ↓                 ↓                 ↓
-approved        escalated         skipped
-(terminal)      (terminal)        (terminal)
-   ↓                                  ↓
-releases lock                    releases lock
-   ↓
-[Reopen] ──→ re-acquires lock
-   ↓
+   ┌──┴──────────────┬──────────────────┬────────────────────┐
+   ↓                 ↓                  ↓                    ↓
+approved          flagged           abandoned            abandoned
+(terminal)       (terminal)        (skip, terminal)     (lock expired)
+   ↓                 ↓                  ↓                    ↓
+releases lock   releases lock      releases lock        lock deleted
+   ↓                 ↓                  ↓                    ↓
+[Reopen]      Flagged tab,      back to Pending      back to Pending
+   ↓          view-only
 in_progress
 ```
 
@@ -134,10 +134,11 @@ in_progress
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock |
-| `in_progress` | `escalated` | `POST /sessions/:id/escalate` | Sets `completed_at`, stores reason, releases lock |
-| `in_progress` | `skipped` | `POST /sessions/:id/skip` | Sets `completed_at`, releases lock |
-| `approved`/`escalated`/`skipped` | `in_progress` | `POST /sessions/:id/reopen` | Clears `completed_at`, re-acquires lock |
+| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
+| `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
+| `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
+| `approved` | `in_progress` | `POST /sessions/:id/reopen` | Clears `completed_at`, re-acquires lock, sets document `awaiting_review`. Only the original reviewer, and only within 5 minutes — flag and skip do not set `completed_at`, so those sessions are not reopenable in the regular workflow. Dataset labeling reopens any session while the dataset version is unfrozen |
 
 **Important**: Terminal states can be reopened under specific conditions:
 - Regular workflow: within 5 minutes of completion, by the original reviewer only
@@ -162,10 +163,20 @@ HitlService.getQueue()
 ReviewDbService.findReviewQueue()
       ↓
 Returns: Documents with:
-  - status = 'extracted'
+  - status = 'awaiting_review' (default; the EXTRACTED /
+    ALL filters also admit status = 'extracted')
   - confidence < threshold
   - lastSession info (if reviewed)
 ```
+
+**How documents enter the queue:** the queue reads persisted `ocr_results`
+rows — it never queries Temporal. Gated seeded workflows therefore persist OCR
+before pausing: `checkConfidence → persistOcr (ocr.storeResults) → reviewSwitch
+→ humanReview`, where the `humanReview` (humanGate) executor sets the document
+to `awaiting_review`. The post-gate `storeResults` node runs the same upsert
+again after the reviewer approves, persisting corrected values. (Before
+2026-08-01 the templates only stored results after the gate, so paused
+documents never appeared in the queue.)
 
 **Queue Filtering:**
 - Shows documents that need review (low confidence scores)
@@ -270,28 +281,17 @@ Invalidate query cache
 Navigate back to queue (or auto-advance)
 ```
 
-#### Escalate Path
+#### Flag Path
 ```
-User clicks "Escalate" with reason
+User clicks "Flag"
       ↓
-POST /api/hitl/sessions/:id/escalate
-  { reason: "Complex case requiring expert review" }
+POST /api/hitl/sessions/:id/flag
       ↓
-1. Create special field correction:
-   INSERT INTO field_corrections (
-     session_id,
-     field_key = "_escalation",
-     original_value = reason,
-     action = 'flagged'
-   )
-
-2. Update session:
-   UPDATE review_sessions
-   SET status = 'escalated',
-       completed_at = NOW()
-   WHERE id = :id
+UPDATE review_sessions
+SET status = 'flagged'
+WHERE id = :id
       ↓
-Returns updated session
+Lock released; document listed in the Flagged tab, where it opens read-only
 ```
 
 #### Skip Path
@@ -301,9 +301,11 @@ User clicks "Skip"
 POST /api/hitl/sessions/:id/skip
       ↓
 UPDATE review_sessions
-SET status = 'skipped',
-    completed_at = NOW()
+SET status = 'abandoned'
 WHERE id = :id
+      ↓
+Lock released; document returns to the Pending queue, and the next
+reviewer to open it starts a fresh session
 ```
 
 ## API Endpoints
@@ -319,8 +321,8 @@ WHERE id = :id
 | `GET` | `/api/hitl/sessions/:id/corrections` | Get correction history | Yes |
 | `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
 | `POST` | `/api/hitl/sessions/:id/submit` | Approve session | Yes |
-| `POST` | `/api/hitl/sessions/:id/escalate` | Escalate session with reason | Yes |
-| `POST` | `/api/hitl/sessions/:id/skip` | Skip session | Yes |
+| `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention | Yes |
+| `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
 | `POST` | `/api/hitl/sessions/:id/reopen` | Reopen a completed session | Yes |
 
@@ -373,6 +375,7 @@ WHERE id = :id
 **[ReviewWorkspacePage.tsx](../../apps/frontend/src/features/annotation/hitl/pages/ReviewWorkspacePage.tsx)**
 - Main review interface for active session
 - Side-by-side view: document image + extracted fields
+- Inline canvas editing: [CanvasFieldOverlay.tsx](../../apps/frontend/src/features/annotation/hitl/components/CanvasFieldOverlay.tsx) anchors an input under each field's bounding box on the document image, sized to the box and colored by OCR confidence tier ([ConfidenceIndicator.tsx](../../apps/frontend/src/features/annotation/hitl/components/ConfidenceIndicator.tsx)); Tab moves between fields ([useFieldFocus.ts](../../apps/frontend/src/features/annotation/hitl/hooks/useFieldFocus.ts)), F2 toggles the overlay, hover fades it to reveal the source pixels
 - Fields panel search/filter for quick field lookup during review
 - Field editing with original/corrected value tracking
 - Actions: Approve, Escalate (with reason), Skip
@@ -391,8 +394,8 @@ WHERE id = :id
 - Manages active session state
 - `submitCorrectionsAsync(corrections)`: Saves field corrections
 - `approveSessionAsync()`: Completes session as approved
-- `escalateSessionAsync(reason)`: Escalates with reason
-- `skipSessionAsync()`: Skips session
+- `flagSessionAsync()`: Flags the session for priority attention
+- `skipSessionAsync()`: Skips session, returning the document to the queue
 - Auto-invalidates cache on mutations
 
 ## Backend Architecture
@@ -418,26 +421,55 @@ WHERE id = :id
 
 ### Queue States
 
+The queue has three tabs, and a document locked by another reviewer is excluded
+from all of them.
+
 **Pending**: Documents with either:
 - No review sessions, OR
-- Only `in_progress` sessions
+- Only `in_progress` or `abandoned` sessions
 
-**Reviewed**: Documents with at least one terminal-state session:
-- `approved`
-- `escalated`
-- `skipped`
+**Flagged**: Documents with a `flagged` session and no `approved` session. The
+tab offers two actions. **View** opens the document read-only, so any number of
+people can read it and the correction history at once without taking it.
+**Take** reopens the session for the reader: the status returns to
+`in_progress`, the lock moves to them, and the document rejoins the ordinary
+review flow with the previous reviewer's corrections intact. Editing therefore
+always holds a lock, and flagging hands work on rather than parking it.
 
-### Escalation Mechanism
+**Reviewed**: Documents with at least one `approved` session.
 
-Escalation is a special workflow path for complex cases:
+### Resuming a gated workflow
 
-1. Reviewer clicks "Escalate" and provides a reason
-2. System creates a field correction with:
-   - `field_key = "_escalation"`
-   - `original_value = reason`
-   - `action = 'flagged'`
-3. Session status becomes `escalated`
-4. Document appears in "escalated" queue for expert review
+A workflow that reaches a `humanGate` sets its document to `awaiting_review` and
+then blocks on the `humanApproval` signal — in the seeded templates with a 24
+hour timeout and `onTimeout: "fail"`. Approving a session sends that signal, so
+the workflow continues into the nodes after the gate:
+
+- The Temporal workflow id is derived from the document (`graph-<documentId>`).
+  `Document.workflow_execution_id` is the billing run id and is not the workflow
+  id.
+- Not every reviewable document has a workflow waiting — seeded documents and
+  ungated pipelines have none, and a gate that already timed out is gone. The
+  review is complete regardless, so a failed signal never fails the approval.
+- The outcome is auditable either way: `human_approval_signal_sent` when the
+  workflow was resumed, `human_approval_signal_skipped` (with the reason) when
+  there was nothing to resume. Both carry `source: "hitl_session"`, which
+  distinguishes them from the same signal sent by `POST /documents/:id/approve`.
+
+Rejection is not yet available from the review queue; it exists only on the
+Documents page, which sends the same signal with `approved: false` and a
+structured reason.
+
+### Queue Statistics
+
+`GET /api/hitl/queue/stats` reports on the whole queue rather than the tab in
+view, and every figure is a database count over the same filter the queue list
+uses:
+
+- **Total documents**: documents at `awaiting_review` or `complete`
+- **Requires review**: documents in the Pending queue
+- **Avg confidence**: the mean of each document's mean field confidence
+- **Reviewed today**: sessions approved since local midnight
 
 ### Last Session Tracking
 
@@ -462,7 +494,7 @@ This allows reviewers to see:
 ### Read-Only Mode
 
 Completed sessions can be viewed in read-only mode:
-- All terminal-state sessions (`approved`, `escalated`, `skipped`)
+- All terminal-state sessions (`approved`, `flagged`, `abandoned`), and every session opened from the Flagged tab with **View**
 - Frontend disables editing controls
 - Displays original vs corrected values
 - Shows correction history
@@ -512,16 +544,18 @@ The system tracks metrics for:
 
 4. **Reviewer completes session**
    - Approves if satisfied → status: `approved`
-   - Escalates if complex → status: `escalated`
-   - Skips if cannot complete → status: `skipped`
+   - Flags if it needs someone else's eyes → status: `flagged`
+   - Skips if cannot complete → status: `abandoned`
 
-### Escalation Workflow
+### Flagging Workflow
 
-1. Reviewer encounters complex case
-2. Clicks "Escalate" and provides reason
-3. System marks session as `escalated`
-4. Document appears in expert queue
-5. Expert can start new session for re-review
+1. Reviewer encounters a case they should not decide
+2. Clicks "Flag"
+3. System marks the session `flagged` and releases the lock
+4. Document appears in the Flagged tab, where anyone in the group can read it
+   along with the corrections already made
+5. Whoever picks it up presses **Take**, which returns the session to
+   `in_progress` under their own lock
 
 ### Analytics Use Case
 
@@ -529,7 +563,7 @@ Administrators can analyze:
 - Which fields have highest error rates
 - Which OCR models need improvement
 - Reviewer throughput and accuracy
-- Common escalation reasons
+- How often documents are flagged rather than approved
 
 ## Design Rationale
 
@@ -569,8 +603,8 @@ The system uses pessimistic locking via the `DocumentLock` model to prevent conc
 1. **Acquisition**: A lock is created when a session starts, with a 10-minute TTL (`expires_at = now + 10 min`)
 2. **Heartbeat**: The frontend sends `POST /sessions/:id/heartbeat` every 60 seconds to extend the lock TTL by another 10 minutes
 3. **Idle Warning**: At 8 minutes of inactivity (no heartbeat), the frontend displays a warning to the reviewer
-4. **Auto-Release**: If no heartbeat is received and the TTL expires, the lock is automatically treated as released, making the document available to other reviewers
-5. **Explicit Release**: Completing a session (approve/escalate/skip) explicitly deletes the lock
+4. **Auto-Release**: If no heartbeat is received and the TTL expires, the lock is ignored immediately by lock lookups, and within a minute the lock-expiry cron deletes the row and marks the session `abandoned`, returning the document to the Pending queue
+5. **Explicit Release**: Completing a session (approve/flag/skip) explicitly deletes the lock
 
 **Conflict Handling:**
 
@@ -589,9 +623,9 @@ The review queue is designed for concurrent multi-reviewer usage:
 
 ### Auto-Advance
 
-After a reviewer completes a session (approve, skip, or escalate), the frontend automatically fetches the next eligible document:
+After a reviewer completes a session (approve, skip, or flag), the frontend automatically fetches the next eligible document — unless they have turned the Auto-advance toggle off, in which case they return to the queue:
 
-1. The terminal action (approve/skip/escalate) completes and releases the lock
+1. The terminal action (approve/skip/flag) completes and releases the lock
 2. The frontend calls `POST /sessions/next` which atomically selects the next eligible document and starts a new session
 3. The reviewer is seamlessly transitioned to the next document without returning to the queue page
 4. If no eligible documents remain, the reviewer is returned to the queue view

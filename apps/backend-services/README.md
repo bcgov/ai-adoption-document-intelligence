@@ -133,7 +133,7 @@ The backend services provide a modular, scalable API for:
 - Review session tracking
 - Field-level correction recording
 - Confidence score tracking
-- Escalation workflow
+- Flagging workflow for documents needing another reviewer
 - Analytics and statistics
 
 **Key Endpoints:**
@@ -142,7 +142,7 @@ The backend services provide a modular, scalable API for:
 - `POST /api/hitl/sessions` - Start review session
 - `POST /api/hitl/sessions/:id/corrections` - Submit corrections
 - `POST /api/hitl/sessions/:id/approve` - Approve document
-- `POST /api/hitl/sessions/:id/escalate` - Escalate for further review
+- `POST /api/hitl/sessions/:id/flag` - Flag for another reviewer's attention
 - `GET /api/hitl/analytics` - Analytics data with filters
 
 ### Infrastructure Modules

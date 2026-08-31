@@ -31,6 +31,7 @@ interface MeResponse {
   isAdmin: boolean;
   expires_in: number;
   groups: Group[];
+  actorId: string;
 }
 
 /**
@@ -46,6 +47,7 @@ interface RefreshResponse {
  */
 export interface AuthUser {
   sub: string;
+  actorId: string;
   expires_at: number;
   profile: {
     name?: string;
@@ -121,6 +123,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const expiresAt = Math.floor(Date.now() / 1000) + me.expires_in;
     return {
       sub: me.sub,
+      actorId: me.actorId,
       expires_at: expiresAt,
       profile: {
         name: me.name,

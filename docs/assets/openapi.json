@@ -1169,6 +1169,430 @@
         ]
       }
     },
+    "/api/groups/{groupId}/billing-config": {
+      "get": {
+        "operationId": "GroupController_getGroupBillingConfig",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Billing configuration retrieved successfully. Returns null if no config exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBillingConfigDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Caller is not a platform admin"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get billing configuration for a group (platform admin only)",
+        "tags": [
+          "Group"
+        ]
+      },
+      "patch": {
+        "description": "Group admins can configure their own group's spending cap as a self-imposed guardrail. Platform admins can configure any group's cap.",
+        "operationId": "GroupController_setGroupBillingCap",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBillingCapDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Billing configuration updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupBillingConfigDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "403": {
+            "description": "Caller is not a platform admin"
+          },
+          "404": {
+            "description": "Group not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Set or remove a group's monthly spending cap (group admin or platform admin)",
+        "tags": [
+          "Group"
+        ]
+      }
+    },
+    "/api/usage/summary": {
+      "get": {
+        "operationId": "UsageController_getAllGroupsUsageSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All active groups with their current-month spend and cap data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AllGroupsSummaryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get current-month spend summary for all groups (system admin only)",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/summary": {
+      "get": {
+        "operationId": "UsageController_getGroupUsageSummary",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current billing period summary including cap status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupUsageSummaryDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get current-month usage summary for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/history": {
+      "get": {
+        "operationId": "UsageController_getGroupUsageHistory",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical period summaries ordered most-recent first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupUsageHistoryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get historical monthly usage summaries for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/activity-history": {
+      "get": {
+        "operationId": "UsageController_getGroupActivityHistory",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "required": false,
+            "in": "query",
+            "description": "The starting date for activity filtering.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endDate",
+            "required": false,
+            "in": "query",
+            "description": "The ending date for activity filtering. Inclusive.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity-level spend per period, ordered by period then activity name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupActivityHistoryItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin or system admin."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get per-activity monthly spend breakdown for a group",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/groups/{groupId}/runs/{workflowExecutionId}": {
+      "get": {
+        "operationId": "UsageController_getRunDetail",
+        "parameters": [
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "description": "Group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workflowExecutionId",
+            "required": true,
+            "in": "path",
+            "description": "Temporal workflow execution ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full cost detail for the workflow execution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetailDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Caller is not a group admin, or the run belongs to a different group."
+          },
+          "404": {
+            "description": "No usage events found for the specified execution ID."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get cost breakdown for a specific workflow run",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/rate-versions": {
+      "get": {
+        "operationId": "UsageController_getRateVersions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "All rate versions ordered by effective date descending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RateVersionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get all rate versions with their billing configuration",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
+    "/api/usage/rate-versions/{versionId}/activity-costs": {
+      "get": {
+        "operationId": "UsageController_getRateVersionActivityCosts",
+        "parameters": [
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "description": "Rate version ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity costs for the specified rate version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityCostItemDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "404": {
+            "description": "Rate version not found."
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          }
+        ],
+        "summary": "Get activity cost table for a specific rate version",
+        "tags": [
+          "Usage"
+        ]
+      }
+    },
     "/api/benchmark/datasets": {
       "post": {
         "operationId": "DatasetController_createDataset",
@@ -4603,7 +5027,7 @@
             "name": "search",
             "required": false,
             "in": "query",
-            "description": "Search documents by title or original filename.",
+            "description": "Search documents by title, original filename, or content hash (Content ID).",
             "schema": {
               "type": "string"
             }
@@ -4640,6 +5064,15 @@
             "required": false,
             "in": "query",
             "description": "Filter by document source (e.g., \"api\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content_hash",
+            "required": false,
+            "in": "query",
+            "description": "Filter by SHA-256 hex digest of the original upload bytes (exact match).",
             "schema": {
               "type": "string"
             }
@@ -7742,6 +8175,7 @@
     },
     "/api/hitl/queue/stats": {
       "get": {
+        "description": "Counts cover the entire queue and are independent of the review-status tab in view.",
         "operationId": "HitlController_getQueueStats",
         "parameters": [
           {
@@ -7751,15 +8185,6 @@
             "description": "Scope stats to a specific group ID",
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "reviewStatus",
-            "required": false,
-            "in": "query",
-            "description": "Filter by review status",
-            "schema": {
-              "$ref": "#/components/schemas/ReviewStatusFilter"
             }
           }
         ],
@@ -7822,6 +8247,7 @@
               "enum": [
                 "pending",
                 "reviewed",
+                "flagged",
                 "all"
               ]
             }
@@ -7831,6 +8257,15 @@
             "required": false,
             "in": "query",
             "description": "Scope to a specific group ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "excludeDocumentId",
+            "required": false,
+            "in": "query",
+            "description": "Document ID to exclude (prevents re-opening the just-reviewed document)",
             "schema": {
               "type": "string"
             }
@@ -8106,62 +8541,6 @@
         ]
       }
     },
-    "/api/hitl/sessions/{id}/escalate": {
-      "post": {
-        "operationId": "HitlController_escalateSession",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Session ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EscalateDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Session escalated for expert review",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionActionResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied: not a group member"
-          },
-          "404": {
-            "description": "Session not found"
-          }
-        },
-        "security": [
-          {
-            "keycloak-sso": []
-          },
-          {
-            "api-key": []
-          }
-        ],
-        "summary": "Escalate a document for expert review",
-        "tags": [
-          "hitl"
-        ]
-      }
-    },
     "/api/hitl/sessions/{id}/skip": {
       "post": {
         "operationId": "HitlController_skipSession",
@@ -8178,7 +8557,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Session skipped",
+            "description": "Lock released, session returned to pending queue",
             "content": {
               "application/json": {
                 "schema": {
@@ -8202,7 +8581,53 @@
             "api-key": []
           }
         ],
-        "summary": "Skip a review session",
+        "summary": "Skip a review session, releasing the lock",
+        "tags": [
+          "hitl"
+        ]
+      }
+    },
+    "/api/hitl/sessions/{id}/flag": {
+      "post": {
+        "operationId": "HitlController_flagSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Session ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session flagged, returned to pending queue without a lock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionActionResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied: not a group member"
+          },
+          "404": {
+            "description": "Session not found"
+          }
+        },
+        "security": [
+          {
+            "keycloak-sso": []
+          },
+          {
+            "api-key": []
+          }
+        ],
+        "summary": "Flag a review session as needing priority attention",
         "tags": [
           "hitl"
         ]
@@ -10176,13 +10601,18 @@
             "items": {
               "$ref": "#/components/schemas/GroupSummaryDto"
             }
+          },
+          "actorId": {
+            "type": "string",
+            "description": "Actor identifier used for document locks and audit events"
           }
         },
         "required": [
           "sub",
           "isAdmin",
           "expires_in",
-          "groups"
+          "groups",
+          "actorId"
         ]
       },
       "SuccessDto": {
@@ -10446,6 +10876,372 @@
         },
         "required": [
           "role"
+        ]
+      },
+      "GroupBillingConfigDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Billing config record ID"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Group ID this config belongs to"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Null means no cap is enforced.",
+            "nullable": true
+          },
+          "cap_configured_by": {
+            "type": "object",
+            "description": "User ID of the platform admin who last configured the cap.",
+            "nullable": true
+          },
+          "cap_configured_at": {
+            "type": "object",
+            "description": "Timestamp when the cap was last configured.",
+            "nullable": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Record creation timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "group_id",
+          "monthly_cap_dollars",
+          "cap_configured_by",
+          "cap_configured_at",
+          "created_at"
+        ]
+      },
+      "SetBillingCapDto": {
+        "type": "object",
+        "properties": {
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Pass null to remove the cap entirely. The field must always be present.",
+            "nullable": true,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "monthly_cap_dollars"
+        ]
+      },
+      "AllGroupsSummaryItemDto": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "group_name": {
+            "type": "string",
+            "description": "Group name"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent this calendar month"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Configured monthly spending cap in dollars. Null if no cap is configured.",
+            "nullable": true
+          },
+          "usage_percentage": {
+            "type": "number",
+            "description": "Spend as a percentage of the cap (0–100+). Null if no cap is configured.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "group_id",
+          "group_name",
+          "total_dollars_spent",
+          "monthly_cap_dollars",
+          "usage_percentage"
+        ]
+      },
+      "GroupUsageSummaryDto": {
+        "type": "object",
+        "properties": {
+          "group_id": {
+            "type": "string",
+            "description": "Group ID"
+          },
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed in this period"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent in this period"
+          },
+          "monthly_cap_dollars": {
+            "type": "number",
+            "description": "Monthly spending cap in dollars. Null means no cap is configured.",
+            "nullable": true
+          },
+          "remaining_dollars": {
+            "type": "number",
+            "description": "Remaining dollars before the cap is exhausted. Null if no cap is configured.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "group_id",
+          "period_year",
+          "period_month",
+          "total_units_consumed",
+          "total_dollars_spent",
+          "monthly_cap_dollars",
+          "remaining_dollars"
+        ]
+      },
+      "GroupUsageHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed"
+          },
+          "total_dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent"
+          }
+        },
+        "required": [
+          "period_year",
+          "period_month",
+          "total_units_consumed",
+          "total_dollars_spent"
+        ]
+      },
+      "ActivityItemDto": {
+        "type": "object",
+        "properties": {
+          "units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed for this activity type"
+          },
+          "dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent for this activity type"
+          }
+        },
+        "required": [
+          "units_consumed",
+          "dollars_spent"
+        ]
+      },
+      "GroupActivityHistoryItemDto": {
+        "type": "object",
+        "properties": {
+          "period_year": {
+            "type": "number",
+            "description": "Calendar year of the billing period"
+          },
+          "period_month": {
+            "type": "number",
+            "description": "Calendar month of the billing period (1–12)"
+          },
+          "activities": {
+            "description": "A map of activity names/types for cost breakdowns (e.g. ocr.page_extraction). Null events are grouped as 'other'.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivityItemDto"
+              }
+            ]
+          },
+          "units_consumed": {
+            "type": "number",
+            "description": "Total billing units consumed for this event type"
+          },
+          "dollars_spent": {
+            "type": "number",
+            "description": "Total dollars spent for this event type"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "The category of event the usage record falls under."
+          }
+        },
+        "required": [
+          "period_year",
+          "period_month",
+          "activities",
+          "units_consumed",
+          "dollars_spent",
+          "event_type"
+        ]
+      },
+      "RunDetailDto": {
+        "type": "object",
+        "properties": {
+          "workflow_execution_id": {
+            "type": "string",
+            "description": "Temporal workflow execution ID"
+          },
+          "workflow_version_id": {
+            "type": "string",
+            "description": "Version ID of workflow ran"
+          },
+          "group_id": {
+            "type": "string",
+            "description": "Group that owns this execution"
+          },
+          "estimated_units": {
+            "type": "number",
+            "description": "Pre-flight estimated units from the workflow_started event",
+            "nullable": true
+          },
+          "total_units_consumed": {
+            "type": "number",
+            "description": "Actual total units consumed from the terminal event (workflow_completed / workflow_failed / workflow_cancelled)",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "description": "Usage event ID"
+          },
+          "event_type": {
+            "type": "string",
+            "description": "Event type (e.g. activity_completed)"
+          },
+          "activity_name": {
+            "type": "object",
+            "description": "Activity name, present on activity_completed events",
+            "nullable": true
+          },
+          "units_consumed": {
+            "type": "number",
+            "description": "Billing units consumed by this event"
+          },
+          "dollar_value": {
+            "type": "number",
+            "description": "Dollar value of this event (units_consumed × rate unit_cost_dollars)"
+          },
+          "metered_quantity": {
+            "type": "number",
+            "description": "Number of pages processed for per-page activities. Null for flat-cost activities.",
+            "nullable": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Timestamp when this event was recorded"
+          }
+        },
+        "required": [
+          "workflow_execution_id",
+          "workflow_version_id",
+          "group_id",
+          "estimated_units",
+          "total_units_consumed",
+          "id",
+          "event_type",
+          "activity_name",
+          "units_consumed",
+          "dollar_value",
+          "metered_quantity",
+          "created_at"
+        ]
+      },
+      "RateVersionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Rate version ID"
+          },
+          "version": {
+            "type": "string",
+            "description": "Version label (e.g. 1.0.0)"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Date from which this rate version is active"
+          },
+          "unit_cost_dollars": {
+            "type": "number",
+            "description": "Dollar value per billing unit"
+          },
+          "units_per_gb_per_month": {
+            "type": "number",
+            "description": "Billing units charged per GB of storage per calendar month"
+          },
+          "max_pages_assumption": {
+            "type": "number",
+            "description": "Upper-bound page count used in pre-flight cost estimation for per-page activities"
+          },
+          "max_array_items_assumption": {
+            "type": "number",
+            "description": "Upper-bound array item count used in pre-flight cost estimation for fan-out nodes"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Record creation timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "effective_from",
+          "unit_cost_dollars",
+          "units_per_gb_per_month",
+          "max_pages_assumption",
+          "max_array_items_assumption",
+          "created_at"
+        ]
+      },
+      "ActivityCostItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Activity cost record ID"
+          },
+          "activity_name": {
+            "type": "string",
+            "description": "Activity name (e.g. azureOcr.extract)"
+          },
+          "cost_type": {
+            "type": "string",
+            "description": "Cost type: flat or per_page"
+          },
+          "units": {
+            "type": "number",
+            "description": "Billing units charged for this activity"
+          }
+        },
+        "required": [
+          "id",
+          "activity_name",
+          "cost_type",
+          "units"
         ]
       },
       "CreateDatasetDto": {
@@ -13659,6 +14455,11 @@
           "file_size": {
             "type": "number"
           },
+          "content_hash": {
+            "type": "object",
+            "nullable": true,
+            "description": "SHA-256 hex digest of the original upload bytes; identifies file content."
+          },
           "metadata": {
             "type": "object",
             "nullable": true
@@ -14623,6 +15424,11 @@
           "file_size": {
             "type": "number"
           },
+          "content_hash": {
+            "type": "object",
+            "nullable": true,
+            "description": "SHA-256 hex digest of the original upload bytes; identifies file content."
+          },
           "source": {
             "type": "string"
           },
@@ -15341,6 +16147,7 @@
         "enum": [
           "pending",
           "reviewed",
+          "flagged",
           "all"
         ]
       },
@@ -15491,6 +16298,41 @@
           "ocr_result"
         ]
       },
+      "ReviewPlanEntryDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "OCR field key this entry applies to"
+          },
+          "decision": {
+            "type": "string",
+            "description": "Whether a human reviewer should look at this field",
+            "enum": [
+              "review",
+              "skip"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation for the decision"
+          },
+          "ruleName": {
+            "type": "string",
+            "description": "Name of the review-criteria rule that produced this decision (or \"__default__\")"
+          },
+          "confidence": {
+            "type": "object",
+            "description": "Field extraction confidence, if known"
+          }
+        },
+        "required": [
+          "field",
+          "decision",
+          "reason",
+          "ruleName"
+        ]
+      },
       "ReviewSessionResponseDto": {
         "type": "object",
         "properties": {
@@ -15523,6 +16365,13 @@
           "fieldDefinitions": {
             "type": "array",
             "description": "Field format definitions from the template model for client-side validation"
+          },
+          "reviewPlan": {
+            "description": "Per-field review/skip plan from hitl.applyReviewCriteria, when the workflow produced one. Absent for documents processed before this feature or without a review-criteria step.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewPlanEntryDto"
+            }
           }
         },
         "required": [
@@ -15684,10 +16533,6 @@
           "completedAt": {
             "type": "object"
           },
-          "reason": {
-            "type": "string",
-            "description": "Escalation reason (escalate endpoint only)"
-          },
           "message": {
             "type": "string"
           }
@@ -15696,18 +16541,6 @@
           "id",
           "status",
           "message"
-        ]
-      },
-      "EscalateDto": {
-        "type": "object",
-        "properties": {
-          "reason": {
-            "type": "string",
-            "description": "Reason for escalation"
-          }
-        },
-        "required": [
-          "reason"
         ]
       },
       "HeartbeatResponseDto": {

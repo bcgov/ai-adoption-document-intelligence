@@ -10,7 +10,7 @@ interface UndoEntry {
 
 interface ReopenUndoEntry {
   sessionId: string;
-  action: "approved" | "escalated" | "skipped";
+  action: "approved" | "flagged" | "skipped";
 }
 
 // Module-level storage so pendingReopen survives navigation between sessions
@@ -91,7 +91,7 @@ export const useUndoRedo = (sessionId: string | undefined) => {
   const setPendingSessionReopen = useCallback(
     (
       completedSessionId: string,
-      action: "approved" | "escalated" | "skipped",
+      action: "approved" | "flagged" | "skipped",
       timeoutMs?: number,
     ) => {
       if (globalReopenTimer) clearTimeout(globalReopenTimer);
