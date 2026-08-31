@@ -134,7 +134,7 @@ in_progress
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate`. Only an in-progress session can be approved; approving twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
@@ -437,6 +437,28 @@ review flow with the previous reviewer's corrections intact. Editing therefore
 always holds a lock, and flagging hands work on rather than parking it.
 
 **Reviewed**: Documents with at least one `approved` session.
+
+### Resuming a gated workflow
+
+A workflow that reaches a `humanGate` sets its document to `awaiting_review` and
+then blocks on the `humanApproval` signal — in the seeded templates with a 24
+hour timeout and `onTimeout: "fail"`. Approving a session sends that signal, so
+the workflow continues into the nodes after the gate:
+
+- The Temporal workflow id is derived from the document (`graph-<documentId>`).
+  `Document.workflow_execution_id` is the billing run id and is not the workflow
+  id.
+- Not every reviewable document has a workflow waiting — seeded documents and
+  ungated pipelines have none, and a gate that already timed out is gone. The
+  review is complete regardless, so a failed signal never fails the approval.
+- The outcome is auditable either way: `human_approval_signal_sent` when the
+  workflow was resumed, `human_approval_signal_skipped` (with the reason) when
+  there was nothing to resume. Both carry `source: "hitl_session"`, which
+  distinguishes them from the same signal sent by `POST /documents/:id/approve`.
+
+Rejection is not yet available from the review queue; it exists only on the
+Documents page, which sends the same signal with `approved: false` and a
+structured reason.
 
 ### Queue Statistics
 

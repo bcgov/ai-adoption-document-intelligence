@@ -16,6 +16,7 @@ import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { CorrectionAction, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { QueueFilterDto } from "./dto/queue-filter.dto";
@@ -32,6 +33,7 @@ describe("HitlService", () => {
   let mockDocumentService: jest.Mocked<DocumentService>;
   let mockReviewDbService: jest.Mocked<ReviewDbService>;
   let mockAnalyticsService: jest.Mocked<AnalyticsService>;
+  let mockTemporal: { sendHumanApproval: jest.Mock };
 
   const mockDocument = {
     id: "doc-1",
@@ -143,6 +145,10 @@ describe("HitlService", () => {
       getAnalytics: jest.fn(),
     };
 
+    const mockTemporalClient = {
+      sendHumanApproval: jest.fn().mockResolvedValue(undefined),
+    };
+
     const mockPrismaService = {
       transaction: jest.fn(
         async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
@@ -175,6 +181,10 @@ describe("HitlService", () => {
           useValue: mockPrismaService,
         },
         {
+          provide: TemporalClientService,
+          useValue: mockTemporalClient,
+        },
+        {
           provide: ModuleRef,
           useValue: { get: jest.fn().mockReturnValue(undefined) },
         },
@@ -185,6 +195,7 @@ describe("HitlService", () => {
     mockDocumentService = module.get(DocumentService);
     mockReviewDbService = module.get(ReviewDbService);
     mockAnalyticsService = module.get(AnalyticsService);
+    mockTemporal = module.get(TemporalClientService);
   });
 
   describe("getQueue", () => {
@@ -1101,6 +1112,92 @@ describe("HitlService", () => {
       await expect(
         service.deleteCorrection("session-1", "correction-1"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("approveSession resumes a gated workflow", () => {
+    const approvedSession = () => ({
+      ...mockReviewSession,
+      status: ReviewStatus.approved,
+      completed_at: new Date(),
+    });
+
+    it("signals the workflow the document is parked in", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+
+      await service.approveSession("session-1");
+
+      // workflow id is derived from the document, not the billing run id
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        {
+          approved: true,
+          reviewer: "reviewer-1",
+        },
+      );
+    });
+
+    it("completes the approval when no workflow is waiting", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+      mockTemporal.sendHumanApproval.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+
+      const result = await service.approveSession("session-1");
+
+      expect(result.status).toBe(ReviewStatus.approved);
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.complete },
+        expect.anything(),
+      );
+    });
+
+    it("records in the audit trail whether a workflow was resumed", async () => {
+      const audit = (service as any).auditService.recordEvent as jest.Mock;
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+      await service.approveSession("session-1");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({ event_type: "human_approval_signal_sent" }),
+      );
+
+      audit.mockClear();
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        approvedSession() as any,
+      );
+      mockTemporal.sendHumanApproval.mockRejectedValueOnce(
+        new Error("workflow execution not found"),
+      );
+      await service.approveSession("session-1");
+
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event_type: "human_approval_signal_skipped",
+          payload: expect.objectContaining({
+            reason: expect.stringContaining("not found"),
+          }),
+        }),
+      );
     });
   });
 

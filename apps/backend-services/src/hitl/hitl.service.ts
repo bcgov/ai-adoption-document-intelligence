@@ -21,6 +21,7 @@ import { DocumentField, ExtractedFields } from "@/ocr/azure-types";
 import { GroundTruthGenerationService } from "../benchmark/ground-truth-generation.service";
 import { DocumentService } from "../document/document.service";
 import { AppLoggerService } from "../logging/app-logger.service";
+import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
@@ -144,6 +145,7 @@ export class HitlService {
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
     private readonly prismaService: PrismaService,
+    private readonly temporalClient: TemporalClientService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -238,6 +240,75 @@ export class HitlService {
       })),
       total,
     };
+  }
+
+  /**
+   * Releases a workflow parked at a `humanGate`.
+   *
+   * A gated workflow sets the document to `awaiting_review` and then waits for
+   * the `humanApproval` signal — without it, it sits at the gate until its
+   * timeout and fails, however the document looks in the database. Reviewing is
+   * finished in the queue, so the queue is what has to send it.
+   *
+   * Not every reviewable document has a workflow waiting: seeded documents and
+   * ungated pipelines have none, and a gate that already timed out is gone. The
+   * review is complete either way, so a failed signal is recorded rather than
+   * raised.
+   */
+  private async resumeGatedWorkflow(
+    documentId: string,
+    outcome: {
+      approved: boolean;
+      reviewer: string;
+      groupId?: string;
+      workflowExecutionId?: string;
+    },
+  ): Promise<void> {
+    // The Temporal workflow id is derived from the document id. The stored
+    // workflow_execution_id is the billing run id (unique per execution
+    // attempt) and is NOT the workflow id — see DocumentController.approveDocument.
+    const workflowId = `graph-${documentId}`;
+
+    try {
+      await this.temporalClient.sendHumanApproval(workflowId, {
+        approved: outcome.approved,
+        reviewer: outcome.reviewer,
+      });
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_sent",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: outcome.reviewer,
+        document_id: documentId,
+        workflow_execution_id: outcome.workflowExecutionId,
+        group_id: outcome.groupId,
+        payload: {
+          approved: outcome.approved,
+          source: "hitl_session",
+          workflow_id: workflowId,
+        },
+      });
+    } catch (error) {
+      const message = getErrorMessage(error);
+      this.logger.warn(
+        `No workflow resumed for document ${documentId}: ${message}`,
+      );
+      await this.auditService.recordEvent({
+        event_type: "human_approval_signal_skipped",
+        resource_type: "document",
+        resource_id: documentId,
+        actor_id: outcome.reviewer,
+        document_id: documentId,
+        workflow_execution_id: outcome.workflowExecutionId,
+        group_id: outcome.groupId,
+        payload: {
+          approved: outcome.approved,
+          source: "hitl_session",
+          workflow_id: workflowId,
+          reason: message,
+        },
+      });
+    }
   }
 
   /**
@@ -603,6 +674,13 @@ export class HitlService {
       );
 
       return sessionUpdate;
+    });
+
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: true,
+      reviewer: session.actor_id,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
     });
 
     // Post-approval hook: complete ground truth job if this document is part of GT generation.
