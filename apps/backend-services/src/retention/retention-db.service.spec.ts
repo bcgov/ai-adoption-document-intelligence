@@ -1,22 +1,30 @@
-import { ReviewStatus } from "@generated/client";
+import { Prisma, ReviewStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "@/database/prisma.service";
 import { RetentionDbService } from "./retention-db.service";
+import { mockAppLogger } from "@/testUtils/mockAppLogger";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 const mockPrisma = {
+  transaction: async (tx: Prisma.TransactionClient) => {
+    
+  }
+};
+
+const mockTransactionClient = {
   auditEvent: {
-    findMany: jest.fn(),
-    deleteMany: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 })
   },
   benchmarkAuditLog: {
-    findMany: jest.fn(),
-    deleteMany: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 })
   },
   reviewSession: {
-    findMany: jest.fn(),
-    deleteMany: jest.fn(),
-  },
-};
+    findMany: jest.fn().mockResolvedValue([]),
+    deleteMany: jest.fn().mockResolvedValue({ count: 0 })
+  }
+} as unknown as Prisma.TransactionClient;
 
 describe("RetentionDbService", () => {
   let service: RetentionDbService;
@@ -26,6 +34,7 @@ describe("RetentionDbService", () => {
       providers: [
         RetentionDbService,
         { provide: PrismaService, useValue: { prisma: mockPrisma } },
+        { provide: AppLoggerService, useValue: mockAppLogger },
       ],
     }).compile();
 
@@ -44,7 +53,7 @@ describe("RetentionDbService", () => {
     it("returns 0 and skips deleteMany when no rows are found", async () => {
       mockPrisma.auditEvent.findMany.mockResolvedValue([]);
 
-      const result = await service.deleteAuditEventsOlderThan(CUTOFF, LIMIT);
+      const result = await service.deleteAuditEventsOlderThan(CUTOFF, LIMIT, mockTransactionClient);
 
       expect(result).toBe(0);
       expect(mockPrisma.auditEvent.deleteMany).not.toHaveBeenCalled();
@@ -57,7 +66,7 @@ describe("RetentionDbService", () => {
       ]);
       mockPrisma.auditEvent.deleteMany.mockResolvedValue({ count: 2 });
 
-      const result = await service.deleteAuditEventsOlderThan(CUTOFF, LIMIT);
+      const result = await service.deleteAuditEventsOlderThan(CUTOFF, LIMIT, mockTransactionClient);
 
       expect(result).toBe(2);
       expect(mockPrisma.auditEvent.findMany).toHaveBeenCalledWith(
@@ -74,7 +83,7 @@ describe("RetentionDbService", () => {
     it("respects the limit in the findMany query", async () => {
       mockPrisma.auditEvent.findMany.mockResolvedValue([]);
 
-      await service.deleteAuditEventsOlderThan(CUTOFF, 25);
+      await service.deleteAuditEventsOlderThan(CUTOFF, 25, mockTransactionClient);
 
       expect(mockPrisma.auditEvent.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 25 }),
@@ -93,6 +102,7 @@ describe("RetentionDbService", () => {
       const result = await service.deleteBenchmarkAuditLogsOlderThan(
         CUTOFF,
         LIMIT,
+        mockTransactionClient
       );
 
       expect(result).toBe(0);
@@ -110,6 +120,7 @@ describe("RetentionDbService", () => {
       const result = await service.deleteBenchmarkAuditLogsOlderThan(
         CUTOFF,
         LIMIT,
+        mockTransactionClient
       );
 
       expect(result).toBe(3);
@@ -136,6 +147,7 @@ describe("RetentionDbService", () => {
       const result = await service.deleteCompletedReviewSessionsOlderThan(
         CUTOFF,
         LIMIT,
+        mockTransactionClient
       );
 
       expect(result).toBe(0);
@@ -149,6 +161,7 @@ describe("RetentionDbService", () => {
       const result = await service.deleteCompletedReviewSessionsOlderThan(
         CUTOFF,
         LIMIT,
+        mockTransactionClient
       );
 
       expect(result).toBe(1);
@@ -175,7 +188,7 @@ describe("RetentionDbService", () => {
     it("does not include in_progress sessions in the filter", async () => {
       mockPrisma.reviewSession.findMany.mockResolvedValue([]);
 
-      await service.deleteCompletedReviewSessionsOlderThan(CUTOFF, LIMIT);
+      await service.deleteCompletedReviewSessionsOlderThan(CUTOFF, LIMIT, mockTransactionClient);
 
       const [call] = mockPrisma.reviewSession.findMany.mock.calls[0] as [
         { where: { status: { in: ReviewStatus[] } } },
