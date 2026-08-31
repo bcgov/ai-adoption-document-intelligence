@@ -304,24 +304,6 @@ patches:
           name: __INSTANCE_NAME__-temporal-postgres-init-sql
           key: init.sql
 
-  # --- Crunchy PostgresCluster: configurable backup PVC sizes ---
-  # Default is 10Gi (matching the base manifests). Override via PG_BACKUP_STORAGE_SIZE
-  # in config env files to reduce backup storage for test instances.
-  - target:
-      kind: PostgresCluster
-      name: app-pg
-    patch: |
-      - op: replace
-        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
-        value: "__PG_BACKUP_STORAGE_SIZE__"
-  - target:
-      kind: PostgresCluster
-      name: temporal-pg
-    patch: |
-      - op: replace
-        path: /spec/backups/pgbackrest/repos/0/volume/volumeClaimSpec/resources/requests/storage
-        value: "__PG_BACKUP_STORAGE_SIZE__"
-
   # --- Promtail configmaps: fix Loki URL to use instance-prefixed service name ---
   # Kustomize namePrefix does not update string values inside configmap data fields.
   # The PLG Helm chart creates the Loki service as __INSTANCE_NAME__-plg-loki.
@@ -386,8 +368,18 @@ patches:
                     service: frontend
                     __path__: /var/log/app/*.log
               pipeline_stages:
+                # Drop kubelet probe hits. Both probes request "/", the same path
+                # a real page load uses, so the user agent is the only thing that
+                # tells them apart. ~18 lines/minute/replica, and the bulk of this log.
                 - drop:
-                    expression: '"path":"/(?:api/)?health"'
+                    expression: '"kube-probe/'
+                # Drop health-check hits. nginx logs the combined format, so match
+                # the quoted request line rather than the backend's JSON "path" field.
+                - drop:
+                    expression: '"(GET|HEAD) /(api/)?health[ /?]'
+                # Drop metrics checks
+                - drop:
+                    expression: '"GET /metrics[ /?]'
   - target:
       kind: ConfigMap
       name: temporal-server-promtail

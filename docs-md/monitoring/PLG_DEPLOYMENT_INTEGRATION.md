@@ -47,22 +47,25 @@ The `scripts/oc-teardown.sh` script includes a step (3b) that uninstalls the PLG
 
 ## Environment Configuration
 
-PLG-specific variables are configured in the same environment profile files used by the application (`deployments/openshift/config/<env>.env`). They follow the existing config merge pattern: profile defaults can be overridden by instance-specific files.
+PLG sizing values (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) are committed in per-environment Helm values files:
+
+- `deployments/openshift/helm/plg/values-test.yaml` — test/dev environments
+- `deployments/openshift/helm/plg/values-prod.yaml` — production
+
+These are layered on top of `values-openshift.yaml` and `values.yaml` defaults by both the CI workflow and `scripts/oc-deploy-instance.sh`. To change a sizing value, edit the matching file; no GitHub UI configuration is needed.
+
+The only PLG-related value that remains in the `.env` profile file is `GRAFANA_ADMIN_PASSWORD` (a credential).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
-| `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
-| `LOKI_PVC_SIZE` | `2Gi` | Persistent volume size for Loki data |
-| `PROMETHEUS_PVC_SIZE` | `2Gi` | Persistent volume size for Prometheus TSDB |
-| `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 | `ALERTMANAGER_NOTIFICATION_CHANNEL` | `ches` | Active notification channel: `ches` or `teams` |
 | `ALERTMANAGER_NOTIFICATIONS_ENABLED` | `false` | Whether Alertmanager routes alerts externally |
 | `ALERTMANAGER_MIN_SEVERITY` | `warning` | Minimum severity for external notification: `warning` or `critical` |
 | `ALERTMANAGER_CHES_ADAPTER_SECRET` | `""` | Shared Bearer token between Alertmanager and ches-adapter |
 | `ALERTMANAGER_TEAMS_WEBHOOK_URL` | `placeholder` | Teams webhook URL (org policy stub) |
 
-These variables are read by the `Deploy Instance` workflow from the environment secrets and passed to Helm as `--set` overrides on top of the `values-openshift.yaml` base.
+These variables are read by the `Deploy Instance` workflow from the environment secrets and passed to Helm as `--set` overrides on top of the values files.
 
 CHES credentials (`chesClientId`, `chesClientSecret`, `chesAuthHost`, `chesHost`, `chesFromEmail`, `chesToEmails`) are stored in a Kubernetes Secret referenced by `chesAdapter.secretName` (default: `ches-adapter-secrets`). This secret must be created manually in the target namespace before deploying with `notificationChannel=ches`. See [ALERTING.md](ALERTING.md) for the required secret keys.
 

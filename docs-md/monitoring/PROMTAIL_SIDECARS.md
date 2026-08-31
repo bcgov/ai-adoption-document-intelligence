@@ -17,7 +17,7 @@ Each application pod includes a Promtail sidecar container that:
 | backend-services | Application logs via `tee` to shared PVC | `service=backend-services` | `/var/log/app/*.log` |
 | temporal-worker | Worker logs via `tee` to shared PVC | `service=temporal-worker` | `/var/log/app/*.log` |
 | temporal-server | Server logs via `tee` to emptyDir | `service=temporal-server` | `/var/log/app/*.log` |
-| frontend | Nginx access/error logs via symlinks to emptyDir | `service=frontend` | `/var/log/app/*.log` |
+| frontend | Nginx access/error logs written directly to emptyDir | `service=frontend` | `/var/log/app/*.log` |
 | postgresql | PostgreSQL logging_collector output on pgdata volume | `service=postgresql` | `/pgdata/pg16/log/*.log` |
 
 ## Resource Limits
@@ -102,7 +102,7 @@ All sidecars use `grafana/promtail:3.4.2`. To update the Promtail version, chang
 - `deployments/openshift/kustomize/base/temporal/temporal-server-deployment.yml` - Added log output redirection, logs volume, and Promtail sidecar
 - `deployments/openshift/kustomize/base/temporal/promtail-configmap-server.yml` - New Promtail ConfigMap for server
 - `deployments/openshift/kustomize/base/temporal/kustomization.yml` - Added promtail configmap resources
-- `deployments/openshift/kustomize/base/frontend/deployment.yml` - Added nginx log redirection, logs volume, and Promtail sidecar
+- `deployments/openshift/kustomize/base/frontend/deployment.yml` - Added logs volume and Promtail sidecar
 - `deployments/openshift/kustomize/base/frontend/promtail-configmap.yml` - New Promtail ConfigMap
 - `deployments/openshift/kustomize/base/frontend/kustomization.yml` - Added promtail-configmap.yml resource
 - `deployments/openshift/kustomize/base/crunchydb/postgrescluster.yml` - Added Promtail sidecar container, config volume, and PostgreSQL logging parameters
