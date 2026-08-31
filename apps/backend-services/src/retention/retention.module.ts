@@ -6,6 +6,7 @@ import { EphemeralDocumentCleanupService } from "./ephemeral-document-cleanup.se
 import { RetentionDbService } from "./retention-db.service";
 import { DocumentDbService } from "@/document/document-db.service";
 import { AuditService } from "@/audit/audit.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 
 @Module({
@@ -15,7 +16,8 @@ import { AuditService } from "@/audit/audit.service";
     EphemeralDocumentCleanupService,
     RetentionDbService,
     DocumentDbService,
-    AuditService
+    AuditService,
+    AppLoggerService
   ],
   exports: [],
 })

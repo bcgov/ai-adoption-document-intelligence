@@ -7,6 +7,7 @@ import { AzureService } from "./azure.service";
 import { ClassifierService } from "./classifier.service";
 import { ClassifierDbService } from "./classifier-db.service";
 import { ClassifierOrphanCleanupService } from "./classifier-orphan-cleanup.service";
+import { AuditService } from "@/audit/audit.service";
 
 const mockClassifierService = {
   listAzureClassifiers: jest.fn(),
@@ -40,6 +41,10 @@ const mockClient = {
   path: jest.fn().mockReturnValue({ delete: mockDeleteFn }),
 };
 
+const mockAuditService = {
+  recordEvent: jest.fn()
+}
+
 describe("ClassifierOrphanCleanupService", () => {
   let service: ClassifierOrphanCleanupService;
   const originalEnv = process.env;
@@ -58,6 +63,7 @@ describe("ClassifierOrphanCleanupService", () => {
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
         { provide: AppLoggerService, useValue: mockLogger },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "test-container" },
+        { provide: AuditService, useValue: mockAuditService }
       ],
     }).compile();
 
