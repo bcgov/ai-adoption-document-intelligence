@@ -2,6 +2,7 @@ import { getErrorStack } from "@ai-di/shared-logging";
 import { DocumentIntelligenceClient } from "@azure-rest/ai-document-intelligence";
 import { Inject, Injectable, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { AuditService } from "@/audit/audit.service";
 import { AzureService } from "@/azure/azure.service";
 import { ClassifierService } from "@/azure/classifier.service";
 import { ClassifierDbService } from "@/azure/classifier-db.service";
@@ -16,7 +17,6 @@ import {
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { AuditService } from "@/audit/audit.service";
 
 /** Environment variable name that enables this cleanup job */
 const ENABLE_ENV_VAR = "ENABLE_CLASSIFIER_ORPHAN_CLEANUP";
@@ -36,7 +36,6 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
     private readonly containerName: string,
     azureService: AzureService,
     private readonly auditService: AuditService,
-    
   ) {
     this.client = azureService.getClient();
   }
@@ -120,16 +119,16 @@ export class ClassifierOrphanCleanupService implements OnModuleInit {
       if (deleted) {
         totalDeleted++;
         await this.auditService.recordEvent({
-              event_type: "classifier_orphan_deleted",
-              resource_type: "classifier",
-              resource_id: modelId,
-              actor_id: "system",
-              group_id: groupId,
-              payload: {
-                modelId,
-                classifierName
-              }
-            });
+          event_type: "classifier_orphan_deleted",
+          resource_type: "classifier",
+          resource_id: modelId,
+          actor_id: "system",
+          group_id: groupId,
+          payload: {
+            modelId,
+            classifierName,
+          },
+        });
       } else {
         totalErrors++;
         this.logger.warn(

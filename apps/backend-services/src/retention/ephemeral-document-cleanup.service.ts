@@ -11,11 +11,13 @@ import {
   buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
+import {
+  DocumentDbService,
+  PurgeableEphemeralDocument,
+} from "@/document/document-db.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "../temporal/temporal-client.service";
-import { DocumentDbService, PurgeableEphemeralDocument } from "@/document/document-db.service";
 import { RetentionDbService } from "./retention-db.service";
-
 
 /** Maximum documents purged per run. */
 const BATCH_SIZE = 100;
@@ -81,48 +83,54 @@ export class EphemeralDocumentCleanupService {
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async purgeEphemeralDocuments(): Promise<void> {
-    await this.retentionDb.runWithDatabaseLock("purgeEphemeralDocuments", async () => {
-      let documents: Awaited<
-      ReturnType<DocumentDbService["findPurgeableEphemeralDocuments"]>
-    >;
-    try {
-      documents = await this.documentDb.findPurgeableEphemeralDocuments(
-        PURGEABLE_STATUSES,
-        BATCH_SIZE,
-      );
-    } catch (err) {
-      this.logger.error("Failed to query purgeable documents — aborting run", {
-        stack: getErrorStack(err),
-      });
-      return;
-    }
+    await this.retentionDb.runWithDatabaseLock(
+      "purgeEphemeralDocuments",
+      async () => {
+        let documents: Awaited<
+          ReturnType<DocumentDbService["findPurgeableEphemeralDocuments"]>
+        >;
+        try {
+          documents = await this.documentDb.findPurgeableEphemeralDocuments(
+            PURGEABLE_STATUSES,
+            BATCH_SIZE,
+          );
+        } catch (err) {
+          this.logger.error(
+            "Failed to query purgeable documents — aborting run",
+            {
+              stack: getErrorStack(err),
+            },
+          );
+          return;
+        }
 
-    if (documents.length === 0) {
-      return;
-    }
+        if (documents.length === 0) {
+          return;
+        }
 
-    let purged = 0;
-    let errors = 0;
-    for (const doc of documents) {
-      try {
-        await this.purgeDocument(doc);
-        purged++;
-      } catch (err) {
-        errors++;
-        this.logger.error(`Failed to purge ephemeral document ${doc.id}`, {
-          documentId: doc.id,
-          groupId: doc.group_id,
-          stack: getErrorStack(err),
+        let purged = 0;
+        let errors = 0;
+        for (const doc of documents) {
+          try {
+            await this.purgeDocument(doc);
+            purged++;
+          } catch (err) {
+            errors++;
+            this.logger.error(`Failed to purge ephemeral document ${doc.id}`, {
+              documentId: doc.id,
+              groupId: doc.group_id,
+              stack: getErrorStack(err),
+            });
+          }
+        }
+
+        this.logger.log("Ephemeral document cleanup run complete", {
+          candidates: documents.length,
+          purged,
+          errors,
         });
-      }
-    }
-
-    this.logger.log("Ephemeral document cleanup run complete", {
-      candidates: documents.length,
-      purged,
-      errors,
-    });
-    })
+      },
+    );
   }
 
   /**
