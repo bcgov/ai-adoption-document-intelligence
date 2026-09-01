@@ -50,7 +50,13 @@
 		"load-test:temporal:saturation:cleanup": "npm run temporal:saturation:cleanup -w @ai-di/load-testing",
 		"load-test:matrix": "npm run matrix -w @ai-di/load-testing --",
 		"load-test:suite": "npm run suite -w @ai-di/load-testing --",
-		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --"
+		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --",
+		"db:generate": "node apps/shared/scripts/generate-prisma.js",
+		"db:migrate": "prisma migrate deploy",
+		"db:reset": "prisma migrate reset",
+		"db:status": "prisma migrate status --schema apps/shared/prisma/schema.prisma",
+		"db:studio": "BROWSER=none prisma studio --port 5555",
+		"db:seed": "prisma db seed"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",
@@ -85,5 +91,6 @@
 		"picomatch": "4.0.4",
 		"protobufjs": "7.5.6",
 		"serialize-javascript": "7.0.5"
-	}
+	},
+  "prisma.schema": "apps/shared/prisma/schema.prisma"
 }
