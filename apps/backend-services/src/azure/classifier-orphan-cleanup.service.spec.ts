@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -7,7 +8,6 @@ import { AzureService } from "./azure.service";
 import { ClassifierService } from "./classifier.service";
 import { ClassifierDbService } from "./classifier-db.service";
 import { ClassifierOrphanCleanupService } from "./classifier-orphan-cleanup.service";
-import { AuditService } from "@/audit/audit.service";
 
 const mockClassifierService = {
   listAzureClassifiers: jest.fn(),
@@ -42,8 +42,8 @@ const mockClient = {
 };
 
 const mockAuditService = {
-  recordEvent: jest.fn()
-}
+  recordEvent: jest.fn(),
+};
 
 describe("ClassifierOrphanCleanupService", () => {
   let service: ClassifierOrphanCleanupService;
@@ -63,7 +63,7 @@ describe("ClassifierOrphanCleanupService", () => {
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
         { provide: AppLoggerService, useValue: mockLogger },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "test-container" },
-        { provide: AuditService, useValue: mockAuditService }
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

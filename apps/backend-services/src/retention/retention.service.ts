@@ -2,6 +2,7 @@ import { getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus, Prisma } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
+import { AuditService } from "@/audit/audit.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -13,7 +14,6 @@ import {
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { DocumentDbService } from "../document/document-db.service";
 import { RetentionDbService } from "./retention-db.service";
-import { AuditService } from "@/audit/audit.service";
 
 /** Env var controlling document retention window (days). */
 export const DOCUMENT_RETENTION_ENV_VAR = "DOCUMENT_RETENTION_DAYS";
@@ -63,7 +63,7 @@ export class DocumentRetentionService {
     private readonly retentionDb: RetentionDbService,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
-  ) { }
+  ) {}
 
   /** Runs every 6 hours: permanently deletes expired terminal documents, their blobs, and cascading OCR results. */
   @Cron("0 */6 * * *")
@@ -124,17 +124,20 @@ export class DocumentRetentionService {
             });
           }
         }
-        await this.auditService.recordEvent({
-          event_type: "document_retention_run",
-          resource_type: "document",
-          resource_id: "",
-          actor_id: "retention_system",
-          payload: {
-            documentIds: documents.map(d => d.id),
-            daysRemoved: process.env[DOCUMENT_RETENTION_ENV_VAR],
-            quantity: deleted
-          }
-        }, tx);
+        await this.auditService.recordEvent(
+          {
+            event_type: "document_retention_run",
+            resource_type: "document",
+            resource_id: "",
+            actor_id: "retention_system",
+            payload: {
+              documentIds: documents.map((d) => d.id),
+              daysRemoved: process.env[DOCUMENT_RETENTION_ENV_VAR],
+              quantity: deleted,
+            },
+          },
+          tx,
+        );
         this.logger.log("Document retention cleanup run complete", {
           olderThanDays: retentionDays,
           candidates: documents.length,
@@ -182,15 +185,18 @@ export class DocumentRetentionService {
             this.retentionDb.deleteAuditEventsOlderThan(olderThan, limit, tx),
           tx,
         );
-        await this.auditService.recordEvent({
-          event_type: "audit_events_retention_run",
-          resource_type: "audit_event",
-          resource_id: "",
-          actor_id: "retention_system",
-          payload: {
-            daysRemoved: process.env[AUDIT_EVENT_RETENTION_ENV_VAR]
-          }
-        }, tx);
+        await this.auditService.recordEvent(
+          {
+            event_type: "audit_events_retention_run",
+            resource_type: "audit_event",
+            resource_id: "",
+            actor_id: "retention_system",
+            payload: {
+              daysRemoved: process.env[AUDIT_EVENT_RETENTION_ENV_VAR],
+            },
+          },
+          tx,
+        );
       },
     );
   }
@@ -215,15 +221,18 @@ export class DocumentRetentionService {
             ),
           tx,
         );
-        await this.auditService.recordEvent({
-          event_type: "benchmark_audit_logs_retention_run",
-          resource_type: "benchmark_audit_log",
-          resource_id: "",
-          actor_id: "retention_system",
-          payload: {
-            daysRemoved: process.env[BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR]
-          }
-        }, tx);
+        await this.auditService.recordEvent(
+          {
+            event_type: "benchmark_audit_logs_retention_run",
+            resource_type: "benchmark_audit_log",
+            resource_id: "",
+            actor_id: "retention_system",
+            payload: {
+              daysRemoved: process.env[BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR],
+            },
+          },
+          tx,
+        );
       },
     );
   }
@@ -250,15 +259,18 @@ export class DocumentRetentionService {
             ),
           tx,
         );
-        await this.auditService.recordEvent({
-          event_type: "review_session_retention_run",
-          resource_type: "review_session",
-          resource_id: "",
-          actor_id: "retention_system",
-          payload: {
-            daysRemoved: process.env[REVIEW_SESSION_RETENTION_ENV_VAR]
-          }
-        }, tx);
+        await this.auditService.recordEvent(
+          {
+            event_type: "review_session_retention_run",
+            resource_type: "review_session",
+            resource_id: "",
+            actor_id: "retention_system",
+            payload: {
+              daysRemoved: process.env[REVIEW_SESSION_RETENTION_ENV_VAR],
+            },
+          },
+          tx,
+        );
       },
     );
   }
