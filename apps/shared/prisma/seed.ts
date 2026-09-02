@@ -1,4 +1,8 @@
-import "dotenv/config";
+import { config as dotenvConfig } from "dotenv";
+import { resolve } from "node:path";
+
+dotenvConfig({ path: resolve(__dirname, "../../../.env") });
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcrypt";
 import {
