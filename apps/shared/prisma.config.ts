@@ -1,7 +1,7 @@
-import { config } from 'dotenv';
-import path from 'path';
+import path from "node:path";
+import { config } from "dotenv";
 
-config({ path: path.resolve(__dirname, '../../.env') });
+config({ path: path.resolve(__dirname, "../../.env") });
 
 import { defineConfig, env } from "prisma/config";
 
