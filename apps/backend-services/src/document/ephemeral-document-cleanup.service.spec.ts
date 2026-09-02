@@ -86,7 +86,7 @@ describe("EphemeralDocumentCleanupService", () => {
     ]);
     expect(mockBlobStorage.deleteByPrefix).toHaveBeenCalledWith(expectedPrefix);
     expect(mockTemporalClient.deleteWorkflowExecution).toHaveBeenCalledWith(
-      "wf-123",
+      "graph-docaaaaaaaaaaaaaaaaaaaaaaa",
     );
     expect(mockDocumentDb.markDocumentPurged).toHaveBeenCalledWith(
       "docaaaaaaaaaaaaaaaaaaaaaaa",
@@ -126,7 +126,7 @@ describe("EphemeralDocumentCleanupService", () => {
 
     expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();
     expect(mockTemporalClient.deleteWorkflowExecution).toHaveBeenCalledWith(
-      "wf-f",
+      "graph-docfffffffffffffffffffffff",
     );
     expect(mockDocumentDb.markDocumentPurged).toHaveBeenCalledWith(
       "docfffffffffffffffffffffff",

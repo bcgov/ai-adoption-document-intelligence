@@ -122,12 +122,13 @@ fi
 AUTH="${ARTIFACTORY_SA_USERNAME}:${ARTIFACTORY_SA_PASSWORD}"
 BASE_URL="https://${ARTIFACTORY_URL}/artifactory"
 DOCKER_API="${BASE_URL}/api/docker/${ARTIFACTORY_REPO}/v2"
+CURL_OPTS=(--connect-timeout 30 --max-time 120)
 
 # ---------- discover images ----------
 
 log_info "Discovering images in '${ARTIFACTORY_REPO}'..."
 
-IMAGES=$(curl -sf -u "${AUTH}" "${DOCKER_API}/_catalog" \
+IMAGES=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" "${DOCKER_API}/_catalog" \
   | python3 -c "import sys,json; print('\n'.join(json.load(sys.stdin).get('repositories',[])))" 2>/dev/null) || {
   log_error "Failed to list repositories. Check credentials."
   exit 1
@@ -148,7 +149,7 @@ if [[ -n "${KEEP_N}" ]]; then
 
   # Match both `manifest.json` (legacy single-platform) and `list.manifest.json`
   # (OCI image index — what buildx writes for multi-platform pushes).
-  ROTATION_AQL=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+  ROTATION_AQL=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
     -H "Content-Type: text/plain" \
     -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\",\"\$or\":[{\"name\":\"manifest.json\"},{\"name\":\"list.manifest.json\"}]}).include(\"repo\",\"path\",\"name\",\"created\")" 2>&1) || {
     log_error "Rotation AQL query failed."
@@ -198,7 +199,7 @@ for image, tags in by_image.items():
     ROT_COUNT=$((ROT_COUNT + 1))
     if [[ "${DO_DELETE}" == "true" ]]; then
       log_info "  Deleting named tag ${image}:${tag}..."
-      http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+      http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
         "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${tag}" 2>/dev/null || echo "000")
       if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
         log_ok "  Deleted ${image}:${tag}"
@@ -218,7 +219,7 @@ fi
 
 log_info "Querying all stored manifests via AQL..."
 
-AQL_RESULT=$(curl -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
+AQL_RESULT=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -X POST "${BASE_URL}/api/search/aql" \
   -H "Content-Type: text/plain" \
   -d "items.find({\"repo\":\"${ARTIFACTORY_REPO}\",\"type\":\"file\"}).include(\"repo\",\"path\",\"name\",\"size\",\"created\")" 2>&1) || {
   log_error "AQL query failed."
@@ -299,7 +300,7 @@ for tag, size in data.get('sha_tags', {}).get('${image}', []):
   while IFS= read -r tag; do
     [[ -z "${tag}" ]] && continue
     # Get the manifest digest via HEAD request
-    digest=$(curl -sf -u "${AUTH}" -I \
+    digest=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" -I \
       -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
       -H "Accept: application/vnd.oci.image.manifest.v1+json" \
       -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
@@ -311,7 +312,7 @@ for tag, size in data.get('sha_tags', {}).get('${image}', []):
     if [[ -n "${digest}" ]]; then
       REFERENCED_DIGESTS+=("${digest}")
       # Check if manifest list with child manifests
-      manifest_body=$(curl -sf -u "${AUTH}" \
+      manifest_body=$(curl "${CURL_OPTS[@]}" -sf -u "${AUTH}" \
         -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
         -H "Accept: application/vnd.oci.image.index.v1+json" \
         "${DOCKER_API}/${image}/manifests/${tag}" 2>/dev/null || true)
@@ -359,7 +360,7 @@ except: pass
 
     if [[ "${DO_DELETE}" == "true" ]]; then
       log_info "  Deleting ${image}/${storage_tag} (${size_mb} MB)..."
-      http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+      http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
         "${BASE_URL}/${ARTIFACTORY_REPO}/${image}/${storage_tag}" 2>/dev/null || echo "000")
 
       if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
@@ -430,7 +431,7 @@ while IFS=$'\t' read -r upath uname usize ureason; do
   size_mb=$(python3 -c "print(f'{${usize}/1048576:.1f}')" 2>/dev/null || echo "?")
   if [[ "${DO_DELETE}" == "true" ]]; then
     log_info "  Deleting ${upath}/${uname} (${size_mb} MB, ${ureason})..."
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
+    http_code=$(curl "${CURL_OPTS[@]}" -s -o /dev/null -w "%{http_code}" -u "${AUTH}" -X DELETE \
       "${BASE_URL}/${ARTIFACTORY_REPO}/${upath}/${uname}" 2>/dev/null || echo "000")
     if [[ "${http_code}" == "204" || "${http_code}" == "200" ]]; then
       log_ok "  Deleted ${upath}/${uname}"

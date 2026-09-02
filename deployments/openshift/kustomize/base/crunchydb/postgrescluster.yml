@@ -5,7 +5,7 @@ metadata:
 spec:
   shutdown: false
   instances:
-    - replicas: 1
+    - replicas: 2
       resources:
         requests:
           cpu: '125m'
@@ -15,7 +15,7 @@ spec:
           - 'ReadWriteOnce'
         resources:
           requests:
-            storage: 1.5Gi # Adjust the storage size as per your requirement
+            storage: 1.5Gi
       sidecars:
         replicaCertCopy:
           resources:
@@ -25,7 +25,7 @@ spec:
   backups:
     pgbackrest:
       global:
-        repo1-retention-full: '30' # Retain backups for 30 days. All full and incremental after this will be removed.
+        repo1-retention-full: '14' # Retain backups for 14 days. All full and incremental after this will be removed.
         repo1-retention-full-type: time
         # Block incremental: back up only the changed blocks within a file rather
         # than re-copying the whole changed file segment. Prevents backup/WAL
@@ -46,7 +46,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 10Gi # Adjust as needed
+                  storage: 10Gi # prod override in components/prod-resources; test uses this base value
       repoHost:
         resources:
           requests:

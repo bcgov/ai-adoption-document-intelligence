@@ -4,6 +4,8 @@
 
 Environment configuration for OpenShift deployments is managed via `.env` files in `deployments/openshift/config/`. Two environment profiles are provided: `dev` and `prod`. All settings — including secrets — live in a single file per profile. Instance-specific overrides can be layered on top.
 
+**CI deployments** (`deploy-instance.yml`) read configuration from GitHub environment secrets (`secrets.*`) for sensitive values. Non-secret PLG monitoring sizing (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) is committed in per-environment Helm values files at `deployments/openshift/helm/plg/values-<env>.yaml`. To change a sizing value, edit the matching values file — no GitHub UI configuration is needed or used for these.
+
 ## Configuration Files
 
 | File | Purpose |
@@ -152,9 +154,9 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 ### Database Storage
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PG_BACKUP_STORAGE_SIZE` | `10Gi` | Backup PVC size for both `app-pg` and `temporal-pg` PostgresCluster resources. Reduce for test instances to stay within namespace backup storage quotas (e.g., `2Gi`). |
+Prod backup PVC sizes are hardcoded in `deployments/openshift/kustomize/components/prod-resources/kustomization.yml`. Test instances use the base manifest values (10Gi for both). These values are not environment variables and cannot be overridden without editing the kustomize component.
+
+pgBackRest retention for both PostgresClusters is **14 days** (`repo1-retention-full` / `repo1-retention-full-type: time` in the base manifests). Schedule is one full backup daily plus hourly incrementals. Older fulls and their dependent incrementals are expired after 14 days.
 
 ### Database SSL
 
@@ -196,13 +198,11 @@ See [LOAD_TESTING.md](../benchmarking/LOAD_TESTING.md) for load-test usage of `m
 
 ### PLG Monitoring Stack
 
+Sizing values (`loki.pvcSize`, `prometheus.pvcSize`, `loki.retentionDays`, `prometheus.scrapeInterval`) are committed in `deployments/openshift/helm/plg/values-test.yaml` and `values-prod.yaml`. Edit those files to change sizing; they are layered on top of `values-openshift.yaml` and `values.yaml` defaults by both the CI workflow and `oc-deploy-instance.sh`. `GRAFANA_ADMIN_PASSWORD` remains in the env file (it is a credential).
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin login password |
-| `LOKI_RETENTION_DAYS` | `30` | Log retention period in days |
-| `LOKI_PVC_SIZE` | `10Gi` | Persistent volume size for Loki data |
-| `PROMETHEUS_PVC_SIZE` | `10Gi` | Persistent volume size for Prometheus TSDB |
-| `METRICS_SCRAPE_INTERVAL` | `15s` | How often Prometheus scrapes targets |
 
 ## How Secrets Reach the Pods
 

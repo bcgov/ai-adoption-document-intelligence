@@ -226,6 +226,15 @@ export function Select({
         mb={mb}
         style={style}
         className={className}
+        // Keep the dropdown in the React Aria modal focus tree so option clicks
+        // are not swallowed by the modal focus trap / interact-outside handling.
+        // `floatingStrategy: "fixed"` avoids clipping by the scrollable modal body.
+        // zIndex stays above BC DS ModalOverlay (1000) if a portal is re-enabled later.
+        comboboxProps={{
+          withinPortal: false,
+          floatingStrategy: "fixed",
+          zIndex: 1100,
+        }}
       />
     );
   }

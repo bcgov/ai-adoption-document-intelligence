@@ -9,6 +9,9 @@
 - To test the API directly, use `curl -H "x-api-key: $API_KEY" http://localhost:3002/api/...` (read the key from local env/config; never paste or log secrets).
 - NEVER read secrets from `.env` files directly or leak them into chat or terminal output.
 
+## Blob Storage Cost Discipline
+- Blob reads are billed per operation and result in direct costs to the user. Minimize unnecessary blob reads: cache results rather than re-reading, avoid reading blobs to inspect metadata (use the database instead), and never read a blob speculatively or in a polling loop.
+
 ## Frontend Implementation Guidelines
 - Use React functional components and hooks for state management and side effects.
 - Use Mantine components for UI elements and styling consistency.

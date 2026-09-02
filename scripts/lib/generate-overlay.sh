@@ -76,7 +76,6 @@ generate_instance_overlay() {
   local enrichment_redact_pii="false"
   local azure_doc_intelligence_endpoint=""
   local azure_doc_intelligence_models="prebuilt-layout"
-  local pg_backup_storage_size="10Gi"
   local document_intelligence_mode="live"
   local mock_azure_ocr="false"
   local minio_endpoint=""
@@ -203,10 +202,6 @@ generate_instance_overlay() {
         ;;
       --azure-doc-intelligence-models)
         azure_doc_intelligence_models="$2"
-        shift 2
-        ;;
-      --pg-backup-storage-size)
-        pg_backup_storage_size="$2"
         shift 2
         ;;
       --document-intelligence-mode)
@@ -372,7 +367,6 @@ generate_instance_overlay() {
     -e "s|__ENRICHMENT_REDACT_PII__|$(_sed_escape_replacement "${enrichment_redact_pii}")|g"
     -e "s|__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__|$(_sed_escape_replacement "${azure_doc_intelligence_endpoint}")|g"
     -e "s|__AZURE_DOC_INTELLIGENCE_MODELS__|$(_sed_escape_replacement "${azure_doc_intelligence_models}")|g"
-    -e "s|__PG_BACKUP_STORAGE_SIZE__|$(_sed_escape_replacement "${pg_backup_storage_size}")|g"
     -e "s|__DOCUMENT_INTELLIGENCE_MODE__|$(_sed_escape_replacement "${document_intelligence_mode}")|g"
     -e "s|__MOCK_AZURE_OCR__|$(_sed_escape_replacement "${mock_azure_ocr}")|g"
     -e "s|__MINIO_ENDPOINT__|$(_sed_escape_replacement "${minio_endpoint}")|g"

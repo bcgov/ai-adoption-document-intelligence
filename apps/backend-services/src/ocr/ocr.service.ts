@@ -3,12 +3,16 @@ import { DocumentStatus } from "@generated/client";
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { AuditService } from "@/audit/audit.service";
+import { PreflightCapCheckService } from "@/billing/preflight-cap-check.service";
+import { PreflightCostEstimatorService } from "@/billing/preflight-cost-estimator.service";
+import { UsageEventService } from "@/billing/usage-event.service";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -21,6 +25,7 @@ import {
 } from "@/document/document.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { TemporalClientService } from "@/temporal/temporal-client.service";
+import { WorkflowService } from "@/workflow/workflow.service";
 
 export interface OcrRequestResponse {
   status: DocumentStatus;
@@ -58,6 +63,10 @@ export class OcrService {
     private blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
     private readonly auditService: AuditService,
+    private readonly workflowService: WorkflowService,
+    private readonly preflightCostEstimatorService: PreflightCostEstimatorService,
+    private readonly preflightCapCheckService: PreflightCapCheckService,
+    private readonly usageEventService: UsageEventService,
     private readonly prismaService: PrismaService,
   ) {}
 
@@ -137,6 +146,37 @@ export class OcrService {
         ...ctxOverrides, // Allows callers to inject or override workflow context values (e.g., confidenceThreshold, templateModelId)
       };
 
+      // Pre-flight cost estimation and cap check
+      const workflowConfig =
+        await this.workflowService.getWorkflowVersionById(workflowConfigId);
+      if (!workflowConfig) {
+        throw new BadRequestException(
+          `Workflow configuration not found: ${workflowConfigId}`,
+        );
+      }
+
+      const costEstimation =
+        await this.preflightCostEstimatorService.estimateWorkflowCost(
+          workflowConfig.config,
+        );
+
+      if (document.group_id) {
+        try {
+          await this.preflightCapCheckService.checkCap(
+            document.group_id,
+            costEstimation.estimatedUnits,
+            costEstimation.unitCostDollars,
+          );
+        } catch (e) {
+          // Cap check throws if a cap was reached.
+          // We'll mark document as failed and re-throw the error
+          await this.documentService.updateDocument(document.id, {
+            status: DocumentStatus.failed,
+          });
+          throw e;
+        }
+      }
+
       // Start Temporal graph workflow
       const workflowExecutionId =
         await this.temporalClientService.startGraphWorkflow(
@@ -146,6 +186,27 @@ export class OcrService {
           document.group_id,
           workflowConfigOverrides,
         );
+
+      // Record workflow_started lifecycle event (does not update UsagePeriodSummary)
+      if (costEstimation.rateVersionId && document.group_id) {
+        try {
+          await this.usageEventService.recordUsageEvent({
+            event_type: "workflow_cost",
+            group_id: document.group_id,
+            rate_version_id: costEstimation.rateVersionId,
+            unit_cost_dollars: costEstimation.unitCostDollars,
+            units_consumed: 0,
+            workflow_version_id: workflowConfigId,
+            workflow_execution_id: workflowExecutionId,
+            estimated_units: costEstimation.estimatedUnits,
+            skipSummaryUpdate: true,
+          });
+        } catch (billingError) {
+          this.logger.warn(
+            `Failed to record workflow_cost event for ${workflowExecutionId}: ${getErrorMessage(billingError)}`,
+          );
+        }
+      }
 
       // Update document with workflow execution ID (Temporal start is external).
       const updateResult = await this.prismaService.transaction(async (tx) => {
@@ -189,6 +250,12 @@ export class OcrService {
         status: DocumentStatus.ongoing_ocr,
       };
     } catch (error) {
+      // Re-throw HTTP exceptions (e.g. HTTP 402 from cap check) without
+      // updating document status — the workflow was never submitted.
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       this.logger.error(`Error processing document: ${getErrorMessage(error)}`);
       this.logger.error(`Stack: ${getErrorStack(error)}`);
 

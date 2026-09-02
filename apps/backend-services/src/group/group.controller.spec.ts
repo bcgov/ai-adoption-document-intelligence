@@ -1,5 +1,6 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
+import { BillingConfigService } from "@/billing/billing-config.service";
 import TestFactory from "@/testUtils/testFactory";
 import { GroupMembershipRequestDto } from "./dto/group-membership-request.dto";
 import { MyMembershipRequestDto } from "./dto/my-membership-request.dto";
@@ -8,12 +9,18 @@ import { UserGroupDto } from "./dto/user-group.dto";
 import { GroupController } from "./group.controller";
 import { GroupService } from "./group.service";
 
+const mockBillingConfigService = {
+  getBillingConfig: jest.fn(),
+  upsertBillingCap: jest.fn(),
+};
+
 describe("GroupController", () => {
   let controller: GroupController;
   let service: GroupService;
   const { makeIdentity } = TestFactory();
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [GroupController],
       providers: [
@@ -37,6 +44,7 @@ describe("GroupController", () => {
             leaveGroup: jest.fn(),
           },
         },
+        { provide: BillingConfigService, useValue: mockBillingConfigService },
       ],
     }).compile();
 
@@ -543,6 +551,75 @@ describe("GroupController", () => {
       const req = { resolvedIdentity: { userId: "admin-id" } } as any;
       await expect(controller.deleteGroup(req, "nonexistent")).rejects.toThrow(
         "Group not found",
+      );
+    });
+  });
+
+  describe("getGroupBillingConfig", () => {
+    it("returns billing config from service", async () => {
+      const config = {
+        id: "cfg-1",
+        group_id: "group-1",
+        monthly_cap_dollars: 500,
+      };
+      mockBillingConfigService.getBillingConfig.mockResolvedValue(config);
+      const result = await controller.getGroupBillingConfig("group-1");
+      expect(result).toEqual(config);
+      expect(mockBillingConfigService.getBillingConfig).toHaveBeenCalledWith(
+        "group-1",
+      );
+    });
+
+    it("returns null when no config exists", async () => {
+      mockBillingConfigService.getBillingConfig.mockResolvedValue(null);
+      const result = await controller.getGroupBillingConfig("group-1");
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("setGroupBillingCap", () => {
+    it("sets the cap and returns updated config", async () => {
+      const config = {
+        id: "cfg-1",
+        group_id: "group-1",
+        monthly_cap_dollars: 250,
+      };
+      mockBillingConfigService.upsertBillingCap.mockResolvedValue(config);
+      const req = {
+        resolvedIdentity: { actorId: "admin-actor", userId: "admin-user" },
+      } as any;
+      const result = await controller.setGroupBillingCap(
+        "group-1",
+        { monthly_cap_dollars: 250 },
+        req,
+      );
+      expect(result).toEqual(config);
+      expect(mockBillingConfigService.upsertBillingCap).toHaveBeenCalledWith(
+        "group-1",
+        250,
+        "admin-actor",
+      );
+    });
+
+    it("clears the cap when monthly_cap_dollars is null", async () => {
+      const config = {
+        id: "cfg-1",
+        group_id: "group-1",
+        monthly_cap_dollars: null,
+      };
+      mockBillingConfigService.upsertBillingCap.mockResolvedValue(config);
+      const req = {
+        resolvedIdentity: { actorId: "admin-actor", userId: "admin-user" },
+      } as any;
+      await controller.setGroupBillingCap(
+        "group-1",
+        { monthly_cap_dollars: null },
+        req,
+      );
+      expect(mockBillingConfigService.upsertBillingCap).toHaveBeenCalledWith(
+        "group-1",
+        null,
+        "admin-actor",
       );
     });
   });
