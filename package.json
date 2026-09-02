@@ -32,7 +32,7 @@
 		"pod:base:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile monitoring up -d --build",
 		"pod:base:down": "podman compose --profile infra --profile temporal --profile monitoring down",
 		"pod:all": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d",
-		"pod:all:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
+		"pod:all:build": "npm run generate:alert-rules && docker compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
 		"pod:all:down": "podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring down",
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh",
 		"docs:wiki:check": "node scripts/validate-wiki.js",
@@ -51,12 +51,12 @@
 		"load-test:matrix": "npm run matrix -w @ai-di/load-testing --",
 		"load-test:suite": "npm run suite -w @ai-di/load-testing --",
 		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --",
-		"db:generate": "node apps/shared/scripts/generate-prisma.js",
-		"db:migrate": "prisma migrate deploy",
-		"db:reset": "prisma migrate reset",
-		"db:status": "prisma migrate status --schema apps/shared/prisma/schema.prisma",
-		"db:studio": "BROWSER=none prisma studio --port 5555",
-		"db:seed": "prisma db seed"
+		"db:generate": "cd apps/backend-services && npm run db:generate",
+		"db:migrate": "cd apps/backend-services && npm run db:migrate",
+		"db:reset": "cd apps/backend-services && npm run db:reset",
+		"db:status": "cd apps/backend-services && npm run db:status",
+		"db:studio": "cd apps/backend-services && npm run db:studio",
+		"db:seed": "cd apps/backend-services && npm run db:seed"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",
@@ -91,6 +91,5 @@
 		"picomatch": "4.0.4",
 		"protobufjs": "7.5.6",
 		"serialize-javascript": "7.0.5"
-	},
-  "prisma.schema": "apps/shared/prisma/schema.prisma"
+	}
 }
