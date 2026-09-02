@@ -15,8 +15,9 @@ The Crunchy PostgreSQL Operator (PGO) runs two cron jobs per database cluster:
 
 Both types are stored inside the cluster on a dedicated `PersistentVolumeClaim`
 backed by the `netapp-file-backup` storage class (NetApp NFS). Backups are
-retained for **30 days**, after which older full backups and all their
-dependent incrementals are pruned automatically.
+retained for **14 days** (`repo1-retention-full` on each `PostgresCluster`),
+after which older full backups and all their dependent incrementals are pruned
+automatically.
 
 **This runbook is for restoring from those automated backups.** It is entirely
 separate from `scripts/oc-backup-db.sh` / `oc-restore-db.sh`, which are manual
@@ -186,11 +187,18 @@ are valid and restore to the end of that incremental.
 ```bash
 oc patch postgrescluster <cluster> -n <namespace> \
   --type=merge \
-  -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":true,"repoName":"repo1","options":["--set=20260716-020002F"]}}}}}'
+  -p '{"spec":{"backups":{"pgbackrest":{"restore":{"enabled":true,"repoName":"repo1","options":["--set=20260716-020002F","--type=immediate"]}}}}}'
 ```
 
 Replace `20260716-020002F` with the actual label from your `pgbackrest info`
 output.
+
+> **`--type=immediate` is not optional here.** `--set` selects which backup to
+> restore; `--type` decides where recovery stops. Left unset it defaults to the
+> end of the WAL archive, so pgBackRest restores the backup and then replays
+> every change made since it — the database ends up back where it started, and
+> reports success either way. `--type=immediate` stops as soon as the selected
+> backup is consistent, which is what Option B is for.
 
 > **Note on PITR:** Timestamp-based point-in-time recovery (`--type=time
 > --target=...`) does not work through the PGO options array because
@@ -295,6 +303,18 @@ Expected output:
 
 `pg_is_in_recovery()` returning `f` (false) confirms the database is running
 as a primary, not a replica in recovery.
+
+`app-pg` runs more than one instance. A restore invalidates every standby's
+data volume and the operator re-seeds them from the restored primary, so the
+primary being healthy is only half the check — confirm the whole cluster came
+back:
+
+```bash
+oc get postgrescluster <cluster> -n <namespace> \
+  -o jsonpath='{range .status.instances[*]}{.name}{": "}{.readyReplicas}{"/"}{.replicas}{"\n"}{end}'
+# Every line should read n/n. A standby stuck below its replica count means the
+# re-seed has not finished (or has failed) even though the primary is serving.
+```
 
 For the backend database, also verify the application schema is present:
 

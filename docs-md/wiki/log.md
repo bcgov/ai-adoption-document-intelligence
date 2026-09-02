@@ -85,7 +85,8 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 
 ## [2026-07-17] ingest | pgBackRest restore runbook
 
-- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, shutting down the PostgresCluster, patching for latest/PITR/named-backup restores, monitoring the restore job, removing the dataSource spec, and scaling back up.
+- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, patching `spec.backups.pgbackrest.restore` for a latest or named-backup restore, triggering the operator's in-place restore by annotation (the cluster is not shut down), monitoring it, removing the restore spec, and scaling back up.
+- Added the `pgBackRest List Backups` and `pgBackRest Database Restore` GitHub Actions workflows, which automate that runbook for the test and prod environments.
 
 ## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
 
