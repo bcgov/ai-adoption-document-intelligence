@@ -192,11 +192,14 @@ jobs:
           # running by design, so a wait on it can never be satisfied. A timeout
           # here means something is still holding a connection open and must fail
           # the job rather than be swallowed.
+          # 300s, not 120s: this wait is now real, so its timeout is load-bearing.
+          # An idle test environment took 71s to drain, most of it Temporal
+          # finishing in-flight activities; production runs more of them.
           echo "Waiting for application pods to stop..."
           oc wait --for=delete pod \
             -l "app.kubernetes.io/instance=${PREFIX},app in (backend-services,temporal,temporal-worker)" \
             -n "$NAMESPACE" \
-            --timeout=120s
+            --timeout=300s
 
           echo "Application pods stopped."
 
@@ -272,12 +275,21 @@ jobs:
 
               CURRENT_ID=$(echo "$STATUS" | jq -r '.id // empty')
               FINISHED=$(echo "$STATUS"   | jq -r '.finished // empty')
+              SUCCEEDED=$(echo "$STATUS"  | jq -r '.succeeded // 0')
+              FAILED=$(echo "$STATUS"     | jq -r '.failed // 0')
 
-              if [[ "$CURRENT_ID" == "$RESTORE_ID" ]]; then
-                if [[ "$FINISHED" == "true" ]]; then
+              # `finished` only says the restore Job stopped running; it is true
+              # for a failed restore too. The Job's own succeeded/failed counts
+              # are what distinguish them.
+              if [[ "$CURRENT_ID" == "$RESTORE_ID" && "$FINISHED" == "true" ]]; then
+                if [[ "$SUCCEEDED" -gt 0 ]]; then
                   echo "Restore completed successfully."
                   exit 0
                 fi
+
+                echo "Error: the restore job finished without succeeding (succeeded=$SUCCEEDED, failed=$FAILED)."
+                echo "Status: $STATUS"
+                exit 1
               fi
             else
               echo "Waiting for restore to start..."
