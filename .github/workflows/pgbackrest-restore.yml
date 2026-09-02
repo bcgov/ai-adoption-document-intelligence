@@ -193,8 +193,12 @@ jobs:
           # here means something is still holding a connection open and must fail
           # the job rather than be swallowed.
           # 300s, not 120s: this wait is now real, so its timeout is load-bearing.
-          # An idle test environment took 71s to drain, most of it Temporal
-          # finishing in-flight activities; production runs more of them.
+          # A healthy drain is bounded by the longest terminationGracePeriodSeconds
+          # of the three deployments — temporal-worker's 70s, inside which the
+          # Temporal SDK gives in-flight activities its 55s shutdownGraceTime and
+          # then cancels them. Workload does not extend that. The headroom is for
+          # a pod that will not terminate or an API server that is slow to reap,
+          # which is what a timeout here should actually catch.
           echo "Waiting for application pods to stop..."
           oc wait --for=delete pod \
             -l "app.kubernetes.io/instance=${PREFIX},app in (backend-services,temporal,temporal-worker)" \

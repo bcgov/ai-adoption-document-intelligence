@@ -161,6 +161,23 @@ oc get pods -n <namespace> | grep -E 'backend-services|temporal'
 # Should show no Running pods for those deployments.
 ```
 
+### What happens to work that is in flight
+
+Scaling to zero does not wait for running Temporal activities to finish. The
+worker gets `shutdownGraceTime` (55s) to complete what it is holding, then
+cancels the rest, and Kubernetes terminates the pod at its 70s
+`terminationGracePeriodSeconds` regardless. A long-running activity is therefore
+cancelled, not awaited — Temporal reschedules it under its own retry policy once
+workers are back, so the drain takes about a minute no matter how much work is
+outstanding.
+
+Expect the restore itself to leave workflows inconsistent with their data. Only
+the cluster you restore goes back in time: restoring `app-pg` does not touch
+`temporal-pg`, so Temporal keeps every workflow history while the rows those
+workflows created are rolled back. Running workflows that resume against missing
+data will fail, and that is the expected outcome rather than a fault to
+investigate.
+
 ---
 
 ## Step 3 — Apply the restore spec
