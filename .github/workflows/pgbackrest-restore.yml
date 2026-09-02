@@ -120,10 +120,17 @@ jobs:
       # -----------------------------------------------------------------------
       # Step 2: Log in to OpenShift
       # -----------------------------------------------------------------------
+      # ubuntu-latest does not ship the OpenShift CLI. Same action and pin as
+      # deploy-instance.yml, which is the workflow that already logs in here.
+      - name: Install oc CLI
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1
+        with:
+          oc: "4"
+
       - name: Log in to OpenShift
         run: |
           oc login "${{ secrets.OPENSHIFT_SERVER }}" \
-            --token="${{ secrets.OPENSHIFT_API_TOKEN }}" \
+            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
             --insecure-skip-tls-verify=true
           oc project "${{ steps.names.outputs.namespace }}"
 
