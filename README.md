@@ -346,8 +346,6 @@ docker ps
 Requires only PostgreSQL to be running (Docker infra from step 3) — the backend and frontend do not need to be started yet. Run in WSL on Windows, from `apps/backend-services`:
 
 ```bash
-cd apps/backend-services
-
 # Apply all pending migrations
 npm run db:migrate
 
@@ -371,7 +369,7 @@ In the `user` table you should see 3 rows; `group` should have 1 row; `api_key` 
 
 ### 5. Start Services
 
-**Option A — VS Code `Dev: all` task **
+**Option A — VS Code `Dev: all` task**
 
 Skip this step if the `Dev: all` task already started the backend, frontend, and Temporal worker (see step 3).
 
@@ -401,7 +399,7 @@ cd apps/temporal && npm run dev
 - **Frontend**: http://localhost:3000
 - **Swagger API Docs**: http://localhost:3002/api
 - **Temporal UI**: http://localhost:8088
-- **Prisma Studio**: `cd apps/backend-services && npm run db:studio`
+- **Prisma Studio**: `npm run db:studio`
 
 
 ## Development Workflow
@@ -409,8 +407,6 @@ cd apps/temporal && npm run dev
 ### Database Management
 
 ```bash
-cd apps/backend-services
-
 # Generate Prisma client from schema
 npm run db:generate
 
