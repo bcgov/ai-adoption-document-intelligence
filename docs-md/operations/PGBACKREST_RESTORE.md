@@ -163,20 +163,34 @@ oc get pods -n <namespace> | grep -E 'backend-services|temporal'
 
 ### What happens to work that is in flight
 
-Scaling to zero does not wait for running Temporal activities to finish. The
-worker gets `shutdownGraceTime` (55s) to complete what it is holding, then
-cancels the rest, and Kubernetes terminates the pod at its 70s
-`terminationGracePeriodSeconds` regardless. A long-running activity is therefore
-cancelled, not awaited — Temporal reschedules it under its own retry policy once
-workers are back, so the drain takes about a minute no matter how much work is
-outstanding.
+**Running workflows survive this.** A workflow's state is its event history in
+`temporal-pg`, not anything held in a worker process, so stopping the workers
+does not lose it — when they scale back up, each workflow resumes from exactly
+the point it had reached.
 
-Expect the restore itself to leave workflows inconsistent with their data. Only
-the cluster you restore goes back in time: restoring `app-pg` does not touch
-`temporal-pg`, so Temporal keeps every workflow history while the rows those
-workflows created are rolled back. Running workflows that resume against missing
-data will fail, and that is the expected outcome rather than a fault to
-investigate.
+What does not survive is the *activity attempt* a worker was executing. On
+SIGTERM the SDK stops taking new tasks and gives what it holds
+`shutdownGraceTime` (55s) to finish; anything still running when the pod is
+terminated at its 70s `terminationGracePeriodSeconds` simply never reports a
+result. Temporal reschedules that attempt and it runs again from the start under
+the activity's retry policy. So the drain takes about a minute regardless of how
+much work is outstanding, and the cost of interrupting a long activity is its
+elapsed progress, not the workflow.
+
+Two consequences worth knowing before you scale down:
+
+- An activity that is **not idempotent** may repeat side effects it already
+  performed before being interrupted.
+- An activity already near its `maximumAttempts` can exhaust its retries on the
+  extra attempt and fail its workflow.
+
+**The restore itself is the part that needs care, and durability is what makes
+it visible.** Only the cluster you restore goes back in time: restoring `app-pg`
+leaves `temporal-pg` untouched, so every workflow history survives intact and
+resumes faithfully — against rows that have just been rolled back underneath it.
+Workflows failing on missing data after a restore is the expected outcome, not a
+fault to investigate. If that matters for the incident you are recovering from,
+terminate the affected workflows rather than letting them resume.
 
 ---
 
