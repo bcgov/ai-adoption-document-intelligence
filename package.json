@@ -32,7 +32,7 @@
 		"pod:base:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile monitoring up -d --build",
 		"pod:base:down": "podman compose --profile infra --profile temporal --profile monitoring down",
 		"pod:all": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d",
-		"pod:all:build": "npm run generate:alert-rules && docker compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
+		"pod:all:build": "npm run generate:alert-rules && podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring up -d --build",
 		"pod:all:down": "podman compose --profile infra --profile temporal --profile temporal-worker --profile app --profile monitoring down",
 		"docs:build": "npm run generate:openapi && cd docs && bash build.sh",
 		"docs:wiki:check": "node scripts/validate-wiki.js",
