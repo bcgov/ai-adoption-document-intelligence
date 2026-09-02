@@ -179,10 +179,10 @@ jobs:
           oc scale deployment "${PREFIX}-temporal"         --replicas=0 -n "$NAMESPACE" || true
 
           # Select only the three deployments scaled above. The instance label
-          # alone also covers frontend, deno-runner, temporal-ui and the Postgres
-          # pods, which stay running by design, so a wait on it can never be
-          # satisfied. A timeout here means something is still holding a
-          # connection and must fail the job rather than be swallowed.
+          # alone also covers the frontend and temporal-ui pods, which stay
+          # running by design, so a wait on it can never be satisfied. A timeout
+          # here means something is still holding a connection open and must fail
+          # the job rather than be swallowed.
           echo "Waiting for application pods to stop..."
           oc wait --for=delete pod \
             -l "app.kubernetes.io/instance=${PREFIX},app in (backend-services,temporal,temporal-worker)" \
