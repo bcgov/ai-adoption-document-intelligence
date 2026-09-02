@@ -127,12 +127,14 @@ jobs:
         with:
           oc: "4"
 
+      # No `oc project`: the deploy service account is scoped to its namespace and
+      # cannot read the project API, so `oc project <ns>` fails with "You are not
+      # a member of project". Every command below names its namespace with -n.
       - name: Log in to OpenShift
         run: |
           oc login "${{ secrets.OPENSHIFT_SERVER }}" \
             --token="${{ secrets.OPENSHIFT_TOKEN }}" \
             --insecure-skip-tls-verify=true
-          oc project "${{ steps.names.outputs.namespace }}"
 
       # -----------------------------------------------------------------------
       # Step 3: Show available backups (informational)
