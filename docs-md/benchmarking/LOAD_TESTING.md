@@ -42,7 +42,7 @@ The backend registers **`ThrottlerGuard`** globally ([`apps/backend-services/src
 
 | Environment | Action |
 |-------------|--------|
-| Local | `export THROTTLE_GLOBAL_LIMIT=1000000` in `apps/backend-services/.env` or the shell that starts the backend |
+| Local | `export THROTTLE_GLOBAL_LIMIT=1000000` in the repo-root `.env` or the shell that starts the backend |
 | OpenShift disposable instance | Patch `<instance>-backend-services-config` and restart — [MANUAL_LOAD_TEST_INSTANCE.md](../operations/MANUAL_LOAD_TEST_INSTANCE.md#disable-the-global-request-throttler-before-sustained-load) |
 
 Re-apply the OpenShift patch after redeploying the instance; `oc-deploy-instance.sh` resets ConfigMap values from `dev.env`.
