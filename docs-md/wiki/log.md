@@ -83,6 +83,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Expanded `architecture/AUDIT.md` (group, tables, `document_deleted`, `system_bootstrap` domains; hybrid benchmark audit; `recordEvent(events, tx?)`) and reconciled the stale Findings-vs-Summary contradiction in `TRANSACTION_AND_AUDIT_AUDIT.md`.
 - Fixed `benchmarking/LOAD_TESTING.md` HA row: backend `backend-services/pvc.yml` (RWX blob PVC) was removed; blob storage is object storage via `BLOB_STORAGE_PROVIDER`.
 
+## [2026-07-17] ingest | pgBackRest restore runbook
+
+- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, patching `spec.backups.pgbackrest.restore` for a latest or named-backup restore, triggering the operator's in-place restore by annotation (the cluster is not shut down), monitoring it, removing the restore spec, and scaling back up.
+- Added the `pgBackRest List Backups` and `pgBackRest Database Restore` GitHub Actions workflows, which automate that runbook for the test and prod environments.
+
 ## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
 
 - Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
