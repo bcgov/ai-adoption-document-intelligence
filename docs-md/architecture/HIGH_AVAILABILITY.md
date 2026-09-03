@@ -116,7 +116,7 @@ See [NAMESPACE_CAPACITY.md](NAMESPACE_CAPACITY.md) for the full capacity model.
 
 **Reading those percentages correctly.** An HPA resource metric is computed per *pod*,
 not per container: it sums usage across every container in the pod and divides by the sum
-of their requests. Both of these pods carry a `logrotate` sidecar (32Mi) and a `promtail`
+of their requests. Both of these pods carry a `log-rotator` sidecar (32Mi) and a `promtail`
 sidecar (64Mi), so the denominators are **1120Mi** for backend-services and **864Mi** for
 temporal-worker — not the 1Gi and 768Mi in the table above. Hence 740/1120 = 66% and
 560/864 = 65%. Dividing by the application container's request alone overstates the
