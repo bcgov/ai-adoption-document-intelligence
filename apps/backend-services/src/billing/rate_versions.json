@@ -17,5 +17,67 @@
       "training.template_model": { "cost_type": "flat", "units": 500 },
       "training.classifier": { "cost_type": "flat", "units": 300 }
     }
+  },
+  {
+    "version": "1.1.0",
+    "effective_from": "2026-08-13T00:00:00Z",
+    "unit_cost_dollars": 0.001,
+    "units_per_gb_per_month": 250,
+    "max_pages_assumption": 3,
+    "max_array_items_assumption": 3,
+    "activity_costs": {
+      "azureOcr.submit": { "cost_type": "flat", "units": 10 },
+      "azureOcr.extract": { "cost_type": "per_page", "units": 40 },
+      "mistralOcr.process": { "cost_type": "flat", "units": 120 },
+      "azureContentUnderstanding.analyze": {
+        "cost_type": "flat",
+        "units": 150
+      },
+      "azureContentUnderstanding.deployAnalyzer": {
+        "cost_type": "flat",
+        "units": 10
+      },
+      "vlmDirect.extract": { "cost_type": "flat", "units": 150 },
+      "vlmOcrHybrid.extract": { "cost_type": "flat", "units": 120 },
+      "ocr.enrich": { "cost_type": "flat", "units": 200 },
+      "azureClassify.submit": { "cost_type": "flat", "units": 30 },
+      "blob.read": { "cost_type": "flat", "units": 0.0009 },
+      "blob.write": { "cost_type": "flat", "units": 0.012 },
+      "training.template_model": { "cost_type": "flat", "units": 500 },
+      "training.classifier": { "cost_type": "flat", "units": 300 },
+      "document.updateStatus": { "cost_type": "flat", "units": 0 },
+      "file.prepare": { "cost_type": "flat", "units": 0 },
+      "azureOcr.poll": { "cost_type": "flat", "units": 0 },
+      "ocr.cleanup": { "cost_type": "flat", "units": 0 },
+      "ocr.checkConfidence": { "cost_type": "flat", "units": 0 },
+      "ocr.storeResults": { "cost_type": "flat", "units": 0 },
+      "ocr.spellcheck": { "cost_type": "flat", "units": 0 },
+      "ocr.characterConfusion": { "cost_type": "flat", "units": 0 },
+      "ocr.normalizeFields": { "cost_type": "flat", "units": 0 },
+      "ocr.recoverNumericZerosFromCheckboxes": {
+        "cost_type": "flat",
+        "units": 0
+      },
+      "hitl.applyReviewCriteria": { "cost_type": "flat", "units": 0 },
+      "document.persistReviewPlan": { "cost_type": "flat", "units": 0 },
+      "document.storeRejection": { "cost_type": "flat", "units": 0 },
+      "document.split": { "cost_type": "flat", "units": 0 },
+      "document.classify": { "cost_type": "flat", "units": 0 },
+      "document.splitAndClassify": { "cost_type": "flat", "units": 0 },
+      "document.validateFields": { "cost_type": "flat", "units": 0 },
+      "document.extractPageRange": { "cost_type": "flat", "units": 0 },
+      "document.extractToBase64": { "cost_type": "flat", "units": 0 },
+      "document.normalizeOrientation": { "cost_type": "flat", "units": 0 },
+      "segment.combineResult": { "cost_type": "flat", "units": 0 },
+      "azureClassify.poll": { "cost_type": "flat", "units": 0 },
+      "document.selectClassifiedPages": { "cost_type": "flat", "units": 0 },
+      "document.flattenClassifiedDocuments": {
+        "cost_type": "flat",
+        "units": 0
+      },
+      "data.transform": { "cost_type": "flat", "units": 0 },
+      "tables.lookup": { "cost_type": "flat", "units": 0 },
+      "getWorkflowGraphConfig": { "cost_type": "flat", "units": 0 }
+    }
   }
 ]

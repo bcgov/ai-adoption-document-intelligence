@@ -12,6 +12,8 @@ deployments/openshift/helm/plg/
   values.yaml                        # Default values
   values-local.yaml                  # Local Docker environment overrides
   values-openshift.yaml              # OpenShift environment overrides
+  values-test.yaml                   # Sizing and retention for test/dev environments
+  values-prod.yaml                   # Sizing and retention for production
   files/
     app-alerts.yml                   # Generated alert rules (gitignored; produced by npm run generate:alert-rules)
   templates/
@@ -31,7 +33,7 @@ deployments/openshift/helm/plg/
 | `prometheus.image.repository` | Prometheus container image | `prom/prometheus` |
 | `prometheus.image.tag` | Prometheus image tag | `v3.2.1` |
 | `prometheus.retentionDays` | TSDB data retention period in days | `15` |
-| `prometheus.pvcSize` | PVC storage size | `10Gi` |
+| `prometheus.pvcSize` | PVC storage size | `2Gi` |
 | `prometheus.storageClassName` | Storage class (empty = cluster default) | `""` |
 | `prometheus.scrapeInterval` | Scrape interval for all targets | `15s` |
 | `prometheus.resources.requests.memory` | Memory request | `512Mi` |
@@ -74,6 +76,7 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 ```bash
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-openshift.yaml \
+  -f ./deployments/openshift/helm/plg/values-prod.yaml \
   -n <namespace>
 ```
 
@@ -83,6 +86,8 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-local.yaml
 ```
+
+`prometheus.pvcSize` and `prometheus.scrapeInterval` come from the per-environment file, which is layered last and therefore wins over `values-openshift.yaml`. Use `values-test.yaml` for test and dev namespaces. Both the CI workflow and `scripts/oc-deploy-instance.sh` pick the file from the target environment, so changing Prometheus's PVC size or scrape interval in a deployed environment means editing the matching `values-<env>.yaml`.
 
 ### Custom Overrides
 

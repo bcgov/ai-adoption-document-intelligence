@@ -4,19 +4,11 @@ metadata:
   name: frontend
   labels:
     app: frontend
-  annotations:
-    # Only allow clients whose source IP matches one of the entries below (space-separated).
-    # VPN:      142.16.0.0/11      (BC Gov VPN range)
-    # Silver:   142.34.194.121–124 (NAT pool egress IPs)
-    # Gold:     142.34.229.6–9     (NAT pool egress IPs)
-    # Gold DR:  142.34.64.6–9      (NAT pool egress IPs)
-    # Emerald:  no fixed egress IPs — each namespace has a dedicated /26 private range;
-    #           add your namespace's /26 CIDR here if cross-cluster access from Emerald is needed.
-    haproxy.router.openshift.io/ip_allowlist: >-
-      142.16.0.0/11
-      142.34.194.121 142.34.194.122 142.34.194.123 142.34.194.124
-      142.34.229.6 142.34.229.7 142.34.229.8 142.34.229.9
-      142.34.64.6 142.34.64.7 142.34.64.8 142.34.64.9
+  # No source-IP allowlist here on purpose: base is open so ephemeral PR and
+  # test/dev instances are reachable without VPN. The production-only source-IP
+  # allowlist (haproxy.router.openshift.io/ip_allowlist) is applied by the
+  # components/prod-resources component, which scripts/lib/generate-overlay.sh
+  # includes automatically when the target namespace ends in -prod.
 spec:
   to:
     kind: Service

@@ -21,7 +21,6 @@ All QA workflows also support `workflow_dispatch`. Local equivalents run as left
 | Checkov | `checkov.yml` | IaC misconfiguration (Kubernetes/OpenShift manifests, Dockerfiles) |
 | Hadolint | `hadolint.yml` | Dockerfile linting (PRs only) |
 | Dependency Review | `dependency-review.yml` | New dependency vulnerabilities/licenses (PRs only) |
-| Python Dependency Audit | `python-dependency-audit.yml` | `apps/image-service` Python dependencies |
 
 ## Deploy and publish
 
@@ -34,6 +33,6 @@ All QA workflows also support `workflow_dispatch`. Local equivalents run as left
 
 | Workflow | File | What it does |
 | --- | --- | --- |
-| Database Backup | `db-backup-manual.yml` | One-off backup of a named Crunchy PostgreSQL cluster (see also `scripts/oc-backup-db.sh` and [BACKUP_TO_NETWORK_SHARE.md](BACKUP_TO_NETWORK_SHARE.md)) |
-| Database Restore | `db-restore.yml` | Restore a named cluster from a backup |
+| pgBackRest List Backups | `pgbackrest-list-backups.yml` | Prints the backup labels available for a cluster. Read-only, and the way to find the label the restore workflow needs |
+| pgBackRest Database Restore | `pgbackrest-restore.yml` | Restores a cluster from an automated pgBackRest backup, scaling the application down and back up around it — see [PGBACKREST_RESTORE.md](PGBACKREST_RESTORE.md) |
 | Release | `release.yml` | Creates a release pull request via `changesets/action` |

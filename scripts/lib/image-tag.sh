@@ -25,3 +25,19 @@ sanitize_branch_as_image_tag() {
     | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//' \
     | cut -c1-128
 }
+
+# compute_sha_image_tag <floating-tag> [git-sha]
+#
+# Appends a 12-char git SHA suffix for staged image tags. Mirrors CI metadata rules
+# in .github/workflows/deploy-instance.yml.
+compute_sha_image_tag() {
+  local floating_tag="$1"
+  local sha="${2:-}"
+  if [[ -z "${sha}" ]]; then
+    sha=$(git rev-parse HEAD 2>/dev/null) || {
+      echo "[ERROR] Not in a git repo: pass an explicit SHA as the second argument." >&2
+      return 1
+    }
+  fi
+  echo "${floating_tag}-${sha:0:12}"
+}

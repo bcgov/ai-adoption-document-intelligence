@@ -47,10 +47,11 @@ These workflows intentionally avoid top-level `paths` filters so they always pub
 
 ### Database operations
 
-- `db-backup-manual.yml`
-  - Manual PostgreSQL backup workflow
-- `db-restore.yml`
-  - Manual PostgreSQL restore workflow
+- `pgbackrest-list-backups.yml`
+  - Lists the pgBackRest backup labels available for a cluster (read-only)
+- `pgbackrest-restore.yml`
+  - Restores a cluster from an automated pgBackRest backup — see
+    [PGBACKREST_RESTORE.md](../docs-md/operations/PGBACKREST_RESTORE.md)
 
 ## Security workflows
 
@@ -60,8 +61,6 @@ The repository security baseline now includes:
   - CodeQL analysis for TypeScript, Python, and GitHub Actions content
 - `dependency-review.yml`
   - Pull request dependency review for supported dependency changes
-- `python-dependency-audit.yml`
-  - `uv` plus `pip-audit` coverage for `apps/image-service`
 - `hadolint.yml`
   - Dockerfile lint and security checks
 - `checkov.yml`

@@ -23,7 +23,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 | `__SSO_REALM__` | SSO realm name | `my-realm` |
 | `__SSO_CLIENT_ID__` | SSO client identifier | `my-client` |
 
-The template also carries app-configuration tokens beyond the core set above: `__BOOTSTRAP_ADMIN_EMAIL__`, `__BLOB_STORAGE_PROVIDER__`, `__AZURE_STORAGE_CONTAINER_NAME__`, `__BENCHMARK_TASK_QUEUE__`, `__ENABLE_BENCHMARK_QUEUE__`, `__BODY_LIMIT__`, `__THROTTLE_*__` (global/auth/auth-refresh TTL+limit), `__DB_POOL_MAX__`, `__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__`, `__AZURE_DOC_INTELLIGENCE_MODELS__`, `__AZURE_OPENAI_ENDPOINT__`/`__AZURE_OPENAI_DEPLOYMENT__`/`__AZURE_OPENAI_API_VERSION__`, `__ENRICHMENT_REDACT_PII__`, `__DOCUMENT_INTELLIGENCE_MODE__`, `__MOCK_AZURE_OCR__`, `__PG_BACKUP_STORAGE_SIZE__`, and `__MINIO_*__`. Each has a matching `generate_instance_overlay` flag with a sensible default (see `scripts/lib/generate-overlay.sh`); the instance/namespace/domain/image and SSO tokens are required arguments.
+The template also carries app-configuration tokens beyond the core set above: `__BOOTSTRAP_ADMIN_EMAIL__`, `__BLOB_STORAGE_PROVIDER__`, `__AZURE_STORAGE_CONTAINER_NAME__`, `__BENCHMARK_TASK_QUEUE__`, `__ENABLE_BENCHMARK_QUEUE__`, `__BODY_LIMIT__`, `__THROTTLE_*__` (global/auth/auth-refresh TTL+limit), `__DB_POOL_MAX__`, `__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__`, `__AZURE_DOC_INTELLIGENCE_MODELS__`, `__AZURE_OPENAI_ENDPOINT__`/`__AZURE_OPENAI_DEPLOYMENT__`/`__AZURE_OPENAI_API_VERSION__`, `__ENRICHMENT_REDACT_PII__`, `__DOCUMENT_INTELLIGENCE_MODE__`, `__MOCK_AZURE_OCR__`, and `__MINIO_*__`. Each has a matching `generate_instance_overlay` flag with a sensible default (see `scripts/lib/generate-overlay.sh`); the instance/namespace/domain/image and SSO tokens are required arguments.
 
 ### Kustomize Features Used
 
@@ -35,7 +35,15 @@ The template also carries app-configuration tokens beyond the core set above: `_
 
 ### Route IP restrictions
 
-Base `Route` manifests under `deployments/openshift/kustomize/base/` set `haproxy.router.openshift.io/ip_allowlist` (space-separated entries) so the OpenShift router (HAProxy) only allows traffic from the BC Gov VPN range `142.16.0.0/11` plus the Silver (`142.34.194.121-124`), Gold (`142.34.229.6-9`), and Gold DR (`142.34.64.6-9`) NAT-pool egress IPs. Other clients receive HTTP 403 at the router. The backend Route also keeps `haproxy.router.openshift.io/deny-list` for `/metrics` (see [PROMETHEUS_METRICS.md](../monitoring/PROMETHEUS_METRICS.md)).
+The source-IP allowlist is **production-only**. Base `Route` manifests under `deployments/openshift/kustomize/base/` carry **no** allowlist, so ephemeral PR and `test`/`dev` instances are reachable without VPN. For production namespaces the `components/prod-resources` component adds `haproxy.router.openshift.io/ip_allowlist` to both public Routes, so the OpenShift router (HAProxy) only allows traffic whose source IP is in the BC Gov public `142.x` allocation (ARIN org `PBC-51-Z`): `142.22.0.0/16`–`142.36.0.0/16`, space-separated. This covers all BC Gov networks including VPN egress and the Silver/Gold/Gold-DR NAT pools (all within `142.34.0.0/16`); other clients receive HTTP 403 at the router.
+
+`scripts/lib/generate-overlay.sh` includes `components/prod-resources` automatically when the target namespace ends in `-prod` — the same mechanism used for prod-only memory limits and PVC sizes. There is no per-overlay allowlist patch; the legacy `overlays/{prod,test,dev}` directories are not part of the deploy path (the **Deploy Instance** workflow always renders from `overlays/instance-template`).
+
+The backend Route keeps `haproxy.router.openshift.io/deny-list` for `/metrics` in base, so `/metrics` is blocked in every environment (see [PROMETHEUS_METRICS.md](../monitoring/PROMETHEUS_METRICS.md)).
+
+> Annotation key: `ip_allowlist` (renamed from `ip_whitelist` in PR #218 / AI-1341 for inclusive naming).
+>
+> History: a prior base value of `142.16.0.0/11` both over-restricted (a `/11` only spans `142.0.0.0`–`142.31.255.255`, silently excluding BC Gov clients in `142.32.0.0/16`–`142.36.0.0/16`) and applied to every environment, including test/dev.
 
 ### What Gets Patched
 
@@ -61,7 +69,7 @@ Crunchy PostgreSQL operator creates secrets with names derived from the Postgres
 - **Temporal PostgresCluster**: `databaseInitSQL.name` patched to `<instance>-temporal-postgres-init-sql` (Kustomize doesn't auto-update this CRD field)
 
 #### PostgresCluster backup PVC sizes and retention
-- Both PostgresClusters (`app-pg`, `temporal-pg`) have their pgBackRest repo volume size patched to `__PG_BACKUP_STORAGE_SIZE__` (default `10Gi`), so test instances can use smaller backup storage
+- Backup PVC sizes are **not** configured via overlay tokens. Test instances use the base manifest values (`10Gi` for both `app-pg` and `temporal-pg`). Prod sizes (`15Gi` for `app-pg`, `22Gi` for `temporal-pg`, each matching the live PVC) are patched by `components/prod-resources/kustomization.yml`, which applies before instance-template overlay patches — the instance-template no longer touches these fields, so the component patch reaches the deployed manifest cleanly.
 - Backup retention is **14 days** (time-based) with a daily full backup and hourly incrementals (set in the base PostgresCluster manifests, not via env overlay)
 
 ## Instance Isolation
@@ -105,7 +113,7 @@ oc apply -k "${OVERLAY_DIR}"
 cleanup_generated_overlay "${OVERLAY_DIR}"
 ```
 
-The `--sso-*` arguments are required alongside the instance/namespace/domain/image arguments; all other app-config flags (throttling, blob storage, Azure endpoints, `--pg-backup-storage-size`, etc.) are optional with defaults.
+The `--sso-*` arguments are required alongside the instance/namespace/domain/image arguments; all other app-config flags (throttling, blob storage, Azure endpoints, etc.) are optional with defaults.
 
 The function copies the template to a nested temporary directory structure (`tmpdir/overlays/instance/`) with a symlink (`tmpdir/base` -> real base dir) so the relative path `../../base` in the kustomization resolves correctly. It replaces all placeholder tokens and returns the path. The caller is responsible for cleanup via `cleanup_generated_overlay`.
 
