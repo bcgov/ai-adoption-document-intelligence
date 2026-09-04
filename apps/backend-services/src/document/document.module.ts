@@ -5,20 +5,14 @@ import { UploadNormalizationLimiter } from "../upload/upload-normalization-limit
 import { DocumentController } from "./document.controller";
 import { DocumentService } from "./document.service";
 import { DocumentDbService } from "./document-db.service";
-import { DocumentRetentionService } from "./document-retention.service";
-import { EphemeralDocumentCleanupService } from "./ephemeral-document-cleanup.service";
 import { PdfNormalizationService } from "./pdf-normalization.service";
-import { RetentionDbService } from "./retention-db.service";
 
 @Module({
   imports: [BlobStorageModule, TemporalModule],
   providers: [
     DocumentDbService,
     DocumentService,
-    DocumentRetentionService,
-    EphemeralDocumentCleanupService,
     PdfNormalizationService,
-    RetentionDbService,
     UploadNormalizationLimiter,
   ],
   controllers: [DocumentController],
