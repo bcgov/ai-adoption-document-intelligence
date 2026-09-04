@@ -1,7 +1,7 @@
 import { getErrorStack } from "@ai-di/shared-logging";
 import { DocumentStatus } from "@generated/client";
 import { Inject, Injectable } from "@nestjs/common";
-import { Cron, CronExpression } from "@nestjs/schedule";
+import { Cron } from "@nestjs/schedule";
 import {
   BLOB_STORAGE,
   BlobStorageInterface,
@@ -12,16 +12,22 @@ import {
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
+import { RetentionDbService } from "./retention-db.service";
 
-/**
- * Environment variable that controls the retention window.
- * Set to a positive integer (number of days). If absent or invalid the janitor
- * is disabled and no documents are deleted.
- */
+/** Env var controlling document retention window (days). */
 export const DOCUMENT_RETENTION_ENV_VAR = "DOCUMENT_RETENTION_DAYS";
+/** Env var controlling audit_events retention window (days). */
+export const AUDIT_EVENT_RETENTION_ENV_VAR = "AUDIT_EVENT_RETENTION_DAYS";
+/** Env var controlling benchmark_audit_logs retention window (days). */
+export const BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR =
+  "BENCHMARK_AUDIT_LOG_RETENTION_DAYS";
+/** Env var controlling completed review_sessions retention window (days). */
+export const REVIEW_SESSION_RETENTION_ENV_VAR = "REVIEW_SESSION_RETENTION_DAYS";
 
-/** Maximum documents deleted per janitor run to avoid long-running transactions. */
-const BATCH_SIZE = 100;
+/** Max documents deleted per run — blob I/O makes per-doc cost non-trivial. */
+const DOCUMENT_BATCH_SIZE = 500;
+/** Max rows deleted per run for pure-DB jobs (no blob I/O). */
+const SIMPLE_BATCH_SIZE = 2000;
 
 /**
  * Terminal document statuses eligible for retention-based deletion.
@@ -35,18 +41,17 @@ const DELETABLE_STATUSES: DocumentStatus[] = [
 ];
 
 /**
- * Periodic janitor that permanently deletes documents (and their associated
- * `ocr_results` rows, via CASCADE, and blob-storage files) once they exceed
- * the retention window defined by {@link DOCUMENT_RETENTION_DAYS}.
+ * Periodic janitor that enforces configurable retention windows across the
+ * system's main unbounded data stores.
  *
- * Deletion order per document:
- *   1. Delete blobs from storage (idempotent — safe if files are already gone).
- *   2. Delete the `documents` row, which cascades to `ocr_results`.
+ * Each store is controlled by its own environment variable (see exported
+ * `*_ENV_VAR` constants). When the variable is absent or invalid the job for
+ * that store is skipped — behaviour is unchanged on deploy unless the variable
+ * is explicitly set.
  *
- * The janitor runs once per day. Documents already processed by the ephemeral
- * cleanup janitor (blobs gone, `purged_at` set) are also collected and their
- * DB rows removed; `deleteByPrefix` is idempotent and produces no error when
- * no matching blobs exist.
+ * Jobs run in two groups to spread DB pressure:
+ *   Every 6 hours (00:00/06:00/12:00/18:00) — documents + blobs
+ *   Daily at 02:15/02:30/02:45 — audit_events, benchmark_audit_logs, review_sessions
  */
 @Injectable()
 export class DocumentRetentionService {
@@ -54,18 +59,12 @@ export class DocumentRetentionService {
     private readonly documentDb: DocumentDbService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
+    private readonly retentionDb: RetentionDbService,
     private readonly logger: AppLoggerService,
   ) {}
 
-  /**
-   * Runs daily at 02:00: permanently deletes expired terminal documents and
-   * their associated blobs and OCR results.
-   *
-   * Requires `DOCUMENT_RETENTION_DAYS` to be set to a positive integer.
-   * If the variable is absent or invalid the run is skipped and a warning is
-   * logged — no documents are deleted.
-   */
-  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  /** Runs every 6 hours: permanently deletes expired terminal documents, their blobs, and cascading OCR results. */
+  @Cron("0 */6 * * *")
   async deleteExpiredDocuments(): Promise<void> {
     const raw = process.env[DOCUMENT_RETENTION_ENV_VAR];
     const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
@@ -89,7 +88,7 @@ export class DocumentRetentionService {
       documents = await this.documentDb.findExpiredDocuments(
         olderThan,
         DELETABLE_STATUSES,
-        BATCH_SIZE,
+        DOCUMENT_BATCH_SIZE,
       );
     } catch (err) {
       this.logger.error("Failed to query expired documents — aborting run", {
@@ -142,5 +141,100 @@ export class DocumentRetentionService {
     ]);
     await this.blobStorage.deleteByPrefix(prefix);
     await this.documentDb.deleteDocument(doc.id);
+  }
+
+  /**
+   * Runs daily at 02:15: deletes `audit_events` rows older than
+   * `AUDIT_EVENT_RETENTION_DAYS`. Skipped when the variable is unset.
+   */
+  @Cron("15 2 * * *")
+  async deleteExpiredAuditEvents(): Promise<void> {
+    await this.runSimpleRetentionJob(
+      AUDIT_EVENT_RETENTION_ENV_VAR,
+      "Audit event",
+      (olderThan, limit) =>
+        this.retentionDb.deleteAuditEventsOlderThan(olderThan, limit),
+    );
+  }
+
+  /**
+   * Runs daily at 02:30: deletes `benchmark_audit_logs` rows older than
+   * `BENCHMARK_AUDIT_LOG_RETENTION_DAYS`. Skipped when the variable is unset.
+   */
+  @Cron("30 2 * * *")
+  async deleteExpiredBenchmarkAuditLogs(): Promise<void> {
+    await this.runSimpleRetentionJob(
+      BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
+      "Benchmark audit log",
+      (olderThan, limit) =>
+        this.retentionDb.deleteBenchmarkAuditLogsOlderThan(olderThan, limit),
+    );
+  }
+
+  /**
+   * Runs daily at 02:45: deletes completed `review_sessions` (and their
+   * cascading `field_corrections`) older than `REVIEW_SESSION_RETENTION_DAYS`.
+   * Only terminal-status sessions (approved / escalated / skipped) are
+   * eligible. Skipped when the variable is unset.
+   */
+  @Cron("45 2 * * *")
+  async deleteExpiredReviewSessions(): Promise<void> {
+    await this.runSimpleRetentionJob(
+      REVIEW_SESSION_RETENTION_ENV_VAR,
+      "Review session",
+      (olderThan, limit) =>
+        this.retentionDb.deleteCompletedReviewSessionsOlderThan(
+          olderThan,
+          limit,
+        ),
+    );
+  }
+
+  /**
+   * Shared runner for simple (DB-only, batch-delete) retention jobs.
+   * Reads and validates the retention window from `envVar`, computes a cutoff,
+   * calls `deleteFn`, and logs the result. Errors from `deleteFn` are caught
+   * and logged without re-throwing so one failing job does not block others.
+   *
+   * @param envVar - Name of the env var holding the retention window in days.
+   * @param label - Human-readable data-class label used in log messages.
+   * @param deleteFn - Function that deletes eligible rows and returns the count.
+   */
+  private async runSimpleRetentionJob(
+    envVar: string,
+    label: string,
+    deleteFn: (olderThan: Date, limit: number) => Promise<number>,
+  ): Promise<void> {
+    const raw = process.env[envVar];
+    const retentionDays = raw !== undefined ? parseInt(raw, 10) : NaN;
+
+    if (!raw || Number.isNaN(retentionDays) || retentionDays <= 0) {
+      this.logger.warn(
+        `${label} retention cleanup skipped: ${envVar} is not set or is not a positive integer`,
+        { value: raw },
+      );
+      return;
+    }
+
+    const olderThan = new Date(
+      Date.now() - retentionDays * 24 * 60 * 60 * 1000,
+    );
+
+    let deleted: number;
+    try {
+      deleted = await deleteFn(olderThan, SIMPLE_BATCH_SIZE);
+    } catch (err) {
+      this.logger.error(`Failed to delete expired ${label} records`, {
+        stack: getErrorStack(err),
+      });
+      return;
+    }
+
+    if (deleted > 0) {
+      this.logger.log(`${label} retention cleanup run complete`, {
+        olderThanDays: retentionDays,
+        deleted,
+      });
+    }
   }
 }

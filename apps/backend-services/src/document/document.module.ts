@@ -8,6 +8,7 @@ import { DocumentDbService } from "./document-db.service";
 import { DocumentRetentionService } from "./document-retention.service";
 import { EphemeralDocumentCleanupService } from "./ephemeral-document-cleanup.service";
 import { PdfNormalizationService } from "./pdf-normalization.service";
+import { RetentionDbService } from "./retention-db.service";
 
 @Module({
   imports: [BlobStorageModule, TemporalModule],
@@ -17,6 +18,7 @@ import { PdfNormalizationService } from "./pdf-normalization.service";
     DocumentRetentionService,
     EphemeralDocumentCleanupService,
     PdfNormalizationService,
+    RetentionDbService,
     UploadNormalizationLimiter,
   ],
   controllers: [DocumentController],
