@@ -255,6 +255,7 @@ Benchmark lifecycle events not covered by the limited `AuditAction` enum use glo
 |------|--------|
 | HITL `heartbeat`, API key `last_used` | Housekeeping |
 | `EphemeralDocumentCleanupService`, `ClassifierOrphanCleanupService` | Background janitors |
+| `DocumentRetentionService` | Background janitor. Classified with the others, but it is the only one whose deletion is permanent and cascades to `ocr_results`, `review_sessions` and `field_corrections`; whether that warrants an audit event is tracked in AI-2090 |
 | Benchmark `startRun` | Create → Temporal → `postTemporalStartTransaction` with failure compensation |
 | Classifier / training delete | DB-first then best-effort external cleanup (audit still required) |
 | Blob-then-DB uploads | External storage before DB is not a multi-DB-write atomicity issue |
