@@ -343,7 +343,7 @@ The Nest backend applies **`@nestjs/throttler`** globally (**100 requests / 60 s
 **Before multi-VU or zero-think-time stress**, raise the limit on the backend process:
 
 ```bash
-# Local backend (apps/backend-services/.env or shell before npm run start)
+# Local backend (repo-root .env or shell before npm run start)
 export THROTTLE_GLOBAL_LIMIT=1000000
 export THROTTLE_GLOBAL_TTL_MS=60000
 ```
@@ -378,7 +378,7 @@ oc apply -k tools/load-testing -n "$NAMESPACE"
 
 ## Document Intelligence stubbing
 
-- **Temporal worker** OCR activities honor `MOCK_AZURE_OCR=true` (no Azure calls for submit/poll mock path). See `apps/temporal/.env.sample`.
+- **Temporal worker** OCR activities honor `MOCK_AZURE_OCR=true` (no Azure calls for submit/poll mock path). See the root `.env.sample`.
 - **Backend Nest** services honor `DOCUMENT_INTELLIGENCE_MODE=mock`:
   - classifier polling and classification retrieval return deterministic stubs,
   - classify submission returns a deterministic mock `operation-location`,

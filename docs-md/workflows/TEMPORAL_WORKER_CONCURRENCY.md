@@ -4,7 +4,7 @@ This document describes the worker concurrency configuration added in Group 5 of
 
 ## Environment Variables
 
-Add these to `apps/temporal/.env.sample`:
+Add these to the root `.env.sample`:
 
 ```bash
 # Worker Concurrency Configuration (Group 5: HA)

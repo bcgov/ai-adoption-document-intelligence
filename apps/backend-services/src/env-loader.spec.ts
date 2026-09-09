@@ -1,28 +1,31 @@
 /**
- * Tests the env-loader via child processes so each case gets a clean
- * process.env (dotenv mutates the current process and cannot be re-run cleanly).
+ * Tests the env-loader via a child process so it gets a clean process.env
+ * (dotenv mutates the current process and cannot be re-run cleanly).
+ *
+ * The loader resolves the repo-root .env relative to its own file location
+ * (../../../.env from apps/<app>/src). The loader source is copied three
+ * directories deep under a temp dir *inside* this package so node module
+ * resolution (for "dotenv") still finds the real node_modules tree, while
+ * the fake repo-root .env lands at the temp dir's own root.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const LOADER = resolve(__dirname, "env-loader.ts");
-// Spawn children from this package dir so `ts-node` and `dotenv` resolve from
-// node_modules. We chdir to the test's fake repo dir inside the child script
-// before requiring the loader, since the loader uses process.cwd() for the
-// repo-local .env lookup.
+const LOADER_SOURCE = resolve(__dirname, "env-loader.ts");
 const PACKAGE_DIR = resolve(__dirname, "..");
 
 function runLoader(opts: {
-  cwd: string;
-  secretsDir?: string;
+  tmpDir: string;
   readVars: string[];
 }): Record<string, string | undefined> {
+  const loaderCopy = join(opts.tmpDir, "a/b/src/env-loader.ts");
+  mkdirSync(join(opts.tmpDir, "a/b/src"), { recursive: true });
+  cpSync(LOADER_SOURCE, loaderCopy);
+
   const script = `
     require('ts-node/register/transpile-only');
-    process.chdir(${JSON.stringify(opts.cwd)});
-    require(${JSON.stringify(LOADER)});
+    require(${JSON.stringify(loaderCopy)});
     const out = {};
     for (const k of ${JSON.stringify(opts.readVars)}) out[k] = process.env[k];
     process.stdout.write(JSON.stringify(out));
@@ -30,8 +33,6 @@ function runLoader(opts: {
   const env: NodeJS.ProcessEnv = { ...process.env };
   // Strip any inherited values so the loader's behaviour is observable.
   for (const k of opts.readVars) delete env[k];
-  if (opts.secretsDir) env.DI_SECRETS_DIR = opts.secretsDir;
-  else delete env.DI_SECRETS_DIR;
   const out = execFileSync(process.execPath, ["-e", script], {
     cwd: PACKAGE_DIR,
     env,
@@ -41,70 +42,24 @@ function runLoader(opts: {
 }
 
 describe("env-loader (backend-services)", () => {
-  let tmp: string;
-  let repoDir: string;
-  let secretsDir: string;
+  let tmpDir: string;
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), "env-loader-be-"));
-    repoDir = join(tmp, "repo");
-    secretsDir = join(tmp, "secrets");
-    mkdirSync(repoDir);
-    mkdirSync(secretsDir);
+    tmpDir = mkdtempSync(join(PACKAGE_DIR, ".env-loader-test-"));
   });
 
   afterEach(() => {
-    rmSync(tmp, { recursive: true, force: true });
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("override file wins over repo-local .env", () => {
-    writeFileSync(
-      join(secretsDir, "backend-services.env"),
-      "SECRET_KEY=from-override\n",
-    );
-    writeFileSync(join(repoDir, ".env"), "SECRET_KEY=from-local\n");
-    const result = runLoader({
-      cwd: repoDir,
-      secretsDir,
-      readVars: ["SECRET_KEY"],
-    });
-    expect(result.SECRET_KEY).toBe("from-override");
+  it("loads vars from the repo-root .env", () => {
+    writeFileSync(join(tmpDir, ".env"), "SECRET_KEY=from-root\n");
+    const result = runLoader({ tmpDir, readVars: ["SECRET_KEY"] });
+    expect(result.SECRET_KEY).toBe("from-root");
   });
 
-  it("repo-local .env fills gaps not set by override", () => {
-    writeFileSync(
-      join(secretsDir, "backend-services.env"),
-      "SECRET_KEY=from-override\n",
-    );
-    writeFileSync(
-      join(repoDir, ".env"),
-      "SECRET_KEY=from-local\nPUBLIC_KEY=public-val\n",
-    );
-    const result = runLoader({
-      cwd: repoDir,
-      secretsDir,
-      readVars: ["SECRET_KEY", "PUBLIC_KEY"],
-    });
-    expect(result.SECRET_KEY).toBe("from-override");
-    expect(result.PUBLIC_KEY).toBe("public-val");
-  });
-
-  it("no override file: uses only repo-local .env", () => {
-    writeFileSync(join(repoDir, ".env"), "SECRET_KEY=from-local\n");
-    const result = runLoader({
-      cwd: repoDir,
-      secretsDir,
-      readVars: ["SECRET_KEY"],
-    });
-    expect(result.SECRET_KEY).toBe("from-local");
-  });
-
-  it("no files at all: var remains unset", () => {
-    const result = runLoader({
-      cwd: repoDir,
-      secretsDir,
-      readVars: ["SECRET_KEY"],
-    });
+  it("no root .env: var remains unset", () => {
+    const result = runLoader({ tmpDir, readVars: ["SECRET_KEY"] });
     expect(result.SECRET_KEY).toBeUndefined();
   });
 });

@@ -50,7 +50,13 @@
 		"load-test:temporal:saturation:cleanup": "npm run temporal:saturation:cleanup -w @ai-di/load-testing",
 		"load-test:matrix": "npm run matrix -w @ai-di/load-testing --",
 		"load-test:suite": "npm run suite -w @ai-di/load-testing --",
-		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --"
+		"load-test:setup-fixtures": "npm run setup-fixtures -w @ai-di/load-testing --",
+		"db:generate": "cd apps/backend-services && npm run db:generate",
+		"db:migrate": "cd apps/backend-services && npm run db:migrate",
+		"db:reset": "cd apps/backend-services && npm run db:reset",
+		"db:status": "cd apps/backend-services && npm run db:status",
+		"db:studio": "cd apps/backend-services && npm run db:studio",
+		"db:seed": "cd apps/backend-services && npm run db:seed"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.8",

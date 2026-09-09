@@ -27,6 +27,7 @@ Delete instead of archiving only when a doc has no historical value at all.
 | `OCR_CORRECTION_AND_AGENTIC_SDLC_REQUIREMENTS.md` | Feature 008 requirements source | `feature-docs/008-ocr-correction-agentic-sdlc/`; shipped behavior in [extraction/OCR_IMPROVEMENT_PIPELINE.md](../extraction/OCR_IMPROVEMENT_PIPELINE.md) |
 | `LOGGING_CATEGORIES_2026-03.md` | March 2026 logging-system doc (categories/format), formerly `docs/LOGGING.md` | [monitoring/LOGGING.md](../monitoring/LOGGING.md); `feature-docs/007-logging-system/` |
 | `SDPR_OCR_Performance_Report_V2.md` | July 2026 SDPR monthly-report OCR performance/HITL recommendations (V2) | [extraction/SDPR_V2_WORKFLOW_ALIGNMENT.md](../extraction/SDPR_V2_WORKFLOW_ALIGNMENT.md), [extraction/SDPR_V2_IMPLEMENTATION_BRIEF.md](../extraction/SDPR_V2_IMPLEMENTATION_BRIEF.md) |
+| `local-dev-secrets.md` | Sep 2026 three-layer env override (`$DI_SECRETS_DIR` override file + repo `.env` + app-local `.env`) | Removed — the repo now loads a single root `.env`; see root [README.md](../../README.md#2-configure-environment) |
 
 ## Historical locations outside this folder
 
