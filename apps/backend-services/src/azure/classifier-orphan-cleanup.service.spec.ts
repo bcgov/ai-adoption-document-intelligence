@@ -1,4 +1,5 @@
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import { BLOB_STORAGE_CONTAINER_NAME } from "@/blob-storage/blob-storage.module";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -40,6 +41,10 @@ const mockClient = {
   path: jest.fn().mockReturnValue({ delete: mockDeleteFn }),
 };
 
+const mockAuditService = {
+  recordEvent: jest.fn(),
+};
+
 describe("ClassifierOrphanCleanupService", () => {
   let service: ClassifierOrphanCleanupService;
   const originalEnv = process.env;
@@ -58,6 +63,7 @@ describe("ClassifierOrphanCleanupService", () => {
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
         { provide: AppLoggerService, useValue: mockLogger },
         { provide: BLOB_STORAGE_CONTAINER_NAME, useValue: "test-container" },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
