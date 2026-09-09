@@ -8,7 +8,6 @@ import {
   Pagination,
   Paper,
   Select,
-  SimpleGrid,
   Stack,
   Table,
   Text,
@@ -29,6 +28,7 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { type JSX, useEffect, useState } from "react";
+import DocumentStats from "@/components/document/DocumentStats";
 import { ContentHashCell } from "../components/document/ContentHashCell";
 import { DocumentViewerModal } from "../components/document/DocumentViewerModal";
 import { useDeleteDocument } from "../data/hooks/useDeleteDocument";
@@ -135,7 +135,7 @@ export function DocumentsPage() {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const { data: statsData } = useDocumentStats();
+  const { data: statsData, refetch: updateStats } = useDocumentStats();
   const { data: thumbnails } = useDocumentThumbnails(
     documents.map((d) => d.id),
   );
@@ -169,7 +169,8 @@ export function DocumentsPage() {
           autoClose: 3000,
         });
         setDocPendingDelete(null);
-        void refetch();
+        refetch();
+        updateStats();
       },
       onError: (error) => {
         notifications.show({
@@ -199,7 +200,10 @@ export function DocumentsPage() {
               <Tooltip label="Refresh now">
                 <ActionIcon
                   variant="light"
-                  onClick={() => refetch()}
+                  onClick={() => {
+                    refetch();
+                    updateStats();
+                  }}
                   loading={isFetching}
                   size="lg"
                 >
@@ -211,56 +215,7 @@ export function DocumentsPage() {
         />
 
         <Collapse in={statsOpen}>
-          <SimpleGrid cols={{ base: 1, sm: 2, md: 4, lg: 6 }}>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Total
-              </Text>
-              <Text fw={600} size="lg">
-                {statsData?.total ?? total}
-              </Text>
-            </Paper>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Processing
-              </Text>
-              <Text fw={600} size="lg" c="yellow">
-                {statsData?.ongoing_ocr ?? 0}
-              </Text>
-            </Paper>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Extracted
-              </Text>
-              <Text fw={600} size="lg" c="blue">
-                {statsData?.extracted ?? 0}
-              </Text>
-            </Paper>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Awaiting review
-              </Text>
-              <Text fw={600} size="lg" c="orange">
-                {statsData?.awaiting_review ?? 0}
-              </Text>
-            </Paper>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Complete
-              </Text>
-              <Text fw={600} size="lg" c="green">
-                {statsData?.complete ?? 0}
-              </Text>
-            </Paper>
-            <Paper radius="md" p="md" withBorder>
-              <Text size="xs" c="dimmed">
-                Failed
-              </Text>
-              <Text fw={600} size="lg" c="red">
-                {(statsData?.failed ?? 0) + (statsData?.conversion_failed ?? 0)}
-              </Text>
-            </Paper>
-          </SimpleGrid>
+          <DocumentStats stats={statsData} />
         </Collapse>
 
         <Paper shadow="sm" radius="md" p="lg" withBorder>
