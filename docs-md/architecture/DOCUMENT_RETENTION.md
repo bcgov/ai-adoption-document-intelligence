@@ -1,17 +1,19 @@
-# Document retention
+# Retention policy
 
-Permanently deletes documents once they exceed a configured age: the
-blob-storage files, the `documents` row, and everything that cascades from it.
+Permanently deletes records once they exceed a configured age. Four independent
+janitors cover different data classes. Each is controlled by its own
+environment variable; all default to disabled so behaviour does not change on
+deploy unless the variable is explicitly set.
+
 Unlike [ephemeral document cleanup](./EPHEMERAL_DOCUMENT_CLEANUP.md), which
 keeps the extracted OCR result so clients can still poll it, retention removes
-the extracted data too. Nothing survives.
+everything — including extracted data.
 
-Retention is a **global, environment-level** setting driven by one variable,
-`DOCUMENT_RETENTION_DAYS`. There is no per-workflow and no per-group control.
-When the variable is unset, empty, non-numeric, zero or negative, the janitor
-logs a warning and deletes nothing — which is how every environment ships.
+## Document janitor
 
-## What gets deleted
+Controlled by `DOCUMENT_RETENTION_DAYS`. No per-workflow or per-group control.
+
+### What gets deleted
 
 | Store | Per-document data | Behavior |
 |-------|-------------------|----------|
@@ -24,7 +26,7 @@ logs a warning and deletes nothing — which is how every environment ships.
 | Postgres `dataset_ground_truth_jobs` | benchmark ground-truth job | **Kept**, with `documentId` set to `NULL` — the relation is optional, so Prisma's default `SetNull` applies |
 | Temporal | workflow execution history | **Kept** — retention does not call `DeleteWorkflowExecution` |
 
-## Which documents are eligible
+### Which documents are eligible
 
 Two conditions, both required:
 
@@ -37,10 +39,11 @@ Two conditions, both required:
 may still read the blobs. A document parked in one of those states is never
 deleted, at any age.
 
-## How it works
+### How it works
 
 A NestJS `@Cron` service ([`DocumentRetentionService`](../../apps/backend-services/src/document/document-retention.service.ts))
-runs daily at 02:00 and processes up to `BATCH_SIZE` (100) documents per run.
+runs **every 6 hours** (`0 */6 * * *`) and processes up to 500 documents per
+run.
 Each run:
 
 1. Reads `DOCUMENT_RETENTION_DAYS`. If it is absent or not a positive integer,
@@ -62,6 +65,34 @@ survives with files that no longer exist, and the next run finishes the job. The
 reverse order would orphan the blobs permanently, because the row carrying their
 paths would already be gone.
 
+## Audit-event janitor
+
+Controlled by `AUDIT_EVENT_RETENTION_DAYS`. Deletes `audit_events` rows whose
+`occurred_at` is older than the configured window.
+
+Runs **daily at 02:15**, up to 2,000 rows per run. The `occurred_at` index
+makes the eligibility query efficient.
+
+> **Note:** Audit data may be subject to statutory minimum retention. Confirm
+> compliance requirements before setting this variable in a regulated environment.
+
+## Benchmark audit-log janitor
+
+Controlled by `BENCHMARK_AUDIT_LOG_RETENTION_DAYS`. Deletes `benchmark_audit_logs`
+rows whose `timestamp` is older than the configured window.
+
+Runs **daily at 02:30**, up to 2,000 rows per run.
+
+## Review-session janitor
+
+Controlled by `REVIEW_SESSION_RETENTION_DAYS`. Deletes completed
+`review_sessions` (status `approved`, `escalated`, or `skipped`) whose
+`completed_at` is older than the configured window. Cascades to
+`field_corrections` and `document_locks`.
+
+In-progress sessions are never deleted regardless of age.
+
+Runs **daily at 02:45**, up to 2,000 rows per run.
 ## Relationship to ephemeral cleanup
 
 The two janitors compose. A document processed by an ephemeral workflow has
@@ -81,21 +112,20 @@ workflow-scoped (`workflow_config_id`, and the partial
 
 ## Enabling it
 
-`DOCUMENT_RETENTION_DAYS` reaches a deployed backend through the overlay
-generator, not through the base ConfigMap:
+All four variables reach a deployed backend through the overlay generator:
 
-1. The `DOCUMENT_RETENTION_DAYS` repository secret supplies the value to
+1. Each variable's repository secret supplies the value to
    `.github/workflows/deploy-instance.yml`.
-2. The workflow passes it to `generate_instance_overlay` as
-   `--document-retention-days`.
-3. The generator substitutes `__DOCUMENT_RETENTION_DAYS__` in the
+2. The workflow passes it to `generate_instance_overlay` via the corresponding
+   `--*-retention-days` flag.
+3. The generator substitutes the `__*_RETENTION_DAYS__` placeholder in the
    instance-template overlay, which patches `backend-services-config`.
 
 With the secret unset the token resolves to an empty string and the janitor
 stays off. Setting the value in `components/prod-resources` does **not** work —
 the instance-template ConfigMap patch applies after components and overwrites it.
 
-Variable reference: [ENVIRONMENT_CONFIGURATION.md](../operations/ENVIRONMENT_CONFIGURATION.md#document-retention).
+Variable reference: [ENVIRONMENT_CONFIGURATION.md](../operations/ENVIRONMENT_CONFIGURATION.md#retention).
 
 ## Audit
 
