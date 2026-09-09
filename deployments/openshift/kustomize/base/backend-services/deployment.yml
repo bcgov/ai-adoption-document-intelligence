@@ -284,6 +284,11 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: DB_POOL_MAX
+        - name: DOCUMENT_RETENTION_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: DOCUMENT_RETENTION_DAYS
         volumeMounts:
         - name: logs
           mountPath: /var/log/app
