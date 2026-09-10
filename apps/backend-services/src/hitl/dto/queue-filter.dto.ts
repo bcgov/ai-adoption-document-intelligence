@@ -28,6 +28,7 @@ export class QueueFilterDto {
   @IsString()
   modelId?: string;
 
+  // TODO: Do we need this? Queue is based off of document status, which is determined by workflow.
   @ApiPropertyOptional({
     description: "Maximum confidence threshold (show fields below this)",
     default: 0.9,

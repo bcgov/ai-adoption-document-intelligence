@@ -226,9 +226,6 @@ describe("HitlService", () => {
 
       expect(result.documents).toHaveLength(1);
       expect(result.documents[0].id).toBe("doc-1");
-      expect(result.documents[0].ocr_result.fields).toEqual(
-        mockOcrResult.keyValuePairs,
-      );
       // The total counts the whole queue, not the page that was returned
       expect(result.total).toBe(137);
     });

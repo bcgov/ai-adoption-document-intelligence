@@ -209,17 +209,27 @@ export class HitlService {
       ? filtered.length
       : await this.reviewDb.countReviewQueue(queueFilters);
 
+    const getAverageConfidence = (doc: DocumentWithOcrResult) => {
+      if (!doc.ocr_result?.keyValuePairs) return 0;
+      const fields = Object.values(doc.ocr_result.keyValuePairs);
+      if (fields.length === 0) return 0;
+      const sum = fields.reduce(
+        (acc, field) => acc + (field.confidence || 0),
+        0,
+      );
+      return sum / fields.length;
+    };
+
     return {
       documents: filtered.map((doc) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
         model_id: doc.model_id,
+        workflow_id: doc.workflow_id,
         created_at: doc.created_at,
         updated_at: doc.updated_at,
-        ocr_result: {
-          fields: doc.ocr_result?.keyValuePairs || {},
-        },
+        average_confidence: getAverageConfidence(doc),
         lastSession: doc.review_sessions?.[0]
           ? {
               id: doc.review_sessions[0].id,

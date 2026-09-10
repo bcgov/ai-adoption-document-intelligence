@@ -28,7 +28,6 @@ import {
   Tabs,
   Text,
 } from "../../../../ui";
-import type { QueueDocument } from "../hooks/useReviewQueue";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 
 export const ReviewQueuePage: FC = () => {
@@ -63,6 +62,7 @@ export const ReviewQueuePage: FC = () => {
         : pendingQueue;
 
   // Queue-wide figures: the same for every tab, so read them from one queue.
+  // TODO: Are these stats misleading? Total is all documents, not just ones pending, reviewed, or flagged.
   const stats = pendingQueue.stats;
 
   const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
@@ -80,14 +80,6 @@ export const ReviewQueuePage: FC = () => {
     if (confidence >= 0.9) return "green";
     if (confidence >= 0.7) return "yellow";
     return "red";
-  };
-
-  const getAverageConfidence = (doc: QueueDocument) => {
-    if (!doc.ocr_result?.fields) return 0;
-    const fields = Object.values(doc.ocr_result.fields);
-    if (fields.length === 0) return 0;
-    const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
-    return sum / fields.length;
   };
 
   // A tab loads one page of documents. Say so when the queue holds more than
@@ -196,6 +188,8 @@ export const ReviewQueuePage: FC = () => {
     }
   };
 
+  const avgConfidence = stats ? Math.round(stats.averageConfidence * 100) : NaN;
+
   return (
     <Stack gap="lg">
       <PageHeader
@@ -213,7 +207,7 @@ export const ReviewQueuePage: FC = () => {
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(stats.averageConfidence * 100)}%`}
+            value={`${Number.isNaN(avgConfidence) ? "-" : avgConfidence}%`}
           />
           <StatCard
             label="Reviewed today"
@@ -266,6 +260,7 @@ export const ReviewQueuePage: FC = () => {
                     <DataTable.Th>Document</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>
                     <DataTable.Th>Model</DataTable.Th>
+                    <DataTable.Th>Workflow</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
                     <DataTable.Th>Uploaded</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
@@ -273,7 +268,7 @@ export const ReviewQueuePage: FC = () => {
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
+                    const avgConfidence = doc.average_confidence;
                     // A lock belonging to the current user means they already own this session.
                     const myLock =
                       doc.lock?.reviewer_id === user?.actorId ? doc.lock : null;
@@ -287,17 +282,22 @@ export const ReviewQueuePage: FC = () => {
                         <DataTable.Td>
                           {myLock ? (
                             <Badge variant="light" color="blue" size="sm">
-                              In review
+                              Claimed by You
                             </Badge>
                           ) : (
                             <Badge variant="light" size="sm">
-                              {doc.status}
+                              Unclaimed
                             </Badge>
                           )}
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
                             {doc.model_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.workflow_id || "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
@@ -372,7 +372,7 @@ export const ReviewQueuePage: FC = () => {
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {flaggedQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
+                    const avgConfidence = doc.average_confidence;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>

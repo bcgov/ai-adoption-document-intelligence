@@ -2,25 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
-interface OcrField {
-  confidence?: number;
-  value?: string;
-  [key: string]: unknown;
-}
-
-interface OcrResult {
-  fields?: Record<string, OcrField>;
-  [key: string]: unknown;
-}
-
 export interface QueueDocument {
   id: string;
   original_filename: string;
   status: string;
   model_id?: string;
+  workflow_id?: string;
   created_at: string;
   updated_at: string;
-  ocr_result?: OcrResult;
+  average_confidence: number;
   lock?: {
     reviewer_id: string;
     session_id: string;

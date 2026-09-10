@@ -39,14 +39,17 @@ export class QueueDocumentDto {
   @ApiPropertyOptional()
   model_id!: string | null;
 
+  @ApiPropertyOptional()
+  workflow_id!: string | null;
+
   @ApiProperty()
   created_at!: Date;
 
   @ApiProperty()
   updated_at!: Date;
 
-  @ApiProperty({ type: QueueDocumentOcrDto })
-  ocr_result!: QueueDocumentOcrDto;
+  @ApiProperty()
+  average_confidence!: number;
 
   @ApiPropertyOptional({ type: QueueSessionSummaryDto })
   lastSession?: QueueSessionSummaryDto;
