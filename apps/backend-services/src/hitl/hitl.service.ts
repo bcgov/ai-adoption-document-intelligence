@@ -156,23 +156,40 @@ export class HitlService {
   ) {
     this.logger.debug("Getting review queue with filters", { ...filters });
 
-    const maxConfidence = filters.maxConfidence ?? 0.9;
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
 
-    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : filters.reviewStatus === ReviewStatusFilter.FLAGGED
-            ? "flagged"
-            : "pending";
-
-    const statuses: DocumentStatus[] =
-      filters.status === DocumentStatusFilter.EXTRACTED
-        ? [DocumentStatus.extracted]
-        : filters.status === DocumentStatusFilter.ALL
-          ? [DocumentStatus.extracted, DocumentStatus.awaiting_review]
-          : [DocumentStatus.awaiting_review];
+    let statuses: DocumentStatus[];
+    switch (filters.status) {
+      case DocumentStatusFilter.EXTRACTED:
+        statuses = [DocumentStatus.extracted];
+        break;
+      case DocumentStatusFilter.ALL:
+        statuses = [DocumentStatus.extracted, DocumentStatus.awaiting_review];
+        break;
+      default:
+        statuses = [DocumentStatus.awaiting_review];
+    }
 
     // Approving a document moves it to `complete`; flag/skip leave it at
     // `awaiting_review`. The Reviewed tab must therefore also include
@@ -184,7 +201,6 @@ export class HitlService {
     const queueFilters = {
       statuses,
       modelId: filters.modelId,
-      maxConfidence,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId,
@@ -196,18 +212,7 @@ export class HitlService {
       offset: filters.offset ?? 0,
     })) as DocumentWithOcrResult[];
 
-    const filtered = documents.filter((doc) =>
-      this.needsReview(doc, maxConfidence),
-    );
-
-    // The confidence gate above runs in JS over the current page, so it can
-    // only be counted page by page. It applies to `extracted` documents alone —
-    // for every other status the gate passes everything, and the database can
-    // count the whole queue.
-    const gateApplies = statuses.includes(DocumentStatus.extracted);
-    const total = gateApplies
-      ? filtered.length
-      : await this.reviewDb.countReviewQueue(queueFilters);
+    const total = await this.reviewDb.countReviewQueue(queueFilters);
 
     const getAverageConfidence = (doc: DocumentWithOcrResult) => {
       if (!doc.ocr_result?.keyValuePairs) return 0;
@@ -221,7 +226,7 @@ export class HitlService {
     };
 
     return {
-      documents: filtered.map((doc) => ({
+      documents: documents.map((doc) => ({
         id: doc.id,
         original_filename: doc.original_filename,
         status: doc.status,
@@ -322,36 +327,6 @@ export class HitlService {
   }
 
   /**
-   * Decides whether a document belongs in the review queue. Documents already
-   * sitting at `awaiting_review` (or `complete`) were routed there by the
-   * workflow's own review criteria, so they qualify outright; `extracted`
-   * documents qualify only when at least one field falls below the confidence
-   * threshold.
-   */
-  private needsReview(
-    doc: DocumentWithOcrResult,
-    maxConfidence: number,
-  ): boolean {
-    if (
-      doc.status === DocumentStatus.awaiting_review ||
-      doc.status === DocumentStatus.complete
-    ) {
-      return true;
-    }
-
-    const fields = doc.ocr_result?.keyValuePairs as unknown as
-      | ExtractedFields
-      | null
-      | undefined;
-    if (!fields || typeof fields !== "object") return false;
-
-    return Object.values(fields).some(
-      (field: DocumentField) =>
-        field?.confidence !== undefined && field.confidence < maxConfidence,
-    );
-  }
-
-  /**
    * Summarises the whole review queue for the header cards. Every figure is a
    * database count over the same filter the queue itself uses — including the
    * caller's own locks, so a document open in this reviewer's workspace still
@@ -369,32 +344,56 @@ export class HitlService {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [totalDocuments, requiresReview, fieldPayloads, reviewedToday] =
-      await Promise.all([
-        this.reviewDb.countReviewQueue({
-          statuses: reviewableStatuses,
-          reviewStatus: "all",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.countReviewQueue({
-          statuses: [DocumentStatus.awaiting_review],
-          reviewStatus: "pending",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.findQueueFieldPayloads({
-          statuses: reviewableStatuses,
-          reviewStatus: "all",
-          groupIds,
-          currentReviewerId,
-        }),
-        this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
-      ]);
+    const [
+      pendingCount,
+      claimedCount,
+      flaggedCount,
+      reviewedCount,
+      fieldPayloads,
+      reviewedToday,
+    ] = await Promise.all([
+      this.reviewDb.countReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds,
+        currentReviewerId,
+      }),
+      // "Requires review" spans the Pending and Claimed tabs — a document the
+      // caller has claimed still needs reviewing, it is just no longer unclaimed.
+      this.reviewDb.countReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        groupIds,
+        currentReviewerId,
+      }),
+      this.reviewDb.countReviewQueue({
+        statuses: reviewableStatuses,
+        reviewStatus: "flagged",
+        groupIds,
+        currentReviewerId,
+      }),
+      this.reviewDb.countReviewQueue({
+        statuses: reviewableStatuses,
+        reviewStatus: "reviewed",
+        groupIds,
+        currentReviewerId,
+      }),
+      this.reviewDb.findQueueFieldPayloads({
+        statuses: reviewableStatuses,
+        reviewStatus: "all",
+        groupIds,
+        currentReviewerId,
+      }),
+      this.reviewDb.countApprovedSessionsSince(startOfToday, groupIds),
+    ]);
 
     return {
-      totalDocuments,
-      requiresReview,
+      // Every tab summed together — documents a workflow completed without
+      // ever routing to review never match any of the four tabs, so they are
+      // correctly excluded here too.
+      totalDocuments:
+        pendingCount + claimedCount + flaggedCount + reviewedCount,
+      requiresReview: pendingCount + claimedCount,
       averageConfidence: averageDocumentConfidence(fieldPayloads),
       reviewedToday,
     };
@@ -1045,7 +1044,6 @@ export class HitlService {
     const documents = (await this.reviewDb.findReviewQueue({
       statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
-      maxConfidence,
       limit: 10,
       reviewStatus: reviewStatusFilter,
       groupIds,

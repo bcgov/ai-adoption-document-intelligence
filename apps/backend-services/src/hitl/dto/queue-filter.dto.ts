@@ -28,18 +28,6 @@ export class QueueFilterDto {
   @IsString()
   modelId?: string;
 
-  // TODO: Do we need this? Queue is based off of document status, which is determined by workflow.
-  @ApiPropertyOptional({
-    description: "Maximum confidence threshold (show fields below this)",
-    default: 0.9,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(1)
-  maxConfidence?: number;
-
   @ApiPropertyOptional({ description: "Limit results", default: 50 })
   @IsOptional()
   @Type(() => Number)

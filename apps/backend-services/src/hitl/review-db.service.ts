@@ -16,10 +16,9 @@ export interface ReviewQueueFilters {
   statuses: DocumentStatus[];
   modelId?: string;
   minConfidence?: number;
-  maxConfidence?: number;
   limit?: number;
   offset?: number;
-  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
+  reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   groupIds?: string[];
   currentReviewerId?: string;
 }
@@ -109,6 +108,7 @@ export class ReviewDbService {
   private buildReviewQueueWhere(
     filters: ReviewQueueFilters,
   ): Prisma.DocumentWhereInput {
+    const now = new Date();
     const where: Prisma.DocumentWhereInput = {
       status: { in: filters.statuses },
       // Only documents ingested through the regular API/upload pipeline are
@@ -122,7 +122,7 @@ export class ReviewDbService {
       // Exclude documents locked by other reviewers (keep own locks visible)
       NOT: {
         lock: {
-          expires_at: { gt: new Date() },
+          expires_at: { gt: now },
           ...(filters.currentReviewerId
             ? { reviewer_id: { not: filters.currentReviewerId } }
             : {}),
@@ -138,8 +138,9 @@ export class ReviewDbService {
       where.model_id = filters.modelId;
     }
 
-    if (filters.reviewStatus === "pending") {
-      where.OR = [
+    // Not yet approved or flagged — still awaiting a decision either way.
+    const undecidedSessions: Prisma.DocumentWhereInput = {
+      OR: [
         { review_sessions: { none: {} } },
         {
           review_sessions: {
@@ -147,6 +148,27 @@ export class ReviewDbService {
               status: {
                 in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
               },
+            },
+          },
+        },
+      ],
+    };
+
+    if (filters.reviewStatus === "pending") {
+      // Unclaimed: no active lock at all. A document the caller has claimed
+      // belongs on the "claimed" tab instead.
+      where.AND = [
+        undecidedSessions,
+        { OR: [{ lock: null }, { lock: { expires_at: { lte: now } } }] },
+      ];
+    } else if (filters.reviewStatus === "claimed") {
+      where.AND = [
+        undecidedSessions,
+        {
+          lock: {
+            is: {
+              expires_at: { gt: now },
+              reviewer_id: filters.currentReviewerId ?? "__no-reviewer__",
             },
           },
         },
