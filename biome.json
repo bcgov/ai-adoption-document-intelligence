@@ -130,6 +130,19 @@
   },
   "overrides": [
     {
+      "includes": ["scripts/**/*.mjs", "scripts/**/*.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          },
+          "security": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/tools/load-testing/**/*.ts"],
       "linter": {
         "rules": {

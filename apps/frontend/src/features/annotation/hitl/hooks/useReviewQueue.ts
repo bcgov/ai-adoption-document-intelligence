@@ -21,6 +21,11 @@ export interface QueueDocument {
   created_at: string;
   updated_at: string;
   ocr_result?: OcrResult;
+  lock?: {
+    reviewer_id: string;
+    session_id: string;
+    expires_at: string;
+  } | null;
   lastSession?: {
     id: string;
     reviewer_id: string;
@@ -41,7 +46,7 @@ interface QueueFilters {
   maxConfidence?: number;
   limit?: number;
   offset?: number;
-  reviewStatus?: "pending" | "reviewed" | "all";
+  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
   group_id?: string;
 }
 
@@ -70,12 +75,12 @@ export const useReviewQueue = (filters?: QueueFilters) => {
     },
   });
 
+  // Stats cover the whole queue, so they are keyed by group alone: every tab
+  // shares one cached result instead of refetching a tab-shaped answer.
   const statsQuery = useQuery({
-    queryKey: ["hitl-queue-stats", filters?.reviewStatus, activeGroupId],
+    queryKey: ["hitl-queue-stats", activeGroupId],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.reviewStatus)
-        params.append("reviewStatus", filters.reviewStatus);
       if (activeGroupId) params.append("group_id", activeGroupId);
 
       const endpoint = `/hitl/queue/stats${params.toString() ? `?${params.toString()}` : ""}`;
@@ -98,6 +103,10 @@ export const useReviewQueue = (filters?: QueueFilters) => {
         status: string;
         startedAt: string;
       }>("/hitl/sessions", { documentId });
+      // apiService resolves with success:false rather than rejecting, so a
+      // conflict (another reviewer holds the lock) has to be raised here for
+      // the caller to see it.
+      if (!response.success) throw new Error(response.message);
       return response.data;
     },
     onSuccess: () => {

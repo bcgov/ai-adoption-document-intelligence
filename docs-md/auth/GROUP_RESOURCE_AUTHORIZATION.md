@@ -107,7 +107,7 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | ReviewSession | `POST /api/hitl/sessions/:id/corrections` | `HitlController.submitCorrections` |
 | ReviewSession | `GET /api/hitl/sessions/:id/corrections` | `HitlController.getCorrections` |
 | ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
-| ReviewSession | `POST /api/hitl/sessions/:id/escalate` | `HitlController.escalateSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/flag` | `HitlController.flagSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/heartbeat` | `HitlController.heartbeat` |
 | ReviewSession | `POST /api/hitl/sessions/:id/reopen` | `HitlController.reopenSession` |

@@ -99,11 +99,15 @@ export function DocumentValidation({
             <div>
               <Title order={4}>Document validation required</Title>
               <Text size="sm" c="dimmed" mt={4}>
-                This document has low OCR confidence and requires human review
+                This document is waiting for a human to check the extracted data
               </Text>
             </div>
+            {/* The average across every field — not the reason the document is
+                here. A document reaches review through the workflow's review
+                criteria, which judge fields one at a time, so a high average
+                and a field needing attention are the normal case. */}
             <Badge color={confidenceColor} size="lg" variant="light">
-              {confidencePercentage}% confidence
+              {confidencePercentage}% average field confidence
             </Badge>
           </Group>
         </div>
@@ -114,8 +118,8 @@ export function DocumentValidation({
           color="orange"
           variant="light"
         >
-          The OCR confidence score is below the threshold (95%). Please review
-          the extracted data and either approve or reject the results.
+          Review the extracted data and either approve or reject the results.
+          The review workspace shows which fields were flagged and why.
         </Alert>
 
         <div>

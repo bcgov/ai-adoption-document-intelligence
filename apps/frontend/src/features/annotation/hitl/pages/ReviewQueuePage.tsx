@@ -3,11 +3,12 @@ import {
   IconCheck,
   IconClock,
   IconEye,
-  IconRotate,
+  IconFlag,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/useAuth";
 import { apiService } from "@/data/services/api.service";
 import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 import {
@@ -32,6 +33,7 @@ import { useReviewQueue } from "../hooks/useReviewQueue";
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
@@ -46,19 +48,23 @@ export const ReviewQueuePage: FC = () => {
     reviewStatus: "reviewed",
   });
 
-  const activeQueue = activeTab === "reviewed" ? reviewedQueue : pendingQueue;
+  const flaggedQueue = useReviewQueue({
+    maxConfidence: HITL_MAX_CONFIDENCE,
+    limit: 50,
+    reviewStatus: "flagged",
+  });
 
-  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
-    null,
-  );
+  const activeQueue =
+    activeTab === "reviewed"
+      ? reviewedQueue
+      : activeTab === "flagged"
+        ? flaggedQueue
+        : pendingQueue;
 
-  if (activeQueue.isLoading) {
-    return (
-      <Center h="70vh">
-        <Loader size="lg" />
-      </Center>
-    );
-  }
+  // Queue-wide figures: the same for every tab, so read them from one queue.
+  const stats = pendingQueue.stats;
+
+  const [takingSessionId, setTakingSessionId] = useState<string | null>(null);
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.9) return "green";
@@ -74,6 +80,19 @@ export const ReviewQueuePage: FC = () => {
     return sum / fields.length;
   };
 
+  // A tab loads one page of documents. Say so when the queue holds more than
+  // the page shows, so the caption never contradicts the count on the tab.
+  const queueCaption = (shown: number, total: number, noun: string) =>
+    shown < total ? `Showing ${shown} of ${total} ${noun}` : `${total} ${noun}`;
+
+  if (activeQueue.isLoading) {
+    return (
+      <Center h="70vh">
+        <Loader size="lg" />
+      </Center>
+    );
+  }
+
   const handleStartSession = async (
     documentId: string,
     readOnly: boolean = false,
@@ -88,31 +107,41 @@ export const ReviewQueuePage: FC = () => {
         }
       }
     } catch {
-      // Session start failed; leave state unchanged
+      // Most often the document was locked by another reviewer between this
+      // queue being loaded and the click.
+      notifications.show({
+        title: "Could not open document",
+        message:
+          "Another reviewer may have started on it. Refresh the queue and try again.",
+        color: "red",
+        autoClose: 5000,
+      });
     }
   };
 
-  const handleReopenSession = async (sessionId: string) => {
-    setReopeningSessionId(sessionId);
+  // Takes over a flagged document: the session goes back to in progress, the
+  // lock moves to this reviewer, and the previous reviewer's corrections stay.
+  const handleTakeSession = async (sessionId: string) => {
+    setTakingSessionId(sessionId);
     try {
-      await apiService.post(`/hitl/sessions/${sessionId}/reopen`, {});
-      notifications.show({
-        title: "Session reopened",
-        message: "Document returned to review queue",
-        color: "green",
-        autoClose: 3000,
-      });
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/reopen`,
+        {},
+      );
+      if (!response.success) throw new Error(response.message);
       queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
       queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
+      navigate(`/review/${sessionId}`);
     } catch {
       notifications.show({
-        title: "Cannot reopen",
-        message: "The reopen window may have expired or the dataset is frozen",
+        title: "Could not take this document",
+        message:
+          "Another reviewer may have taken it already. Refresh the queue and try again.",
         color: "red",
         autoClose: 5000,
       });
     } finally {
-      setReopeningSessionId(null);
+      setTakingSessionId(null);
     }
   };
 
@@ -120,9 +149,9 @@ export const ReviewQueuePage: FC = () => {
     switch (status) {
       case "approved":
         return "green";
-      case "escalated":
+      case "flagged":
         return "orange";
-      case "skipped":
+      case "abandoned":
         return "gray";
       default:
         return "blue";
@@ -136,24 +165,21 @@ export const ReviewQueuePage: FC = () => {
         description="Review and correct OCR results with low confidence scores"
       />
 
-      {activeQueue.stats && (
+      {stats && (
         <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-          <StatCard
-            label="Total documents"
-            value={activeQueue.stats.totalDocuments}
-          />
+          <StatCard label="Total documents" value={stats.totalDocuments} />
           <StatCard
             label="Requires review"
-            value={activeQueue.stats.requiresReview}
+            value={stats.requiresReview}
             valueColor="orange"
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(activeQueue.stats.averageConfidence * 100)}%`}
+            value={`${Math.round(stats.averageConfidence * 100)}%`}
           />
           <StatCard
             label="Reviewed today"
-            value={activeQueue.stats.reviewedToday}
+            value={stats.reviewedToday}
             valueColor="green"
           />
         </SimpleGrid>
@@ -164,6 +190,9 @@ export const ReviewQueuePage: FC = () => {
           <Tabs.List>
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
               Pending review ({pendingQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
+              Flagged ({flaggedQueue.total})
             </Tabs.Tab>
             <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
               Reviewed ({reviewedQueue.total})
@@ -188,7 +217,11 @@ export const ReviewQueuePage: FC = () => {
               <DataTable
                 striped
                 highlightOnHover
-                caption={`${pendingQueue.queue.length} pending`}
+                caption={queueCaption(
+                  pendingQueue.queue.length,
+                  pendingQueue.total,
+                  "pending",
+                )}
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
@@ -203,11 +236,9 @@ export const ReviewQueuePage: FC = () => {
                 <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
                     const avgConfidence = getAverageConfidence(doc);
-                    const inProgressSession =
-                      doc.lastSession?.status === "in_progress"
-                        ? doc.lastSession
-                        : undefined;
-
+                    // A lock belonging to the current user means they already own this session.
+                    const myLock =
+                      doc.lock?.reviewer_id === user?.actorId ? doc.lock : null;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
@@ -216,7 +247,7 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {inProgressSession ? (
+                          {myLock ? (
                             <Badge variant="light" color="blue" size="sm">
                               In review
                             </Badge>
@@ -246,14 +277,14 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {inProgressSession ? (
+                          {myLock ? (
                             <Button
                               size="xs"
                               variant="light"
                               color="blue"
                               leftSection={<IconEye size={14} />}
                               onClick={() =>
-                                navigate(`/review/${inProgressSession.id}`)
+                                navigate(`/review/${myLock.session_id}`)
                               }
                             >
                               Resume
@@ -266,9 +297,95 @@ export const ReviewQueuePage: FC = () => {
                               onClick={() => handleStartSession(doc.id, false)}
                               loading={pendingQueue.isStartingSession}
                             >
-                              Review
+                              Start review
                             </Button>
                           )}
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    );
+                  })}
+                </DataTable.Tbody>
+              </DataTable>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="flagged" pt="md">
+            {flaggedQueue.queue.length === 0 ? (
+              <Center py="xl">
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No flagged documents</Text>
+                    <Text size="sm" c="dimmed">
+                      Flagged documents appear here for priority review
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            ) : (
+              <DataTable>
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Filename</DataTable.Th>
+                    <DataTable.Th>Last reviewer</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
+                  {flaggedQueue.queue.map((doc) => {
+                    const avgConfidence = getAverageConfidence(doc);
+                    return (
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.lastSession?.reviewer_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge
+                            variant="light"
+                            color={getConfidenceColor(avgConfidence)}
+                            size="sm"
+                          >
+                            {Math.round(avgConfidence * 100)}%
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Group gap="xs">
+                            <Button
+                              size="xs"
+                              variant="subtle"
+                              color="gray"
+                              leftSection={<IconEye size={14} />}
+                              onClick={() =>
+                                navigate(
+                                  `/review/${doc.lastSession!.id}?readOnly=true`,
+                                )
+                              }
+                              disabled={!doc.lastSession?.id}
+                            >
+                              View
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="light"
+                              color="orange"
+                              leftSection={<IconFlag size={14} />}
+                              onClick={() =>
+                                handleTakeSession(doc.lastSession!.id)
+                              }
+                              loading={takingSessionId === doc.lastSession?.id}
+                              disabled={!doc.lastSession?.id}
+                            >
+                              Take
+                            </Button>
+                          </Group>
                         </DataTable.Td>
                       </DataTable.Tr>
                     );
@@ -295,7 +412,11 @@ export const ReviewQueuePage: FC = () => {
               <DataTable
                 striped
                 highlightOnHover
-                caption={`${reviewedQueue.queue.length} reviewed`}
+                caption={queueCaption(
+                  reviewedQueue.queue.length,
+                  reviewedQueue.total,
+                  "reviewed",
+                )}
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
@@ -344,38 +465,20 @@ export const ReviewQueuePage: FC = () => {
                         </Text>
                       </DataTable.Td>
                       <DataTable.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() =>
-                              handleStartSession(
-                                doc.lastSession?.id || doc.id,
-                                true,
-                              )
-                            }
-                            disabled={!doc.lastSession?.id}
-                          >
-                            View
-                          </Button>
-                          {doc.lastSession?.id && (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="orange"
-                              leftSection={<IconRotate size={14} />}
-                              onClick={() =>
-                                handleReopenSession(doc.lastSession!.id)
-                              }
-                              loading={
-                                reopeningSessionId === doc.lastSession.id
-                              }
-                            >
-                              Reopen
-                            </Button>
-                          )}
-                        </Group>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          leftSection={<IconEye size={14} />}
+                          onClick={() =>
+                            handleStartSession(
+                              doc.lastSession?.id || doc.id,
+                              true,
+                            )
+                          }
+                          disabled={!doc.lastSession?.id}
+                        >
+                          View
+                        </Button>
                       </DataTable.Td>
                     </DataTable.Tr>
                   ))}

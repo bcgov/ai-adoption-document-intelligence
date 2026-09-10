@@ -90,7 +90,7 @@ Environment:
 | `LOAD_TEST_BLOB_DELETE_BEFORE_RUN` | `false` | Delete the generated label/folder in setup before writing new blobs |
 | `LOAD_TEST_HITL_MAX_CONFIDENCE` | `0.9` | Maximum confidence filter for review queue/session selection |
 | `LOAD_TEST_HITL_QUEUE_LIMIT` | `20` | Queue and eligible-document page size for `review-hitl` |
-| `LOAD_TEST_HITL_SESSION_MODE` | `skip` | Session action after correction: `off`, `skip`, `submit`, or `escalate` |
+| `LOAD_TEST_HITL_SESSION_MODE` | `skip` | Session action after correction: `off`, `skip`, `submit`, or `flag` |
 | `LOAD_TEST_HITL_REVIEW_STATUS` | `pending` | Review status filter for queue reads |
 | `TEMPORAL_ADDRESS` | `localhost:7233` | Temporal frontend address for `temporal-queue-saturation` |
 | `TEMPORAL_NAMESPACE` | `default` | Disposable Temporal namespace to target |
@@ -258,13 +258,13 @@ Routes used by the default scenario:
 | `GET /api/hitl/sessions/:id/corrections` | Reads correction history. |
 | `POST /api/hitl/sessions/:id/skip` | Default session action to release the lock without approving the document. |
 | `POST /api/hitl/sessions/:id/submit` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=submit`; creates approved HITL documents that later appear in the eligible-documents route. |
-| `POST /api/hitl/sessions/:id/escalate` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=escalate`; body is `{ "reason": "..." }`. |
+| `POST /api/hitl/sessions/:id/flag` | Optional action when `LOAD_TEST_HITL_SESSION_MODE=flag`. |
 
 Additional HITL routes exist but are not part of the default mutating loop because they either require specific IDs produced by previous actions or create persistent benchmark datasets:
 
 - `POST /api/hitl/sessions` starts a session for an explicit `documentId`.
 - `DELETE /api/hitl/sessions/:id/corrections/:correctionId` deletes a specific correction.
-- `POST /api/hitl/sessions/:id/reopen` reopens an eligible completed session.
+- `POST /api/hitl/sessions/:id/reopen` takes over a flagged session, or reopens a ground-truth labelling job on an unfrozen dataset version.
 - `POST /api/benchmark/datasets/from-hitl` creates a dataset from approved HITL document IDs.
 - `POST /api/benchmark/datasets/:id/versions/from-hitl` creates a new dataset version from approved HITL document IDs.
 
@@ -278,7 +278,7 @@ Fixtures and cleanup:
 - `seed-hitl-fixtures.ts` inserts synthetic `documents` ids with prefix `ldt-hitl-` and matching `ocr_results` ids with prefix `ldt-hitl-ocr-`. The rows use `status=completed_ocr`, `model_id=prebuilt-layout`, and generic OCR key/value data.
 - Rerun safely with `npm run load-test:hitl-fixtures -- --delete-by-prefix --count=<N> --group-id=<group>`.
 - Delete only generated fixtures with `npm run load-test:hitl-fixtures -- --delete-by-prefix --count=0 --group-id=<group>`. Database cascades remove generated review sessions, locks, corrections, and OCR results for those documents.
-- `LOAD_TEST_HITL_SESSION_MODE=skip` is the default because it avoids creating HITL-approved datasets. Use `submit` or `escalate` only when the resulting review state is part of the disposable test plan.
+- `LOAD_TEST_HITL_SESSION_MODE=skip` is the default because it avoids creating HITL-approved datasets. Use `submit` or `flag` only when the resulting review state is part of the disposable test plan.
 
 Summary and thresholds:
 

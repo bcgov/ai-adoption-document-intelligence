@@ -82,7 +82,7 @@ All of the following perform multiple DB writes without a shared transaction:
 | `startSession` | `createReviewSession` + `acquireDocumentLock` | Session exists without lock, or lock without session |
 | `submitCorrections` | N × `createFieldCorrection` (parallel, not transactional) | Partial corrections persisted |
 | `approveSession` | `updateReviewSession` + `documentService.updateDocument` + `releaseDocumentLock` | Document status and session can diverge |
-| `escalateSession` | `createFieldCorrection` + `updateReviewSession` + `releaseDocumentLock` | Partial completion |
+| `flagSession` | `updateReviewSession` + `releaseDocumentLock` | Partial completion |
 | `skipSession` | `updateReviewSession` + `releaseDocumentLock` | Lock leaked if update fails |
 | `reopenSession` | `updateReviewSession` + `acquireDocumentLock` | Session reopened without lock |
 

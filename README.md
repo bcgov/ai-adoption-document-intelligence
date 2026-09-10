@@ -134,7 +134,7 @@ The platform is built as a microservices architecture with four main components:
 - Field-by-field validation interface
 - Side-by-side document viewing with OCR overlays
 - Correction tracking with action types (confirmed, corrected, flagged, deleted)
-- Session state management (in_progress, approved, escalated, skipped)
+- Session state management (in_progress, approved, flagged, abandoned)
 - Analytics and performance metrics
 
 ### Security & Authentication
@@ -737,7 +737,7 @@ Validate and correct OCR results through human review.
 **Queue Management:**
 - Documents automatically enter queue after OCR
 - Filtering by status, document type, confidence threshold
-- Statistics dashboard (pending, approved, escalated)
+- Statistics dashboard (pending, flagged, reviewed)
 - Reviewer assignment
 
 **Review Session:**
@@ -750,8 +750,8 @@ Validate and correct OCR results through human review.
 **Session States:**
 - `in_progress` - Active review
 - `approved` - Review completed, results approved
-- `escalated` - Requires additional review
-- `skipped` - Deferred for later
+- `flagged` - Handed on for someone else's attention; read-only in the Flagged tab
+- `abandoned` - Skipped, or the reviewer's lock expired; back in the pending queue
 
 **Analytics:**
 - Field accuracy rates

@@ -1,0 +1,12 @@
+{
+  "slug": "synth-full-1",
+  "title": "HITL synth-full (1)",
+  "originalFilename": "synth-full-1.jpg",
+  "fileType": "image",
+  "fileSize": 589368,
+  "source": "api",
+  "modelId": "sdpr_synth_test",
+  "contentHash": "341a25385dd5ff52716ed5dc36127e782cba0ae72f89046ae926c6157e5d9204",
+  "metadata": {},
+  "sourceImage": "data/datasets/samples-mix/public/synth-full (1).jpg"
+}

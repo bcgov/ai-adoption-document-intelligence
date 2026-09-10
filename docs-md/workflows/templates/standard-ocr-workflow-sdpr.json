@@ -877,6 +877,28 @@
         "maximumAttempts": 3
       }
     },
+    "persistOcr": {
+      "id": "persistOcr",
+      "type": "activity",
+      "label": "Persist OCR (pre-review)",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        {
+          "port": "documentId",
+          "ctxKey": "documentId"
+        },
+        {
+          "port": "ocrResult",
+          "ctxKey": "cleanedResultRef"
+        }
+      ],
+      "timeout": {
+        "startToClose": "2m"
+      },
+      "retry": {
+        "maximumAttempts": 5
+      }
+    },
     "reviewSwitch": {
       "id": "reviewSwitch",
       "type": "switch",
@@ -1068,6 +1090,12 @@
     {
       "id": "e7",
       "source": "postOcrCleanup",
+      "target": "persistOcr",
+      "type": "normal"
+    },
+    {
+      "id": "e7b",
+      "source": "persistOcr",
       "target": "reviewCriteria",
       "type": "normal"
     },
@@ -1145,7 +1173,8 @@
       "nodeIds": [
         "recoverNumericZeros",
         "normalizeFields",
-        "postOcrCleanup"
+        "postOcrCleanup",
+        "persistOcr"
       ]
     },
     "quality-gate": {
