@@ -342,6 +342,7 @@ describe("AuthController", () => {
         sub: "user-123",
         name: "Test User",
         preferred_username: "testuser",
+        actorId: "actor-id",
         email: "test@example.com",
         isAdmin: false,
         expires_in: expect.any(Number),
