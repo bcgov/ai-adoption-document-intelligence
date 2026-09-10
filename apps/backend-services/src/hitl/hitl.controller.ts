@@ -92,13 +92,13 @@ export class HitlController {
   }
 
   @Get("queue/stats")
-  @Identity({ 
+  @Identity({
     allowApiKey: true,
     groupPermissions: {
       groupIdFrom: { query: "group_id" },
       requiredPermissions: [Permission.HITL_QUEUE_RETRIEVE],
     },
-   })
+  })
   @ApiOperation({
     summary: "Get queue statistics",
     description:
@@ -116,7 +116,7 @@ export class HitlController {
     type: QueueStatsResponseDto,
   })
   async getQueueStats(
-    @Req() req?: Request,
+    @Req() req: Request,
     @Query("group_id") group_id: string,
   ) {
     return this.hitlService.getQueueStats(
@@ -325,7 +325,9 @@ export class HitlController {
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
-    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
+    identityCanAccessGroup(req.resolvedIdentity, session.document.group_id, [
+      Permission.HITL_SESSION_PROGRESS,
+    ]);
     return this.hitlService.flagSession(sessionId);
   }
 

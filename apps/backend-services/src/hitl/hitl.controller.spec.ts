@@ -6,7 +6,6 @@ import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
-import { ReviewStatusFilter } from "./dto/status-constants.dto";
 import { HitlController } from "./hitl.controller";
 import { HitlService } from "./hitl.service";
 
@@ -145,6 +144,9 @@ describe("HitlController", () => {
 
   describe("getQueueStats", () => {
     it("delegates to service with the provided group_id", async () => {
+      const req = {
+        resolvedIdentity: { actorId: "actor-1" },
+      } as unknown as Request;
       const mockResult = {
         totalDocuments: 0,
         requiresReview: 0,
@@ -152,25 +154,11 @@ describe("HitlController", () => {
         reviewedToday: 0,
       };
       hitlService.getQueueStats.mockResolvedValue(mockResult as any);
-      const result = await controller.getQueueStats("group-1");
+      const result = await controller.getQueueStats(req, "group-1");
       expect(result).toEqual(mockResult);
       expect(hitlService.getQueueStats).toHaveBeenCalledWith(
         ["group-1"],
-        undefined,
-      );
-    });
-
-    it("passes reviewStatus filter to service", async () => {
-      hitlService.getQueueStats.mockResolvedValue({
-        totalDocuments: 0,
-        requiresReview: 0,
-        averageConfidence: 0,
-        reviewedToday: 0,
-      } as any);
-      await controller.getQueueStats("group-1", ReviewStatusFilter.REVIEWED);
-      expect(hitlService.getQueueStats).toHaveBeenCalledWith(
-        ReviewStatusFilter.REVIEWED,
-        ["group-1"],
+        "actor-1",
       );
     });
   });

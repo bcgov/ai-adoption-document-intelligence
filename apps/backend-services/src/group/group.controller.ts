@@ -29,10 +29,10 @@ import {
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
 import { requireUserId } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { BillingConfigService } from "@/billing/billing-config.service";
 import { GroupBillingConfigDto } from "@/billing/dto/group-billing-config.dto";
 import { SetBillingCapDto } from "@/billing/dto/set-billing-cap.dto";
-import { Permission } from "@/auth/role-permissions";
 import { User } from "../auth/types";
 import { CreateGroupDto } from "./dto/create-group.dto";
 import { GroupDto } from "./dto/group.dto";
@@ -597,7 +597,12 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" } })
+  @Identity({
+    groupPermissions: {
+      requiredPermissions: [Permission.GROUP_BILLING],
+      groupIdFrom: { param: "groupId" },
+    },
+  })
   @Get(":groupId/billing-config")
   async getGroupBillingConfig(
     @Param("groupId") groupId: string,
@@ -623,7 +628,12 @@ export class GroupController {
   @ApiUnauthorizedResponse({ description: "Not authenticated" })
   @ApiNotFoundResponse({ description: "Group not found" })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
-  @Identity({ groupIdFrom: { param: "groupId" }, minimumRole: "ADMIN" })
+  @Identity({
+    groupPermissions: {
+      requiredPermissions: [Permission.GROUP_BILLING],
+      groupIdFrom: { param: "groupId" },
+    },
+  })
   @Patch(":groupId/billing-config")
   async setGroupBillingCap(
     @Param("groupId") groupId: string,

@@ -38,8 +38,8 @@ export class NextSessionFilterDto {
   @ApiProperty({ description: "Scope to a specific group ID" })
   @IsString()
   group_id!: string;
-  
-@ApiPropertyOptional({
+
+  @ApiPropertyOptional({
     description:
       "Document ID to exclude (prevents re-opening the just-reviewed document)",
   })

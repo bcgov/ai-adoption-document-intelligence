@@ -45,6 +45,7 @@ export enum Permission {
   GROUP_USER_REMOVE,
   GROUP_USER_ADD,
   GROUP_USER_ROLE_UPDATE,
+  GROUP_BILLING,
   // HITL
   HITL_QUEUE_RETRIEVE,
   HITL_SESSION_RETRIEVE,
@@ -95,6 +96,8 @@ export enum Permission {
   TRAINING_RETRIEVE,
   TRAINING_CREATE,
   TRAINING_DELETE,
+  // Usage
+  USAGE_RETRIEVE,
   // Workflows
   WORKFLOW_RETRIEVE,
   WORKFLOW_CREATE,
@@ -104,7 +107,10 @@ export enum Permission {
 
 const { ADMIN, EDITOR, REVIEWER } = GroupRole;
 
-const allPermissions = Object.values(Permission) as Permission[];
+// Numeric enums include reverse-mapping string keys in Object.values(); filter to numbers only.
+const allPermissions = Object.values(Permission).filter(
+  (v): v is Permission => typeof v === "number",
+);
 
 // Reminder that this is group admins only, not system-admins.
 const groupAdminOnlyPermissions = [
@@ -114,6 +120,8 @@ const groupAdminOnlyPermissions = [
   Permission.GROUP_USER_ADD,
   Permission.GROUP_USER_REMOVE,
   Permission.GROUP_USER_ROLE_UPDATE,
+  Permission.GROUP_BILLING,
+  Permission.USAGE_RETRIEVE,
 ];
 
 export const RoleClaimsMap: Record<GroupRole, Permission[]> = {

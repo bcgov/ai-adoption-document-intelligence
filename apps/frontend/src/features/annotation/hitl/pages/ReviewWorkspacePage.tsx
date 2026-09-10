@@ -15,9 +15,7 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  type DocumentCanvasHandle,
-} from "../../../../components/document/DocumentCanvas";
+import { type DocumentCanvasHandle } from "../../../../components/document/DocumentCanvas";
 import {
   Accordion,
   ActionIcon,
@@ -32,6 +30,7 @@ import {
   Text,
   Textarea,
   Tooltip,
+  useElementSize,
 } from "../../../../ui";
 import { AnnotationCanvas } from "../../core/canvas/AnnotationCanvas";
 import {
@@ -335,7 +334,11 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
   const documentCanvasRef = useRef<DocumentCanvasHandle>(null);
-  const { advance } = useAutoAdvance();
+  const {
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
+  } = useElementSize();
 
   const queuePath = location.pathname.match(
     /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
@@ -440,7 +443,7 @@ export const ReviewWorkspacePage: FC = () => {
     };
   }, [session?.document?.id]);
 
-  const { imageUrl: pdfPageImageUrl } = usePdfPageImage(
+  const { imageUrl: pdfPageImageUrl, pageSize: pdfPageSize } = usePdfPageImage(
     isNormalizedPdf ? documentUrl : null,
     currentPage,
   );

@@ -185,18 +185,6 @@
       "parameters": { "status": "completed" },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 5 }
-    },
-    "storeResults": {
-      "id": "storeResults",
-      "type": "activity",
-      "label": "Store Results",
-      "activityType": "ocr.storeResults",
-      "inputs": [
-        { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "cleanedResultRef" }
-      ],
-      "timeout": { "startToClose": "2m" },
-      "retry": { "maximumAttempts": 5 }
     }
   },
   "edges": [
