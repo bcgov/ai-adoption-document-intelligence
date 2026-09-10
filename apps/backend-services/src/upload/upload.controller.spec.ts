@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
 import * as identityHelpers from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { DocumentService } from "../document/document.service";
 import { QueueService } from "../queue/queue.service";
@@ -55,7 +56,7 @@ describe("UploadController", () => {
       userId: "user-1",
       actorId: "actor-1",
       isSystemAdmin: false,
-      groupRoles: { "group-1": GroupRole.MEMBER },
+      groupRoles: { "group-1": GroupRole.EDITOR },
     };
     const mockReq = { resolvedIdentity: mockIdentity } as any;
     const baseDto: UploadDocumentDto = {
@@ -120,7 +121,7 @@ describe("UploadController", () => {
       expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
         mockIdentity,
         "group-1",
-        GroupRole.MEMBER,
+        [Permission.DOCUMENT_CREATE],
       );
     });
 
@@ -141,7 +142,7 @@ describe("UploadController", () => {
       expect(identityHelpers.identityCanAccessGroup).toHaveBeenCalledWith(
         mockIdentity,
         "other-group",
-        GroupRole.MEMBER,
+        [Permission.DOCUMENT_CREATE],
       );
       expect(documentService.uploadDocument).not.toHaveBeenCalled();
     });
@@ -231,7 +232,7 @@ describe("UploadController", () => {
       const reqWithKey = {
         resolvedIdentity: {
           isSystemAdmin: false,
-          groupRoles: { "group-from-key": GroupRole.MEMBER },
+          groupRoles: { "group-from-key": GroupRole.EDITOR },
           actorId: "actor-key",
         },
         apiKey: {

@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { type DocumentCanvasHandle } from "../../../../components/document/DocumentCanvas";
 import {
   Accordion,
   ActionIcon,
@@ -291,11 +292,6 @@ export const ReviewWorkspacePage: FC = () => {
   const documentUrl = docState.url;
   const isNormalizedPdf = docState.isNormalizedPdf;
   const [currentPage, setCurrentPage] = useState(1);
-  const {
-    ref: canvasRef,
-    width: canvasWidth,
-    height: canvasHeight,
-  } = useElementSize();
   const [documentImage, setDocumentImage] = useState<HTMLImageElement | null>(
     null,
   );
@@ -337,6 +333,12 @@ export const ReviewWorkspacePage: FC = () => {
     () => localStorage.getItem("hitl-auto-advance") !== "false",
   );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
+  const documentCanvasRef = useRef<DocumentCanvasHandle>(null);
+  const {
+    ref: canvasRef,
+    width: canvasWidth,
+    height: canvasHeight,
+  } = useElementSize();
 
   const queuePath = location.pathname.match(
     /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
@@ -446,10 +448,8 @@ export const ReviewWorkspacePage: FC = () => {
     currentPage,
   );
 
-  // Canvas gets the rendered PDF page image, or raw image URL for non-PDFs
+  // Load the rendered PDF page image as HTMLImageElement for SnippetView
   const canvasImageUrl = isNormalizedPdf ? pdfPageImageUrl : documentUrl;
-
-  // Load the current canvas image as an HTMLImageElement for SnippetView
   useEffect(() => {
     if (!canvasImageUrl) {
       setDocumentImage(null);
@@ -673,7 +673,7 @@ export const ReviewWorkspacePage: FC = () => {
       const firstField = filteredSortedFields[0];
       setActiveFieldKey(firstField.fieldKey);
       requestAnimationFrame(() => {
-        focusField(firstField.fieldKey);
+        documentCanvasRef.current?.focusBox(firstField.fieldKey);
       });
     }
   }, [documentImage]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -838,7 +838,7 @@ export const ReviewWorkspacePage: FC = () => {
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
-          focusField(nextField.fieldKey);
+          documentCanvasRef.current?.focusBox(nextField.fieldKey);
         }
         if (fromOverlay) {
           // The new overlay renders with autoFocus on its textarea; nothing

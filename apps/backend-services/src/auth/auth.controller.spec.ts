@@ -341,7 +341,7 @@ describe("AuthController", () => {
         actorId: "actor-id",
       };
       const userGroups = [
-        { id: "group-1", name: "Group One", role: GroupRole.MEMBER },
+        { id: "group-1", name: "Group One", role: GroupRole.EDITOR },
       ];
       groupService.getUserGroups.mockResolvedValue(userGroups);
 
