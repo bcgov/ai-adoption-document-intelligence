@@ -365,9 +365,10 @@ export class HitlController {
   @Post("sessions/:id/reopen")
   @Identity({ allowApiKey: true })
   @ApiOperation({
-    summary: "Reopen a completed review session, or take over a flagged one",
+    summary:
+      "Take over a flagged review session, or relabel a ground-truth job",
     description:
-      "An approved session reopens only for its original reviewer, within five minutes of completion. A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them.",
+      "A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them. A ground-truth labelling job reopens for its original reviewer until the dataset version is frozen. An approved document review does not reopen at all: approving it signals the gated workflow, which has already run the nodes after the gate.",
   })
   @ApiParam({ name: "id", description: "Session ID" })
   @ApiOkResponse({
@@ -381,7 +382,7 @@ export class HitlController {
   })
   @ApiConflictResponse({
     description:
-      "Session cannot be reopened (already in progress, window expired, dataset frozen, or another reviewer holds the lock)",
+      "Session cannot be reopened: already in progress, an approved document review, a frozen dataset version, or another reviewer holds the lock",
   })
   async reopenSession(@Param("id") sessionId: string, @Req() req: Request) {
     const session = await this.hitlService.findReviewSession(sessionId);

@@ -4,7 +4,6 @@ import {
   IconClock,
   IconEye,
   IconFlag,
-  IconRotate,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
@@ -65,16 +64,7 @@ export const ReviewQueuePage: FC = () => {
   // Queue-wide figures: the same for every tab, so read them from one queue.
   const stats = pendingQueue.stats;
 
-  const [reopeningSessionId, setReopeningSessionId] = useState<string | null>(
-    null,
-  );
   const [takingSessionId, setTakingSessionId] = useState<string | null>(null);
-
-  const REOPEN_WINDOW_MS = 5 * 60 * 1000;
-  const canReopenSession = (completedAt?: string | null) => {
-    if (!completedAt) return false;
-    return Date.now() - new Date(completedAt).getTime() <= REOPEN_WINDOW_MS;
-  };
 
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.9) return "green";
@@ -152,34 +142,6 @@ export const ReviewQueuePage: FC = () => {
       });
     } finally {
       setTakingSessionId(null);
-    }
-  };
-
-  const handleReopenSession = async (sessionId: string) => {
-    setReopeningSessionId(sessionId);
-    try {
-      const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/reopen`,
-        {},
-      );
-      if (!response.success) throw new Error(response.message);
-      notifications.show({
-        title: "Session reopened",
-        message: "Document returned to review queue",
-        color: "green",
-        autoClose: 3000,
-      });
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
-      queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
-    } catch {
-      notifications.show({
-        title: "Cannot reopen",
-        message: "The reopen window may have expired or the dataset is frozen",
-        color: "red",
-        autoClose: 5000,
-      });
-    } finally {
-      setReopeningSessionId(null);
     }
   };
 
@@ -503,39 +465,20 @@ export const ReviewQueuePage: FC = () => {
                         </Text>
                       </DataTable.Td>
                       <DataTable.Td>
-                        <Group gap="xs">
-                          <Button
-                            size="xs"
-                            variant="light"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() =>
-                              handleStartSession(
-                                doc.lastSession?.id || doc.id,
-                                true,
-                              )
-                            }
-                            disabled={!doc.lastSession?.id}
-                          >
-                            View
-                          </Button>
-                          {doc.lastSession?.id &&
-                            canReopenSession(doc.lastSession.completed_at) && (
-                              <Button
-                                size="xs"
-                                variant="light"
-                                color="orange"
-                                leftSection={<IconRotate size={14} />}
-                                onClick={() =>
-                                  handleReopenSession(doc.lastSession!.id)
-                                }
-                                loading={
-                                  reopeningSessionId === doc.lastSession.id
-                                }
-                              >
-                                Reopen
-                              </Button>
-                            )}
-                        </Group>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          leftSection={<IconEye size={14} />}
+                          onClick={() =>
+                            handleStartSession(
+                              doc.lastSession?.id || doc.id,
+                              true,
+                            )
+                          }
+                          disabled={!doc.lastSession?.id}
+                        >
+                          View
+                        </Button>
                       </DataTable.Td>
                     </DataTable.Tr>
                   ))}

@@ -37,7 +37,8 @@ HITL routes low-confidence or review-required document results to humans. It is 
 - It differs from [Tables and extensions](tables-and-extensions.md) because it involves session lifecycle, locking, and human completion decisions.
 - Corrections are audit-like records of review actions, not a replacement for the original document record.
 - A session ends in one of three states: `approved`, `flagged` (handed on for attention) or `abandoned` (skipped, or the lock expired). A skipped document returns to the Pending queue and the next reviewer gets a fresh session.
-- Flagging is a hand-off, not an ending: the Flagged tab reads a document without a lock, and **Take** reopens the same session under the reader's own lock, corrections and all. Editing always holds a lock; only an approved session is restricted to its original reviewer and a five-minute window.
+- Flagging is a hand-off, not an ending: the Flagged tab reads a document without a lock, and **Take** reopens the same session under the reader's own lock, corrections and all. Editing always holds a lock.
+- Approving is final. It signals the workflow parked at the `humanGate`, which then runs every node after the gate, so there is nothing to return to and no undo. A dataset labeling job is the exception: it drives nothing downstream and its original reviewer can reopen it until the dataset version is frozen.
 - Locks are reclaimed by `LockExpiryService`, a per-minute cron that abandons the session, deletes the lock row, and audits the expiry.
 - Queue statistics are database counts over the whole queue, not a summary of the page in view.
 

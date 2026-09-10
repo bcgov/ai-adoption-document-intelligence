@@ -264,7 +264,7 @@ Additional HITL routes exist but are not part of the default mutating loop becau
 
 - `POST /api/hitl/sessions` starts a session for an explicit `documentId`.
 - `DELETE /api/hitl/sessions/:id/corrections/:correctionId` deletes a specific correction.
-- `POST /api/hitl/sessions/:id/reopen` reopens an eligible completed session.
+- `POST /api/hitl/sessions/:id/reopen` takes over a flagged session, or reopens a ground-truth labelling job on an unfrozen dataset version.
 - `POST /api/benchmark/datasets/from-hitl` creates a dataset from approved HITL document IDs.
 - `POST /api/benchmark/datasets/:id/versions/from-hitl` creates a new dataset version from approved HITL document IDs.
 

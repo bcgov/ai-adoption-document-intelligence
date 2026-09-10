@@ -8525,6 +8525,9 @@
           },
           "404": {
             "description": "Session not found"
+          },
+          "409": {
+            "description": "Session is not in progress: already approved, flagged, or abandoned"
           }
         },
         "security": [
@@ -8732,6 +8735,7 @@
     },
     "/api/hitl/sessions/{id}/reopen": {
       "post": {
+        "description": "A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them. A ground-truth labelling job reopens for its original reviewer until the dataset version is frozen. An approved document review does not reopen at all: approving it signals the gated workflow, which has already run the nodes after the gate.",
         "operationId": "HitlController_reopenSession",
         "parameters": [
           {
@@ -8756,13 +8760,13 @@
             }
           },
           "403": {
-            "description": "Access denied: not a group member or not the original reviewer"
+            "description": "Access denied: not a group member, or not the original reviewer of a session that is not flagged"
           },
           "404": {
             "description": "Session not found"
           },
           "409": {
-            "description": "Session cannot be reopened (already in progress, window expired, or dataset frozen)"
+            "description": "Session cannot be reopened: already in progress, an approved document review, a frozen dataset version, or another reviewer holds the lock"
           }
         },
         "security": [
@@ -8773,7 +8777,7 @@
             "api-key": []
           }
         ],
-        "summary": "Reopen a completed review session",
+        "summary": "Take over a flagged review session, or relabel a ground-truth job",
         "tags": [
           "hitl"
         ]

@@ -124,9 +124,10 @@ approved          flagged           abandoned            abandoned
    ↓                 ↓                  ↓                    ↓
 releases lock   releases lock      releases lock        lock deleted
    ↓                 ↓                  ↓                    ↓
-[Reopen]      Flagged tab,      back to Pending      back to Pending
-   ↓          view-only
-in_progress
+final          Flagged tab,      back to Pending      back to Pending
+              view-only + Take
+                   ↓
+              in_progress
 ```
 
 ### Transition Rules
@@ -138,11 +139,15 @@ in_progress
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
-| `approved` | `in_progress` | `POST /sessions/:id/reopen` | Clears `completed_at`, re-acquires lock, sets document `awaiting_review`. Only the original reviewer, and only within 5 minutes — flag and skip do not set `completed_at`, so those sessions are not reopenable in the regular workflow. Dataset labeling reopens any session while the dataset version is unfrozen |
+| `flagged` | `in_progress` | `POST /sessions/:id/reopen` | Any member of the group takes the session over; the lock moves to them and the previous reviewer's corrections stay |
+| `approved` | `in_progress` | `POST /sessions/:id/reopen` | Dataset labeling only, and only while the dataset version is unfrozen. Clears `completed_at`, re-acquires lock, sets document `awaiting_review` |
 
-**Important**: Terminal states can be reopened under specific conditions:
-- Regular workflow: within 5 minutes of completion, by the original reviewer only
-- Dataset labeling workflow: any time, unless the dataset version is frozen
+**Important**: approving a document review is final. It signals the workflow
+parked at the `humanGate`, which then runs every node after the gate, and no
+request can call that back — reopening one answers 409. Review the document
+again by reprocessing it. Two terminal states do reopen:
+- `flagged`, which is a hand-off rather than an ending
+- `approved` on a dataset labeling job, which drives nothing downstream and can go back for another pass until its dataset version is frozen
 
 ## System Flow
 
@@ -324,7 +329,7 @@ reviewer to open it starts a fresh session
 | `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
-| `POST` | `/api/hitl/sessions/:id/reopen` | Reopen a completed session | Yes |
+| `POST` | `/api/hitl/sessions/:id/reopen` | Take over a flagged session, or reopen a dataset labeling job | Yes |
 
 ### Queue Management
 
@@ -675,11 +680,11 @@ The system provides two levels of undo capability:
 - `Ctrl+Shift+Z` re-applies the last undone change
 - The undo/redo stack is maintained for the duration of the active session
 
-**Session-Level Undo (Reopen):**
-- After completing a session, the reviewer can reopen it via `POST /sessions/:id/reopen`
-- **Regular workflow**: Reopen is allowed within 5 minutes of completion, by the original reviewer only
-- **Dataset labeling workflow**: Reopen is allowed at any time, unless the dataset version is frozen
-- Reopening a session re-acquires the document lock and returns the session to `in_progress` status
+**Session-Level Reopen:**
+- `POST /sessions/:id/reopen` returns a session to `in_progress` and re-acquires the document lock
+- **Flagged session**: any member of the group takes it over, at any time, and the lock moves to them
+- **Dataset labeling job**: its original reviewer reopens it until the dataset version is frozen
+- **Approved document review**: refused. Approving signals the gated workflow, which has already run the nodes after the gate
 
 ### Field Sorting
 
