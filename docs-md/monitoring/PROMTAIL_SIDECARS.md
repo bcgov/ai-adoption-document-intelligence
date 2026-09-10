@@ -58,13 +58,13 @@ All Promtail sidecars are configured to push logs to `http://loki:3100/loki/api/
 
 ## Shared Volume Patterns
 
-### PVC-backed (backend-services, temporal-worker)
+### emptyDir (all application services)
 
-These services already had a logrotate sidecar writing to `/var/log/app/` on a PersistentVolumeClaim. The Promtail sidecar mounts the same PVC volume in read-only mode.
+Every application service shares its log file with Promtail through an ephemeral `emptyDir` mounted at `/var/log/app/`, one per pod. Logs are not persisted across pod restarts, and do not need to be: Promtail forwards them to Loki in near real-time, and Loki is the durable copy.
 
-### emptyDir (temporal-server, frontend)
+A `ReadWriteMany` PVC must not be used here. It was, for backend-services and temporal-worker, and it corrupted the logs: every replica appends to one file over NFS, which has no atomic append, so each replica writes at the end-of-file its own client has cached — overwriting other replicas' lines and zero-filling the gaps between them. It also meant every replica's Promtail tailed the same file and shipped each line once per replica.
 
-These services use ephemeral `emptyDir` volumes for log sharing. Logs are not persisted across pod restarts, but Promtail forwards them to Loki in near real-time.
+Services carrying a log file also run a `log-rotator` sidecar that truncates it past 10 MB, so an ephemeral volume cannot grow into the node's disk. See [LOGGING.md](LOGGING.md).
 
 ### pgdata volume (PostgreSQL)
 

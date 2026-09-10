@@ -1,0 +1,99 @@
+name: pgBackRest List Backups
+
+# Read-only workflow that prints available pgBackRest backups for a database
+# cluster. Run this to find the backup label to pass to the
+# "pgBackRest Database Restore" workflow when restore_type=backup-set.
+#
+# No data is modified. Safe to run at any time.
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+      database:
+        description: 'Database cluster to inspect'
+        required: true
+        type: choice
+        options:
+          - backend
+          - temporal
+
+jobs:
+  list-backups:
+    name: List backups — ${{ inputs.database }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+      - name: Compute resource names
+        id: names
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.environment }}" == "prod" ]]; then
+            NAMESPACE="fd34fb-prod"
+            INSTANCE_PREFIX="bcgov-di"
+          else
+            NAMESPACE="fd34fb-test"
+            INSTANCE_PREFIX="bcgov-di-test"
+          fi
+
+          if [[ "${{ inputs.database }}" == "backend" ]]; then
+            CLUSTER="${INSTANCE_PREFIX}-app-pg"
+          else
+            CLUSTER="${INSTANCE_PREFIX}-temporal-pg"
+          fi
+
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+          echo "cluster=$CLUSTER"     >> $GITHUB_OUTPUT
+
+      # ubuntu-latest does not ship the OpenShift CLI. Same action and pin as
+      # deploy-instance.yml, which is the workflow that already logs in here.
+      - name: Install oc CLI
+        uses: redhat-actions/openshift-tools-installer@144527c7d98999f2652264c048c7a9bd103f8a82 # v1
+        with:
+          oc: "4"
+
+      # No `oc project`: the deploy service account is scoped to its namespace and
+      # cannot read the project API, so `oc project <ns>` fails with "You are not
+      # a member of project". Every command below names its namespace with -n.
+      - name: Log in to OpenShift
+        run: |
+          oc login "${{ secrets.OPENSHIFT_SERVER }}" \
+            --token="${{ secrets.OPENSHIFT_TOKEN }}" \
+            --insecure-skip-tls-verify=true
+
+      - name: List available backups
+        run: |
+          NAMESPACE="${{ steps.names.outputs.namespace }}"
+          CLUSTER="${{ steps.names.outputs.cluster }}"
+
+          REPO_HOST=$(oc get pods -n "$NAMESPACE" \
+            -l "postgres-operator.crunchydata.com/cluster=${CLUSTER},postgres-operator.crunchydata.com/pgbackrest-dedicated" \
+            -o jsonpath='{.items[0].metadata.name}')
+
+          echo "Cluster:       $CLUSTER"
+          echo "Namespace:     $NAMESPACE"
+          echo "Repo-host pod: $REPO_HOST"
+          echo ""
+          echo "============================================================"
+          echo "  Available backups"
+          echo "  Use the label shown after 'full backup:' or 'incr backup:'"
+          echo "  as the backup_set input in the pgBackRest Database Restore"
+          echo "  workflow."
+          echo "============================================================"
+          echo ""
+          oc exec -n "$NAMESPACE" "$REPO_HOST" -c pgbackrest -- \
+            pgbackrest info --stanza=db

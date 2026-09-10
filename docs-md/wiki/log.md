@@ -86,6 +86,11 @@ Use grep-friendly headings: `## [YYYY-MM-DD] operation | Title` where operation 
 - Wired it into `extraction.md` and noted the blob-backed correction-tool contract (`ocr-activity-ref-utils.ts`). The `extraction/` folder is already registered in `sources.md`.
 - Kept the generic `standard-ocr-workflow.json` free of the SDPR-specific config: moved the `recoverNumericZeros` node into a form-specific variant `standard-ocr-workflow-sdpr.json` (seeded as `seed-workflow-standard-ocr-sdpr`). Fixed the node's ctx wiring — it now reads/writes `ocrResultRef` in place (was reading an unpopulated `ocrResult` key, which left the recovery off the data path so `postOcrCleanup` never saw it).
 
+## [2026-07-17] ingest | pgBackRest restore runbook
+
+- Added `docs-md/operations/PGBACKREST_RESTORE.md`: step-by-step runbook for restoring the backend (`app-pg`) and Temporal (`temporal-pg`) databases from automated pgBackRest backups in OpenShift. Covers inspecting available backups, scaling down application pods, patching `spec.backups.pgbackrest.restore` for a latest or named-backup restore, triggering the operator's in-place restore by annotation (the cluster is not shut down), monitoring it, removing the restore spec, and scaling back up.
+- Added the `pgBackRest List Backups` and `pgBackRest Database Restore` GitHub Actions workflows, which automate that runbook for the test and prod environments.
+
 ## [2026-07-23] ingest | Add Billing topic and canonical usage-metering doc (AI-1580)
 
 - Added `docs-md/architecture/USAGE_METERING_AND_BILLING.md` as the canonical how-it-works/how-to-use doc for the AI-1580 usage-metering + spending-cap feature (data model, rate versions, cap check, storage charging, env config, API, known limitations).
