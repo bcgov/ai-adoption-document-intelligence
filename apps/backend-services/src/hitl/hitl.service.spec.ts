@@ -343,7 +343,10 @@ describe("HitlService", () => {
         mockDocumentWithOcr as any,
       ]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.REVIEWED });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.REVIEWED,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -355,7 +358,10 @@ describe("HitlService", () => {
     it("should NOT include complete documents in the pending filter", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 
-      await service.getQueue({ reviewStatus: ReviewStatusFilter.PENDING });
+      await service.getQueue({
+        group_id: "group-1",
+        reviewStatus: ReviewStatusFilter.PENDING,
+      });
 
       expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
         expect.objectContaining({
