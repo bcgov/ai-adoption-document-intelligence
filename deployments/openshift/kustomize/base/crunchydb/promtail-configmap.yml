@@ -21,3 +21,10 @@ data:
             labels:
               service: postgresql
               __path__: /pgdata/pg16/log/*.log
+        pipeline_stages:
+          # Drop routine Postgres operational messages - high frequency, low diagnostic value.
+          - drop:
+              expression: 'LOG:\s+(checkpoint|autovacuum|automatic (analyze|vacuum)|connection (received|authorized)|disconnection)'
+          # Drop SELECT 1 health-check duration entries.
+          - drop:
+              expression: 'statement: SELECT 1'

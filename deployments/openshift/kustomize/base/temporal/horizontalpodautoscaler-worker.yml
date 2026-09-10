@@ -9,22 +9,22 @@ spec:
     name: temporal-worker
   # Start with 2 replicas for HA
   minReplicas: 2
-  # Max 4 replicas: with DB_POOL_MAX=3 per pod, that's 12 connections.
-  # Combined with backend-services (max 5 * 5 = 25), total is 37 of Postgres default 100.
-  maxReplicas: 4
+  # Max 3 replicas: with DB_POOL_MAX=3 per pod, that's 9 connections.
+  # Combined with backend-services (max 3 * 10 = 30), total is 39 of Postgres default 100.
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 70
+          averageUtilization: 80
     - type: Resource
       resource:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 75
+          averageUtilization: 80
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 600
@@ -33,7 +33,7 @@ spec:
           value: 50
           periodSeconds: 120
     scaleUp:
-      stabilizationWindowSeconds: 120
+      stabilizationWindowSeconds: 180
       policies:
         - type: Percent
           value: 50

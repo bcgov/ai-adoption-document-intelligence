@@ -204,8 +204,8 @@ New environment variables (configurable per environment):
 |----------|-------------|---------|
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin password | (secret) |
 | `LOKI_RETENTION_DAYS` | Log retention period in days | `30` |
-| `LOKI_PVC_SIZE` | Loki storage PVC size | `10Gi` |
-| `PROMETHEUS_PVC_SIZE` | Prometheus storage PVC size | `10Gi` |
+| `LOKI_PVC_SIZE` | Loki storage PVC size | `2Gi` |
+| `PROMETHEUS_PVC_SIZE` | Prometheus storage PVC size | `2Gi` |
 | `METRICS_SCRAPE_INTERVAL` | Prometheus scrape interval | `15s` |
 
 ---

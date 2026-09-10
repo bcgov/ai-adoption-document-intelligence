@@ -130,6 +130,18 @@
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 3 }
     },
+    "persistOcr": {
+      "id": "persistOcr",
+      "type": "activity",
+      "label": "Persist OCR (pre-review)",
+      "activityType": "ocr.storeResults",
+      "inputs": [
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "ocrResult", "ctxKey": "cleanedResultRef" }
+      ],
+      "timeout": { "startToClose": "2m" },
+      "retry": { "maximumAttempts": 5 }
+    },
     "reviewSwitch": {
       "id": "reviewSwitch",
       "type": "switch",
@@ -184,7 +196,8 @@
     { "id": "e5", "source": "pollOcrResults", "target": "extractResults", "type": "normal" },
     { "id": "e6", "source": "extractResults", "target": "postOcrCleanup", "type": "normal" },
     { "id": "e7", "source": "postOcrCleanup", "target": "checkConfidence", "type": "normal" },
-    { "id": "e8", "source": "checkConfidence", "target": "reviewSwitch", "type": "normal" },
+    { "id": "e8", "source": "checkConfidence", "target": "persistOcr", "type": "normal" },
+    { "id": "e-persist-to-switch", "source": "persistOcr", "target": "reviewSwitch", "type": "normal" },
     { "id": "edge-switch-to-humanGate", "source": "reviewSwitch", "target": "humanReview", "type": "conditional", "condition": "requiresReview" },
     { "id": "edge-switch-to-store", "source": "reviewSwitch", "target": "storeResults", "type": "conditional", "condition": "default" },
     { "id": "e11", "source": "humanReview", "target": "storeResults", "type": "normal" }
@@ -216,7 +229,7 @@
       "description": "Check OCR confidence and decide if human review is needed",
       "icon": "quality",
       "color": "#fb923c",
-      "nodeIds": ["checkConfidence", "reviewSwitch"],
+      "nodeIds": ["checkConfidence", "persistOcr", "reviewSwitch"],
       "exposedParams": [
         {
           "label": "Confidence Threshold",

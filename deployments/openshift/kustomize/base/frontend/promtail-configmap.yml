@@ -21,3 +21,16 @@ data:
             labels:
               service: frontend
               __path__: /var/log/app/*.log
+        pipeline_stages:
+          # Drop kubelet probe hits. Both probes request "/", the same path a
+          # real page load uses, so the user agent is the only thing that tells
+          # them apart. ~18 lines/minute/replica, and the bulk of this log.
+          - drop:
+              expression: '"kube-probe/'
+          # Drop health-check hits. nginx logs the combined format, so match the
+          # quoted request line rather than the backend's JSON "path" field.
+          - drop:
+              expression: '"(GET|HEAD) /(api/)?health[ /?]'
+          # Drop metrics checks
+          - drop:
+              expression: '"GET /metrics[ /?]'

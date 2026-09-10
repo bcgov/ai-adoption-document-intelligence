@@ -104,7 +104,7 @@ The frontend provides a comprehensive UI for managing the entire document intell
 **Capabilities:**
 - Review OCR results with confidence scores
 - Correct field values with action tracking (confirmed, corrected, flagged, deleted)
-- Approve or escalate documents
+- Approve, flag, or skip documents
 - Queue filtering by status and document type
 - Analytics and statistics (accuracy rates, review throughput)
 - Session management
@@ -307,7 +307,7 @@ Field-by-field review interface:
 - Track correction actions (confirmed, corrected, flagged, deleted)
 - Side-by-side document view with highlighting
 - Session management
-- Approve or escalate documents
+- Approve, flag, or skip documents
 
 ## Authentication
 

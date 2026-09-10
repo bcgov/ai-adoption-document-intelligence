@@ -12,6 +12,8 @@ deployments/openshift/helm/plg/
   values.yaml                        # Default values
   values-local.yaml                  # Local Docker environment overrides
   values-openshift.yaml              # OpenShift environment overrides
+  values-test.yaml                   # Sizing and retention for test/dev environments
+  values-prod.yaml                   # Sizing and retention for production
   templates/
     _helpers.tpl                     # Template helper functions
     loki-configmap.yaml              # Loki server configuration
@@ -26,7 +28,7 @@ deployments/openshift/helm/plg/
 | `loki.image.repository` | Loki container image | `grafana/loki` |
 | `loki.image.tag` | Loki image tag | `3.4.0` |
 | `loki.retentionDays` | Log retention period in days | `30` |
-| `loki.pvcSize` | PVC storage size | `10Gi` |
+| `loki.pvcSize` | PVC storage size | `2Gi` |
 | `loki.storageClassName` | Storage class (empty = cluster default) | `""` |
 | `loki.resources.requests.memory` | Memory request | `256Mi` (OpenShift override: `512Mi`) |
 | `loki.resources.requests.cpu` | CPU request | `500m` |
@@ -109,6 +111,7 @@ rate(loki_distributor_bytes_received_total[5m])
 ```bash
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-openshift.yaml \
+  -f ./deployments/openshift/helm/plg/values-prod.yaml \
   -n <namespace>
 ```
 
@@ -118,6 +121,8 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-local.yaml
 ```
+
+`loki.pvcSize` and `loki.retentionDays` come from the per-environment file, which is layered last and therefore wins over `values-openshift.yaml`. Use `values-test.yaml` for test and dev namespaces. Both the CI workflow and `scripts/oc-deploy-instance.sh` pick the file from the target environment, so changing Loki's PVC size or retention in a deployed environment means editing the matching `values-<env>.yaml`.
 
 ### Custom Overrides
 

@@ -26,7 +26,7 @@ This platform is under active development with core capabilities implemented:
 
 ## Architecture
 
-The platform is built as a microservices architecture with five main components:
+The platform is built as a microservices architecture with four main components:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -37,26 +37,21 @@ The platform is built as a microservices architecture with five main components:
 ┌────────────▼────────────────────────────────────────────────────┐
 │                    Backend Services (NestJS)                    │
 │  Document │ Upload │ Workflow │ Training │ HITL │ Benchmark │ Auth  │
-└─────┬──────────────┬───────────────┬───────────────────────┬────┘
-      │              │               │                       │
-      │   ┌──────────▼───────┐       │                       │
-      │   │  Temporal Server │       │                       │
-      │   └──────────┬───────┘       │                       │
-      │              │               │                       │
-      │   ┌──────────▼───────────┐   │                       │
-      │   │   Temporal Worker    │   │                       │
-      │   │  (Graph Workflows)   │   │                       │
-      │   └──────────────────────┘   │                       │
-      │                              │                       │
-┌─────▼──────┐  ┌──────────────┐     │    ┌──────────────────▼─────┐
-│ PostgreSQL │  │ Blob Storage │     │    │ Azure Document         │
-│  (Prisma)  │  │ (Local/Azure)│     │    │ Intelligence (OCR)     │
-└────────────┘  └──────────────┘     │    └────────────────────────┘
-                                     │
-                        ┌────────────▼─────────┐
-                        │  Image Service       │
-                        │  (Python/OpenCV)     │
-                        └──────────────────────┘
+└─────┬──────────────┬───────────────────────────────────────┬────┘
+      │              │                                       │
+      │   ┌──────────▼───────┐                               │
+      │   │  Temporal Server │                               │
+      │   └──────────┬───────┘                               │
+      │              │                                       │
+      │   ┌──────────▼───────────┐                           │
+      │   │   Temporal Worker    │                           │
+      │   │  (Graph Workflows)   │                           │
+      │   └──────────────────────┘                           │
+      │                                                      │
+┌─────▼──────┐  ┌──────────────┐          ┌──────────────────▼─────┐
+│ PostgreSQL │  │ Blob Storage │          │ Azure Document         │
+│  (Prisma)  │  │ (Local/Azure)│          │ Intelligence (OCR)     │
+└────────────┘  └──────────────┘          └────────────────────────┘
 ```
 
 ### Components
@@ -87,14 +82,7 @@ The platform is built as a microservices architecture with five main components:
    - Durable workflow state management
    - Integration with backend services and OCR
 
-4. **[Image Service](apps/image-service/)** - Python preprocessing
-   - Noise reduction and denoising
-   - Skew correction (rotational and perspective)
-   - Orientation detection and correction
-   - Image scaling and resizing
-   - Color manipulation and positioning
-
-5. **[Shared](apps/shared/)** - Common resources
+4. **[Shared](apps/shared/)** - Common resources
    - Prisma database schema (shared by backend and temporal)
    - Database migrations
    - Type definitions
@@ -146,7 +134,7 @@ The platform is built as a microservices architecture with five main components:
 - Field-by-field validation interface
 - Side-by-side document viewing with OCR overlays
 - Correction tracking with action types (confirmed, corrected, flagged, deleted)
-- Session state management (in_progress, approved, escalated, skipped)
+- Session state management (in_progress, approved, flagged, abandoned)
 - Analytics and performance metrics
 
 ### Security & Authentication
@@ -191,11 +179,6 @@ The platform is built as a microservices architecture with five main components:
 - **TypeScript** - Workflow and activity definitions
 - **Prisma** - Database access from activities
 
-### Image Processing
-- **Python 3.12** - Modern Python
-- **OpenCV (cv2)** - Image processing
-- **NumPy** - Numerical operations
-
 ## Use Cases
 
 The platform supports diverse document processing scenarios:
@@ -216,8 +199,6 @@ Before setting up the development environment, ensure you have:
 - **[npm](https://www.npmjs.com/)** 10.x or later
 - **[PostgreSQL](https://www.postgresql.org/)** 14+ (or Docker for containerized database)
 - **[Docker Engine](https://docs.docker.com/engine/install/ubuntu/)** with Docker Compose plugin (install inside WSL — see Windows note below)
-- **[Python](https://www.python.org/)** 3.12+ (optional, for image-service)
-- **[uv](https://github.com/astral-sh/uv)** (optional, for Python dependency management)
 - **[Git](https://git-scm.com/)** for version control
 - **Temporal Server** (via Docker Compose or local installation)
 
@@ -582,17 +563,6 @@ ai-adoption-document-intelligence/
 │   │   │   └── worker.ts        # Worker entrypoint
 │   │   └── package.json
 │   │
-│   ├── image-service/            # Python image preprocessing
-│   │   ├── tools/
-│   │   │   ├── noise.py         # Noise reduction
-│   │   │   ├── skew.py          # Skew correction
-│   │   │   ├── orientation.py   # Rotation detection
-│   │   │   ├── size.py          # Scaling/resizing
-│   │   │   ├── colour.py        # Color manipulation
-│   │   │   └── positioning.py   # Alignment
-│   │   ├── main.py              # Test script
-│   │   └── pyproject.toml
-│   │
 │   └── shared/                   # Shared resources
 │       ├── prisma/
 │       │   ├── schema.prisma    # Database schema
@@ -767,7 +737,7 @@ Validate and correct OCR results through human review.
 **Queue Management:**
 - Documents automatically enter queue after OCR
 - Filtering by status, document type, confidence threshold
-- Statistics dashboard (pending, approved, escalated)
+- Statistics dashboard (pending, flagged, reviewed)
 - Reviewer assignment
 
 **Review Session:**
@@ -780,8 +750,8 @@ Validate and correct OCR results through human review.
 **Session States:**
 - `in_progress` - Active review
 - `approved` - Review completed, results approved
-- `escalated` - Requires additional review
-- `skipped` - Deferred for later
+- `flagged` - Handed on for someone else's attention; read-only in the Flagged tab
+- `abandoned` - Skipped, or the reviewer's lock expired; back in the pending queue
 
 **Analytics:**
 - Field accuracy rates
@@ -837,12 +807,12 @@ docker run \
 
 ### OpenShift/Kubernetes
 
-Kubernetes manifests are provided in `deployments/openshift/kustomize/`:
-
-```bash
-# Apply to cluster
-kubectl apply -k deployments/openshift/kustomize/overlays/dev
-```
+Kubernetes manifests are provided in `deployments/openshift/kustomize/`. Deployments are
+driven by the **Deploy Instance** GitHub Actions workflow, which renders an instance-specific
+overlay from `overlays/instance-template` and applies it (pushes to `develop` deploy to
+`fd34fb-test`, pushes to `main` deploy to `fd34fb-prod`). See
+[docs-md/operations/AUTO_DEPLOY.md](docs-md/operations/AUTO_DEPLOY.md) and
+[docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md](docs-md/operations/KUSTOMIZE_INSTANCE_TEMPLATE.md).
 
 **Features:**
 - Database migration init containers
@@ -923,7 +893,6 @@ Note: All OAuth/OIDC configuration is handled by the backend. The frontend has n
 - **[Backend Services README](apps/backend-services/README.md)** - API service documentation
 - **[Frontend README](apps/frontend/README.md)** - UI application documentation
 - **[Temporal README](apps/temporal/README.md)** - Workflow worker documentation
-- **[Image Service README](apps/image-service/README.md)** - Image preprocessing documentation
 
 ### Development Guides
 

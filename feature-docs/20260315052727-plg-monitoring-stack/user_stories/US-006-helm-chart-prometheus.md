@@ -9,7 +9,7 @@
 - [x] **Scenario 1**: Prometheus deployed via Helm chart
     - **Given** the PLG Helm chart includes Prometheus configuration
     - **When** the chart is deployed
-    - **Then** Prometheus is running with a PVC for metrics storage (configurable via `PROMETHEUS_PVC_SIZE`, default `10Gi`) and resource limits (memory `512Mi`, CPU `500m`)
+    - **Then** Prometheus is running with a PVC for metrics storage (configurable via `PROMETHEUS_PVC_SIZE`, default `2Gi`) and resource limits (memory `512Mi`, CPU `500m`)
 
 - [x] **Scenario 2**: Backend-services scrape target configured
     - **Given** Prometheus scrape configs are defined in the Helm chart values

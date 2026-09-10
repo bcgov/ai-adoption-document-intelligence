@@ -9,6 +9,7 @@ const IDLE_WARNING_MS = 8 * 60 * 1000;
 export const useSessionHeartbeat = (
   sessionId: string | undefined,
   queuePath: string,
+  enabled = true,
 ) => {
   const navigate = useNavigate();
   const [idleWarning, setIdleWarning] = useState(false);
@@ -56,14 +57,15 @@ export const useSessionHeartbeat = (
       }
     };
 
+    if (!enabled) return;
     heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
-  }, [sessionId, navigate, queuePath]);
+  }, [sessionId, navigate, queuePath, enabled]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !enabled) return;
 
     idleCheckRef.current = setInterval(() => {
       const idleTime = Date.now() - lastActivityRef.current;
@@ -82,7 +84,7 @@ export const useSessionHeartbeat = (
     return () => {
       if (idleCheckRef.current) clearInterval(idleCheckRef.current);
     };
-  }, [sessionId, idleWarning]);
+  }, [sessionId, idleWarning, enabled]);
 
   return { idleWarning, resetActivity };
 };

@@ -12,6 +12,8 @@ deployments/openshift/helm/plg/
   values.yaml                        # Default values
   values-local.yaml                  # Local Docker environment overrides
   values-openshift.yaml              # OpenShift environment overrides
+  values-test.yaml                   # Loki/Prometheus sizing for test/dev environments
+  values-prod.yaml                   # Loki/Prometheus sizing for production
   dashboards/
     application-overview.json        # Application Overview Grafana dashboard JSON
     logs-explorer.json               # Logs Explorer Grafana dashboard JSON
@@ -135,6 +137,7 @@ Then open `http://localhost:3001` in a browser.
 ```bash
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-openshift.yaml \
+  -f ./deployments/openshift/helm/plg/values-prod.yaml \
   --set grafana.adminPassword=<secure-password> \
   -n <namespace>
 ```
@@ -145,6 +148,8 @@ helm upgrade --install plg ./deployments/openshift/helm/plg \
 helm upgrade --install plg ./deployments/openshift/helm/plg \
   -f ./deployments/openshift/helm/plg/values-local.yaml
 ```
+
+The per-environment file carries Loki and Prometheus sizing and sets no Grafana values, but one release installs all four components, so it belongs on every OpenShift deploy. Use `values-test.yaml` for test and dev namespaces. `grafana.adminPassword` stays a `--set` flag because it is a credential.
 
 ### Custom Overrides
 

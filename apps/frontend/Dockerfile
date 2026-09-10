@@ -41,10 +41,11 @@ COPY apps/frontend/nginx-default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY apps/frontend/docker-entrypoint.sh /docker-entrypoint.sh
 
-# Create nginx temp/cache dirs (nginx does not create parent dirs); world-writable for OpenShift arbitrary UID.
+# Create nginx temp/cache dirs and log dir; world-writable for OpenShift arbitrary UID.
 # Make entrypoint and nginx config writable so the entrypoint can substitute env vars at startup.
 RUN mkdir -p /tmp/nginx/client_temp /tmp/nginx/proxy_temp /tmp/nginx/fastcgi_temp \
     /tmp/nginx/uwsgi_temp /tmp/nginx/scgi_temp && chmod -R 777 /tmp/nginx \
+    && mkdir -p /var/log/app && chmod 777 /var/log/app \
     && chmod +x /docker-entrypoint.sh \
     && chmod 777 /etc/nginx/conf.d \
     && chmod 666 /etc/nginx/conf.d/default.conf

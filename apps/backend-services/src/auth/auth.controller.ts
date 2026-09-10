@@ -321,6 +321,7 @@ export class AuthController {
       isAdmin,
       expires_in: Math.max(exp - now, 0),
       groups,
+      actorId: req.resolvedIdentity.actorId,
     };
   }
 }

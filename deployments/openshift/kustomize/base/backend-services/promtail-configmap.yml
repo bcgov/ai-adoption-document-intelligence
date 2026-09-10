@@ -21,3 +21,10 @@ data:
             labels:
               service: backend-services
               __path__: /var/log/app/*.log
+        pipeline_stages:
+          # Drop health-check hits - fired every few seconds by the router.
+          - drop:
+              expression: '"path":"/(?:api/)?health[/"]'
+          # Drop metrics checks
+          - drop:
+              expression: '"path":"/metrics"'

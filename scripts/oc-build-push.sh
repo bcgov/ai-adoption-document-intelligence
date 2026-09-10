@@ -17,6 +17,8 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 source "${SCRIPT_DIR}/lib/config-loader.sh"
 source "${SCRIPT_DIR}/lib/image-tag.sh"
+source "${SCRIPT_DIR}/lib/artifactory-login.sh"
+source "${SCRIPT_DIR}/lib/retry.sh"
 
 usage() {
   cat <<EOF
@@ -26,7 +28,10 @@ Services: backend-services, frontend, temporal
 
 Options:
   --env <dev|prod>   Profile for deployments/openshift/config/<env>.env (Artifactory + Vite args)
-  --tag, -t <tag>    Image tag for all services (default: sanitized current git branch)
+  --tag, -t <tag>    Floating/live image tag (default: sanitized current git branch).
+                     Images are pushed to <tag>-<sha12> unless --push-floating is set.
+  --push-floating    Push directly to the floating tag (legacy behaviour).
+  --promote          After build, promote <tag>-<sha12> manifest to floating <tag>.
   --all              Build and push all three services
   -h, --help         Show this help
 
@@ -39,6 +44,9 @@ EOF
 
 ENV_PROFILE=""
 IMAGE_TAG=""
+FLOATING_TAG=""
+PUSH_FLOATING=false
+PROMOTE=false
 ALL_SERVICES=false
 SERVICES=()
 
@@ -51,6 +59,14 @@ while [[ $# -gt 0 ]]; do
     --tag|-t)
       IMAGE_TAG="$2"
       shift 2
+      ;;
+    --push-floating)
+      PUSH_FLOATING=true
+      shift
+      ;;
+    --promote)
+      PROMOTE=true
+      shift
       ;;
     --all)
       ALL_SERVICES=true
@@ -82,10 +98,16 @@ if [[ "${ALL_SERVICES}" == true ]]; then
   SERVICES=(backend-services frontend temporal)
 fi
 
-if [[ ${#SERVICES[@]} -eq 0 ]]; then
+if [[ ${#SERVICES[@]} -eq 0 && "${PROMOTE}" != true ]]; then
   echo "[ERROR] Specify --all or one or more services." >&2
   usage >&2
   exit 1
+fi
+
+PROMOTE_ONLY=false
+if [[ "${PROMOTE}" == true && ${#SERVICES[@]} -eq 0 ]]; then
+  PROMOTE_ONLY=true
+  SERVICES=(backend-services frontend temporal)
 fi
 
 load_config --env "${ENV_PROFILE}" || exit $?
@@ -107,17 +129,22 @@ if [[ -z "${IMAGE_TAG}" ]]; then
   IMAGE_TAG=$(sanitize_branch_as_image_tag) || exit 1
 fi
 
-echo "[INFO] Using image tag: ${IMAGE_TAG}"
+FLOATING_TAG="${IMAGE_TAG}"
+if [[ "${PUSH_FLOATING}" == true ]]; then
+  PUSH_TAG="${FLOATING_TAG}"
+else
+  PUSH_TAG=$(compute_sha_image_tag "${FLOATING_TAG}") || exit 1
+fi
+
+echo "[INFO] Floating tag: ${FLOATING_TAG}"
+echo "[INFO] Push tag:     ${PUSH_TAG}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "[ERROR] docker CLI not found." >&2
   exit 1
 fi
 
-echo "[INFO] Logging in to ${ARTIFACTORY_URL}..."
-printf '%s\n' "${ARTIFACTORY_SA_PASSWORD}" | docker login "${ARTIFACTORY_URL}" \
-  -u "${ARTIFACTORY_SA_USERNAME}" \
-  --password-stdin
+artifactory_docker_login "${ARTIFACTORY_URL}" "${ARTIFACTORY_SA_USERNAME}" "${ARTIFACTORY_SA_PASSWORD}"
 
 IMAGE_BASE="${ARTIFACTORY_URL}/kfd3-fd34fb-local"
 
@@ -144,7 +171,7 @@ build_push_one() {
       ;;
   esac
 
-  local dest="${IMAGE_BASE}/${svc}:${IMAGE_TAG}"
+  local dest="${IMAGE_BASE}/${svc}:${PUSH_TAG}"
   echo "[INFO] Building ${dest}"
 
   if [[ "${svc}" == frontend ]]; then
@@ -191,8 +218,26 @@ build_push_one() {
 }
 
 for svc in "${SERVICES[@]}"; do
-  build_push_one "${svc}"
+  if [[ "${PROMOTE_ONLY}" != true ]]; then
+    build_push_one "${svc}"
+  fi
 done
 
-echo "[INFO] Done. Images pushed with tag: ${IMAGE_TAG}"
-echo "[INFO] Deploy with: ./scripts/oc-deploy-instance.sh --env ${ENV_PROFILE} --namespace <ns> --image-tag ${IMAGE_TAG} [--instance <name>]"
+if [[ "${PROMOTE}" == true ]]; then
+  if [[ "${PUSH_FLOATING}" == true ]]; then
+    echo "[WARN] --promote ignored when --push-floating is set (already on floating tag)." >&2
+  else
+    echo "[INFO] Promoting ${PUSH_TAG} -> ${FLOATING_TAG} for all built services..."
+    for svc in "${SERVICES[@]}"; do
+      with_retries 3 15 docker buildx imagetools create \
+        "${IMAGE_BASE}/${svc}:${FLOATING_TAG}" \
+        "${IMAGE_BASE}/${svc}:${PUSH_TAG}"
+    done
+  fi
+fi
+
+echo "[INFO] Done. Images pushed with tag: ${PUSH_TAG}"
+echo "[INFO] Deploy with: ./scripts/oc-deploy-instance.sh --env ${ENV_PROFILE} --namespace <ns> --image-tag ${PUSH_TAG} [--instance <name>] --confirm"
+if [[ "${PUSH_FLOATING}" != true && "${PROMOTE}" != true ]]; then
+  echo "[INFO] After deploy succeeds, promote with: $(basename "$0") --env ${ENV_PROFILE} --tag ${FLOATING_TAG} --promote"
+fi

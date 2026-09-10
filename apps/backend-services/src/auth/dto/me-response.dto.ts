@@ -54,4 +54,9 @@ export class MeResponseDto {
     type: [GroupSummaryDto],
   })
   groups!: GroupSummaryDto[];
+
+  @ApiProperty({
+    description: "Actor identifier used for document locks and audit events",
+  })
+  actorId!: string;
 }

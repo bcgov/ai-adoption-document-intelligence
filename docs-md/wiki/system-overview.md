@@ -1,13 +1,12 @@
 ---
 status: active
-updated: 2026-06-17
+updated: 2026-08-17
 canonical_sources:
   - README.md
   - apps/README.md
   - apps/backend-services/src/
   - apps/frontend/src/
   - apps/temporal/src/
-  - apps/image-service/
   - apps/shared/prisma/schema.prisma
 do_not_duplicate:
   - Full setup instructions
@@ -18,14 +17,13 @@ do_not_duplicate:
 
 # System Overview
 
-The platform is a document intelligence monorepo with a React frontend, NestJS backend, Temporal worker, Python image service, shared Prisma schema, and supporting packages. The wiki should use this page as a routing layer, not as a replacement for the top-level READMEs.
+The platform is a document intelligence monorepo with a React frontend, NestJS backend, Temporal worker, shared Prisma schema, and supporting packages. The wiki should use this page as a routing layer, not as a replacement for the top-level READMEs.
 
 ## Primary Boundaries
 
 - Backend services own REST APIs, document metadata, OCR orchestration, workflow configuration, training, HITL, auth, groups, and operational API behavior.
 - The frontend owns the user workflow for document upload, labeling, workflow visualization, review, group context, and feature-specific administration.
 - The Temporal worker owns durable DAG workflow execution and activity dispatch.
-- The image service owns optional preprocessing behavior such as denoising, deskewing, orientation, and resizing.
 - Shared packages and the shared Prisma schema hold cross-app types, validation, and persistence contracts.
 
 ## Related Topics

@@ -21,3 +21,6 @@ data:
             labels:
               service: temporal-worker
               __path__: /var/log/app/*.log
+        pipeline_stages:
+          - drop:
+              expression: '"path":"/(?:api/)?health"'

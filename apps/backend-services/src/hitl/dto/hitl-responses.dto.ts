@@ -206,11 +206,6 @@ export class SessionActionResponseDto {
   @ApiPropertyOptional()
   completedAt?: Date | null;
 
-  @ApiPropertyOptional({
-    description: "Escalation reason (escalate endpoint only)",
-  })
-  reason?: string;
-
   @ApiProperty()
   message!: string;
 }

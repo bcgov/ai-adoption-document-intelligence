@@ -81,3 +81,52 @@ docker login artifacts.developer.gov.bc.ca \
 - SA accounts should be given the **Contributor** role in your Artifactory project; human users get **Developer** or **Admin**.
 - For support, use the `#devops-artifactory` channel on Rocket.Chat. For urgent issues, use `#devops-sos`.
 - The BCGov Artifactory URL is `artifacts.developer.gov.bc.ca`
+
+---
+
+## Container image cleanup scripts
+
+This project maintains scripts for the `kfd3-fd34fb-local` Docker repository:
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/artifactory-usage.sh` | Report storage usage per image/tag |
+| `scripts/artifactory-cleanup.sh` | Rotate old tags, delete orphan `sha256__*` manifests, clean stale `_uploads/` blobs |
+| `scripts/artifactory-delete-run-tags.sh` | Delete a specific run's staged SHA tag from all images (used on CI failure) |
+
+### Staged tags and promotion
+
+CI builds push images to immutable SHA tags (`<floating>-<sha12>`) and only promote to the floating tag after a successful deploy. Locally:
+
+```bash
+# Push staged images
+./scripts/oc-build-push.sh --env dev --all --tag my-branch
+
+# Deploy with the SHA tag printed by the build script
+./scripts/oc-deploy-instance.sh --env dev --namespace fd34fb-test \
+  --image-tag my-branch-<sha12> --confirm
+
+# Promote to floating tag after deploy succeeds (no rebuild)
+./scripts/oc-build-push.sh --env dev --tag my-branch --promote
+```
+
+### Failure cleanup
+
+When a CI build or deploy fails, the `cleanup-on-failure` workflow job runs:
+
+```bash
+./scripts/artifactory-delete-run-tags.sh --tag bcgov-di-test-<sha12> --delete
+```
+
+This deletes the named tag from all four images (`backend-services`, `frontend`, `temporal`, `ches-adapter`) and then runs orphan/uploads cleanup.
+
+### Routine cleanup
+
+After successful prod deploys, CI keeps the 3 most recent `bcgov-di-????????????` SHA tags per image. Test/dev keeps 10. Manual cleanup:
+
+```bash
+./scripts/artifactory-cleanup.sh --env dev --delete --keep 10 --match 'bcgov-di-test-????????????'
+./scripts/artifactory-cleanup.sh --env prod --delete --keep 3 --match 'bcgov-di-????????????'
+```
+
+All Artifactory API calls use `--connect-timeout 30 --max-time 120`. Docker login retries up to 3 times via `scripts/lib/artifactory-login.sh`, and the CI staged-image existence check and `imagetools create` tag promotion retry via `scripts/lib/retry.sh` (`with_retries`).

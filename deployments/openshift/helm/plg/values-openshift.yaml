@@ -1,7 +1,7 @@
 # PLG Stack - OpenShift Environment Overrides
 
 loki:
-  pvcSize: 10Gi
+  pvcSize: 2Gi
   retentionDays: 30
 
   resources:
@@ -13,7 +13,7 @@ loki:
       cpu: "500m"
 
 prometheus:
-  pvcSize: 10Gi
+  pvcSize: 2Gi
 
   resources:
     requests:
