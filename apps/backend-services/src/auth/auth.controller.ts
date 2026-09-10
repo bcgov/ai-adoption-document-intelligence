@@ -22,7 +22,6 @@ import {
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { Request, Response } from "express";
-import { GroupService } from "../group/group.service";
 import { AppLoggerService } from "../logging/app-logger.service";
 import {
   THROTTLE_AUTH_LIMIT,
@@ -43,6 +42,7 @@ import { MeResponseDto, OAuthCallbackQueryDto, RefreshReturnDto } from "./dto";
 import { Identity } from "./identity.decorator";
 import { requireUserId } from "./identity.helpers";
 import { Public } from "./public.decorator";
+import { RoleClaimsMap } from "./role-permissions";
 import { User } from "./types";
 
 /**
@@ -55,7 +55,6 @@ import { User } from "./types";
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly groupService: GroupService,
     private readonly logger: AppLoggerService,
   ) {}
 
@@ -307,10 +306,11 @@ export class AuthController {
     const isAdmin = req.resolvedIdentity?.isSystemAdmin || false;
     // Route is JWT-only (allowApiKey: false), so a userId must be present.
     const userId = requireUserId(req.resolvedIdentity);
-    const groups = await this.groupService.getUserGroups(
-      req.resolvedIdentity,
-      userId,
-    );
+
+    const groups = (req.resolvedIdentity.resolvedGroups ?? []).map((g) => ({
+      ...g,
+      permissions: RoleClaimsMap[g.role],
+    }));
 
     return {
       sub: userId,

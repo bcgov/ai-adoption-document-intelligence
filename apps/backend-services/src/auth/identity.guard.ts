@@ -80,6 +80,7 @@ export class IdentityGuard implements CanActivate {
         request.resolvedIdentity = {
           isSystemAdmin: false,
           groupRoles: { [groupId]: GroupRole.EDITOR },
+          resolvedGroups: [],
           actorId: actorId,
         };
       } else {
@@ -94,14 +95,27 @@ export class IdentityGuard implements CanActivate {
       const user = (await this.userService.findUserWithGroups(userId))!;
 
       const groupRoles: Record<string, GroupRole> = {};
+      const resolvedGroups: Array<{
+        id: string;
+        name: string;
+        role: GroupRole;
+      }> = [];
       for (const ug of user.userGroups) {
         groupRoles[ug.group_id] = ug.role;
+        if (ug.group) {
+          resolvedGroups.push({
+            id: ug.group.id,
+            name: ug.group.name,
+            role: ug.role,
+          });
+        }
       }
 
       request.resolvedIdentity = {
         userId,
         isSystemAdmin: user.is_system_admin,
         groupRoles,
+        resolvedGroups,
         actorId: user.actor_id,
       };
     } else {

@@ -1,6 +1,8 @@
 import { type JSX, useState } from "react";
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useGroup } from "../auth/GroupContext";
+import { Permission } from "../auth/NoGroupGuard";
 import { GroupRequestsTab } from "../components/group/GroupRequestsTab";
 import { MembersTab } from "../components/group/MembersTab";
 import {
@@ -39,6 +41,7 @@ export function GroupDetailPage(): JSX.Element {
   const match = useMatch("/groups/:groupId");
   const groupId = match?.params.groupId;
   const { user, isSystemAdmin } = useAuth();
+  const { hasPermissionForGroup } = useGroup();
   const navigate = useNavigate();
 
   const [leaveGroupOpen, setLeaveGroupOpen] = useState(false);
@@ -84,7 +87,8 @@ export function GroupDetailPage(): JSX.Element {
 
   const isAdmin =
     isSystemAdmin ||
-    (myGroups?.some((g) => g.id === groupId && g.role === "ADMIN") ?? false);
+    (groupId != null &&
+      hasPermissionForGroup(groupId, [Permission.GROUP_UPDATE]));
 
   /**
    * Confirms and executes the soft-delete of the current group, then navigates
