@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { apiService } from "@/data/services/api.service";
 
 interface UndoEntry {
@@ -8,29 +8,9 @@ interface UndoEntry {
   correctionId?: string;
 }
 
-interface ReopenUndoEntry {
-  sessionId: string;
-  action: "approved" | "flagged" | "skipped";
-}
-
-// Module-level storage so pendingReopen survives navigation between sessions
-let globalPendingReopen: ReopenUndoEntry | null = null;
-let globalReopenTimer: ReturnType<typeof setTimeout> | undefined;
-
 export const useUndoRedo = (sessionId: string | undefined) => {
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [redoStack, setRedoStack] = useState<UndoEntry[]>([]);
-  const [pendingReopen, setPendingReopen] = useState<ReopenUndoEntry | null>(
-    globalPendingReopen,
-  );
-  const reopenTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-
-  // Sync local state with global on mount
-  useEffect(() => {
-    setPendingReopen(globalPendingReopen);
-  }, []);
 
   const pushUndo = useCallback((entry: UndoEntry) => {
     setUndoStack((prev) => [...prev, entry]);
@@ -88,55 +68,6 @@ export const useUndoRedo = (sessionId: string | undefined) => {
     [],
   );
 
-  const setPendingSessionReopen = useCallback(
-    (
-      completedSessionId: string,
-      action: "approved" | "flagged" | "skipped",
-      timeoutMs?: number,
-    ) => {
-      if (globalReopenTimer) clearTimeout(globalReopenTimer);
-      if (reopenTimerRef.current) clearTimeout(reopenTimerRef.current);
-
-      const entry = { sessionId: completedSessionId, action };
-      globalPendingReopen = entry;
-      setPendingReopen(entry);
-
-      if (timeoutMs) {
-        const timer = setTimeout(() => {
-          globalPendingReopen = null;
-          setPendingReopen(null);
-        }, timeoutMs);
-        globalReopenTimer = timer;
-        reopenTimerRef.current = timer;
-      }
-    },
-    [],
-  );
-
-  const undoSessionAction = useCallback(async (): Promise<boolean> => {
-    if (!pendingReopen) return false;
-    try {
-      await apiService.post(
-        `/hitl/sessions/${pendingReopen.sessionId}/reopen`,
-        {},
-      );
-      globalPendingReopen = null;
-      setPendingReopen(null);
-      if (globalReopenTimer) clearTimeout(globalReopenTimer);
-      if (reopenTimerRef.current) clearTimeout(reopenTimerRef.current);
-      return true;
-    } catch {
-      return false;
-    }
-  }, [pendingReopen]);
-
-  const clearPendingReopen = useCallback(() => {
-    globalPendingReopen = null;
-    setPendingReopen(null);
-    if (globalReopenTimer) clearTimeout(globalReopenTimer);
-    if (reopenTimerRef.current) clearTimeout(reopenTimerRef.current);
-  }, []);
-
   const clear = useCallback(() => {
     setUndoStack([]);
     setRedoStack([]);
@@ -152,9 +83,5 @@ export const useUndoRedo = (sessionId: string | undefined) => {
     clear,
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
-    pendingReopen,
-    setPendingSessionReopen,
-    undoSessionAction,
-    clearPendingReopen,
   };
 };

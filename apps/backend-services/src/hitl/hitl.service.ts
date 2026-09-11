@@ -919,22 +919,21 @@ export class HitlService {
       throw new ConflictException("Session is already in progress");
     }
 
-    // Determine reopen eligibility based on workflow type
+    // Labelling a dataset produces ground truth and drives nothing downstream,
+    // so a finished job can go back for another pass until its dataset version
+    // is frozen.
     const groundTruthJob = session.document.groundTruthJob;
     if (groundTruthJob) {
-      // Dataset labeling workflow: block if dataset version is frozen
       if (groundTruthJob.datasetVersion.frozen) {
         throw new ConflictException("Cannot reopen: dataset version is frozen");
       }
     } else if (!isHandoff) {
-      // Regular workflow: allow within 5 minutes of completion
-      const fiveMinutesMs = 5 * 60 * 1000;
-      if (
-        !session.completed_at ||
-        Date.now() - session.completed_at.getTime() > fiveMinutesMs
-      ) {
-        throw new ConflictException("Cannot reopen: reopen window has expired");
-      }
+      // Approving a document review signals the gated workflow, which then runs
+      // every node after the gate. Nothing can call that back, so an approval is
+      // the end of the review. Re-run the document to review it again.
+      throw new ConflictException(
+        "Cannot reopen: the review is complete and its workflow has already moved on",
+      );
     }
 
     // Two reviewers can be reading the same flagged document; only one of them

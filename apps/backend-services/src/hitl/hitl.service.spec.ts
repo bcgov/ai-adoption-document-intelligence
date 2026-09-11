@@ -1253,7 +1253,7 @@ describe("HitlService", () => {
   });
 
   describe("reopenSession", () => {
-    it("should reopen a completed session within the 5-minute window", async () => {
+    it("should refuse an approved document review however recently it finished", async () => {
       const completedSession = {
         ...mockReviewSession,
         status: ReviewStatus.approved,
@@ -1267,44 +1267,16 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(
         completedSession as any,
       );
-      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
-        ...completedSession,
-        status: ReviewStatus.in_progress,
-        completed_at: null,
-      } as any);
-      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
-        mockDocumentLock,
-      );
 
-      const result = await service.reopenSession("session-1", "reviewer-1");
+      await expect(
+        service.reopenSession("session-1", "reviewer-1"),
+      ).rejects.toThrow(ConflictException);
 
-      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
-        "session-1",
-        {
-          status: ReviewStatus.in_progress,
-          completed_at: null,
-        },
-        expect.anything(),
-      );
-      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
-        "doc-1",
-        { status: DocumentStatus.awaiting_review },
-        expect.anything(),
-      );
-      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
-        {
-          document_id: "doc-1",
-          reviewer_id: "reviewer-1",
-          session_id: "session-1",
-          expires_at: expect.any(Date),
-        },
-        expect.anything(),
-      );
-      expect(result).toEqual({
-        id: "session-1",
-        status: ReviewStatus.in_progress,
-        message: "Review session reopened",
-      });
+      // Approving signalled the gated workflow, so putting the document back
+      // into review would describe a state the workflow has already left.
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+      expect(mockDocumentService.updateDocument).not.toHaveBeenCalled();
+      expect(mockReviewDbService.acquireDocumentLock).not.toHaveBeenCalled();
     });
 
     it("should throw ForbiddenException when different reviewer tries to reopen", async () => {
@@ -1406,26 +1378,6 @@ describe("HitlService", () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it("should throw ConflictException when reopen window has expired", async () => {
-      const completedSession = {
-        ...mockReviewSession,
-        status: ReviewStatus.approved,
-        completed_at: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes ago
-        document: {
-          ...mockDocumentWithOcr,
-          groundTruthJob: null,
-        },
-      };
-
-      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
-        completedSession as any,
-      );
-
-      await expect(
-        service.reopenSession("session-1", "reviewer-1"),
-      ).rejects.toThrow(ConflictException);
-    });
-
     it("should allow reopen for dataset labeling when version is not frozen", async () => {
       const completedSession = {
         ...mockReviewSession,
@@ -1454,7 +1406,33 @@ describe("HitlService", () => {
 
       const result = await service.reopenSession("session-1", "reviewer-1");
 
-      expect(result.status).toBe(ReviewStatus.in_progress);
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.in_progress,
+          completed_at: null,
+        },
+        expect.anything(),
+      );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.awaiting_review },
+        expect.anything(),
+      );
+      expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
+        {
+          document_id: "doc-1",
+          reviewer_id: "reviewer-1",
+          session_id: "session-1",
+          expires_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.in_progress,
+        message: "Review session reopened",
+      });
     });
 
     it("should throw ConflictException for dataset labeling when version is frozen", async () => {

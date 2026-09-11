@@ -251,10 +251,11 @@ export const ReviewWorkspacePage: FC = () => {
   const readOnly =
     new URLSearchParams(location.search).get("readOnly") === "true";
 
+  const benchmarkMatch = location.pathname.match(
+    /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
+  );
+
   const navigateToQueue = () => {
-    const benchmarkMatch = location.pathname.match(
-      /^\/benchmarking\/datasets\/([^/]+)\/versions\/([^/]+)\/review/,
-    );
     if (benchmarkMatch) {
       navigate(
         `/benchmarking/datasets/${benchmarkMatch[1]}/versions/${benchmarkMatch[2]}/review`,
@@ -276,13 +277,13 @@ export const ReviewWorkspacePage: FC = () => {
     isFlagging,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
-  // A flagged session is paused work anyone in the group may take over; an
-  // approved one only its own reviewer can reopen, and only for five minutes.
+  // A flagged session is paused work anyone in the group may take over.
   const canTakeOver = session?.status === "flagged";
-  const canReopen = Boolean(
-    session?.completedAt &&
-      Date.now() - new Date(session.completedAt).getTime() <= 5 * 60 * 1000,
-  );
+  // Labelling a dataset has no workflow behind it, so a finished job can go back
+  // for another pass until its dataset version is frozen. Document review is not
+  // like that: approving signals the gated workflow, which then runs everything
+  // after the gate, and nothing can call that back.
+  const canRelabel = Boolean(benchmarkMatch) && session?.status === "approved";
   const [docState, setDocState] = useState<{
     url: string | null;
     isNormalizedPdf: boolean;
@@ -739,7 +740,7 @@ export const ReviewWorkspacePage: FC = () => {
         title: canTakeOver ? "Could not take this document" : "Cannot reopen",
         message: canTakeOver
           ? "Another reviewer may have taken it already. Go back to the queue and refresh."
-          : "The reopen window may have expired or the dataset is frozen",
+          : "The dataset version may be frozen, or another reviewer holds the lock.",
         color: "red",
         autoClose: 5000,
       });
@@ -1059,7 +1060,7 @@ export const ReviewWorkspacePage: FC = () => {
                 Take for editing
               </Button>
             ) : (
-              canReopen && (
+              canRelabel && (
                 <Button
                   variant="light"
                   color="blue"

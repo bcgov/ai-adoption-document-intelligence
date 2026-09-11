@@ -37,7 +37,7 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `backend-services` | 100m | 1Gi (1024Mi) |
-| `logrotate` | 10m | 32Mi |
+| `log-rotator` | 10m | 32Mi |
 | `promtail` | 50m | 64Mi |
 | **Pod total** | **160m** | **1120Mi** |
 
@@ -46,7 +46,7 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `temporal-worker` | 100m | 768Mi |
-| `logrotate` | 10m | 32Mi |
+| `log-rotator` | 10m | 32Mi |
 | `promtail` | 50m | 64Mi |
 | **Pod total** | **160m** | **864Mi** |
 
