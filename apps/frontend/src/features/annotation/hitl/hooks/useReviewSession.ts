@@ -104,7 +104,7 @@ export const useReviewSession = (sessionId?: string) => {
   const approveSessionMutation = useMutation({
     mutationFn: async () => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/submit`,
+        `/hitl/sessions/${sessionId}/approve`,
         {},
       );
       return response.data;

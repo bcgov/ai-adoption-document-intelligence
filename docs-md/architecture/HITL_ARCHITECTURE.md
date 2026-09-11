@@ -61,6 +61,7 @@ model FieldCorrection {
 enum ReviewStatus {
   in_progress
   approved
+  rejected
   flagged
   abandoned
 }
@@ -117,15 +118,15 @@ Document locks prevent concurrent editing:
       ↓
   in_progress (initial state)
       ↓
-   ┌──┴──────────────┬──────────────────┬────────────────────┐
-   ↓                 ↓                  ↓                    ↓
-approved          flagged           abandoned            abandoned
-(terminal)       (terminal)        (skip, terminal)     (lock expired)
-   ↓                 ↓                  ↓                    ↓
-releases lock   releases lock      releases lock        lock deleted
-   ↓                 ↓                  ↓                    ↓
-final          Flagged tab,      back to Pending      back to Pending
-              view-only + Take
+   ┌──┴──────────────┬──────────────────┬──────────────────┬────────────────────┐
+   ↓                 ↓                  ↓                  ↓                    ↓
+approved          rejected           flagged           abandoned            abandoned
+(terminal)       (terminal)         (terminal)        (skip, terminal)     (lock expired)
+   ↓                 ↓                  ↓                  ↓                    ↓
+releases lock   releases lock      releases lock      releases lock        lock deleted
+   ↓                 ↓                  ↓                  ↓                    ↓
+final             final           Flagged tab,      back to Pending      back to Pending
+                                  view-only + Take
                    ↓
               in_progress
 ```
@@ -135,7 +136,8 @@ final          Flagged tab,      back to Pending      back to Pending
 | From | To | Trigger | Side Effects |
 |------|-----|---------|--------------|
 | (none) | `in_progress` | `POST /sessions` | Sets `started_at`, acquires document lock |
-| `in_progress` | `approved` | `POST /sessions/:id/submit` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `approved` | `POST /sessions/:id/approve` | Sets `completed_at`, marks document `complete`, releases lock, and signals a workflow parked at a `humanGate` with `approved: true`. Only an in-progress session can be approved; approving twice answers 409 |
+| `in_progress` | `rejected` | `POST /sessions/:id/reject` | Sets `completed_at`, releases lock, and signals a workflow parked at a `humanGate` with `approved: false` (requires `rejectionReason`). Document status is left to the workflow's own failure path. Only an in-progress session can be rejected; rejecting twice answers 409 |
 | `in_progress` | `flagged` | `POST /sessions/:id/flag` | Releases lock; document moves to the Flagged tab for priority attention |
 | `in_progress` | `abandoned` | `POST /sessions/:id/skip` | Releases lock; document returns to the Pending queue |
 | `in_progress` | `abandoned` | Lock expiry cron | Releases lock; document returns to the Pending queue |
@@ -269,7 +271,8 @@ React Query cache invalidated
 ```
 User clicks "Approve"
       ↓
-POST /api/hitl/sessions/:id/submit
+POST /api/hitl/sessions/:id/approve
+POST /api/hitl/sessions/:id/reject
       ↓
 UPDATE review_sessions
 SET status = 'approved',
@@ -325,7 +328,8 @@ reviewer to open it starts a fresh session
 | `POST` | `/api/hitl/sessions/:id/corrections` | Submit field corrections | Yes |
 | `GET` | `/api/hitl/sessions/:id/corrections` | Get correction history | Yes |
 | `DELETE` | `/api/hitl/sessions/:id/corrections/:correctionId` | Delete a correction | Yes |
-| `POST` | `/api/hitl/sessions/:id/submit` | Approve session | Yes |
+| `POST` | `/api/hitl/sessions/:id/approve` | Approve session | Yes |
+| `POST` | `/api/hitl/sessions/:id/reject` | Reject session | Yes |
 | `POST` | `/api/hitl/sessions/:id/flag` | Flag session for priority attention | Yes |
 | `POST` | `/api/hitl/sessions/:id/skip` | Skip session, returning the document to the queue | Yes |
 | `POST` | `/api/hitl/sessions/:id/heartbeat` | Extend document lock TTL | Yes |
@@ -458,12 +462,10 @@ the workflow continues into the nodes after the gate:
   review is complete regardless, so a failed signal never fails the approval.
 - The outcome is auditable either way: `human_approval_signal_sent` when the
   workflow was resumed, `human_approval_signal_skipped` (with the reason) when
-  there was nothing to resume. Both carry `source: "hitl_session"`, which
-  distinguishes them from the same signal sent by `POST /documents/:id/approve`.
+  there was nothing to resume. Both carry `source: "hitl_session"`.
 
-Rejection is not yet available from the review queue; it exists only on the
-Documents page, which sends the same signal with `approved: false` and a
-structured reason.
+Rejection sends the same signal with `approved: false`, plus the
+`rejectionReason`/`comments`/`annotations` supplied on the reject call.
 
 ### Queue Statistics
 

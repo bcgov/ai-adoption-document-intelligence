@@ -5,6 +5,7 @@ import { Request } from "express";
 import { AuditService } from "@/audit/audit.service";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import { HitlController } from "./hitl.controller";
 import { HitlService } from "./hitl.service";
@@ -41,6 +42,7 @@ describe("HitlController", () => {
       submitCorrections: jest.fn(),
       getCorrections: jest.fn(),
       approveSession: jest.fn(),
+      rejectSession: jest.fn(),
       skipSession: jest.fn(),
       getQueue: jest.fn(),
       getQueueStats: jest.fn(),
@@ -562,6 +564,58 @@ describe("HitlController", () => {
         NotFoundException,
       );
       expect(hitlService.approveSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rejectSession", () => {
+    const dto: RejectSessionDto = { rejectionReason: "input quality" };
+
+    it("rejects session for a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      const mockResult = {
+        id: "session-1",
+        status: "rejected",
+        message: "Review session rejected",
+      };
+      hitlService.rejectSession.mockResolvedValue(mockResult as any);
+      const result = await controller.rejectSession("session-1", dto, req);
+      expect(result).toEqual(mockResult);
+      expect(hitlService.rejectSession).toHaveBeenCalledWith("session-1", dto);
+    });
+
+    it("throws ForbiddenException when user is not a group member", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: {},
+        },
+      } as unknown as Request;
+      await expect(
+        controller.rejectSession("session-1", dto, req),
+      ).rejects.toThrow(ForbiddenException);
+      expect(hitlService.rejectSession).not.toHaveBeenCalled();
+    });
+
+    it("throws NotFoundException when session does not exist", async () => {
+      const req = {
+        resolvedIdentity: {
+          userId: "user-1",
+          isSystemAdmin: false,
+          groupRoles: { "group-1": GroupRole.MEMBER },
+        },
+      } as unknown as Request;
+      (hitlService.findReviewSession as jest.Mock).mockResolvedValueOnce(null);
+      await expect(
+        controller.rejectSession("session-1", dto, req),
+      ).rejects.toThrow(NotFoundException);
+      expect(hitlService.rejectSession).not.toHaveBeenCalled();
     });
   });
 
