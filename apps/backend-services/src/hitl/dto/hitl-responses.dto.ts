@@ -39,14 +39,17 @@ export class QueueDocumentDto {
   @ApiPropertyOptional()
   model_id!: string | null;
 
+  @ApiPropertyOptional()
+  workflow_id!: string | null;
+
   @ApiProperty()
   created_at!: Date;
 
   @ApiProperty()
   updated_at!: Date;
 
-  @ApiProperty({ type: QueueDocumentOcrDto })
-  ocr_result!: QueueDocumentOcrDto;
+  @ApiProperty()
+  average_confidence!: number;
 
   @ApiPropertyOptional({ type: QueueSessionSummaryDto })
   lastSession?: QueueSessionSummaryDto;
@@ -61,7 +64,10 @@ export class QueueResponseDto {
 }
 
 export class QueueStatsResponseDto {
-  @ApiProperty({ description: "Total documents in the review queue" })
+  @ApiProperty({
+    description:
+      "Documents that have entered the review pipeline (pending, claimed, flagged, or reviewed) — excludes documents a workflow completed without ever routing them to review",
+  })
   totalDocuments!: number;
 
   @ApiProperty({ description: "Documents requiring human review" })

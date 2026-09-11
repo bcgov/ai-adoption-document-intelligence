@@ -236,7 +236,62 @@ describe("ReviewDbService", () => {
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it("should exclude documents the caller has an active lock on from the pending filter", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              {
+                OR: [
+                  { lock: null },
+                  { lock: { expires_at: { lte: expect.any(Date) } } },
+                ],
+              },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it("should apply claimed review status filter, scoped to the current reviewer's active lock", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "claimed",
+        currentReviewerId: "reviewer-1",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              {
+                lock: {
+                  is: {
+                    expires_at: { gt: expect.any(Date) },
+                    reviewer_id: "reviewer-1",
+                  },
+                },
+              },
+            ]),
           }),
         }),
       );
@@ -884,8 +939,12 @@ describe("ReviewDbService", () => {
         in: [DocumentStatus.awaiting_review],
       });
       expect(args.where.group_id).toEqual({ in: ["group-1"] });
-      expect(args.where.OR).toEqual(
-        expect.arrayContaining([{ review_sessions: { none: {} } }]),
+      expect(args.where.AND).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            OR: expect.arrayContaining([{ review_sessions: { none: {} } }]),
+          }),
+        ]),
       );
       // A count must not be paginated, or it is just a page size
       expect(args).not.toHaveProperty("take");

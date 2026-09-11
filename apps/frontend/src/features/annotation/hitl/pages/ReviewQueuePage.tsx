@@ -8,9 +8,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/auth/useAuth";
 import { apiService } from "@/data/services/api.service";
-import { HITL_MAX_CONFIDENCE } from "@/shared/constants";
 import {
   Badge,
   Button,
@@ -27,39 +25,40 @@ import {
   Tabs,
   Text,
 } from "../../../../ui";
-import type { QueueDocument } from "../hooks/useReviewQueue";
 import { useReviewQueue } from "../hooks/useReviewQueue";
 
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
 
   const pendingQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
     limit: 50,
     reviewStatus: "pending",
   });
 
+  const claimedQueue = useReviewQueue({
+    limit: 50,
+    reviewStatus: "claimed",
+  });
+
   const reviewedQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
     limit: 50,
     reviewStatus: "reviewed",
   });
 
   const flaggedQueue = useReviewQueue({
-    maxConfidence: HITL_MAX_CONFIDENCE,
     limit: 50,
     reviewStatus: "flagged",
   });
 
-  const activeQueue =
-    activeTab === "reviewed"
-      ? reviewedQueue
-      : activeTab === "flagged"
-        ? flaggedQueue
-        : pendingQueue;
+  const queuesByTab: Record<string, ReturnType<typeof useReviewQueue>> = {
+    pending: pendingQueue,
+    claimed: claimedQueue,
+    flagged: flaggedQueue,
+    reviewed: reviewedQueue,
+  };
+  const activeQueue = queuesByTab[activeTab ?? "pending"] ?? pendingQueue;
 
   // Queue-wide figures: the same for every tab, so read them from one queue.
   const stats = pendingQueue.stats;
@@ -70,14 +69,6 @@ export const ReviewQueuePage: FC = () => {
     if (confidence >= 0.9) return "green";
     if (confidence >= 0.7) return "yellow";
     return "red";
-  };
-
-  const getAverageConfidence = (doc: QueueDocument) => {
-    if (!doc.ocr_result?.fields) return 0;
-    const fields = Object.values(doc.ocr_result.fields);
-    if (fields.length === 0) return 0;
-    const sum = fields.reduce((acc, field) => acc + (field.confidence || 0), 0);
-    return sum / fields.length;
   };
 
   // A tab loads one page of documents. Say so when the queue holds more than
@@ -158,6 +149,8 @@ export const ReviewQueuePage: FC = () => {
     }
   };
 
+  const avgConfidence = stats ? Math.round(stats.averageConfidence * 100) : NaN;
+
   return (
     <Stack gap="lg">
       <PageHeader
@@ -175,7 +168,7 @@ export const ReviewQueuePage: FC = () => {
           />
           <StatCard
             label="Avg confidence"
-            value={`${Math.round(stats.averageConfidence * 100)}%`}
+            value={`${Number.isNaN(avgConfidence) ? "-" : avgConfidence}%`}
           />
           <StatCard
             label="Reviewed today"
@@ -190,6 +183,9 @@ export const ReviewQueuePage: FC = () => {
           <Tabs.List>
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
               Pending review ({pendingQueue.total})
+            </Tabs.Tab>
+            <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
+              Claimed by you ({claimedQueue.total})
             </Tabs.Tab>
             <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
               Flagged ({flaggedQueue.total})
@@ -226,8 +222,8 @@ export const ReviewQueuePage: FC = () => {
                 <DataTable.Thead>
                   <DataTable.Tr>
                     <DataTable.Th>Document</DataTable.Th>
-                    <DataTable.Th>Status</DataTable.Th>
                     <DataTable.Th>Model</DataTable.Th>
+                    <DataTable.Th>Workflow</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
                     <DataTable.Th>Uploaded</DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
@@ -235,10 +231,7 @@ export const ReviewQueuePage: FC = () => {
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {pendingQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
-                    // A lock belonging to the current user means they already own this session.
-                    const myLock =
-                      doc.lock?.reviewer_id === user?.actorId ? doc.lock : null;
+                    const avgConfidence = doc.average_confidence;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
@@ -247,19 +240,13 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {myLock ? (
-                            <Badge variant="light" color="blue" size="sm">
-                              In review
-                            </Badge>
-                          ) : (
-                            <Badge variant="light" size="sm">
-                              {doc.status}
-                            </Badge>
-                          )}
+                          <Text size="sm" c="dimmed">
+                            {doc.model_id || "N/A"}
+                          </Text>
                         </DataTable.Td>
                         <DataTable.Td>
                           <Text size="sm" c="dimmed">
-                            {doc.model_id || "N/A"}
+                            {doc.workflow_id || "N/A"}
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
@@ -277,29 +264,105 @@ export const ReviewQueuePage: FC = () => {
                           </Text>
                         </DataTable.Td>
                         <DataTable.Td>
-                          {myLock ? (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              color="blue"
-                              leftSection={<IconEye size={14} />}
-                              onClick={() =>
-                                navigate(`/review/${myLock.session_id}`)
-                              }
-                            >
-                              Resume
-                            </Button>
-                          ) : (
-                            <Button
-                              size="xs"
-                              variant="light"
-                              leftSection={<IconEye size={14} />}
-                              onClick={() => handleStartSession(doc.id, false)}
-                              loading={pendingQueue.isStartingSession}
-                            >
-                              Start review
-                            </Button>
-                          )}
+                          <Button
+                            size="xs"
+                            variant="light"
+                            leftSection={<IconEye size={14} />}
+                            onClick={() => handleStartSession(doc.id, false)}
+                            loading={pendingQueue.isStartingSession}
+                          >
+                            Start review
+                          </Button>
+                        </DataTable.Td>
+                      </DataTable.Tr>
+                    );
+                  })}
+                </DataTable.Tbody>
+              </DataTable>
+            )}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="claimed" pt="md">
+            {claimedQueue.queue.length === 0 ? (
+              <Center py="xl">
+                <Stack align="center" gap="md">
+                  <IconAlertCircle size={48} stroke={1.5} color="gray" />
+                  <Stack gap={4} align="center">
+                    <Text fw={600}>No documents claimed by you</Text>
+                    <Text size="sm" c="dimmed">
+                      Documents you start reviewing appear here until you finish
+                      or release them
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Center>
+            ) : (
+              <DataTable
+                striped
+                highlightOnHover
+                caption={queueCaption(
+                  claimedQueue.queue.length,
+                  claimedQueue.total,
+                  "claimed",
+                )}
+              >
+                <DataTable.Thead>
+                  <DataTable.Tr>
+                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>Model</DataTable.Th>
+                    <DataTable.Th>Workflow</DataTable.Th>
+                    <DataTable.Th>Avg confidence</DataTable.Th>
+                    <DataTable.Th>Uploaded</DataTable.Th>
+                    <DataTable.Th>Actions</DataTable.Th>
+                  </DataTable.Tr>
+                </DataTable.Thead>
+                <DataTable.Tbody>
+                  {claimedQueue.queue.map((doc) => {
+                    const avgConfidence = doc.average_confidence;
+                    return (
+                      <DataTable.Tr key={doc.id}>
+                        <DataTable.Td>
+                          <Text size="sm" fw={500}>
+                            {doc.original_filename}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.model_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {doc.workflow_id || "N/A"}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Badge
+                            variant="light"
+                            color={getConfidenceColor(avgConfidence)}
+                            size="sm"
+                          >
+                            {Math.round(avgConfidence * 100)}%
+                          </Badge>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Text size="sm" c="dimmed">
+                            {new Date(doc.created_at).toLocaleDateString()}
+                          </Text>
+                        </DataTable.Td>
+                        <DataTable.Td>
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="blue"
+                            leftSection={<IconEye size={14} />}
+                            disabled={!doc.lock?.session_id}
+                            onClick={() =>
+                              navigate(`/review/${doc.lock!.session_id}`)
+                            }
+                          >
+                            Resume
+                          </Button>
                         </DataTable.Td>
                       </DataTable.Tr>
                     );
@@ -334,7 +397,7 @@ export const ReviewQueuePage: FC = () => {
                 </DataTable.Thead>
                 <DataTable.Tbody>
                   {flaggedQueue.queue.map((doc) => {
-                    const avgConfidence = getAverageConfidence(doc);
+                    const avgConfidence = doc.average_confidence;
                     return (
                       <DataTable.Tr key={doc.id}>
                         <DataTable.Td>
