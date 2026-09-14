@@ -1,36 +1,15 @@
 /**
  * Trigger an experiment benchmark run without leaking the TEST_API_KEY
- * to the shell. Loads it via the shared env-loader (override file +
- * repo-local .env). Mirrors what `scripts/run-experiment-benchmarks.sh`
- * does, but suitable for environments where the harness can't read the
- * env file directly.
+ * to the shell. Loads it via the shared env-loader (repo-root .env).
+ * Mirrors what `scripts/run-experiment-benchmarks.sh` does, but suitable
+ * for environments where the harness can't read the env file directly.
  *
  * Usage (from apps/temporal):
  *   npx tsx -r tsconfig-paths/register scripts/trigger-experiment-benchmark.ts 03
  */
 
 import "../src/env-loader";
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
 import axios from "axios";
-import { config as dotenvConfig } from "dotenv";
-
-// Also pull TEST_API_KEY from the backend-services env file (the
-// temporal env-loader only reads temporal.env, but TEST_API_KEY is owned
-// by backend-services). Try the override file first, then the repo-local
-// .env file. Falls back silently if both are absent.
-const overrideDir =
-  process.env.DI_SECRETS_DIR ?? resolve(homedir(), ".config/bcgov-di");
-const candidates = [
-  resolve(overrideDir, "backend-services.env"),
-  resolve(__dirname, "..", "..", "backend-services", ".env"),
-];
-for (const p of candidates) {
-  if (existsSync(p)) {
-    dotenvConfig({ path: p, quiet: true });
-  }
-}
 
 async function main(): Promise<void> {
   const slugArg = process.argv[2];
@@ -51,9 +30,7 @@ async function main(): Promise<void> {
   const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3002";
   const apiKey = process.env.TEST_API_KEY;
   if (!apiKey) {
-    throw new Error(
-      "TEST_API_KEY not set in env. The shared env-loader pulls it from ~/.config/bcgov-di/backend-services.env if present.",
-    );
+    throw new Error("TEST_API_KEY not set in the repo-root .env.");
   }
 
   const url = `${backendUrl}/api/benchmark/projects/seed-experiments-project/definitions/seed-experiment-${slug}-definition/runs`;

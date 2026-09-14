@@ -10,6 +10,7 @@
 import { ChildProcess, spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { resolve } from "node:path";
 import { Logger } from "@nestjs/common";
 import {
   Client,
@@ -20,8 +21,8 @@ import axios, { AxiosInstance } from "axios";
 import * as dotenv from "dotenv";
 import { temporalDataConverter } from "../../src/temporal/temporal-data-converter";
 
-// Load environment variables from .env file
-dotenv.config();
+// Load environment variables from the repo-root .env
+dotenv.config({ path: resolve(__dirname, "../../../../.env") });
 
 const logger = new Logger("GraphWorkflowTest");
 

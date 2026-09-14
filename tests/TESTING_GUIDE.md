@@ -40,7 +40,7 @@ This starts:
 
 ### 2. Environment Variables
 
-Optional variables in `apps/backend-services/.env`:
+Optional variables in the repo-root `.env`:
 
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/ai_ocr
@@ -256,7 +256,7 @@ Key settings:
 - **fullyParallel**: `true` (tests run in parallel)
 - **retries**: `0` locally, `2` in CI
 - **reporter**: `html`
-- **Environment variables**: Loaded from `apps/backend-services/.env`
+- **Environment variables**: Loaded from the repo-root `.env`
 - **TEST_API_KEY**: Hardcoded default matching seed file
 
 ## Troubleshooting
@@ -267,7 +267,7 @@ Key settings:
 
 **Solutions**:
 1. Check PostgreSQL is running: `pg_isready`
-2. Verify `DATABASE_URL` in `apps/backend-services/.env`
+2. Verify `DATABASE_URL` in the repo-root `.env`
 3. Manually reset: `npm run test:db:reset`
 
 ### Tests Timeout
