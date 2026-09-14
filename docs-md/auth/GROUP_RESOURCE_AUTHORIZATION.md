@@ -67,7 +67,6 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | Document | `PATCH /api/documents/:id` | `DocumentController.updateDocument` |
 | Document | `DELETE /api/documents/:id` | `DocumentController.deleteDocument` |
 | Document | `GET /api/documents/:id/ocr` / `/view` / `/download` / `/thumbnail` | `DocumentController.*` |
-| Document | `POST /api/documents/:id/approve` | `DocumentController.approveDocument` |
 | Workflow | `GET /api/workflows/:id` | `WorkflowController.getWorkflow` |
 | Workflow | `PUT /api/workflows/:id` | `WorkflowController.updateWorkflow` |
 | Workflow | `DELETE /api/workflows/:id` | `WorkflowController.deleteWorkflow` |
@@ -106,7 +105,8 @@ All `ApiKey` endpoints require `GroupRole.ADMIN` in the target group. `TemplateM
 | ReviewSession | `GET /api/hitl/sessions/:id` | `HitlController.getSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/corrections` | `HitlController.submitCorrections` |
 | ReviewSession | `GET /api/hitl/sessions/:id/corrections` | `HitlController.getCorrections` |
-| ReviewSession | `POST /api/hitl/sessions/:id/submit` | `HitlController.approveSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/approve` | `HitlController.approveSession` |
+| ReviewSession | `POST /api/hitl/sessions/:id/reject` | `HitlController.rejectSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/flag` | `HitlController.flagSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/skip` | `HitlController.skipSession` |
 | ReviewSession | `POST /api/hitl/sessions/:id/heartbeat` | `HitlController.heartbeat` |

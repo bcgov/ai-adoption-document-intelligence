@@ -571,6 +571,7 @@ enum LabelingStatus {
 enum ReviewStatus {
   in_progress
   approved
+  rejected
   flagged
   abandoned
 }

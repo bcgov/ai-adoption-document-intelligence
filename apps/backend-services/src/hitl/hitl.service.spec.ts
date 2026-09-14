@@ -20,6 +20,7 @@ import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { CorrectionAction, SubmitCorrectionsDto } from "./dto/correction.dto";
 import { QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
@@ -874,6 +875,100 @@ describe("HitlService", () => {
       );
 
       expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("rejectSession", () => {
+    const dto: RejectSessionDto = { rejectionReason: "input quality" };
+
+    it("should reject a review session and release the lock", async () => {
+      const rejectedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        rejectedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      const result = await service.rejectSession("session-1", dto);
+
+      expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
+        "session-1",
+      );
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.rejected,
+          completed_at: expect.any(Date),
+        },
+        expect.anything(),
+      );
+      expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
+        "session-1",
+        expect.anything(),
+      );
+      expect(mockDocumentService.updateDocument).not.toHaveBeenCalled();
+
+      expect(result).toEqual({
+        id: "session-1",
+        status: ReviewStatus.rejected,
+        completedAt: rejectedSession.completed_at,
+        message: "Review session rejected",
+      });
+    });
+
+    it("should throw NotFoundException if session does not exist", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
+
+      await expect(service.rejectSession("non-existent", dto)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("should refuse to reject a session twice", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+      } as any);
+
+      await expect(service.rejectSession("session-1", dto)).rejects.toThrow(
+        ConflictException,
+      );
+
+      expect(mockReviewDbService.updateReviewSession).not.toHaveBeenCalled();
+    });
+
+    it("signals the workflow the document is parked in", async () => {
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
+        ...mockReviewSession,
+        status: ReviewStatus.rejected,
+        completed_at: new Date(),
+      } as any);
+
+      await service.rejectSession("session-1", dto);
+
+      // workflow id is derived from the document, not the billing run id
+      expect(mockTemporal.sendHumanApproval).toHaveBeenCalledWith(
+        "graph-doc-1",
+        {
+          approved: false,
+          reviewer: "reviewer-1",
+          comments: undefined,
+          rejectionReason: "input quality",
+          annotations: undefined,
+        },
+      );
     });
   });
 

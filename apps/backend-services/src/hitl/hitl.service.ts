@@ -25,6 +25,7 @@ import { TemporalClientService } from "../temporal/temporal-client.service";
 import { AnalyticsService } from "./analytics.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
 import { AnalyticsFilterDto, QueueFilterDto } from "./dto/queue-filter.dto";
+import { RejectSessionDto } from "./dto/reject-session.dto";
 import { ReviewSessionDto } from "./dto/review-session.dto";
 import {
   DocumentStatusFilter,
@@ -277,17 +278,23 @@ export class HitlService {
       reviewer: string;
       groupId?: string;
       workflowExecutionId?: string;
+      comments?: string;
+      rejectionReason?: string;
+      annotations?: string;
     },
   ): Promise<void> {
     // The Temporal workflow id is derived from the document id. The stored
     // workflow_execution_id is the billing run id (unique per execution
-    // attempt) and is NOT the workflow id — see DocumentController.approveDocument.
+    // attempt) and is NOT the workflow id.
     const workflowId = `graph-${documentId}`;
 
     try {
       await this.temporalClient.sendHumanApproval(workflowId, {
         approved: outcome.approved,
         reviewer: outcome.reviewer,
+        comments: outcome.comments,
+        rejectionReason: outcome.rejectionReason,
+        annotations: outcome.annotations,
       });
       await this.auditService.recordEvent({
         event_type: "human_approval_signal_sent",
@@ -721,6 +728,89 @@ export class HitlService {
       status: updated.status,
       completedAt: updated.completed_at,
       message: "Review session approved",
+    };
+  }
+
+  /**
+   * Rejects a review session. Unlike approval, the document's status is left
+   * untouched here: rejection fails the gated workflow (HUMAN_GATE_REJECTED),
+   * and that failure path — not the queue — decides the document's fate.
+   */
+  async rejectSession(sessionId: string, dto: RejectSessionDto) {
+    this.logger.debug(`Rejecting session: ${sessionId}`);
+
+    const session = await this.reviewDb.findReviewSession(sessionId);
+    if (!session) {
+      throw new NotFoundException(`Review session ${sessionId} not found`);
+    }
+
+    // Only a session someone is actually working on can be rejected. Without
+    // this, a double-click or a stale tab rejects twice, each sending its own
+    // rejection signal to the workflow.
+    if (session.status !== ReviewStatus.in_progress) {
+      throw new ConflictException(
+        session.status === ReviewStatus.rejected
+          ? "Review session has already been rejected"
+          : `Cannot reject a session that is ${session.status}`,
+      );
+    }
+
+    const doc = session.document as {
+      group_id?: string;
+      workflow_execution_id?: string;
+    };
+
+    const updated = await this.prismaService.transaction(async (tx) => {
+      const sessionUpdate = await this.reviewDb.updateReviewSession(
+        sessionId,
+        {
+          status: ReviewStatus.rejected,
+          completed_at: new Date(),
+        },
+        tx,
+      );
+
+      if (!sessionUpdate) {
+        throw new NotFoundException(`Review session ${sessionId} not found`);
+      }
+
+      await this.reviewDb.releaseDocumentLock(sessionId, tx);
+
+      await this.auditService.recordEvent(
+        {
+          event_type: "review_session_rejected",
+          resource_type: "review_session",
+          resource_id: sessionId,
+          document_id: session.document_id,
+          workflow_execution_id: doc.workflow_execution_id ?? undefined,
+          group_id: doc.group_id ?? undefined,
+          payload: {
+            document_id: session.document_id,
+            rejection_reason: dto.rejectionReason,
+            comments: dto.comments,
+          },
+        },
+        tx,
+      );
+
+      return sessionUpdate;
+    });
+
+    await this.resumeGatedWorkflow(session.document_id, {
+      approved: false,
+      reviewer: session.actor_id,
+      groupId: doc.group_id,
+      workflowExecutionId: doc.workflow_execution_id,
+      comments: dto.comments,
+      rejectionReason: dto.rejectionReason,
+      annotations: dto.annotations,
+    });
+
+    return {
+      id: updated.id,
+      status: updated.status,
+      completedAt: updated.completed_at,
+      message: "Review session rejected",
     };
   }
 
