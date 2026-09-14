@@ -1027,4 +1027,88 @@ describe("IdentityGuard", () => {
     expect(result).toBe(true);
     expect(userService.findUserWithGroups).toHaveBeenCalledWith("jwt-user-id");
   });
+
+  // ---------------------------------------------------------------------------
+  // Internal-token path (Change W): request.internalToken → group-scoped MEMBER
+  // ---------------------------------------------------------------------------
+
+  it("resolves an internal token to the same group-scoped MEMBER shape the API-key path produces", async () => {
+    guard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: true }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      internalToken: {
+        groupId: "g-1",
+        userId: "actor-7",
+        purpose: "agent-self-call",
+      },
+    };
+
+    const result = await guard.canActivate(createContext(request));
+
+    expect(result).toBe(true);
+    expect(request.resolvedIdentity).toEqual({
+      isSystemAdmin: false,
+      groupRoles: { "g-1": GroupRole.MEMBER },
+      actorId: "actor-7",
+    });
+    // No DB round-trip — the token row already carries the whole binding.
+    expect(userService.findUserWithGroups).not.toHaveBeenCalled();
+  });
+
+  it("labels an unbound internal token with a synthetic actor named by its purpose", async () => {
+    guard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: true }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      internalToken: { groupId: "g-1", userId: null, purpose: "dyn-run" },
+    };
+
+    await guard.canActivate(createContext(request));
+
+    expect((request.resolvedIdentity as { actorId: string }).actorId).toBe(
+      "internal:dyn-run",
+    );
+  });
+
+  it("an internal-token identity fails requireSystemAdmin like an API key does", async () => {
+    guard = new IdentityGuard(
+      createReflectorWithIdentity({
+        allowApiKey: true,
+        requireSystemAdmin: true,
+      }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      internalToken: {
+        groupId: "g-1",
+        userId: "actor-7",
+        purpose: "agent-self-call",
+      },
+    };
+    await expect(guard.canActivate(createContext(request))).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it("prefers the API-key path when both apiKey and internalToken are present", async () => {
+    guard = new IdentityGuard(
+      createReflectorWithIdentity({ allowApiKey: true }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      apiKey: { groupId: "g-key", keyPrefix: "abc", actorId: "actor-key" },
+      internalToken: {
+        groupId: "g-token",
+        userId: "actor-token",
+        purpose: "agent-self-call",
+      },
+    };
+    await guard.canActivate(createContext(request));
+    expect((request.resolvedIdentity as { actorId: string }).actorId).toBe(
+      "actor-key",
+    );
+  });
 });
