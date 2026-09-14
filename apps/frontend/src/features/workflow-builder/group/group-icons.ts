@@ -1,9 +1,9 @@
 /**
  * Shared catalog of icon glyphs available for `NodeGroup.icon`.
  *
- * Originally lived inline in `GraphVisualization.tsx` (the read-only
- * renderer). Lifted here so both the renderer and the right-rail
- * `GroupNodeSettings` picker can reach the same set of keys/components.
+ * Lives in its own module so the canvas group-chip renderer and the
+ * right-rail `GroupNodeSettings` picker reach the same set of
+ * keys/components.
  *
  * Each entry maps a stable string key (saved to `nodeGroups[<id>].icon`)
  * to the tabler-icon React component to render. Keep the keys lowercase
