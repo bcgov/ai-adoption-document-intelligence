@@ -20,9 +20,9 @@ Use this page for contradictions, drift candidates, and ownership gaps that shou
 - ~~Monitoring compose path in `docs-md/monitoring/LOCAL_MONITORING_STACK.md` / `ALERTING.md`~~ Resolved: root `docker compose --profile monitoring`.
 - ~~`npm run dev` scope in README~~ Resolved: includes temporal worker per `package.json`.
 - `README.md`, `apps/README.md`, and `docs-md/wiki/system-overview.md` all describe platform shape at different levels — README owns setup; apps/README is module map; wiki routes only.
-- `docs-md/workflows/` and `docs-md/workflows/` intentionally overlap; the wiki should keep routing clear between engine behavior and UI authoring.
+- `docs-md/workflows/` holds both the engine-behavior docs and the UI-authoring docs in one folder; the wiki should keep routing clear between engine behavior and UI authoring.
 - Operational docs under `docs-md/operations/`, `scripts/README.md`, and workflow files in `.github/workflows/` should stay aligned.
-- `docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md` describes target drag-and-drop authoring; current UI is read-only visualization — guide is marked as design reference.
+- ~~`docs-md/workflows/WORKFLOW_BUILDER_GUIDE.md` describes target drag-and-drop authoring; current UI is read-only visualization — guide is marked as design reference.~~ Resolved: the drag-and-drop canvas editor shipped (`WorkflowEditorV2Page`); see [workflow-builder.md](workflow-builder.md).
 
 ## Post-audit follow-ups (2026-07-03)
 

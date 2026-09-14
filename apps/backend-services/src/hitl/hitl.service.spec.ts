@@ -34,6 +34,8 @@ describe("HitlService", () => {
   let mockReviewDbService: jest.Mocked<ReviewDbService>;
   let mockAnalyticsService: jest.Mocked<AnalyticsService>;
   let mockTemporal: { sendHumanApproval: jest.Mock };
+  /** Sentinel handed to db-services inside `prisma.transaction`. */
+  const fakeTx = { __tx: true } as never;
 
   const mockDocument = {
     id: "doc-1",
@@ -149,10 +151,13 @@ describe("HitlService", () => {
       sendHumanApproval: jest.fn().mockResolvedValue(undefined),
     };
 
+    // Hands the callback the shared `fakeTx` sentinel rather than a fresh
+    // `{}` so assertions can prove the SAME transaction client threaded
+    // through every db-service call, not merely that some object did.
     const mockPrismaService = {
       transaction: jest.fn(
         async (fn: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
-          fn({} as Prisma.TransactionClient),
+          fn(fakeTx as unknown as Prisma.TransactionClient),
       ),
     };
 
@@ -832,17 +837,25 @@ describe("HitlService", () => {
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
       );
+      // The session update, document transition and lock release run inside
+      // one Prisma transaction (CLAUDE.md: 2+ writes that must stay
+      // consistent), so each db-service call carries the same `tx`.
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
         {
           status: ReviewStatus.approved,
           completed_at: expect.any(Date),
         },
-        expect.anything(),
+        fakeTx,
+      );
+      expect(mockDocumentService.updateDocument).toHaveBeenCalledWith(
+        "doc-1",
+        { status: DocumentStatus.complete },
+        fakeTx,
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
         "session-1",
-        expect.anything(),
+        fakeTx,
       );
 
       expect(result).toEqual({

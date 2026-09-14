@@ -58,3 +58,6 @@ data/datasets/*/private/**
 # Generated repo wiki HTML (built by docs/build.sh at docs deploy time)
 /docs/wiki.html
 /docs/wiki-*.html
+
+# TypeScript incremental build state - machine-local, never shared
+*.tsbuildinfo
