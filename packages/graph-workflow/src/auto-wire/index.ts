@@ -1,0 +1,41 @@
+export {
+  type CtxKeyReferences,
+  type CtxReader,
+  type CtxReadVia,
+  collectCtxReaders,
+  findCtxKeyReferences,
+} from "./ctx-references";
+export {
+  type CtxKeySource,
+  type CtxWriter,
+  collectCtxWriters,
+  nodeTypeCtxWrites,
+  producerCtxKeyForPort,
+  resolveCtxKeySource,
+} from "./ctx-source";
+export { getLockedInputPorts, getLockedOutputPorts } from "./lock-list";
+export { normaliseLocks } from "./normalise-locks";
+export {
+  findOrphanedCtxKeys,
+  type OrphanedCtxKey,
+  pruneCtxDeclarations,
+} from "./orphaned-ctx-keys";
+export {
+  type DanglingEdgeReference,
+  findDanglingEdgeReferences,
+  pruneEdgeReferences,
+} from "./prune-edge-references";
+export {
+  type AutoBoundVia,
+  type PortResolution,
+  resolveInputPort,
+} from "./resolve-input-port";
+export { resolveBindings } from "./resolver";
+export { shouldAutoWirePort } from "./should-auto-wire";
+export { stripRedundantLocks } from "./strip-redundant-locks";
+export {
+  AUTO_CTX_KEY_PREFIX,
+  isAutoCtxKey,
+  synthesiseCtxKey,
+} from "./synthesise-ctx-key";
+export { upstreamNodesWithDistance } from "./upstream-walk";
