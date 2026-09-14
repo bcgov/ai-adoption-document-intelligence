@@ -1,0 +1,373 @@
+# Typed I/O Artifacts on the Canvas — Design
+
+**Status:** Decided. Phase 3 of the post-1A plan. (Formerly the `TYPED_IO_BRAINSTORM.md` placeholder.)
+**Last updated:** 2026-05-23 — amended to clarify that types attach to **ports** (and the ctx slots they bind to), not to wires. See §5.
+**Why now:** Three downstream phases all depend on a concrete artifact taxonomy — segmentation node pack (Phase 5), dynamic nodes (Phase 6), and the AI workflow builder (Phase 7). Continuing to defer this means those phases ship as half-features (segments are opaque blobs, the agent can't reason about port compatibility, dynamic nodes have no signature vocabulary).
+
+This document commits to concrete decisions for the typed-handles question. Engine semantics are unchanged from [WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md) (Model A — single in / single out + blackboard ctx). Types are a **UI-layer + save-time assertion**: handles get coloured by their port's kind, the settings-panel variable picker filters by kind, and the backend `validateGraphConfig` walks ctx-key bindings to assert kind assignability between producers and consumers. Wires themselves remain pure execution-order arrows; the runtime still passes opaque `Record<string, unknown>` through ctx.
+
+---
+
+## 1. The artifact taxonomy
+
+A single rooted hierarchy with nominal subtyping. Subtype-to-supertype draws are allowed; supertype-to-subtype draws are rejected at draw time.
+
+```
+Artifact (base)
+├── Document
+│   ├── MultiPageDocument
+│   └── SinglePageDocument
+├── Segment           ← a fragment of a document (region within a page, or a page-range slice)
+│   └── Segment<Kind> where Kind ∈ { Text, Table, Figure, Form, KeyValue, Signature, Header }
+├── OcrResult
+│   ├── OcrFields     ← key-value extraction output
+│   └── OcrTable      ← row/column table extraction
+├── Classification    ← document-type label + confidence
+├── ValidationResult  ← rule-by-rule validation output
+└── Reference         ← lookup-data row (the table-features artifact)
+```
+
+**Cardinality** is part of the type: `Document` vs `Document[]` are distinct kinds. The schema notation is `T` for one, `T[]` for many. `T | T[]` is allowed where the producer is variadic (e.g., a splitter that can emit one or many segments).
+
+**Parameterised kinds.** `Segment<Kind>` carries the region's semantic class. `OcrFields` and `OcrTable` are not parameterised in v1 — they're already specialised. If a need arises for `OcrResult<DocumentType>`, it's a future extension.
+
+**Provenance metadata** rides along with every artifact instance at runtime via the existing ctx blackboard:
+
+```ts
+interface Segment {
+  parentDocId: string;
+  pageRange?: { start: number; end: number };
+  polygon?: { x: number; y: number }[]; // image-space region
+  kind?: "Text" | "Table" | "Figure" | "Form" | "KeyValue" | "Signature" | "Header";
+  confidence?: number;
+  blobKey?: string; // when the segment has been materialised to blob storage
+}
+```
+
+This shape is reified in `packages/graph-workflow/src/types/artifacts.ts` (new) and re-exported from the package barrel.
+
+---
+
+## 2. Where the type registry lives
+
+**In `packages/graph-workflow`**, alongside the activity catalog and validator. One source of truth across backend + frontend.
+
+Files (new):
+- `packages/graph-workflow/src/types/artifacts.ts` — TypeScript interfaces + the `ArtifactKind` string-literal union
+- `packages/graph-workflow/src/types/artifact-registry.ts` — runtime registry mapping `ArtifactKind` → `{ displayName, color, baseKind?, isArray }`
+- `packages/graph-workflow/src/types/subtype-check.ts` — the `isAssignable(from: ArtifactKind, to: ArtifactKind): boolean` function consumed by both the canvas and the save-time validator
+- `packages/graph-workflow/src/types/index.ts` — barrel
+
+Subtype check uses the registry's `baseKind` pointer. `isAssignable("SinglePageDocument", "Document")` → true; reverse → false. `isAssignable("Segment<Table>", "Segment")` → true. `isAssignable("Document", "Artifact")` → true (everything assigns to the base).
+
+The registry is open in a controlled way: dynamic nodes (Phase 6) can register new kinds at runtime by calling `registerArtifactKind(...)`. User-defined kinds must declare a `baseKind` from the existing registry so the subtype graph stays connected.
+
+---
+
+## 3. How types are declared on the catalog entry
+
+Extend `PortDescriptor` with an optional `kind` field:
+
+```ts
+// packages/graph-workflow/src/catalog/types.ts
+export interface PortDescriptor {
+  name: string;
+  label: string;
+  description?: string;
+  required?: boolean;
+  /** Artifact kind this port produces (output) or accepts (input). Omitted = `Artifact` (drawable to anything). */
+  kind?: ArtifactKind | `${ArtifactKind}[]`;
+}
+```
+
+**Backwards compatibility.** `kind?` is optional. Existing 41 catalog entries pre-Phase 3 have no `kind` declared; they default to `Artifact` (the base type, drawable to/from anything). Phase 3 fans out `kind` declarations per-activity, the same way Phase 1A fanned out the `parametersSchema` field — incrementally, one activity at a time, with the bulk catalog test asserting "every entry that DOES declare `kind` declares it for every port."
+
+**Example, post-fanout:**
+
+```ts
+// document.split — fan-out splitter
+inputs: [
+  { name: "blobKey", label: "Source", required: true, kind: "MultiPageDocument" },
+],
+outputs: [
+  { name: "segments", label: "Segments", required: true, kind: "Segment[]" },
+],
+```
+
+```ts
+// document.classify — single-segment classifier
+inputs: [
+  { name: "segment", label: "Segment", required: true, kind: "Segment" },
+  { name: "ocrResult", label: "OCR result", required: true, kind: "OcrResult" },
+],
+outputs: [
+  { name: "segmentType", label: "Classification", required: true, kind: "Classification" },
+],
+```
+
+---
+
+## 4. How types are rendered on the canvas
+
+**Per Model A's "single in / single out" rule** ([WORKFLOW_NODE_IO_MODEL_DECISION.md](WORKFLOW_NODE_IO_MODEL_DECISION.md)), each activity node renders with exactly one input handle and one output handle on the canvas — regardless of how many typed ports the activity declares. We do not adopt ComfyUI-style per-port handles. Wires are execution order; data flows through ctx via per-port bindings configured in the settings panel.
+
+**Colour-coded handle dots + hover-tooltip with type name.** Since **2026-08-09
+(UX review batch four, item 20)** there are **five** port families,
+each carrying a **colour AND a shape**, so colour is never the only signal:
+
+| Family — what the data IS | Kinds | Colour | Shape |
+|---|---|---|---|
+| Documents & files | `Document`, `DocumentRef`, `Multi`/`SinglePageDocument`, `PreparedFile`, `DocumentContent` | `#5595D9` blue | filled circle |
+| Content taken out of a document | `Segment`, `Segment<...>`, `DocumentSegment`, `TypedSegment`, `ClassifiedPageSegment`, `LabeledSegment`, `OcrResult`, `OcrFields`, `OcrTable` | `#6741D9` violet | filled square |
+| Judgements about a document | `Classification`, `ClassificationLabel`, `LabeledDocumentMap`, `ValidationResult` | `#FAB005` yellow | diamond |
+| Pointers — IDs and lookups | `Identifier`, `DocumentId`, `GroupId`, `ModelId`, `RequestId`, `Reference` | `#0CA678` teal | vertical bar |
+| Untyped / wildcard | `Artifact`, unregistered kinds | `#605E5C` grey | hollow circle |
+| Array (`T[]`) | (same family as `T`) | (same) | doubled outline |
+
+**Why five, and why a shape.** The previous seven-colour scheme had pairs that
+are the same colour to a dichromat, with no lightness difference to fall back
+on — References teal vs Untyped grey came out at **ΔE 5.2** under deuteranopia
+at a 1.06:1 luminance ratio, and Documents blue vs Identifiers cyan at ΔE 6.4.
+Anything under ΔE ≈ 11 reads as one colour. The five above hold a worst pair of
+**ΔE 14.2** under both deuteranopia and protanopia (Viénot 1999 simulation,
+CIEDE2000 distance), and the shape carries the same information a second way.
+
+**What that costs.** An `OcrResult` and a `Segment` are both violet squares —
+you can no longer tell them apart by dot. The kind literal is still on the
+handle tooltip verbatim, on the per-port pill row, and in the validator's
+refusal. Colour degrades from "the exact type" to "the neighbourhood", which is
+what lets it survive the kind list growing.
+
+**The values are literal hexes, not Mantine variables.** The app theme
+overrides Mantine's `blue`, `gray` and `red` scales, so `var(--mantine-color-
+<token>-6)` silently paid out a different colour than the palette was measured
+against. That indirection produced three separate drifts, all fixed in the same
+change. One source of truth:
+`apps/frontend/src/features/workflow-builder/canvas/artifact-kind-colour.ts`.
+
+> **Superseded for the NODE-LEVEL dots, 2026-08-15 (review item D28).** The
+> rule below was written when a card had one handle per side. Since per-port
+> rows shipped, a card's data ports are the row dots (`PortRows`, coloured per
+> port by `colorForKind`) and the pair at the card's edge is the **run-order
+> connector** — the anchor a `normal`/`conditional`/`error` edge attaches to,
+> carrying no data. That pair is no longer coloured by kind at all: it is
+> `SEQUENCE_STROKE` grey, at a constant `18px` from the card top on every
+> rectangular card (the switch diamond centres it on its left/right vertices,
+> which is where its geometry puts them), and its hover text names execution
+> order rather than a port kind. One definition, in
+> `canvas/flow-handle.ts`. The rule below still governs the **per-port** row
+> dots and the on-selection type pill.
+
+**Single-port-side colouring rule — SUPERSEDED 2026-08-15, kept for the reasoning.** This described one handle standing for a whole side of a node. Per-port rows replaced that model, so a dot is now coloured by the one port it belongs to and there is no multi-port case left to collapse. `computeHandleStyle`, which implemented the rule below, was deleted with its last caller — and its zero-typed-ports branch is where the tooltips "No typed inputs" / "No typed outputs" came from: sentences about DATA ports that ended up on a control-flow card's run-order connector and stopped a reviewer drawing run-order edges at all (item D10 of the 2026-08-14 review). The rule as it stood:
+
+- **One typed output** → handle coloured by that port's kind (e.g. blue for a `Document`-producing activity).
+- **Zero or multiple typed outputs** → handle stays **gray** (Artifact wildcard). Gray means "click the node to see the full typed signature" — never "this output is untyped."
+- Same rule on the input side: single typed input = coloured, multi/zero = gray.
+
+The gray-for-multi-port rule keeps the handle colour honest. Picking a "primary" output port to colour the handle would mislead users into thinking it's the only output.
+
+Hover-tooltip text on a single-port-coloured handle: `"Segment[]"`, `"OcrResult"`, etc. — the rendered string is the `kind` declaration verbatim. Hover on a gray handle with **two or more** typed ports: `"Multiple outputs — select node to view all"`. Hover on a gray handle with **zero** typed ports (e.g. a map/join whose data flow is via ctx keys, not ports): `"No typed outputs"` (`"No typed inputs"` on the input side) — the zero case must not claim "multiple", which would misrepresent the cardinality.
+
+**On selected nodes**, a type pill renders next to the handle for accessibility AND as the discovery surface for multi-port type info. For single-port nodes the pill is a one-line badge (`SEGMENT[]`). For multi-port nodes the pill expands to a small list of all declared ports with their kinds:
+
+```
+input ports:               output ports:
+  segment: Segment           classification: Classification
+  ocrResult: OcrResult       segments: Segment[]
+                             ocrPreview: OcrResult
+```
+
+The pill is the canonical place to read multi-port signatures on the canvas. The handle dot is a quick scan signal for the single-port common case (which today is ~80% of catalog entries).
+
+**Wires are NOT type-rejected at draw time.** In Model A, wires represent execution order only — data flows through the ctx blackboard via per-node `inputs[]` / `outputs[]` port bindings (`PortBinding { port, ctxKey }`), not along the wire. Drawing a wire from a typed output handle to an incompatible input handle is allowed — the wire just adds an ordering constraint. The picker is the first design-time discovery surface for kind mismatches (see §5).
+
+**Wire body colour** — a DATA wire takes its producer kind's family colour (so
+the wire, its arrowhead and both endpoint dots agree); structural wires are
+coloured by edge type (sequence / switch case / error). The sequence grey is
+`#9CA3AF` and the error red `#E03131`, both exported from `WorkflowEdge.tsx` so
+the legend and the arrowhead markers read them rather than restating them.
+
+**Node accents are a SEPARATE code** — the 6px left border on a card says what
+kind of STEP it is, not what kind of data it carries, and there are five of
+those too. See `apps/frontend/src/features/workflow-builder/node-accents.ts`;
+the two codes are measured against themselves, not against each other, because
+ten mutually-separable hues do not exist under dichromacy.
+
+---
+
+## 5. Where type-checking actually runs
+
+**Two checkpoints, both operating on ctx-key bindings (NOT on wires).** Wires are pure execution-order arrows in Model A; the actual data hop is from a producer node's output port → its declared `ctxKey` → a consumer node's input port that reads the same `ctxKey`. Type checking follows the data, not the wire.
+
+Both checkpoints consume the same `isAssignable()` from the shared package:
+
+1. **Settings panel — variable picker** *(design-time, primary discovery surface)*. When a port with a declared `kind` is being bound to a ctx variable in the right-rail settings panel:
+   - All ctx variables stay visible (don't hide — users will think "where did my variable go?").
+   - Compatible variables list first (variables whose upstream-producer port kind is assignable to the consumer's `kind`).
+   - Incompatible variables list below a divider, dimmed, with a hover tooltip naming the reason (`"OcrResult — incompatible with this port (expects Segment)"`).
+   - **Manually-declared ctx variables** carry their own `kind` via Phase 3's extension to `CtxDeclaration` (see §6.1). Variables without a `kind` field (legacy entries before Phase 3) are treated as `Artifact` (wildcard — always compatible).
+
+2. **Backend — save-time validator** *(authoritative; runs in `validateGraphConfig`)*. Walks **ctx keys**, not edges:
+
+   ```
+   for each ctxKey written or read anywhere in the graph:
+     producers = [(node, outputPort, kind)  // every node.outputs[].ctxKey === ctxKey]
+     consumers = [(node, inputPort, kind)   // every node.inputs[].ctxKey  === ctxKey]
+     for each (cnode, cport, ckind) in consumers:
+       for each (pnode, pport, pkind) in producers:
+         if not isAssignable(pkind, ckind):
+           emit GraphValidationError {
+             severity: "error",
+             nodeId: cnode.id, port: cport,
+             message: "Input port `{cport}` ({ckind}) on node `{cnode}` reads from ctx key `{ctxKey}`, written by node `{pnode}` ({pkind}) — {pkind} not assignable to {ckind}"
+           }
+   ```
+
+   The error anchors to the **consumer port** (where the mismatch is felt). The existing red node badges + error drawer (from Phase 1A) render the message verbatim.
+
+**Multi-producer ctx keys** (a key written by multiple producers across switch / map / parallel branches): every producer's kind must be assignable to every consumer's kind. Strict producer-side check — if producers disagree, every consumer that doesn't accept the most-restrictive producer surfaces an error. Simpler than computing a least-common-supertype; encourages workflow authors to be explicit about merging branch outputs into typed ctx keys.
+
+The runtime engine still doesn't check types. The blackboard is opaque `Record<string, unknown>`. Type safety is a save-time + design-time property only.
+
+**Explicitly not in Phase 3:** draw-time wire rejection. Wires are ordering; rejecting them on type grounds would conflate two distinct user actions (wiring = ordering vs binding = data). An auto-bind-on-wire-draw layer (option C from the design discussion) is filed as a Phase 3.5 follow-up — it would make wires semantically meaningful AND restore draw-time UX in one move.
+
+---
+
+## 5.1 Typed soft edges — `CtxDeclaration` and `LibraryPortDescriptor`
+
+Phase 3 extends two existing schema shapes so the type story doesn't break at workflow boundaries:
+
+**`CtxDeclaration` extension** (workflow-settings drawer's ctx editor — the variable list every workflow declares). Adds optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside the existing primitive `type` field:
+
+```ts
+interface CtxDeclaration {
+  type: "string" | "number" | "boolean" | "object" | "array";  // unchanged
+  description?: string;                                          // unchanged
+  defaultValue?: unknown;                                        // unchanged
+  isInput?: boolean;                                             // Track 2
+  kind?: ArtifactKind | `${ArtifactKind}[]`;                     // Phase 3 — NEW
+}
+```
+
+UI: the `WorkflowSettingsDrawer` ctx-rows grow a "Kind" Select column (after Description, before Default). Options populated from the registry. Optional — legacy entries with no `kind` default to `Artifact` (wildcard).
+
+Why this matters: workflow entry-point inputs (those flagged `isInput: true` in Track 2) are the first hop into the typed graph. Without this extension, every entry-point binding shows as Artifact-compatible-with-everything in the picker, so the first activity's typed handle has nothing meaningful to filter against.
+
+**`LibraryPortDescriptor` extension** (Track 1's library-signature editor + the library-picker modal + the childWorkflow signature summary). Adds optional `kind?: ArtifactKind | "${ArtifactKind}[]"` alongside the existing primitive `type` field:
+
+```ts
+interface LibraryPortDescriptor {
+  label: string;                                                 // unchanged
+  path: string;                                                  // unchanged
+  type: "string" | "number" | "boolean" | "object" | "array";    // unchanged
+  kind?: ArtifactKind | `${ArtifactKind}[]`;                     // Phase 3 — NEW
+}
+```
+
+UI surfaces touched:
+- `LibraryPortListEditor` (inside `SaveAsLibraryModal`) — each port row grows a "Kind" Select column.
+- `LibraryPickerModal` — the per-library signature summary shows `kind` (when declared) alongside the primitive `type`.
+- `ChildWorkflowNodeSettings` signature summary — shows the pinned library's typed signature (the new `v{N}` / `head` badge from Track 3 stays where it is; the kind annotations join it).
+
+Why this matters: when a parent workflow references a library via a `childWorkflow` node, the library's port descriptors ARE the childWorkflow node's effective ports. Without this extension, library-referencing nodes render gray-on-gray handles, the library-picker can't be filtered by signature, and the binding-walk validator can't catch kind mismatches at the library boundary.
+
+Both extensions are mechanically the same shape (optional `kind?: ArtifactKind | "${ArtifactKind}[]"`) and use the same registry / `isAssignable` function as activity `PortDescriptor`. The validator treats both the same way it treats activity ports.
+
+---
+
+## 6. Subtype rules
+
+**Strict nominal subtyping with directed assignment:**
+
+- `SinglePageDocument` → `Document` slot: ✓
+- `MultiPageDocument` → `Document` slot: ✓
+- `Document` → `SinglePageDocument` slot: ✗ (downcast)
+- `Segment<Table>` → `Segment` slot: ✓
+- `Segment` → `Segment<Table>` slot: ✗
+- `Document` → `Artifact` slot: ✓ (everything's an Artifact)
+- `Artifact` → `Document` slot: ✗
+- `Document` → `Document[]` slot: ✗ (cardinality is part of the type; no auto-wrap)
+- `Document[]` → `Document` slot: ✗ (no auto-unwrap)
+
+**Why not auto-wrap / auto-unwrap?** Two reasons: it hides the fan-out / fan-in choice, and our schema already has `map` / `join` nodes specifically to make cardinality explicit. The wiring layer mirrors the schema.
+
+---
+
+## 7. Library workflows + childWorkflow nodes
+
+`childWorkflow` already exists in the schema. With typed I/O, a library workflow declares its top-level `inputs` / `outputs` (these become the port descriptors of `childWorkflow` nodes that reference it). The library-management UX (Phase 2) shows the declared input/output kinds on the workflow card; the editor's `ChildWorkflowNodeSettings` form filters available library workflows by matching `kind` to the upstream producer.
+
+This is the bridge from Phase 2 (library workflows) into Phase 3 (typed I/O): once libraries exist, they need typed signatures.
+
+---
+
+## 8. Dynamic nodes (Phase 6 interaction)
+
+Windmill-style scripts declare a TS/Python signature. Phase 6 derives a `kind` for each declared parameter and return value. Where the signature uses a type the registry doesn't know, the user (or the AI agent) explicitly maps it to a registered `ArtifactKind` at script-publication time. No silent fallback to `Artifact` — that would silently weaken type safety.
+
+---
+
+## 9. AI workflow builder (Phase 7 interaction)
+
+The agent reads the catalog (already JSON-Schema-exportable) and uses `kind` to narrow candidate activities per slot. The `kind` rides through `z.toJSONSchema()` as `x-kind` extension fields on each port descriptor, the same mechanism `x-widget` / `x-options` use today.
+
+`isAssignable` is also exposed to the agent as a tool — the agent can ask "is `Segment<Table>` assignable to `Segment`?" without re-implementing subtype logic.
+
+---
+
+## 10. Provider catalog (the OCR-/VLM-picker question)
+
+The user's original framing — extracting a segment from a document and passing it to a particular OCR or VLM — collapses into a `provider-catalog.ts` companion to the activity catalog:
+
+```ts
+interface ProviderDescriptor {
+  id: string;
+  displayName: string;
+  category: "ocr" | "vlm" | "classifier" | "validator";
+  acceptsKind: ArtifactKind | `${ArtifactKind}[]`;
+  returns: ArtifactKind | `${ArtifactKind}[]`;
+}
+```
+
+Activities that take a `provider: string` parameter (e.g., a generic `ocr.run` that delegates to Azure / Mistral / Docling) source their dropdown from this catalog filtered by the upstream `kind`. Phase 3 introduces the descriptor type and one or two example providers; Phase 5 (segmentation pack) fans this out per real backend.
+
+---
+
+## 11. Out of scope for Phase 3
+
+- **Draw-time wire rejection on type grounds.** Wires are execution-order only; rejecting them on kind mismatch would conflate ordering with data flow. See §5. An auto-bind-on-wire-draw layer that makes wires semantically meaningful (and brings back draw-time UX) is filed for **Phase 3.5**.
+- **Auto-wrap / auto-unwrap** between `T` and `T[]`. Use `map` / `join`.
+- **Structural typing or shape inference.** Strictly nominal — every `ArtifactKind` is declared in the registry.
+- **Per-field types inside an artifact.** `OcrFields` is one kind; the individual fields it contains are not separately typed at the wiring layer.
+- **Runtime type checks.** The engine stays opaque.
+- **Migrating `CtxDeclaration.type` away.** The primitive `type` field (`"string" | "number" | "boolean" | "object" | "array"`) stays as-is alongside the new `kind?` field. `type` is a runtime-shape concept (Zod/JSON-Schema validation of the actual value); `kind?` is the artifact-layer annotation for UI/save-time purposes. Both coexist.
+
+---
+
+## 12. Reading order for implementation
+
+1. `packages/graph-workflow/src/types/artifacts.ts` — interfaces + `ArtifactKind` union
+2. `packages/graph-workflow/src/types/artifact-registry.ts` — registry + `registerArtifactKind`
+3. `packages/graph-workflow/src/types/subtype-check.ts` — `isAssignable`
+4. Extend `PortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (activity catalog ports)
+5. Extend `CtxDeclaration` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (manually-declared ctx variables) — see §5.1
+6. Extend `LibraryPortDescriptor` with `kind?: ArtifactKind | "${ArtifactKind}[]"` (library inputs/outputs) — see §5.1
+7. Add **binding-walk** type-check pass to `validator.ts` (save-time; walks ctx keys not edges — see §5; consults activity `PortDescriptor.kind`, `CtxDeclaration.kind`, and `LibraryPortDescriptor.kind` interchangeably)
+8. Frontend: handle colour + hover tooltip + on-selection type pill. **No `handleConnect` rejection** — wires are ordering only.
+9. Frontend: variable picker shows all ctx variables; compatible ones first, incompatible ones dimmed below a divider with a hover-tooltip naming the reason.
+10. Frontend: `WorkflowSettingsDrawer` ctx-rows grow a "Kind" Select column populated from the registry.
+11. Frontend: `LibraryPortListEditor` (inside `SaveAsLibraryModal`) ports grow a "Kind" Select column. `LibraryPickerModal` signature summary + `ChildWorkflowNodeSettings` signature summary surface the kind annotations.
+12. Fan out `kind` declarations across the 41 catalog entries (incrementally; framework + 4–6 exemplars is a reasonable Phase 3 cap, full fan-out as Phase 3.x)
+13. Provider catalog (Phase 3 → Phase 5 hand-off)
+
+---
+
+## 13. Open after this lands
+
+- **Phase 3.5 — auto-bind-on-wire-draw.** Make wire-draw semantically meaningful: drawing a wire between two typed handles auto-creates a ctx key + the matching input/output bindings on both sides. Restores draw-time UX (rejection on kind mismatch becomes consistent because the wire IS the binding). Bigger lift; punted to keep Phase 3 small.
+- **Phase 3.x — full catalog fan-out.** Phase 3 ships framework + 4–6 exemplar activity entries; the remaining ~35 catalog entries get their `kind` declarations fanned out incrementally afterward. The bulk catalog test enforces "every entry that DOES declare `kind` declares it for every port" so partial fan-out stays consistent.
+- Concrete kind palette beyond v1 list (when new domains appear)
+- Auto-fan-out fixers in the editor ("you wired `Document[]` into a `Document` slot — add a `map` node?")
+- LSP-style hovers that show the producer's actual ctxKey path, not just the kind
+
+These are deliberately punted: get the floor in first, polish layer afterwards.
