@@ -87,12 +87,24 @@ services:
       POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
       POSTGRES_SEEDS: temporal-postgresql
       SKIP_DEFAULT_NAMESPACE_CREATION: "false"
+      # Closed executions are purged after this, and with them the run history
+      # that Run history and the canvas's node statuses are BOTH read from
+      # (Temporal owns runs — there is no run table in our Postgres). At
+      # auto-setup's 24h default a seeded demo run, or any run a developer wants
+      # to come back to, is unreplayable the next morning: node-statuses 410s
+      # with "Run history no longer available". 30 days makes a seeded run last
+      # as long as the demo it belongs to.
+      #
+      # Applies at namespace CREATION only. An existing namespace needs:
+      #   docker exec temporal temporal operator namespace update -n default \
+      #     --retention 720h --address 127.0.0.1:7233
+      DEFAULT_NAMESPACE_RETENTION: 720h
       BIND_ON_IP: 0.0.0.0
     depends_on:
       temporal-postgresql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      test: ["CMD", "temporal", "operator", "cluster", "describe", "--address", "127.0.0.1:7233", "--namespace", "default"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -166,6 +178,15 @@ services:
       SEED_USER_EMAIL: ${SEED_USER_EMAIL}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      # Azure OpenAI — shared credentials, NOT worker-only. backend-services
+      # needs them for the workflow chat agent (apps/backend-services/src/agent),
+      # AI format suggestion and benchmark recommendations. Same four values as
+      # the temporal-worker block below; keep the defaults identical so one .env
+      # drives both services. Blank = the assistant reports itself unconfigured.
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-12-01-preview}
     ports:
       - "3002:3002"
     depends_on:
