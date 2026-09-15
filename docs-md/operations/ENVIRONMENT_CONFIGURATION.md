@@ -186,17 +186,20 @@ On `app-pg`, count-based retention bounds the repo size even if a scheduled full
 |----------|-------------|
 | `BOOTSTRAP_ADMIN_EMAIL` | Email of the user who should be promoted to system admin on first launch. The Setup page only appears when zero admins exist in the database. Once bootstrap is complete this variable has no effect. |
 
-### Document Retention
+### Retention
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. Leave unset or empty to disable the janitor entirely. A positive integer is required to enable it (e.g. `90`). |
+| `DOCUMENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which terminal documents (`complete`, `failed`, `conversion_failed`) are permanently deleted along with their blob-storage files and `ocr_results` rows. A positive integer is required to enable it (e.g. `90`). |
+| `AUDIT_EVENT_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `audit_events` rows are deleted. Confirm statutory retention requirements before setting this in a regulated environment. |
+| `BENCHMARK_AUDIT_LOG_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which `benchmark_audit_logs` rows are deleted. |
+| `REVIEW_SESSION_RETENTION_DAYS` | *(unset — disabled)* | Number of days after which completed `review_sessions` (approved / escalated / skipped) and their cascading `field_corrections` are deleted. In-progress sessions are never deleted. |
 
-Deletion is permanent and cascades: the `documents` row takes `ocr_results`, `review_sessions`, `field_corrections` and `document_locks` with it. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review` or `extracted` are never deleted at any age.
+All four janitors default to off. Deletion is permanent. Leave a variable unset or empty to keep that data class indefinitely.
 
-The value is supplied by the deploy workflow (`DOCUMENT_RETENTION_DAYS` repository secret) and substituted into `__DOCUMENT_RETENTION_DAYS__` by `generate_instance_overlay`. With the secret unset the token resolves to an empty string, so an environment ships with the janitor off until the secret is given a value.
+For the document janitor: deletion cascades from the `documents` row to `ocr_results`, `review_sessions`, `field_corrections`, and `document_locks`. Documents in `pre_ocr`, `ongoing_ocr`, `awaiting_review`, or `extracted` are never deleted at any age.
 
-Setting it in the `prod-resources` component does **not** work: the instance-template's ConfigMap patch applies after components, so it overwrites whatever the component set. Anything the instance-template templates has to be supplied through the overlay flag.
+All values are supplied by repository secrets and substituted by `generate_instance_overlay`. See [DOCUMENT_RETENTION.md](../architecture/DOCUMENT_RETENTION.md) for full details.
 
 ### Database Connection Pool
 
