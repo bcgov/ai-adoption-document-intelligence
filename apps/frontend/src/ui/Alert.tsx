@@ -40,6 +40,18 @@ export function Alert({
 
   const srOnlyText = [titleText, descriptionText].filter(Boolean).join(" ");
 
+  // BcdsInlineAlert renders its `children` prop instead of `title`/`description`
+  // whenever children is truthy, so only pass children through when there's
+  // custom node content to show — otherwise let title/description render.
+  const extraChildren = descriptionText == null ? children : null;
+  const customContent =
+    titleNode || extraChildren ? (
+      <>
+        {titleNode}
+        {extraChildren}
+      </>
+    ) : undefined;
+
   return (
     <div data-testid={dataTestId} style={wrapperStyle}>
       {srOnlyText.length > 0 ? (
@@ -68,8 +80,7 @@ export function Alert({
         isCloseable={withCloseButton ?? Boolean(onClose)}
         onClose={onClose}
       >
-        {titleNode}
-        {descriptionText == null ? children : null}
+        {customContent}
       </BcdsInlineAlert>
     </div>
   );

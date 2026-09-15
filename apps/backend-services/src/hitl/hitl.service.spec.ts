@@ -1030,11 +1030,11 @@ describe("HitlService", () => {
       );
       mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
 
-      const result = await service.flagSession("session-1");
+      const result = await service.flagSession("session-1", {});
 
       expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
         "session-1",
-        { status: ReviewStatus.flagged },
+        { status: ReviewStatus.flagged, flag_note: null },
         expect.anything(),
       );
       expect(mockReviewDbService.releaseDocumentLock).toHaveBeenCalledWith(
@@ -1048,10 +1048,38 @@ describe("HitlService", () => {
       });
     });
 
+    it("should store a trimmed flag note against the session", async () => {
+      const flaggedSession = {
+        ...mockReviewSession,
+        status: ReviewStatus.flagged,
+      };
+
+      mockReviewDbService.findReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.updateReviewSession.mockResolvedValueOnce(
+        flaggedSession as any,
+      );
+      mockReviewDbService.releaseDocumentLock.mockResolvedValueOnce(undefined);
+
+      await service.flagSession("session-1", {
+        note: "  waiting on legal to confirm the address  ",
+      });
+
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        {
+          status: ReviewStatus.flagged,
+          flag_note: "waiting on legal to confirm the address",
+        },
+        expect.anything(),
+      );
+    });
+
     it("should throw NotFoundException if session does not exist", async () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
-      await expect(service.flagSession("non-existent")).rejects.toThrow(
+      await expect(service.flagSession("non-existent", {})).rejects.toThrow(
         NotFoundException,
       );
 
@@ -1389,6 +1417,7 @@ describe("HitlService", () => {
         ...mockReviewSession,
         status: ReviewStatus.flagged,
         completed_at: null,
+        flag_note: "waiting on legal to confirm the address",
         document: { ...mockDocumentWithOcr, groundTruthJob: null },
       };
 
@@ -1399,6 +1428,7 @@ describe("HitlService", () => {
       mockReviewDbService.updateReviewSession.mockResolvedValueOnce({
         ...flaggedSession,
         status: ReviewStatus.in_progress,
+        flag_note: null,
       } as any);
       mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
         mockDocumentLock,
@@ -1407,6 +1437,12 @@ describe("HitlService", () => {
       const result = await service.reopenSession("session-1", "other-reviewer");
 
       expect(result.status).toBe(ReviewStatus.in_progress);
+      // taking over a flagged session clears the note; it applied to the handoff
+      expect(mockReviewDbService.updateReviewSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ flag_note: null }),
+        expect.anything(),
+      );
       // the lock moves to whoever took it, not to whoever flagged it
       expect(mockReviewDbService.acquireDocumentLock).toHaveBeenCalledWith(
         expect.objectContaining({ reviewer_id: "other-reviewer" }),

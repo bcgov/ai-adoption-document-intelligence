@@ -29,6 +29,7 @@ import {
 } from "@/auth/identity.helpers";
 import { DocumentService } from "../document/document.service";
 import { SubmitCorrectionsDto } from "./dto/correction.dto";
+import { FlagSessionDto } from "./dto/flag-session.dto";
 import {
   AnalyticsResponseDto,
   CorrectionsListResponseDto,
@@ -336,13 +337,17 @@ export class HitlController {
   })
   @ApiNotFoundResponse({ description: "Session not found" })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async flagSession(@Param("id") sessionId: string, @Req() req: Request) {
+  async flagSession(
+    @Param("id") sessionId: string,
+    @Body() dto: FlagSessionDto,
+    @Req() req: Request,
+  ) {
     const session = await this.hitlService.findReviewSession(sessionId);
     if (!session) {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.flagSession(sessionId);
+    return this.hitlService.flagSession(sessionId, dto);
   }
 
   @Post("sessions/:id/heartbeat")

@@ -505,6 +505,8 @@ model ReviewSession {
   status       ReviewStatus      @default(in_progress)
   started_at   DateTime          @default(now())
   completed_at DateTime?
+  // Short note captured when the session is flagged, shown to the next reviewer.
+  flag_note    String?
   corrections  FieldCorrection[]
   lock         DocumentLock?
 

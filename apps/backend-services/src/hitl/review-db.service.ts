@@ -298,7 +298,11 @@ export class ReviewDbService {
    */
   async updateReviewSession(
     id: string,
-    data: { status?: ReviewStatus; completed_at?: Date | null },
+    data: {
+      status?: ReviewStatus;
+      completed_at?: Date | null;
+      flag_note?: string | null;
+    },
     tx?: Prisma.TransactionClient,
   ): Promise<ReviewSessionData | null> {
     const client = tx ?? this.prisma;
