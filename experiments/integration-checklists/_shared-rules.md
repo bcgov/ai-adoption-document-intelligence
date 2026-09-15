@@ -22,7 +22,7 @@ The codebase already has detailed conventions for adding OCR providers and graph
 
 The `scripts/run-experiment-benchmarks.sh` script and any direct `curl` against the backend need a `TEST_API_KEY` in env.
 
-The seed picks `TEST_API_KEY` up from your override file (`~/.config/bcgov-di/backend-services.env`) — that's where the test API key is stored. **The seed-time API key is not a real production secret**: it's a per-developer dev-only key, regenerated on every `npm run test:db:reset`. The override file is off-limits to read for normal review, but the value of `TEST_API_KEY` itself is fine to operate on directly. If you don't have it sourced into your shell, ask the user to paste it into chat or write it to a tmp file you can `$(cat)` from. Don't waste a clarification round-trip — capture the key once at the start of the experiment and reuse it.
+The seed picks `TEST_API_KEY` up from the repo-root `.env` — that's where the test API key is stored. **The seed-time API key is not a real production secret**: it's a per-developer dev-only key, regenerated on every `npm run test:db:reset`. The root `.env` is off-limits to read for normal review, but the value of `TEST_API_KEY` itself is fine to operate on directly. If you don't have it sourced into your shell, ask the user to paste it into chat or write it to a tmp file you can `$(cat)` from. Don't waste a clarification round-trip — capture the key once at the start of the experiment and reuse it.
 
 Useful endpoints that all need `x-api-key: $TEST_API_KEY`:
 
