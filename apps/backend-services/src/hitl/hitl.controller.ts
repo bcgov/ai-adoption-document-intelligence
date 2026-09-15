@@ -224,7 +224,11 @@ export class HitlController {
       throw new NotFoundException(`Review session ${sessionId} not found`);
     }
     identityCanAccessGroup(req.resolvedIdentity, session.document.group_id);
-    return this.hitlService.submitCorrections(sessionId, dto);
+    return this.hitlService.submitCorrections(
+      sessionId,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
   }
 
   @Get("sessions/:id/corrections")

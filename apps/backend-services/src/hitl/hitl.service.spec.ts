@@ -116,6 +116,7 @@ describe("HitlService", () => {
     original_conf: 0.85,
     action: DbCorrectionAction.corrected,
     created_at: new Date(),
+    actor_id: "actor-1",
   };
 
   beforeEach(async () => {
@@ -787,7 +788,11 @@ describe("HitlService", () => {
           field_key: "total_amount",
         });
 
-      const result = await service.submitCorrections("session-1", dto);
+      const result = await service.submitCorrections(
+        "session-1",
+        dto,
+        "reviewer-1",
+      );
 
       expect(mockReviewDbService.findReviewSession).toHaveBeenCalledWith(
         "session-1",
@@ -818,7 +823,7 @@ describe("HitlService", () => {
       mockReviewDbService.findReviewSession.mockResolvedValueOnce(null);
 
       await expect(
-        service.submitCorrections("non-existent", dto),
+        service.submitCorrections("non-existent", dto, "reviewer-1"),
       ).rejects.toThrow(NotFoundException);
 
       expect(mockReviewDbService.createFieldCorrection).not.toHaveBeenCalled();

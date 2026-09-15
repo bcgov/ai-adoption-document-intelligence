@@ -576,7 +576,11 @@ export class HitlService {
     };
   }
 
-  async submitCorrections(sessionId: string, dto: SubmitCorrectionsDto) {
+  async submitCorrections(
+    sessionId: string,
+    dto: SubmitCorrectionsDto,
+    actorId: string,
+  ) {
     this.logger.debug(`Submitting corrections for session: ${sessionId}`);
 
     const session = await this.reviewDb.findReviewSession(sessionId);
@@ -602,6 +606,7 @@ export class HitlService {
                 corrected_value: correction.corrected_value,
                 original_conf: correction.original_conf,
                 action: correction.action,
+                actor_id: actorId,
               },
               tx,
             ),

@@ -409,6 +409,7 @@ describe("HitlController", () => {
       expect(hitlService.submitCorrections).toHaveBeenCalledWith(
         "session-1",
         dto,
+        undefined,
       );
     });
 

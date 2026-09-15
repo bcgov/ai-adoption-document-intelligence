@@ -344,6 +344,7 @@ export class ReviewDbService {
       corrected_value?: string;
       original_conf?: number;
       action: import("@generated/client").CorrectionAction;
+      actor_id?: string;
     },
     tx?: Prisma.TransactionClient,
   ): Promise<import("@generated/client").FieldCorrection> {
@@ -626,26 +627,36 @@ export class ReviewDbService {
     const client = tx ?? this.prisma;
     this.logger.debug("Getting review analytics");
 
-    const where: Prisma.ReviewSessionWhereInput = {};
+    // Scope shared by both queries: date range and group. Reviewer identity is
+    // applied separately below since sessions and corrections attribute it differently.
+    const scope: Prisma.ReviewSessionWhereInput = {};
     if (filters.startDate || filters.endDate) {
-      where.started_at = {};
-      if (filters.startDate) where.started_at.gte = filters.startDate;
-      if (filters.endDate) where.started_at.lte = filters.endDate;
-    }
-    if (filters.reviewerId) {
-      where.actor_id = filters.reviewerId;
+      scope.started_at = {};
+      if (filters.startDate) scope.started_at.gte = filters.startDate;
+      if (filters.endDate) scope.started_at.lte = filters.endDate;
     }
     if (filters.groupIds) {
-      where.document = { group_id: { in: filters.groupIds } };
+      scope.document = { group_id: { in: filters.groupIds } };
+    }
+
+    // Session ownership still reflects whoever currently holds the session (reassigned on takeover).
+    const sessionWhere: Prisma.ReviewSessionWhereInput = { ...scope };
+    if (filters.reviewerId) {
+      sessionWhere.actor_id = filters.reviewerId;
+    }
+
+    // Correction throughput is attributed to whoever actually made each correction,
+    // not whoever currently owns the session it lives in.
+    const correctionWhere: Prisma.FieldCorrectionWhereInput = {
+      session: scope,
+    };
+    if (filters.reviewerId) {
+      correctionWhere.actor_id = filters.reviewerId;
     }
 
     const [sessions, corrections] = await Promise.all([
-      client.reviewSession.findMany({ where }),
-      client.fieldCorrection.findMany({
-        where: {
-          session: where,
-        },
-      }),
+      client.reviewSession.findMany({ where: sessionWhere }),
+      client.fieldCorrection.findMany({ where: correctionWhere }),
     ]);
 
     const correctionsByAction = corrections.reduce(

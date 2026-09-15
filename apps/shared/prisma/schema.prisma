@@ -170,6 +170,7 @@ model Actor {
   updatedGroups             Group[]                  @relation(name: "GroupUpdatedBy")
   deletedGroups             Group[]                  @relation(name: "GroupDeletedBy")
   reviewSessions            ReviewSession[]
+  fieldCorrections          FieldCorrection[]
   datasets                  Dataset[]
   benchmarkProjects         BenchmarkProject[]
   benchmarkAuditLogs        BenchmarkAuditLog[]
@@ -538,7 +539,12 @@ model FieldCorrection {
   original_conf   Float?
   action          CorrectionAction @default(confirmed)
   created_at      DateTime         @default(now())
+  // Actor who made this correction. Null on rows created before this field existed
+  // (session.actor_id is the only historical signal, and it can be reassigned on takeover).
+  actor_id        String?
+  actor           Actor?           @relation(fields: [actor_id], references: [id])
 
+  @@index([actor_id])
   @@map("field_corrections")
 }
 
