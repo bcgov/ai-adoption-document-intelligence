@@ -471,6 +471,34 @@ export class DocumentDbService {
   }
 
   /**
+   * Finds terminal documents whose `created_at` is older than the given
+   * cutoff, eligible for retention-based permanent deletion.
+   *
+   * @param olderThan - Select documents created before this timestamp.
+   * @param statuses - Terminal statuses eligible for deletion.
+   * @param limit - Maximum number of documents to return in one batch.
+   * @returns Minimal records (id, group_id) needed for deletion.
+   */
+  async findExpiredDocuments(
+    olderThan: Date,
+    statuses: DocumentStatus[],
+    limit: number,
+  ): Promise<Array<{ id: string; group_id: string }>> {
+    return this.prisma.document.findMany({
+      where: {
+        created_at: { lt: olderThan },
+        status: { in: statuses },
+      },
+      select: {
+        id: true,
+        group_id: true,
+      },
+      orderBy: { created_at: "asc" },
+      take: limit,
+    });
+  }
+
+  /**
    * Stamps a document as purged so the cleanup janitor will not reprocess it.
    *
    * @param id - The document ID to mark purged.

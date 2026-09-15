@@ -70,6 +70,8 @@ generate_instance_overlay() {
   local throttle_auth_refresh_ttl_ms="60000"
   local throttle_auth_refresh_limit="5"
   local db_pool_max="20"
+  # Empty disables the document-retention janitor; a positive integer is days.
+  local document_retention_days=""
   local azure_openai_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
@@ -178,6 +180,10 @@ generate_instance_overlay() {
         ;;
       --db-pool-max)
         db_pool_max="$2"
+        shift 2
+        ;;
+      --document-retention-days)
+        document_retention_days="$2"
         shift 2
         ;;
       --azure-openai-endpoint)
@@ -361,6 +367,7 @@ generate_instance_overlay() {
     -e "s|__THROTTLE_AUTH_REFRESH_TTL_MS__|$(_sed_escape_replacement "${throttle_auth_refresh_ttl_ms}")|g"
     -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_refresh_limit}")|g"
     -e "s|__DB_POOL_MAX__|$(_sed_escape_replacement "${db_pool_max}")|g"
+    -e "s|__DOCUMENT_RETENTION_DAYS__|$(_sed_escape_replacement "${document_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
