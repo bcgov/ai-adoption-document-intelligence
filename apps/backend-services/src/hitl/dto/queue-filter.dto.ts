@@ -28,6 +28,11 @@ export class QueueFilterDto {
   @IsString()
   modelId?: string;
 
+  @ApiPropertyOptional({ description: "Filter by workflow ID" })
+  @IsOptional()
+  @IsString()
+  workflowId?: string;
+
   @ApiPropertyOptional({ description: "Limit results", default: 50 })
   @IsOptional()
   @Type(() => Number)
@@ -59,6 +64,31 @@ export class QueueFilterDto {
   @IsOptional()
   @IsString()
   group_id?: string;
+
+  @ApiPropertyOptional({
+    description: "Filter by filename (case-insensitive, partial match)",
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: "Field to sort by",
+    enum: ["filename", "created_at", "model", "workflow"],
+    default: "created_at",
+  })
+  @IsOptional()
+  @IsEnum(["filename", "created_at", "model", "workflow"])
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+
+  @ApiPropertyOptional({
+    description: "Sort direction",
+    enum: ["asc", "desc"],
+    default: "desc",
+  })
+  @IsOptional()
+  @IsEnum(["asc", "desc"])
+  sortDir?: "asc" | "desc";
 }
 
 export class AnalyticsFilterDto {

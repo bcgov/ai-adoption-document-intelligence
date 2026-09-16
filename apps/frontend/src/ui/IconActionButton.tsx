@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from "react";
+import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import { type AppButtonProps, Button } from "./Button";
 import { Tooltip } from "./Tooltip";
 
@@ -10,6 +10,7 @@ export interface IconActionButtonProps {
   loading?: boolean;
   tooltip: string;
   icon: ReactNode;
+  style?: CSSProperties;
 }
 
 /**
@@ -24,6 +25,7 @@ export function IconActionButton({
   disabled,
   loading,
   onClick,
+  style,
 }: IconActionButtonProps) {
   return (
     <Tooltip label={tooltip}>
@@ -35,6 +37,7 @@ export function IconActionButton({
           loading={loading}
           onClick={onClick}
           aria-label={tooltip}
+          style={style}
         >
           {icon}
         </Button>
