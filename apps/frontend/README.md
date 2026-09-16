@@ -198,7 +198,7 @@ npm install
 
 ### Environment Configuration
 
-Create a `.env` file in `apps/frontend/`:
+This app reads from a single `.env` file at the repo root (see root [README.md](../../README.md#2-configure-environment)) — there is no `apps/frontend/.env`. Relevant keys:
 
 ```env
 # API Configuration (empty for Vite proxy in development)
