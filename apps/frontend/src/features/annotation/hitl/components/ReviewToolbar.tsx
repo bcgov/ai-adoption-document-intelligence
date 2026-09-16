@@ -9,7 +9,13 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import { Button, Group, IconActionButton, Switch } from "../../../../ui";
+import {
+  Button,
+  Group,
+  IconActionButton,
+  Switch,
+  Tooltip,
+} from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
@@ -24,6 +30,8 @@ interface ReviewToolbarProps {
   isFlagging?: boolean;
   isSkipping?: boolean;
   isRejecting?: boolean;
+  /** Note captured from a prior flag on this session, if one exists. */
+  flagNote?: string | null;
   autoAdvance?: boolean;
   onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
@@ -42,6 +50,7 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
   isFlagging,
   isSkipping,
   isRejecting,
+  flagNote,
   autoAdvance,
   onAutoAdvanceToggle,
   viewMode,
@@ -67,15 +76,40 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         >
           Approve
         </Button>
-        <Button
-          variant="light"
-          color="orange"
-          leftSection={<IconFlag size={16} />}
-          onClick={onFlag}
-          loading={isFlagging}
-        >
-          Flag
-        </Button>
+        <Tooltip label={flagNote ? `Flag note: ${flagNote}` : "Flag document"}>
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <Button
+              variant="light"
+              color="orange"
+              leftSection={<IconFlag size={16} />}
+              onClick={onFlag}
+              loading={isFlagging}
+            >
+              Flag
+            </Button>
+            {flagNote && (
+              <span
+                aria-label="Flag has a note"
+                style={{
+                  position: "absolute",
+                  top: -4,
+                  right: -4,
+                  width: 14,
+                  height: 14,
+                  borderRadius: "50%",
+                  background: "var(--mantine-color-red-6, #e03131)",
+                  color: "white",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: "14px",
+                  textAlign: "center",
+                }}
+              >
+                !
+              </span>
+            )}
+          </div>
+        </Tooltip>
         <Button
           variant="light"
           color="red"

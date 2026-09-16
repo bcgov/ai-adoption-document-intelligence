@@ -19,6 +19,7 @@ import { RejectionReason } from "../../../../shared/types";
 import {
   Accordion,
   ActionIcon,
+  Alert,
   Button,
   Checkbox,
   Group,
@@ -53,6 +54,7 @@ import {
   getConfidenceCanvasColor,
 } from "../components/ConfidenceIndicator";
 import { CorrectionHistory } from "../components/CorrectionHistory";
+import { FlagNoteModal } from "../components/FlagNoteModal";
 import { ReviewToolbar } from "../components/ReviewToolbar";
 import { ShortcutsOverlay } from "../components/ShortcutsOverlay";
 import { SnippetView } from "../components/SnippetView";
@@ -330,6 +332,7 @@ export const ReviewWorkspacePage: FC = () => {
     useState<RejectionReason | null>(null);
   const [rejectionComments, setRejectionComments] = useState("");
   const [rejectionAnnotations, setRejectionAnnotations] = useState("");
+  const [flagModalOpened, setFlagModalOpened] = useState(false);
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -795,8 +798,16 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   };
 
-  const handleFlag = useCallback(async () => {
-    await flagSessionAsync();
+  const handleFlag = useCallback(() => {
+    setFlagModalOpened(true);
+  }, []);
+
+  const closeFlagModal = () => {
+    setFlagModalOpened(false);
+  };
+
+  const handleConfirmFlag = async (note: string) => {
+    await flagSessionAsync({ note: note.trim() || undefined });
 
     notifications.show({
       title: "Document flagged",
@@ -805,10 +816,11 @@ export const ReviewWorkspacePage: FC = () => {
       autoClose: 3000,
     });
 
+    closeFlagModal();
     clearUndoStack();
     setCorrectionMap({});
     advanceOrReturn();
-  }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
+  };
 
   const handleReject = () => {
     setRejectModalOpened(true);
@@ -1082,6 +1094,16 @@ export const ReviewWorkspacePage: FC = () => {
         className="annotation-workspace"
         style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}
       >
+        {session.flagNote && (
+          <Alert
+            color="orange"
+            title="Flag note"
+            icon={<IconFlag size={16} />}
+            data-testid="flag-note-banner"
+          >
+            {session.flagNote}
+          </Alert>
+        )}
         {readOnly ? (
           <Group justify="space-between" style={{ flexShrink: 0 }}>
             <Button
@@ -1100,7 +1122,7 @@ export const ReviewWorkspacePage: FC = () => {
                 onClick={handleReopen}
                 loading={isReopening}
               >
-                Take for editing
+                Take
               </Button>
             ) : (
               canRelabel && (
@@ -1127,6 +1149,7 @@ export const ReviewWorkspacePage: FC = () => {
             isFlagging={isFlagging}
             isSkipping={isSkipping}
             isRejecting={isRejecting}
+            flagNote={session.flagNote}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1515,6 +1538,14 @@ export const ReviewWorkspacePage: FC = () => {
             </Group>
           </Stack>
         </Modal>
+
+        <FlagNoteModal
+          opened={flagModalOpened}
+          initialNote={session.flagNote ?? ""}
+          isSubmitting={isFlagging}
+          onClose={closeFlagModal}
+          onConfirm={handleConfirmFlag}
+        />
       </Stack>
     </KeyboardManager>
   );

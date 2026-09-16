@@ -61,6 +61,8 @@ interface ReviewSession {
   fieldDefinitions?: FieldDefinition[];
   /** Per-field review/skip plan from hitl.applyReviewCriteria, when present. */
   reviewPlan?: ReviewPlanEntry[];
+  /** Note captured when this session was flagged, shown to whoever opens it next. */
+  flagNote?: string | null;
 }
 
 interface CorrectionDto {
@@ -154,10 +156,10 @@ export const useReviewSession = (sessionId?: string) => {
   });
 
   const flagSessionMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (dto?: { note?: string }) => {
       const response = await apiService.post(
         `/hitl/sessions/${sessionId}/flag`,
-        {},
+        dto ?? {},
       );
       return response.data;
     },

@@ -24,6 +24,11 @@ export class QueueSessionSummaryDto {
 
   @ApiProperty()
   corrections_count!: number;
+
+  @ApiPropertyOptional({
+    description: "Note captured when the session was flagged",
+  })
+  flag_note?: string;
 }
 
 export class QueueDocumentDto {
@@ -158,6 +163,12 @@ export class ReviewSessionResponseDto {
     type: [ReviewPlanEntryDto],
   })
   reviewPlan?: ReviewPlanEntryDto[];
+
+  @ApiPropertyOptional({
+    description:
+      "Note captured when the session was flagged, explaining what stopped the previous reviewer",
+  })
+  flagNote?: string | null;
 }
 
 export class CorrectionRecordDto {

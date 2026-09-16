@@ -534,6 +534,10 @@ describe("ReviewDbService", () => {
       expect(mockReviewSession.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({ actor_id: "reviewer-1" }),
       });
+      // Corrections are attributed to whoever made them, not whoever currently owns the session.
+      expect(mockFieldCorrection.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ actor_id: "reviewer-1" }),
+      });
     });
 
     it("should apply groupIds filter", async () => {
