@@ -4,7 +4,7 @@
  * Supports multiple task queues for isolation between production and benchmarking
  */
 
-// MUST be first import: populates process.env (external override + repo .env)
+// MUST be first import: populates process.env from the repo-root .env
 // before any module below reads env at import time.
 import "./env-loader";
 

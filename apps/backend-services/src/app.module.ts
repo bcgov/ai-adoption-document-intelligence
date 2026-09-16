@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { ALERT_THRESHOLDS } from "@ai-di/monitoring";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -38,7 +39,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     LoggingModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ["../../.env", ".env"],
+      envFilePath: resolve(__dirname, "../../../.env"),
       cache: true,
     }),
     ScheduleModule.forRoot(),
