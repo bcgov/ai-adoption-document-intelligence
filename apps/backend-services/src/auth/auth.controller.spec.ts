@@ -359,6 +359,7 @@ describe("AuthController", () => {
         isAdmin: false,
         expires_in: expect.any(Number),
         groups: userGroups,
+        actorId: "actor-id",
       });
       expect(result.expires_in).toBeGreaterThan(0);
       expect(result.expires_in).toBeLessThanOrEqual(3600);

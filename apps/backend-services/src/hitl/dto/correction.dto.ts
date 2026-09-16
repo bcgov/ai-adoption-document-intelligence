@@ -55,9 +55,3 @@ export class SubmitCorrectionsDto {
   @Type(() => CorrectionDto)
   corrections!: CorrectionDto[];
 }
-
-export class EscalateDto {
-  @ApiProperty({ description: "Reason for escalation" })
-  @IsString()
-  reason!: string;
-}

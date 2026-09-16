@@ -57,30 +57,26 @@
   width: 100%;
 }
 
-/* Full-height workspace routes (labeling, review) — workspace uses full viewport; footer below (page scroll) */
+/* Full-height workspace routes (labeling, review): the whole route fits in ONE
+   viewport with no page scroll (no footer on these routes). Main is pinned to
+   viewport height and clips; the outlet fills the area below the fixed header,
+   and all scrolling happens inside inner panels. */
 .app-shell-main--workspace {
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  /* box-sizing:border-box (global reset) means this height absorbs Mantine's
+     header + padding offsets, so the content box is exactly the visible area
+     below the fixed header. */
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .app-shell-workspace-outlet {
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
+  flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
-  /* One viewport for document + fields; footer is not in this box */
-  height: calc(
-    100dvh -
-    var(--app-shell-header-offset, 0rem) -
-    2 *
-    var(--app-shell-padding, 1rem)
-  );
-}
-
-.app-shell-bcds-footer--workspace {
-  flex-shrink: 0;
 }
 
 .app-shell-workspace-outlet > * {
@@ -102,10 +98,19 @@
   overflow: hidden;
 }
 
-/* Field panel list — scrolls inside the panel, not the page */
-.workspace-field-list-scroll {
+/* Field panel list — scrolls inside the panel, not the page.
+   The viewport is a flex-sized, relatively-positioned box; the scroller is
+   pinned inside it (absolute inset:0) so the tall list never leaks its height
+   into the document scroll (see FieldListScrollArea). */
+.workspace-field-list-viewport {
+  position: relative;
   flex: 1 1 0;
   min-height: 0;
+}
+
+.workspace-field-list-scroll {
+  position: absolute;
+  inset: 0;
   overflow-x: hidden;
   overflow-y: scroll;
   scrollbar-gutter: stable;

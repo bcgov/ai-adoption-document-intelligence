@@ -414,14 +414,9 @@ export function RootLayout() {
         style={{ display: "flex", flexDirection: "column" }}
       >
         {workspaceRoute ? (
-          <>
-            <div className="app-shell-workspace-outlet">
-              <Outlet />
-            </div>
-            <div className="app-shell-bcds-footer app-shell-bcds-footer--workspace">
-              <Footer hideLogoAndLinks />
-            </div>
-          </>
+          <div className="app-shell-workspace-outlet">
+            <Outlet />
+          </div>
         ) : (
           <>
             <Stack gap="lg" style={{ minHeight: "100dvh" }}>

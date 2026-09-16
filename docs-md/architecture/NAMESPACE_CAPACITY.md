@@ -37,7 +37,7 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `backend-services` | 100m | 1Gi (1024Mi) |
-| `logrotate` | 10m | 32Mi |
+| `log-rotator` | 10m | 32Mi |
 | `promtail` | 50m | 64Mi |
 | **Pod total** | **160m** | **1120Mi** |
 
@@ -46,7 +46,7 @@ Limits are not shown here; see individual deployment manifests.
 | Container | CPU req | Memory req |
 |---|---|---|
 | `temporal-worker` | 100m | 768Mi |
-| `logrotate` | 10m | 32Mi |
+| `log-rotator` | 10m | 32Mi |
 | `promtail` | 50m | 64Mi |
 | **Pod total** | **160m** | **864Mi** |
 
@@ -243,11 +243,10 @@ headroom for migrations, monitoring tools, and pgAdmin.
 The `fd34fb-test` `storage-quota` of 64Gi is 100% consumed independently of compute
 scaling. Root causes include:
 
-- CrunchyDB WAL and backup PVCs (default `PG_BACKUP_STORAGE_SIZE=10Gi`)
+- CrunchyDB WAL and backup PVCs (test base: 10Gi each; prod: 15Gi `app-pg` / 22Gi `temporal-pg` via `components/prod-resources`)
 - MinIO document storage PVCs
 
-See `docs-md/operations/ENVIRONMENT_CONFIGURATION.md` for `PG_BACKUP_STORAGE_SIZE`
-guidance. Reduce to `2Gi` for short-lived test instances. Storage quota exhaustion
+For short-lived test instances, the base 10Gi backup PVC values are used as-is. Storage quota exhaustion
 is an operational concern and does not interact with HPA behaviour.
 
 ---

@@ -1,24 +1,28 @@
 import {
-  IconAlertTriangle,
+  IconArrowLeft,
   IconArrowsSort,
   IconCheck,
+  IconFlag,
   IconLayoutGrid,
   IconPhoto,
   IconPlayerSkipForward,
 } from "@tabler/icons-react";
 import { FC } from "react";
-import { Button, Group, IconActionButton } from "../../../../ui";
+import { Button, Group, IconActionButton, Switch } from "../../../../ui";
 
 type ViewMode = "document" | "snippet";
 type SortMode = "confidence" | "alphabetical";
 
 interface ReviewToolbarProps {
+  onBack: () => void;
   onApprove: () => void;
-  onEscalate: () => void;
+  onFlag: () => void;
   onSkip: () => void;
   isApproving?: boolean;
-  isEscalating?: boolean;
+  isFlagging?: boolean;
   isSkipping?: boolean;
+  autoAdvance?: boolean;
+  onAutoAdvanceToggle?: () => void;
   viewMode?: ViewMode;
   onViewModeToggle?: () => void;
   sortMode?: SortMode;
@@ -26,12 +30,15 @@ interface ReviewToolbarProps {
 }
 
 export const ReviewToolbar: FC<ReviewToolbarProps> = ({
+  onBack,
   onApprove,
-  onEscalate,
+  onFlag,
   onSkip,
   isApproving,
-  isEscalating,
+  isFlagging,
   isSkipping,
+  autoAdvance,
+  onAutoAdvanceToggle,
   viewMode,
   onViewModeToggle,
   sortMode,
@@ -41,6 +48,14 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
     <Group justify="space-between">
       <Group>
         <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconArrowLeft size={16} />}
+          onClick={onBack}
+        >
+          Back
+        </Button>
+        <Button
           leftSection={<IconCheck size={16} />}
           onClick={onApprove}
           loading={isApproving}
@@ -49,12 +64,12 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         </Button>
         <Button
           variant="light"
-          color="yellow"
-          leftSection={<IconAlertTriangle size={16} />}
-          onClick={onEscalate}
-          loading={isEscalating}
+          color="orange"
+          leftSection={<IconFlag size={16} />}
+          onClick={onFlag}
+          loading={isFlagging}
         >
-          Escalate
+          Flag
         </Button>
       </Group>
 
@@ -91,15 +106,25 @@ export const ReviewToolbar: FC<ReviewToolbarProps> = ({
         )}
       </Group>
 
-      <Button
-        variant="subtle"
-        color="gray"
-        leftSection={<IconPlayerSkipForward size={16} />}
-        onClick={onSkip}
-        loading={isSkipping}
-      >
-        Skip
-      </Button>
+      <Group>
+        <Button
+          variant="subtle"
+          color="gray"
+          leftSection={<IconPlayerSkipForward size={16} />}
+          onClick={onSkip}
+          loading={isSkipping}
+        >
+          Skip
+        </Button>
+        {onAutoAdvanceToggle && (
+          <Switch
+            size="sm"
+            label="Auto-advance"
+            checked={autoAdvance ?? true}
+            onChange={onAutoAdvanceToggle}
+          />
+        )}
+      </Group>
     </Group>
   );
 };

@@ -6,5 +6,6 @@ export enum DocumentStatusFilter {
 export enum ReviewStatusFilter {
   PENDING = "pending",
   REVIEWED = "reviewed",
+  FLAGGED = "flagged",
   ALL = "all",
 }

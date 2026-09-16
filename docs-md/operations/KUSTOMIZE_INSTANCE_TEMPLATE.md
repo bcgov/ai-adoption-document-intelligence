@@ -23,7 +23,7 @@ The template uses placeholder tokens that the deploy script replaces with actual
 | `__SSO_REALM__` | SSO realm name | `my-realm` |
 | `__SSO_CLIENT_ID__` | SSO client identifier | `my-client` |
 
-The template also carries app-configuration tokens beyond the core set above: `__BOOTSTRAP_ADMIN_EMAIL__`, `__BLOB_STORAGE_PROVIDER__`, `__AZURE_STORAGE_CONTAINER_NAME__`, `__BENCHMARK_TASK_QUEUE__`, `__ENABLE_BENCHMARK_QUEUE__`, `__BODY_LIMIT__`, `__THROTTLE_*__` (global/auth/auth-refresh TTL+limit), `__DB_POOL_MAX__`, `__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__`, `__AZURE_DOC_INTELLIGENCE_MODELS__`, `__AZURE_OPENAI_ENDPOINT__`/`__AZURE_OPENAI_DEPLOYMENT__`/`__AZURE_OPENAI_API_VERSION__`, `__ENRICHMENT_REDACT_PII__`, `__DOCUMENT_INTELLIGENCE_MODE__`, `__MOCK_AZURE_OCR__`, `__PG_BACKUP_STORAGE_SIZE__`, and `__MINIO_*__`. Each has a matching `generate_instance_overlay` flag with a sensible default (see `scripts/lib/generate-overlay.sh`); the instance/namespace/domain/image and SSO tokens are required arguments.
+The template also carries app-configuration tokens beyond the core set above: `__BOOTSTRAP_ADMIN_EMAIL__`, `__BLOB_STORAGE_PROVIDER__`, `__AZURE_STORAGE_CONTAINER_NAME__`, `__BENCHMARK_TASK_QUEUE__`, `__ENABLE_BENCHMARK_QUEUE__`, `__BODY_LIMIT__`, `__THROTTLE_*__` (global/auth/auth-refresh TTL+limit), `__DB_POOL_MAX__`, `__AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT__`, `__AZURE_DOC_INTELLIGENCE_MODELS__`, `__AZURE_OPENAI_ENDPOINT__`/`__AZURE_OPENAI_DEPLOYMENT__`/`__AZURE_OPENAI_API_VERSION__`, `__ENRICHMENT_REDACT_PII__`, `__DOCUMENT_INTELLIGENCE_MODE__`, `__MOCK_AZURE_OCR__`, and `__MINIO_*__`. Each has a matching `generate_instance_overlay` flag with a sensible default (see `scripts/lib/generate-overlay.sh`); the instance/namespace/domain/image and SSO tokens are required arguments.
 
 ### Kustomize Features Used
 
@@ -69,7 +69,7 @@ Crunchy PostgreSQL operator creates secrets with names derived from the Postgres
 - **Temporal PostgresCluster**: `databaseInitSQL.name` patched to `<instance>-temporal-postgres-init-sql` (Kustomize doesn't auto-update this CRD field)
 
 #### PostgresCluster backup PVC sizes and retention
-- Both PostgresClusters (`app-pg`, `temporal-pg`) have their pgBackRest repo volume size patched to `__PG_BACKUP_STORAGE_SIZE__` (default `10Gi`), so test instances can use smaller backup storage
+- Backup PVC sizes are **not** configured via overlay tokens. Test instances use the base manifest values (`10Gi` for both `app-pg` and `temporal-pg`). Prod sizes (`15Gi` for `app-pg`, `22Gi` for `temporal-pg`, each matching the live PVC) are patched by `components/prod-resources/kustomization.yml`, which applies before instance-template overlay patches — the instance-template no longer touches these fields, so the component patch reaches the deployed manifest cleanly.
 - Backup retention is **14 days** (time-based) with a daily full backup and hourly incrementals (set in the base PostgresCluster manifests, not via env overlay)
 
 ## Instance Isolation
@@ -113,7 +113,7 @@ oc apply -k "${OVERLAY_DIR}"
 cleanup_generated_overlay "${OVERLAY_DIR}"
 ```
 
-The `--sso-*` arguments are required alongside the instance/namespace/domain/image arguments; all other app-config flags (throttling, blob storage, Azure endpoints, `--pg-backup-storage-size`, etc.) are optional with defaults.
+The `--sso-*` arguments are required alongside the instance/namespace/domain/image arguments; all other app-config flags (throttling, blob storage, Azure endpoints, etc.) are optional with defaults.
 
 The function copies the template to a nested temporary directory structure (`tmpdir/overlays/instance/`) with a symlink (`tmpdir/base` -> real base dir) so the relative path `../../base` in the kustomization resolves correctly. It replaces all placeholder tokens and returns the path. The caller is responsible for cleanup via `cleanup_generated_overlay`.
 

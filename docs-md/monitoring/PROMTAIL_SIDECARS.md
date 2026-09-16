@@ -17,7 +17,7 @@ Each application pod includes a Promtail sidecar container that:
 | backend-services | Application logs via `tee` to shared PVC | `service=backend-services` | `/var/log/app/*.log` |
 | temporal-worker | Worker logs via `tee` to shared PVC | `service=temporal-worker` | `/var/log/app/*.log` |
 | temporal-server | Server logs via `tee` to emptyDir | `service=temporal-server` | `/var/log/app/*.log` |
-| frontend | Nginx access/error logs via symlinks to emptyDir | `service=frontend` | `/var/log/app/*.log` |
+| frontend | Nginx access/error logs written directly to emptyDir | `service=frontend` | `/var/log/app/*.log` |
 | postgresql | PostgreSQL logging_collector output on pgdata volume | `service=postgresql` | `/pgdata/pg16/log/*.log` |
 
 ## Resource Limits
@@ -58,13 +58,13 @@ All Promtail sidecars are configured to push logs to `http://loki:3100/loki/api/
 
 ## Shared Volume Patterns
 
-### PVC-backed (backend-services, temporal-worker)
+### emptyDir (all application services)
 
-These services already had a logrotate sidecar writing to `/var/log/app/` on a PersistentVolumeClaim. The Promtail sidecar mounts the same PVC volume in read-only mode.
+Every application service shares its log file with Promtail through an ephemeral `emptyDir` mounted at `/var/log/app/`, one per pod. Logs are not persisted across pod restarts, and do not need to be: Promtail forwards them to Loki in near real-time, and Loki is the durable copy.
 
-### emptyDir (temporal-server, frontend)
+A `ReadWriteMany` PVC must not be used here. It was, for backend-services and temporal-worker, and it corrupted the logs: every replica appends to one file over NFS, which has no atomic append, so each replica writes at the end-of-file its own client has cached — overwriting other replicas' lines and zero-filling the gaps between them. It also meant every replica's Promtail tailed the same file and shipped each line once per replica.
 
-These services use ephemeral `emptyDir` volumes for log sharing. Logs are not persisted across pod restarts, but Promtail forwards them to Loki in near real-time.
+Services carrying a log file also run a `log-rotator` sidecar that truncates it past 10 MB, so an ephemeral volume cannot grow into the node's disk. See [LOGGING.md](LOGGING.md).
 
 ### pgdata volume (PostgreSQL)
 
@@ -102,7 +102,7 @@ All sidecars use `grafana/promtail:3.4.2`. To update the Promtail version, chang
 - `deployments/openshift/kustomize/base/temporal/temporal-server-deployment.yml` - Added log output redirection, logs volume, and Promtail sidecar
 - `deployments/openshift/kustomize/base/temporal/promtail-configmap-server.yml` - New Promtail ConfigMap for server
 - `deployments/openshift/kustomize/base/temporal/kustomization.yml` - Added promtail configmap resources
-- `deployments/openshift/kustomize/base/frontend/deployment.yml` - Added nginx log redirection, logs volume, and Promtail sidecar
+- `deployments/openshift/kustomize/base/frontend/deployment.yml` - Added logs volume and Promtail sidecar
 - `deployments/openshift/kustomize/base/frontend/promtail-configmap.yml` - New Promtail ConfigMap
 - `deployments/openshift/kustomize/base/frontend/kustomization.yml` - Added promtail-configmap.yml resource
 - `deployments/openshift/kustomize/base/crunchydb/postgrescluster.yml` - Added Promtail sidecar container, config volume, and PostgreSQL logging parameters

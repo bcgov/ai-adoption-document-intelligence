@@ -39,4 +39,12 @@ export class NextSessionFilterDto {
   @IsOptional()
   @IsString()
   group_id?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Document ID to exclude (prevents re-opening the just-reviewed document)",
+  })
+  @IsOptional()
+  @IsString()
+  excludeDocumentId?: string;
 }

@@ -11,6 +11,19 @@ import { AppLoggerService } from "@/logging/app-logger.service";
 import { PrismaService } from "../database/prisma.service";
 import type { ReviewSessionData } from "./review-db.types";
 
+/** Filter criteria shared by the review queue page, its total, and its stats. */
+export interface ReviewQueueFilters {
+  statuses: DocumentStatus[];
+  modelId?: string;
+  minConfidence?: number;
+  maxConfidence?: number;
+  limit?: number;
+  offset?: number;
+  reviewStatus?: "pending" | "reviewed" | "flagged" | "all";
+  groupIds?: string[];
+  currentReviewerId?: string;
+}
+
 @Injectable()
 export class ReviewDbService {
   constructor(
@@ -89,27 +102,13 @@ export class ReviewDbService {
   }
 
   /**
-   * Finds documents in the review queue based on filter criteria.
-   * @param filters - Filtering options for the queue.
-   * @returns Array of documents matching the filter criteria.
+   * Builds the document filter shared by the queue page, its total, and the
+   * queue statistics, so a document counted in a stat is the same document the
+   * queue would list.
    */
-  async findReviewQueue(
-    filters: {
-      statuses: DocumentStatus[];
-      modelId?: string;
-      minConfidence?: number;
-      maxConfidence?: number;
-      limit?: number;
-      offset?: number;
-      reviewStatus?: "pending" | "reviewed" | "all";
-      groupIds?: string[];
-      currentReviewerId?: string;
-    },
-    tx?: Prisma.TransactionClient,
-  ): Promise<Document[]> {
-    const client = tx ?? this.prisma;
-    this.logger.debug("Finding review queue");
-
+  private buildReviewQueueWhere(
+    filters: ReviewQueueFilters,
+  ): Prisma.DocumentWhereInput {
     const where: Prisma.DocumentWhereInput = {
       status: { in: filters.statuses },
       // Only documents ingested through the regular API/upload pipeline are
@@ -144,23 +143,101 @@ export class ReviewDbService {
         { review_sessions: { none: {} } },
         {
           review_sessions: {
-            every: { status: ReviewStatus.in_progress },
+            every: {
+              status: {
+                in: [ReviewStatus.in_progress, ReviewStatus.abandoned],
+              },
+            },
           },
         },
       ];
+    } else if (filters.reviewStatus === "flagged") {
+      where.review_sessions = {
+        some: { status: ReviewStatus.flagged },
+        none: { status: ReviewStatus.approved },
+      };
     } else if (filters.reviewStatus === "reviewed") {
       where.review_sessions = {
-        some: {
-          status: {
-            in: [
-              ReviewStatus.approved,
-              ReviewStatus.escalated,
-              ReviewStatus.skipped,
-            ],
-          },
-        },
+        some: { status: ReviewStatus.approved },
       };
     }
+
+    return where;
+  }
+
+  /**
+   * Counts every document the queue filter matches, ignoring pagination.
+   * @param filters - The same filters passed to findReviewQueue.
+   * @returns The number of matching documents.
+   */
+  async countReviewQueue(
+    filters: ReviewQueueFilters,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.document.count({
+      where: this.buildReviewQueueWhere(filters),
+    });
+  }
+
+  /**
+   * Reads the extracted fields of every document the filter matches, without
+   * pagination, so an average over them covers the whole queue. Only the OCR
+   * field payload is selected — the rest of the document row is not needed.
+   * @param filters - The same filters passed to findReviewQueue.
+   * @returns One entry per document that has an OCR result.
+   */
+  async findQueueFieldPayloads(
+    filters: ReviewQueueFilters,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.JsonValue[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.document.findMany({
+      where: {
+        ...this.buildReviewQueueWhere(filters),
+        ocr_result: { isNot: null },
+      },
+      select: { ocr_result: { select: { keyValuePairs: true } } },
+    });
+    return rows
+      .map((row) => row.ocr_result?.keyValuePairs)
+      .filter((fields): fields is Prisma.JsonValue => fields != null);
+  }
+
+  /**
+   * Counts sessions approved within a time window.
+   * @param since - Start of the window (inclusive).
+   * @param groupIds - Restrict to documents in these groups.
+   * @returns The number of sessions approved since `since`.
+   */
+  async countApprovedSessionsSince(
+    since: Date,
+    groupIds?: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    return client.reviewSession.count({
+      where: {
+        status: ReviewStatus.approved,
+        completed_at: { gte: since },
+        ...(groupIds ? { document: { group_id: { in: groupIds } } } : {}),
+      },
+    });
+  }
+
+  /**
+   * Finds documents in the review queue based on filter criteria.
+   * @param filters - Filtering options for the queue.
+   * @returns Array of documents matching the filter criteria.
+   */
+  async findReviewQueue(
+    filters: ReviewQueueFilters,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Document[]> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Finding review queue");
+
+    const where = this.buildReviewQueueWhere(filters);
 
     return client.document.findMany({
       where,
@@ -169,14 +246,15 @@ export class ReviewDbService {
       skip: filters.offset ?? 0,
       include: {
         ocr_result: true,
+        lock: true,
         review_sessions: {
           where: {
+            // Exclude in_progress — lock record determines "In review" display; these are noise
             status: {
               in: [
-                ReviewStatus.in_progress,
                 ReviewStatus.approved,
-                ReviewStatus.escalated,
-                ReviewStatus.skipped,
+                ReviewStatus.flagged,
+                ReviewStatus.abandoned,
               ],
             },
           },
@@ -357,6 +435,75 @@ export class ReviewDbService {
         document_id: documentId,
         expires_at: { gt: new Date() },
       },
+    });
+  }
+
+  /**
+   * Finds locks whose expiry has passed, with the group and workflow context an
+   * audit event needs.
+   * @param now - The cutoff time; locks expiring at or before it are returned.
+   * @returns One entry per expired lock.
+   */
+  async findExpiredLocks(
+    now: Date,
+    tx?: Prisma.TransactionClient,
+  ): Promise<
+    Array<{
+      session_id: string;
+      document_id: string;
+      group_id: string;
+      workflow_execution_id: string | null;
+    }>
+  > {
+    const client = tx ?? this.prisma;
+    const locks = await client.documentLock.findMany({
+      where: { expires_at: { lte: now } },
+      select: {
+        session_id: true,
+        document_id: true,
+        document: {
+          select: { group_id: true, workflow_execution_id: true },
+        },
+      },
+    });
+    return locks.map((lock) => ({
+      session_id: lock.session_id,
+      document_id: lock.document_id,
+      group_id: lock.document.group_id,
+      workflow_execution_id: lock.document.workflow_execution_id,
+    }));
+  }
+
+  /**
+   * Marks in-progress sessions as abandoned. Sessions in any other status are
+   * left alone, so a session that finished between the scan and this write
+   * keeps its outcome.
+   * @param sessionIds - The sessions to abandon.
+   * @returns How many sessions were updated.
+   */
+  async abandonSessions(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.reviewSession.updateMany({
+      where: { id: { in: sessionIds }, status: ReviewStatus.in_progress },
+      data: { status: ReviewStatus.abandoned },
+    });
+    return result.count;
+  }
+
+  /**
+   * Releases locks for several sessions at once.
+   * @param sessionIds - The sessions whose locks should be released.
+   */
+  async releaseDocumentLocks(
+    sessionIds: string[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx ?? this.prisma;
+    await client.documentLock.deleteMany({
+      where: { session_id: { in: sessionIds } },
     });
   }
 

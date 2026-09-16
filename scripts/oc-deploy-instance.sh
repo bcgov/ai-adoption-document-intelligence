@@ -207,8 +207,6 @@ AZURE_STORAGE_CONNECTION_STRING=$(require_cfg AZURE_STORAGE_CONNECTION_STRING)
 AZURE_STORAGE_ACCOUNT_NAME=$(require_cfg AZURE_STORAGE_ACCOUNT_NAME)
 AZURE_STORAGE_ACCOUNT_KEY=$(require_cfg AZURE_STORAGE_ACCOUNT_KEY)
 
-PG_BACKUP_STORAGE_SIZE=$(optional_cfg PG_BACKUP_STORAGE_SIZE 10Gi)
-
 DOCUMENT_INTELLIGENCE_MODE=$(optional_cfg DOCUMENT_INTELLIGENCE_MODE live)
 MOCK_AZURE_OCR=$(optional_cfg MOCK_AZURE_OCR false)
 
@@ -241,10 +239,6 @@ if [[ "${BLOB_STORAGE_PROVIDER}" == "minio" ]]; then
 fi
 
 GRAFANA_ADMIN_PASSWORD=$(optional_cfg GRAFANA_ADMIN_PASSWORD admin)
-LOKI_RETENTION_DAYS=$(optional_cfg LOKI_RETENTION_DAYS 30)
-LOKI_PVC_SIZE=$(optional_cfg LOKI_PVC_SIZE 2Gi)
-PROMETHEUS_PVC_SIZE=$(optional_cfg PROMETHEUS_PVC_SIZE 2Gi)
-METRICS_SCRAPE_INTERVAL=$(optional_cfg METRICS_SCRAPE_INTERVAL 15s)
 
 for bin in oc; do
   command -v "${bin}" >/dev/null 2>&1 || {
@@ -337,7 +331,6 @@ OVERLAY_DIR="$(generate_instance_overlay \
   --enrichment-redact-pii "${ENRICHMENT_REDACT_PII}" \
   --azure-doc-intelligence-endpoint "${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT}" \
   --azure-doc-intelligence-models "${AZURE_DOC_INTELLIGENCE_MODELS}" \
-  --pg-backup-storage-size "${PG_BACKUP_STORAGE_SIZE}" \
   --document-intelligence-mode "${DOCUMENT_INTELLIGENCE_MODE}" \
   --mock-azure-ocr "${MOCK_AZURE_OCR}" \
   --minio-endpoint "${MINIO_ENDPOINT_VALUE}" \
@@ -425,11 +418,8 @@ if [[ "${DEPLOY_PLG_EFFECTIVE}" == true ]]; then
   helm upgrade --install "${PLG_RELEASE}" "${PLG_CHART_DIR}" \
     --namespace "${OC_NAMESPACE}" \
     -f "${PLG_CHART_DIR}/values-openshift.yaml" \
+    -f "${PLG_CHART_DIR}/values-${ENV_PROFILE}.yaml" \
     --set "grafana.adminPassword=${GRAFANA_ADMIN_PASSWORD}" \
-    --set "loki.retentionDays=${LOKI_RETENTION_DAYS}" \
-    --set "loki.pvcSize=${LOKI_PVC_SIZE}" \
-    --set "prometheus.pvcSize=${PROMETHEUS_PVC_SIZE}" \
-    --set "prometheus.scrapeInterval=${METRICS_SCRAPE_INTERVAL}" \
     --set "prometheus.scrapeTargets.backendServices.host=${INSTANCE_NAME}-backend-services" \
     --set "prometheus.scrapeTargets.temporalServer.host=${INSTANCE_NAME}-temporal" \
     --wait --timeout 120s || echo "[WARN] PLG deployment failed or timed out (non-blocking)."

@@ -46,7 +46,7 @@ spec:
                 - 'ReadWriteOnce'
               resources:
                 requests:
-                  storage: 10Gi # Overridden at deploy time by PG_BACKUP_STORAGE_SIZE secret via instance-template overlay
+                  storage: 10Gi # prod override in components/prod-resources; test uses this base value
       repoHost:
         resources:
           requests:

@@ -12,7 +12,9 @@ const mockReviewSession = {
   create: jest.fn(),
   findUnique: jest.fn(),
   update: jest.fn(),
+  updateMany: jest.fn(),
   findMany: jest.fn(),
+  count: jest.fn(),
 };
 
 const mockFieldCorrection = {
@@ -23,6 +25,7 @@ const mockFieldCorrection = {
 
 const mockDocument = {
   findMany: jest.fn(),
+  count: jest.fn(),
 };
 
 const mockDocumentLock = {
@@ -31,6 +34,7 @@ const mockDocumentLock = {
   deleteMany: jest.fn(),
   updateMany: jest.fn(),
   findFirst: jest.fn(),
+  findMany: jest.fn(),
 };
 
 const mockTemplateModel = {
@@ -249,7 +253,7 @@ describe("ReviewDbService", () => {
       expect(mockDocument.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            review_sessions: { some: { status: { in: expect.any(Array) } } },
+            review_sessions: { some: { status: ReviewStatus.approved } },
           }),
         }),
       );
@@ -347,7 +351,7 @@ describe("ReviewDbService", () => {
       mockReviewSession.update.mockRejectedValue({ code: "P2025" });
 
       const result = await service.updateReviewSession("not-found", {
-        status: ReviewStatus.skipped,
+        status: ReviewStatus.flagged,
       });
 
       expect(result).toBeNull();
@@ -862,6 +866,123 @@ describe("ReviewDbService", () => {
       });
 
       expect(result).toEqual([]);
+    });
+  });
+  describe("countReviewQueue", () => {
+    it("counts with the same filter the queue page uses", async () => {
+      mockDocument.count.mockResolvedValue(42);
+
+      const result = await service.countReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+        groupIds: ["group-1"],
+      });
+
+      expect(result).toBe(42);
+      const [args] = mockDocument.count.mock.calls[0];
+      expect(args.where.status).toEqual({
+        in: [DocumentStatus.awaiting_review],
+      });
+      expect(args.where.group_id).toEqual({ in: ["group-1"] });
+      expect(args.where.OR).toEqual(
+        expect.arrayContaining([{ review_sessions: { none: {} } }]),
+      );
+      // A count must not be paginated, or it is just a page size
+      expect(args).not.toHaveProperty("take");
+      expect(args).not.toHaveProperty("skip");
+    });
+  });
+
+  describe("findQueueFieldPayloads", () => {
+    it("selects only OCR fields, for every matching document", async () => {
+      mockDocument.findMany.mockResolvedValue([
+        { ocr_result: { keyValuePairs: { a: { confidence: 0.5 } } } },
+        { ocr_result: { keyValuePairs: null } },
+      ]);
+
+      const result = await service.findQueueFieldPayloads({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "all",
+      });
+
+      expect(result).toEqual([{ a: { confidence: 0.5 } }]);
+      const [args] = mockDocument.findMany.mock.calls.at(-1)!;
+      expect(args.select).toEqual({
+        ocr_result: { select: { keyValuePairs: true } },
+      });
+      expect(args).not.toHaveProperty("take");
+    });
+  });
+
+  describe("countApprovedSessionsSince", () => {
+    it("counts approved sessions completed on or after the cutoff", async () => {
+      mockReviewSession.count.mockResolvedValue(3);
+      const since = new Date("2026-08-25T00:00:00.000Z");
+
+      const result = await service.countApprovedSessionsSince(since, [
+        "group-1",
+      ]);
+
+      expect(result).toBe(3);
+      expect(mockReviewSession.count).toHaveBeenCalledWith({
+        where: {
+          status: ReviewStatus.approved,
+          completed_at: { gte: since },
+          document: { group_id: { in: ["group-1"] } },
+        },
+      });
+    });
+  });
+
+  describe("expired lock handling", () => {
+    it("returns expired locks with the context an audit event needs", async () => {
+      mockDocumentLock.findMany.mockResolvedValue([
+        {
+          session_id: "session-1",
+          document_id: "doc-1",
+          document: { group_id: "group-1", workflow_execution_id: "wf-1" },
+        },
+      ]);
+      const now = new Date("2026-08-25T12:00:00.000Z");
+
+      const result = await service.findExpiredLocks(now);
+
+      expect(result).toEqual([
+        {
+          session_id: "session-1",
+          document_id: "doc-1",
+          group_id: "group-1",
+          workflow_execution_id: "wf-1",
+        },
+      ]);
+      expect(mockDocumentLock.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { expires_at: { lte: now } } }),
+      );
+    });
+
+    it("abandons only sessions still in progress", async () => {
+      mockReviewSession.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await service.abandonSessions(["session-1", "session-2"]);
+
+      expect(result).toBe(1);
+      expect(mockReviewSession.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ["session-1", "session-2"] },
+          status: ReviewStatus.in_progress,
+        },
+        data: { status: ReviewStatus.abandoned },
+      });
+    });
+
+    it("releases locks for several sessions at once", async () => {
+      mockDocumentLock.deleteMany.mockResolvedValue({ count: 2 });
+
+      await service.releaseDocumentLocks(["session-1", "session-2"]);
+
+      expect(mockDocumentLock.deleteMany).toHaveBeenCalledWith({
+        where: { session_id: { in: ["session-1", "session-2"] } },
+      });
     });
   });
 });

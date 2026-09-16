@@ -315,8 +315,7 @@ export class GroundTruthJobDbService {
                   in: [
                     ReviewStatus.in_progress,
                     ReviewStatus.approved,
-                    ReviewStatus.escalated,
-                    ReviewStatus.skipped,
+                    ReviewStatus.flagged,
                   ],
                 },
               },

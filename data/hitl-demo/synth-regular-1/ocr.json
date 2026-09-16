@@ -1,0 +1,4388 @@
+{
+  "keyValuePairs": {
+    "sin": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 9,
+          "offset": 2971
+        }
+      ],
+      "content": "709732409",
+      "confidence": 0.973,
+      "valueString": "709732409",
+      "boundingRegions": [
+        {
+          "polygon": [
+            11.505,
+            26.255,
+            16.78,
+            26.255,
+            16.78,
+            26.775,
+            11.505,
+            26.775
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "date": {
+      "type": "date",
+      "spans": [
+        {
+          "length": 11,
+          "offset": 2756
+        }
+      ],
+      "content": "2009-Apr-22",
+      "confidence": 0.99,
+      "valueString": "2009-Apr-22",
+      "boundingRegions": [
+        {
+          "polygon": [
+            13.235,
+            23.705,
+            17.04,
+            23.705,
+            17.04,
+            24.135,
+            13.235,
+            24.135
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "name": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 14,
+          "offset": 2821
+        }
+      ],
+      "content": "Amanda Russell",
+      "confidence": 0.99,
+      "valueString": "Amanda Russell",
+      "boundingRegions": [
+        {
+          "polygon": [
+            6.13,
+            24.96,
+            13.76,
+            24.96,
+            13.76,
+            25.535,
+            6.13,
+            25.535
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "phone": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 11,
+          "offset": 2959
+        }
+      ],
+      "content": "442-836-849",
+      "confidence": 0.983,
+      "valueString": "442-836-849",
+      "boundingRegions": [
+        {
+          "polygon": [
+            2.68,
+            26.225,
+            9.085,
+            26.225,
+            9.085,
+            26.755,
+            2.68,
+            26.755
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "signature": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 2745
+        }
+      ],
+      "content": "A. Russell",
+      "confidence": 0.987,
+      "valueString": "A. Russell",
+      "boundingRegions": [
+        {
+          "polygon": [
+            4.15,
+            23.675,
+            9.56,
+            23.675,
+            9.56,
+            24.265,
+            4.15,
+            24.265
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_sin": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 2993
+        }
+      ],
+      "content": "170-191- 504",
+      "confidence": 0.99,
+      "valueString": "170-191- 504",
+      "boundingRegions": [
+        {
+          "polygon": [
+            26.945,
+            26.2,
+            33.465,
+            26.2,
+            33.465,
+            26.765,
+            26.945,
+            26.765
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_date": {
+      "type": "date",
+      "spans": [
+        {
+          "length": 11,
+          "offset": 2788
+        }
+      ],
+      "content": "2015-Jul-12",
+      "valueDate": "2015-07-12",
+      "confidence": 0.99,
+      "valueString": "2015-Jul-12",
+      "boundingRegions": [
+        {
+          "polygon": [
+            28.365,
+            23.705,
+            33.7,
+            23.705,
+            33.7,
+            24.185,
+            28.365,
+            24.185
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_name": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 19,
+          "offset": 2854
+        }
+      ],
+      "content": "Alexandria Martinez",
+      "confidence": 0.99,
+      "valueString": "Alexandria Martinez",
+      "boundingRegions": [
+        {
+          "polygon": [
+            21.335,
+            24.985,
+            31.035,
+            24.985,
+            31.035,
+            25.54,
+            21.335,
+            25.54
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_phone": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 11,
+          "offset": 2981
+        }
+      ],
+      "content": "307-124-414",
+      "confidence": 0.99,
+      "valueString": "307-124-414",
+      "boundingRegions": [
+        {
+          "polygon": [
+            18.82,
+            26.26,
+            25.7,
+            26.26,
+            25.7,
+            26.785,
+            18.82,
+            26.785
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_oas_gis": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "explain_changes": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 165,
+          "offset": 1557
+        }
+      ],
+      "content": "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+      "confidence": 0.892,
+      "valueString": "My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.",
+      "boundingRegions": [
+        {
+          "polygon": [
+            2.04,
+            19.155,
+            17.96,
+            19.155,
+            17.96,
+            21.13,
+            2.04,
+            21.13
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "checkbox_work_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1244
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.605,
+            16.245,
+            13.25,
+            16.245,
+            13.25,
+            16.91,
+            12.605,
+            16.91
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_signature": {
+      "type": "string",
+      "spans": [
+        {
+          "length": 19,
+          "offset": 2768
+        }
+      ],
+      "content": "Alexandria Martinez",
+      "confidence": 0.974,
+      "valueString": "Alexandria Martinez",
+      "boundingRegions": [
+        {
+          "polygon": [
+            18.445,
+            23.73,
+            27.825,
+            23.73,
+            27.825,
+            24.29,
+            18.445,
+            24.29
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "applicant_oas_gis": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 7,
+          "offset": 2119
+        }
+      ],
+      "content": "4431.06",
+      "confidence": 0.99,
+      "valueNumber": 4431.06,
+      "valueString": "4431.06",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.235,
+            15.4,
+            30.305,
+            15.4,
+            30.305,
+            15.845,
+            27.235,
+            15.845
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "checkbox_moved_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1344
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.615,
+            17.025,
+            13.25,
+            17.025,
+            13.25,
+            17.69,
+            12.615,
+            17.69
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_work_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1229
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.75,
+            16.26,
+            11.385,
+            16.26,
+            11.385,
+            16.895,
+            10.75,
+            16.895
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_moved_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1329
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.76,
+            17.045,
+            11.39,
+            17.045,
+            11.39,
+            17.68,
+            10.76,
+            17.68
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_school_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1158
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.6,
+            15.22,
+            13.25,
+            15.22,
+            13.25,
+            15.87,
+            12.6,
+            15.87
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_school_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1141
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.75,
+            15.23,
+            11.39,
+            15.23,
+            11.39,
+            15.875,
+            10.75,
+            15.875
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_shelter_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 882
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.59,
+            10.875,
+            13.225,
+            10.875,
+            13.225,
+            11.535,
+            12.59,
+            11.535
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_warrant_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1450
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.615,
+            17.84,
+            13.25,
+            17.84,
+            13.25,
+            18.47,
+            12.615,
+            18.47
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "spouse_trust_income": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 7,
+          "offset": 2146
+        }
+      ],
+      "content": "5422.42",
+      "confidence": 0.99,
+      "valueNumber": 5422.42,
+      "valueString": "5422.42",
+      "boundingRegions": [
+        {
+          "polygon": [
+            30.975,
+            16.17,
+            34.01,
+            16.17,
+            34.01,
+            16.615,
+            30.975,
+            16.615
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "checkbox_shelter_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 867
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.74,
+            10.89,
+            11.375,
+            10.89,
+            11.375,
+            11.53,
+            10.74,
+            11.53
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_warrant_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1433
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.765,
+            17.84,
+            11.4,
+            17.84,
+            11.4,
+            18.48,
+            10.765,
+            18.48
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_child_support": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "spouse_rental_income": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_trust_income": {
+      "type": "number",
+      "confidence": 0.95,
+      "valueString": ""
+    },
+    "checkbox_dependants_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 972
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.59,
+            11.91,
+            13.235,
+            11.91,
+            13.235,
+            12.565,
+            12.59,
+            12.565
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "applicant_child_support": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 1,
+          "offset": 1905
+        }
+      ],
+      "content": "0",
+      "confidence": 0.97,
+      "valueNumber": 0,
+      "valueString": "0",
+      "boundingRegions": [
+        {
+          "polygon": [
+            28.45,
+            9.885,
+            29.1,
+            9.885,
+            29.1,
+            10.38,
+            28.45,
+            10.38
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "applicant_rental_income": {
+      "type": "number",
+      "confidence": 0.988,
+      "valueString": ""
+    },
+    "checkbox_dependants_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 955
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.735,
+            11.915,
+            11.38,
+            11.915,
+            11.38,
+            12.565,
+            10.735,
+            12.565
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_work_spouse_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1275
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            16.43,
+            16.23,
+            17.065,
+            16.23,
+            17.065,
+            16.885,
+            16.43,
+            16.885
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_moved_spouse_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1375
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            16.435,
+            17.02,
+            17.07,
+            17.02,
+            17.07,
+            17.675,
+            16.435,
+            17.675
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_work_spouse_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1260
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            14.565,
+            16.24,
+            15.21,
+            16.24,
+            15.21,
+            16.88,
+            14.565,
+            16.88
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "spouse_income_tax_refund": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "spouse_room_board_income": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "checkbox_family_assets_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 818
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.575,
+            9.865,
+            13.225,
+            9.865,
+            13.225,
+            10.515,
+            12.575,
+            10.515
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_moved_spouse_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1360
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            14.57,
+            17.03,
+            15.22,
+            17.03,
+            15.22,
+            17.675,
+            14.57,
+            17.675
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_school_spouse_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1187
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            16.425,
+            15.205,
+            17.06,
+            15.205,
+            17.06,
+            15.855,
+            16.425,
+            15.855
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_child_tax_benefits": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "checkbox_family_assets_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 801
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.73,
+            9.865,
+            11.37,
+            9.865,
+            11.37,
+            10.515,
+            10.73,
+            10.515
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "checkbox_school_spouse_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1172
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            14.565,
+            15.225,
+            15.205,
+            15.225,
+            15.205,
+            15.87,
+            14.565,
+            15.87
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_warrant_spouse_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1481
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            16.44,
+            17.82,
+            17.065,
+            17.82,
+            17.065,
+            18.465,
+            16.44,
+            18.465
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "applicant_income_tax_refund": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_room_board_income": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "checkbox_need_assistance_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 730
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.575,
+            8.825,
+            13.215,
+            8.825,
+            13.215,
+            9.48,
+            12.575,
+            9.48
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "checkbox_warrant_spouse_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1464
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            14.57,
+            17.82,
+            15.215,
+            17.82,
+            15.215,
+            18.47,
+            14.57,
+            18.47
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_employment_insurance": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "spouse_workers_compensation": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_child_tax_benefits": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 8,
+          "offset": 2256
+        }
+      ],
+      "content": "9,581.52",
+      "confidence": 0.99,
+      "valueNumber": 9581.52,
+      "valueString": "9,581.52",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.24,
+            18.56,
+            30.305,
+            18.56,
+            30.305,
+            18.975,
+            27.24,
+            18.975
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "checkbox_need_assistance_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 713
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.725,
+            8.84,
+            11.365,
+            8.84,
+            11.365,
+            9.49,
+            10.725,
+            9.49
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_net_employment_income": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "spouse_tax_credits_gst_credit": {
+      "type": "number",
+      "confidence": 0.952,
+      "valueString": ""
+    },
+    "applicant_employment_insurance": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 8,
+          "offset": 1848
+        }
+      ],
+      "content": "7,504.98",
+      "confidence": 0.99,
+      "valueNumber": 7504.98,
+      "valueString": "7,504.98",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.27,
+            8.265,
+            30.255,
+            8.265,
+            30.255,
+            8.72,
+            27.27,
+            8.72
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "applicant_workers_compensation": {
+      "type": "number",
+      "confidence": 0.988,
+      "valueString": ""
+    },
+    "checkbox_employment_changes_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1044
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            12.6,
+            14.195,
+            13.24,
+            14.195,
+            13.24,
+            14.845,
+            12.6,
+            14.845
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "spouse_canada_pension_plan_cpp": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 6,
+          "offset": 2184
+        }
+      ],
+      "content": "9, 198",
+      "confidence": 0.99,
+      "valueNumber": 9198,
+      "valueString": "9, 198",
+      "boundingRegions": [
+        {
+          "polygon": [
+            31.31,
+            16.92,
+            33.63,
+            16.92,
+            33.63,
+            17.405,
+            31.31,
+            17.405
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_spousal_support_alimony": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_net_employment_income": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "checkbox_employment_changes_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1027
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            10.745,
+            14.2,
+            11.38,
+            14.2,
+            11.38,
+            14.85,
+            10.745,
+            14.85
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "spouse_workbc_financial_support": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_tax_credits_gst_credit": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 2222
+        }
+      ],
+      "content": "2, 073. 75",
+      "confidence": 0.99,
+      "valueNumber": 2073.75,
+      "valueString": "2, 073. 75",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.28,
+            17.8,
+            30.325,
+            17.8,
+            30.325,
+            18.235,
+            27.28,
+            18.235
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "applicant_canada_pension_plan_cpp": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_spousal_support_alimony": {
+      "type": "number",
+      "confidence": 0.952,
+      "valueString": ""
+    },
+    "applicant_workbc_financial_support": {
+      "type": "number",
+      "confidence": 0.955,
+      "valueString": ""
+    },
+    "spouse_other_income_money_received": {
+      "type": "number",
+      "confidence": 0.952,
+      "valueString": ""
+    },
+    "applicant_other_income_money_received": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 6,
+          "offset": 2325
+        }
+      ],
+      "content": "5, 158",
+      "confidence": 0.99,
+      "valueNumber": 5158,
+      "valueString": "5, 158",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.49,
+            20.14,
+            30.01,
+            20.14,
+            30.01,
+            20.665,
+            27.49,
+            20.665
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "checkbox_employment_changes_spouse_no": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 12,
+          "offset": 1073
+        }
+      ],
+      "content": ":unselected:",
+      "confidence": 0.99,
+      "valueString": ":unselected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            16.42,
+            14.18,
+            17.06,
+            14.18,
+            17.06,
+            14.84,
+            16.42,
+            14.84
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "unselected"
+    },
+    "applicant_income_of_dependent_children": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "checkbox_employment_changes_spouse_yes": {
+      "type": "selectionMark",
+      "spans": [
+        {
+          "length": 10,
+          "offset": 1058
+        }
+      ],
+      "content": ":selected:",
+      "confidence": 0.99,
+      "valueString": ":selected:",
+      "boundingRegions": [
+        {
+          "polygon": [
+            14.56,
+            14.195,
+            15.2,
+            14.195,
+            15.2,
+            14.84,
+            14.56,
+            14.84
+          ],
+          "pageNumber": 1
+        }
+      ],
+      "valueSelectionMark": "selected"
+    },
+    "spouse_student_funding_loans_bursaries": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_student_funding_loans_bursaries": {
+      "type": "number",
+      "spans": [
+        {
+          "length": 7,
+          "offset": 1979
+        }
+      ],
+      "content": "1915.10",
+      "confidence": 0.99,
+      "valueNumber": 1915.1,
+      "valueString": "1915.10",
+      "boundingRegions": [
+        {
+          "polygon": [
+            27.26,
+            11.445,
+            30.32,
+            11.445,
+            30.32,
+            11.905,
+            27.26,
+            11.905
+          ],
+          "pageNumber": 1
+        }
+      ]
+    },
+    "spouse_private_pensions_retirement_disability": {
+      "type": "number",
+      "confidence": 0.953,
+      "valueString": ""
+    },
+    "applicant_private_pensions_retirement_disability": {
+      "type": "number",
+      "confidence": 0.95,
+      "valueString": ""
+    }
+  },
+  "content": {
+    "text": "0-00\n5th\nMonthly Report Avoid delays, submit by the 5th\nBRITISH COLUMBIA\nMinistry of Social Development and Poverty Reduction\nThe personal information requested on this form is collected by the Ministry of Social Development and Poverty Reduction pursuant to sections 26(c) of the Freedom of Information and Protection of Privacy Act for the purpose of administering the Employment and Assistance Act and Employment and Assistance for Persons with Disabilities Act. If you have any questions about the collection, use or disclosure of this information, please contact the Ministry of Social Development and Poverty Reduction at 1-866-866-0800.\n1. Since your last declaration:\nAre you still in need of assistance? :unselected: Yes :selected: No\nHas your family unit received or disposed of any assets? :unselected: Yes :selected: No\nAny changes to your shelter costs? :selected: Yes :unselected: No\nAny changes in Dependants or Persons living in the home? :unselected: Yes :selected: No\nApplicant\nSpouse\nAny employment changes? :unselected: Yes :selected:\nNo :selected: Yes :unselected:\nNo\nAre you attending / enrolled in school or training? :unselected: Yes :selected:\nNo :selected: Yes :unselected:\nNo\nAre you looking for work? :selected: Yes :unselected:\nNo :selected: Yes :unselected:\nNo\nHave you moved or entered a facility? :selected: Yes :unselected:\nNo :selected: Yes :unselected:\nNo\nAny outstanding warrants for your arrest? :unselected: Yes :selected:\nNo :unselected: Yes :selected:\nNo\nPlease explain all changes including income and submit proof: My blue computer fight administration number task Second plant these she similar foreign. Under billion hotel art difficult learn meet present. Majority couple must.\n2. Declare all income and submit proof. Enter \"0\" if none.\nApplicant\nSpouse\nNet Employment Income\n$\n$\nEmployment Insurance\n$7.504.98$\nSpousal Support / Alimony\n$\n$\nChild Support\n$0$\nWorkBC Financial Support\n$\n$\nStudent Funding (eg: Loans, Bursaries)\n$1915.10$\nRental Income\n$\n$\nRoom / Board Income\n$\n$\nWorker's Compensation\n$\n$\nPrivate Pensions (eg: Retirement, Disability)\n$\n$\nOAS / GIS\n$4431.06$\nTrust Income\n$\n$5422.42\nCanada Pension Plan (CPP)\n$\n$9, 198\nTax Credits (eg: GST Credit)\n$2, 073. 75$\nChild Tax Benefits\n$9.581.52$\nIncome Tax Refund\n$\n$\nAll other income / money received\n$5, 158$\nIncome of Dependent Children\n$3. Declaration: I understand that the ministry may disclose this information to verify continuing eligibility for assistance under the above Acts and Regulations. I declare that all of the information provided on this form to the Ministry of Social Development and Poverty Reduction is true and complete.\nApplicant Signature\nDate (yyyy-mmm-dd)\nSpouse Signature\nDate (yyyy-mmm-dd)\nA. Russell\n2009-Apr-22\nAlexandria Martinez\n2015-Jul-12\nApplicant Print Name\nAmanda Russell\nSpouse Print Name\nAlexandria Martinez\nApplicant Telephone\nSocial Insurance Number\nSpouse Telephone\nSocial Insurance Number\n442-836-849\n709732409\n307-124-414\n170-191- 504\nNEXT CHEQUE ISSUE\nBENEFIT MONTH\nTOTAL ALLOWANCE\nSHELTER PORTION\nINCOME DECLARED\nINCOME DEDUCTED\nOTHER DEDUCTIONS TOTAL CHEQUE\nCASE ID\nCASELOAD\nHR0081 (2021/09/13) OPC 7530903053 (250/Pk)",
+    "pages": [
+      {
+        "lines": [
+          {
+            "spans": [
+              {
+                "length": 4,
+                "offset": 0
+              }
+            ],
+            "content": "0-00",
+            "polygon": [
+              1.8554,
+              2.1824,
+              3.8759,
+              2.1951,
+              3.8718,
+              2.856,
+              1.8512,
+              2.8433
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 5
+              }
+            ],
+            "content": "5th",
+            "polygon": [
+              2.36,
+              3.3107,
+              3.4145,
+              3.2574,
+              3.422,
+              4.0335,
+              2.3817,
+              4.0909
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 14,
+                "offset": 9
+              }
+            ],
+            "content": "Monthly Report",
+            "polygon": [
+              4.3419,
+              2.7088,
+              9.4509,
+              2.7118,
+              9.4505,
+              3.4535,
+              4.3414,
+              3.4505
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 31,
+                "offset": 24
+              }
+            ],
+            "content": "Avoid delays, submit by the 5th",
+            "polygon": [
+              4.3326,
+              3.5296,
+              12.9759,
+              3.488,
+              12.979,
+              4.1404,
+              4.3357,
+              4.1779
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 7,
+                "offset": 56
+              }
+            ],
+            "content": "BRITISH",
+            "polygon": [
+              18.5279,
+              3.3683,
+              19.9709,
+              3.3879,
+              19.9666,
+              3.7037,
+              18.5236,
+              3.6841
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 8,
+                "offset": 64
+              }
+            ],
+            "content": "COLUMBIA",
+            "polygon": [
+              18.3355,
+              3.6772,
+              20.1581,
+              3.6798,
+              20.1576,
+              4.0159,
+              18.335,
+              4.0134
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 73
+              }
+            ],
+            "content": "Ministry of",
+            "polygon": [
+              20.6222,
+              2.8171,
+              22.4388,
+              2.8143,
+              22.4394,
+              3.2155,
+              20.6228,
+              3.2183
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 18,
+                "offset": 85
+              }
+            ],
+            "content": "Social Development",
+            "polygon": [
+              20.6207,
+              3.2246,
+              23.7091,
+              3.2332,
+              23.708,
+              3.6322,
+              20.6196,
+              3.6236
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 21,
+                "offset": 104
+              }
+            ],
+            "content": "and Poverty Reduction",
+            "polygon": [
+              20.6128,
+              3.6418,
+              24.1039,
+              3.6322,
+              24.105,
+              4.0415,
+              20.614,
+              4.051
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 102,
+                "offset": 126
+              }
+            ],
+            "content": "The personal information requested on this form is collected by the Ministry of Social Development and",
+            "polygon": [
+              1.6298,
+              5.3461,
+              17.3185,
+              5.2778,
+              17.3204,
+              5.7142,
+              1.6317,
+              5.7825
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 104,
+                "offset": 229
+              }
+            ],
+            "content": "Poverty Reduction pursuant to sections 26(c) of the Freedom of Information and Protection of Privacy Act",
+            "polygon": [
+              1.6346,
+              5.7784,
+              17.7179,
+              5.7122,
+              17.7197,
+              6.1337,
+              1.6365,
+              6.205
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 100,
+                "offset": 334
+              }
+            ],
+            "content": "for the purpose of administering the Employment and Assistance Act and Employment and Assistance for",
+            "polygon": [
+              1.6414,
+              6.1921,
+              17.7406,
+              6.1371,
+              17.7424,
+              6.5583,
+              1.6432,
+              6.6259
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 104,
+                "offset": 435
+              }
+            ],
+            "content": "Persons with Disabilities Act. If you have any questions about the collection, use or disclosure of this",
+            "polygon": [
+              1.6386,
+              6.6093,
+              16.9446,
+              6.5644,
+              16.9458,
+              6.9828,
+              1.6399,
+              7.0276
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 103,
+                "offset": 540
+              }
+            ],
+            "content": "information, please contact the Ministry of Social Development and Poverty Reduction at 1-866-866-0800.",
+            "polygon": [
+              1.6373,
+              7.0258,
+              17.7663,
+              6.9603,
+              17.7681,
+              7.3986,
+              1.6391,
+              7.464
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 31,
+                "offset": 644
+              }
+            ],
+            "content": "1. Since your last declaration:",
+            "polygon": [
+              1.6756,
+              7.9617,
+              9.7994,
+              7.937,
+              9.8013,
+              8.5413,
+              1.6774,
+              8.566
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 36,
+                "offset": 676
+              }
+            ],
+            "content": "Are you still in need of assistance?",
+            "polygon": [
+              1.652,
+              8.9154,
+              8.7594,
+              8.8867,
+              8.7615,
+              9.4215,
+              1.6542,
+              9.4502
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 726
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4105,
+              8.9242,
+              12.2226,
+              8.928,
+              12.2206,
+              9.3436,
+              11.4086,
+              9.3398
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 741
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.2689,
+              8.9221,
+              13.8772,
+              8.9219,
+              13.8772,
+              9.3254,
+              13.269,
+              9.3255
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 41,
+                "offset": 744
+              }
+            ],
+            "content": "Has your family unit received or disposed",
+            "polygon": [
+              1.6615,
+              9.6673,
+              10.0856,
+              9.6347,
+              10.0877,
+              10.1756,
+              1.6636,
+              10.2082
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 14,
+                "offset": 786
+              }
+            ],
+            "content": "of any assets?",
+            "polygon": [
+              1.658,
+              10.2481,
+              4.6561,
+              10.2297,
+              4.6593,
+              10.7416,
+              1.6611,
+              10.76
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 814
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4216,
+              9.9522,
+              12.2352,
+              9.9582,
+              12.2321,
+              10.3742,
+              11.4185,
+              10.3682
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 829
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.2776,
+              9.9566,
+              13.8789,
+              9.9606,
+              13.8763,
+              10.3524,
+              13.2749,
+              10.3483
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 34,
+                "offset": 832
+              }
+            ],
+            "content": "Any changes to your shelter costs?",
+            "polygon": [
+              1.6575,
+              10.9759,
+              8.8424,
+              10.94,
+              8.8452,
+              11.5036,
+              1.6603,
+              11.5395
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 878
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4136,
+              10.9853,
+              12.2273,
+              10.9913,
+              12.2242,
+              11.4008,
+              11.4105,
+              11.3962
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 895
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.2805,
+              10.9874,
+              13.8864,
+              10.9895,
+              13.8849,
+              11.392,
+              13.2791,
+              11.3898
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 36,
+                "offset": 898
+              }
+            ],
+            "content": "Any changes in Dependants or Persons",
+            "polygon": [
+              1.6614,
+              11.7185,
+              9.7932,
+              11.684,
+              9.7941,
+              12.2146,
+              1.6641,
+              12.2505
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 935
+              }
+            ],
+            "content": "living in the home?",
+            "polygon": [
+              1.6623,
+              12.2749,
+              5.5414,
+              12.2612,
+              5.5433,
+              12.7966,
+              1.6642,
+              12.8103
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 968
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4341,
+              12.0013,
+              12.2342,
+              12.0064,
+              12.2315,
+              12.4269,
+              11.4313,
+              12.4217
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 983
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.2917,
+              11.9971,
+              13.8923,
+              11.9982,
+              13.8916,
+              12.4043,
+              13.291,
+              12.4033
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 986
+              }
+            ],
+            "content": "Applicant",
+            "polygon": [
+              11.386,
+              13.4619,
+              13.5289,
+              13.4463,
+              13.5325,
+              13.9387,
+              11.3896,
+              13.9543
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 6,
+                "offset": 996
+              }
+            ],
+            "content": "Spouse",
+            "polygon": [
+              15.4192,
+              13.4449,
+              17.0974,
+              13.4499,
+              17.096,
+              13.9137,
+              15.4178,
+              13.9087
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 23,
+                "offset": 1003
+              }
+            ],
+            "content": "Any employment changes?",
+            "polygon": [
+              1.6823,
+              14.2744,
+              7.2399,
+              14.2552,
+              7.2418,
+              14.8116,
+              1.6843,
+              14.8307
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1040
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4383,
+              14.297,
+              12.2385,
+              14.299,
+              12.2375,
+              14.7034,
+              11.4373,
+              14.7014
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1055
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.2872,
+              14.2952,
+              13.8992,
+              14.2981,
+              13.8974,
+              14.6894,
+              13.2869,
+              14.6865
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1069
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              15.2403,
+              14.2762,
+              16.0557,
+              14.291,
+              16.0486,
+              14.6817,
+              15.2331,
+              14.6684
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1086
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              17.1302,
+              14.2638,
+              17.7299,
+              14.2634,
+              17.7302,
+              14.6875,
+              17.1305,
+              14.6879
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 38,
+                "offset": 1089
+              }
+            ],
+            "content": "Are you attending / enrolled in school",
+            "polygon": [
+              1.6874,
+              15.0549,
+              9.2771,
+              15.033,
+              9.2787,
+              15.5715,
+              1.6889,
+              15.5934
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 12,
+                "offset": 1128
+              }
+            ],
+            "content": "or training?",
+            "polygon": [
+              1.6866,
+              15.6312,
+              4.0172,
+              15.6277,
+              4.018,
+              16.1411,
+              1.6874,
+              16.1447
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1154
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4473,
+              15.3113,
+              12.2396,
+              15.3126,
+              12.2389,
+              15.7206,
+              11.4466,
+              15.7193
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1169
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.3099,
+              15.3111,
+              13.9006,
+              15.3177,
+              13.8967,
+              15.709,
+              13.3055,
+              15.7025
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1183
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              15.2445,
+              15.3,
+              16.0293,
+              15.3063,
+              16.026,
+              15.711,
+              15.2413,
+              15.7047
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1200
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              17.1294,
+              15.291,
+              17.7376,
+              15.2929,
+              17.7363,
+              15.7071,
+              17.1281,
+              15.7052
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 25,
+                "offset": 1203
+              }
+            ],
+            "content": "Are you looking for work?",
+            "polygon": [
+              1.6955,
+              16.318,
+              6.8923,
+              16.3053,
+              6.8936,
+              16.857,
+              1.6968,
+              16.8697
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1240
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4369,
+              16.343,
+              12.2513,
+              16.3512,
+              12.2474,
+              16.7473,
+              11.4329,
+              16.7391
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1257
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.3134,
+              16.3472,
+              13.901,
+              16.3498,
+              13.8993,
+              16.7476,
+              13.3116,
+              16.7449
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1271
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              15.2607,
+              16.3201,
+              16.0641,
+              16.3356,
+              16.0564,
+              16.7376,
+              15.2529,
+              16.7221
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1288
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              17.1386,
+              16.3182,
+              17.7341,
+              16.3223,
+              17.7313,
+              16.736,
+              17.1357,
+              16.7319
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 37,
+                "offset": 1291
+              }
+            ],
+            "content": "Have you moved or entered a facility?",
+            "polygon": [
+              1.7074,
+              17.105,
+              9.4173,
+              17.0893,
+              9.4188,
+              17.6364,
+              1.7089,
+              17.6558
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1340
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4406,
+              17.1383,
+              12.2428,
+              17.1423,
+              12.2408,
+              17.5519,
+              11.4385,
+              17.5479
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1357
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.3166,
+              17.1479,
+              13.9031,
+              17.1512,
+              13.9009,
+              17.5415,
+              13.3144,
+              17.5382
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1371
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              15.2764,
+              17.1248,
+              16.0597,
+              17.1346,
+              16.0547,
+              17.5364,
+              15.2713,
+              17.5266
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1388
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              17.129,
+              17.1167,
+              17.7412,
+              17.119,
+              17.7396,
+              17.5237,
+              17.1274,
+              17.5214
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 41,
+                "offset": 1391
+              }
+            ],
+            "content": "Any outstanding warrants for your arrest?",
+            "polygon": [
+              1.7082,
+              17.9053,
+              10.1331,
+              17.8874,
+              10.1343,
+              18.439,
+              1.7093,
+              18.4568
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1446
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              11.4437,
+              17.9285,
+              12.2491,
+              17.9317,
+              12.2474,
+              18.3479,
+              11.442,
+              18.3447
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1461
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              13.3114,
+              17.9314,
+              13.9112,
+              17.9329,
+              13.9102,
+              18.3349,
+              13.3105,
+              18.3334
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 3,
+                "offset": 1477
+              }
+            ],
+            "content": "Yes",
+            "polygon": [
+              15.2699,
+              17.9152,
+              16.0518,
+              17.9198,
+              16.0494,
+              18.3341,
+              15.2675,
+              18.3295
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 2,
+                "offset": 1492
+              }
+            ],
+            "content": "No",
+            "polygon": [
+              17.1328,
+              17.9132,
+              17.7506,
+              17.9146,
+              17.7497,
+              18.3168,
+              17.1319,
+              18.3164
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 61,
+                "offset": 1495
+              }
+            ],
+            "content": "Please explain all changes including income and submit proof:",
+            "polygon": [
+              1.7824,
+              18.647,
+              14.4452,
+              18.6129,
+              14.4466,
+              19.143,
+              1.7838,
+              19.1665
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 49,
+                "offset": 1557
+              }
+            ],
+            "content": "My blue computer fight administration number task",
+            "polygon": [
+              2.0502,
+              19.1746,
+              17.9395,
+              19.1501,
+              17.9402,
+              19.6012,
+              2.0509,
+              19.6257
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 45,
+                "offset": 1607
+              }
+            ],
+            "content": "Second plant these she similar foreign. Under",
+            "polygon": [
+              2.0839,
+              19.6441,
+              16.6089,
+              19.6452,
+              16.6089,
+              20.0817,
+              2.0839,
+              20.0806
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 47,
+                "offset": 1653
+              }
+            ],
+            "content": "billion hotel art difficult learn meet present.",
+            "polygon": [
+              2.1315,
+              20.0988,
+              17.1216,
+              20.1341,
+              17.1205,
+              20.5827,
+              2.1304,
+              20.5636
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 21,
+                "offset": 1701
+              }
+            ],
+            "content": "Majority couple must.",
+            "polygon": [
+              2.0403,
+              20.6008,
+              8.7498,
+              20.602,
+              8.7497,
+              21.1323,
+              2.0402,
+              21.1311
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 58,
+                "offset": 1723
+              }
+            ],
+            "content": "2. Declare all income and submit proof. Enter \"0\" if none.",
+            "polygon": [
+              18.3318,
+              5.4012,
+              33.985,
+              5.3345,
+              33.9879,
+              5.9785,
+              18.3347,
+              6.0426
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 1782
+              }
+            ],
+            "content": "Applicant",
+            "polygon": [
+              27.4683,
+              6.7041,
+              29.6499,
+              6.6957,
+              29.6519,
+              7.2078,
+              27.4703,
+              7.2163
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 6,
+                "offset": 1792
+              }
+            ],
+            "content": "Spouse",
+            "polygon": [
+              31.4414,
+              6.6983,
+              33.1405,
+              6.7087,
+              33.1375,
+              7.1992,
+              31.4383,
+              7.1891
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 21,
+                "offset": 1799
+              }
+            ],
+            "content": "Net Employment Income",
+            "polygon": [
+              18.3487,
+              7.4291,
+              23.438,
+              7.4285,
+              23.4381,
+              7.9634,
+              18.3487,
+              7.964
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1821
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7816,
+              7.4391,
+              27.0481,
+              7.4399,
+              27.0468,
+              7.8666,
+              26.7803,
+              7.8658
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1823
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5098,
+              7.4198,
+              30.7676,
+              7.4199,
+              30.7674,
+              7.8457,
+              30.5096,
+              7.8456
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 20,
+                "offset": 1825
+              }
+            ],
+            "content": "Employment Insurance",
+            "polygon": [
+              18.3677,
+              8.2331,
+              23.115,
+              8.2299,
+              23.1154,
+              8.7637,
+              18.3681,
+              8.767
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 10,
+                "offset": 1846
+              }
+            ],
+            "content": "$7.504.98",
+            "polygon": [
+              26.772,
+              8.2725,
+              30.238,
+              8.2614,
+              30.2407,
+              8.7034,
+              26.7747,
+              8.7241
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1857
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.4982,
+              8.2124,
+              30.7655,
+              8.2119,
+              30.7662,
+              8.636,
+              30.4989,
+              8.6364
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 25,
+                "offset": 1859
+              }
+            ],
+            "content": "Spousal Support / Alimony",
+            "polygon": [
+              18.3658,
+              9.0191,
+              23.8251,
+              9.0212,
+              23.8249,
+              9.5858,
+              18.3656,
+              9.5837
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1885
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7801,
+              9.0271,
+              27.0498,
+              9.0276,
+              27.049,
+              9.4521,
+              26.7793,
+              9.4516
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1887
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5156,
+              9.018,
+              30.7718,
+              9.018,
+              30.7719,
+              9.4331,
+              30.5157,
+              9.4331
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 13,
+                "offset": 1889
+              }
+            ],
+            "content": "Child Support",
+            "polygon": [
+              18.3742,
+              9.8089,
+              21.2237,
+              9.8178,
+              21.2221,
+              10.3601,
+              18.3725,
+              10.3512
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1903
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7727,
+              9.8194,
+              27.0555,
+              9.82,
+              27.0546,
+              10.2672,
+              26.7718,
+              10.2666
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1905
+              }
+            ],
+            "content": "0",
+            "polygon": [
+              28.4532,
+              9.8819,
+              29.0916,
+              9.8831,
+              29.0907,
+              10.3687,
+              28.4523,
+              10.3675
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1907
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5201,
+              9.8087,
+              30.7684,
+              9.8089,
+              30.768,
+              10.2283,
+              30.5197,
+              10.2281
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 24,
+                "offset": 1909
+              }
+            ],
+            "content": "WorkBC Financial Support",
+            "polygon": [
+              18.3435,
+              10.5982,
+              23.8646,
+              10.6132,
+              23.8627,
+              11.1499,
+              18.3416,
+              11.1305
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1934
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.782,
+              10.6228,
+              27.0519,
+              10.6232,
+              27.0512,
+              11.054,
+              26.7813,
+              11.0535
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1936
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5176,
+              10.6039,
+              30.778,
+              10.6037,
+              30.7782,
+              11.0349,
+              30.5179,
+              11.035
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 38,
+                "offset": 1938
+              }
+            ],
+            "content": "Student Funding (eg: Loans, Bursaries)",
+            "polygon": [
+              18.3782,
+              11.4062,
+              25.3156,
+              11.4405,
+              25.313,
+              11.9673,
+              18.3756,
+              11.942
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 1977
+              }
+            ],
+            "content": "$1915.10",
+            "polygon": [
+              26.7834,
+              11.4414,
+              30.3077,
+              11.4557,
+              30.3059,
+              11.9011,
+              26.7816,
+              11.8868
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 1987
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5036,
+              11.4003,
+              30.7734,
+              11.3993,
+              30.7749,
+              11.8242,
+              30.5051,
+              11.8251
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 13,
+                "offset": 1989
+              }
+            ],
+            "content": "Rental Income",
+            "polygon": [
+              18.3774,
+              12.2223,
+              21.3804,
+              12.2316,
+              21.379,
+              12.6988,
+              18.376,
+              12.6896
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2003
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7894,
+              12.2204,
+              27.0472,
+              12.2204,
+              27.0472,
+              12.6362,
+              26.7893,
+              12.6362
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2005
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5222,
+              12.1996,
+              30.7808,
+              12.199,
+              30.7817,
+              12.6261,
+              30.5232,
+              12.6267
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 2007
+              }
+            ],
+            "content": "Room / Board Income",
+            "polygon": [
+              18.3772,
+              13.0058,
+              22.8904,
+              13.012,
+              22.8894,
+              13.4962,
+              18.3763,
+              13.4869
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2027
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7896,
+              13.0096,
+              27.0516,
+              13.0096,
+              27.0516,
+              13.4381,
+              26.7896,
+              13.4381
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2029
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5295,
+              12.9976,
+              30.7757,
+              12.9973,
+              30.7762,
+              13.4224,
+              30.5299,
+              13.4227
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 21,
+                "offset": 2031
+              }
+            ],
+            "content": "Worker's Compensation",
+            "polygon": [
+              18.3682,
+              13.7967,
+              23.3151,
+              13.8159,
+              23.3131,
+              14.3226,
+              18.3662,
+              14.3034
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2053
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7963,
+              13.8161,
+              27.0535,
+              13.8161,
+              27.0534,
+              14.2318,
+              26.7963,
+              14.2318
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2055
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5333,
+              13.7961,
+              30.7825,
+              13.7956,
+              30.7833,
+              14.2237,
+              30.5342,
+              14.2242
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 45,
+                "offset": 2057
+              }
+            ],
+            "content": "Private Pensions (eg: Retirement, Disability)",
+            "polygon": [
+              18.3836,
+              14.5922,
+              26.0747,
+              14.6296,
+              26.0722,
+              15.1302,
+              18.3811,
+              15.1019
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2103
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.794,
+              14.6132,
+              27.06,
+              14.6132,
+              27.06,
+              15.0286,
+              26.794,
+              15.0286
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2105
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5275,
+              14.5842,
+              30.7842,
+              14.5834,
+              30.7856,
+              15.0168,
+              30.5289,
+              15.0176
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 2107
+              }
+            ],
+            "content": "OAS / GIS",
+            "polygon": [
+              18.3836,
+              15.3898,
+              20.564,
+              15.3929,
+              20.5631,
+              15.8738,
+              18.3827,
+              15.8697
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 2117
+              }
+            ],
+            "content": "$4431.06",
+            "polygon": [
+              26.7928,
+              15.4014,
+              30.2903,
+              15.4032,
+              30.29,
+              15.8389,
+              26.7926,
+              15.8371
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2127
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5267,
+              15.3888,
+              30.7914,
+              15.3874,
+              30.7937,
+              15.8136,
+              30.529,
+              15.8147
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 12,
+                "offset": 2129
+              }
+            ],
+            "content": "Trust Income",
+            "polygon": [
+              18.3843,
+              16.1966,
+              21.1117,
+              16.2071,
+              21.1099,
+              16.6777,
+              18.3825,
+              16.6672
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2142
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.8041,
+              16.1951,
+              27.0584,
+              16.195,
+              27.0585,
+              16.6184,
+              26.8042,
+              16.6185
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 2144
+              }
+            ],
+            "content": "$5422.42",
+            "polygon": [
+              30.5278,
+              16.1688,
+              34.0073,
+              16.1733,
+              34.0067,
+              16.6126,
+              30.5272,
+              16.6081
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 25,
+                "offset": 2154
+              }
+            ],
+            "content": "Canada Pension Plan (CPP)",
+            "polygon": [
+              18.3861,
+              16.9579,
+              24.2658,
+              16.953,
+              24.2663,
+              17.5085,
+              18.3865,
+              17.5134
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2180
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.8043,
+              17.004,
+              27.0603,
+              17.004,
+              27.0602,
+              17.4081,
+              26.8043,
+              17.408
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 8,
+                "offset": 2182
+              }
+            ],
+            "content": "$9, 198",
+            "polygon": [
+              30.6167,
+              16.9264,
+              33.6109,
+              16.9108,
+              33.6134,
+              17.388,
+              30.6192,
+              17.4036
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 28,
+                "offset": 2191
+              }
+            ],
+            "content": "Tax Credits (eg: GST Credit)",
+            "polygon": [
+              18.3891,
+              17.7803,
+              23.445,
+              17.8101,
+              23.4421,
+              18.3072,
+              18.3862,
+              18.2775
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 12,
+                "offset": 2220
+              }
+            ],
+            "content": "$2, 073. 75",
+            "polygon": [
+              26.7984,
+              17.8022,
+              30.3033,
+              17.7975,
+              30.3058,
+              18.212,
+              26.8009,
+              18.2325
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2233
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5195,
+              17.7667,
+              30.7919,
+              17.7662,
+              30.7928,
+              18.2026,
+              30.5204,
+              18.2032
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 18,
+                "offset": 2235
+              }
+            ],
+            "content": "Child Tax Benefits",
+            "polygon": [
+              18.3956,
+              18.5735,
+              22.1756,
+              18.5752,
+              22.1754,
+              19.0579,
+              18.3954,
+              19.0561
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 10,
+                "offset": 2254
+              }
+            ],
+            "content": "$9.581.52",
+            "polygon": [
+              26.8112,
+              18.5652,
+              30.2916,
+              18.5551,
+              30.2928,
+              18.9611,
+              26.8124,
+              18.9712
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2265
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5325,
+              18.565,
+              30.7919,
+              18.5641,
+              30.7934,
+              19.0042,
+              30.5339,
+              19.005
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 17,
+                "offset": 2267
+              }
+            ],
+            "content": "Income Tax Refund",
+            "polygon": [
+              18.3934,
+              19.3707,
+              22.4554,
+              19.3662,
+              22.456,
+              19.8546,
+              18.394,
+              19.8591
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2285
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.8099,
+              19.3757,
+              27.0648,
+              19.3752,
+              27.0657,
+              19.7986,
+              26.8106,
+              19.7991
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2287
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5438,
+              19.371,
+              30.7915,
+              19.3706,
+              30.7922,
+              19.7927,
+              30.5445,
+              19.7931
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 33,
+                "offset": 2289
+              }
+            ],
+            "content": "All other income / money received",
+            "polygon": [
+              18.3911,
+              20.1631,
+              25.3683,
+              20.16,
+              25.3685,
+              20.6689,
+              18.3913,
+              20.672
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2323
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.7945,
+              20.1766,
+              27.0716,
+              20.176,
+              27.0724,
+              20.6026,
+              26.7954,
+              20.6031
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 6,
+                "offset": 2325
+              }
+            ],
+            "content": "5, 158",
+            "polygon": [
+              27.4855,
+              20.1599,
+              29.9986,
+              20.1343,
+              30.0038,
+              20.6313,
+              27.4907,
+              20.6575
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2332
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              30.5458,
+              20.1669,
+              30.802,
+              20.1664,
+              30.8027,
+              20.5908,
+              30.5465,
+              20.5913
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 28,
+                "offset": 2334
+              }
+            ],
+            "content": "Income of Dependent Children",
+            "polygon": [
+              18.3966,
+              20.9571,
+              24.6813,
+              20.9488,
+              24.682,
+              21.4622,
+              18.3973,
+              21.4705
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 1,
+                "offset": 2363
+              }
+            ],
+            "content": "$",
+            "polygon": [
+              26.8118,
+              20.9782,
+              27.0778,
+              20.9779,
+              27.0783,
+              21.3809,
+              26.8122,
+              21.3812
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 149,
+                "offset": 2365
+              }
+            ],
+            "content": "3. Declaration: I understand that the ministry may disclose this information to verify continuing eligibility for assistance under the above Acts and",
+            "polygon": [
+              1.9122,
+              21.8597,
+              32.1015,
+              21.8338,
+              32.102,
+              22.4328,
+              1.9127,
+              22.4601
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 154,
+                "offset": 2515
+              }
+            ],
+            "content": "Regulations. I declare that all of the information provided on this form to the Ministry of Social Development and Poverty Reduction is true and complete.",
+            "polygon": [
+              2.596,
+              22.5227,
+              33.4646,
+              22.4546,
+              33.4652,
+              23.0195,
+              2.5967,
+              23.0848
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 2670
+              }
+            ],
+            "content": "Applicant Signature",
+            "polygon": [
+              1.8057,
+              23.3169,
+              4.8351,
+              23.3104,
+              4.836,
+              23.718,
+              1.8065,
+              23.7221
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 18,
+                "offset": 2690
+              }
+            ],
+            "content": "Date (yyyy-mmm-dd)",
+            "polygon": [
+              12.1043,
+              23.2941,
+              15.3477,
+              23.2925,
+              15.3479,
+              23.6894,
+              12.1045,
+              23.691
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 16,
+                "offset": 2709
+              }
+            ],
+            "content": "Spouse Signature",
+            "polygon": [
+              18.3001,
+              23.2809,
+              21.0724,
+              23.2746,
+              21.0733,
+              23.6697,
+              18.301,
+              23.6749
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 18,
+                "offset": 2726
+              }
+            ],
+            "content": "Date (yyyy-mmm-dd)",
+            "polygon": [
+              28.0519,
+              23.2486,
+              31.3158,
+              23.2534,
+              31.3152,
+              23.6572,
+              28.0513,
+              23.6524
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 10,
+                "offset": 2745
+              }
+            ],
+            "content": "A. Russell",
+            "polygon": [
+              4.1488,
+              23.6734,
+              9.5578,
+              23.674,
+              9.5577,
+              24.2601,
+              4.1487,
+              24.2595
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 2756
+              }
+            ],
+            "content": "2009-Apr-22",
+            "polygon": [
+              13.2349,
+              23.6985,
+              17.0371,
+              23.7112,
+              17.0352,
+              24.1341,
+              13.2331,
+              24.1178
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 2768
+              }
+            ],
+            "content": "Alexandria Martinez",
+            "polygon": [
+              18.4449,
+              23.7223,
+              27.8057,
+              23.724,
+              27.8056,
+              24.2828,
+              18.4449,
+              24.2812
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 2788
+              }
+            ],
+            "content": "2015-Jul-12",
+            "polygon": [
+              28.3671,
+              23.701,
+              33.6835,
+              23.695,
+              33.6841,
+              24.1823,
+              28.3676,
+              24.1883
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 20,
+                "offset": 2800
+              }
+            ],
+            "content": "Applicant Print Name",
+            "polygon": [
+              1.8115,
+              24.5568,
+              5.0866,
+              24.5499,
+              5.0874,
+              24.9554,
+              1.8124,
+              24.9622
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 14,
+                "offset": 2821
+              }
+            ],
+            "content": "Amanda Russell",
+            "polygon": [
+              6.1317,
+              24.9573,
+              13.7445,
+              24.9642,
+              13.744,
+              25.5283,
+              6.1312,
+              25.5214
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 17,
+                "offset": 2836
+              }
+            ],
+            "content": "Spouse Print Name",
+            "polygon": [
+              18.2966,
+              24.5341,
+              21.318,
+              24.5186,
+              21.32,
+              24.9074,
+              18.2986,
+              24.9229
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 2854
+              }
+            ],
+            "content": "Alexandria Martinez",
+            "polygon": [
+              21.3342,
+              24.9826,
+              31.0119,
+              24.9905,
+              31.0115,
+              25.5302,
+              21.3337,
+              25.5224
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 19,
+                "offset": 2874
+              }
+            ],
+            "content": "Applicant Telephone",
+            "polygon": [
+              1.8159,
+              25.8218,
+              4.9906,
+              25.8147,
+              4.9915,
+              26.1998,
+              1.8167,
+              26.2069
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 23,
+                "offset": 2894
+              }
+            ],
+            "content": "Social Insurance Number",
+            "polygon": [
+              10.055,
+              25.8016,
+              13.9571,
+              25.7981,
+              13.9574,
+              26.1599,
+              10.0553,
+              26.1634
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 16,
+                "offset": 2918
+              }
+            ],
+            "content": "Spouse Telephone",
+            "polygon": [
+              18.304,
+              25.7845,
+              21.2326,
+              25.7816,
+              21.2329,
+              26.1724,
+              18.3044,
+              26.1753
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 23,
+                "offset": 2935
+              }
+            ],
+            "content": "Social Insurance Number",
+            "polygon": [
+              26.2701,
+              25.7606,
+              30.2038,
+              25.7602,
+              30.2039,
+              26.1353,
+              26.2701,
+              26.1356
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 2959
+              }
+            ],
+            "content": "442-836-849",
+            "polygon": [
+              2.6781,
+              26.2311,
+              9.0835,
+              26.2219,
+              9.0843,
+              26.7516,
+              2.6789,
+              26.7608
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 9,
+                "offset": 2971
+              }
+            ],
+            "content": "709732409",
+            "polygon": [
+              11.5073,
+              26.2631,
+              16.7584,
+              26.2496,
+              16.7597,
+              26.7659,
+              11.5086,
+              26.7794
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 2981
+              }
+            ],
+            "content": "307-124-414",
+            "polygon": [
+              18.8213,
+              26.2558,
+              25.6854,
+              26.2551,
+              25.6855,
+              26.7845,
+              18.8213,
+              26.7852
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 12,
+                "offset": 2993
+              }
+            ],
+            "content": "170-191- 504",
+            "polygon": [
+              26.9433,
+              26.1985,
+              33.4509,
+              26.1963,
+              33.4511,
+              26.7621,
+              26.9435,
+              26.7643
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 11,
+                "offset": 3006
+              }
+            ],
+            "content": "NEXT CHEQUE",
+            "polygon": [
+              2.3474,
+              27.054,
+              5.2969,
+              27.0488,
+              5.2976,
+              27.4713,
+              2.3482,
+              27.4751
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 5,
+                "offset": 3018
+              }
+            ],
+            "content": "ISSUE",
+            "polygon": [
+              3.1958,
+              27.5591,
+              4.4596,
+              27.554,
+              4.4604,
+              27.9452,
+              3.1973,
+              27.9503
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 13,
+                "offset": 3024
+              }
+            ],
+            "content": "BENEFIT MONTH",
+            "polygon": [
+              6.3593,
+              28.4607,
+              9.2098,
+              28.4563,
+              9.2104,
+              28.8454,
+              6.3599,
+              28.8498
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 15,
+                "offset": 3038
+              }
+            ],
+            "content": "TOTAL ALLOWANCE",
+            "polygon": [
+              10.0557,
+              28.4429,
+              13.4672,
+              28.4455,
+              13.4665,
+              28.8494,
+              10.0549,
+              28.8433
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 15,
+                "offset": 3054
+              }
+            ],
+            "content": "SHELTER PORTION",
+            "polygon": [
+              14.1748,
+              28.4412,
+              17.4811,
+              28.4376,
+              17.4816,
+              28.8328,
+              14.1752,
+              28.8364
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 15,
+                "offset": 3070
+              }
+            ],
+            "content": "INCOME DECLARED",
+            "polygon": [
+              18.2916,
+              28.4352,
+              21.703,
+              28.4397,
+              21.7025,
+              28.8314,
+              18.2911,
+              28.8269
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 15,
+                "offset": 3086
+              }
+            ],
+            "content": "INCOME DEDUCTED",
+            "polygon": [
+              22.3001,
+              28.4239,
+              25.7376,
+              28.4268,
+              25.7372,
+              28.8249,
+              22.2998,
+              28.822
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 29,
+                "offset": 3102
+              }
+            ],
+            "content": "OTHER DEDUCTIONS TOTAL CHEQUE",
+            "polygon": [
+              26.2655,
+              28.4063,
+              33.0363,
+              28.3984,
+              33.0368,
+              28.8265,
+              26.266,
+              28.8344
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 7,
+                "offset": 3132
+              }
+            ],
+            "content": "CASE ID",
+            "polygon": [
+              6.3634,
+              29.7198,
+              7.7756,
+              29.7197,
+              7.7757,
+              30.089,
+              6.3634,
+              30.0891
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 8,
+                "offset": 3140
+              }
+            ],
+            "content": "CASELOAD",
+            "polygon": [
+              14.184,
+              29.7014,
+              16.1008,
+              29.7015,
+              16.1008,
+              30.0776,
+              14.184,
+              30.0776
+            ]
+          },
+          {
+            "spans": [
+              {
+                "length": 43,
+                "offset": 3149
+              }
+            ],
+            "content": "HR0081 (2021/09/13) OPC 7530903053 (250/Pk)",
+            "polygon": [
+              1.7549,
+              30.6266,
+              8.0845,
+              30.628,
+              8.0844,
+              31.0261,
+              1.7548,
+              31.0248
+            ]
+          }
+        ],
+        "content": "0-00\n5th\nMonthly Report\nAvoid delays, submit by the 5th\nBRITISH\nCOLUMBIA\nMinistry of\nSocial Development\nand Poverty Reduction\nThe personal information requested on this form is collected by the Ministry of Social Development and\nPoverty Reduction pursuant to sections 26(c) of the Freedom of Information and Protection of Privacy Act\nfor the purpose of administering the Employment and Assistance Act and Employment and Assistance for\nPersons with Disabilities Act. If you have any questions about the collection, use or disclosure of this\ninformation, please contact the Ministry of Social Development and Poverty Reduction at 1-866-866-0800.\n1. Since your last declaration:\nAre you still in need of assistance?\nYes\nNo\nHas your family unit received or disposed\nof any assets?\nYes\nNo\nAny changes to your shelter costs?\nYes\nNo\nAny changes in Dependants or Persons\nliving in the home?\nYes\nNo\nApplicant\nSpouse\nAny employment changes?\nYes\nNo\nYes\nNo\nAre you attending / enrolled in school\nor training?\nYes\nNo\nYes\nNo\nAre you looking for work?\nYes\nNo\nYes\nNo\nHave you moved or entered a facility?\nYes\nNo\nYes\nNo\nAny outstanding warrants for your arrest?\nYes\nNo\nYes\nNo\nPlease explain all changes including income and submit proof:\nMy blue computer fight administration number task\nSecond plant these she similar foreign. Under\nbillion hotel art difficult learn meet present.\nMajority couple must.\n2. Declare all income and submit proof. Enter \"0\" if none.\nApplicant\nSpouse\nNet Employment Income\n$\n$\nEmployment Insurance\n$7.504.98\n$\nSpousal Support / Alimony\n$\n$\nChild Support\n$\n0\n$\nWorkBC Financial Support\n$\n$\nStudent Funding (eg: Loans, Bursaries)\n$1915.10\n$\nRental Income\n$\n$\nRoom / Board Income\n$\n$\nWorker's Compensation\n$\n$\nPrivate Pensions (eg: Retirement, Disability)\n$\n$\nOAS / GIS\n$4431.06\n$\nTrust Income\n$\n$5422.42\nCanada Pension Plan (CPP)\n$\n$9, 198\nTax Credits (eg: GST Credit)\n$2, 073. 75\n$\nChild Tax Benefits\n$9.581.52\n$\nIncome Tax Refund\n$\n$\nAll other income / money received\n$\n5, 158\n$\nIncome of Dependent Children\n$\n3. Declaration: I understand that the ministry may disclose this information to verify continuing eligibility for assistance under the above Acts and\nRegulations. I declare that all of the information provided on this form to the Ministry of Social Development and Poverty Reduction is true and complete.\nApplicant Signature\nDate (yyyy-mmm-dd)\nSpouse Signature\nDate (yyyy-mmm-dd)\nA. Russell\n2009-Apr-22\nAlexandria Martinez\n2015-Jul-12\nApplicant Print Name\nAmanda Russell\nSpouse Print Name\nAlexandria Martinez\nApplicant Telephone\nSocial Insurance Number\nSpouse Telephone\nSocial Insurance Number\n442-836-849\n709732409\n307-124-414\n170-191- 504\nNEXT CHEQUE\nISSUE\nBENEFIT MONTH\nTOTAL ALLOWANCE\nSHELTER PORTION\nINCOME DECLARED\nINCOME DEDUCTED\nOTHER DEDUCTIONS TOTAL CHEQUE\nCASE ID\nCASELOAD\nHR0081 (2021/09/13) OPC 7530903053 (250/Pk)",
+        "pageNumber": 1
+      }
+    ],
+    "format": "text"
+  },
+  "enrichmentSummary": null
+}
