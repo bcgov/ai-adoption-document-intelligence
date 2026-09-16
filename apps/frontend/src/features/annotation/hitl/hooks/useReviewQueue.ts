@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useGroup } from "@/auth/GroupContext";
 import { apiService } from "@/data/services/api.service";
 
@@ -60,6 +65,9 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       const response = await apiService.get<QueueResponse>(endpoint);
       return response.data || { documents: [], total: 0 };
     },
+    // Keeps showing the previous page's rows while the next page loads, so
+    // paging doesn't flash the whole panel back to the loading state.
+    placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
 

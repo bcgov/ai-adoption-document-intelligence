@@ -167,20 +167,87 @@ export const ReviewQueuePage: FC = () => {
             setPageNumber(0);
           }}
         >
-          <Tabs.List>
-            <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
-              Pending review ({pendingQueue.total})
-            </Tabs.Tab>
-            <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
-              Claimed by you ({claimedQueue.total})
-            </Tabs.Tab>
-            <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
-              Flagged ({flaggedQueue.total})
-            </Tabs.Tab>
-            <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
-              Reviewed ({reviewedQueue.total})
-            </Tabs.Tab>
-          </Tabs.List>
+          <Box
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <Tabs.List>
+              <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
+                Pending review ({pendingQueue.total})
+              </Tabs.Tab>
+              <Tabs.Tab value="claimed" leftSection={<IconEye size={16} />}>
+                Claimed by you ({claimedQueue.total})
+              </Tabs.Tab>
+              <Tabs.Tab value="flagged" leftSection={<IconFlag size={16} />}>
+                Flagged ({flaggedQueue.total})
+              </Tabs.Tab>
+              <Tabs.Tab value="reviewed" leftSection={<IconCheck size={16} />}>
+                Reviewed ({reviewedQueue.total})
+              </Tabs.Tab>
+            </Tabs.List>
+
+            <Box
+              style={{
+                marginBottom: "1em",
+                marginLeft: "auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "end",
+                gap: 10,
+              }}
+            >
+              <IconActionButton
+                icon={
+                  <IconPlayerSkipForwardFilled
+                    style={{ transform: "rotate(180deg)" }}
+                  />
+                }
+                tooltip={"First"}
+                disabled={pageNumber <= 0}
+                onClick={() => {
+                  setPageNumber(0);
+                }}
+                style={{ padding: 5 }}
+              />
+              <IconActionButton
+                icon={
+                  <IconPlayerPlayFilled
+                    style={{ transform: "rotate(180deg)" }}
+                  />
+                }
+                tooltip={"Previous"}
+                disabled={pageNumber <= 0}
+                onClick={() => {
+                  setPageNumber(pageNumber - 1);
+                }}
+                style={{ padding: 5 }}
+              />
+              <Typography>
+                Page {pageNumber + 1} of{" "}
+                {Math.ceil(activeQueue.total / PAGE_SIZE)}
+              </Typography>
+              <IconActionButton
+                icon={<IconPlayerPlayFilled />}
+                tooltip={"Next"}
+                disabled={offset + PAGE_SIZE >= activeQueue.total}
+                onClick={() => {
+                  setPageNumber(pageNumber + 1);
+                }}
+                style={{ padding: 5 }}
+              />
+              <IconActionButton
+                icon={<IconPlayerSkipForwardFilled />}
+                tooltip={"Last"}
+                disabled={offset + PAGE_SIZE >= activeQueue.total}
+                onClick={() => {
+                  setPageNumber(Math.floor(activeQueue.total / PAGE_SIZE)); //FIXME: This gets the wrong result for even division.
+                }}
+                style={{ padding: 5 }}
+              />
+            </Box>
+          </Box>
 
           <Tabs.Panel value="pending" pt="md">
             {pendingQueue.queue.length === 0 ? (
@@ -536,57 +603,6 @@ export const ReviewQueuePage: FC = () => {
             )}
           </Tabs.Panel>
         </Tabs>
-        <Box
-          style={{
-            marginTop: "1em",
-            marginLeft: "auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "end",
-          }}
-        >
-          <IconActionButton
-            icon={
-              <IconPlayerSkipForwardFilled
-                style={{ transform: "rotate(180deg)" }}
-              />
-            }
-            tooltip={"First"}
-            disabled={pageNumber <= 0}
-            onClick={() => {
-              setPageNumber(0);
-            }}
-          />
-          <IconActionButton
-            icon={
-              <IconPlayerPlayFilled style={{ transform: "rotate(180deg)" }} />
-            }
-            tooltip={"Previous"}
-            disabled={pageNumber <= 0}
-            onClick={() => {
-              setPageNumber(pageNumber - 1);
-            }}
-          />
-          <Typography>
-            Page {pageNumber + 1} of {Math.ceil(activeQueue.total / PAGE_SIZE)}
-          </Typography>
-          <IconActionButton
-            icon={<IconPlayerPlayFilled />}
-            tooltip={"Next"}
-            disabled={offset + PAGE_SIZE > activeQueue.total}
-            onClick={() => {
-              setPageNumber(pageNumber + 1);
-            }}
-          />
-          <IconActionButton
-            icon={<IconPlayerSkipForwardFilled />}
-            tooltip={"Last"}
-            disabled={offset + PAGE_SIZE > activeQueue.total}
-            onClick={() => {
-              setPageNumber(Math.floor(activeQueue.total / PAGE_SIZE));
-            }}
-          />
-        </Box>
       </PanelCard>
     </Stack>
   );
