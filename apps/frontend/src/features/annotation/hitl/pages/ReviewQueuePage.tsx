@@ -2,14 +2,20 @@ import { Typography } from "@mantine/core";
 import {
   IconAlertCircle,
   IconCheck,
+  IconChevronDown,
+  IconChevronUp,
   IconClock,
   IconEye,
   IconFlag,
   IconPlayerPlayFilled,
   IconPlayerSkipForwardFilled,
+  IconSearch,
+  IconSelector,
 } from "@tabler/icons-react";
-import { FC, useMemo, useState } from "react";
+import { FC, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useModels } from "../../../../data/hooks/useModels";
+import { useWorkflows } from "../../../../data/hooks/useWorkflows";
 import {
   Badge,
   Box,
@@ -22,43 +28,117 @@ import {
   notifications,
   PageHeader,
   PanelCard,
+  Select,
   SimpleGrid,
   Stack,
   StatCard,
   Tabs,
   Text,
+  TextInput,
+  UnstyledButton,
 } from "../../../../ui";
 import { useReviewQueue } from "../hooks/useReviewQueue";
+
+type SortField = "filename" | "created_at" | "model" | "workflow";
+
+function SortIcon({
+  field,
+  sortField,
+  sortDir,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDir: "asc" | "desc";
+}) {
+  if (sortField !== field) return <IconSelector size={14} />;
+  return sortDir === "asc" ? (
+    <IconChevronUp size={14} />
+  ) : (
+    <IconChevronDown size={14} />
+  );
+}
 
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
   const [pageNumber, setPageNumber] = useState<number>(0);
-  const PAGE_SIZE = 5;
+  const [searchInput, setSearchInput] = useState(""); // Immediate input value
+  const [search, setSearch] = useState(""); // Debounced search query
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
+  const [workflowFilter, setWorkflowFilter] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const PAGE_SIZE = 50;
   const offset = useMemo(() => PAGE_SIZE * pageNumber, [pageNumber]);
+
+  const { data: models } = useModels();
+  const { data: workflows } = useWorkflows();
+
+  // Debounce search input (500ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Reset to the first page when a filter or sort changes
+  useEffect(() => {
+    setPageNumber(0);
+  }, [search, modelFilter, workflowFilter, sortField, sortDir]);
+
+  const toggleSort = (field: SortField): void => {
+    if (sortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
 
   const pendingQueue = useReviewQueue({
     limit: PAGE_SIZE,
     reviewStatus: "pending",
     offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const claimedQueue = useReviewQueue({
     limit: PAGE_SIZE,
     reviewStatus: "claimed",
     offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const reviewedQueue = useReviewQueue({
     limit: PAGE_SIZE,
     reviewStatus: "reviewed",
     offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const flaggedQueue = useReviewQueue({
     limit: PAGE_SIZE,
     reviewStatus: "flagged",
     offset,
+    search: search || undefined,
+    modelId: modelFilter || undefined,
+    workflowId: workflowFilter || undefined,
+    sortBy: sortField,
+    sortDir,
   });
 
   const queuesByTab: Record<string, ReturnType<typeof useReviewQueue>> = {
@@ -160,6 +240,37 @@ export const ReviewQueuePage: FC = () => {
       )}
 
       <PanelCard>
+        <Group gap="md" align="flex-end" mb="md">
+          <TextInput
+            placeholder="Search by filename"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.currentTarget.value)}
+            leftSection={<IconSearch size={16} />}
+            style={{ flex: 1 }}
+          />
+          <Select
+            data={(models ?? []).map((model) => ({
+              value: model,
+              label: model,
+            }))}
+            value={modelFilter}
+            onChange={setModelFilter}
+            placeholder="All models"
+            clearable
+            w={200}
+          />
+          <Select
+            data={(workflows ?? []).map((workflow) => ({
+              value: workflow.id,
+              label: workflow.name,
+            }))}
+            value={workflowFilter}
+            onChange={setWorkflowFilter}
+            placeholder="All workflows"
+            clearable
+            w={200}
+          />
+        </Group>
         <Tabs
           value={activeTab}
           onChange={(value) => {
@@ -242,7 +353,7 @@ export const ReviewQueuePage: FC = () => {
                 tooltip={"Last"}
                 disabled={offset + PAGE_SIZE >= activeQueue.total}
                 onClick={() => {
-                  setPageNumber(Math.floor(activeQueue.total / PAGE_SIZE)); //FIXME: This gets the wrong result for even division.
+                  setPageNumber(Math.ceil(activeQueue.total / PAGE_SIZE) - 1);
                 }}
                 style={{ padding: 5 }}
               />
@@ -275,11 +386,75 @@ export const ReviewQueuePage: FC = () => {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Document</DataTable.Th>
-                    <DataTable.Th>Model</DataTable.Th>
-                    <DataTable.Th>Workflow</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("model")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Model
+                        <SortIcon
+                          field="model"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("workflow")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Workflow
+                        <SortIcon
+                          field="workflow"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
-                    <DataTable.Th>Uploaded</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("created_at")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Uploaded
+                        <SortIcon
+                          field="created_at"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
@@ -362,11 +537,75 @@ export const ReviewQueuePage: FC = () => {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Document</DataTable.Th>
-                    <DataTable.Th>Model</DataTable.Th>
-                    <DataTable.Th>Workflow</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("model")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Model
+                        <SortIcon
+                          field="model"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("workflow")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Workflow
+                        <SortIcon
+                          field="workflow"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
-                    <DataTable.Th>Uploaded</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("created_at")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Uploaded
+                        <SortIcon
+                          field="created_at"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Actions</DataTable.Th>
                   </DataTable.Tr>
                 </DataTable.Thead>
@@ -443,7 +682,23 @@ export const ReviewQueuePage: FC = () => {
               <DataTable>
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Filename</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Filename
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Last reviewer</DataTable.Th>
                     <DataTable.Th>Avg confidence</DataTable.Th>
                     <DataTable.Th>Flag note</DataTable.Th>
@@ -536,7 +791,23 @@ export const ReviewQueuePage: FC = () => {
               >
                 <DataTable.Thead>
                   <DataTable.Tr>
-                    <DataTable.Th>Document</DataTable.Th>
+                    <DataTable.Th>
+                      <UnstyledButton
+                        onClick={() => toggleSort("filename")}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        Document
+                        <SortIcon
+                          field="filename"
+                          sortField={sortField}
+                          sortDir={sortDir}
+                        />
+                      </UnstyledButton>
+                    </DataTable.Th>
                     <DataTable.Th>Reviewer</DataTable.Th>
                     <DataTable.Th>Reviewed date</DataTable.Th>
                     <DataTable.Th>Status</DataTable.Th>

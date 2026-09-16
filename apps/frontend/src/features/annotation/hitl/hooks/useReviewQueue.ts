@@ -39,10 +39,14 @@ interface QueueResponse {
 interface QueueFilters {
   status?: string;
   modelId?: string;
+  workflowId?: string;
   limit?: number;
   offset?: number;
   reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   group_id?: string;
+  search?: string;
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+  sortDir?: "asc" | "desc";
 }
 
 export const useReviewQueue = (filters?: QueueFilters) => {
@@ -56,10 +60,14 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       const params = new URLSearchParams();
       if (filters?.status) params.append("status", filters.status);
       if (filters?.modelId) params.append("modelId", filters.modelId);
+      if (filters?.workflowId) params.append("workflowId", filters.workflowId);
       if (filters?.limit) params.append("limit", filters.limit.toString());
       if (filters?.offset) params.append("offset", filters.offset.toString());
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
+      if (filters?.search) params.append("search", filters.search);
+      if (filters?.sortBy) params.append("sortBy", filters.sortBy);
+      if (filters?.sortDir) params.append("sortDir", filters.sortDir);
       if (activeGroupId) params.append("group_id", activeGroupId);
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);

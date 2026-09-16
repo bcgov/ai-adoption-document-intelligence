@@ -204,9 +204,13 @@ export class HitlService {
     const queueFilters = {
       statuses,
       modelId: filters.modelId,
+      workflowId: filters.workflowId,
       reviewStatus: reviewStatusFilter,
       groupIds,
       currentReviewerId,
+      search: filters.search,
+      sortBy: filters.sortBy,
+      sortDir: filters.sortDir,
     };
 
     const documents = (await this.reviewDb.findReviewQueue({

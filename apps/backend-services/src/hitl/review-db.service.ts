@@ -15,12 +15,16 @@ import type { ReviewSessionData } from "./review-db.types";
 export interface ReviewQueueFilters {
   statuses: DocumentStatus[];
   modelId?: string;
+  workflowId?: string;
   minConfidence?: number;
   limit?: number;
   offset?: number;
   reviewStatus?: "pending" | "claimed" | "reviewed" | "flagged" | "all";
   groupIds?: string[];
   currentReviewerId?: string;
+  search?: string;
+  sortBy?: "filename" | "created_at" | "model" | "workflow";
+  sortDir?: "asc" | "desc";
 }
 
 @Injectable()
@@ -136,6 +140,17 @@ export class ReviewDbService {
 
     if (filters.modelId) {
       where.model_id = filters.modelId;
+    }
+
+    if (filters.workflowId) {
+      where.workflow_id = filters.workflowId;
+    }
+
+    if (filters.search) {
+      where.original_filename = {
+        contains: filters.search,
+        mode: "insensitive",
+      };
     }
 
     // Not yet approved or flagged — still awaiting a decision either way.
@@ -260,10 +275,18 @@ export class ReviewDbService {
     this.logger.debug("Finding review queue");
 
     const where = this.buildReviewQueueWhere(filters);
+    const sortFieldByKey = {
+      filename: "original_filename",
+      model: "model_id",
+      workflow: "workflow_id",
+      created_at: "created_at",
+    } as const;
+    const sortField = sortFieldByKey[filters.sortBy ?? "created_at"];
+    const sortDir = filters.sortDir ?? "desc";
 
     return client.document.findMany({
       where,
-      orderBy: { created_at: "desc" },
+      orderBy: { [sortField]: sortDir },
       take: filters.limit ?? 50,
       skip: filters.offset ?? 0,
       include: {
