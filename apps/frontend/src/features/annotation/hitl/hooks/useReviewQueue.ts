@@ -56,7 +56,6 @@ export const useReviewQueue = (filters?: QueueFilters) => {
       if (filters?.reviewStatus)
         params.append("reviewStatus", filters.reviewStatus);
       if (activeGroupId) params.append("group_id", activeGroupId);
-
       const endpoint = `/hitl/queue${params.toString() ? `?${params.toString()}` : ""}`;
       const response = await apiService.get<QueueResponse>(endpoint);
       return response.data || { documents: [], total: 0 };

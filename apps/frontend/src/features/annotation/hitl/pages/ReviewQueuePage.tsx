@@ -1,18 +1,23 @@
+import { Typography } from "@mantine/core";
 import {
   IconAlertCircle,
   IconCheck,
   IconClock,
   IconEye,
   IconFlag,
+  IconPlayerPlayFilled,
+  IconPlayerSkipForwardFilled,
 } from "@tabler/icons-react";
-import { FC, useState } from "react";
+import { FC, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Badge,
+  Box,
   Button,
   Center,
   DataTable,
   Group,
+  IconActionButton,
   Loader,
   notifications,
   PageHeader,
@@ -28,25 +33,32 @@ import { useReviewQueue } from "../hooks/useReviewQueue";
 export const ReviewQueuePage: FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string | null>("pending");
+  const [pageNumber, setPageNumber] = useState<number>(0);
+  const PAGE_SIZE = 5;
+  const offset = useMemo(() => PAGE_SIZE * pageNumber, [pageNumber]);
 
   const pendingQueue = useReviewQueue({
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "pending",
+    offset,
   });
 
   const claimedQueue = useReviewQueue({
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "claimed",
+    offset,
   });
 
   const reviewedQueue = useReviewQueue({
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "reviewed",
+    offset,
   });
 
   const flaggedQueue = useReviewQueue({
-    limit: 50,
+    limit: PAGE_SIZE,
     reviewStatus: "flagged",
+    offset,
   });
 
   const queuesByTab: Record<string, ReturnType<typeof useReviewQueue>> = {
@@ -148,7 +160,13 @@ export const ReviewQueuePage: FC = () => {
       )}
 
       <PanelCard>
-        <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            setActiveTab(value);
+            setPageNumber(0);
+          }}
+        >
           <Tabs.List>
             <Tabs.Tab value="pending" leftSection={<IconClock size={16} />}>
               Pending review ({pendingQueue.total})
@@ -518,6 +536,57 @@ export const ReviewQueuePage: FC = () => {
             )}
           </Tabs.Panel>
         </Tabs>
+        <Box
+          style={{
+            marginTop: "1em",
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "end",
+          }}
+        >
+          <IconActionButton
+            icon={
+              <IconPlayerSkipForwardFilled
+                style={{ transform: "rotate(180deg)" }}
+              />
+            }
+            tooltip={"First"}
+            disabled={pageNumber <= 0}
+            onClick={() => {
+              setPageNumber(0);
+            }}
+          />
+          <IconActionButton
+            icon={
+              <IconPlayerPlayFilled style={{ transform: "rotate(180deg)" }} />
+            }
+            tooltip={"Previous"}
+            disabled={pageNumber <= 0}
+            onClick={() => {
+              setPageNumber(pageNumber - 1);
+            }}
+          />
+          <Typography>
+            Page {pageNumber + 1} of {Math.ceil(activeQueue.total / PAGE_SIZE)}
+          </Typography>
+          <IconActionButton
+            icon={<IconPlayerPlayFilled />}
+            tooltip={"Next"}
+            disabled={offset + PAGE_SIZE > activeQueue.total}
+            onClick={() => {
+              setPageNumber(pageNumber + 1);
+            }}
+          />
+          <IconActionButton
+            icon={<IconPlayerSkipForwardFilled />}
+            tooltip={"Last"}
+            disabled={offset + PAGE_SIZE > activeQueue.total}
+            onClick={() => {
+              setPageNumber(Math.floor(activeQueue.total / PAGE_SIZE));
+            }}
+          />
+        </Box>
       </PanelCard>
     </Stack>
   );
