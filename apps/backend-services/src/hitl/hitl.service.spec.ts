@@ -1497,6 +1497,59 @@ describe("HitlService", () => {
       expect(result?.id).toBe("session-1");
     });
 
+    it("should handle CLAIMED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.CLAIMED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "claimed",
+          currentReviewerId: "reviewer-1",
+        }),
+      );
+    });
+
+    it("should handle FLAGGED review status filter", async () => {
+      mockReviewDbService.findReviewQueue.mockResolvedValueOnce([
+        mockDocumentWithOcr,
+      ] as any);
+      mockDocumentService.findDocument.mockResolvedValueOnce(mockDocument);
+      mockReviewDbService.findActiveLock.mockResolvedValueOnce(null);
+      mockReviewDbService.createReviewSession.mockResolvedValueOnce(
+        mockReviewSession as any,
+      );
+      mockReviewDbService.acquireDocumentLock.mockResolvedValueOnce(
+        mockDocumentLock,
+      );
+
+      await service.getNextSession(
+        { reviewStatus: ReviewStatusFilter.FLAGGED },
+        "reviewer-1",
+        ["group-1"],
+      );
+
+      expect(mockReviewDbService.findReviewQueue).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reviewStatus: "flagged",
+        }),
+      );
+    });
+
     it("should return null when no eligible documents", async () => {
       mockReviewDbService.findReviewQueue.mockResolvedValueOnce([]);
 

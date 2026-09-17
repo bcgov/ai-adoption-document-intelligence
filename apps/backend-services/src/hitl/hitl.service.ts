@@ -1033,15 +1033,34 @@ export class HitlService {
   ) {
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    const reviewStatusFilter: "all" | "reviewed" | "flagged" | "pending" =
-      filters.reviewStatus === ReviewStatusFilter.ALL
-        ? "all"
-        : filters.reviewStatus === ReviewStatusFilter.REVIEWED
-          ? "reviewed"
-          : "pending";
+    let reviewStatusFilter: "all" | "reviewed" | "flagged" | "claimed" | "pending";
+    switch (filters.reviewStatus) {
+      case ReviewStatusFilter.ALL:
+        reviewStatusFilter = "all";
+        break;
+      case ReviewStatusFilter.REVIEWED:
+        reviewStatusFilter = "reviewed";
+        break;
+      case ReviewStatusFilter.FLAGGED:
+        reviewStatusFilter = "flagged";
+        break;
+      case ReviewStatusFilter.CLAIMED:
+        reviewStatusFilter = "claimed";
+        break;
+      default:
+        reviewStatusFilter = "pending";
+    }
+
+    // Approving a document moves it to `complete`; flag/skip leave it at
+    // `awaiting_review`. The Reviewed tab must therefore also include
+    // `complete`, matching getQueue's behaviour.
+    const statuses: DocumentStatus[] = [DocumentStatus.awaiting_review];
+    if (reviewStatusFilter === "reviewed") {
+      statuses.push(DocumentStatus.complete);
+    }
 
     const documents = (await this.reviewDb.findReviewQueue({
-      statuses: [DocumentStatus.awaiting_review],
+      statuses,
       modelId: filters.modelId,
       limit: 10,
       reviewStatus: reviewStatusFilter,
