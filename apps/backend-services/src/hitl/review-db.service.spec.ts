@@ -314,6 +314,71 @@ describe("ReviewDbService", () => {
       );
     });
 
+    it("should scope lastSession to only flagged sessions on the flagged tab, so a newer abandoned attempt cannot shadow it", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "flagged",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: { status: { in: [ReviewStatus.flagged] } },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should scope lastSession to only approved sessions on the reviewed tab", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "reviewed",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: { status: { in: [ReviewStatus.approved] } },
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should scope lastSession to approved/flagged/abandoned for tabs other than flagged/reviewed", async () => {
+      mockDocument.findMany.mockResolvedValue([]);
+
+      await service.findReviewQueue({
+        statuses: [DocumentStatus.awaiting_review],
+        reviewStatus: "pending",
+      });
+
+      expect(mockDocument.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            review_sessions: expect.objectContaining({
+              where: {
+                status: {
+                  in: [
+                    ReviewStatus.approved,
+                    ReviewStatus.flagged,
+                    ReviewStatus.abandoned,
+                  ],
+                },
+              },
+            }),
+          }),
+        }),
+      );
+    });
+
     it("should apply groupIds filter", async () => {
       mockDocument.findMany.mockResolvedValue([]);
 

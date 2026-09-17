@@ -261,6 +261,22 @@ export class ReviewDbService {
 
     const where = this.buildReviewQueueWhere(filters);
 
+    // `lastSession` must be the session relevant to the tab being viewed, not
+    // just whichever terminal session started most recently: a flagged
+    // document that was claimed and then abandoned (e.g. an expired lock)
+    // would otherwise surface that newer `abandoned` session instead of the
+    // `flagged` one the Flagged tab's "Take" action needs to reopen.
+    const lastSessionStatuses: ReviewStatus[] =
+      filters.reviewStatus === "flagged"
+        ? [ReviewStatus.flagged]
+        : filters.reviewStatus === "reviewed"
+          ? [ReviewStatus.approved]
+          : [
+              ReviewStatus.approved,
+              ReviewStatus.flagged,
+              ReviewStatus.abandoned,
+            ];
+
     return client.document.findMany({
       where,
       orderBy: { created_at: "desc" },
@@ -270,16 +286,8 @@ export class ReviewDbService {
         ocr_result: true,
         lock: true,
         review_sessions: {
-          where: {
-            // Exclude in_progress — lock record determines "In review" display; these are noise
-            status: {
-              in: [
-                ReviewStatus.approved,
-                ReviewStatus.flagged,
-                ReviewStatus.abandoned,
-              ],
-            },
-          },
+          // Exclude in_progress — lock record determines "In review" display; these are noise
+          where: { status: { in: lastSessionStatuses } },
           include: {
             corrections: true,
           },
