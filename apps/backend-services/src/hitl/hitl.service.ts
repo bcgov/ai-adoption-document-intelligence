@@ -1033,7 +1033,12 @@ export class HitlService {
   ) {
     const maxConfidence = filters.maxConfidence ?? 0.9;
 
-    let reviewStatusFilter: "all" | "reviewed" | "flagged" | "claimed" | "pending";
+    let reviewStatusFilter:
+      | "all"
+      | "reviewed"
+      | "flagged"
+      | "claimed"
+      | "pending";
     switch (filters.reviewStatus) {
       case ReviewStatusFilter.ALL:
         reviewStatusFilter = "all";
