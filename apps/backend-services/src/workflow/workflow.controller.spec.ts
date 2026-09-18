@@ -139,7 +139,10 @@ describe("WorkflowController", () => {
     } as unknown as jest.Mocked<WorkflowService>;
 
     temporalClient = {
-      startGraphWorkflow: jest.fn().mockResolvedValue("graph-adhoc-fake-run"),
+      startGraphWorkflow: jest.fn().mockResolvedValue({
+        workflowId: "graph-adhoc-fake-run",
+        runId: "run-fake-run",
+      }),
       queryNodeStatuses: jest.fn(),
       // Consulted only when the status map still has unfinished nodes, to see
       // whether the run was cancelled/terminated underneath them (G-047).
@@ -891,7 +894,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         wfWithCustomerInput,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-xyz");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-xyz",
+        runId: "run-xyz",
+      });
 
       const result = await controller.startRun(
         "wf-1",
@@ -923,7 +929,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         wfWithCustomerInput,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-nokey");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-nokey",
+        runId: "run-nokey",
+      });
 
       const reqWithApiKey = {
         protocol: "http",
@@ -1023,7 +1032,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         mockWorkflowInfo, // no ctx isInput entries
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-empty");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-empty",
+        runId: "run-empty",
+      });
 
       const result = await controller.startRun("wf-1", {}, mockReq());
 
@@ -1045,7 +1057,10 @@ describe("WorkflowController", () => {
         version: 3,
       };
       workflowService.resolveLineageAndVersion.mockResolvedValue(olderVersion);
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-ver");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-ver",
+        runId: "run-ver",
+      });
 
       const result = await controller.startRun(
         "wf-1",
@@ -1097,7 +1112,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         v2NoRequiredInputs,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-v2");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-v2",
+        runId: "run-v2",
+      });
 
       const result = await controller.startRun(
         "wf-1",
@@ -1193,7 +1211,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         mockWorkflowInfo,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-cancel");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-cancel",
+        runId: "run-cancel",
+      });
 
       const callOrder: string[] = [];
       temporalClient.cancelInFlightTriesForLineage.mockImplementation(
@@ -1204,7 +1225,7 @@ describe("WorkflowController", () => {
       );
       temporalClient.startGraphWorkflow.mockImplementation(async () => {
         callOrder.push("start");
-        return "graph-adhoc-cancel";
+        return { workflowId: "graph-adhoc-cancel", runId: "run-cancel" };
       });
 
       await controller.startRun("wf-1", { initialCtx: {} }, mockReq());
@@ -1314,7 +1335,10 @@ describe("WorkflowController", () => {
         expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
 
         // Providing the field → succeeds, starts a Temporal execution
-        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-doc");
+        temporalClient.startGraphWorkflow.mockResolvedValue({
+          workflowId: "graph-adhoc-doc",
+          runId: "run-doc",
+        });
         const result = await controller.startRun(
           "wf-1",
           { initialCtx: { documentUrl: "https://example.com/doc.pdf" } },
@@ -1362,7 +1386,10 @@ describe("WorkflowController", () => {
         expect(temporalClient.startGraphWorkflow).not.toHaveBeenCalled();
 
         // Providing it → succeeds
-        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-leg");
+        temporalClient.startGraphWorkflow.mockResolvedValue({
+          workflowId: "graph-adhoc-leg",
+          runId: "run-leg",
+        });
         const result = await controller.startRun(
           "wf-1",
           { initialCtx: { customerId: "cust-1" } },
@@ -1419,7 +1446,10 @@ describe("WorkflowController", () => {
 
         // Body with both declared fields typed correctly + an unknown extra
         // → succeeds (extras are permitted, same as Phase 2 Track 2)
-        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-ex");
+        temporalClient.startGraphWorkflow.mockResolvedValue({
+          workflowId: "graph-adhoc-ex",
+          runId: "run-ex",
+        });
         const result = await controller.startRun(
           "wf-1",
           {
@@ -1463,7 +1493,10 @@ describe("WorkflowController", () => {
           { workflowVersionId: "wv-v1", version: 1 },
         );
         workflowService.resolveLineageAndVersion.mockResolvedValue(v1);
-        temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-v1");
+        temporalClient.startGraphWorkflow.mockResolvedValue({
+          workflowId: "graph-adhoc-v1",
+          runId: "run-v1",
+        });
 
         const result = await controller.startRun(
           "wf-1",
@@ -1529,7 +1562,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         wfWithCustomerInput,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-try");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-try",
+        runId: "run-try",
+      });
 
       const result = await controller.startTry(
         "wf-1",
@@ -1551,6 +1587,29 @@ describe("WorkflowController", () => {
       );
     });
 
+    // The canvas polls the started run through node-statuses, input-ctx and
+    // the preview cache, and every one of them resolves a run by its Temporal
+    // workflow id. The run id is the billing execution id; no run-scoped
+    // endpoint accepts it, so handing it back leaves the canvas polling a run
+    // it can never find.
+    it("returns the Temporal workflow id, not the run id", async () => {
+      workflowService.resolveLineageAndVersion.mockResolvedValue(
+        mockWorkflowInfo,
+      );
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-lookup",
+        runId: "run-billing",
+      });
+
+      const result = await controller.startTry(
+        "wf-1",
+        { initialCtx: {} },
+        mockReq(),
+      );
+
+      expect(result.workflowId).toBe("graph-adhoc-lookup");
+    });
+
     // The whole point of the endpoint: a second Try sweeps the first away.
     it("cancels in-flight Tries for the lineage BEFORE starting the new one", async () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
@@ -1566,7 +1625,7 @@ describe("WorkflowController", () => {
       );
       temporalClient.startGraphWorkflow.mockImplementation(async () => {
         callOrder.push("start");
-        return "graph-adhoc-try-2";
+        return { workflowId: "graph-adhoc-try-2", runId: "run-try-2" };
       });
 
       await controller.startTry("wf-1", { initialCtx: {} }, mockReq());
@@ -1617,7 +1676,10 @@ describe("WorkflowController", () => {
         version: 3,
       };
       workflowService.resolveLineageAndVersion.mockResolvedValue(olderVersion);
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-tryver");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-tryver",
+        runId: "run-tryver",
+      });
 
       const result = await controller.startTry(
         "wf-1",
@@ -1636,17 +1698,22 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         mockWorkflowInfo,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-audit");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-audit",
+        runId: "run-audit",
+      });
 
       await controller.startTry("wf-1", { initialCtx: {} }, mockReq());
 
+      // Audit records the Temporal run id, the same execution id OcrService
+      // and billing record for a run.
       expect(auditService.recordEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           event_type: "workflow_run_started",
           resource_type: "workflow_run",
-          resource_id: "graph-adhoc-audit",
+          resource_id: "run-audit",
           actor_id: "user-1",
-          workflow_execution_id: "graph-adhoc-audit",
+          workflow_execution_id: "run-audit",
           group_id: "group-1",
           payload: expect.objectContaining({ trigger: "try" }),
         }),
@@ -1662,7 +1729,10 @@ describe("WorkflowController", () => {
       workflowService.resolveLineageAndVersion.mockResolvedValue(
         mockWorkflowInfo,
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("graph-adhoc-smug");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-smug",
+        runId: "run-smug",
+      });
 
       await controller.startTry(
         "wf-1",
@@ -1815,9 +1885,10 @@ describe("WorkflowController", () => {
       sourceUploadService.uploadFileForSource.mockResolvedValue(
         "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue(
-        "graph-adhoc-the-new-run",
-      );
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-the-new-run",
+        runId: "run-the-new-run",
+      });
 
       const file = makeFile();
       const result = await controller.uploadToSource(
@@ -1901,9 +1972,17 @@ describe("WorkflowController", () => {
       sourceUploadService.uploadFileForSource.mockResolvedValue(
         "group-1/ocr/workflow-uploads/wf-1/upload/some-uuid-doc.pdf",
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue("run-abc-123");
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-abc-123",
+        runId: "run-abc-123",
+      });
 
-      await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
+      const result = await controller.uploadToSource(
+        "wf-1",
+        "upload",
+        makeFile(),
+        mockReq(),
+      );
 
       // Created with a null run id (there is no run yet at creation time)…
       expect(documentDbService.createDocument).toHaveBeenCalledWith(
@@ -1924,6 +2003,9 @@ describe("WorkflowController", () => {
           group_id: "group-1",
         }),
       );
+      // The caller gets the workflow id instead: it is what the canvas polls
+      // the run by, and the run id is not accepted by any run-scoped endpoint.
+      expect(result.runId).toBe("graph-adhoc-abc-123");
     });
 
     // -------------------------------------------------------------------
@@ -2128,9 +2210,10 @@ describe("WorkflowController", () => {
       sourceUploadService.uploadFileForSource.mockResolvedValue(
         "group-1/ocr/workflow-uploads/wf-1/upload/abc-doc.pdf",
       );
-      temporalClient.startGraphWorkflow.mockResolvedValue(
-        "graph-adhoc-kicked-off-run",
-      );
+      temporalClient.startGraphWorkflow.mockResolvedValue({
+        workflowId: "graph-adhoc-kicked-off-run",
+        runId: "run-kicked-off-run",
+      });
 
       const result = await controller.uploadToSource(
         "wf-1",
@@ -2194,7 +2277,7 @@ describe("WorkflowController", () => {
       });
       temporalClient.startGraphWorkflow.mockImplementation(async () => {
         callOrder.push("start");
-        return "graph-adhoc-new-run";
+        return { workflowId: "graph-adhoc-new-run", runId: "run-new-run" };
       });
 
       await controller.uploadToSource("wf-1", "upload", makeFile(), mockReq());
