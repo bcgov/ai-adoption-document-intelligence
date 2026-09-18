@@ -124,20 +124,20 @@ export class DocumentRetentionService {
             });
           }
         }
-        await this.auditService.recordEvent(
-          {
-            event_type: "document_retention_run",
-            resource_type: "document",
-            resource_id: "",
-            actor_id: "retention_system",
-            payload: {
-              documentIds: documents.map((d) => d.id),
-              daysRemoved: process.env[DOCUMENT_RETENTION_ENV_VAR],
-              quantity: deleted,
-            },
+        // Omit tx: blobs above were already deleted outside this transaction,
+        // so a failure here must not roll back the document deletes that
+        // already happened alongside them.
+        await this.auditService.recordEvent({
+          event_type: "document_retention_run",
+          resource_type: "document",
+          resource_id: "",
+          actor_id: "retention_system",
+          payload: {
+            documentIds: documents.map((d) => d.id),
+            daysRemoved: process.env[DOCUMENT_RETENTION_ENV_VAR],
+            quantity: deleted,
           },
-          tx,
-        );
+        });
         this.logger.log("Document retention cleanup run complete", {
           olderThanDays: retentionDays,
           candidates: documents.length,
