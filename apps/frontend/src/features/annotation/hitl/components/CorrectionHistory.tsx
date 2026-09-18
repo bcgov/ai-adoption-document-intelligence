@@ -10,10 +10,21 @@ interface CorrectionHistoryProps {
     action: string;
     createdAt: string;
   }>;
+  /**
+   * G-058 — who made these corrections. The trail recorded what changed and
+   * when but never who, so "who changed this number" — the question that
+   * tends to arrive urgently — had no answer on any surface.
+   *
+   * Session-scoped: every correction here belongs to one review session, and
+   * a session has exactly one reviewer, so this is named once above the list
+   * rather than repeated on every row.
+   */
+  reviewerEmail?: string;
 }
 
 export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
   corrections,
+  reviewerEmail,
 }) => {
   if (corrections.length === 0) {
     return (
@@ -27,6 +38,9 @@ export const CorrectionHistory: FC<CorrectionHistoryProps> = ({
 
   return (
     <Stack gap="xs">
+      <Text size="xs" c="dimmed" data-testid="correction-history-reviewer">
+        Corrected by {reviewerEmail ?? "an unknown reviewer"}
+      </Text>
       {corrections.map((correction) => (
         <Card key={correction.id} withBorder padding="sm">
           <Stack gap={4}>
