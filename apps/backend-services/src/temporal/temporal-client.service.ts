@@ -53,6 +53,25 @@ export type TemporalExecutionStatusFilter =
 export type RunTrigger = "try" | "api";
 
 /**
+ * The two ids a graph workflow start produces. Callers need different ones,
+ * so {@link TemporalClientService.startGraphWorkflow} returns both.
+ */
+export interface GraphWorkflowStart {
+  /**
+   * Temporal workflow id: `graph-<documentId>`, or `graph-adhoc-<uuid>` for an
+   * ad-hoc run. Run-scoped lookups (node statuses, run input, cancel, run
+   * history) resolve a run by this id.
+   */
+  workflowId: string;
+  /**
+   * Temporal run id of the first execution. Unique per attempt, so it is the
+   * billing execution id: a document's `graph-<documentId>` workflow id is
+   * reused on reprocess.
+   */
+  runId: string;
+}
+
+/**
  * Decoded form of a single Temporal `WorkflowExecutionInfo` row, narrowed
  * to the fields the run-history endpoint (US-150) consumes. Surfaced from
  * {@link TemporalClientService.listRunsForWorkflow}.
@@ -290,7 +309,7 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
     groupId: string | null,
     trigger: RunTrigger,
     workflowConfigOverrides?: Record<string, unknown>,
-  ): Promise<string> {
+  ): Promise<GraphWorkflowStart> {
     this.ensureClientInitialized();
 
     const workflowExecutionId = documentId
@@ -396,10 +415,14 @@ export class TemporalClientService implements OnModuleInit, OnModuleDestroy {
           ? `Graph workflow started: ${handle.workflowId} for document ${documentId} (config ${workflowConfigId}, version ${workflowConfig.version})`
           : `Graph workflow started: ${handle.workflowId} ad-hoc (config ${workflowConfigId}, version ${workflowConfig.version})`,
       );
-      // Return the runId (unique per execution attempt) as the billing execution
-      // ID. workflowId is always "graph-<documentId>" and is reused on reprocess;
-      // runId is unique so billing events from different runs stay isolated.
-      return handle.firstExecutionRunId;
+      // Billing keys on the runId (unique per execution attempt), since a
+      // document's "graph-<documentId>" workflowId is reused on reprocess.
+      // Run-scoped lookups need the workflowId, and an ad-hoc one is random
+      // and can't be derived again, so both are returned.
+      return {
+        workflowId: handle.workflowId,
+        runId: handle.firstExecutionRunId,
+      };
     } catch (error) {
       throw this.handleError(error, "start graph workflow");
     }

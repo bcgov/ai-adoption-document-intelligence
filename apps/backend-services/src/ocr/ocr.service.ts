@@ -178,7 +178,7 @@ export class OcrService {
       }
 
       // Start Temporal graph workflow
-      const workflowExecutionId =
+      const { runId: workflowExecutionId } =
         await this.temporalClientService.startGraphWorkflow(
           documentId,
           workflowConfigId,
