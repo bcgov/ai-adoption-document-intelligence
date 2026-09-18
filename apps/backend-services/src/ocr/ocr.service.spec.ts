@@ -85,7 +85,10 @@ describe("OcrService", () => {
         {
           provide: TemporalClientService,
           useValue: {
-            startGraphWorkflow: jest.fn().mockResolvedValue("workflow-123"),
+            startGraphWorkflow: jest.fn().mockResolvedValue({
+              workflowId: "graph-0000",
+              runId: "workflow-123",
+            }),
             getWorkflowStatus: jest.fn(),
             queryWorkflowStatus: jest.fn(),
             isWorkflowRunning: jest.fn().mockResolvedValue(false),

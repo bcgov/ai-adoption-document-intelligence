@@ -632,7 +632,7 @@ export class WorkflowController {
     // as a short-lived internal token minted per invocation, scoped to the
     // workflow's group. This also makes the startRun and upload-and-Try run
     // paths symmetric.
-    const workflowId = await this.temporalClient.startGraphWorkflow(
+    const { workflowId, runId } = await this.temporalClient.startGraphWorkflow(
       undefined,
       wf.workflowVersionId,
       initialCtx,
@@ -643,9 +643,9 @@ export class WorkflowController {
     await this.auditService.recordEvent({
       event_type: "workflow_run_started",
       resource_type: "workflow_run",
-      resource_id: workflowId,
+      resource_id: runId,
       actor_id: req.resolvedIdentity.actorId,
-      workflow_execution_id: workflowId,
+      workflow_execution_id: runId,
       group_id: wf.groupId,
       payload: {
         workflow_config_id: wf.workflowVersionId,
@@ -654,7 +654,7 @@ export class WorkflowController {
     });
 
     this.logger.log(
-      `Workflow run started: ${workflowId} (lineage ${id}, version ${wf.workflowVersionId}, trigger ${trigger}, ctx keys: [${Object.keys(initialCtx).join(", ")}])`,
+      `Workflow run started: ${workflowId} (run ${runId}, lineage ${id}, version ${wf.workflowVersionId}, trigger ${trigger}, ctx keys: [${Object.keys(initialCtx).join(", ")}])`,
     );
 
     return {
@@ -858,7 +858,7 @@ export class WorkflowController {
       [resolvedParameters.ctxKey]: blobKey,
       documentId: document.id,
     };
-    const runId = await this.temporalClient.startGraphWorkflow(
+    const started = await this.temporalClient.startGraphWorkflow(
       undefined,
       wf.workflowVersionId,
       initialCtx,
@@ -874,16 +874,16 @@ export class WorkflowController {
     // review queue resumes a gated run by its workflow id instead,
     // `graph-<documentId>`.
     await this.documentDbService.updateDocument(document.id, {
-      workflow_execution_id: runId,
+      workflow_execution_id: started.runId,
     });
 
     await this.auditService.recordEvent({
       event_type: "workflow_run_started",
       resource_type: "workflow_run",
-      resource_id: runId,
+      resource_id: started.runId,
       actor_id: req.resolvedIdentity.actorId,
       document_id: document.id,
-      workflow_execution_id: runId,
+      workflow_execution_id: started.runId,
       group_id: wf.groupId,
       payload: {
         workflow_config_id: wf.workflowVersionId,
@@ -893,13 +893,16 @@ export class WorkflowController {
     });
 
     this.logger.log(
-      `Source upload-and-Try started run ${runId} (workflow=${workflowId}, version=${wf.workflowVersionId}, documentId=${document.id})`,
+      `Source upload-and-Try started run ${started.workflowId} (run id ${started.runId}, workflow=${workflowId}, version=${wf.workflowVersionId}, documentId=${document.id})`,
     );
 
     return {
       [resolvedParameters.ctxKey]: blobKey,
       documentId: document.id,
-      runId,
+      // The builder API's `runId` is the Temporal workflow id: the id the
+      // canvas polls node-statuses and input-ctx with, and that Run history
+      // lists. The Temporal run id is only the billing id stored above.
+      runId: started.workflowId,
       workflowVersionId: wf.workflowVersionId,
     };
   }

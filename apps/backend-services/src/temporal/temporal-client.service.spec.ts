@@ -265,7 +265,12 @@ describe("TemporalClientService", () => {
 
   describe("startGraphWorkflow", () => {
     it("should start graph workflow successfully", async () => {
-      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+      mockClient.workflow.start.mockImplementation(
+        async (_type: string, options: { workflowId: string }) => ({
+          ...mockWorkflowHandle,
+          workflowId: options.workflowId,
+        }),
+      );
 
       const result = await service.startGraphWorkflow(
         "doc-123",
@@ -275,7 +280,13 @@ describe("TemporalClientService", () => {
         "api",
       );
 
-      expect(result).toBe("run-id-456");
+      // Both ids come back: run-scoped lookups resolve a run by its workflow
+      // id, while billing keys on the run id, which stays unique when a
+      // document's `graph-<documentId>` workflow id is reused on reprocess.
+      expect(result).toEqual({
+        workflowId: "graph-doc-123",
+        runId: "run-id-456",
+      });
       expect(mockClient.workflow.start).toHaveBeenCalledWith(
         "graphWorkflow",
         expect.objectContaining({
@@ -322,7 +333,12 @@ describe("TemporalClientService", () => {
     });
 
     it("should start an ad-hoc graph workflow without a documentId", async () => {
-      mockClient.workflow.start.mockResolvedValue(mockWorkflowHandle);
+      mockClient.workflow.start.mockImplementation(
+        async (_type: string, options: { workflowId: string }) => ({
+          ...mockWorkflowHandle,
+          workflowId: options.workflowId,
+        }),
+      );
 
       const result = await service.startGraphWorkflow(
         undefined,
@@ -332,13 +348,16 @@ describe("TemporalClientService", () => {
         "try",
       );
 
-      // The billing execution id is the runId (unique per attempt), for
-      // ad-hoc starts exactly as for doc-mode starts.
-      expect(result).toBe("run-id-456");
-
       const callArg = mockClient.workflow.start.mock.calls[0][1];
       // Ad-hoc workflow id prefix
       expect(callArg.workflowId).toMatch(/^graph-adhoc-/);
+      // The random ad-hoc workflow id can't be derived again later, so it is
+      // returned alongside the run id (the billing execution id, unique per
+      // attempt, exactly as for doc-mode starts).
+      expect(result).toEqual({
+        workflowId: callArg.workflowId,
+        runId: "run-id-456",
+      });
       // Only the caller's initialCtx is passed through; no doc seed keys
       expect(callArg.args[0].initialCtx).toEqual({ customerId: "cust-001" });
       expect(callArg.args[0].initialCtx).not.toHaveProperty("documentId");
