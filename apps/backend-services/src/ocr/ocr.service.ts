@@ -178,12 +178,15 @@ export class OcrService {
       }
 
       // Start Temporal graph workflow
-      const workflowExecutionId =
+      const { runId: workflowExecutionId } =
         await this.temporalClientService.startGraphWorkflow(
           documentId,
           workflowConfigId,
           initialCtx,
           document.group_id,
+          // G-021: document processing is production work, never an editor
+          // preview — it must never land in a cancel-on-new-Try set.
+          "api",
           workflowConfigOverrides,
         );
 
