@@ -1,17 +1,15 @@
 /**
- * Workflow-safe OCR payload ref types and guards (no Node/Prisma/blob imports).
+ * Workflow-safe OCR payload ref guard (no Node/Prisma/blob imports).
  * Activities use `ocr-payload-ref.ts` for I/O helpers.
+ *
+ * The `OcrPayloadRef` TYPE now lives in @ai-di/graph-workflow, derived from
+ * the OcrResult kind's Zod schema (`z.infer<typeof OcrResultSchema>`), so the
+ * activities constructing the ref and the builder's field drill-down share
+ * one definition (KIND_FIELD_SCHEMAS_DESIGN.md §3.4).
  */
+import type { OcrPayloadRef } from "@ai-di/graph-workflow";
 
-export interface OcrPayloadRef {
-  documentId: string;
-  blobPath: string;
-  storage: "blob";
-  byteLength?: number;
-  pageCount?: number;
-  /** running | succeeded | failed — used by pollUntil conditions */
-  status?: string;
-}
+export type { OcrPayloadRef };
 
 export function isOcrPayloadRef(value: unknown): value is OcrPayloadRef {
   return (

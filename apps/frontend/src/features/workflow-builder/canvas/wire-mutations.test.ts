@@ -1,0 +1,650 @@
+/**
+ * Tests for the pure config transforms behind the port-wiring gestures
+ * (PORT_WIRING_DESIGN.md §6/§7). These back the canvas drag gesture, the
+ * wire context menu, the delete path, and the settings panel's
+ * "Change source" / "Revert to automatic" actions — all funneled through
+ * this one module so they write bindings identically.
+ */
+import { resolveBindings, resolveInputPort } from "@ai-di/graph-workflow";
+import { describe, expect, it } from "vitest";
+import type {
+  ActivityNode,
+  GraphNode,
+  GraphWorkflowConfig,
+  SwitchNode,
+} from "../../../types/workflow";
+import {
+  clearReconnectableLocks,
+  disconnectDataWire,
+  ensureEdgeBetween,
+  pinPortBinding,
+  revertPortToAutomatic,
+} from "./wire-mutations";
+
+/** Minimal activity-node fixture builder — mirrors derive-wires.test.ts's style. */
+function activityNode(
+  id: string,
+  activityType: string,
+  extra?: Partial<Omit<ActivityNode, "id" | "type" | "activityType" | "label">>,
+): ActivityNode {
+  return { id, type: "activity", label: id, activityType, ...extra };
+}
+
+function switchNode(id: string): SwitchNode {
+  return { id, type: "switch", label: id, cases: [] };
+}
+
+const baseConfig = (): GraphWorkflowConfig => ({
+  schemaVersion: "1.0",
+  metadata: { name: "t" },
+  entryNodeId: "producer",
+  ctx: {},
+  nodes: {
+    producer: activityNode("producer", "azureOcr.extract"),
+    consumer: activityNode("consumer", "ocr.cleanup"),
+  },
+  edges: [],
+});
+
+describe("pinPortBinding", () => {
+  it("stamps the consumer input row, synthesises a producer outputs row, and locks the port", () => {
+    const next = pinPortBinding(baseConfig(), "consumer", "ocrResult", {
+      producerNodeId: "producer",
+      producerPort: "ocrResult",
+    });
+    const ctxKey = next.nodes.producer.outputs?.find(
+      (b) => b.port === "ocrResult",
+    )?.ctxKey;
+    expect(ctxKey).toBe("__auto.producer.ocrResult");
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey,
+    });
+    expect(
+      (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toContain("ocrResult");
+  });
+
+  it("reuses the producer's existing output ctxKey", () => {
+    const config = baseConfig();
+    config.nodes.producer = {
+      ...config.nodes.producer,
+      outputs: [{ port: "ocrResult", ctxKey: "myKey" }],
+    } as GraphNode;
+    const next = pinPortBinding(config, "consumer", "ocrResult", {
+      producerNodeId: "producer",
+      producerPort: "ocrResult",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "myKey",
+    });
+    expect(next.nodes.producer.outputs).toHaveLength(1);
+  });
+
+  it("replaces an existing input row for the same port", () => {
+    const config = baseConfig();
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      inputs: [{ port: "ocrResult", ctxKey: "old" }],
+    } as GraphNode;
+    const next = pinPortBinding(config, "consumer", "ocrResult", {
+      producerNodeId: "producer",
+      producerPort: "ocrResult",
+    });
+    const rows = (next.nodes.consumer.inputs ?? []).filter(
+      (b) => b.port === "ocrResult",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ctxKey).toBe("__auto.producer.ocrResult");
+  });
+
+  it("returns the config unchanged when consumer === producer or either node is missing", () => {
+    const config = baseConfig();
+    expect(
+      pinPortBinding(config, "consumer", "p", {
+        producerNodeId: "consumer",
+        producerPort: "q",
+      }),
+    ).toBe(config);
+    expect(
+      pinPortBinding(config, "ghost", "p", {
+        producerNodeId: "producer",
+        producerPort: "q",
+      }),
+    ).toBe(config);
+  });
+});
+
+describe("disconnectDataWire", () => {
+  it("removes the consumer's input row and adds the port to lockedInputPorts, leaving producer outputs alone", () => {
+    const config = baseConfig();
+    config.nodes.producer = {
+      ...config.nodes.producer,
+      outputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      inputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    const next = disconnectDataWire(config, "consumer", "ocrResult");
+    expect(next.nodes.consumer.inputs).toEqual([]);
+    expect(
+      (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["ocrResult"]);
+    expect(next.nodes.producer.outputs).toEqual([
+      { port: "ocrResult", ctxKey: "k" },
+    ]);
+  });
+
+  it("still adds the lock when the port has no binding (idempotent disconnect)", () => {
+    const config = baseConfig();
+    const next = disconnectDataWire(config, "consumer", "ocrResult");
+    expect(next.nodes.consumer.inputs).toEqual([]);
+    expect(
+      (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["ocrResult"]);
+  });
+});
+
+describe("delete-wire pipeline (§6.3 regression for bug 6b)", () => {
+  // Real auto-wire chain: file.prepare (`preparedData`: Document) →
+  // azureOcr.submit (`fileData`: Document). Mirrors the "← Prepare · Auto"
+  // demo row. Deleting the data wire must land the consumer port in
+  // `locked-unbound` ("Disconnected by you"), NOT `locked` ("Pinned").
+  const autoWiredChain = (): GraphWorkflowConfig => ({
+    schemaVersion: "1.0",
+    metadata: { name: "t" },
+    entryNodeId: "A",
+    ctx: {},
+    nodes: {
+      A: activityNode("A", "file.prepare"),
+      B: activityNode("B", "azureOcr.submit"),
+    },
+    edges: [{ id: "e0", source: "A", target: "B", type: "normal" }],
+  });
+
+  it("disconnectDataWire + resolveBindings leaves inputs:[] and resolves to locked-unbound", () => {
+    const resolved = resolveBindings(autoWiredChain());
+    // Precondition: the port really auto-bound before the delete.
+    expect(resolved.nodes.B.inputs).toEqual([
+      { port: "fileData", ctxKey: "__auto.A.preparedData" },
+    ]);
+
+    const disconnected = disconnectDataWire(resolved, "B", "fileData");
+    // resolveBindings runs on every config the canvas dispatches — it must
+    // NOT re-inject a binding (ctxKey-less or otherwise) for the locked port.
+    const rebound = resolveBindings(disconnected);
+
+    expect(rebound.nodes.B.inputs).toEqual([]);
+    expect(
+      (rebound.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+    expect(
+      resolveInputPort(rebound, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+  });
+});
+
+describe("revertPortToAutomatic", () => {
+  it("removes the port from lockedInputPorts and drops the metadata field when the list empties", () => {
+    const config = baseConfig();
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      metadata: { lockedInputPorts: ["ocrResult"] },
+    } as GraphNode;
+    const next = revertPortToAutomatic(config, "consumer", "ocrResult");
+    expect(next.nodes.consumer.metadata).not.toHaveProperty("lockedInputPorts");
+  });
+
+  it("leaves other locks in place", () => {
+    const config = baseConfig();
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      metadata: { lockedInputPorts: ["a", "b"] },
+    } as GraphNode;
+    const next = revertPortToAutomatic(config, "consumer", "a");
+    expect(
+      (next.nodes.consumer.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["b"]);
+  });
+});
+
+describe("clearReconnectableLocks", () => {
+  // Real auto-wire chain: file.prepare (`preparedData`: Document) →
+  // azureOcr.submit (`fileData`: Document). The consumer port `fileData` has
+  // been left locked-UNBOUND ("Disconnected by you") by a prior delete; a
+  // fresh execution edge now makes it auto-bindable again.
+  const chainWithLockedUnbound = (
+    edges: GraphWorkflowConfig["edges"],
+  ): GraphWorkflowConfig => ({
+    schemaVersion: "1.0",
+    metadata: { name: "t" },
+    entryNodeId: "A",
+    ctx: {},
+    nodes: {
+      A: activityNode("A", "file.prepare"),
+      B: {
+        ...activityNode("B", "azureOcr.submit"),
+        metadata: { lockedInputPorts: ["fileData"] },
+      } as GraphNode,
+    },
+    edges,
+  });
+
+  it("unlocks a locked-unbound port the new upstream edge makes auto-bindable, dropping the metadata field when the list empties", () => {
+    // Edge A→B is present, so A is upstream of B and its `preparedData`
+    // (Document) satisfies B's `fileData` (Document).
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Precondition: locked-unbound before the clear.
+    expect(
+      resolveInputPort(config, "B", { name: "fileData", kind: "Document" }),
+    ).toEqual({ status: "locked-unbound" });
+
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).not.toBe(config);
+    expect(next.nodes.B.metadata).not.toHaveProperty("lockedInputPorts");
+    // Now the resolver would auto-bind it (host runs resolveBindings later).
+    expect(
+      resolveInputPort(next, "B", { name: "fileData", kind: "Document" }),
+    ).toMatchObject({ status: "auto-bound", producerNodeId: "A" });
+  });
+
+  it("keeps a preserved lock in the list while dropping the reconnectable one", () => {
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Add a second locked-unbound port with no possible producer.
+    config.nodes.B = {
+      ...config.nodes.B,
+      metadata: { lockedInputPorts: ["fileData", "ghostPort"] },
+    } as GraphNode;
+    const next = clearReconnectableLocks(config, "B");
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["ghostPort"]);
+  });
+
+  it("leaves a locked-unbound port locked when no upstream source satisfies it", () => {
+    // No edge — A is not upstream of B, so `fileData` stays unsatisfiable.
+    const config = chainWithLockedUnbound([]);
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).toBe(config);
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+  });
+
+  it("never clears a locked-BOUND (pinned) port even when a source is upstream", () => {
+    const config = chainWithLockedUnbound([
+      { id: "e0", source: "A", target: "B", type: "normal" },
+    ]);
+    // Give the locked port a real binding → locked-BOUND ("Pinned").
+    config.nodes.B = {
+      ...config.nodes.B,
+      inputs: [{ port: "fileData", ctxKey: "__auto.A.preparedData" }],
+    } as GraphNode;
+    const next = clearReconnectableLocks(config, "B");
+    expect(next).toBe(config);
+    expect(
+      (next.nodes.B.metadata as { lockedInputPorts?: string[] })
+        ?.lockedInputPorts,
+    ).toEqual(["fileData"]);
+  });
+
+  it("returns the same config reference when the target has no locked ports", () => {
+    const config = baseConfig();
+    expect(clearReconnectableLocks(config, "consumer")).toBe(config);
+  });
+
+  it("returns the same config reference when the target node is missing", () => {
+    const config = baseConfig();
+    expect(clearReconnectableLocks(config, "ghost")).toBe(config);
+  });
+});
+
+describe("ensureEdgeBetween", () => {
+  it("adds a normal edge when no edge connects the pair", () => {
+    const next = ensureEdgeBetween(baseConfig(), "producer", "consumer");
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({
+      source: "producer",
+      target: "consumer",
+      type: "normal",
+    });
+  });
+
+  it("adds a conditional edge when the source is a switch node", () => {
+    const config = baseConfig();
+    config.nodes.producer = switchNode("producer");
+    const next = ensureEdgeBetween(config, "producer", "consumer");
+    expect(next.edges).toHaveLength(1);
+    expect(next.edges[0]).toMatchObject({ type: "conditional" });
+  });
+
+  it("returns the config unchanged when an edge already connects the pair in either direction", () => {
+    const config = baseConfig();
+    config.edges = [
+      { id: "e1", source: "consumer", target: "producer", type: "normal" },
+    ];
+    expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
+  });
+
+  it("returns the config unchanged for a self-loop", () => {
+    const config = baseConfig();
+    expect(ensureEdgeBetween(config, "producer", "producer")).toBe(config);
+  });
+
+  it("returns the config unchanged when the pair is linked only by an error edge — no normal edge is added", () => {
+    const config = baseConfig();
+    config.edges = [
+      { id: "e1", source: "producer", target: "consumer", type: "error" },
+    ];
+    expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
+  });
+
+  it("returns the config unchanged when a forward edge already connects the pair", () => {
+    const config = baseConfig();
+    config.edges = [
+      { id: "e1", source: "producer", target: "consumer", type: "normal" },
+    ];
+    expect(ensureEdgeBetween(config, "producer", "consumer")).toBe(config);
+  });
+});
+
+/** Recursively `Object.freeze`s an object graph so any mutation throws in strict mode. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
+  }
+  return value;
+}
+
+describe("input non-mutation", () => {
+  it("does not mutate a frozen config when pinning or disconnecting a binding", () => {
+    // ES modules are strict-mode by default, so mutating a frozen object
+    // throws a TypeError here rather than silently no-op'ing.
+    const config = baseConfig();
+    config.nodes.producer = {
+      ...config.nodes.producer,
+      outputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    config.nodes.consumer = {
+      ...config.nodes.consumer,
+      inputs: [{ port: "ocrResult", ctxKey: "k" }],
+    } as GraphNode;
+    deepFreeze(config);
+
+    expect(() =>
+      pinPortBinding(config, "consumer", "ocrResult", {
+        producerNodeId: "producer",
+        producerPort: "ocrResult",
+      }),
+    ).not.toThrow();
+    expect(() =>
+      disconnectDataWire(config, "consumer", "ocrResult"),
+    ).not.toThrow();
+  });
+});
+
+/**
+ * G-104 — pinning a CONTROL-FLOW producer must bind to the key it actually
+ * writes. `synthesiseCtxKey(producerNodeId, producerPort)` is right for an
+ * activity (whose output key really is `__auto.<node>.<port>` unless an
+ * `outputs[]` row says otherwise) and wrong for every node type G-007 made
+ * bindable: a map writes `itemCtxKey`, a join `resultsCtxKey`, a humanGate
+ * `<id>Payload`, a childWorkflow its `outputMappings`, a source its produced
+ * key. Pinning one of those to a synthesised key persists a key nothing
+ * writes and silently breaks the binding.
+ */
+describe("pinPortBinding — control-flow producers (G-104)", () => {
+  function configWith(
+    producer: GraphNode,
+    consumerType = "document.classify",
+  ): GraphWorkflowConfig {
+    return {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: producer.id,
+      ctx: {},
+      nodes: {
+        [producer.id]: producer,
+        consumer: activityNode("consumer", consumerType),
+      },
+      edges: [],
+    };
+  }
+
+  /** No `outputs[]` row is invented on a node that writes through a field. */
+  function expectNoOutputsRow(node: GraphNode): void {
+    expect(node.outputs ?? []).toHaveLength(0);
+  }
+
+  it("pins a map-item wire to the map's own itemCtxKey, not a synthesised key", () => {
+    const cfg = configWith({
+      id: "MAP",
+      type: "map",
+      label: "MAP",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "currentSegment",
+      bodyEntryNodeId: "consumer",
+      bodyExitNodeId: "consumer",
+    });
+    const next = pinPortBinding(cfg, "consumer", "segment", {
+      producerNodeId: "MAP",
+      producerPort: "item",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "segment",
+      ctxKey: "currentSegment",
+    });
+    expectNoOutputsRow(next.nodes.MAP);
+  });
+
+  it("pins a map's index port to indexCtxKey, not to the item key", () => {
+    const cfg = configWith({
+      id: "MAP",
+      type: "map",
+      label: "MAP",
+      collectionCtxKey: "splitSegments",
+      itemCtxKey: "currentSegment",
+      indexCtxKey: "segmentIndex",
+      bodyEntryNodeId: "consumer",
+      bodyExitNodeId: "consumer",
+    });
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "MAP",
+      producerPort: "index",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "segmentIndex",
+    });
+    expectNoOutputsRow(next.nodes.MAP);
+  });
+
+  it("pins a join-results wire to the join's resultsCtxKey", () => {
+    const cfg = configWith(
+      {
+        id: "J",
+        type: "join",
+        label: "J",
+        sourceMapNodeId: "MAP",
+        strategy: "all",
+        resultsCtxKey: "branchResults",
+      },
+      "benchmark.aggregate",
+    );
+    const next = pinPortBinding(cfg, "consumer", "results", {
+      producerNodeId: "J",
+      producerPort: "results",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "results",
+      ctxKey: "branchResults",
+    });
+    expectNoOutputsRow(next.nodes.J);
+  });
+
+  it("pins a humanGate-payload wire to the <nodeId>Payload key the executor writes", () => {
+    const cfg = configWith(
+      {
+        id: "HG",
+        type: "humanGate",
+        label: "HG",
+        signal: { name: "humanApproval" },
+        timeout: "1h",
+        onTimeout: "fail",
+      },
+      "document.updateStatus",
+    );
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "HG",
+      producerPort: "payload",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "HGPayload",
+    });
+    expectNoOutputsRow(next.nodes.HG);
+  });
+
+  it("pins a childWorkflow wire to the declared output mapping's ctxKey", () => {
+    const cfg = configWith(
+      {
+        id: "C",
+        type: "childWorkflow",
+        label: "C",
+        workflowRef: { type: "library", workflowId: "w1" },
+        outputMappings: [{ port: "summary", ctxKey: "childSummary" }],
+      },
+      "document.updateStatus",
+    );
+    const next = pinPortBinding(cfg, "consumer", "documentId", {
+      producerNodeId: "C",
+      producerPort: "summary",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "documentId",
+      ctxKey: "childSummary",
+    });
+    expectNoOutputsRow(next.nodes.C);
+  });
+
+  it("pins a source wire to the key the source emits", () => {
+    const cfg = configWith(
+      {
+        id: "UP",
+        type: "source",
+        label: "UP",
+        sourceType: "source.upload",
+        parameters: { ctxKey: "incomingDoc" },
+      },
+      "blob.read",
+    );
+    const next = pinPortBinding(cfg, "consumer", "blobKey", {
+      producerNodeId: "UP",
+      producerPort: "incomingDoc",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "blobKey",
+      ctxKey: "incomingDoc",
+    });
+    expectNoOutputsRow(next.nodes.UP);
+  });
+
+  it("prefers the field the executor writes over a stale hand-authored outputs[] row", () => {
+    // A hand-authored `outputs[]` row on a join is inert — the executor
+    // writes `resultsCtxKey`. Binding to the row would point the consumer at
+    // a key nothing writes.
+    const cfg = configWith(
+      {
+        id: "J",
+        type: "join",
+        label: "J",
+        sourceMapNodeId: "MAP",
+        strategy: "all",
+        resultsCtxKey: "branchResults",
+        outputs: [{ port: "results", ctxKey: "staleHandAuthored" }],
+      },
+      "benchmark.aggregate",
+    );
+    const next = pinPortBinding(cfg, "consumer", "results", {
+      producerNodeId: "J",
+      producerPort: "results",
+    });
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "results",
+      ctxKey: "branchResults",
+    });
+    // The stale row is left alone — this path never rewrites producer rows,
+    // it only declines to add one.
+    expect(next.nodes.J.outputs).toEqual([
+      { port: "results", ctxKey: "staleHandAuthored" },
+    ]);
+  });
+
+  it("still synthesises a key and stamps an outputs[] row for an activity producer", () => {
+    const next = pinPortBinding(baseConfig(), "consumer", "ocrResult", {
+      producerNodeId: "producer",
+      producerPort: "ocrResult",
+    });
+    expect(next.nodes.producer.outputs).toEqual([
+      { port: "ocrResult", ctxKey: "__auto.producer.ocrResult" },
+    ]);
+    expect(next.nodes.consumer.inputs).toContainEqual({
+      port: "ocrResult",
+      ctxKey: "__auto.producer.ocrResult",
+    });
+  });
+
+  it("a pinned map-item binding survives resolveBindings and reads as locked", () => {
+    // End to end: the pin must be a key that HAS a source, or the resolver
+    // reports `locked-dangling` and every surface shows a problem.
+    const cfg: GraphWorkflowConfig = {
+      schemaVersion: "1.0",
+      metadata: { name: "t" },
+      entryNodeId: "SPLIT",
+      ctx: {},
+      nodes: {
+        SPLIT: activityNode("SPLIT", "document.split", {
+          outputs: [{ port: "segments", ctxKey: "splitSegments" }],
+        }),
+        MAP: {
+          id: "MAP",
+          type: "map",
+          label: "MAP",
+          collectionCtxKey: "splitSegments",
+          itemCtxKey: "currentSegment",
+          bodyEntryNodeId: "BODY",
+          bodyExitNodeId: "BODY",
+        },
+        BODY: activityNode("BODY", "document.classify"),
+      },
+      edges: [
+        { id: "e0", source: "SPLIT", target: "MAP", type: "normal" },
+        { id: "e1", source: "MAP", target: "BODY", type: "normal" },
+      ],
+    };
+    const pinned = pinPortBinding(cfg, "BODY", "segment", {
+      producerNodeId: "MAP",
+      producerPort: "item",
+    });
+    const resolved = resolveBindings(pinned);
+    expect(
+      resolveInputPort(resolved, "BODY", { name: "segment", kind: "Segment" }),
+    ).toEqual({ status: "locked", ctxKey: "currentSegment" });
+  });
+});

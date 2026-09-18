@@ -100,8 +100,8 @@ describe("pollOCRResults activity", () => {
     });
 
     expect(result.status).toBe("succeeded");
-    expect(result.response?.storage).toBe("blob");
-    expect(result.response?.documentId).toBe(TEST_DOCUMENT_ID);
+    expect(result.ocrResponse?.storage).toBe("blob");
+    expect(result.ocrResponse?.documentId).toBe(TEST_DOCUMENT_ID);
     expect(documentIntelligenceMock).not.toHaveBeenCalled();
   });
 
@@ -161,7 +161,7 @@ describe("pollOCRResults activity", () => {
     });
 
     expect(result.status).toBe("succeeded");
-    expect(result.response?.blobPath).toContain("azure-response.json");
+    expect(result.ocrResponse?.blobPath).toContain("azure-response.json");
     expect(documentIntelligenceMock).toHaveBeenCalledWith(
       "https://test.cognitiveservices.azure.com",
       { key: "test-api-key" },
@@ -194,8 +194,8 @@ describe("pollOCRResults activity", () => {
     });
 
     expect(result.status).toBe("running");
-    expect(result.response?.status).toBe("running");
-    expect(result.response?.blobPath).toBe("");
+    expect(result.ocrResponse?.status).toBe("running");
+    expect(result.ocrResponse?.blobPath).toBe("");
   });
 
   it("polls for results and throws non-retryable failure when OCR failed", async () => {
@@ -309,5 +309,90 @@ describe("pollOCRResults activity", () => {
       expect.any(Object),
       expect.any(Object),
     );
+  });
+
+  // A 404 from the poll endpoint means the analyze result is not under the
+  // model this node asked for — almost always because Submit OCR analysed
+  // under a different model id. The bare "Status: 404" the activity used to
+  // throw told a developer nothing, so the run looked like an engine
+  // regression rather than a two-models-one-run mismatch.
+  it("explains a 404 by naming the model and the request id", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockGet.mockResolvedValue({ status: 404, body: null });
+
+    await expect(
+      pollOCRResults({
+        apimRequestId: "req-abc",
+        modelId: "prebuilt-layout",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+      }),
+    ).rejects.toThrow(
+      /Status: 404 No analyze result "req-abc" under model "prebuilt-layout"/,
+    );
+  });
+
+  it("tells the developer which env var points at the wrong resource on a 404", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockGet.mockResolvedValue({ status: 404, body: null });
+
+    await expect(
+      pollOCRResults({
+        apimRequestId: "req-abc",
+        modelId: "sdpr_synth_test",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+      }),
+    ).rejects.toThrow(/AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT/);
+  });
+
+  it("leaves a non-404 status without the model-mismatch hint", async () => {
+    isUnexpectedMock.mockReturnValue(true);
+    mockGet.mockResolvedValue({ status: 500, body: null });
+
+    await expect(
+      pollOCRResults({
+        apimRequestId: "req-abc",
+        modelId: "prebuilt-layout",
+        documentId: TEST_DOCUMENT_ID,
+        groupId: TEST_GROUP_ID,
+      }),
+    ).rejects.toThrow("Failed to poll OCR results. Status: 500");
+  });
+
+  // The graph runner binds a node's outputs by reading `result[port]`, so the
+  // field name here IS the port name in every workflow config. The catalog
+  // entry for `azureOcr.poll` declares `ocrResponse`; when the activity
+  // returned `response` instead, every template that bound the catalog name
+  // wrote `undefined` into ctx and the step's preview came up empty.
+  it("returns the payload ref on the catalog's `ocrResponse` port", async () => {
+    const mockOCRResponse: OCRResponse = {
+      status: "succeeded",
+      createdDateTime: "2024-01-01T00:00:00Z",
+      lastUpdatedDateTime: "2024-01-01T00:01:00Z",
+      analyzeResult: {
+        apiVersion: "2024-11-30",
+        modelId: "prebuilt-layout",
+        content: "ok",
+        pages: [],
+        paragraphs: [],
+        tables: [],
+        keyValuePairs: [],
+        sections: [],
+        figures: [],
+        documents: [],
+      },
+    };
+    mockGet.mockResolvedValue({ status: 200, body: mockOCRResponse });
+
+    const result = await pollOCRResults({
+      apimRequestId: "test-request-id",
+      modelId: "prebuilt-layout",
+      documentId: TEST_DOCUMENT_ID,
+      groupId: TEST_GROUP_ID,
+    });
+
+    expect(Object.keys(result).sort()).toEqual(["ocrResponse", "status"]);
+    expect(result.ocrResponse).toBeDefined();
   });
 });

@@ -24,7 +24,7 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") --env <dev|prod> (--all | <service>...) [options]
 
-Services: backend-services, frontend, temporal
+Services: backend-services, frontend, temporal, deno-runner
 
 Options:
   --env <dev|prod>   Profile for deployments/openshift/config/<env>.env (Artifactory + Vite args)
@@ -76,7 +76,7 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    backend-services|frontend|temporal)
+    backend-services|frontend|temporal|deno-runner)
       SERVICES+=("$1")
       shift
       ;;
@@ -95,7 +95,7 @@ if [[ -z "${ENV_PROFILE}" ]]; then
 fi
 
 if [[ "${ALL_SERVICES}" == true ]]; then
-  SERVICES=(backend-services frontend temporal)
+  SERVICES=(backend-services frontend temporal deno-runner)
 fi
 
 if [[ ${#SERVICES[@]} -eq 0 && "${PROMOTE}" != true ]]; then
@@ -164,6 +164,10 @@ build_push_one() {
     temporal)
       context="${PROJECT_ROOT}"
       dockerfile="${PROJECT_ROOT}/apps/temporal/Dockerfile"
+      ;;
+    deno-runner)
+      context="${PROJECT_ROOT}/apps/deno-runner"
+      dockerfile="${PROJECT_ROOT}/apps/deno-runner/Dockerfile"
       ;;
     *)
       echo "[ERROR] Unknown service: ${svc}" >&2
