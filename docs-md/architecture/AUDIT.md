@@ -62,7 +62,7 @@ Known gaps and remediation priorities: [TRANSACTION_AND_AUDIT_AUDIT.md](./TRANSA
 
 | event_type             | When | resource_type  | resource_id              | Payload / notes                    |
 |------------------------|------|----------------|--------------------------|------------------------------------|
-| `workflow_run_started`  | Backend starts graph workflow for a document | workflow_run | workflow_execution_id | workflow_config_id                 |
+| `workflow_run_started`  | Backend starts graph workflow for a document (`OcrService.processDocument`, and the source upload-and-Try endpoint `POST /workflows/:id/sources/:sourceNodeId/upload`) | workflow_run | workflow_execution_id | workflow_config_id; upload-and-Try also records `source_node_id` and `trigger` |
 
 ### Workflow configuration
 

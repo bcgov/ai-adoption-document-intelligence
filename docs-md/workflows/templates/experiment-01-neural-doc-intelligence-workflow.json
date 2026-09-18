@@ -80,7 +80,7 @@
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
         { "port": "modelId", "ctxKey": "modelId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponse" }],
+      "outputs": [{ "port": "ocrResponse", "ctxKey": "ocrResponse" }],
       "condition": {
         "operator": "not-equals",
         "left": { "ref": "ctx.ocrResponse.status" },
