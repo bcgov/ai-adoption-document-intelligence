@@ -1,3 +1,4 @@
+import { Space } from "@mantine/core";
 import {
   IconAlertCircle,
   IconChecklist,
@@ -5,16 +6,21 @@ import {
   IconInfoCircle,
   IconRotateClockwise,
 } from "@tabler/icons-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDocumentOcr } from "../../data/hooks/useDocumentOcr";
+import { apiService } from "../../data/services/api.service";
 import { Document } from "../../shared/types";
 import {
   ActionIcon,
   Alert,
   Badge,
+  Button,
   Group,
   Loader,
   Modal,
+  notifications,
   Stack,
   Table,
   Tabs,
@@ -22,7 +28,6 @@ import {
   Title,
   Tooltip,
 } from "../../ui";
-import { DocumentValidation } from "./DocumentValidation";
 import { DocumentViewer } from "./DocumentViewer";
 import OcrResults from "./OcrResults";
 
@@ -153,6 +158,46 @@ export function DocumentViewerModal({
     onClose();
   };
 
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const startSessionMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      const response = await apiService.post<{ id: string }>("/hitl/sessions", {
+        documentId: docId,
+      });
+      if (!response.success) throw new Error(response.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+
+  const handleStartReview = async () => {
+    if (!document?.id) {
+      return;
+    }
+    try {
+      const session = await startSessionMutation.mutateAsync(document.id);
+      if (session?.id) {
+        handleClose();
+        navigate(`/review/${session.id}`);
+      }
+    } catch {
+      // Most often the document was locked by another reviewer just before the click.
+      notifications.show({
+        title: "Could not start review",
+        message:
+          "Another reviewer may have started on it. Refresh and try again.",
+        color: "red",
+        autoClose: 5000,
+      });
+    }
+  };
+
   const handleRotate = () => {
     setRotation((prev) => (prev + 90) % 360);
   };
@@ -244,13 +289,7 @@ export function DocumentViewerModal({
         >
           <Tabs
             defaultValue={
-              document.status === "awaiting_review" || document.needsReview
-                ? "review"
-                : isPurged
-                  ? hasOcrData
-                    ? "ocr-results"
-                    : "details"
-                  : "viewer"
+              isPurged ? (hasOcrData ? "ocr-results" : "details") : "viewer"
             }
             style={{
               flex: 1,
@@ -282,21 +321,25 @@ export function DocumentViewerModal({
                   OCR results
                 </Tabs.Tab>
               )}
-              {(document?.status === "awaiting_review" ||
-                document?.needsReview) && (
-                <Tabs.Tab
-                  value="review"
-                  leftSection={<IconChecklist size={16} />}
-                >
-                  Review & approve
-                </Tabs.Tab>
-              )}
               <Tabs.Tab
                 value="details"
                 leftSection={<IconInfoCircle size={16} />}
               >
                 Details
               </Tabs.Tab>
+              {(document?.status === "awaiting_review" ||
+                document?.needsReview) && (
+                <>
+                  <Space flex={1} />
+                  <Button
+                    style={{ marginBottom: "5px" }}
+                    onClick={handleStartReview}
+                    loading={startSessionMutation.isPending}
+                  >
+                    Start Human Review
+                  </Button>
+                </>
+              )}
             </Tabs.List>
 
             <Tabs.Panel
@@ -345,46 +388,6 @@ export function DocumentViewerModal({
                 }}
               >
                 <OcrResults ocr={ocr ?? null} />
-              </Tabs.Panel>
-            )}
-            {(document?.status === "awaiting_review" ||
-              document?.needsReview) && (
-              <Tabs.Panel
-                value="review"
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: "auto",
-                    padding: "1rem",
-                    paddingBottom: "3rem",
-                  }}
-                >
-                  {ocr ? (
-                    <DocumentValidation
-                      document={document}
-                      ocrResult={ocr}
-                      onValidationComplete={() => {
-                        // Refresh the document list and close modal after a short delay
-                        setTimeout(() => {
-                          handleClose();
-                        }, 1000);
-                      }}
-                    />
-                  ) : (
-                    <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-                      OCR results are not available yet. Please wait for
-                      processing to complete.
-                    </Alert>
-                  )}
-                </div>
               </Tabs.Panel>
             )}
             <Tabs.Panel

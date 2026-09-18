@@ -32,14 +32,12 @@ The backend services provide a modular, scalable API for:
 - CRUD operations for documents
 - Document status tracking (pre_ocr, ongoing_ocr, completed_ocr, failed)
 - OCR result retrieval and key-value pair extraction
-- Document approval workflow
 - File download endpoints
 - Integration with Temporal workflows and blob storage
 
 **Key Endpoints:**
 - `GET /api/documents` - List all documents with optional filters
 - `GET /api/documents/:id` - Get document details
-- `POST /api/documents/:id/approve` - Approve OCR results
 - `GET /api/documents/:id/file` - Download original file
 - `GET /api/documents/:id/ocr-result` - Get OCR results with key-value pairs
 

@@ -209,7 +209,7 @@ function runSessionRequests() {
 
   let actionRes = null;
   if (sessionMode === "submit") {
-    actionRes = http.post(sessionUrl(sessionId, "/submit"), null, {
+    actionRes = http.post(sessionUrl(sessionId, "/approve"), null, {
       headers: authHeaders(),
       timeout: "60s",
     });

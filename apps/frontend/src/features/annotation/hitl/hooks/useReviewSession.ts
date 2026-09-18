@@ -104,8 +104,28 @@ export const useReviewSession = (sessionId?: string) => {
   const approveSessionMutation = useMutation({
     mutationFn: async () => {
       const response = await apiService.post(
-        `/hitl/sessions/${sessionId}/submit`,
+        `/hitl/sessions/${sessionId}/approve`,
         {},
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hitl-session", sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["hitl-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["dataset-review-stats"] });
+    },
+  });
+
+  const rejectSessionMutation = useMutation({
+    mutationFn: async (dto: {
+      rejectionReason: string;
+      comments?: string;
+      annotations?: string;
+    }) => {
+      const response = await apiService.post(
+        `/hitl/sessions/${sessionId}/reject`,
+        dto,
       );
       return response.data;
     },
@@ -213,10 +233,13 @@ export const useReviewSession = (sessionId?: string) => {
     skipSessionAsync: skipSessionMutation.mutateAsync,
     flagSession: flagSessionMutation.mutate,
     flagSessionAsync: flagSessionMutation.mutateAsync,
+    rejectSession: rejectSessionMutation.mutate,
+    rejectSessionAsync: rejectSessionMutation.mutateAsync,
     isSubmitting: submitCorrectionsMutation.isPending,
     isApproving: approveSessionMutation.isPending,
     isSkipping: skipSessionMutation.isPending,
     isFlagging: flagSessionMutation.isPending,
+    isRejecting: rejectSessionMutation.isPending,
     deleteCorrection: deleteCorrectionMutation.mutate,
     deleteCorrectionAsync: deleteCorrectionMutation.mutateAsync,
     reopenSession: reopenSessionMutation.mutate,
