@@ -88,8 +88,13 @@ export function resolveRefs(
 }
 
 /**
- * The first free run of words whose joined text equals `target`; failing
- * that, the shortest free run whose joined text contains it.
+ * The first free run of words whose joined text equals `target`. If an exact
+ * match exists anywhere but every occurrence is already claimed, the field is
+ * unresolvable and this returns null without falling back to a substring
+ * match — a decoy word that merely contains `target` must never be chosen
+ * over a real occurrence that happens to be taken. Only when no exact match
+ * exists anywhere does the shortest free run whose joined text contains
+ * `target` apply.
  */
 function findRun(
   words: CandidateWord[],
@@ -99,14 +104,19 @@ function findRun(
   const free = (start: number, end: number): boolean =>
     words.slice(start, end + 1).every((word) => !taken.has(word.id));
 
+  let exactExists = false;
   for (let start = 0; start < words.length; start += 1) {
     let joined = "";
     for (let end = start; end < words.length; end += 1) {
       joined = end === start ? words[end].norm : `${joined} ${words[end].norm}`;
       if (joined.length > target.length) break;
-      if (joined === target && free(start, end)) return [start, end];
+      if (joined === target) {
+        exactExists = true;
+        if (free(start, end)) return [start, end];
+      }
     }
   }
+  if (exactExists) return null;
 
   let best: [number, number] | null = null;
   for (let start = 0; start < words.length; start += 1) {
