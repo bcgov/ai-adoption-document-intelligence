@@ -48,6 +48,7 @@ import {
 import { ExportDto } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
+  CreateFieldDefinitionsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import {
@@ -246,6 +247,38 @@ export class TemplateModelController {
       Permission.TEMPLATE_MODEL_FIELDS_CREATE,
     ]);
     return this.templateModelService.addField(
+      id,
+      dto,
+      req.resolvedIdentity.actorId,
+    );
+  }
+
+  @Post(":id/fields/bulk")
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Add several fields to the template model schema in one transaction",
+  })
+  @ApiParam({ name: "id", description: "Template Model ID" })
+  @ApiCreatedResponse({
+    description: "The created field definitions, in request order",
+    type: [FieldDefinitionResponseDto],
+  })
+  @ApiNotFoundResponse({ description: "Template model not found" })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiConflictResponse({
+    description:
+      "A field key already exists or repeats within the request; the response lists them in field_keys",
+  })
+  async addFields(
+    @Param("id") id: string,
+    @Body() dto: CreateFieldDefinitionsDto,
+    @Req() req: Request,
+  ) {
+    const templateModel = await this.templateModelService.getTemplateModel(id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    return this.templateModelService.addFields(
       id,
       dto,
       req.resolvedIdentity.actorId,
