@@ -142,6 +142,7 @@ describe("TemplateModelService", () => {
       deleteTemplateModel: jest.fn(),
       findAzureModelIdsForTemplate: jest.fn().mockResolvedValue([]),
       createFieldDefinition: jest.fn(),
+      createFieldDefinitions: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
       findLabeledDocuments: jest.fn(),
@@ -1525,22 +1526,23 @@ describe("TemplateModelService", () => {
   });
 
   describe("addFields", () => {
-    it("creates the fields in one transaction after the current last order, audited through the transaction", async () => {
+    it("creates the fields in one batched call after the current last order, audited through the same transaction", async () => {
       mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
         mockTemplateModel,
       );
-      mockTemplateModelDbService.createFieldDefinition
-        .mockResolvedValueOnce({
+      mockTemplateModelDbService.createFieldDefinitions.mockResolvedValueOnce([
+        {
           ...mockTemplateModel.field_schema[0],
           id: "field-2",
           field_key: "file_number",
-        })
-        .mockResolvedValueOnce({
+        },
+        {
           ...mockTemplateModel.field_schema[0],
           id: "field-3",
           field_key: "consents",
           field_type: PrismaFieldType.selectionMark,
-        });
+        },
+      ]);
 
       const created = await service.addFields(
         "tm-1",
@@ -1563,23 +1565,23 @@ describe("TemplateModelService", () => {
       ]);
       expect(mockPrismaService.transaction).toHaveBeenCalledTimes(1);
       expect(
-        mockTemplateModelDbService.createFieldDefinition,
-      ).toHaveBeenNthCalledWith(
-        1,
-        "tm-1",
-        expect.objectContaining({
-          field_key: "file_number",
-          description: "Court file number",
-          display_order: 1,
-        }),
-        {},
-      );
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledTimes(1);
       expect(
-        mockTemplateModelDbService.createFieldDefinition,
-      ).toHaveBeenNthCalledWith(
-        2,
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledWith(
         "tm-1",
-        expect.objectContaining({ field_key: "consents", display_order: 2 }),
+        [
+          expect.objectContaining({
+            field_key: "file_number",
+            description: "Court file number",
+            display_order: 1,
+          }),
+          expect.objectContaining({
+            field_key: "consents",
+            display_order: 2,
+          }),
+        ],
         {},
       );
       expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
@@ -1617,7 +1619,7 @@ describe("TemplateModelService", () => {
         expect.objectContaining({ field_keys: ["invoice_number", "total"] }),
       );
       expect(
-        mockTemplateModelDbService.createFieldDefinition,
+        mockTemplateModelDbService.createFieldDefinitions,
       ).not.toHaveBeenCalled();
     });
 
