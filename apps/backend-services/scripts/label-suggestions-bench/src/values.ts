@@ -172,7 +172,5 @@ export function valueFor(
   } else {
     value = sentence(2 + Math.floor(rng() * 3), rng);
   }
-  return maxLength !== undefined && maxLength > 0
-    ? value.slice(0, maxLength)
-    : value;
+  return maxLength !== undefined ? value.slice(0, maxLength) : value;
 }
