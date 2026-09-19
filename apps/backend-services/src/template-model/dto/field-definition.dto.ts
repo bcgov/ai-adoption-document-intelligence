@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEnum, IsInt, IsOptional, IsString, Min } from "class-validator";
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+} from "class-validator";
 
 export enum FieldType {
   STRING = "string",
@@ -30,6 +37,16 @@ export class CreateFieldDefinitionDto {
   @IsString()
   format_spec?: string;
 
+  @ApiPropertyOptional({
+    description:
+      "One-line plain-English description of what the field is and where it sits on the form. Used as instructions when an LLM suggests fields and labels; not exported to training files. Blank clears it.",
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()
   @IsInt()
@@ -49,6 +66,16 @@ export class UpdateFieldDefinitionDto {
   @IsOptional()
   @IsString()
   format_spec?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "One-line plain-English description of what the field is and where it sits on the form. Used as instructions when an LLM suggests fields and labels; not exported to training files. Blank clears it.",
+    maxLength: 500,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
 
   @ApiPropertyOptional({ description: "Display order" })
   @IsOptional()

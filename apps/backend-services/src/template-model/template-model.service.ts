@@ -42,6 +42,15 @@ import type {
   TemplateModelData,
 } from "./template-model-db.types";
 
+/** Trims a field description; blank becomes null, and an absent one stays absent. */
+function normalizeDescription(
+  value: string | undefined,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 @Injectable()
 export class TemplateModelService {
   constructor(
@@ -289,6 +298,7 @@ export class TemplateModelService {
         field_type: dto.field_type as unknown as FieldType,
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );
@@ -320,6 +330,7 @@ export class TemplateModelService {
       {
         field_format: dto.field_format,
         format_spec: dto.format_spec,
+        description: normalizeDescription(dto.description),
         display_order: dto.display_order,
       },
     );

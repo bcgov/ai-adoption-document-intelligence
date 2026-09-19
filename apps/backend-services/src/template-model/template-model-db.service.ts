@@ -321,6 +321,7 @@ export class TemplateModelDbService {
       field_type: FieldType;
       field_format?: string;
       format_spec?: string;
+      description?: string | null;
       display_order?: number;
     },
     tx?: Prisma.TransactionClient,
@@ -344,6 +345,7 @@ export class TemplateModelDbService {
         field_type: data.field_type,
         field_format: data.field_format,
         format_spec: data.format_spec,
+        description: data.description ?? null,
         display_order: data.display_order,
       },
     });
@@ -362,6 +364,7 @@ export class TemplateModelDbService {
     data: {
       field_format?: string;
       format_spec?: string;
+      description?: string | null;
       display_order?: number;
     },
     tx?: Prisma.TransactionClient,
