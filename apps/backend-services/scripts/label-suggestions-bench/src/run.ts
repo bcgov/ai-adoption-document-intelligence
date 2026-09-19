@@ -86,6 +86,7 @@ export async function runLabels(options: {
   const dir = join(CACHE_DIR, "runs", options.name);
   mkdirSync(dir, { recursive: true });
   const results: LabelFormResult[] = [];
+  const info = runInfo(options.name, options.engine);
 
   for (const form of readForms()) {
     const copies = listCopies(form.id)
@@ -93,78 +94,109 @@ export async function runLabels(options: {
       .map((c) => ({ ...c, answers: readAnswers(c.answersPath) }));
     if (copies.length === 0) {
       console.log(`skip ${form.id}: no generated copies`);
+      results.push({
+        formId: form.id,
+        title: form.title,
+        templateModelId: "",
+        copies: 0,
+        failedOcr: 0,
+        failedCalls: 0,
+        medianLatencyMs: null,
+        error: "skipped: no generated copies",
+        scores: [],
+      });
+      writeLabelReport(dir, info, results);
       continue;
     }
-    const model = await api.createTemplateModel(
-      `bench ${form.id} ${options.name}`,
-    );
-    for (const field of copies[0].answers.fields) {
-      await api.addField(model.id, {
-        field_key: field.key,
-        field_type: field.type,
-        ...(options.withDescriptions && field.description
-          ? { description: field.description }
-          : {}),
+    let templateModelId = "";
+    try {
+      const model = await api.createTemplateModel(
+        `bench ${form.id} ${options.name}`,
+      );
+      templateModelId = model.id;
+      for (const field of copies[0].answers.fields) {
+        await api.addField(model.id, {
+          field_key: field.key,
+          field_type: field.type,
+          ...(options.withDescriptions && field.description
+            ? { description: field.description }
+            : {}),
+        });
+      }
+      const answersByDocument = await uploadCopies(
+        api,
+        model.id,
+        form.id,
+        copies,
+      );
+      const documents = await waitForOcr(api, model.id, answersByDocument.size);
+
+      const scores: CopyScore[] = [];
+      const latencies: number[] = [];
+      let failedOcr = 0;
+      let failedCalls = 0;
+      for (const document of documents) {
+        const answers = answersByDocument.get(document.labeling_document_id);
+        const result = document.labeling_document.ocr_result?.analyzeResult;
+        if (
+          !answers ||
+          document.labeling_document.status !== "extracted" ||
+          !result
+        ) {
+          failedOcr += 1;
+          continue;
+        }
+        const started = Date.now();
+        try {
+          const suggestions = await api.suggestLabels(
+            model.id,
+            document.labeling_document_id,
+          );
+          latencies.push(Date.now() - started);
+          scores.push(
+            scoreCopy(
+              document.labeling_document.original_filename,
+              buildTruth(answers, result),
+              suggestions,
+            ),
+          );
+        } catch (error) {
+          failedCalls += 1;
+          console.log(
+            `${form.id}: suggestion call failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      results.push({
+        formId: form.id,
+        title: form.title,
+        templateModelId,
+        copies: copies.length,
+        failedOcr,
+        failedCalls,
+        medianLatencyMs: median(latencies),
+        error: null,
+        scores,
+      });
+      console.log(`${form.id}: scored ${scores.length} copies`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`${form.id}: failed: ${message}`);
+      results.push({
+        formId: form.id,
+        title: form.title,
+        templateModelId,
+        copies: 0,
+        failedOcr: 0,
+        failedCalls: 0,
+        medianLatencyMs: null,
+        error: `failed: ${message}`,
+        scores: [],
       });
     }
-    const answersByDocument = await uploadCopies(
-      api,
-      model.id,
-      form.id,
-      copies,
-    );
-    const documents = await waitForOcr(api, model.id, answersByDocument.size);
-
-    const scores: CopyScore[] = [];
-    const latencies: number[] = [];
-    let failedOcr = 0;
-    let failedCalls = 0;
-    for (const document of documents) {
-      const answers = answersByDocument.get(document.labeling_document_id);
-      const result = document.labeling_document.ocr_result?.analyzeResult;
-      if (
-        !answers ||
-        document.labeling_document.status !== "extracted" ||
-        !result
-      ) {
-        failedOcr += 1;
-        continue;
-      }
-      const started = Date.now();
-      try {
-        const suggestions = await api.suggestLabels(
-          model.id,
-          document.labeling_document_id,
-        );
-        latencies.push(Date.now() - started);
-        scores.push(
-          scoreCopy(
-            document.labeling_document.original_filename,
-            buildTruth(answers, result),
-            suggestions,
-          ),
-        );
-      } catch (error) {
-        failedCalls += 1;
-        console.log(
-          `${form.id}: suggestion call failed: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    results.push({
-      formId: form.id,
-      title: form.title,
-      templateModelId: model.id,
-      copies: copies.length,
-      failedOcr,
-      failedCalls,
-      medianLatencyMs: median(latencies),
-      scores,
-    });
-    console.log(`${form.id}: scored ${scores.length} copies`);
+    writeLabelReport(dir, info, results);
   }
 
-  writeLabelReport(dir, runInfo(options.name, options.engine), results);
   return dir;
 }
 
@@ -176,60 +208,83 @@ export async function runFields(options: {
   const dir = join(CACHE_DIR, "runs", options.name);
   mkdirSync(dir, { recursive: true });
   const results: FieldFormResult[] = [];
+  const info = runInfo(options.name, options.engine);
 
   for (const form of readForms()) {
     const [first] = listCopies(form.id);
     if (!first) {
       console.log(`skip ${form.id}: no generated copies`);
-      continue;
-    }
-    const answers = readAnswers(first.answersPath);
-    const model = await api.createTemplateModel(
-      `bench ${form.id} ${options.name} fields`,
-    );
-    const byDocument = await uploadCopies(api, model.id, form.id, [
-      { copy: first.copy, pdfPath: first.pdfPath, answers },
-    ]);
-    const documents = await waitForOcr(api, model.id, byDocument.size);
-    const document = documents[0];
-    if (!document || document.labeling_document.status !== "extracted") {
       results.push({
         formId: form.id,
         title: form.title,
-        templateModelId: model.id,
+        templateModelId: "",
         latencyMs: null,
-        error: "OCR did not finish",
+        error: "skipped: no generated copies",
         score: null,
       });
+      writeFieldReport(dir, info, results);
       continue;
     }
-    const started = Date.now();
+    let templateModelId = "";
     try {
-      const suggested = await api.suggestFields(
-        model.id,
-        document.labeling_document_id,
+      const answers = readAnswers(first.answersPath);
+      const model = await api.createTemplateModel(
+        `bench ${form.id} ${options.name} fields`,
       );
-      results.push({
-        formId: form.id,
-        title: form.title,
-        templateModelId: model.id,
-        latencyMs: Date.now() - started,
-        error: null,
-        score: scoreFieldList(answers, suggested),
-      });
+      templateModelId = model.id;
+      const byDocument = await uploadCopies(api, model.id, form.id, [
+        { copy: first.copy, pdfPath: first.pdfPath, answers },
+      ]);
+      const documents = await waitForOcr(api, model.id, byDocument.size);
+      const document = documents[0];
+      if (!document) {
+        results.push({
+          formId: form.id,
+          title: form.title,
+          templateModelId,
+          latencyMs: null,
+          error: "OCR did not finish",
+          score: null,
+        });
+      } else if (document.labeling_document.status !== "extracted") {
+        results.push({
+          formId: form.id,
+          title: form.title,
+          templateModelId,
+          latencyMs: null,
+          error: `OCR ${document.labeling_document.status}`,
+          score: null,
+        });
+      } else {
+        const started = Date.now();
+        const suggested = await api.suggestFields(
+          model.id,
+          document.labeling_document_id,
+        );
+        results.push({
+          formId: form.id,
+          title: form.title,
+          templateModelId,
+          latencyMs: Date.now() - started,
+          error: null,
+          score: scoreFieldList(answers, suggested),
+        });
+        console.log(`${form.id}: suggested fields scored`);
+      }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`${form.id}: failed: ${message}`);
       results.push({
         formId: form.id,
         title: form.title,
-        templateModelId: model.id,
+        templateModelId,
         latencyMs: null,
-        error: error instanceof Error ? error.message : String(error),
+        error: `failed: ${message}`,
         score: null,
       });
     }
-    console.log(`${form.id}: suggested fields scored`);
+    writeFieldReport(dir, info, results);
   }
 
-  writeFieldReport(dir, runInfo(options.name, options.engine), results);
   return dir;
 }

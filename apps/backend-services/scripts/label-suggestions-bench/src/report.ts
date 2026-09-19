@@ -10,6 +10,7 @@ export interface LabelFormResult {
   failedOcr: number;
   failedCalls: number;
   medianLatencyMs: number | null;
+  error: string | null;
   scores: CopyScore[];
 }
 
@@ -41,6 +42,9 @@ export function writeLabelReport(
     JSON.stringify({ ...run, results }, null, 2),
   );
   const rows = results.map((r) => {
+    if (r.error) {
+      return `| ${r.formId} | ${r.error} | | | | | | | | | | |`;
+    }
     const t = totals(r.scores);
     return `| ${r.formId} | ${r.copies} | ${t.verified} | ${t.exact} | ${t.partial} | ${t.wrong} | ${t.missed} | ${percent(t.exactRate)} | ${t.unverified} | ${r.failedOcr} | ${r.failedCalls} | ${r.medianLatencyMs ?? "—"} |`;
   });
