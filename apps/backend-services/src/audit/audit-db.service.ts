@@ -51,4 +51,35 @@ export class AuditDbService {
       },
     });
   }
+
+  /**
+   * Creates several audit events in one round trip. Used for the batch case
+   * (several events recorded together inside a caller's transaction), where
+   * one insert per event would otherwise add its own round trip to that
+   * transaction's timeout budget.
+   * @param events - The fully resolved audit event data, one per event.
+   * @param tx - Optional transaction client.
+   */
+  async createAuditEvents(
+    events: AuditEventCreateData[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (events.length === 0) return;
+    const client = tx ?? this.prisma;
+    await client.auditEvent.createMany({
+      data: events.map((data) => ({
+        event_type: data.event_type,
+        resource_type: data.resource_type,
+        resource_id: data.resource_id,
+        actor_id: data.actor_id,
+        document_id: data.document_id,
+        workflow_execution_id: data.workflow_execution_id,
+        group_id: data.group_id,
+        request_id: data.request_id,
+        payload: (data.payload ?? undefined) as
+          | Prisma.InputJsonValue
+          | undefined,
+      })),
+    });
+  }
 }

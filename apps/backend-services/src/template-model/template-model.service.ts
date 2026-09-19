@@ -287,23 +287,18 @@ export class TemplateModelService {
       ) + 1;
 
     return this.prismaService.transaction(async (tx) => {
-      const created: FieldDefinition[] = [];
-      for (const [index, field] of dto.fields.entries()) {
-        created.push(
-          await this.templateModelDb.createFieldDefinition(
-            templateModelId,
-            {
-              field_key: field.field_key,
-              field_type: field.field_type as unknown as FieldType,
-              field_format: field.field_format,
-              format_spec: field.format_spec,
-              description: normalizeDescription(field.description),
-              display_order: firstOrder + index,
-            },
-            tx,
-          ),
-        );
-      }
+      const created = await this.templateModelDb.createFieldDefinitions(
+        templateModelId,
+        dto.fields.map((field, index) => ({
+          field_key: field.field_key,
+          field_type: field.field_type as unknown as FieldType,
+          field_format: field.field_format,
+          format_spec: field.format_spec,
+          description: normalizeDescription(field.description),
+          display_order: firstOrder + index,
+        })),
+        tx,
+      );
       await this.auditService.recordEvent(
         created.map((field) => ({
           event_type: "template_model_field_created",

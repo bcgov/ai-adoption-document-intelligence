@@ -282,6 +282,63 @@ export class TemplateModelDbService {
   }
 
   /**
+   * Creates several field definitions for a template model in one round
+   * trip (a single `INSERT ... RETURNING`, not one insert per field), inside
+   * the caller's transaction.
+   *
+   * @param templateModelId - The template model ID to add the fields to.
+   * @param fields - The field definitions to create, each with an explicit display_order.
+   * @returns The created field definitions, in the same order as `fields`.
+   */
+  async createFieldDefinitions(
+    templateModelId: string,
+    fields: Array<{
+      field_key: string;
+      field_type: FieldType;
+      field_format?: string;
+      format_spec?: string;
+      description?: string | null;
+      display_order: number;
+    }>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<FieldDefinition[]> {
+    const client = tx ?? this.prisma;
+    this.logger.debug("Creating field definitions for template model", {
+      count: fields.length,
+      templateModelId,
+    });
+    const created = await client.fieldDefinition.createManyAndReturn({
+      data: fields.map((field) => ({
+        template_model_id: templateModelId,
+        field_key: field.field_key,
+        field_type: field.field_type,
+        field_format: field.field_format,
+        format_spec: field.format_spec,
+        description: field.description ?? null,
+        display_order: field.display_order,
+      })),
+    });
+    // createManyAndReturn compiles to one multi-row INSERT ... RETURNING.
+    // Postgres returns those rows in input order in practice (verified
+    // directly against this project's Postgres version), but Prisma's own
+    // API makes no ordering promise for the operation — there is no
+    // `orderBy` option for it — so the "in request order" contract is
+    // enforced here rather than assumed from that incidental behaviour.
+    // field_key is unique within one request (addFields rejects duplicates
+    // and existing keys before this runs), so it is a safe join key.
+    const byKey = new Map(created.map((row) => [row.field_key, row]));
+    return fields.map((field) => {
+      const row = byKey.get(field.field_key);
+      if (!row) {
+        throw new Error(
+          `createManyAndReturn did not return a row for field_key "${field.field_key}"`,
+        );
+      }
+      return row;
+    });
+  }
+
+  /**
    * Updates an existing field definition.
    *
    * @param id - The field definition ID.
