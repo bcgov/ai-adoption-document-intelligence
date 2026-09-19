@@ -39,6 +39,8 @@ describe("TemplateModelService", () => {
   let mockOcrService: jest.Mocked<TemplateModelOcrService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
   let mockSuggestionService: jest.Mocked<SuggestionService>;
+  let mockAuditService: { recordEvent: jest.Mock };
+  let mockPrismaService: { transaction: jest.Mock };
 
   const mockTemplateModel: TemplateModelData = {
     id: "tm-1",
@@ -193,6 +195,8 @@ describe("TemplateModelService", () => {
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(TemplateModelOcrService);
     mockSuggestionService = module.get(SuggestionService);
+    mockAuditService = module.get(AuditService);
+    mockPrismaService = module.get(PrismaService);
   });
 
   // ========== MODEL ID GENERATION ==========
@@ -1368,6 +1372,113 @@ describe("TemplateModelService", () => {
       const data =
         mockTemplateModelDbService.updateFieldDefinition.mock.calls[0][2];
       expect(data.description).toBeUndefined();
+    });
+  });
+
+  describe("addFields", () => {
+    it("creates the fields in one transaction after the current last order, audited through the transaction", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinition
+        .mockResolvedValueOnce({
+          ...mockTemplateModel.field_schema[0],
+          id: "field-2",
+          field_key: "file_number",
+        })
+        .mockResolvedValueOnce({
+          ...mockTemplateModel.field_schema[0],
+          id: "field-3",
+          field_key: "consents",
+          field_type: PrismaFieldType.selectionMark,
+        });
+
+      const created = await service.addFields(
+        "tm-1",
+        {
+          fields: [
+            {
+              field_key: "file_number",
+              field_type: FieldType.STRING,
+              description: "Court file number",
+            },
+            { field_key: "consents", field_type: FieldType.SELECTION_MARK },
+          ],
+        },
+        "actor-1",
+      );
+
+      expect(created.map((f) => f.field_key)).toEqual([
+        "file_number",
+        "consents",
+      ]);
+      expect(mockPrismaService.transaction).toHaveBeenCalledTimes(1);
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenNthCalledWith(
+        1,
+        "tm-1",
+        expect.objectContaining({
+          field_key: "file_number",
+          description: "Court file number",
+          display_order: 1,
+        }),
+        {},
+      );
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenNthCalledWith(
+        2,
+        "tm-1",
+        expect.objectContaining({ field_key: "consents", display_order: 2 }),
+        {},
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            event_type: "template_model_field_created",
+            resource_id: "tm-1",
+            payload: { field_id: "field-2", field_key: "file_number" },
+          }),
+          expect.objectContaining({
+            payload: { field_id: "field-3", field_key: "consents" },
+          }),
+        ],
+        {},
+      );
+    });
+
+    it("refuses keys that already exist or repeat, naming them", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+
+      const error = await service
+        .addFields("tm-1", {
+          fields: [
+            { field_key: "invoice_number", field_type: FieldType.STRING },
+            { field_key: "total", field_type: FieldType.NUMBER },
+            { field_key: "total", field_type: FieldType.NUMBER },
+          ],
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual(
+        expect.objectContaining({ field_keys: ["invoice_number", "total"] }),
+      );
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unknown template model", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(null);
+      await expect(
+        service.addFields("missing", {
+          fields: [{ field_key: "a", field_type: FieldType.STRING }],
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

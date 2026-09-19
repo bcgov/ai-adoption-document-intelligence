@@ -25,6 +25,7 @@ import {
 import { ExportDto, ExportFormat } from "./dto/export.dto";
 import {
   CreateFieldDefinitionDto,
+  CreateFieldDefinitionsDto,
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
@@ -248,6 +249,79 @@ export class TemplateModelService {
       payload: { field_id: field.id, field_key: field.field_key },
     });
     return field;
+  }
+
+  async addFields(
+    templateModelId: string,
+    dto: CreateFieldDefinitionsDto,
+    actorId?: string,
+  ): Promise<FieldDefinition[]> {
+    this.logger.debug(
+      `Adding ${dto.fields.length} fields to template model: ${templateModelId}`,
+    );
+    const templateModel =
+      await this.templateModelDb.findTemplateModel(templateModelId);
+    if (!templateModel) {
+      throw new NotFoundException(
+        `Template model with id ${templateModelId} not found`,
+      );
+    }
+
+    const existing = new Set(
+      templateModel.field_schema.map((f) => f.field_key),
+    );
+    const seen = new Set<string>();
+    const conflicts = new Set<string>();
+    for (const field of dto.fields) {
+      if (existing.has(field.field_key) || seen.has(field.field_key)) {
+        conflicts.add(field.field_key);
+      }
+      seen.add(field.field_key);
+    }
+    if (conflicts.size > 0) {
+      throw new ConflictException({
+        message: "These field keys already exist or repeat in the request",
+        field_keys: [...conflicts],
+      });
+    }
+
+    const firstOrder =
+      templateModel.field_schema.reduce(
+        (max, field) => Math.max(max, field.display_order),
+        -1,
+      ) + 1;
+
+    return this.prismaService.transaction(async (tx) => {
+      const created: FieldDefinition[] = [];
+      for (const [index, field] of dto.fields.entries()) {
+        created.push(
+          await this.templateModelDb.createFieldDefinition(
+            templateModelId,
+            {
+              field_key: field.field_key,
+              field_type: field.field_type as unknown as FieldType,
+              field_format: field.field_format,
+              format_spec: field.format_spec,
+              description: normalizeDescription(field.description),
+              display_order: firstOrder + index,
+            },
+            tx,
+          ),
+        );
+      }
+      await this.auditService.recordEvent(
+        created.map((field) => ({
+          event_type: "template_model_field_created",
+          resource_type: "template_model",
+          resource_id: templateModelId,
+          actor_id: actorId,
+          group_id: templateModel.group_id,
+          payload: { field_id: field.id, field_key: field.field_key },
+        })),
+        tx,
+      );
+      return created;
+    });
   }
 
   async updateField(

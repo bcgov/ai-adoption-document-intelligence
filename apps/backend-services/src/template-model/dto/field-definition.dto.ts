@@ -1,11 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
   IsString,
   MaxLength,
   Min,
+  ValidateNested,
 } from "class-validator";
 
 export enum FieldType {
@@ -82,4 +87,18 @@ export class UpdateFieldDefinitionDto {
   @IsInt()
   @Min(0)
   display_order?: number;
+}
+
+export class CreateFieldDefinitionsDto {
+  @ApiProperty({
+    description:
+      "Fields to add, in display order. Their display orders continue after the template model's current last field; any display_order sent here is ignored.",
+    type: [CreateFieldDefinitionDto],
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => CreateFieldDefinitionDto)
+  fields!: CreateFieldDefinitionDto[];
 }
