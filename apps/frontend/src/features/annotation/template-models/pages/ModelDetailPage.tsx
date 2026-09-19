@@ -76,6 +76,7 @@ interface FieldFormData {
   field_type?: string;
   field_format?: string;
   format_spec?: string;
+  description?: string;
   display_order?: number;
 }
 
@@ -341,6 +342,7 @@ export const ModelDetailPage: FC = () => {
         data: {
           field_format: data.field_format,
           format_spec: data.format_spec,
+          description: data.description,
           display_order: data.display_order,
         },
       });
@@ -350,6 +352,7 @@ export const ModelDetailPage: FC = () => {
         field_type: data.field_type!,
         field_format: data.field_format,
         format_spec: data.format_spec,
+        description: data.description || undefined,
         display_order: schema.length + 1,
       });
     }
@@ -747,6 +750,7 @@ export const ModelDetailPage: FC = () => {
                   <DataTable.Tr>
                     <DataTable.Th>Key</DataTable.Th>
                     <DataTable.Th>Type</DataTable.Th>
+                    <DataTable.Th>Description</DataTable.Th>
                     <DataTable.Th>Format</DataTable.Th>
                     <DataTable.Th>Format spec</DataTable.Th>
                     <DataTable.Th>Order</DataTable.Th>
@@ -758,6 +762,7 @@ export const ModelDetailPage: FC = () => {
                     <DataTable.Tr key={field.id}>
                       <DataTable.Td>{field.fieldKey}</DataTable.Td>
                       <DataTable.Td>{field.fieldType}</DataTable.Td>
+                      <DataTable.Td>{field.description || "—"}</DataTable.Td>
                       <DataTable.Td>{field.fieldFormat || "—"}</DataTable.Td>
                       <DataTable.Td>
                         {(() => {
