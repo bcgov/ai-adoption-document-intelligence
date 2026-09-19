@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import { createAzure } from "@ai-sdk/azure";
 import {
   HttpException,
@@ -54,10 +55,21 @@ export class SuggestionLlmService {
           name: request.schemaName,
         }),
         abortSignal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+        // Explicit rather than left at the SDK default (also 2): each retry
+        // resends the whole prompt, which can reach MAX_TAGGED_TEXT_CHARS,
+        // so this bounds the cost a flaky endpoint can run up, not just the
+        // wall-clock time LLM_TIMEOUT_MS bounds.
+        maxRetries: 2,
       });
       return result.output;
     } catch (error) {
       const reason = describeLlmError(error);
+      // Raw error, kept separate from `reason`: server-side diagnostics
+      // only, never part of what the caller receives.
+      this.logger.debug("Label suggestion model call raised an error", {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+      });
       this.logger.warn("Label suggestion model call failed", { reason });
       throw new HttpException(
         { message: "The suggestion model call failed", reason },

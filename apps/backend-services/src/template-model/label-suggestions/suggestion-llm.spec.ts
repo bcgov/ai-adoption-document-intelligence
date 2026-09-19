@@ -1,6 +1,6 @@
 import { HttpException, ServiceUnavailableException } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
-import type { LanguageModel } from "ai";
+import { APICallError, type LanguageModel } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { z } from "zod/v4";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -119,6 +119,110 @@ describe("SuggestionLlmService", () => {
         reason: "the reply was cut off before it finished",
       }),
     );
+  });
+
+  it("turns repeated endpoint failures into a 502 once retries are exhausted", async () => {
+    jest.useFakeTimers();
+    try {
+      const failure = new APICallError({
+        message: "Internal Server Error",
+        url: "https://example.openai.azure.com/openai/deployments/gpt-test/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      });
+      const service = new MockedLlmService(
+        configWith(SETTINGS),
+        new MockLanguageModelV3({
+          doGenerate: async () => {
+            throw failure;
+          },
+        }),
+      );
+
+      const pending = service.generate(request).catch((e: unknown) => e);
+      // maxRetries: 2 puts two backoff delays between the three attempts;
+      // advance well past both before reading the result.
+      for (let i = 0; i < 5; i += 1) {
+        await jest.advanceTimersByTimeAsync(2000);
+      }
+      const error = await pending;
+
+      expect(error).toBeInstanceOf(HttpException);
+      expect((error as HttpException).getStatus()).toBe(502);
+      expect((error as HttpException).getResponse()).toEqual({
+        message: "The suggestion model call failed",
+        reason: "the model endpoint kept failing after retries",
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("turns a non-retryable endpoint error into a 502 without leaking the request or response", async () => {
+    (mockAppLogger.warn as jest.Mock).mockClear();
+    (mockAppLogger.debug as jest.Mock).mockClear();
+
+    const failure = new APICallError({
+      message: "Bad Request",
+      url: "https://example.openai.azure.com/openai/deployments/gpt-test/chat/completions?api-version=2024-10-21",
+      requestBodyValues: { marker: "should-not-leak-request-body" },
+      statusCode: 400,
+      responseHeaders: { "x-marker": "should-not-leak-header" },
+      responseBody: "should-not-leak-response-body",
+    });
+    const service = new MockedLlmService(
+      configWith(SETTINGS),
+      new MockLanguageModelV3({
+        doGenerate: async () => {
+          throw failure;
+        },
+      }),
+    );
+
+    const error = await service.generate(request).catch((e: unknown) => e);
+
+    expect((error as HttpException).getStatus()).toBe(502);
+    expect((error as HttpException).getResponse()).toEqual({
+      message: "The suggestion model call failed",
+      reason: "the model endpoint returned HTTP 400",
+    });
+
+    const forbidden = [
+      failure.url,
+      "should-not-leak-request-body",
+      "should-not-leak-header",
+      "should-not-leak-response-body",
+    ];
+    const loggedText = JSON.stringify([
+      (mockAppLogger.warn as jest.Mock).mock.calls,
+      (mockAppLogger.debug as jest.Mock).mock.calls,
+    ]);
+    const thrownText = JSON.stringify((error as HttpException).getResponse());
+    for (const value of forbidden) {
+      expect(loggedText).not.toContain(value);
+      expect(thrownText).not.toContain(value);
+    }
+  });
+
+  it("turns a request that timed out into a 502", async () => {
+    const timedOut = new Error("The operation was aborted");
+    timedOut.name = "TimeoutError";
+    const service = new MockedLlmService(
+      configWith(SETTINGS),
+      new MockLanguageModelV3({
+        doGenerate: async () => {
+          throw timedOut;
+        },
+      }),
+    );
+
+    const error = await service.generate(request).catch((e: unknown) => e);
+
+    expect((error as HttpException).getStatus()).toBe(502);
+    expect((error as HttpException).getResponse()).toEqual({
+      message: "The suggestion model call failed",
+      reason: "the model did not answer within 120 s",
+    });
   });
 
   it("builds an Azure chat-completions model for the configured deployment", () => {
