@@ -4,6 +4,23 @@ import { normalizeText, type TruthField } from "./ground-truth";
 
 export type Outcome = "exact" | "partial" | "wrong" | "missed";
 
+/** Matches values one-to-one: each value in `against` can be matched once. */
+function countMatches(from: string[], against: string[]): number {
+  const remaining = new Map<string, number>();
+  for (const value of against) {
+    remaining.set(value, (remaining.get(value) ?? 0) + 1);
+  }
+  let matched = 0;
+  for (const value of from) {
+    const left = remaining.get(value) ?? 0;
+    if (left > 0) {
+      matched += 1;
+      remaining.set(value, left - 1);
+    }
+  }
+  return matched;
+}
+
 export interface CopyScore {
   copy: string;
   verifiedFields: number;
@@ -104,11 +121,9 @@ export function scoreFieldList(
   );
   return {
     answerTextFields: truthValues.length,
-    foundTextFields: truthValues.filter((v) => suggestedValues.includes(v))
-      .length,
+    foundTextFields: countMatches(truthValues, suggestedValues),
     suggestedWithValue: suggestedValues.length,
-    suggestedMatching: suggestedValues.filter((v) => truthValues.includes(v))
-      .length,
+    suggestedMatching: countMatches(suggestedValues, truthValues),
     answerCheckboxes: answers.fields.filter((f) => f.type === "selectionMark")
       .length,
     suggestedCheckboxes: suggested.filter(
