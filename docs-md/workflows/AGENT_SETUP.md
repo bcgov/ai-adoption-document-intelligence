@@ -45,10 +45,16 @@ clean refusal.
 | `AZURE_OPENAI_API_KEY` | **yes**, for Azure | The APIM subscription key |
 | `AZURE_OPENAI_ENDPOINT` | **yes**, for Azure | The APIM / Azure OpenAI base URL |
 | `AZURE_OPENAI_DEPLOYMENT` | no (defaults to `gpt-4o`) | Deployment name, used verbatim as the model id |
-| `AZURE_OPENAI_API_VERSION` | no (defaults to `2024-10-21`) | Azure API version |
+| `AZURE_OPENAI_API_VERSION` | no, but every environment sets it — see below | Azure API version |
 | `ANTHROPIC_API_KEY` | **yes**, for Anthropic | Alternative provider; not configured anywhere in this repo |
 | `AGENT_ANTHROPIC_MODEL` | no | Anthropic model id |
 | `AGENT_DEFAULT_PROVIDER` | no | `azure` or `anthropic`; falls back to whichever is configured |
+
+`AZURE_OPENAI_API_VERSION` has a code default of `2024-10-21`, and no running
+environment reaches it: `docker-compose.yml` sets `2024-12-01-preview` and the
+OpenShift configmap pins `2024-02-15-preview`. To change the version a feature
+actually talks to Azure under, change it there — editing the code default moves
+nothing.
 
 Cost and loop bounds, none of them load-bearing for setup: `AGENT_MAX_STEPS`,
 `AGENT_MAX_OUTPUT_TOKENS`, `AGENT_MAX_CONVERSATION_TOKENS`,
