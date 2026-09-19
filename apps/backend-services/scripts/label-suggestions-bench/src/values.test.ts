@@ -46,4 +46,8 @@ describe("valueFor", () => {
     const value = valueFor("Comments", true, 12, createRng(3));
     assert.ok(value.length <= 12);
   });
+
+  it("returns an empty value for a maximum length of 0", () => {
+    assert.equal(valueFor("Comments", true, 0, createRng(3)), "");
+  });
 });
