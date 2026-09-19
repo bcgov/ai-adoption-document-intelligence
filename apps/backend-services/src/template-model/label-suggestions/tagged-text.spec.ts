@@ -232,6 +232,91 @@ describe("renderTaggedText", () => {
     ).toThrow(TaggedTextLimitError);
   });
 
+  it("refuses an oversized document before indexing its words, lines and cells", () => {
+    const base = syntheticLayoutResult();
+    const content = "x".repeat(MAX_TAGGED_TEXT_CHARS + 1);
+    // Enough lines and words that indexing them (the old behaviour: a full
+    // scan of `words` per line) would take well over a second. The pre-check
+    // on `content.length` must refuse before any of this is built, so this
+    // test's own runtime is the proof: it stays fast only if the index was
+    // never built.
+    const wordCount = 15_000;
+    const words = Array.from({ length: wordCount }, (_, i) => ({
+      content: "w",
+      polygon: [0, 0, 1, 0, 1, 1, 0, 1],
+      confidence: 1,
+      span: { offset: i, length: 1 },
+    }));
+    const lines = Array.from({ length: wordCount }, (_, i) => ({
+      content: "w",
+      polygon: [0, 0, 1, 0, 1, 1, 0, 1],
+      spans: [{ offset: i, length: 1 }],
+    }));
+
+    const start = performance.now();
+    expect(() =>
+      renderTaggedText({
+        ...base,
+        content,
+        pages: [
+          {
+            ...base.pages[0],
+            words,
+            lines,
+            selectionMarks: [],
+            spans: [{ offset: 0, length: content.length }],
+          },
+        ],
+      }),
+    ).toThrow(TaggedTextLimitError);
+    const elapsedMs = performance.now() - start;
+
+    expect(elapsedMs).toBeLessThan(200);
+  });
+
+  it("keeps element ids tied to the raw per-page index after a skipped word, through the offset-sorted lookup", () => {
+    const base = syntheticLayoutResult();
+    const page = base.pages[0];
+    // Jane (index 1) gets an invalid polygon and is skipped. Doe (index 2)
+    // must keep id "p1-w2" rather than shifting down to "p1-w1" — the
+    // frontend rebuilds the same ids independently by raw index, so a shift
+    // here would desync every id the labelling screen already has.
+    const wordsWithGap = [
+      page.words[0],
+      { ...page.words[1], polygon: [] },
+      page.words[2],
+    ];
+
+    const tagged = renderTaggedText({
+      ...base,
+      pages: [
+        {
+          ...page,
+          words: wordsWithGap,
+          selectionMarks: [],
+          lines: [
+            {
+              content: "Name Doe",
+              polygon: PLACEHOLDER_POLYGON,
+              // Covers Name (0-4) and Doe (10-13); Jane's span (5-9) sits in
+              // the gap left by the skipped word.
+              spans: [{ offset: 0, length: 13 }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(tagged.elements.has("p1-w1")).toBe(false);
+    expect(tagged.elements.get("p1-w0")?.content).toBe("Name");
+    expect(tagged.elements.get("p1-w2")?.content).toBe("Doe");
+    expect(tagged.tags.get("L1")).toEqual({
+      kind: "line",
+      pageNumber: 1,
+      wordIds: ["p1-w0", "p1-w2"],
+    });
+  });
+
   it("renders a shuffled multi-page layout in page order, with tags numbered continuously across pages", () => {
     const tagged = renderTaggedText(syntheticMultiPageLayoutResult());
 

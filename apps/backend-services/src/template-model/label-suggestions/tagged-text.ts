@@ -77,14 +77,54 @@ interface MarkInfo {
 /** When several insertions share an offset: page marker, then cell tag, then line tag. */
 const INSERT_RANK = { page: 0, cell: 1, line: 2 } as const;
 
-function inSpans(offset: number, spans: Span[]): boolean {
-  return spans.some(
-    (span) => offset >= span.offset && offset < span.offset + span.length,
-  );
-}
-
 function firstOffset(spans: Span[]): number {
   return Math.min(...spans.map((span) => span.offset));
+}
+
+/** Anything an offset-range lookup can be done against. */
+interface Offsettable {
+  id: string;
+  offset: number;
+}
+
+/** Index of the first element of `sorted` (ascending by `.offset`) at or past `target`. */
+function lowerBound(sorted: Offsettable[], target: number): number {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid].offset < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Ids of every element of `sorted` (ascending by `.offset`) whose offset
+ * falls in any of `spans`, in ascending-offset order, each id at most once.
+ * `sorted` is offset-sorted, so every span's matches form one contiguous
+ * slice found by binary search — the replacement for scanning the whole
+ * array per line and per cell, which is what made rendering large documents
+ * expensive even when they were ultimately refused for being too large.
+ */
+function idsInSpans(sorted: Offsettable[], spans: Span[]): string[] {
+  const ranges = spans
+    .map((span): [number, number] => [
+      lowerBound(sorted, span.offset),
+      lowerBound(sorted, span.offset + span.length),
+    ])
+    .filter(([start, end]) => end > start)
+    .sort((a, b) => a[0] - b[0]);
+
+  const ids: string[] = [];
+  let consumedTo = -1;
+  for (const [start, end] of ranges) {
+    for (let i = Math.max(start, consumedTo); i < end; i += 1) {
+      ids.push(sorted[i].id);
+    }
+    consumedTo = Math.max(consumedTo, end);
+  }
+  return ids;
 }
 
 /**
@@ -102,6 +142,18 @@ export function renderTaggedText(result: AnalysisResult): TaggedText {
     );
   }
   const content = result.content ?? "";
+  // Cheap refusal before the word/line/cell index below is built: the
+  // rendered tagged text is `content` plus inserted tags minus a few
+  // characters per checkbox, so it is never meaningfully shorter than
+  // `content`. Without this, an oversized document still pays for the full
+  // index (a scan of every word for every line and every cell) only to be
+  // refused anyway once the exact check on the rendered text runs at the
+  // end of this function — that exact check stays as the authoritative one.
+  if (content.length > MAX_TAGGED_TEXT_CHARS) {
+    throw new TaggedTextLimitError(
+      `The document's content is ${content.length} characters; label suggestions support at most ${MAX_TAGGED_TEXT_CHARS}.`,
+    );
+  }
 
   const elements = new Map<string, ElementInfo>();
   const words: ElementInfo[] = [];
@@ -139,6 +191,13 @@ export function renderTaggedText(result: AnalysisResult): TaggedText {
   const inserts: Insertion[] = [];
   const replacements: Replacement[] = [];
 
+  // Sorted once, then binary-searched per line and per cell below, instead
+  // of filtering the full array each time.
+  const wordsByOffset = [...words].sort((a, b) => a.offset - b.offset);
+  const marksByOffset: Offsettable[] = marks
+    .map((mark) => ({ id: mark.info.id, offset: mark.info.offset }))
+    .sort((a, b) => a.offset - b.offset);
+
   for (const page of pages) {
     if ((page.spans ?? []).length === 0) continue;
     inserts.push({
@@ -153,12 +212,8 @@ export function renderTaggedText(result: AnalysisResult): TaggedText {
     for (const cell of table.cells ?? []) {
       const spans = cell.spans ?? [];
       if (spans.length === 0) continue;
-      const wordIds = words
-        .filter((word) => inSpans(word.offset, spans))
-        .map((word) => word.id);
-      const selectionMarkIds = marks
-        .filter((mark) => inSpans(mark.info.offset, spans))
-        .map((mark) => mark.info.id);
+      const wordIds = idsInSpans(wordsByOffset, spans);
+      const selectionMarkIds = idsInSpans(marksByOffset, spans);
       const tag = `T${tableIndex + 1} r${cell.rowIndex} c${cell.columnIndex}`;
       tags.set(tag, {
         kind: "cell",
@@ -188,9 +243,7 @@ export function renderTaggedText(result: AnalysisResult): TaggedText {
     .sort((a, b) => a.start - b.start);
   let lineNumber = 0;
   for (const line of lines) {
-    const wordIds = words
-      .filter((word) => inSpans(word.offset, line.spans))
-      .map((word) => word.id);
+    const wordIds = idsInSpans(wordsByOffset, line.spans);
     if (wordIds.length === 0 || wordIds.every((id) => wordsInCells.has(id))) {
       continue;
     }
