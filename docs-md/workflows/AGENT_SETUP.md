@@ -25,9 +25,9 @@ Anthropic is implemented as a second provider and works, but **nothing in this
 repo is configured for it**, so Azure is the only working path today.
 
 `AZURE_OPENAI_*` is **shared configuration**, not agent-specific: the same four
-variables are read by `enrich-results`, `format-suggestion.service.ts` and
-`ai-recommendation.service.ts`. Repointing the endpoint moves all four features
-at once.
+variables are read by `enrich-results`, `format-suggestion.service.ts`,
+`ai-recommendation.service.ts` and `template-model/label-suggestions/suggestion-llm.ts`.
+Repointing the endpoint moves all five features at once.
 
 The agent runs inside **backend-services**, so the variables must be present
 for that process — not only for the Temporal worker.
