@@ -97,6 +97,18 @@ describe("resolveRefs", () => {
     ).toEqual(["p1-w2"]);
   });
 
+  it("drops the field rather than fall back to a decoy substring when every exact match is claimed", () => {
+    const decoy = oneLine(["AB", "ABC"]);
+    expect(
+      resolveRefs(
+        [{ tag: "L1", text: "AB" }],
+        decoy,
+        false,
+        new Set(["p1-w0"]),
+      ),
+    ).toBeNull();
+  });
+
   it("joins several refs in order", () => {
     const result = resolveRefs(
       [
@@ -118,6 +130,20 @@ describe("resolveRefs", () => {
       pageNumber: 1,
       polygon: [0, 2, 1, 2, 1, 3, 0, 3],
     });
+  });
+
+  it("drops a checkbox field whose mark is already claimed by an earlier field", () => {
+    const firstResolve = resolveRefs(
+      [{ tag: "S1", text: "" }],
+      tagged,
+      true,
+      none,
+    );
+    expect(firstResolve?.elementIds).toEqual(["p1-sm0"]);
+
+    expect(
+      resolveRefs([{ tag: "S1", text: "" }], tagged, true, new Set(["p1-sm0"])),
+    ).toBeNull();
   });
 
   it.each<[string, SuggestedRef[], boolean]>([
