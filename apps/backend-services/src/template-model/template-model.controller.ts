@@ -792,7 +792,24 @@ export class TemplateModelController {
   ): Promise<LabelSuggestionDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.labelSuggestionService.suggestLabels(id, documentId);
+    const suggestions = await this.labelSuggestionService.suggestLabels(
+      id,
+      documentId,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: documentId,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: documentId,
+      group_id: templateModel.group_id,
+      payload: {
+        action: "ocr",
+        template_model_id: id,
+        endpoint: "suggestions",
+      },
+    });
+    return suggestions;
   }
 
   @Post(":id/field-suggestions")
@@ -827,7 +844,24 @@ export class TemplateModelController {
   ): Promise<SuggestedFieldDto[]> {
     const templateModel = await this.templateModelService.getTemplateModel(id);
     identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
-    return this.labelSuggestionService.suggestFields(id, dto.document_id);
+    const suggestions = await this.labelSuggestionService.suggestFields(
+      id,
+      dto.document_id,
+    );
+    await this.auditService.recordEvent({
+      event_type: "document_accessed",
+      resource_type: "ocr_result",
+      resource_id: dto.document_id,
+      actor_id: req.resolvedIdentity.actorId,
+      document_id: dto.document_id,
+      group_id: templateModel.group_id,
+      payload: {
+        action: "ocr",
+        template_model_id: id,
+        endpoint: "field-suggestions",
+      },
+    });
+    return suggestions;
   }
 
   // ========== FORMAT SUGGESTION ENDPOINTS ==========
