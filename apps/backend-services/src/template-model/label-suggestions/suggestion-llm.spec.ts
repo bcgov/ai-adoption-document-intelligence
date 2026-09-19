@@ -3,6 +3,7 @@ import type { ConfigService } from "@nestjs/config";
 import { APICallError, type LanguageModel } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { z } from "zod/v4";
+import { DEFAULT_AZURE_OPENAI_API_VERSION } from "@/template-model/azure-openai-config";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { SuggestionLlmService } from "./suggestion-llm";
 
@@ -231,5 +232,36 @@ describe("SuggestionLlmService", () => {
       provider: "azure.chat",
       modelId: "gpt-test",
     });
+  });
+
+  it("defaults the API version to the shared default when AZURE_OPENAI_API_VERSION is unset", () => {
+    const service = new ExposedLlmService(configWith(SETTINGS), mockAppLogger);
+    const model = service.exposeModel() as unknown as {
+      config: { url: (args: { path: string; modelId: string }) => string };
+    };
+
+    const url = model.config.url({
+      path: "/chat/completions",
+      modelId: "gpt-test",
+    });
+
+    expect(url).toContain(`api-version=${DEFAULT_AZURE_OPENAI_API_VERSION}`);
+  });
+
+  it("uses an explicit AZURE_OPENAI_API_VERSION over the default", () => {
+    const service = new ExposedLlmService(
+      configWith({ ...SETTINGS, AZURE_OPENAI_API_VERSION: "2099-01-01" }),
+      mockAppLogger,
+    );
+    const model = service.exposeModel() as unknown as {
+      config: { url: (args: { path: string; modelId: string }) => string };
+    };
+
+    const url = model.config.url({
+      path: "/chat/completions",
+      modelId: "gpt-test",
+    });
+
+    expect(url).toContain("api-version=2099-01-01");
   });
 });

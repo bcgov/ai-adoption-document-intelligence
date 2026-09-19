@@ -8,6 +8,7 @@ import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { of } from "rxjs";
 import { PrismaService } from "@/database/prisma.service";
+import { DEFAULT_AZURE_OPENAI_API_VERSION } from "@/template-model/azure-openai-config";
 import { FormatSuggestionService } from "./format-suggestion.service";
 
 describe("FormatSuggestionService", () => {
@@ -358,7 +359,7 @@ describe("FormatSuggestionService", () => {
       ];
 
       expect(url).toContain("openai/deployments/gpt-4/chat/completions");
-      expect(url).toContain("api-version=");
+      expect(url).toContain(`api-version=${DEFAULT_AZURE_OPENAI_API_VERSION}`);
 
       expect(payload.messages).toHaveLength(2);
       expect(payload.messages[0].role).toBe("system");
