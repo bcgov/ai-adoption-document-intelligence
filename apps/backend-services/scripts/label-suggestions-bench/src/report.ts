@@ -76,7 +76,7 @@ export function writeFieldReport(
   const rows = results.map((r) =>
     r.score
       ? `| ${r.formId} | ${r.score.foundTextFields} / ${r.score.answerTextFields} | ${r.score.suggestedMatching} / ${r.score.suggestedWithValue} | ${r.score.suggestedCheckboxes} / ${r.score.answerCheckboxes} | ${r.latencyMs ?? "—"} |`
-      : `| ${r.formId} | failed: ${r.error ?? "unknown"} | | | |`,
+      : `| ${r.formId} | ${r.error ?? "failed"} | | | |`,
   );
   const lines = [
     `# Suggested fields: ${run.name}`,
