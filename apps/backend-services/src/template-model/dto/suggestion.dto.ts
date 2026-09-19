@@ -31,14 +31,10 @@ export class LabelSuggestionDto {
 
   @ApiProperty({
     description: "Where the suggestion came from",
-    enum: ["keyValuePair", "selectionMarkOrder", "tableCellToWords", "llm"],
+    enum: ["llm"],
   })
   @IsString()
-  source_type!:
-    | "keyValuePair"
-    | "selectionMarkOrder"
-    | "tableCellToWords"
-    | "llm";
+  source_type!: "llm";
 
   @ApiPropertyOptional({ description: "Suggestion confidence score" })
   @IsOptional()

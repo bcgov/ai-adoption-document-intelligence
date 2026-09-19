@@ -15,6 +15,7 @@ import {
   Res,
 } from "@nestjs/common";
 import {
+  ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -25,6 +26,7 @@ import {
   ApiParam,
   ApiProduces,
   ApiQuery,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
@@ -55,6 +57,10 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import {
+  SuggestedFieldDto,
+  SuggestFieldsDto,
+} from "./dto/field-suggestion.dto";
+import {
   FormatSuggestionResponseDto,
   SuggestFormatsDto,
 } from "./dto/format-suggestion.dto";
@@ -72,6 +78,7 @@ import {
   UploadLabelingResponseDto,
 } from "./dto/template-model-responses.dto";
 import { FormatSuggestionService } from "./format-suggestion.service";
+import { LabelSuggestionService } from "./label-suggestions/label-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelService } from "./template-model.service";
 
@@ -85,6 +92,7 @@ export class TemplateModelController {
     private readonly labelingDocumentDbService: LabelingDocumentDbService,
     private readonly formatSuggestionService: FormatSuggestionService,
     private readonly auditService: AuditService,
+    private readonly labelSuggestionService: LabelSuggestionService,
   ) {}
 
   // ========== TEMPLATE MODEL ENDPOINTS ==========
@@ -751,29 +759,75 @@ export class TemplateModelController {
   }
 
   @Post(":id/documents/:docId/suggestions")
+  @HttpCode(HttpStatus.OK)
   @Identity({ allowApiKey: true })
   @ApiOperation({
     summary:
-      "Generate label suggestions mapped to existing words/selection marks",
+      "Suggest labels for a document: an LLM points at the OCR words and checkboxes holding each field's value",
   })
   @ApiParam({ name: "id", description: "Template Model ID" })
-  @ApiParam({ name: "docId", description: "Document ID" })
+  @ApiParam({ name: "docId", description: "Labelling document ID" })
   @ApiOkResponse({
-    description: "Generated label suggestions for the document",
+    description: "Suggested labels, at most one per field",
     type: [LabelSuggestionDto],
   })
-  @ApiNotFoundResponse({ description: "Document not found" })
+  @ApiNotFoundResponse({
+    description: "Template model, document or OCR result not found",
+  })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiUnprocessableEntityResponse({
+    description:
+      "The template model has no fields, or the document is too long for suggestions",
+  })
+  @ApiBadGatewayResponse({ description: "The suggestion model call failed" })
+  @ApiServiceUnavailableResponse({
+    description:
+      "Label suggestions are not configured; the response names the missing settings",
+  })
   async generateDocumentSuggestions(
     @Req() req: Request,
     @Param("id") id: string,
     @Param("docId") documentId: string,
   ): Promise<LabelSuggestionDto[]> {
-    return this.templateModelService.generateDocumentSuggestions(
-      id,
-      documentId,
-      req.resolvedIdentity,
-    );
+    const templateModel = await this.templateModelService.getTemplateModel(id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    return this.labelSuggestionService.suggestLabels(id, documentId);
+  }
+
+  @Post(":id/field-suggestions")
+  @HttpCode(HttpStatus.OK)
+  @Identity({ allowApiKey: true })
+  @ApiOperation({
+    summary:
+      "Suggest a field list from one document's OCR, with the value found for each field",
+  })
+  @ApiParam({ name: "id", description: "Template Model ID" })
+  @ApiOkResponse({
+    description: "Suggested fields in the order they appear on the document",
+    type: [SuggestedFieldDto],
+  })
+  @ApiNotFoundResponse({
+    description: "Template model, document or OCR result not found",
+  })
+  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
+  @ApiUnauthorizedResponse({ description: "Not authenticated" })
+  @ApiUnprocessableEntityResponse({
+    description: "The document is too long for suggestions",
+  })
+  @ApiBadGatewayResponse({ description: "The suggestion model call failed" })
+  @ApiServiceUnavailableResponse({
+    description:
+      "Label suggestions are not configured; the response names the missing settings",
+  })
+  async suggestFields(
+    @Param("id") id: string,
+    @Body() dto: SuggestFieldsDto,
+    @Req() req: Request,
+  ): Promise<SuggestedFieldDto[]> {
+    const templateModel = await this.templateModelService.getTemplateModel(id);
+    identityCanAccessGroup(req.resolvedIdentity, templateModel.group_id);
+    return this.labelSuggestionService.suggestFields(id, dto.document_id);
   }
 
   // ========== FORMAT SUGGESTION ENDPOINTS ==========

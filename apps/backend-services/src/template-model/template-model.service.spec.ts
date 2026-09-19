@@ -6,7 +6,6 @@ import {
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
-import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -24,7 +23,6 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelService } from "./template-model.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import {
@@ -38,7 +36,6 @@ describe("TemplateModelService", () => {
   let mockTemplateModelDbService: jest.Mocked<TemplateModelDbService>;
   let mockOcrService: jest.Mocked<TemplateModelOcrService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
-  let mockSuggestionService: jest.Mocked<SuggestionService>;
   let mockAuditService: { recordEvent: jest.Mock };
   let mockPrismaService: { transaction: jest.Mock };
 
@@ -153,10 +150,6 @@ describe("TemplateModelService", () => {
       processOcrForLabelingDocument: jest.fn(),
     };
 
-    const mockSuggestions = {
-      generateSuggestions: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemplateModelService,
@@ -172,10 +165,6 @@ describe("TemplateModelService", () => {
         {
           provide: TemplateModelOcrService,
           useValue: mockOcr,
-        },
-        {
-          provide: SuggestionService,
-          useValue: mockSuggestions,
         },
         {
           provide: PrismaService,
@@ -194,7 +183,6 @@ describe("TemplateModelService", () => {
     mockTemplateModelDbService = module.get(TemplateModelDbService);
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(TemplateModelOcrService);
-    mockSuggestionService = module.get(SuggestionService);
     mockAuditService = module.get(AuditService);
     mockPrismaService = module.get(PrismaService);
   });
@@ -908,92 +896,6 @@ describe("TemplateModelService", () => {
 
       await expect(
         service.getDocumentOcr("tm-1", "labeled-doc-1"),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe("generateDocumentSuggestions", () => {
-    it("should generate suggestions for a document", async () => {
-      const suggestions = [
-        {
-          field_key: "name",
-          label_name: "name",
-          value: "John Smith",
-          page_number: 1,
-          element_ids: ["p1-w1", "p1-w2"],
-          bounding_box: { polygon: [1, 1, 2, 1, 2, 2, 1, 2] },
-          source_type: "keyValuePair",
-          confidence: 0.99,
-        },
-      ];
-
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        mockLabeledDocument,
-      );
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
-        mockTemplateModel,
-      );
-      mockSuggestionService.generateSuggestions.mockReturnValueOnce(
-        suggestions as never,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      const result = await service.generateDocumentSuggestions(
-        "tm-1",
-        "labeled-doc-1",
-        mockIdentity,
-      );
-
-      expect(mockSuggestionService.generateSuggestions).toHaveBeenCalled();
-      expect(result).toEqual(suggestions);
-    });
-
-    it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        null,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "missing-doc",
-          mockIdentity,
-        ),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it("should throw NotFoundException when OCR result not found", async () => {
-      const noOcrDoc = {
-        ...mockLabeledDocument,
-        labeling_document: {
-          ...mockLabelingDocument,
-          ocr_result: null,
-        },
-      } as unknown as LabeledDocumentData;
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        noOcrDoc,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "labeled-doc-1",
-          mockIdentity,
-        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

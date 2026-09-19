@@ -13,6 +13,7 @@ import { FieldType } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { FormatSuggestionService } from "./format-suggestion.service";
+import { LabelSuggestionService } from "./label-suggestions/label-suggestion.service";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
 import { TemplateModelController } from "./template-model.controller";
 import { TemplateModelService } from "./template-model.service";
@@ -21,6 +22,7 @@ describe("TemplateModelController", () => {
   let controller: TemplateModelController;
   let templateModelService: jest.Mocked<TemplateModelService>;
   let labelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
+  let labelSuggestionService: jest.Mocked<LabelSuggestionService>;
   let mockBlobStorage: { read: jest.Mock };
   let mockAuditService: { recordEvent: jest.Mock };
 
@@ -93,12 +95,16 @@ describe("TemplateModelController", () => {
       deleteField: jest.fn(),
       getTemplateModelDocuments: jest.fn(),
       exportTemplateModel: jest.fn(),
-      generateDocumentSuggestions: jest.fn(),
     } as unknown as jest.Mocked<TemplateModelService>;
 
     labelingDocumentDbService = {
       findLabelingDocument: jest.fn().mockResolvedValue(mockLabelingDocument),
     } as unknown as jest.Mocked<LabelingDocumentDbService>;
+
+    labelSuggestionService = {
+      suggestLabels: jest.fn(),
+      suggestFields: jest.fn(),
+    } as unknown as jest.Mocked<LabelSuggestionService>;
 
     mockBlobStorage = { read: jest.fn() };
     mockAuditService = { recordEvent: jest.fn().mockResolvedValue(undefined) };
@@ -121,6 +127,10 @@ describe("TemplateModelController", () => {
         {
           provide: FormatSuggestionService,
           useValue: { suggestFormats: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: LabelSuggestionService,
+          useValue: labelSuggestionService,
         },
         {
           provide: AuditService,
@@ -997,6 +1007,67 @@ describe("TemplateModelController", () => {
         ),
       ).rejects.toThrow(ForbiddenException);
       expect(templateModelService.addFields).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("label suggestions", () => {
+    const memberReq = {
+      resolvedIdentity: {
+        actorId: "actor-1",
+        isSystemAdmin: false,
+        groupRoles: { "group-1": GroupRole.MEMBER },
+      },
+    } as unknown as Request;
+    const outsiderReq = {
+      resolvedIdentity: {
+        actorId: "actor-2",
+        isSystemAdmin: false,
+        groupRoles: { "group-2": GroupRole.MEMBER },
+      },
+    } as unknown as Request;
+
+    beforeEach(() => {
+      templateModelService.getTemplateModel.mockResolvedValue(
+        mockTemplateModel as never,
+      );
+    });
+
+    it("suggests labels after checking group access", async () => {
+      labelSuggestionService.suggestLabels.mockResolvedValue([]);
+      await expect(
+        controller.generateDocumentSuggestions(memberReq, "tm-1", "doc-1"),
+      ).resolves.toEqual([]);
+      expect(labelSuggestionService.suggestLabels).toHaveBeenCalledWith(
+        "tm-1",
+        "doc-1",
+      );
+    });
+
+    it("refuses label suggestions outside the group", async () => {
+      await expect(
+        controller.generateDocumentSuggestions(outsiderReq, "tm-1", "doc-1"),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelSuggestionService.suggestLabels).not.toHaveBeenCalled();
+    });
+
+    it("suggests fields from the chosen document", async () => {
+      labelSuggestionService.suggestFields.mockResolvedValue([]);
+      await controller.suggestFields(
+        "tm-1",
+        { document_id: "doc-1" },
+        memberReq,
+      );
+      expect(labelSuggestionService.suggestFields).toHaveBeenCalledWith(
+        "tm-1",
+        "doc-1",
+      );
+    });
+
+    it("refuses field suggestions outside the group", async () => {
+      await expect(
+        controller.suggestFields("tm-1", { document_id: "doc-1" }, outsiderReq),
+      ).rejects.toThrow(ForbiddenException);
+      expect(labelSuggestionService.suggestFields).not.toHaveBeenCalled();
     });
   });
 });

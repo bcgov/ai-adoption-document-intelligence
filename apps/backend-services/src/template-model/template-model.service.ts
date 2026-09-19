@@ -10,11 +10,9 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
-import { identityCanAccessGroup } from "@/auth/identity.helpers";
-import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { AnalysisResponse, Page } from "@/ocr/azure-types";
+import { Page } from "@/ocr/azure-types";
 import { LabelingUploadDto } from "@/template-model/dto/labeling-upload.dto";
 import { TemplateModelOcrService } from "@/template-model/template-model-ocr.service";
 import { AddDocumentDto } from "./dto/add-document.dto";
@@ -29,9 +27,7 @@ import {
   UpdateFieldDefinitionDto,
 } from "./dto/field-definition.dto";
 import { SaveLabelsDto } from "./dto/label.dto";
-import { LabelSuggestionDto } from "./dto/suggestion.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import type {
   LabeledDocumentData,
@@ -53,7 +49,6 @@ export class TemplateModelService {
     private readonly templateModelDb: TemplateModelDbService,
     private readonly templateModelOcrService: TemplateModelOcrService,
     private readonly logger: AppLoggerService,
-    private readonly suggestionService: SuggestionService,
     private readonly labelingDocumentDb: LabelingDocumentDbService,
     private readonly prismaService: PrismaService,
     private readonly auditService: AuditService,
@@ -627,50 +622,6 @@ export class TemplateModelService {
     }
 
     return labeledDoc.labeling_document.ocr_result;
-  }
-
-  async generateDocumentSuggestions(
-    templateModelId: string,
-    documentId: string,
-    identity: ResolvedIdentity,
-  ): Promise<LabelSuggestionDto[]> {
-    this.logger.debug(
-      `Generating suggestions for document ${documentId} in template model: ${templateModelId}`,
-    );
-
-    const labeledDoc = await this.templateModelDb.findLabeledDocument(
-      templateModelId,
-      documentId,
-    );
-    if (!labeledDoc) {
-      throw new NotFoundException(
-        `Document ${documentId} not found in template model ${templateModelId}`,
-      );
-    }
-
-    if (!labeledDoc.labeling_document?.ocr_result) {
-      throw new NotFoundException(
-        `OCR result not found for labeling document ${documentId}`,
-      );
-    }
-
-    const templateModel =
-      await this.templateModelDb.findTemplateModel(templateModelId);
-    if (!templateModel) {
-      throw new NotFoundException(
-        `Template model with id ${templateModelId} not found`,
-      );
-    }
-
-    identityCanAccessGroup(identity, templateModel.group_id);
-
-    const ocrResult = labeledDoc.labeling_document
-      .ocr_result as unknown as AnalysisResponse;
-    return this.suggestionService.generateSuggestions(
-      ocrResult,
-      templateModel.field_schema,
-      null,
-    );
   }
 
   // ========== EXPORT ==========
