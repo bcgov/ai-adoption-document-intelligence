@@ -1,5 +1,6 @@
 import { BenchApi } from "./api";
 import { readSettings } from "./config";
+import { downloadForms, generateCopies } from "./corpus";
 
 function parseFlags(args: string[]): Map<string, string> {
   const flags = new Map<string, string>();
@@ -44,11 +45,16 @@ async function main(): Promise<void> {
       );
       return;
     }
+    case "download":
+      await downloadForms();
+      return;
+    case "generate":
+      await generateCopies(Number(flags.get("copies") ?? "20"));
+      return;
     default:
       console.log(USAGE);
       process.exitCode = command ? 1 : 0;
   }
-  void flags;
 }
 
 main().catch((error: unknown) => {
