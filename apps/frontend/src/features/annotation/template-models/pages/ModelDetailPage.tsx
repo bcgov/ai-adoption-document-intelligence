@@ -10,6 +10,7 @@ import {
   IconSparkles,
   IconTrash,
   IconUpload,
+  IconWand,
   IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,6 +51,7 @@ import {
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 import { ExportPanel } from "../components/ExportPanel";
 import { FieldSchemaEditor } from "../components/FieldSchemaEditor";
+import { SuggestFieldsModal } from "../components/SuggestFieldsModal";
 import { TrainedVersionsPanel } from "../components/TrainedVersionsPanel";
 import { TrainingPanel } from "../components/TrainingPanel";
 import { useFieldSchema } from "../hooks/useFieldSchema";
@@ -154,11 +156,13 @@ export const ModelDetailPage: FC = () => {
     schema,
     isLoading: isSchemaLoading,
     addField,
+    addFieldsAsync,
     updateField,
     deleteField,
   } = useFieldSchema(routeModelId);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false);
+  const [suggestFieldsOpen, setSuggestFieldsOpen] = useState(false);
   const [pendingRemoveDocument, setPendingRemoveDocument] = useState<{
     id: string;
     name: string;
@@ -358,6 +362,24 @@ export const ModelDetailPage: FC = () => {
     }
     setSchemaEditorOpen(false);
     setEditingField(null);
+  };
+
+  const handleFieldsAdded = (documentId: string, count: number) => {
+    notifications.show({
+      title: count === 1 ? "1 field added" : `${count} fields added`,
+      message: (
+        <Button
+          size="xs"
+          variant="light"
+          onClick={() =>
+            navigate(`/template-models/${routeModelId}/document/${documentId}`)
+          }
+        >
+          Open the document to check its suggested labels
+        </Button>
+      ),
+      color: "green",
+    });
   };
 
   const validFieldTypes = new Set(Object.values(FieldType) as string[]);
@@ -708,6 +730,13 @@ export const ModelDetailPage: FC = () => {
                     if (file) handleImportFields(file);
                   }}
                 />
+                <Button
+                  variant="light"
+                  leftSection={<IconWand size={16} />}
+                  onClick={() => setSuggestFieldsOpen(true)}
+                >
+                  Suggest fields
+                </Button>
                 <Button
                   variant="light"
                   leftSection={<IconSparkles size={16} />}
@@ -1176,6 +1205,22 @@ export const ModelDetailPage: FC = () => {
         }}
         onSubmit={handleSaveField}
         initialValue={editingField}
+      />
+
+      <SuggestFieldsModal
+        opened={suggestFieldsOpen}
+        onClose={() => setSuggestFieldsOpen(false)}
+        templateModelId={routeModelId}
+        documents={documents
+          .filter((doc) => doc.labeling_document.status === "extracted")
+          .map((doc) => ({
+            id: doc.labeling_document_id,
+            name: doc.labeling_document.original_filename,
+          }))}
+        onAddFields={async (fields) => {
+          await addFieldsAsync(fields);
+        }}
+        onFieldsAdded={handleFieldsAdded}
       />
     </Stack>
   );
