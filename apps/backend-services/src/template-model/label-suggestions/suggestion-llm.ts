@@ -18,11 +18,10 @@ import {
 } from "ai";
 import type { z } from "zod/v4";
 import { AppLoggerService } from "@/logging/app-logger.service";
+import { DEFAULT_AZURE_OPENAI_API_VERSION } from "@/template-model/azure-openai-config";
 
 /** How long one suggestion call may take before it is abandoned. */
 export const LLM_TIMEOUT_MS = 120_000;
-
-const DEFAULT_API_VERSION = "2024-10-21";
 
 export interface StructuredLlmRequest<T> {
   system: string;
@@ -99,7 +98,9 @@ export class SuggestionLlmService {
       apiKey,
       baseURL,
       useDeploymentBasedUrls: true,
-      apiVersion: this.read("AZURE_OPENAI_API_VERSION") ?? DEFAULT_API_VERSION,
+      apiVersion:
+        this.read("AZURE_OPENAI_API_VERSION") ??
+        DEFAULT_AZURE_OPENAI_API_VERSION,
     });
     return azure.chat(deployment);
   }
