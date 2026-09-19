@@ -1,6 +1,7 @@
 import { BenchApi } from "./api";
 import { readSettings } from "./config";
 import { downloadForms, generateCopies } from "./corpus";
+import { runFields, runLabels } from "./run";
 
 function parseFlags(args: string[]): Map<string, string> {
   const flags = new Map<string, string>();
@@ -51,6 +52,24 @@ async function main(): Promise<void> {
     case "generate":
       await generateCopies(Number(flags.get("copies") ?? "20"));
       return;
+    case "run-labels": {
+      const dir = await runLabels({
+        name: requireFlag(flags, "name"),
+        engine: requireFlag(flags, "engine"),
+        copies: Number(flags.get("copies") ?? "10"),
+        withDescriptions: flags.get("with-descriptions") === "true",
+      });
+      console.log(`Report: ${dir}/labels-report.md`);
+      return;
+    }
+    case "run-fields": {
+      const dir = await runFields({
+        name: requireFlag(flags, "name"),
+        engine: requireFlag(flags, "engine"),
+      });
+      console.log(`Report: ${dir}/fields-report.md`);
+      return;
+    }
     default:
       console.log(USAGE);
       process.exitCode = command ? 1 : 0;
