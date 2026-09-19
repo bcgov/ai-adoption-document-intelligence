@@ -957,6 +957,19 @@ describe("TemplateModelController", () => {
         "tm-1",
         "doc-1",
       );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "ocr_result",
+        resource_id: "doc-1",
+        actor_id: "actor-1",
+        document_id: "doc-1",
+        group_id: "group-1",
+        payload: {
+          action: "ocr",
+          template_model_id: "tm-1",
+          endpoint: "suggestions",
+        },
+      });
     });
 
     it("refuses label suggestions outside the group", async () => {
@@ -964,6 +977,7 @@ describe("TemplateModelController", () => {
         controller.generateDocumentSuggestions(outsiderReq, "tm-1", "doc-1"),
       ).rejects.toThrow(ForbiddenException);
       expect(labelSuggestionService.suggestLabels).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
 
     it("suggests fields from the chosen document", async () => {
@@ -977,6 +991,19 @@ describe("TemplateModelController", () => {
         "tm-1",
         "doc-1",
       );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith({
+        event_type: "document_accessed",
+        resource_type: "ocr_result",
+        resource_id: "doc-1",
+        actor_id: "actor-1",
+        document_id: "doc-1",
+        group_id: "group-1",
+        payload: {
+          action: "ocr",
+          template_model_id: "tm-1",
+          endpoint: "field-suggestions",
+        },
+      });
     });
 
     it("refuses field suggestions outside the group", async () => {
@@ -984,6 +1011,7 @@ describe("TemplateModelController", () => {
         controller.suggestFields("tm-1", { document_id: "doc-1" }, outsiderReq),
       ).rejects.toThrow(ForbiddenException);
       expect(labelSuggestionService.suggestFields).not.toHaveBeenCalled();
+      expect(mockAuditService.recordEvent).not.toHaveBeenCalled();
     });
   });
 });
