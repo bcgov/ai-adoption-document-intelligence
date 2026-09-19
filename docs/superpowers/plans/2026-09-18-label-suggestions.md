@@ -2092,15 +2092,15 @@ export class SuggestedFieldDto {
 }
 ```
 
-In `dto/suggestion.dto.ts`, replace the `source_type` property with:
+In `dto/suggestion.dto.ts`, widen the `source_type` property to include `"llm"`. The old engine still returns its three values until Task 7 deletes it, and Task 7 narrows this to `"llm"` alone.
 
 ```ts
   @ApiProperty({
     description: "Where the suggestion came from",
-    enum: ["llm"],
+    enum: ["keyValuePair", "selectionMarkOrder", "tableCellToWords", "llm"],
   })
   @IsString()
-  source_type!: "llm";
+  source_type!: "keyValuePair" | "selectionMarkOrder" | "tableCellToWords" | "llm";
 ```
 
 - [ ] **Step 2: Write the prompts**
@@ -3023,6 +3023,19 @@ git rm apps/backend-services/src/template-model/suggestion.service.ts \
 
 Keep `apps/backend-services/test/fixtures/ocr_output.json`, `form_image_0.jpg.labels.json` and `fields.json`; Tasks 3–4 use them.
 
+With the old engine gone, narrow `source_type` in `dto/suggestion.dto.ts` to the one value that remains:
+
+```ts
+  @ApiProperty({
+    description: "Where the suggestion came from",
+    enum: ["llm"],
+  })
+  @IsString()
+  source_type!: "llm";
+```
+
+Add `apps/backend-services/src/template-model/dto/suggestion.dto.ts` to this task's commit.
+
 Run: `grep -rnE '\bSuggestionService\b|\./suggestion\.service' apps/backend-services/src`
 Expected: no output. `FormatSuggestionService` and `./format-suggestion.service` don't match: `\bSuggestionService` needs a word boundary before the `S`, and `./suggestion.service` needs `./` directly before `suggestion`. If grep shows anything, remove that stale reference.
 
@@ -3044,7 +3057,8 @@ git add apps/backend-services/src/template-model/template-model.controller.ts \
   apps/backend-services/src/template-model/template-model.module.ts \
   apps/backend-services/src/template-model/template-model.service.ts \
   apps/backend-services/src/template-model/template-model.service.spec.ts \
-  apps/backend-services/src/template-model/template-model.controller.spec.ts
+  apps/backend-services/src/template-model/template-model.controller.spec.ts \
+  apps/backend-services/src/template-model/dto/suggestion.dto.ts
 git commit -m "feat(template-model): serve LLM suggestions and remove the rule-based engine
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
