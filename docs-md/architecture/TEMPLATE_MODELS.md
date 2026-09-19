@@ -64,6 +64,7 @@ Key constraints:
 - `TrainedModel.training_job_id` is unique (one-to-one with job)
 - Retraining creates a new TrainedModel version and marks it active; previous versions are kept
 - Deleting a version is a tombstone (`deleted_at` set, Azure artifact removed) so audit trails still resolve; the row is never physically deleted
+- `FieldDefinition.description` (optional) is plain-English instructions used by label suggestions; it is not exported to training files
 
 ## Backend Architecture
 
@@ -77,7 +78,12 @@ apps/backend-services/src/template-model/
   template-model-db.service.ts        # Prisma access for template models
   template-model-ocr.service.ts       # Azure OCR for uploaded documents
   labeling-document-db.service.ts     # Prisma access for labeling documents
-  suggestion.service.ts               # Auto-suggestion for labeling
+  label-suggestions/
+    tagged-text.ts                    # Stored OCR rendered as text with line, cell and checkbox tags
+    resolve-refs.ts                   # LLM tag references back to OCR element ids
+    suggestion-llm.ts                 # Azure OpenAI call with a strict reply schema
+    prompts.ts                        # Suggested-field and suggested-label prompts and reply schemas
+    label-suggestion.service.ts       # Suggested fields and suggested labels
   format-suggestion.service.ts        # AI format-spec suggestions
   dto/
     create-template-model.dto.ts      # Create/Update DTOs
@@ -85,6 +91,7 @@ apps/backend-services/src/template-model/
     add-document.dto.ts
     export.dto.ts
     field-definition.dto.ts
+    field-suggestion.dto.ts
     format-suggestion.dto.ts
     label.dto.ts
     labeling-conversion-failed-response.dto.ts
@@ -122,6 +129,8 @@ apps/backend-services/src/training/
 |--------|------|-------------|
 | GET | `/api/template-models/:id/fields` | Get field schema |
 | POST | `/api/template-models/:id/fields` | Add field |
+| POST | `/api/template-models/:id/fields/bulk` | Add several fields in one transaction (409 lists keys that exist or repeat) |
+| POST | `/api/template-models/:id/field-suggestions` | Suggest a field list from one document (body `{ document_id }`) |
 | PUT | `/api/template-models/:id/fields/:fieldId` | Update field |
 | DELETE | `/api/template-models/:id/fields/:fieldId` | Delete field |
 
@@ -140,7 +149,7 @@ apps/backend-services/src/training/
 | POST | `/api/template-models/:id/documents/:docId/labels` | Save labels |
 | DELETE | `/api/template-models/:id/documents/:docId/labels/:labelId` | Delete label |
 | GET | `/api/template-models/:id/documents/:docId/ocr` | Get OCR data |
-| POST | `/api/template-models/:id/documents/:docId/suggestions` | Generate suggestions |
+| POST | `/api/template-models/:id/documents/:docId/suggestions` | Suggested labels for a document (LLM) |
 | POST | `/api/template-models/:id/export` | Export for training |
 | POST | `/api/template-models/:id/suggest-formats` | AI-suggested format specs (accepts optional `benchmarkRunIds` body) |
 
@@ -181,7 +190,8 @@ apps/frontend/src/features/annotation/template-models/
     useTrainedVersions.ts    # Trained versions list, activate, delete, snapshot
     useLabels.ts             # Label management
     useFieldSchema.ts        # Field schema CRUD
-    useSuggestions.ts        # Auto-suggestions
+    useSuggestions.ts        # Suggested labels for the labelling screen
+    useFieldSuggestions.ts   # Suggested fields from a document
   pages/
     ModelListPage.tsx        # Grid of ModelCards with create modal
     ModelDetailPage.tsx      # Tabbed detail view (Documents, Field Schema, Export, Training, Versions)
@@ -194,6 +204,7 @@ apps/frontend/src/features/annotation/template-models/
     LabelingToolbar.tsx
     ExportPanel.tsx
     FieldSchemaEditor.tsx
+    SuggestFieldsModal.tsx   # Suggest fields: pick a document, review, add
 ```
 
 ### Labeling workspace layout
@@ -214,6 +225,26 @@ The labeling route uses a **full-viewport workspace** with the BC footer below i
 The `POST /api/template-models/:id/suggest-formats` endpoint accepts an optional `benchmarkRunIds` array in the request body. When provided, mismatch pairs from those runs (where `matched === false` in `evaluationDetails`) are merged with HITL corrections before being sent to the AI. The prompt will say "corrections and benchmark mismatches" instead of "HITL corrections".
 
 From the RunDetailPage, the "Suggest Formats" button opens a modal to select a template model, then navigates to `/template-models/:tmId?suggestFromRun=<runId>`. On ModelDetailPage, if the `suggestFromRun` query param is present, the format suggestion call is automatically triggered on mount with that run ID included.
+
+## Label Suggestions
+
+Suggested fields and suggested labels come from an LLM reading a document's stored layout OCR. Nothing is stored: every request is a fresh call, and nothing becomes a label until the user saves.
+
+1. **Tagged text.** `tagged-text.ts` copies `analyzeResult.content` in reading order and inserts `[L12]` at each line, `[T2 r3 c1]` at each table cell, and `[S4 ☒]` / `[S4 ☐]` in place of each checkbox. A line whose words all sit in table cells gets no tag of its own.
+2. **LLM call.** `suggestion-llm.ts` calls the deployment named by `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` and `AZURE_OPENAI_API_VERSION` (default `2024-10-21`), the same settings as the workflow agent. It uses the Vercel AI SDK's structured output. The reply names tags plus the value's exact text, never positions.
+3. **Resolution.** `resolve-refs.ts` finds that text among the tag's words and returns the element ids the labelling screen uses (`p{page}-w{index}`, `p{page}-sm{index}`). Anything that does not match is dropped, not guessed. Words already used by an earlier field are skipped.
+
+**Suggest fields** (Field schema tab → Suggest fields) proposes keys, types, one-line descriptions and the value found on the chosen document. The user edits the list and adds it through the bulk endpoint. The labelling screen then drafts that document's labels like any other.
+
+**Limits and errors:**
+
+| Status | When |
+|---|---|
+| 422 | over 30 pages or 120,000 tagged characters, or no fields for label suggestions |
+| 502 | the model call failed; the body carries a `reason` |
+| 503 | settings missing; the body lists the missing setting names |
+
+**Data handling:** suggestions send the document's OCR text to the configured Azure OpenAI deployment. Point the settings only at a deployment approved for the documents' classification.
 
 ## Training Flow
 
