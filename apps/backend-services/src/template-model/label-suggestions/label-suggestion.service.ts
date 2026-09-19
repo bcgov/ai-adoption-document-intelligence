@@ -32,6 +32,9 @@ import {
 /** Suggested-field replies are cut to this many fields. */
 export const MAX_SUGGESTED_FIELDS = 200;
 
+/** Matches CreateFieldDefinitionDto's @MaxLength(500), so a suggested description is always valid input to POST /fields/bulk. */
+export const MAX_SUGGESTED_DESCRIPTION_LENGTH = 500;
+
 const DTO_FIELD_TYPES: Record<SuggestedFieldType, DtoFieldType> = {
   string: DtoFieldType.STRING,
   number: DtoFieldType.NUMBER,
@@ -157,7 +160,9 @@ export class LabelSuggestionService {
       result.push({
         field_key: key,
         field_type: DTO_FIELD_TYPES[item.type],
-        description: item.description.trim(),
+        description: item.description
+          .trim()
+          .slice(0, MAX_SUGGESTED_DESCRIPTION_LENGTH),
         value: resolved?.value ?? null,
         page_number: resolved?.pageNumber ?? null,
         already_exists: existing.has(key),

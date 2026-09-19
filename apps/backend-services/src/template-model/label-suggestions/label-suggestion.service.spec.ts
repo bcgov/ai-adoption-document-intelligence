@@ -247,6 +247,25 @@ describe("LabelSuggestionService", () => {
       ]);
       expect(llm.generate.mock.calls[0][0].schemaName).toBe("suggested_fields");
     });
+
+    it("clamps a suggested description to 500 characters, so it stays valid input to the bulk-add endpoint", async () => {
+      const longDescription = "x".repeat(600);
+      llm.generate.mockResolvedValue({
+        fields: [
+          {
+            key: "notes",
+            type: "string",
+            description: `  ${longDescription}  `,
+            refs: [],
+          },
+        ],
+      });
+
+      const [result] = await service.suggestFields("tm-1", "doc-1");
+
+      expect(result.description).toHaveLength(500);
+      expect(result.description).toBe(longDescription.slice(0, 500));
+    });
   });
 
   describe("normalizeFieldKey", () => {
