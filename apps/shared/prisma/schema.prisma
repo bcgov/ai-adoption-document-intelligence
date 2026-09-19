@@ -258,6 +258,8 @@ model FieldDefinition {
   field_type        FieldType     @default(string)
   field_format      String?
   format_spec       String?       // JSON format spec for normalization/validation
+  /// One-line plain-English description of the field, used as instructions when an LLM suggests fields and labels.
+  description       String?
   display_order     Int           @default(0)
 
   @@unique([template_model_id, field_key])

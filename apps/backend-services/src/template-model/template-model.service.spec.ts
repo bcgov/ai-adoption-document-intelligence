@@ -446,6 +446,7 @@ describe("TemplateModelService", () => {
         field_type: PrismaFieldType.number,
         field_format: null,
         format_spec: null,
+        description: null,
         display_order: 1,
         template_model_id: "tm-1",
       };
@@ -1125,6 +1126,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.date,
             field_format: "ymd",
             format_spec: null,
+            description: null,
             display_order: 1,
             template_model_id: "tm-1",
           },
@@ -1172,6 +1174,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.selectionMark,
             field_format: null,
             format_spec: null,
+            description: null,
             display_order: 0,
             template_model_id: "tm-1",
           },
@@ -1288,6 +1291,83 @@ describe("TemplateModelService", () => {
           group_id: "group-1",
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("field descriptions", () => {
+    it("stores a trimmed description when adding a field", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinition.mockResolvedValueOnce({
+        ...mockTemplateModel.field_schema[0],
+        id: "field-2",
+        field_key: "filing_date",
+        description: "Date at the bottom of the form",
+      });
+
+      await service.addField(
+        "tm-1",
+        {
+          field_key: "filing_date",
+          field_type: FieldType.DATE,
+          description: "  Date at the bottom of the form  ",
+        },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          description: "Date at the bottom of the form",
+        }),
+      );
+    });
+
+    it("clears the description when an update sends only whitespace", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { description: "   " },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.updateFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "field-1",
+        "tm-1",
+        expect.objectContaining({ description: null }),
+      );
+    });
+
+    it("leaves the description alone when an update omits it", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { display_order: 3 },
+        "actor-1",
+      );
+
+      const data =
+        mockTemplateModelDbService.updateFieldDefinition.mock.calls[0][2];
+      expect(data.description).toBeUndefined();
     });
   });
 });
