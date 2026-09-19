@@ -1,3 +1,4 @@
+import type { AnalysisResult, Page } from "@/ocr/azure-types";
 import {
   loadFixtureAnalyzeResult,
   syntheticLayoutResult,
@@ -8,6 +9,131 @@ import {
   renderTaggedText,
   TaggedTextLimitError,
 } from "./tagged-text";
+
+const PLACEHOLDER_POLYGON = [0, 0, 1, 0, 1, 1, 0, 1];
+
+/**
+ * A three-page layout, with pages deliberately out of page order in the
+ * `pages` array: page 1 has the line "Alpha", page 2 has the line "Bravo"
+ * and a ticked checkbox, page 3 has an unticked checkbox and a table cell
+ * holding "Charlie". Proves rendering follows page number and content
+ * offset, not array position.
+ * Content offsets: Alpha 0-5, Bravo 6-11, ":selected:" 12-22,
+ * ":unselected:" 23-35, Charlie 36-43.
+ */
+function syntheticMultiPageLayoutResult(): AnalysisResult {
+  const content = "Alpha\nBravo :selected:\n:unselected: Charlie";
+  const page1: Page = {
+    pageNumber: 1,
+    angle: 0,
+    width: 8.5,
+    height: 11,
+    unit: "inch",
+    spans: [{ offset: 0, length: 6 }],
+    words: [
+      {
+        content: "Alpha",
+        polygon: PLACEHOLDER_POLYGON,
+        confidence: 1,
+        span: { offset: 0, length: 5 },
+      },
+    ],
+    selectionMarks: [],
+    lines: [
+      {
+        content: "Alpha",
+        polygon: PLACEHOLDER_POLYGON,
+        spans: [{ offset: 0, length: 5 }],
+      },
+    ],
+  };
+  const page2: Page = {
+    pageNumber: 2,
+    angle: 0,
+    width: 8.5,
+    height: 11,
+    unit: "inch",
+    spans: [{ offset: 6, length: 17 }],
+    words: [
+      {
+        content: "Bravo",
+        polygon: PLACEHOLDER_POLYGON,
+        confidence: 1,
+        span: { offset: 6, length: 5 },
+      },
+    ],
+    selectionMarks: [
+      {
+        state: "selected",
+        polygon: PLACEHOLDER_POLYGON,
+        confidence: 1,
+        span: { offset: 12, length: 10 },
+      },
+    ],
+    lines: [
+      {
+        content: "Bravo",
+        polygon: PLACEHOLDER_POLYGON,
+        spans: [{ offset: 6, length: 5 }],
+      },
+    ],
+  };
+  const page3: Page = {
+    pageNumber: 3,
+    angle: 0,
+    width: 8.5,
+    height: 11,
+    unit: "inch",
+    spans: [{ offset: 23, length: 20 }],
+    words: [
+      {
+        content: "Charlie",
+        polygon: PLACEHOLDER_POLYGON,
+        confidence: 1,
+        span: { offset: 36, length: 7 },
+      },
+    ],
+    selectionMarks: [
+      {
+        state: "unselected",
+        polygon: PLACEHOLDER_POLYGON,
+        confidence: 1,
+        span: { offset: 23, length: 12 },
+      },
+    ],
+    lines: [],
+  };
+  return {
+    apiVersion: "2024-11-30",
+    modelId: "prebuilt-layout",
+    stringIndexType: "textElements",
+    content,
+    contentFormat: "text",
+    pages: [page3, page1, page2],
+    tables: [
+      {
+        rowCount: 1,
+        columnCount: 1,
+        cells: [
+          {
+            rowIndex: 0,
+            columnIndex: 0,
+            content: "Charlie",
+            boundingRegions: [{ pageNumber: 3, polygon: PLACEHOLDER_POLYGON }],
+            spans: [{ offset: 36, length: 7 }],
+            elements: [],
+          },
+        ],
+        boundingRegions: [{ pageNumber: 3, polygon: PLACEHOLDER_POLYGON }],
+        spans: [{ offset: 36, length: 7 }],
+      },
+    ],
+    paragraphs: [],
+    styles: [],
+    sections: [],
+    figures: [],
+  };
+}
 
 describe("renderTaggedText", () => {
   it("puts tags at the exact positions", () => {
@@ -104,5 +230,44 @@ describe("renderTaggedText", () => {
         ],
       }),
     ).toThrow(TaggedTextLimitError);
+  });
+
+  it("renders a shuffled multi-page layout in page order, with tags numbered continuously across pages", () => {
+    const tagged = renderTaggedText(syntheticMultiPageLayoutResult());
+
+    expect(tagged.text).toBe(
+      "--- page 1 ---\n[L1] Alpha\n--- page 2 ---\n[L2] Bravo [S1 ☒]\n--- page 3 ---\n[S2 ☐] [T1 r0 c0] Charlie",
+    );
+    expect(tagged.pageCount).toBe(3);
+    expect(tagged.tags.get("L1")).toEqual({
+      kind: "line",
+      pageNumber: 1,
+      wordIds: ["p1-w0"],
+    });
+    expect(tagged.tags.get("L2")).toEqual({
+      kind: "line",
+      pageNumber: 2,
+      wordIds: ["p2-w0"],
+    });
+    expect(tagged.tags.get("S1")).toEqual({
+      kind: "selectionMark",
+      pageNumber: 2,
+      id: "p2-sm0",
+      state: "selected",
+    });
+    expect(tagged.tags.get("S2")).toEqual({
+      kind: "selectionMark",
+      pageNumber: 3,
+      id: "p3-sm0",
+      state: "unselected",
+    });
+    expect(tagged.tags.get("T1 r0 c0")).toEqual({
+      kind: "cell",
+      pageNumber: 3,
+      wordIds: ["p3-w0"],
+      selectionMarkIds: [],
+    });
+    expect(tagged.elements.get("p1-w0")?.pageNumber).toBe(1);
+    expect(tagged.elements.get("p3-w0")?.pageNumber).toBe(3);
   });
 });
