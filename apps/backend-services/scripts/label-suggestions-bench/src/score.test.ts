@@ -127,4 +127,48 @@ describe("scoreFieldList", () => {
       suggestedCheckboxes: 1,
     });
   });
+
+  it("matches repeated values one-to-one", () => {
+    const answers: AnswerKey = {
+      formId: "t",
+      copy: 1,
+      seed: 1,
+      fields: [
+        {
+          key: "name1",
+          pdfName: "Name 1",
+          type: "string",
+          value: "Jane Doe",
+          description: null,
+          locations: [],
+        },
+        {
+          key: "name2",
+          pdfName: "Name 2",
+          type: "string",
+          value: "Jane Doe",
+          description: null,
+          locations: [],
+        },
+      ],
+    };
+    const score = scoreFieldList(answers, [
+      {
+        field_key: "applicant",
+        field_type: "string",
+        description: "",
+        value: "jane doe",
+        page_number: 1,
+        already_exists: false,
+      },
+    ]);
+    assert.deepEqual(score, {
+      answerTextFields: 2,
+      foundTextFields: 1,
+      suggestedWithValue: 1,
+      suggestedMatching: 1,
+      answerCheckboxes: 0,
+      suggestedCheckboxes: 0,
+    });
+  });
 });
