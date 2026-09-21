@@ -1056,16 +1056,12 @@ export class HitlService {
         reviewStatusFilter = "pending";
     }
 
-    // Approving a document moves it to `complete`; flag/skip leave it at
-    // `awaiting_review`. The Reviewed tab must therefore also include
-    // `complete`, matching getQueue's behaviour.
-    const statuses: DocumentStatus[] = [DocumentStatus.awaiting_review];
-    if (reviewStatusFilter === "reviewed") {
-      statuses.push(DocumentStatus.complete);
-    }
-
+    // Unlike getQueue, this starts a brand new in_progress session on
+    // whatever it finds. a `complete` document's workflow has already
+    // went past the review gate (see reopenSession's guard against
+    // reopening one), so it must never be an eligible target here.
     const documents = (await this.reviewDb.findReviewQueue({
-      statuses,
+      statuses: [DocumentStatus.awaiting_review],
       modelId: filters.modelId,
       limit: 10,
       reviewStatus: reviewStatusFilter,
