@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { RejectionReason } from "../../../../shared/types";
 import {
   Accordion,
   ActionIcon,
@@ -22,9 +23,11 @@ import {
   Checkbox,
   Group,
   Loader,
+  Modal,
   notifications,
   Paper,
   ScrollArea,
+  Select,
   Stack,
   Text,
   Textarea,
@@ -272,9 +275,11 @@ export const ReviewWorkspacePage: FC = () => {
     approveSessionAsync,
     skipSessionAsync,
     flagSessionAsync,
+    rejectSessionAsync,
     isApproving,
     isSkipping,
     isFlagging,
+    isRejecting,
     reopenSessionAsync,
   } = useReviewSession(sessionId);
   // A flagged session is paused work anyone in the group may take over.
@@ -320,6 +325,11 @@ export const ReviewWorkspacePage: FC = () => {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [rejectModalOpened, setRejectModalOpened] = useState(false);
+  const [rejectionReason, setRejectionReason] =
+    useState<RejectionReason | null>(null);
+  const [rejectionComments, setRejectionComments] = useState("");
+  const [rejectionAnnotations, setRejectionAnnotations] = useState("");
   /**
    * When true, the document view suppresses bounding boxes, labels, and
    * other drawn overlays. The active-field inline edit overlay still
@@ -800,6 +810,39 @@ export const ReviewWorkspacePage: FC = () => {
     advanceOrReturn();
   }, [flagSessionAsync, clearUndoStack, advanceOrReturn, autoAdvance]);
 
+  const handleReject = () => {
+    setRejectModalOpened(true);
+  };
+
+  const closeRejectModal = () => {
+    setRejectModalOpened(false);
+    setRejectionReason(null);
+    setRejectionComments("");
+    setRejectionAnnotations("");
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectionReason) return;
+
+    await rejectSessionAsync({
+      rejectionReason,
+      comments: rejectionComments.trim() || undefined,
+      annotations: rejectionAnnotations.trim() || undefined,
+    });
+
+    notifications.show({
+      title: "Document rejected",
+      message: autoAdvance ? "Moving to next document" : "Returning to queue",
+      color: "red",
+      autoClose: 3000,
+    });
+
+    closeRejectModal();
+    clearUndoStack();
+    setCorrectionMap({});
+    advanceOrReturn();
+  };
+
   const navigateToField = useCallback(
     (direction: "next" | "prev") => {
       // Detect focus context BEFORE state change. When tabbing starts on
@@ -1079,9 +1122,11 @@ export const ReviewWorkspacePage: FC = () => {
             onApprove={handleApprove}
             onFlag={handleFlag}
             onSkip={handleSkip}
+            onReject={handleReject}
             isApproving={isApproving}
             isFlagging={isFlagging}
             isSkipping={isSkipping}
+            isRejecting={isRejecting}
             autoAdvance={autoAdvance}
             onAutoAdvanceToggle={handleAutoAdvanceToggle}
             viewMode={viewMode}
@@ -1371,6 +1416,105 @@ export const ReviewWorkspacePage: FC = () => {
           onClose={() => setShortcutsOpen(false)}
           shortcuts={shortcuts}
         />
+
+        <Modal
+          opened={rejectModalOpened}
+          onClose={closeRejectModal}
+          title="Reject document"
+        >
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              Rejecting sends this document back for reprocessing. A reason is
+              required.
+            </Text>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Rejection reason{" "}
+                <Text span c="red">
+                  *
+                </Text>
+              </Text>
+              <Select
+                placeholder="Select a rejection reason"
+                data={[
+                  {
+                    value: RejectionReason.INPUT_QUALITY,
+                    label: "Input quality (scan unreadable, cutoff, skew)",
+                  },
+                  {
+                    value: RejectionReason.OCR_FAILURE,
+                    label: "OCR failure (missing fields, hallucinations)",
+                  },
+                  {
+                    value: RejectionReason.MODEL_MISMATCH,
+                    label: "Model mismatch (wrong document type/template)",
+                  },
+                  {
+                    value: RejectionReason.CONFIDENCE_TOO_LOW,
+                    label: "Confidence too low (too low to trust)",
+                  },
+                  {
+                    value: RejectionReason.SYSTEMIC_ERROR,
+                    label: "Systemic error (pipeline bug)",
+                  },
+                ]}
+                value={rejectionReason}
+                onChange={(value) =>
+                  setRejectionReason(value as RejectionReason | null)
+                }
+                disabled={isRejecting}
+                searchable
+                comboboxProps={{ zIndex: 10000 }}
+              />
+            </div>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Comments (optional)
+              </Text>
+              <Textarea
+                placeholder="Add any comments about the rejection..."
+                value={rejectionComments}
+                onChange={(e) => setRejectionComments(e.currentTarget.value)}
+                minRows={3}
+                disabled={isRejecting}
+              />
+            </div>
+
+            <div>
+              <Text size="sm" fw={600} mb="xs">
+                Annotations (optional)
+              </Text>
+              <Textarea
+                placeholder="What failed, where, why? (e.g., 'field X is missing on page 2', 'OCR hallucinated text in section Y')"
+                value={rejectionAnnotations}
+                onChange={(e) => setRejectionAnnotations(e.currentTarget.value)}
+                minRows={3}
+                disabled={isRejecting}
+              />
+            </div>
+
+            <Group justify="flex-end" gap="sm">
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={closeRejectModal}
+                disabled={isRejecting}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="red"
+                onClick={handleConfirmReject}
+                loading={isRejecting}
+                disabled={!rejectionReason}
+              >
+                Reject document
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
       </Stack>
     </KeyboardManager>
   );

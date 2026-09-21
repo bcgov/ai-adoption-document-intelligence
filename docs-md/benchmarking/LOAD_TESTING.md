@@ -249,7 +249,7 @@ Routes used by the k6 script, matching the Nest controllers and Swagger decorato
 | `POST` | `/api/hitl/sessions/:id/corrections` | `corrections[]` with `field_key`, optional `original_value`, optional `corrected_value`, optional `original_conf`, and `action` | Writes one synthetic correction. |
 | `GET` | `/api/hitl/sessions/:id/corrections` | None | Reads correction history. |
 | `POST` | `/api/hitl/sessions/:id/skip` | None | Default cleanup action for claimed sessions. |
-| `POST` | `/api/hitl/sessions/:id/submit` | None | Optional action with `LOAD_TEST_HITL_SESSION_MODE=submit`; marks documents approved. |
+| `POST` | `/api/hitl/sessions/:id/approve` | None | Optional action with `LOAD_TEST_HITL_SESSION_MODE=submit`; marks documents approved (route renamed from `/submit` to `/approve`). |
 | `POST` | `/api/hitl/sessions/:id/escalate` | `{ "reason": "..." }` | Optional action with `LOAD_TEST_HITL_SESSION_MODE=escalate`. |
 | `GET` | `/api/benchmark/datasets/from-hitl/eligible-documents?group_id=<group>` plus optional `page`, `limit`, `search` | None | Read-only HITL dataset eligibility route. |
 

@@ -14,7 +14,6 @@ import {
   NotFoundException,
   Param,
   Patch,
-  Post,
   Query,
   Req,
   Res,
@@ -58,9 +57,7 @@ import {
   BlobStorageInterface,
 } from "../blob-storage/blob-storage.interface";
 import { AppLoggerService } from "../logging/app-logger.service";
-import { TemporalClientService } from "../temporal/temporal-client.service";
 import { type DocumentData, DocumentService } from "./document.service";
-import { ApproveDocumentDto } from "./dto/approve-document.dto";
 import { OcrResultResponseDto } from "./dto/ocr-result-response.dto";
 import { UpdateDocumentDto } from "./dto/update-document.dto";
 import { getContentTypeFromFilename } from "./mime-from-filename";
@@ -70,7 +67,6 @@ import { getContentTypeFromFilename } from "./mime-from-filename";
 export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
-    private readonly temporalClientService: TemporalClientService,
     @Inject(BLOB_STORAGE)
     private readonly blobStorage: BlobStorageInterface,
     private readonly logger: AppLoggerService,
@@ -781,124 +777,6 @@ export class DocumentController {
 
       throw new NotFoundException(
         getErrorMessage(error) || `Failed to download document: ${documentId}`,
-      );
-    }
-  }
-
-  @Post("/:documentId/approve")
-  @HttpCode(HttpStatus.OK)
-  @Identity()
-  @ApiOperation({
-    summary: "Approve or reject a document",
-    description:
-      "Sends a human approval signal to the document's workflow. When rejecting, rejectionReason is required.",
-  })
-  @ApiParam({ name: "documentId", description: "Document ID" })
-  @ApiBody({
-    type: ApproveDocumentDto,
-    description:
-      "Approval decision and optional reviewer info, comments, rejection reason, annotations",
-  })
-  @ApiOkResponse({
-    description: "Approval signal sent successfully",
-    schema: {
-      type: "object",
-      properties: {
-        success: { type: "boolean", example: true },
-        message: { type: "string", example: "Document approved successfully" },
-      },
-    },
-  })
-  @ApiBadRequestResponse({
-    description:
-      "Invalid request (e.g. rejection without rejectionReason, or document has no workflow execution)",
-  })
-  @ApiNotFoundResponse({ description: "Document not found" })
-  @ApiForbiddenResponse({ description: "Access denied: not a group member" })
-  async approveDocument(
-    @Param("documentId") documentId: string,
-    @Body() body: ApproveDocumentDto,
-    @Req() req: Request,
-  ): Promise<{ success: boolean; message: string }> {
-    this.logger.debug(`=== DocumentController.approveDocument ===`);
-    this.logger.debug(`Document ID: ${documentId}`);
-    this.logger.debug(`Approved: ${body.approved}`);
-
-    try {
-      // Validate rejection reason is provided when rejecting
-      if (!body.approved && !body.rejectionReason) {
-        throw new BadRequestException(
-          "Rejection reason is required when rejecting a document",
-        );
-      }
-
-      // Find the document
-      const document = await this.documentService.findDocument(documentId);
-      if (!document) {
-        throw new NotFoundException(`Document not found: ${documentId}`);
-      }
-
-      identityCanAccessGroup(req.resolvedIdentity, document.group_id);
-
-      // Derive the Temporal workflowId from the document ID. The stored
-      // workflow_execution_id is the billing runId (unique per execution
-      // attempt) and must NOT be used as the Temporal workflowId.
-      const workflowId = `graph-${documentId}`;
-      if (!workflowId) {
-        throw new BadRequestException(
-          `Document ${documentId} does not have an associated workflow execution ID.`,
-        );
-      }
-
-      // Send human approval signal to the workflow
-      await this.temporalClientService.sendHumanApproval(workflowId, {
-        approved: body.approved,
-        reviewer: body.reviewer,
-        comments: body.comments,
-        rejectionReason: body.rejectionReason,
-        annotations: body.annotations,
-      });
-
-      await this.auditService.recordEvent({
-        event_type: "human_approval_signal_sent",
-        resource_type: "workflow_run",
-        resource_id: workflowId,
-        actor_id: req.resolvedIdentity.actorId,
-        document_id: documentId,
-        workflow_execution_id: workflowId,
-        group_id: document.group_id,
-        payload: {
-          approved: body.approved,
-          reviewer: body.reviewer ?? undefined,
-        },
-      });
-
-      this.logger.log(
-        `Human approval signal sent for document ${documentId}: ${body.approved ? "approved" : "rejected"}`,
-      );
-      if (!body.approved && body.rejectionReason) {
-        this.logger.log(`Rejection reason: ${body.rejectionReason}`);
-      }
-      this.logger.debug("=== DocumentController.approveDocument completed ===");
-
-      return {
-        success: true,
-        message: `Document ${body.approved ? "approved" : "rejected"} successfully`,
-      };
-    } catch (error) {
-      this.logger.error(`Error approving document: ${getErrorMessage(error)}`);
-      this.logger.error(`Stack: ${getErrorStack(error)}`);
-
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ForbiddenException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-
-      throw new NotFoundException(
-        getErrorMessage(error) || `Failed to approve document: ${documentId}`,
       );
     }
   }
