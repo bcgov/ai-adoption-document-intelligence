@@ -158,8 +158,8 @@ describe("RetentionDbService", () => {
             status: {
               in: expect.arrayContaining([
                 ReviewStatus.approved,
-                ReviewStatus.escalated,
-                ReviewStatus.skipped,
+                ReviewStatus.flagged,
+                ReviewStatus.abandoned,
               ]),
             },
             completed_at: { lt: CUTOFF },

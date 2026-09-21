@@ -174,7 +174,7 @@ export class DocumentRetentionService {
   /**
    * Runs daily at 02:45: deletes completed `review_sessions` (and their
    * cascading `field_corrections`) older than `REVIEW_SESSION_RETENTION_DAYS`.
-   * Only terminal-status sessions (approved / escalated / skipped) are
+   * Only terminal-status sessions (approved / flagged / abandoned) are
    * eligible. Skipped when the variable is unset.
    */
   @Cron("45 2 * * *")

@@ -5,8 +5,8 @@ import { PrismaService } from "@/database/prisma.service";
 /** Terminal review statuses whose sessions are eligible for age-based deletion. */
 const TERMINAL_REVIEW_STATUSES: ReviewStatus[] = [
   ReviewStatus.approved,
-  ReviewStatus.escalated, // TODO: Is this actually terminal?
-  ReviewStatus.skipped,
+  ReviewStatus.flagged,
+  ReviewStatus.abandoned,
 ];
 
 /**
