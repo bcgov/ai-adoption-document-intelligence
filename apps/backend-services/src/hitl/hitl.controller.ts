@@ -125,7 +125,7 @@ export class HitlController {
     );
   }
 
-  @Get("sessions/next")
+  @Post("sessions/next")
   @Identity({
     allowApiKey: true,
     groupPermissions: {

@@ -15,7 +15,6 @@ import {
   useState,
 } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { type DocumentCanvasHandle } from "../../../../components/document/DocumentCanvas";
 import {
   Accordion,
   ActionIcon,
@@ -333,7 +332,6 @@ export const ReviewWorkspacePage: FC = () => {
     () => localStorage.getItem("hitl-auto-advance") !== "false",
   );
   const fieldPanelRef = useRef<HTMLDivElement | null>(null);
-  const documentCanvasRef = useRef<DocumentCanvasHandle>(null);
   const {
     ref: canvasRef,
     width: canvasWidth,
@@ -673,7 +671,7 @@ export const ReviewWorkspacePage: FC = () => {
       const firstField = filteredSortedFields[0];
       setActiveFieldKey(firstField.fieldKey);
       requestAnimationFrame(() => {
-        documentCanvasRef.current?.focusBox(firstField.fieldKey);
+        focusField(firstField.fieldKey);
       });
     }
   }, [documentImage]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -838,7 +836,7 @@ export const ReviewWorkspacePage: FC = () => {
       if (nextField) {
         setActiveFieldKey(nextField.fieldKey);
         if (viewMode === "document") {
-          documentCanvasRef.current?.focusBox(nextField.fieldKey);
+          focusField(nextField.fieldKey);
         }
         if (fromOverlay) {
           // The new overlay renders with autoFocus on its textarea; nothing

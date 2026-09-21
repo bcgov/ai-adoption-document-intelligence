@@ -182,7 +182,7 @@
       "label": "Mark Complete",
       "activityType": "document.updateStatus",
       "inputs": [{ "port": "documentId", "ctxKey": "documentId" }],
-      "parameters": { "status": "completed" },
+      "parameters": { "status": "complete" },
       "timeout": { "startToClose": "30s" },
       "retry": { "maximumAttempts": 5 }
     }
