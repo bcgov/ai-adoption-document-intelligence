@@ -11,6 +11,7 @@ describe("AuditService", () => {
   let service: AuditService;
   const mockAuditDb = {
     createAuditEvent: jest.fn(),
+    createAuditEvents: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -222,6 +223,61 @@ describe("AuditService", () => {
       await service.recordEvent([]);
 
       expect(mockAuditDb.createAuditEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("recordEvent - batch case (array + tx)", () => {
+    it("should route more than one event through createAuditEvents in one call when tx is provided", async () => {
+      mockAuditDb.createAuditEvents.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      const events: CreateAuditEventInput[] = [
+        { event_type: "EVT_1", resource_type: "doc", resource_id: "r1" },
+        { event_type: "EVT_2", resource_type: "doc", resource_id: "r2" },
+      ];
+
+      await service.recordEvent(events, tx);
+
+      expect(mockAuditDb.createAuditEvents).toHaveBeenCalledTimes(1);
+      expect(mockAuditDb.createAuditEvents).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({ event_type: "EVT_1", resource_id: "r1" }),
+          expect.objectContaining({ event_type: "EVT_2", resource_id: "r2" }),
+        ],
+        tx,
+      );
+      expect(mockAuditDb.createAuditEvent).not.toHaveBeenCalled();
+    });
+
+    it("should still use createAuditEvent (not the batch route) for a single-element array with tx", async () => {
+      mockAuditDb.createAuditEvent.mockResolvedValue(undefined);
+      const tx = {} as Prisma.TransactionClient;
+
+      await service.recordEvent(
+        [{ event_type: "EVT_1", resource_type: "doc", resource_id: "r1" }],
+        tx,
+      );
+
+      expect(mockAuditDb.createAuditEvent).toHaveBeenCalledTimes(1);
+      expect(mockAuditDb.createAuditEvents).not.toHaveBeenCalled();
+    });
+
+    it("should propagate a batch write failure so the caller's transaction rolls back", async () => {
+      mockAuditDb.createAuditEvents.mockRejectedValue(
+        new Error("batch insert failed"),
+      );
+      const tx = {} as Prisma.TransactionClient;
+
+      await expect(
+        service.recordEvent(
+          [
+            { event_type: "EVT_1", resource_type: "doc", resource_id: "r1" },
+            { event_type: "EVT_2", resource_type: "doc", resource_id: "r2" },
+          ],
+          tx,
+        ),
+      ).rejects.toThrow("batch insert failed");
+      expect(mockAppLogger.warn).not.toHaveBeenCalled();
     });
   });
 

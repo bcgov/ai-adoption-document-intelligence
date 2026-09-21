@@ -3,8 +3,11 @@ import {
   OperationCategory,
   validateBlobFilePath,
 } from "@ai-di/blob-storage-paths";
+import type { DocumentSegment } from "@ai-di/graph-workflow";
 import { PDFDocument } from "pdf-lib";
 import { getBlobStorageClient } from "../blob-storage/blob-storage-client";
+
+export type { DocumentSegment };
 
 export interface SplitDocumentInput {
   blobKey: string;
@@ -13,13 +16,6 @@ export interface SplitDocumentInput {
   fixedRangeSize?: number;
   customRanges?: Array<{ start: number; end: number }>;
   documentId?: string;
-}
-
-export interface DocumentSegment {
-  segmentIndex: number;
-  pageRange: { start: number; end: number };
-  blobKey: string;
-  pageCount: number;
 }
 
 export interface SplitDocumentOutput {

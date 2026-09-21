@@ -2,17 +2,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiService } from "@/data/services/api.service";
 import { type FieldDefinition, FieldType } from "../../core/types/field";
 
-interface CreateFieldDefinitionDto {
+export interface CreateFieldDefinitionDto {
   field_key: string;
   field_type: string;
   field_format?: string;
   format_spec?: string;
+  description?: string;
   display_order?: number;
 }
 
 interface UpdateFieldDefinitionDto {
   field_format?: string;
   format_spec?: string;
+  description?: string;
   display_order?: number;
 }
 
@@ -26,6 +28,7 @@ interface ApiFieldDefinition {
   field_format?: string;
   formatSpec?: string;
   format_spec?: string;
+  description?: string | null;
   displayOrder?: number;
   display_order?: number;
 }
@@ -42,6 +45,7 @@ export const useFieldSchema = (templateModelId?: string) => {
         FieldType.STRING) as FieldType,
       fieldFormat: field.fieldFormat ?? field.field_format,
       formatSpec: field.formatSpec ?? field.format_spec,
+      description: field.description ?? undefined,
       displayOrder: field.displayOrder ?? field.display_order ?? 0,
     }));
 
@@ -63,6 +67,24 @@ export const useFieldSchema = (templateModelId?: string) => {
         data,
       );
       return response.data ? normalizeSchema([response.data])[0] : null;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["template-model-field-schema", templateModelId],
+      });
+    },
+  });
+
+  const addFieldsMutation = useMutation({
+    mutationFn: async (fields: CreateFieldDefinitionDto[]) => {
+      const response = await apiService.post<ApiFieldDefinition[]>(
+        `/template-models/${templateModelId}/fields/bulk`,
+        { fields },
+      );
+      if (!response.success) {
+        throw new Error(response.message ?? "Adding fields failed");
+      }
+      return normalizeSchema(response.data ?? []);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -111,9 +133,11 @@ export const useFieldSchema = (templateModelId?: string) => {
     isLoading: schemaQuery.isLoading,
     error: schemaQuery.error,
     addField: addFieldMutation.mutate,
+    addFieldsAsync: addFieldsMutation.mutateAsync,
     updateField: updateFieldMutation.mutate,
     deleteField: deleteFieldMutation.mutate,
     isAdding: addFieldMutation.isPending,
+    isAddingFields: addFieldsMutation.isPending,
     isUpdating: updateFieldMutation.isPending,
     isDeleting: deleteFieldMutation.isPending,
   };

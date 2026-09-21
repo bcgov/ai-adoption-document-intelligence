@@ -111,7 +111,7 @@ export const REGISTERED_ACTIVITY_TYPES: Record<string, RegisteredActivityType> =
     },
     "document.flattenClassifiedDocuments": {
       description:
-        "Flatten all (or filtered) classifier labels into a single sorted ClassifiedSegment array for map node iteration",
+        "Flatten all (or filtered) classifier labels into a single sorted LabeledSegment array for map node iteration",
     },
     "data.transform": {
       description:

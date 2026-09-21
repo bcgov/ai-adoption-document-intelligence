@@ -6,7 +6,6 @@ import {
 import { ConflictException, NotFoundException } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
 import { AuditService } from "@/audit/audit.service";
-import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
@@ -24,7 +23,6 @@ import {
 import { SaveLabelsDto } from "./dto/label.dto";
 import { LabelingFileType, LabelingUploadDto } from "./dto/labeling-upload.dto";
 import { LabelingDocumentDbService } from "./labeling-document-db.service";
-import { SuggestionService } from "./suggestion.service";
 import { TemplateModelService } from "./template-model.service";
 import { TemplateModelDbService } from "./template-model-db.service";
 import {
@@ -38,7 +36,8 @@ describe("TemplateModelService", () => {
   let mockTemplateModelDbService: jest.Mocked<TemplateModelDbService>;
   let mockOcrService: jest.Mocked<TemplateModelOcrService>;
   let mockLabelingDocumentDbService: jest.Mocked<LabelingDocumentDbService>;
-  let mockSuggestionService: jest.Mocked<SuggestionService>;
+  let mockAuditService: { recordEvent: jest.Mock };
+  let mockPrismaService: { transaction: jest.Mock };
 
   const mockTemplateModel: TemplateModelData = {
     id: "tm-1",
@@ -128,6 +127,7 @@ describe("TemplateModelService", () => {
       updateTemplateModel: jest.fn(),
       deleteTemplateModel: jest.fn(),
       createFieldDefinition: jest.fn(),
+      createFieldDefinitions: jest.fn(),
       updateFieldDefinition: jest.fn(),
       deleteFieldDefinition: jest.fn(),
       findLabeledDocuments: jest.fn(),
@@ -151,10 +151,6 @@ describe("TemplateModelService", () => {
       processOcrForLabelingDocument: jest.fn(),
     };
 
-    const mockSuggestions = {
-      generateSuggestions: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemplateModelService,
@@ -170,10 +166,6 @@ describe("TemplateModelService", () => {
         {
           provide: TemplateModelOcrService,
           useValue: mockOcr,
-        },
-        {
-          provide: SuggestionService,
-          useValue: mockSuggestions,
         },
         {
           provide: PrismaService,
@@ -192,7 +184,8 @@ describe("TemplateModelService", () => {
     mockTemplateModelDbService = module.get(TemplateModelDbService);
     mockLabelingDocumentDbService = module.get(LabelingDocumentDbService);
     mockOcrService = module.get(TemplateModelOcrService);
-    mockSuggestionService = module.get(SuggestionService);
+    mockAuditService = module.get(AuditService);
+    mockPrismaService = module.get(PrismaService);
   });
 
   // ========== MODEL ID GENERATION ==========
@@ -446,6 +439,7 @@ describe("TemplateModelService", () => {
         field_type: PrismaFieldType.number,
         field_format: null,
         format_spec: null,
+        description: null,
         display_order: 1,
         template_model_id: "tm-1",
       };
@@ -907,92 +901,6 @@ describe("TemplateModelService", () => {
     });
   });
 
-  describe("generateDocumentSuggestions", () => {
-    it("should generate suggestions for a document", async () => {
-      const suggestions = [
-        {
-          field_key: "name",
-          label_name: "name",
-          value: "John Smith",
-          page_number: 1,
-          element_ids: ["p1-w1", "p1-w2"],
-          bounding_box: { polygon: [1, 1, 2, 1, 2, 2, 1, 2] },
-          source_type: "keyValuePair",
-          confidence: 0.99,
-        },
-      ];
-
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        mockLabeledDocument,
-      );
-      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
-        mockTemplateModel,
-      );
-      mockSuggestionService.generateSuggestions.mockReturnValueOnce(
-        suggestions as never,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      const result = await service.generateDocumentSuggestions(
-        "tm-1",
-        "labeled-doc-1",
-        mockIdentity,
-      );
-
-      expect(mockSuggestionService.generateSuggestions).toHaveBeenCalled();
-      expect(result).toEqual(suggestions);
-    });
-
-    it("should throw NotFoundException when document not found", async () => {
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        null,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "missing-doc",
-          mockIdentity,
-        ),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it("should throw NotFoundException when OCR result not found", async () => {
-      const noOcrDoc = {
-        ...mockLabeledDocument,
-        labeling_document: {
-          ...mockLabelingDocument,
-          ocr_result: null,
-        },
-      } as unknown as LabeledDocumentData;
-      mockTemplateModelDbService.findLabeledDocument.mockResolvedValueOnce(
-        noOcrDoc,
-      );
-
-      const mockIdentity: ResolvedIdentity = {
-        isSystemAdmin: true,
-        groupRoles: {},
-        actorId: "test-actor",
-      };
-      await expect(
-        service.generateDocumentSuggestions(
-          "tm-1",
-          "labeled-doc-1",
-          mockIdentity,
-        ),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-
   // ========== EXPORT ==========
 
   describe("exportTemplateModel", () => {
@@ -1125,6 +1033,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.date,
             field_format: "ymd",
             format_spec: null,
+            description: null,
             display_order: 1,
             template_model_id: "tm-1",
           },
@@ -1172,6 +1081,7 @@ describe("TemplateModelService", () => {
             field_type: PrismaFieldType.selectionMark,
             field_format: null,
             format_spec: null,
+            description: null,
             display_order: 0,
             template_model_id: "tm-1",
           },
@@ -1286,6 +1196,191 @@ describe("TemplateModelService", () => {
           file: "base64",
           file_type: LabelingFileType.PDF,
           group_id: "group-1",
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("field descriptions", () => {
+    it("stores a trimmed description when adding a field", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinition.mockResolvedValueOnce({
+        ...mockTemplateModel.field_schema[0],
+        id: "field-2",
+        field_key: "filing_date",
+        description: "Date at the bottom of the form",
+      });
+
+      await service.addField(
+        "tm-1",
+        {
+          field_key: "filing_date",
+          field_type: FieldType.DATE,
+          description: "  Date at the bottom of the form  ",
+        },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.createFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "tm-1",
+        expect.objectContaining({
+          description: "Date at the bottom of the form",
+        }),
+      );
+    });
+
+    it("clears the description when an update sends only whitespace", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { description: "   " },
+        "actor-1",
+      );
+
+      expect(
+        mockTemplateModelDbService.updateFieldDefinition,
+      ).toHaveBeenCalledWith(
+        "field-1",
+        "tm-1",
+        expect.objectContaining({ description: null }),
+      );
+    });
+
+    it("leaves the description alone when an update omits it", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.updateFieldDefinition.mockResolvedValueOnce(
+        mockTemplateModel.field_schema[0],
+      );
+
+      await service.updateField(
+        "tm-1",
+        "field-1",
+        { display_order: 3 },
+        "actor-1",
+      );
+
+      const data =
+        mockTemplateModelDbService.updateFieldDefinition.mock.calls[0][2];
+      expect(data.description).toBeUndefined();
+    });
+  });
+
+  describe("addFields", () => {
+    it("creates the fields in one batched call after the current last order, audited through the same transaction", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+      mockTemplateModelDbService.createFieldDefinitions.mockResolvedValueOnce([
+        {
+          ...mockTemplateModel.field_schema[0],
+          id: "field-2",
+          field_key: "file_number",
+        },
+        {
+          ...mockTemplateModel.field_schema[0],
+          id: "field-3",
+          field_key: "consents",
+          field_type: PrismaFieldType.selectionMark,
+        },
+      ]);
+
+      const created = await service.addFields(
+        "tm-1",
+        {
+          fields: [
+            {
+              field_key: "file_number",
+              field_type: FieldType.STRING,
+              description: "Court file number",
+            },
+            { field_key: "consents", field_type: FieldType.SELECTION_MARK },
+          ],
+        },
+        "actor-1",
+      );
+
+      expect(created.map((f) => f.field_key)).toEqual([
+        "file_number",
+        "consents",
+      ]);
+      expect(mockPrismaService.transaction).toHaveBeenCalledTimes(1);
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).toHaveBeenCalledWith(
+        "tm-1",
+        [
+          expect.objectContaining({
+            field_key: "file_number",
+            description: "Court file number",
+            display_order: 1,
+          }),
+          expect.objectContaining({
+            field_key: "consents",
+            display_order: 2,
+          }),
+        ],
+        {},
+      );
+      expect(mockAuditService.recordEvent).toHaveBeenCalledWith(
+        [
+          expect.objectContaining({
+            event_type: "template_model_field_created",
+            resource_id: "tm-1",
+            payload: { field_id: "field-2", field_key: "file_number" },
+          }),
+          expect.objectContaining({
+            payload: { field_id: "field-3", field_key: "consents" },
+          }),
+        ],
+        {},
+      );
+    });
+
+    it("refuses keys that already exist or repeat, naming them", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(
+        mockTemplateModel,
+      );
+
+      const error = await service
+        .addFields("tm-1", {
+          fields: [
+            { field_key: "invoice_number", field_type: FieldType.STRING },
+            { field_key: "total", field_type: FieldType.NUMBER },
+            { field_key: "total", field_type: FieldType.NUMBER },
+          ],
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toEqual(
+        expect.objectContaining({ field_keys: ["invoice_number", "total"] }),
+      );
+      expect(
+        mockTemplateModelDbService.createFieldDefinitions,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 for an unknown template model", async () => {
+      mockTemplateModelDbService.findTemplateModel.mockResolvedValueOnce(null);
+      await expect(
+        service.addFields("missing", {
+          fields: [{ field_key: "a", field_type: FieldType.STRING }],
         }),
       ).rejects.toThrow(NotFoundException);
     });
