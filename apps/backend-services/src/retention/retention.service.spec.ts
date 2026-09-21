@@ -1,19 +1,20 @@
 import { DocumentStatus } from "@generated/client";
 import { Test, TestingModule } from "@nestjs/testing";
+import { AuditService } from "@/audit/audit.service";
 import { BLOB_STORAGE } from "@/blob-storage/blob-storage.interface";
 import {
   buildBlobPrefixPath,
   OperationCategory,
 } from "@/blob-storage/storage-path-builder";
 import { AppLoggerService } from "@/logging/app-logger.service";
-import { DocumentDbService } from "./document-db.service";
+import { DocumentDbService } from "../document/document-db.service";
 import {
   AUDIT_EVENT_RETENTION_ENV_VAR,
   BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
   DOCUMENT_RETENTION_ENV_VAR,
   DocumentRetentionService,
   REVIEW_SESSION_RETENTION_ENV_VAR,
-} from "./document-retention.service";
+} from "./retention.service";
 import { RetentionDbService } from "./retention-db.service";
 
 const mockDocumentDb = {
@@ -29,6 +30,13 @@ const mockRetentionDb = {
   deleteAuditEventsOlderThan: jest.fn(),
   deleteBenchmarkAuditLogsOlderThan: jest.fn(),
   deleteCompletedReviewSessionsOlderThan: jest.fn(),
+  runWithDatabaseLock: jest
+    .fn()
+    .mockImplementation(
+      async (_label: string, fn: (tx: object) => Promise<void>) => {
+        await fn({});
+      },
+    ),
 };
 
 const mockLogger = {
@@ -55,6 +63,7 @@ describe("DocumentRetentionService", () => {
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
         { provide: RetentionDbService, useValue: mockRetentionDb },
         { provide: AppLoggerService, useValue: mockLogger },
+        { provide: AuditService, useValue: { recordEvent: jest.fn() } },
       ],
     }).compile();
 
@@ -144,7 +153,10 @@ describe("DocumentRetentionService", () => {
       doc.id,
     ]);
     expect(mockBlobStorage.deleteByPrefix).toHaveBeenCalledWith(expectedPrefix);
-    expect(mockDocumentDb.deleteDocument).toHaveBeenCalledWith(doc.id);
+    expect(mockDocumentDb.deleteDocument).toHaveBeenCalledWith(
+      doc.id,
+      expect.anything(),
+    );
     expect(mockLogger.log).toHaveBeenCalledWith(
       "Document retention cleanup run complete",
       expect.objectContaining({ deleted: 1, errors: 0 }),
@@ -208,7 +220,10 @@ describe("DocumentRetentionService", () => {
 
     // First doc errored before DB delete; second doc fully deleted.
     expect(mockDocumentDb.deleteDocument).toHaveBeenCalledTimes(1);
-    expect(mockDocumentDb.deleteDocument).toHaveBeenCalledWith(docs[1].id);
+    expect(mockDocumentDb.deleteDocument).toHaveBeenCalledWith(
+      docs[1].id,
+      expect.anything(),
+    );
     expect(mockLogger.error).toHaveBeenCalledWith(
       expect.stringContaining(docs[0].id),
       expect.objectContaining({ documentId: docs[0].id }),
@@ -305,6 +320,7 @@ function describeSimpleRetentionJob(params: {
       expect(mockRetentionDb[params.dbMethodName]).toHaveBeenCalledWith(
         expect.any(Date),
         2000,
+        expect.anything(),
       );
       const [cutoff] = mockRetentionDb[params.dbMethodName].mock.calls[0] as [
         Date,

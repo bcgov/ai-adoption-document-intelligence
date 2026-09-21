@@ -1,6 +1,7 @@
-import { PrismaClient, ReviewStatus } from "@generated/client";
+import { Prisma, ReviewStatus } from "@generated/client";
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@/database/prisma.service";
+import { AppLoggerService } from "@/logging/app-logger.service";
 
 /** Terminal review statuses whose sessions are eligible for age-based deletion. */
 const TERMINAL_REVIEW_STATUSES: ReviewStatus[] = [
@@ -19,10 +20,30 @@ const TERMINAL_REVIEW_STATUSES: ReviewStatus[] = [
  */
 @Injectable()
 export class RetentionDbService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly logger: AppLoggerService,
+  ) {}
 
-  private get prisma(): PrismaClient {
-    return this.prismaService.prisma;
+  async runWithDatabaseLock(
+    label: string,
+    fn: (tx: Prisma.TransactionClient) => Promise<void>,
+  ) {
+    await this.prismaService.transaction(async (tx) => {
+      const [result] = await tx.$queryRaw<
+        { pg_try_advisory_xact_lock: boolean }[]
+      >`
+          SELECT pg_try_advisory_xact_lock(hashtext(${label}));
+        `;
+      if (!result || !result.pg_try_advisory_xact_lock) {
+        this.logger.log(
+          `[${label} Cron] Already running on another container. Skipping.`,
+        );
+        return;
+      }
+
+      await fn(tx);
+    });
   }
 
   /**
@@ -35,15 +56,16 @@ export class RetentionDbService {
   async deleteAuditEventsOlderThan(
     olderThan: Date,
     limit: number,
+    tx: Prisma.TransactionClient,
   ): Promise<number> {
-    const rows = await this.prisma.auditEvent.findMany({
+    const rows = await tx.auditEvent.findMany({
       where: { occurred_at: { lt: olderThan } },
       select: { id: true },
       orderBy: { occurred_at: "asc" },
       take: limit,
     });
     if (rows.length === 0) return 0;
-    const result = await this.prisma.auditEvent.deleteMany({
+    const result = await tx.auditEvent.deleteMany({
       where: { id: { in: rows.map((r) => r.id) } },
     });
     return result.count;
@@ -60,15 +82,16 @@ export class RetentionDbService {
   async deleteBenchmarkAuditLogsOlderThan(
     olderThan: Date,
     limit: number,
+    tx: Prisma.TransactionClient,
   ): Promise<number> {
-    const rows = await this.prisma.benchmarkAuditLog.findMany({
+    const rows = await tx.benchmarkAuditLog.findMany({
       where: { timestamp: { lt: olderThan } },
       select: { id: true },
       orderBy: { timestamp: "asc" },
       take: limit,
     });
     if (rows.length === 0) return 0;
-    const result = await this.prisma.benchmarkAuditLog.deleteMany({
+    const result = await tx.benchmarkAuditLog.deleteMany({
       where: { id: { in: rows.map((r) => r.id) } },
     });
     return result.count;
@@ -86,8 +109,9 @@ export class RetentionDbService {
   async deleteCompletedReviewSessionsOlderThan(
     olderThan: Date,
     limit: number,
+    tx: Prisma.TransactionClient,
   ): Promise<number> {
-    const rows = await this.prisma.reviewSession.findMany({
+    const rows = await tx.reviewSession.findMany({
       where: {
         status: { in: TERMINAL_REVIEW_STATUSES },
         completed_at: { lt: olderThan },
@@ -97,7 +121,7 @@ export class RetentionDbService {
       take: limit,
     });
     if (rows.length === 0) return 0;
-    const result = await this.prisma.reviewSession.deleteMany({
+    const result = await tx.reviewSession.deleteMany({
       where: { id: { in: rows.map((r) => r.id) } },
     });
     return result.count;
