@@ -289,6 +289,21 @@ spec:
             configMapKeyRef:
               name: backend-services-config
               key: DOCUMENT_RETENTION_DAYS
+        - name: AUDIT_EVENT_RETENTION_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: AUDIT_EVENT_RETENTION_DAYS
+        - name: BENCHMARK_AUDIT_LOG_RETENTION_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: BENCHMARK_AUDIT_LOG_RETENTION_DAYS
+        - name: REVIEW_SESSION_RETENTION_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: backend-services-config
+              key: REVIEW_SESSION_RETENTION_DAYS
         volumeMounts:
         - name: logs
           mountPath: /var/log/app

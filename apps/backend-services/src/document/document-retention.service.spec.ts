@@ -8,9 +8,13 @@ import {
 import { AppLoggerService } from "@/logging/app-logger.service";
 import { DocumentDbService } from "./document-db.service";
 import {
+  AUDIT_EVENT_RETENTION_ENV_VAR,
+  BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
   DOCUMENT_RETENTION_ENV_VAR,
   DocumentRetentionService,
+  REVIEW_SESSION_RETENTION_ENV_VAR,
 } from "./document-retention.service";
+import { RetentionDbService } from "./retention-db.service";
 
 const mockDocumentDb = {
   findExpiredDocuments: jest.fn(),
@@ -19,6 +23,12 @@ const mockDocumentDb = {
 
 const mockBlobStorage = {
   deleteByPrefix: jest.fn(),
+};
+
+const mockRetentionDb = {
+  deleteAuditEventsOlderThan: jest.fn(),
+  deleteBenchmarkAuditLogsOlderThan: jest.fn(),
+  deleteCompletedReviewSessionsOlderThan: jest.fn(),
 };
 
 const mockLogger = {
@@ -32,9 +42,9 @@ const mockLogger = {
 const GROUP_A = "clh7z2xk00000356u8e3h1234";
 const GROUP_B = "clh7z2xk00000356u8e3h5678";
 
-describe("DocumentRetentionService", () => {
-  let service: DocumentRetentionService;
+let service: DocumentRetentionService;
 
+describe("DocumentRetentionService", () => {
   beforeEach(async () => {
     process.env[DOCUMENT_RETENTION_ENV_VAR] = "90";
 
@@ -43,6 +53,7 @@ describe("DocumentRetentionService", () => {
         DocumentRetentionService,
         { provide: DocumentDbService, useValue: mockDocumentDb },
         { provide: BLOB_STORAGE, useValue: mockBlobStorage },
+        { provide: RetentionDbService, useValue: mockRetentionDb },
         { provide: AppLoggerService, useValue: mockLogger },
       ],
     }).compile();
@@ -97,7 +108,7 @@ describe("DocumentRetentionService", () => {
         DocumentStatus.failed,
         DocumentStatus.conversion_failed,
       ]),
-      100,
+      500,
     );
     expect(mockBlobStorage.deleteByPrefix).not.toHaveBeenCalled();
     expect(mockDocumentDb.deleteDocument).not.toHaveBeenCalled();
@@ -222,4 +233,148 @@ describe("DocumentRetentionService", () => {
       expect.objectContaining({ stack: expect.anything() }),
     );
   });
+});
+
+// ---------------------------------------------------------------------------
+// Shared helpers for the simple (DB-only) retention jobs
+// ---------------------------------------------------------------------------
+
+/** Builds shared test cases for any of the three simple retention cron jobs. */
+function describeSimpleRetentionJob(params: {
+  envVar: string;
+  label: string;
+  methodName:
+    | "deleteExpiredAuditEvents"
+    | "deleteExpiredBenchmarkAuditLogs"
+    | "deleteExpiredReviewSessions";
+  dbMethodName:
+    | "deleteAuditEventsOlderThan"
+    | "deleteBenchmarkAuditLogsOlderThan"
+    | "deleteCompletedReviewSessionsOlderThan";
+  logLabel: string;
+  getService: () => DocumentRetentionService;
+}): void {
+  describe(params.methodName, () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      // Ensure the document-retention env var does not cause noise in these tests.
+      delete process.env[DOCUMENT_RETENTION_ENV_VAR];
+      process.env[params.envVar] = "90";
+    });
+
+    afterEach(() => {
+      delete process.env[params.envVar];
+    });
+
+    it("skips and warns when the env var is not set", async () => {
+      delete process.env[params.envVar];
+
+      await params.getService()[params.methodName]();
+
+      expect(mockRetentionDb[params.dbMethodName]).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(params.envVar),
+        expect.objectContaining({ value: undefined }),
+      );
+    });
+
+    it.each([
+      "0",
+      "-1",
+      "abc",
+      "",
+    ])("skips and warns when the env var is invalid (%s)", async (value) => {
+      process.env[params.envVar] = value;
+
+      await params.getService()[params.methodName]();
+
+      expect(mockRetentionDb[params.dbMethodName]).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(params.envVar),
+        expect.any(Object),
+      );
+    });
+
+    it("calls the DB method with the correct cutoff date and batch size", async () => {
+      mockRetentionDb[params.dbMethodName].mockResolvedValue(0);
+      const before = Date.now();
+
+      await params.getService()[params.methodName]();
+
+      const after = Date.now();
+      expect(mockRetentionDb[params.dbMethodName]).toHaveBeenCalledWith(
+        expect.any(Date),
+        2000,
+      );
+      const [cutoff] = mockRetentionDb[params.dbMethodName].mock.calls[0] as [
+        Date,
+        ...unknown[],
+      ];
+      const expectedMs = 90 * 24 * 60 * 60 * 1000;
+      expect(cutoff.getTime()).toBeGreaterThanOrEqual(
+        before - expectedMs - 1000,
+      );
+      expect(cutoff.getTime()).toBeLessThanOrEqual(after - expectedMs + 1000);
+    });
+
+    it("logs the deleted count when rows were removed", async () => {
+      mockRetentionDb[params.dbMethodName].mockResolvedValue(42);
+
+      await params.getService()[params.methodName]();
+
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining(params.logLabel),
+        expect.objectContaining({ deleted: 42, olderThanDays: 90 }),
+      );
+    });
+
+    it("does not log when no rows were eligible", async () => {
+      mockRetentionDb[params.dbMethodName].mockResolvedValue(0);
+
+      await params.getService()[params.methodName]();
+
+      expect(mockLogger.log).not.toHaveBeenCalled();
+    });
+
+    it("catches and logs DB errors without rethrowing", async () => {
+      mockRetentionDb[params.dbMethodName].mockRejectedValue(
+        new Error("db offline"),
+      );
+
+      await expect(
+        params.getService()[params.methodName](),
+      ).resolves.toBeUndefined();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining(params.logLabel),
+        expect.objectContaining({ stack: expect.anything() }),
+      );
+    });
+  });
+}
+
+describeSimpleRetentionJob({
+  envVar: AUDIT_EVENT_RETENTION_ENV_VAR,
+  label: AUDIT_EVENT_RETENTION_ENV_VAR,
+  methodName: "deleteExpiredAuditEvents",
+  dbMethodName: "deleteAuditEventsOlderThan",
+  logLabel: "Audit event",
+  getService: () => service,
+});
+
+describeSimpleRetentionJob({
+  envVar: BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
+  label: BENCHMARK_AUDIT_LOG_RETENTION_ENV_VAR,
+  methodName: "deleteExpiredBenchmarkAuditLogs",
+  dbMethodName: "deleteBenchmarkAuditLogsOlderThan",
+  logLabel: "Benchmark audit log",
+  getService: () => service,
+});
+
+describeSimpleRetentionJob({
+  envVar: REVIEW_SESSION_RETENTION_ENV_VAR,
+  label: REVIEW_SESSION_RETENTION_ENV_VAR,
+  methodName: "deleteExpiredReviewSessions",
+  dbMethodName: "deleteCompletedReviewSessionsOlderThan",
+  logLabel: "Review session",
+  getService: () => service,
 });

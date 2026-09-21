@@ -70,8 +70,11 @@ generate_instance_overlay() {
   local throttle_auth_refresh_ttl_ms="60000"
   local throttle_auth_refresh_limit="5"
   local db_pool_max="20"
-  # Empty disables the document-retention janitor; a positive integer is days.
+  # Empty disables each retention janitor; a positive integer is days.
   local document_retention_days=""
+  local audit_event_retention_days=""
+  local benchmark_audit_log_retention_days=""
+  local review_session_retention_days=""
   local azure_openai_endpoint=""
   local azure_openai_deployment=""
   local azure_openai_api_version="2024-02-15-preview"
@@ -184,6 +187,18 @@ generate_instance_overlay() {
         ;;
       --document-retention-days)
         document_retention_days="$2"
+        shift 2
+        ;;
+      --audit-event-retention-days)
+        audit_event_retention_days="$2"
+        shift 2
+        ;;
+      --benchmark-audit-log-retention-days)
+        benchmark_audit_log_retention_days="$2"
+        shift 2
+        ;;
+      --review-session-retention-days)
+        review_session_retention_days="$2"
         shift 2
         ;;
       --azure-openai-endpoint)
@@ -368,6 +383,9 @@ generate_instance_overlay() {
     -e "s|__THROTTLE_AUTH_REFRESH_LIMIT__|$(_sed_escape_replacement "${throttle_auth_refresh_limit}")|g"
     -e "s|__DB_POOL_MAX__|$(_sed_escape_replacement "${db_pool_max}")|g"
     -e "s|__DOCUMENT_RETENTION_DAYS__|$(_sed_escape_replacement "${document_retention_days}")|g"
+    -e "s|__AUDIT_EVENT_RETENTION_DAYS__|$(_sed_escape_replacement "${audit_event_retention_days}")|g"
+    -e "s|__BENCHMARK_AUDIT_LOG_RETENTION_DAYS__|$(_sed_escape_replacement "${benchmark_audit_log_retention_days}")|g"
+    -e "s|__REVIEW_SESSION_RETENTION_DAYS__|$(_sed_escape_replacement "${review_session_retention_days}")|g"
     -e "s|__AZURE_OPENAI_ENDPOINT__|$(_sed_escape_replacement "${azure_openai_endpoint}")|g"
     -e "s|__AZURE_OPENAI_DEPLOYMENT__|$(_sed_escape_replacement "${azure_openai_deployment}")|g"
     -e "s|__AZURE_OPENAI_API_VERSION__|$(_sed_escape_replacement "${azure_openai_api_version}")|g"
