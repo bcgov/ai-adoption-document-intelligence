@@ -8099,16 +8099,6 @@
             }
           },
           {
-            "name": "maxConfidence",
-            "required": false,
-            "in": "query",
-            "description": "Maximum confidence threshold (show fields below this)",
-            "schema": {
-              "default": 0.9,
-              "type": "number"
-            }
-          },
-          {
             "name": "limit",
             "required": false,
             "in": "query",
@@ -8246,6 +8236,7 @@
               "type": "string",
               "enum": [
                 "pending",
+                "claimed",
                 "reviewed",
                 "flagged",
                 "all"
@@ -8735,7 +8726,7 @@
     },
     "/api/hitl/sessions/{id}/reopen": {
       "post": {
-        "description": "A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them. A ground-truth labelling job reopens for its original reviewer until the dataset version is frozen. An approved document review does not reopen at all: approving it signals the gated workflow, which has already run the nodes after the gate.",
+        "description": "An approved session reopens only for its original reviewer, within five minutes of completion. A flagged session is a hand-off: any member of the group can take it over at any time, and the lock moves to them.",
         "operationId": "HitlController_reopenSession",
         "parameters": [
           {
@@ -8766,7 +8757,7 @@
             "description": "Session not found"
           },
           "409": {
-            "description": "Session cannot be reopened: already in progress, an approved document review, a frozen dataset version, or another reviewer holds the lock"
+            "description": "Session cannot be reopened (already in progress, window expired, dataset frozen, or another reviewer holds the lock)"
           }
         },
         "security": [
@@ -8777,7 +8768,7 @@
             "api-key": []
           }
         ],
-        "summary": "Take over a flagged review session, or relabel a ground-truth job",
+        "summary": "Reopen a completed review session, or take over a flagged one",
         "tags": [
           "hitl"
         ]
@@ -16150,22 +16141,10 @@
         "type": "string",
         "enum": [
           "pending",
+          "claimed",
           "reviewed",
           "flagged",
           "all"
-        ]
-      },
-      "QueueDocumentOcrDto": {
-        "type": "object",
-        "properties": {
-          "fields": {
-            "type": "object",
-            "description": "Extracted key-value pairs with confidence scores",
-            "additionalProperties": true
-          }
-        },
-        "required": [
-          "fields"
         ]
       },
       "QueueSessionSummaryDto": {
@@ -16209,6 +16188,9 @@
           "model_id": {
             "type": "object"
           },
+          "workflow_id": {
+            "type": "object"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -16217,8 +16199,8 @@
             "format": "date-time",
             "type": "string"
           },
-          "ocr_result": {
-            "$ref": "#/components/schemas/QueueDocumentOcrDto"
+          "average_confidence": {
+            "type": "number"
           },
           "lastSession": {
             "$ref": "#/components/schemas/QueueSessionSummaryDto"
@@ -16230,7 +16212,7 @@
           "status",
           "created_at",
           "updated_at",
-          "ocr_result"
+          "average_confidence"
         ]
       },
       "QueueResponseDto": {
@@ -16257,7 +16239,7 @@
         "properties": {
           "totalDocuments": {
             "type": "number",
-            "description": "Total documents in the review queue"
+            "description": "Documents that have entered the review pipeline (pending, claimed, flagged, or reviewed) — excludes documents a workflow completed without ever routing them to review"
           },
           "requiresReview": {
             "type": "number",
@@ -16277,6 +16259,19 @@
           "requiresReview",
           "averageConfidence",
           "reviewedToday"
+        ]
+      },
+      "QueueDocumentOcrDto": {
+        "type": "object",
+        "properties": {
+          "fields": {
+            "type": "object",
+            "description": "Extracted key-value pairs with confidence scores",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "fields"
         ]
       },
       "SessionDocumentDto": {
