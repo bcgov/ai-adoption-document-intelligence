@@ -2,7 +2,7 @@ name: Deploy Instance
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -13,6 +13,7 @@ on:
         options:
           - dev
           - test
+          - prod
       namespace:
         description: Optional OpenShift namespace override
         required: false
@@ -58,8 +59,8 @@ jobs:
             IMAGE_TAG="bcgov-di-test"
             SHA_TAG="bcgov-di-test-${GITHUB_SHA::12}"
             ENV="test"
-          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref_name }}" == "main" ]]; then
-            # push to main → prod instance; floating tag + immutable SHA tag for rollback
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            # manual dispatch from main → prod instance; floating tag + immutable SHA tag for rollback
             INSTANCE="bcgov-di"
             IMAGE_TAG="bcgov-di"
             SHA_TAG="bcgov-di-${GITHUB_SHA::12}"
