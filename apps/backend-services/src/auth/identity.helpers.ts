@@ -75,8 +75,9 @@ export function getIdentityGroupIds(
  *   `undefined` for unauthenticated requests.
  * @param groupId - The group ID to validate access against, or `null` for
  *   orphaned records with no group assignment.
- * @param minimumRole - The minimum required role within the group (default
- *   `GroupRole.EDITOR`). Same floor as `IdentityGuard` when `minimumRole` was set on `@Identity`.
+ * @param requiredPermissions - The permissions the identity's role in the
+ *   group must hold, the same check `IdentityGuard` applies for
+ *   `@Identity({ groupPermissions })`. Must not be empty.
  * @throws {NotFoundException} When the resource has no group (`groupId` is null),
  *   preventing leakage of orphaned record existence.
  * @throws {ForbiddenException} When the identity is not authorised to access the group.

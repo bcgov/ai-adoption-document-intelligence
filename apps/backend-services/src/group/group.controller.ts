@@ -564,6 +564,9 @@ export class GroupController {
   @ApiBadRequestResponse({
     description: "Caller is not a member of the group.",
   })
+  @ApiForbiddenResponse({
+    description: "Caller is not a member of the group or lacks GROUP_LEAVE.",
+  })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity({
     groupPermissions: {

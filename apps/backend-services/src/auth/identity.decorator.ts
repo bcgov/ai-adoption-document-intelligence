@@ -27,10 +27,9 @@ interface GroupPermissions {
    */
   groupIdFrom: GroupIdFrom;
   /**
-   * The required permissions {@link Permission} for a user's group-specific
-   * role to access a requested endpoint.
-   * Leave unset when no permissions are required.
-   * Not required if requireSystemAdmin is true.
+   * The permissions ({@link Permission}) the caller's role in the resolved
+   * group must hold. Must list at least one: `IdentityGuard` rejects an empty
+   * list with a 500 rather than silently skipping the role check.
    */
   requiredPermissions: Permission[];
 }
@@ -69,7 +68,12 @@ export interface IdentityOptions {
  *
  * @example
  * ```typescript
- * @Identity({ requiredPermissions: [Permission.WORKFLOW_CREATE], groupIdFrom: { param: 'groupId' } })
+ * @Identity({
+ *   groupPermissions: {
+ *     groupIdFrom: { param: 'groupId' },
+ *     requiredPermissions: [Permission.WORKFLOW_CREATE],
+ *   },
+ * })
  * @Get(':groupId/resource')
  * getResource() { ... }
  * ```

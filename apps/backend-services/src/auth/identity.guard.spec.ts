@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ExecutionContext,
   ForbiddenException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { UserService } from "@/actor/user.service";
@@ -734,6 +735,39 @@ describe("IdentityGuard", () => {
     await expect(
       identityGuard.canActivate(createContext(request)),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it("should throw InternalServerErrorException when groupPermissions lists no required permissions", async () => {
+    userService.findUserWithGroups.mockResolvedValue({
+      is_system_admin: false,
+      actor_id: "actor-id",
+      userGroups: [
+        {
+          user_id: "user-1",
+          group_id: "group-abc",
+          role: GroupRole.ADMIN,
+          created_at: new Date(),
+        },
+      ],
+    } as never);
+
+    const identityGuard = new IdentityGuard(
+      createReflectorWithIdentity({
+        groupPermissions: {
+          groupIdFrom: { param: "groupId" },
+          requiredPermissions: [],
+        },
+      }),
+      userService as unknown as UserService,
+    );
+    const request: Record<string, unknown> = {
+      user: { sub: "user-1" },
+      params: { groupId: "group-abc" },
+    };
+
+    await expect(
+      identityGuard.canActivate(createContext(request)),
+    ).rejects.toThrow(InternalServerErrorException);
   });
 
   // ---------------------------------------------------------------------------

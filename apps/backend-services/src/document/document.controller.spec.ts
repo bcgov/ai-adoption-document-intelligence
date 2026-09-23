@@ -5,6 +5,7 @@ import {
   GoneException,
   NotFoundException,
 } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { mockAppLogger } from "@/testUtils/mockAppLogger";
 import { BlobStorageInterface } from "../blob-storage/blob-storage.interface";
 import { TemporalClientService } from "../temporal/temporal-client.service";
@@ -22,11 +23,14 @@ describe("DocumentController", () => {
   let blobStorage: jest.Mocked<BlobStorageInterface>;
 
   const mockGroupId = "group-1";
-  const createMockReq = (userId = "user-1") => ({
+  const createMockReq = (
+    userId = "user-1",
+    role: GroupRole = GroupRole.EDITOR,
+  ) => ({
     resolvedIdentity: {
       userId,
       isSystemAdmin: false,
-      groupRoles: { [mockGroupId]: GroupRole.EDITOR },
+      groupRoles: { [mockGroupId]: role },
       actorId: "actor-1",
     },
   });
@@ -403,6 +407,24 @@ describe("DocumentController", () => {
   describe("downloadDocument", () => {
     const mockReq = createMockReq();
 
+    it("should let a REVIEWER download the document they are reviewing", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        file_path: "cuid/ocr/file.pdf",
+        original_filename: "file.pdf",
+        file_type: "pdf",
+        group_id: mockGroupId,
+      } as never);
+      blobStorage.read.mockResolvedValue(Buffer.from("data"));
+      const res = { setHeader: jest.fn(), send: jest.fn() };
+      await controller.downloadDocument(
+        "1",
+        res as unknown as Response,
+        createMockReq("reviewer-1", GroupRole.REVIEWER) as unknown as Request,
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("data"));
+    });
+
     it("should send PDF file if document found", async () => {
       documentService.findDocument.mockResolvedValue({
         id: "1",
@@ -561,6 +583,23 @@ describe("DocumentController", () => {
 
   describe("viewDocument", () => {
     const mockReq = createMockReq();
+
+    it("should let a REVIEWER view the document they are reviewing", async () => {
+      documentService.findDocument.mockResolvedValue({
+        id: "1",
+        normalized_file_path: "cuid/ocr/normalized.pdf",
+        group_id: mockGroupId,
+        purged_at: null,
+      } as never);
+      blobStorage.read.mockResolvedValue(Buffer.from("pdf"));
+      const res = { setHeader: jest.fn(), send: jest.fn() };
+      await controller.viewDocument(
+        "1",
+        res as unknown as Response,
+        createMockReq("reviewer-1", GroupRole.REVIEWER) as unknown as Request,
+      );
+      expect(res.send).toHaveBeenCalledWith(Buffer.from("pdf"));
+    });
 
     it("should stream the normalized PDF when present", async () => {
       documentService.findDocument.mockResolvedValue({

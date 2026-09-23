@@ -108,6 +108,19 @@ describe("AzureController", () => {
         body: "group_id",
       });
     });
+
+    it("should read the classifier delete group from the :groupId route param", () => {
+      const metadata = Reflect.getMetadata(
+        IDENTITY_KEY,
+        AzureController.prototype.deleteClassifier,
+      ) as IdentityOptions;
+      expect(metadata.groupPermissions?.groupIdFrom).toEqual({
+        param: "groupId",
+      });
+      expect(metadata.groupPermissions?.requiredPermissions).toEqual([
+        Permission.CLASSIFIER_DELETE,
+      ]);
+    });
   });
 
   describe("getClassifiers", () => {
