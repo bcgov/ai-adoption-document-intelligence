@@ -174,7 +174,7 @@
         }
       },
       "timeout": "24h",
-      "onTimeout": "continue"
+      "onTimeout": "fail"
     },
     "markComplete": {
       "id": "markComplete",
