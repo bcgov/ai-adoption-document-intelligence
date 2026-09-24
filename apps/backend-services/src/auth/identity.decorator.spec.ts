@@ -1,5 +1,4 @@
 import "reflect-metadata";
-import { GroupRole } from "@generated/client";
 import { Reflector } from "@nestjs/core";
 import { IDENTITY_KEY, Identity, IdentityOptions } from "./identity.decorator";
 
@@ -41,8 +40,10 @@ describe("Identity decorator", () => {
   it("should store and retrieve the exact options object passed to the decorator", () => {
     const options: IdentityOptions = {
       requireSystemAdmin: true,
-      groupIdFrom: { param: "groupId" },
-      minimumRole: GroupRole.ADMIN,
+      groupPermissions: {
+        groupIdFrom: { param: "groupId" },
+        requiredPermissions: [],
+      },
       allowApiKey: true,
     };
     const handler = createHandler(options);
@@ -52,8 +53,10 @@ describe("Identity decorator", () => {
 
   it("should store options with groupIdFrom using a query field", () => {
     const options: IdentityOptions = {
-      groupIdFrom: { query: "group" },
-      minimumRole: GroupRole.MEMBER,
+      groupPermissions: {
+        groupIdFrom: { query: "groupId" },
+        requiredPermissions: [],
+      },
     };
     const handler = createHandler(options);
     const metadata = reflector.get<IdentityOptions>(IDENTITY_KEY, handler);
@@ -62,7 +65,10 @@ describe("Identity decorator", () => {
 
   it("should store options with groupIdFrom using a body field", () => {
     const options: IdentityOptions = {
-      groupIdFrom: { body: "groupId" },
+      groupPermissions: {
+        groupIdFrom: { body: "groupId" },
+        requiredPermissions: [],
+      },
     };
     const handler = createHandler(options);
     const metadata = reflector.get<IdentityOptions>(IDENTITY_KEY, handler);
@@ -79,13 +85,13 @@ describe("Identity decorator", () => {
     expect(metadata).toEqual({});
   });
 
-  it("should not set requireSystemAdmin, allowApiKey, groupIdFrom, or minimumRole when options are empty", () => {
+  it("should not set requireSystemAdmin, allowApiKey, groupIdFrom, or requiredPermissions when options are empty", () => {
     const handler = createHandler({});
     const metadata = reflector.get<IdentityOptions>(IDENTITY_KEY, handler);
     expect(metadata.requireSystemAdmin).toBeUndefined();
     expect(metadata.allowApiKey).toBeUndefined();
-    expect(metadata.groupIdFrom).toBeUndefined();
-    expect(metadata.minimumRole).toBeUndefined();
+    expect(metadata.groupPermissions?.groupIdFrom).toBeUndefined();
+    expect(metadata.groupPermissions?.requiredPermissions).toBeUndefined();
   });
 
   // ---------------------------------------------------------------------------
@@ -100,7 +106,10 @@ describe("Identity decorator", () => {
   it("should retrieve metadata using getAllAndOverride", () => {
     const options: IdentityOptions = {
       requireSystemAdmin: false,
-      minimumRole: GroupRole.MEMBER,
+      groupPermissions: {
+        groupIdFrom: { param: "groupId" },
+        requiredPermissions: [],
+      },
     };
 
     class TestController {

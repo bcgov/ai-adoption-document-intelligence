@@ -142,7 +142,7 @@ describe("BenchmarkProjectController", () => {
 
       mockBenchmarkProjectService.listProjects.mockResolvedValue(mockProjects);
 
-      const result = await controller.listProjects("test-group", mockReq);
+      const result = await controller.listProjects("test-group");
 
       expect(service.listProjects).toHaveBeenCalledWith(["test-group"]);
       expect(result).toEqual(mockProjects);
@@ -152,7 +152,7 @@ describe("BenchmarkProjectController", () => {
     it("returns empty array when no projects exist", async () => {
       mockBenchmarkProjectService.listProjects.mockResolvedValue([]);
 
-      const result = await controller.listProjects("test-group", mockReq);
+      const result = await controller.listProjects("test-group");
 
       expect(result).toEqual([]);
     });

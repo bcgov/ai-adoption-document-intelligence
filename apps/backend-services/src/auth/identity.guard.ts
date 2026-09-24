@@ -5,15 +5,14 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Request } from "express";
 import { UserService } from "@/actor/user.service";
 import { IDENTITY_KEY, IdentityOptions } from "./identity.decorator";
-import { ROLE_ORDER } from "./role-order";
-
-export { ROLE_ORDER };
+import { RoleClaimsMap } from "./role-permissions";
 
 /**
  * Identity resolution guard.
@@ -29,7 +28,7 @@ export { ROLE_ORDER };
  * - **API key path**: When the {@link Identity} decorator is present on the handler,
  *   `resolvedIdentity.isSystemAdmin` is set to `false` and `resolvedIdentity.groupRoles`
  *   is populated using `request.apiKey.groupId` (set by `ApiKeyAuthGuard`) as the key
- *   with a default role of `GroupRole.MEMBER`. When the decorator is absent, a base
+ *   with a default role of `GroupRole.EDITOR`. When the decorator is absent, a base
  *   identity object is set without enrichment. No database queries are made.
  *
  * Returns `true` when the request is allowed to proceed, or throws:
@@ -80,7 +79,7 @@ export class IdentityGuard implements CanActivate {
         // No database queries required; the key is group-scoped.
         request.resolvedIdentity = {
           isSystemAdmin: false,
-          groupRoles: { [groupId]: GroupRole.MEMBER },
+          groupRoles: { [groupId]: GroupRole.EDITOR },
           actorId: actorId,
         };
       } else {
@@ -130,53 +129,65 @@ export class IdentityGuard implements CanActivate {
       throw new ForbiddenException("System admin access required");
     }
 
+    // Shortcut this. No need for group permission checks.
+    if (request.resolvedIdentity.isSystemAdmin) {
+      return true;
+    }
+
     // Enforce groupIdFrom membership check.
-    // System admins bypass this check; non-admins must be a member of the resolved group.
-    if (identityOptions?.groupIdFrom && request.resolvedIdentity) {
-      const { param, query, body } = identityOptions.groupIdFrom;
+    // Non-admins must be a member of the resolved group.
+    // They must also have the required permissions outlined in the decorator.
+    if (identityOptions?.groupPermissions && request.resolvedIdentity) {
+      const { param, query, body } =
+        identityOptions.groupPermissions.groupIdFrom;
 
       if (param || query || body) {
-        if (!request.resolvedIdentity.isSystemAdmin) {
-          let groupId: string | undefined;
+        let groupId: string | undefined;
 
-          if (param) {
-            const paramsMap = request.params as Record<
-              string,
-              string | undefined
-            >;
-            groupId = paramsMap[param];
-          } else if (query) {
-            const queryVal = request.query[query];
-            groupId = typeof queryVal === "string" ? queryVal : undefined;
-          } else if (body) {
-            const bodyMap = request.body as Record<string, unknown>;
-            const bodyVal = bodyMap[body];
-            groupId = typeof bodyVal === "string" ? bodyVal : undefined;
-          }
-
-          if (!groupId) {
-            throw new BadRequestException("Missing required group identifier");
-          }
-
-          if (!request.resolvedIdentity.groupRoles?.[groupId]) {
-            throw new ForbiddenException(
-              "User is not a member of the specified group",
-            );
-          }
-
-          // Enforce minimumRole if specified. The role is guaranteed to exist
-          // at this point because the membership check above has just passed.
-          if (identityOptions.minimumRole !== undefined) {
-            const userRole = request.resolvedIdentity.groupRoles[groupId];
-            if (
-              ROLE_ORDER[userRole] < ROLE_ORDER[identityOptions.minimumRole]
-            ) {
-              throw new ForbiddenException(
-                "Insufficient role within the group",
-              );
-            }
-          }
+        if (param) {
+          const paramsMap = request.params as Record<
+            string,
+            string | undefined
+          >;
+          groupId = paramsMap[param];
+        } else if (query) {
+          const queryVal = request.query[query];
+          groupId = typeof queryVal === "string" ? queryVal : undefined;
+        } else if (body) {
+          const bodyMap = request.body as Record<string, unknown>;
+          const bodyVal = bodyMap[body];
+          groupId = typeof bodyVal === "string" ? bodyVal : undefined;
         }
+
+        if (!groupId) {
+          throw new BadRequestException("Missing required group identifier");
+        }
+
+        if (!request.resolvedIdentity.groupRoles?.[groupId]) {
+          throw new ForbiddenException(
+            "User is not a member of the specified group",
+          );
+        }
+
+        // User is confirmed as part of this group.
+        // Does their group role have the required permissions?
+        const requiredPermissions =
+          identityOptions.groupPermissions.requiredPermissions;
+        if (requiredPermissions.length === 0) {
+          throw new InternalServerErrorException(
+            "Permissions check missing requiredPermissions.",
+          );
+        }
+
+        const usersGroupRole = request.resolvedIdentity.groupRoles[groupId];
+        const permissionsForThisRole = new Set(RoleClaimsMap[usersGroupRole]);
+        if (!requiredPermissions.every((p) => permissionsForThisRole.has(p))) {
+          throw new ForbiddenException("Insufficient role within the group");
+        }
+      } else {
+        throw new BadRequestException(
+          "No group ID found in body, query params, or path params for request.",
+        );
       }
     }
 

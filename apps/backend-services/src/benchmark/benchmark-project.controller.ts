@@ -35,11 +35,8 @@ import {
 } from "@nestjs/swagger";
 import { Request } from "express";
 import { Identity } from "@/auth/identity.decorator";
-import {
-  getIdentityGroupIds,
-  identityCanAccessGroup,
-} from "@/auth/identity.helpers";
-import { GroupRole } from "@/generated";
+import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { BenchmarkProjectService } from "./benchmark-project.service";
 import { CreateProjectDto, ProjectDetailsDto, ProjectSummaryDto } from "./dto";
 
@@ -56,8 +53,10 @@ export class BenchmarkProjectController {
   @HttpCode(HttpStatus.CREATED)
   @Identity({
     allowApiKey: true,
-    groupIdFrom: { body: "groupId" },
-    minimumRole: GroupRole.MEMBER,
+    groupPermissions: {
+      groupIdFrom: { body: "groupId" },
+      requiredPermissions: [Permission.BENCHMARK_CREATE],
+    },
   })
   @ApiOperation({ summary: "Create a benchmark project" })
   @ApiBody({ type: CreateProjectDto })
@@ -86,11 +85,17 @@ export class BenchmarkProjectController {
   }
 
   @Get()
-  @Identity({ allowApiKey: true })
+  @Identity({
+    allowApiKey: true,
+    groupPermissions: {
+      groupIdFrom: { query: "groupId" },
+      requiredPermissions: [Permission.BENCHMARK_RETRIEVE],
+    },
+  })
   @ApiOperation({ summary: "List benchmark projects" })
   @ApiQuery({
     name: "groupId",
-    required: false,
+    required: true,
     description: "Optional group ID to filter projects",
   })
   @ApiOkResponse({
@@ -99,23 +104,11 @@ export class BenchmarkProjectController {
   })
   @ApiForbiddenResponse({ description: "Access denied: not a group member" })
   async listProjects(
-    @Query("groupId") groupId: string | undefined,
-    @Req() req: Request,
+    @Query("groupId") groupId: string,
   ): Promise<ProjectSummaryDto[]> {
     this.logger.log("GET /api/benchmark/projects");
 
-    if (groupId) {
-      identityCanAccessGroup(req.resolvedIdentity, groupId);
-      return this.benchmarkProjectService.listProjects([groupId]);
-    }
-
-    const groupIds = getIdentityGroupIds(req.resolvedIdentity);
-
-    if (!groupIds || groupIds.length === 0) {
-      return [];
-    }
-
-    return this.benchmarkProjectService.listProjects(groupIds);
+    return this.benchmarkProjectService.listProjects([groupId]);
   }
 
   @Get(":id")
@@ -136,7 +129,9 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId, [
+      Permission.BENCHMARK_RETRIEVE,
+    ]);
 
     return project;
   }
@@ -158,7 +153,9 @@ export class BenchmarkProjectController {
 
     const project = await this.benchmarkProjectService.getProjectById(id);
 
-    identityCanAccessGroup(req.resolvedIdentity, project.groupId);
+    identityCanAccessGroup(req.resolvedIdentity, project.groupId, [
+      Permission.BENCHMARK_DELETE,
+    ]);
 
     return this.benchmarkProjectService.deleteProject(
       id,

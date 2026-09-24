@@ -11,6 +11,7 @@ import {
 } from "@nestjs/common";
 import { AuditService } from "@/audit/audit.service";
 import { identityCanAccessGroup } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { ResolvedIdentity } from "@/auth/types";
 import { PrismaService } from "@/database/prisma.service";
 import { AppLoggerService } from "@/logging/app-logger.service";
@@ -577,7 +578,9 @@ export class TemplateModelService {
       );
     }
 
-    identityCanAccessGroup(identity, templateModel.group_id);
+    identityCanAccessGroup(identity, templateModel.group_id, [
+      Permission.TEMPLATE_MODEL_SUGGESTIONS,
+    ]);
 
     const ocrResult = labeledDoc.labeling_document
       .ocr_result as unknown as AnalysisResponse;

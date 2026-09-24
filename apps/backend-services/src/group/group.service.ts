@@ -13,6 +13,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { identityCanAccessGroup, requireUserId } from "@/auth/identity.helpers";
+import { Permission } from "@/auth/role-permissions";
 import { ResolvedIdentity } from "@/auth/types";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../database/prisma.service";
@@ -296,7 +297,9 @@ export class GroupService {
     reason?: string,
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "approved");
-    identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
+    identityCanAccessGroup(identity, request.group_id, [
+      Permission.GROUP_REQUESTS_APPROVE_DENY,
+    ]);
     await this.groupDb.approveRequestTransaction(
       request.user_id,
       request.group_id,
@@ -349,7 +352,9 @@ export class GroupService {
     reason?: string,
   ): Promise<void> {
     const request = await this.getValidPendingRequest(requestId, "denied");
-    identityCanAccessGroup(identity, request.group_id, GroupRole.ADMIN);
+    identityCanAccessGroup(identity, request.group_id, [
+      Permission.GROUP_REQUESTS_APPROVE_DENY,
+    ]);
     await this.groupDb.updateMembershipRequest(
       requestId,
       this.buildResolutionData(

@@ -93,7 +93,7 @@ export class LocalDatasetSyncService implements OnApplicationBootstrap {
     if (process.env.NODE_ENV === "production") {
       return;
     }
-    if (process.env.SYNC_LOCAL_DATASETS_ON_START === "false") {
+    if (process.env.SYNC_LOCAL_DATASETS_ON_START !== "true") {
       this.logger.debug(
         "Local dataset sync disabled (SYNC_LOCAL_DATASETS_ON_START=false)",
       );

@@ -950,7 +950,7 @@ describe("approveMembershipRequest", () => {
     const memberIdentity: ResolvedIdentity = {
       userId: adminId,
       isSystemAdmin: false,
-      groupRoles: { [pendingRequest.group_id]: GroupRole.MEMBER },
+      groupRoles: { [pendingRequest.group_id]: GroupRole.EDITOR },
       actorId: "actor-1",
     };
     const groupDb = makeGroupDb({
@@ -1144,7 +1144,7 @@ describe("denyMembershipRequest", () => {
     const memberIdentity: ResolvedIdentity = {
       userId: "user-1",
       isSystemAdmin: false,
-      groupRoles: { [pendingRequest.group_id]: GroupRole.MEMBER },
+      groupRoles: { [pendingRequest.group_id]: GroupRole.EDITOR },
       actorId: "actor-1",
     };
     const groupDb = makeGroupDb({

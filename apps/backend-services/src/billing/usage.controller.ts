@@ -1,4 +1,3 @@
-import { GroupRole } from "@generated/client";
 import { Controller, Get, Param, Query } from "@nestjs/common";
 import {
   ApiForbiddenResponse,
@@ -11,6 +10,7 @@ import {
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Identity } from "@/auth/identity.decorator";
+import { Permission } from "@/auth/role-permissions";
 import { AllGroupsSummaryItemDto } from "./dto/all-groups-summary-item.dto";
 import { GroupActivityHistoryItemDto } from "./dto/group-activity-history-item.dto";
 import { GroupUsageHistoryItemDto } from "./dto/group-usage-history-item.dto";
@@ -69,8 +69,10 @@ export class UsageController {
   @ApiUnauthorizedResponse({ description: "Unauthorized." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.ADMIN,
+    groupPermissions: {
+      requiredPermissions: [Permission.USAGE_RETRIEVE],
+      groupIdFrom: { param: "groupId" },
+    },
   })
   @Get("groups/:groupId/summary")
   async getGroupUsageSummary(
@@ -97,8 +99,10 @@ export class UsageController {
   @ApiUnauthorizedResponse({ description: "Unauthorized." })
   @ApiParam({ name: "groupId", description: "Group ID", type: String })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.ADMIN,
+    groupPermissions: {
+      requiredPermissions: [Permission.USAGE_RETRIEVE],
+      groupIdFrom: { param: "groupId" },
+    },
   })
   @Get("groups/:groupId/history")
   async getGroupUsageHistory(
@@ -139,8 +143,10 @@ export class UsageController {
     type: String,
   })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.ADMIN,
+    groupPermissions: {
+      requiredPermissions: [Permission.USAGE_RETRIEVE],
+      groupIdFrom: { param: "groupId" },
+    },
   })
   @Get("groups/:groupId/activity-history")
   async getGroupActivityHistory(
@@ -182,8 +188,10 @@ export class UsageController {
     type: String,
   })
   @Identity({
-    groupIdFrom: { param: "groupId" },
-    minimumRole: GroupRole.ADMIN,
+    groupPermissions: {
+      requiredPermissions: [Permission.USAGE_RETRIEVE],
+      groupIdFrom: { param: "groupId" },
+    },
   })
   @Get("groups/:groupId/runs/:workflowExecutionId")
   async getRunDetail(
