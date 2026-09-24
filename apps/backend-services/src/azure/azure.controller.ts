@@ -687,7 +687,7 @@ export class AzureController {
   @Delete("classifiers/:groupId/:classifierName")
   @Identity({
     groupPermissions: {
-      groupIdFrom: { param: "group_id" },
+      groupIdFrom: { param: "groupId" },
       requiredPermissions: [Permission.CLASSIFIER_DELETE],
     },
   })

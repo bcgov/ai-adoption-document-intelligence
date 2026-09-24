@@ -464,7 +464,7 @@ export class GroupController {
   @Identity({
     groupPermissions: {
       groupIdFrom: { param: "groupId" },
-      requiredPermissions: [], // All see the members of their own groups.
+      requiredPermissions: [Permission.GROUP_RETRIEVE],
     },
   })
   @Get(":groupId/members")
@@ -568,7 +568,7 @@ export class GroupController {
   @Identity({
     groupPermissions: {
       groupIdFrom: { param: "groupId" },
-      requiredPermissions: [],
+      requiredPermissions: [Permission.GROUP_LEAVE],
     },
   })
   @Delete(":groupId/leave")

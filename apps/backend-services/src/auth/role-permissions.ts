@@ -114,6 +114,10 @@ const allPermissions = Object.values(Permission).filter(
 
 // Reminder that this is group admins only, not system-admins.
 const groupAdminOnlyPermissions = [
+  Permission.API_KEY_RETRIEVE,
+  Permission.API_KEY_CREATE,
+  Permission.API_KEY_DELETE,
+  Permission.CLASSIFIER_DELETE,
   Permission.GROUP_UPDATE,
   Permission.GROUP_REQUESTS_APPROVE_DENY,
   Permission.GROUP_REQUESTS_RETRIEVE,
@@ -122,6 +126,12 @@ const groupAdminOnlyPermissions = [
   Permission.GROUP_USER_ROLE_UPDATE,
   Permission.GROUP_BILLING,
   Permission.USAGE_RETRIEVE,
+  Permission.TABLE_CREATE,
+  Permission.TABLE_UPDATE,
+  Permission.TABLE_DELETE,
+  Permission.TABLE_COLUMN_CREATE,
+  Permission.TABLE_COLUMN_UPDATE,
+  Permission.TABLE_COLUMN_DELETE,
 ];
 
 export const RoleClaimsMap: Record<GroupRole, Permission[]> = {
@@ -143,5 +153,6 @@ export const RoleClaimsMap: Record<GroupRole, Permission[]> = {
     Permission.HITL_DATASET_UPDATE,
     Permission.HITL_APPROVE_DENY,
     Permission.GROUP_RETRIEVE,
+    Permission.GROUP_LEAVE,
   ],
 };
