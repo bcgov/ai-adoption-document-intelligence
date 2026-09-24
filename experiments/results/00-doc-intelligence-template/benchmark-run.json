@@ -107,7 +107,6 @@
       },
       "workflowConfigOverrides": {
         "ctx.modelId.defaultValue": "sdpr-monthly-prod",
-        "nodes.humanReview.timeout": "24h",
         "ctx.confidenceThreshold.defaultValue": 0
       }
     },

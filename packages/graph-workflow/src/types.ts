@@ -196,7 +196,7 @@ export interface HumanGateNode extends GraphNodeBase {
     name: string;
     payloadSchema?: Record<string, unknown>;
   };
-  timeout: string;
+  timeout?: string;
   onTimeout: "fail" | "continue" | "fallback";
   fallbackEdgeId?: string;
 }
