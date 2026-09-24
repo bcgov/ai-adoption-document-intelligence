@@ -18,7 +18,7 @@ When creating a benchmark definition, users can override exposed workflow parame
 For the standard-ocr-workflow which exposes:
 - `ctx.modelId.defaultValue` (select: prebuilt-layout, prebuilt-read, prebuilt-document)
 - `nodes.checkConfidence.parameters.threshold` (number, default: 0.95)
-- `nodes.humanReview.timeout` (duration, default: "24h")
+- `nodes.humanReview.timeout` (duration, default: infinite)
 
 A definition can override:
 

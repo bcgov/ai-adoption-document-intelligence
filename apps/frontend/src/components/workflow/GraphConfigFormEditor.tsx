@@ -127,7 +127,6 @@ function defaultNodeForType(type: NodeType, id: string): GraphNode {
         ...base,
         type: "humanGate",
         signal: { name: "approve" },
-        timeout: "24h",
         onTimeout: "fail",
       };
     default:
