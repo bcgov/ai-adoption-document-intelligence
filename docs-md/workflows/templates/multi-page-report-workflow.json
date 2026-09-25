@@ -10,9 +10,11 @@
     "documentId": { "type": "string" },
     "blobKey": { "type": "string" },
     "fileName": { "type": "string" },
+    "groupId": { "type": "string", "description": "Group ID that owns the document (injected by the run trigger)" },
 
     "preparedFileData": { "type": "object", "description": "Prepared file metadata from file.prepare" },
     "apimRequestId": { "type": "string", "description": "Azure OCR request ID" },
+    "ocrStatus": { "type": "string", "description": "Azure OCR poll status" },
     "ocrResponseRef": { "type": "object", "description": "Azure OCR poll response" },
     "initialOcrResult": { "type": "object", "description": "Full document OCR result before splitting" },
 
@@ -21,6 +23,7 @@
     "segmentOcrResult": { "type": "object", "description": "OCR result from child workflow for current segment" },
     "combinedSegment": { "type": "object", "description": "Combined segment metadata and OCR result from passthrough node" },
 
+    "ocrModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for the initial pass over the whole document; its Prepare, Poll and Extract steps all read it" },
     "monthlyReportModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for monthly report segments" },
     "payStubModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for pay stub segments" },
     "bankRecordModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for bank record segments" },
@@ -38,12 +41,10 @@
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "fileName", "ctxKey": "fileName" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "ocrModelId" }
       ],
       "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
-      "parameters": {
-        "modelId": "prebuilt-layout"
-      },
       "timeout": { "startToClose": "1m" }
     },
     "submitOcr": {
@@ -74,12 +75,15 @@
       "activityType": "azureOcr.poll",
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "modelId", "ctxKey": "ocrModelId" }
       ],
-      "outputs": [{ "port": "response", "ctxKey": "ocrResponseRef" }],
+      "outputs": [
+        { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
+        { "port": "status", "ctxKey": "ocrStatus" }
+      ],
       "condition": {
         "operator": "not-equals",
-        "left": { "ref": "ctx.ocrResponseRef.status" },
+        "left": { "ref": "ctx.ocrStatus" },
         "right": { "literal": "running" }
       },
       "interval": "10s",
@@ -96,7 +100,7 @@
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
         { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
         { "port": "fileName", "ctxKey": "fileName" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "modelId", "ctxKey": "ocrModelId" }
       ],
       "outputs": [{ "port": "ocrResult", "ctxKey": "initialOcrResult" }],
       "timeout": { "startToClose": "1m" }
@@ -108,6 +112,7 @@
       "activityType": "document.splitAndClassify",
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
+        { "port": "groupId", "ctxKey": "groupId" },
         { "port": "ocrResult", "ctxKey": "initialOcrResult" },
         { "port": "documentId", "ctxKey": "documentId" }
       ],
@@ -178,7 +183,7 @@
       "label": "OCR Monthly Report",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -196,7 +201,7 @@
       "label": "OCR Pay Stub",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -214,7 +219,7 @@
       "label": "OCR Bank Record",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -232,7 +237,7 @@
       "label": "OCR Unknown Document",
       "workflowRef": {
         "type": "library",
-        "workflowId": "standard-ocr-workflow"
+        "workflowId": "Standard OCR Workflow"
       },
       "inputMappings": [
         { "port": "blobKey", "ctxKey": "currentSegment.blobKey" },
@@ -329,7 +334,7 @@
       "activityType": "ocr.storeResults",
       "inputs": [
         { "port": "documentId", "ctxKey": "documentId" },
-        { "port": "ocrResult", "ctxKey": "validationResults" }
+        { "port": "ocrResult", "ctxKey": "initialOcrResult" }
       ],
       "timeout": { "startToClose": "2m" }
     }

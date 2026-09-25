@@ -6,15 +6,19 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AuditModule } from "@/audit/audit.module";
 import { AzureModule } from "@/azure/azure.module";
+import { ActivityCatalogModule } from "./activity-catalog/activity-catalog.module";
 import { ActorModule } from "./actor/actor.module";
+import { AgentModule } from "./agent/agent.module";
 import { AuthModule } from "./auth/auth.module";
 import { BenchmarkModule } from "./benchmark/benchmark.module";
 import { BillingModule } from "./billing/billing.module";
 import { BlobStorageModule } from "./blob-storage/blob-storage.module";
 import { BootstrapModule } from "./bootstrap/bootstrap.module";
+import { CacheModule } from "./cache/cache.module";
 import { ConfusionProfileModule } from "./confusion-profile/confusion-profile.module";
 import { DatabaseModule } from "./database/database.module";
 import { DocumentModule } from "./document/document.module";
+import { DynamicNodesModule } from "./dynamic-nodes/dynamic-nodes.module";
 import { GroupModule } from "./group/group.module";
 import { HealthModule } from "./health/health.module";
 import { HitlModule } from "./hitl/hitl.module";
@@ -55,13 +59,16 @@ import { WorkflowModule } from "./workflow/workflow.module";
         ],
       }),
     }),
+    ActivityCatalogModule,
     ActorModule,
     AuthModule,
     AuditModule,
     BenchmarkModule,
+    CacheModule,
     ConfusionProfileModule,
     DatabaseModule,
     DocumentModule,
+    DynamicNodesModule,
     QueueModule,
     UploadModule,
     TemporalModule,
@@ -78,6 +85,7 @@ import { WorkflowModule } from "./workflow/workflow.module";
     HealthModule,
     MetricsModule,
     TablesModule,
+    AgentModule,
   ],
   providers: [
     {
