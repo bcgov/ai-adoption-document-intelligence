@@ -54,7 +54,7 @@ export const mockActivities = {
   ): Promise<PollResult> {
     return {
       status: "succeeded",
-      response: {
+      ocrResponse: {
         documentId: "mock-doc",
         blobPath: "mock/azure-response.json",
         storage: "blob" as const,
