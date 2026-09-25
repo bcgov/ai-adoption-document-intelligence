@@ -36,9 +36,9 @@
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "fileName", "ctxKey": "fileName" },
         { "port": "fileType", "ctxKey": "fileType" },
-        { "port": "contentType", "ctxKey": "contentType" }
+        { "port": "contentType", "ctxKey": "contentType" },
+        { "port": "modelId", "ctxKey": "modelId" }
       ],
-      "parameters": { "modelId": "mistral-ocr-latest" },
       "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
       "timeout": { "startToClose": "1m" },
       "retry": { "maximumAttempts": 3 }
@@ -161,8 +161,7 @@
       "exposedParams": [
         {
           "label": "OCR Model",
-          "nodeId": "prepareFileData",
-          "path": "nodes.prepareFileData.parameters.modelId",
+          "path": "ctx.modelId.defaultValue",
           "type": "select",
           "options": ["mistral-ocr-latest"],
           "default": "mistral-ocr-latest"

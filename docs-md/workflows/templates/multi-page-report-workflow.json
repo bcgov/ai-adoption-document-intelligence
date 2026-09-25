@@ -23,6 +23,7 @@
     "segmentOcrResult": { "type": "object", "description": "OCR result from child workflow for current segment" },
     "combinedSegment": { "type": "object", "description": "Combined segment metadata and OCR result from passthrough node" },
 
+    "ocrModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for the initial pass over the whole document; its Prepare, Poll and Extract steps all read it" },
     "monthlyReportModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for monthly report segments" },
     "payStubModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for pay stub segments" },
     "bankRecordModelId": { "type": "string", "defaultValue": "prebuilt-layout", "description": "OCR model for bank record segments" },
@@ -40,12 +41,10 @@
       "inputs": [
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "fileName", "ctxKey": "fileName" },
-        { "port": "documentId", "ctxKey": "documentId" }
+        { "port": "documentId", "ctxKey": "documentId" },
+        { "port": "modelId", "ctxKey": "ocrModelId" }
       ],
       "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
-      "parameters": {
-        "modelId": "prebuilt-layout"
-      },
       "timeout": { "startToClose": "1m" }
     },
     "submitOcr": {
@@ -74,7 +73,10 @@
       "type": "pollUntil",
       "label": "Poll Initial OCR Results",
       "activityType": "azureOcr.poll",
-      "inputs": [{ "port": "apimRequestId", "ctxKey": "apimRequestId" }],
+      "inputs": [
+        { "port": "apimRequestId", "ctxKey": "apimRequestId" },
+        { "port": "modelId", "ctxKey": "ocrModelId" }
+      ],
       "outputs": [
         { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
         { "port": "status", "ctxKey": "ocrStatus" }
@@ -97,7 +99,8 @@
       "inputs": [
         { "port": "apimRequestId", "ctxKey": "apimRequestId" },
         { "port": "ocrResponse", "ctxKey": "ocrResponseRef" },
-        { "port": "fileName", "ctxKey": "fileName" }
+        { "port": "fileName", "ctxKey": "fileName" },
+        { "port": "modelId", "ctxKey": "ocrModelId" }
       ],
       "outputs": [{ "port": "ocrResult", "ctxKey": "initialOcrResult" }],
       "timeout": { "startToClose": "1m" }

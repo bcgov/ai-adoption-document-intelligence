@@ -45,9 +45,9 @@
         { "port": "blobKey", "ctxKey": "blobKey" },
         { "port": "fileName", "ctxKey": "fileName" },
         { "port": "fileType", "ctxKey": "fileType" },
-        { "port": "contentType", "ctxKey": "contentType" }
+        { "port": "contentType", "ctxKey": "contentType" },
+        { "port": "modelId", "ctxKey": "modelId" }
       ],
-      "parameters": { "modelId": "sdpr_synth_test" },
       "outputs": [{ "port": "preparedData", "ctxKey": "preparedFileData" }],
       "timeout": { "startToClose": "1m" },
       "retry": { "maximumAttempts": 3 }
@@ -237,8 +237,7 @@
       "exposedParams": [
         {
           "label": "OCR Model",
-          "nodeId": "prepareFileData",
-          "path": "nodes.prepareFileData.parameters.modelId",
+          "path": "ctx.modelId.defaultValue",
           "type": "string"
         }
       ]
