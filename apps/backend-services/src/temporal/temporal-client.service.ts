@@ -1,4 +1,5 @@
 import { gunzipSync } from "node:zlib";
+import type { RunTrigger } from "@ai-di/graph-workflow";
 import { getErrorMessage, getErrorStack } from "@ai-di/shared-logging";
 import {
   GZIP_ORIGINAL_ENCODING_METADATA_KEY,
@@ -35,22 +36,6 @@ export type TemporalExecutionStatusFilter =
   | "Completed"
   | "Failed"
   | "Canceled";
-
-/**
- * What started a graph workflow run, recorded on the `RunTrigger` search
- * attribute (G-021):
- *
- * - `"try"` — an editor preview started from the canvas Try tab. These are
- *   disposable: starting a new Try cancels the in-flight ones for the same
- *   lineage.
- * - `"api"` — a production run (the `/runs` API, or a document processed by
- *   `OcrService`). These are never cancelled by a subsequent start.
- *
- * Every call site must state its trigger explicitly — there is no default,
- * because guessing wrong here either cancels production work or leaks
- * abandoned previews.
- */
-export type RunTrigger = "try" | "api";
 
 /**
  * The two ids a graph workflow start produces. Callers need different ones,
