@@ -145,9 +145,9 @@ npm run seed:demos
 
 **▶ Open:** [http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit](http://localhost:3000/workflows/by-slug/demo-grouping-simplified-view-node-swap-part-6/edit)
 
-1. This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes one **parameter**, *OCR Model*, wired to `Prepare File Data`'s real `modelId` parameter.
-1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row targets member node **Prepare File Data**, path `nodes.prep.parameters.modelId`.
-1. In the exposed-params editor, remove **Prepare File Data** from the group → the *OCR Model* param that referenced it is **pruned** with a toast.
+1. This chain ships pre-organised into two groups — **OCR Extraction** (Prepare → Submit → Extract) and **Finalize** (Cleanup → Store). The **OCR Extraction** group exposes two **parameters**: *OCR Model*, the default of the workflow's `modelId` variable (Prepare and Extract both read it, so they always use one model), and *OCR Locale*, `Submit to Azure OCR`'s own `locale` parameter.
+1. Open **More ▸ Simplified view** → each group collapses to a single **chip**; click the **OCR Extraction** chip → **GroupNodeSettings** opens with its label/description/colour and the **Exposed parameters** editor (member node + path + type). The *OCR Model* row has no member node and the path `ctx.modelId.defaultValue`; the *OCR Locale* row targets member node **Submit to Azure OCR**, path `nodes.submit.parameters.locale`.
+1. In the exposed-params editor, remove **Submit to Azure OCR** from the group → the *OCR Locale* param that referenced it is **pruned** with a toast; *OCR Model* stays, because it belongs to the workflow rather than to one node.
 1. Turn simplified view off. Right-click an **activity** node → **Change activity type** → pick a new type (label/ports/position preserved). Right-click a control-flow node and note the entry is **disabled**.
 1. **More ▸ Auto-arrange** re-lays the graph left-to-right and re-fits.
 

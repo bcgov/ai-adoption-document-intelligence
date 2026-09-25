@@ -48,7 +48,7 @@ Never expose `groupId`, `requestId`, benchmark internals, raw operation IDs (`ap
 
 | Activity ID | Primary settings | Advanced settings | Auto-wired / hidden |
 |---|---|---|---|
-| `file.prepare` | OCR model | — | document/blob metadata |
+| `file.prepare` | — | — | document/blob metadata; the OCR model is an input bound to the workflow's model variable, shared with poll and extract |
 | `azureOcr.submit` | — | locale | request/response plumbing |
 | `azureOcr.poll` | poll timing via `pollUntil` | extra poll controls | poll payload |
 | `azureOcr.extract` | — | — | operation/payload wiring |

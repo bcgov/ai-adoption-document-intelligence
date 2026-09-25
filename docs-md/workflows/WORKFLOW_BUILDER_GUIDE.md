@@ -563,7 +563,7 @@ For OCR workflows, you'll also typically need:
 ### Step 3: Place and Configure Nodes
 
 1. Drag a **Prepare File Data** activity node onto the canvas
-   - Bind inputs: `blobKey`, `fileName` from context
+   - Bind inputs: `blobKey`, `fileName`, `modelId` from context
    - Bind output: `preparedFileData` to context
 
 2. Drag a **Submit to Azure OCR** activity node and connect it
@@ -577,7 +577,7 @@ For OCR workflows, you'll also typically need:
    - Bind output: port `ocrResponse` → `ocrResponseRef`
 
 4. Add an **Extract OCR Results** activity node
-   - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`
+   - Bind inputs: `apimRequestId`, `ocrResponse` ← `ocrResponseRef`, `fileName`, `documentId`, `modelId`
    - Bind output: port `ocrResult` → `ocrResultRef`
 
 5. Add a **Post-OCR Cleanup** activity node
