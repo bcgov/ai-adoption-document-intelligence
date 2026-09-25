@@ -1,9 +1,8 @@
 # Workflow designer — UX review, batch four (2026-08-06)
 
 Every actionable item from the reviewer's second UX walkthrough of the visual
-workflow builder, recorded in
-`!Justin/SDPR workshop/2026-08-06 inderdeep workflow ui feedback transcript.txt`
-(59 minutes, screen-shared, working from the manual test plan).
+workflow builder, a 59-minute screen-shared session on 2026-08-06, working from
+the manual test plan.
 
 He reached the end of the test plan this time. He skipped only the parts that
 are `curl`/infrastructure work (14.1–14.6, 14.11–14.13) — see item 33.
@@ -608,22 +607,17 @@ cannot change anything; while the list is loading, or if it fails to load, the
 composer stays live and the turn omits `provider`/`model` so the backend
 applies its own default. (4) Docs: `MANUAL_TEST_PLAN.md` Part 15 env table +
 15.2 (re-opened for manual verification), `AI_AGENT_DESIGN.md` §2.2 + §12b,
-`PHASE7_HANDOFF.md`. **Still Alex's to find out:** which deployments this
-project may call through the AI Services Hub's APIM — one question to Shabari
-Kunnumel, per the decision artifact. Re-pointing at the answer is now an env
-change with no rebuild.
-**Decision artifact written 2026-08-08.** See
-[DECISIONS/23-bcgov-models.md](DECISIONS/23-bcgov-models.md). The backend is
-**already APIM-aware**, so re-pointing at a BC Gov deployment is a
-three-environment-variable config change, not code. The code-shaped blocker is
+`PHASE7_HANDOFF.md`. **Still open:** which deployments this project may
+call through the AI Services Hub's APIM. Re-pointing at the answer is now an
+env change with no rebuild.
+The backend is **already APIM-aware**, so re-pointing at a BC Gov deployment is
+a three-environment-variable config change, not code. The code-shaped blocker is
 that the frontend model list is six hardcoded strings and the default is simply
-the first array element. The store does not record which deployments this
-project can call — that needs one question to one named person.
+the first array element.
 **Area:** Backend — agent providers
-**Problem:** Alex: *"it should also work with models other than 5.4 that is
-currently set up for my personal account, and it should instead work with the
-BC Gov available LLMs."* Today the picker defaults to Azure GPT-5.4, which
-nobody but Alex can call.
+**Problem:** the agent should work with the LLMs BC Gov makes available. Today
+the picker defaults to an Azure GPT-5.4 deployment that other team members
+cannot call.
 **Expected:** Establish which models are available through BC Gov's Azure
 OpenAI/APIM, and make the default model one of them so a second person can run
 the feature.

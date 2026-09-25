@@ -928,8 +928,6 @@ same legend.
 
 ### Item 23 — the code is readier than assumed
 
-[23-bcgov-models.md](DECISIONS/23-bcgov-models.md)
-
 The backend is **already APIM-aware** — it normalises the base URL, uses
 deployment-based URLs, and forces the legacy `chat/completions` endpoint because
 proxies often forward only that one. So re-pointing at a BC Gov deployment is a
@@ -938,11 +936,7 @@ is that the frontend model list is six hardcoded strings and the default is
 simply the first array element — GPT-5.4 wins because it is first, not because
 anything chose it.
 
-The store answers the organisational half only partly, and the artifact says so:
-GPT is effectively the only family lit up, Claude is blocked on region, and the
-only concrete deployment the corpus names belongs to another ministry's
-workload. What deployments *this* project can call is not recorded anywhere —
-it needs one question to one named person.
+Which deployments this project may call is still an open question.
 
 ### Item 33 — seven of the nine steps are already machine-verified
 
